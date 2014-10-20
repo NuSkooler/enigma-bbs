@@ -418,7 +418,7 @@ function display(art, options, cb) {
 
 	parser.on('mci', function onMCI(mciCode, args) {
 		if(mci[mciCode]) {
-			mci[mciCode].altColor = {
+			mci[mciCode].focusColor = {
 				fg		: parser.fgColor,
 				bg		: parser.bgColor,
 				flags	: parser.flags,
@@ -430,7 +430,9 @@ function display(art, options, cb) {
 					fg		: parser.fgColor,
 					bg		: parser.bgColor,
 					flags	: parser.flags,
-				}
+				},
+				code	: mciCode.substr(0, 2),
+				id		: mciCode.substr(2, 1),	//	:TODO: This NEEDs to read 01-99
 			};
 
 			mciPosQueue.push(mciCode);

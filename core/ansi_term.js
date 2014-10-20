@@ -16,7 +16,7 @@ var miscUtil	= require('./misc_util.js');
 
 exports.sgr							= sgr;
 exports.clearScreen					= clearScreen;
-exports.clearScreenGoHome			= clearScreenGoHome;
+exports.resetScreen					= resetScreen;
 exports.normal						= normal;
 exports.goHome						= goHome;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
@@ -40,13 +40,18 @@ var CONTROL = {
 	prevLine		: 'F',
 	horizAbsolute	: 'G',
 	eraseData		: 'J',
+	eraseLine		: 'K',
+	insertLine		: 'L',
+	deleteLine		: 'M',
 	scrollUp		: 'S',
 	scrollDown		: 'T',
 	savePos			: 's',
 	restorePos		: 'u',
 	queryPos		: '6n',
 	goto			: 'H',	//	row Pr, column Pc -- same as f
-	gotoAlt			: 'f'	//	same as H
+	gotoAlt			: 'f',	//	same as H
+
+	emulationSpeed	: '*r'	//	Set output emulation speed. See cterm.txt
 };
 
 /*
@@ -255,8 +260,8 @@ function clearScreen() {
 	return exports.eraseData(2);
 }
 
-function clearScreenGoHome() {
-	return exports.goto(1,1) + exports.eraseData(2);
+function resetScreen() {
+	return exports.goHome() + exports.eraseData(2);
 }
 
 function normal() {

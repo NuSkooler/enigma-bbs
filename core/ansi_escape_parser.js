@@ -4,6 +4,7 @@
 var events		= require('events');
 var util		= require('util');
 var miscUtil	= require('./misc_util.js');
+var ansi		= require('./ansi_term.js');
 
 exports.ANSIEscapeParser		= ANSIEscapeParser;
 
@@ -18,8 +19,6 @@ function ANSIEscapeParser(options) {
 	this.flags		= 0x00;
 	this.scrollBack	= 0;
 
-
-
 	options = miscUtil.valueWithDefault(options, {
 		mciReplaceChar		: '',
 		termHeight			: 25,
@@ -29,6 +28,12 @@ function ANSIEscapeParser(options) {
 	this.mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, '');
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
+
+	function saveLastColor() {
+		self.lastFlags		= self.flags;
+		self.lastFgCololr	= self.fgColor;
+		self.lastBgColor	= self.bgColor;
+	}
 	
 	function getArgArray(array) {
 		var i = array.length;
@@ -125,7 +130,8 @@ function ANSIEscapeParser(options) {
 
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
-			return new Array(mci.length + 1).join(self.mciReplaceChar);
+			var eraseColor = ansi.sgr(self.lastFlags, self.lastFgColor, self.lastBgColor);
+			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);
 		} else {
 			return mci;
 		}
@@ -254,6 +260,8 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
+				saveLastColor();
+
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 					if(0x00 === arg) {
@@ -280,6 +288,9 @@ function ANSIEscapeParser(options) {
 				break;
 		}
 	}
+
+	this.resetColor();
+	saveLastColor();
 }
 
 util.inherits(ANSIEscapeParser, events.EventEmitter);
