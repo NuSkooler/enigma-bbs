@@ -6,6 +6,7 @@ var conf		= require('./config.js');
 var modules		= require('./modules.js');
 var logger		= require('./logger.js');
 var miscUtil	= require('./misc_util.js');
+var database	= require('./database.js');
 
 var iconv		= require('iconv-lite');
 var paths		= require('path');
@@ -49,10 +50,6 @@ exports.bbsMain = function() {
 
 	logger.init();
 
-	preServingInit();
-
-	startListening();
-
 	process.on('SIGINT', function onSigInt() {
 		//	:TODO: for any client in |clientConnections|, if 'ready', send a "Server Disconnecting" + semi-gracefull hangup
 		//	e.g. client.disconnectNow()
@@ -60,6 +57,12 @@ exports.bbsMain = function() {
 		logger.log.info('Process interrupted, shutting down');
 		process.exit();
 	});
+
+	database.initializeDatabases();
+
+	preServingInit();
+
+	startListening();
 };
 
 function parseArgs() {

@@ -29,7 +29,11 @@ function stylizeString(s, style) {
 	var i;
 	var stylized = '';
 
-	switch(style) {		
+	switch(style) {
+		//	None/normal
+		case 'normal' :
+		case 'N' : return s;
+
 		//	UPPERCASE
 		case 'upper' : 
 		case 'U' : return s.toUpperCase();
@@ -38,9 +42,9 @@ function stylizeString(s, style) {
 		case 'lower' :
 		case 'l' : return s.toLowerCase();
 
-		//	Proper Case
-		case 'proper' :
-		case 'P' :
+		//	Title Case
+		case 'title' :
+		case 'T' :
 			return s.replace(/\w\S*/g, function onProperCaseChar(t) {
 				return t.charAt(0).toUpperCase() + t.substr(1).toLowerCase();
 			});

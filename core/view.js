@@ -140,11 +140,10 @@ InteractiveView.prototype.setNextView = function(id) {
 
 
 var TEXT_EDIT_INPUT_TYPES = [
-	'none',	//	:TODO: TextEditView -> TextView (optional focus/editable)
-	'text',
-	'password',
-	'upper',
-	'lower',
+	'normal', 'N',
+	'password', 'P',
+	'upper', 'U',
+	'lower', 'l',
 ];
 
 
@@ -155,14 +154,16 @@ function TextEditView(client, options) {
 		this.options.multiLine = false;
 	}
 
-	this.options.inputType = miscUtil.valueWithDefault(this.options.inputType, 'text');
+	this.options.inputType = miscUtil.valueWithDefault(this.options.inputType, 'normal');
 	assert(TEXT_EDIT_INPUT_TYPES.indexOf(this.options.inputType) > -1);
 
-	if('password' === this.options.inputType) {
+	if('password' === this.options.inputType || 'P' === this.options.inputType) {
 		this.options.inputMaskChar = miscUtil.valueWithDefault(this.options.inputMaskChar, '*').substr(0,1);
 	}
 
 	this.value = miscUtil.valueWithDefault(options.defaultValue, '');
+	
+
 	//	:TODO: hilight, text, etc., should come from options or default for theme if not provided
 
 	//	focus=fg + bg
@@ -211,7 +212,7 @@ TextEditView.prototype.onKeyPressed = function(k, isSpecial) {
 
 		this.value += k;
 
-		if('password' === this.options.inputType) {
+		if('P' === this.options.inputType.charAt(0).toUpperCase()) {
 			this.client.term.write(this.options.inputMaskChar);
 		} else {
 			this.client.term.write(k);
@@ -272,14 +273,16 @@ function ViewsController(client) {
 	});
 
 	this.onViewAction = function(action) {
-		console.log(action + '@ ' + this.id);
-		
-		self.emit('action', { id : this.id, action : action });
+		console.log(action + ' @ ' + this.id);
 
-		if('accepted' === action) {
-			self.nextFocus();			
-		} else if('next' === action) {
-			self.nextFocus();
+		if(self.submitViewId == this.id) {
+			self.emit('action', { view : this, action : 'submit' });
+		} else {
+			self.emit('action', { view : this, action : action });
+
+			if('accepted' === action || 'next' === action) {
+				self.nextFocus();
+			}
 		}
 	};
 
@@ -333,6 +336,10 @@ ViewsController.prototype.nextFocus = function() {
 	} else {
 		this.switchFocus(this.firstId);
 	}
+};
+
+ViewsController.prototype.setSubmitView = function(id) {
+	this.submitViewId = id;
 };
 
 ViewsController.prototype.loadFromMCIMap = function(mciMap) {
@@ -399,7 +406,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			}
 
 			if(mci.args.length > 1) {
-
+				options.inputType = mci.args[1];
 			}
 
 			options.color		= mci.color;

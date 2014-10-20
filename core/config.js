@@ -6,6 +6,7 @@ var paths		= require('path');
 var miscUtil	= require('./misc_util.js');
 
 module.exports = {
+	//	:TODO: remove this ... anti-pattern!
 	config			: undefined,
 
 	defaultPath		: function() {
@@ -31,6 +32,7 @@ module.exports = {
 				servers				: paths.join(__dirname, './servers/'),
 				art					: paths.join(__dirname, './../mods/art/'),
 				logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
+				db					: paths.join(__dirname, './../db/'),
 			},
 			
 			servers : {
