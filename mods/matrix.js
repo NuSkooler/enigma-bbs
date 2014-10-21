@@ -41,10 +41,31 @@ function entryPoint(client) {
 
 				vc.on('action', function onAction(act) {
 					if('submit' === act.action) {
-						console.log('userName=' + vc.getView(1).value);
-						console.log('password: ' + act.view.value);
+						var un = vc.getView(1).value;
+						var pw = vc.getView(2).value;
+						console.log('userName: ' + un);
+						console.log('password: ' + pw);
 
-						user.User.load(vc.getView(1).value, function onUser(err, user) {
+						/*
+						var user1 = new user.User();
+						user.User.generatePasswordDerivedKey('password', function onDk(err, dkInfo) {
+							user1.userName = 'NuSkooler';
+							user1.properties = {
+								pw_pbkdf2_salt : dkInfo.salt,
+								pw_pbkdf2_dk : dkInfo.dk,	
+							};
+							user.User.addNew(user1, function onNewUser(err, id) {
+								if(err) {
+									console.log(err);
+								} else {
+									console.log('new user id: ' + id);
+								}
+							});
+						});*/
+						
+
+
+						user.User.loadWithCredentials(un, pw, function onUser(err, user) {
 							if(err) {
 								console.log(err);
 								return;
