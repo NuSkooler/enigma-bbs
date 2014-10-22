@@ -7,7 +7,8 @@ var lineEditor	= require('../core/line_editor.js');
 var art			= require('../core/art.js');
 var user		= require('../core/user.js');
 
-var view		= require('../core/view.js');
+//var view		= require('../core/view.js');
+var textView	= require('../core/text_view.js');
 
 exports.moduleInfo = {
 	name	: 'Matrix',
@@ -33,6 +34,16 @@ function entryPoint(client) {
 					return;					
 				}
 
+				var tv = new textView.TextView(client, {
+					position : [5, 5],
+					text : 'Hello, World!',
+					textStyle : 'password',
+					maxLength : 10
+				});
+
+				tv.redraw();
+				
+				/*
 				var vc = new view.ViewsController(client);
 				vc.loadFromMCIMap(mci);
 				vc.setViewOrder();
@@ -44,26 +55,7 @@ function entryPoint(client) {
 						var un = vc.getView(1).value;
 						var pw = vc.getView(2).value;
 						console.log('userName: ' + un);
-						console.log('password: ' + pw);
-
-						/*
-						var user1 = new user.User();
-						user.User.generatePasswordDerivedKey('password', function onDk(err, dkInfo) {
-							user1.userName = 'NuSkooler';
-							user1.properties = {
-								pw_pbkdf2_salt : dkInfo.salt,
-								pw_pbkdf2_dk : dkInfo.dk,	
-							};
-							user.User.addNew(user1, function onNewUser(err, id) {
-								if(err) {
-									console.log(err);
-								} else {
-									console.log('new user id: ' + id);
-								}
-							});
-						});*/
-						
-
+						console.log('password: ' + pw);			
 
 						user.User.loadWithCredentials(un, pw, function onUser(err, user) {
 							if(err) {
@@ -75,6 +67,7 @@ function entryPoint(client) {
 						});
 					}
 				});
+				*/
 			});
 		}
 	});
