@@ -58,9 +58,11 @@ EditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	} else if(this.isSpecialKeyMapped('enter', keyName)) {
 		if(this.multiLine) {
 		} else {
+			//	:TODO: by default handle this in View/base. Can always "absorb" the call here for special handling
 			this.emit('action', 'accepted');
 		}
 	} else if(this.isSpecialKeyMapped('next', keyName)) {
+		//	:TODO: by default handle next in View/base
 		this.emit('action', 'next');	
 	}
 };
