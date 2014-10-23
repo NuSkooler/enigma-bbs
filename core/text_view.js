@@ -33,7 +33,7 @@ function TextView(client, options) {
 	this.isPasswordTextStyle = 'P' === self.textStyle || 'password' === self.textStyle;
 
 	if(this.isPasswordTextStyle) {
-		this.passwordMaskChar = miscUtil.valueWithDefault(this.options.passwordMaskChar, '*').substr(0, 1);
+		this.textMaskChar = miscUtil.valueWithDefault(this.options.textMaskChar, '*').substr(0, 1);
 	}
 }
 
@@ -47,10 +47,18 @@ TextView.prototype.redraw = function() {
 	this.client.term.write(ansi.sgr(color.flags, color.fg, color.bg));
 
 	if(this.isPasswordTextStyle) {
-		this.client.term.write(strUtil.pad(new Array(this.text.length).join(this.passwordMaskChar), this.dimens.width));
+		this.client.term.write(strUtil.pad(new Array(this.text.length).join(this.textMaskChar), this.dimens.width));
 	} else {
 		this.client.term.write(strUtil.pad(this.text, this.dimens.width));
 	}
+};
+
+TextView.prototype.setFocus = function(focused) {
+	TextView.super_.prototype.setFocus.call(this, focused);
+
+	this.client.term.write(ansi.goto(this.position.x, this.position.y));
+	this.redraw();
+	this.client.term.write(ansi.goto(this.position.x, this.position.y + this.text.length));
 };
 
 TextView.prototype.setText = function(text) {
@@ -62,7 +70,7 @@ TextView.prototype.setText = function(text) {
 
 	this.text = strUtil.stylizeString(this.text, this.textStyle);
 
-	if(!this.multiLine) {
+	if(!this.multiLine && !this.dimens.width) {
 		this.dimens.width = this.text.length;
 	}
 };

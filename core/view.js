@@ -26,16 +26,21 @@ function View(client, options) {
 	this.client			= client;
 	this.options		= options || {};
 	
-	this.acceptsFocus	= false;
-	this.acceptsInput	= false;
+	this.acceptsFocus	= options.acceptsFocus || false;
+	this.acceptsInput	= options.acceptsInput || false;
 
 	this.position 		= { x : 0, y : 0 };
 	this.dimens			= { height : 1, width : 0 };
+
+	if(this.options.id) {
+		this.setId(this.options.id);
+	}
 
 	if(this.options.position) {
 		this.setPosition(this.options.position);
 	}
 
+	//	:TODO: Don't allow width/height > client.term
 	if(this.options.dimens && this.options.dimens.height) {
 		this.dimens.height = this.options.dimens.height;
 	}
@@ -50,10 +55,17 @@ function View(client, options) {
 	if(this.acceptsInput) {
 		this.specialKeyMap = this.options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
 	}
+
+	this.isSpecialKeyMapped = function(keySet, keyName) {
+		return this.specialKeyMap[keySet].indexOf(keyName) > -1;
+	};
 }
 
 util.inherits(View, events.EventEmitter);
 
+View.prototype.setId = function(id) {
+	this.id = id;
+};
 
 View.prototype.setPosition = function(pos) {
 	//
@@ -66,13 +78,12 @@ View.prototype.setPosition = function(pos) {
 		this.position.x = pos.x;
 		this.position.y = pos.y;
 	} else if(2 === arguments.length) {
-		var x = parseInt(arguments[0], 10);
-		var y = parseInt(arguments[1], 10);
-		if(!isNaN(x) && !isNaN(y)) {
-			this.position.x = x;
-			this.position.y = y;
-		}
+		this.position.x = parseInt(arguments[0], 10);
+		this.position.y = parseInt(arguments[1], 10);
 	}
+	
+	assert(!(isNaN(this.position.x)));
+	assert(!(isNaN(this.position.y)));
 
 	assert(this.position.x > 0 && this.position.x < this.client.term.termHeight);
 	assert(this.position.y > 0 && this.position.y < this.client.term.termWidth);

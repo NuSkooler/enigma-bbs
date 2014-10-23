@@ -9,6 +9,8 @@ var user		= require('../core/user.js');
 
 //var view		= require('../core/view.js');
 var textView	= require('../core/text_view.js');
+var editTextView	= require('../core/edit_text_view.js');
+var viewController	= require('../core/view_controller.js');
 
 exports.moduleInfo = {
 	name	: 'Matrix',
@@ -34,14 +36,48 @@ function entryPoint(client) {
 					return;					
 				}
 
+				/*
 				var tv = new textView.TextView(client, {
 					position : [5, 5],
 					text : 'Hello, World!',
 					textStyle : 'password',
-					maxLength : 10
+					maxLength : 10,
+					id : 1,
 				});
 
 				tv.redraw();
+
+				var etv = new editTextView.EditTextView(client, {
+					position : [10, 10],
+					textStyle : 'upper',
+					maxLength : 20,
+					dimens : { width : 30 },
+					text : 'default',
+					color : { flags : 0, fg : 31, bg : 40 },
+					focusColor : { flags : 1, fg : 37, bg : 44 },
+					id : 2,
+				});
+
+				etv.redraw();*/
+
+				var vc = new viewController.ViewController(client);
+				vc.loadFromMCIMap(mci);
+				vc.setViewOrder();
+				vc.switchFocus(1);
+				//vc.addView(etv);
+				//vc.switchFocus(2);
+
+				/*
+
+				client.on('key press', function onKp(key, isSpecial) {
+					key = 'string' === typeof key ? key : key.toString();
+					etv.onKeyPress(key, isSpecial);
+				});
+
+				client.on('special key', function onSK(keyName) {
+					etv.onSpecialKeyPress(keyName);
+				});
+			*/
 				
 				/*
 				var vc = new view.ViewsController(client);
