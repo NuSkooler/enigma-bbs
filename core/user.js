@@ -1,40 +1,103 @@
 /* jslint node: true */
 'use strict';
 
+var userDb			= require('./database.js').dbs.user;
 var crypto			= require('crypto');
 var assert			= require('assert');
-//var database		= require('./database.js');
 
-var userDb			= require('./database.js').dbs.user;
+exports.User						= User;
+exports.getUserId					= getUserId;
+exports.createNew					= createNew;
+exports.generatePasswordDerivedKey	= generatePasswordDerivedKey;
+exports.persistAll					= persistAll;
 
-exports.User					= User;
+function User() {
+	var self = this;
 
-var PBKDF2 = {
+	this.id			= 0;
+	this.userName	= '';
+
+	this.isValid = function() {
+		if(self.id <= 0 || self.userName.length < 2) {
+			return false;
+		}
+
+		return this.hasValidPassword();
+	};
+
+	this.hasValidPassword = function() {
+		if(!this.properties || !this.properties.pw_pbkdf2_salt || !this.properties.pw_pbkdf2_dk) {
+			return false;
+		}
+
+		return this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2 &&
+			this.prop_name.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2;
+	};
+
+	this.isRoot = function() {
+		return 1 === this.id;
+	};
+
+	this.isSysOp = this.isRoot;	//	alias
+}
+
+User.PBKDF2 = {
 	iterations	: 1000,
 	keyLen		: 128,
 	saltLen		: 32,
 };
 
-var UserErrorCodes = Object.freeze({
-	NONE				: 'No error',
-	INVALID_USER		: 'Invalid user',
-	INVALID_PASSWORD	: 'Invalid password',
-});
-
-function User() {
-	var self = this;
-	
-	this.id				= 0;
-	this.userName		= '';
-	this.groups			= [];
-	this.permissions	= [];
-	this.properties		= {};
-
-
+function getUserId(userName, cb) {
+	userDb.get(
+		'SELECT id ' +
+		'FROM user ' +
+		'WHERE user_name LIKE ?;',
+		[ userName ],
+		function onResults(err, row) {
+			cb(err, row.id);
+		}
+	);
 }
 
-User.generatePasswordDerivedKey = function(password, cb) {
-	crypto.randomBytes(PBKDF2.saltLen, function onRandomSalt(err, salt) {
+function createNew(user, cb) {
+	assert(user.userName && user.userName.length > 1, 'Invalid userName');
+
+	userDb.run(
+		'INSERT INTO user (user_name) ' + 
+		'VALUES (?);', 
+		[ user.userName ], 
+		function onUserInsert(err) {
+			if(err) {
+				cb(err);
+			} else {
+				user.id = this.lastID;
+
+				//
+				//	Allow converting user.password -> Salt/DK
+				//
+				if(user.password && user.password.length > 0) {
+					generatePasswordDerivedKey(user.password, function onDkGenerated(err, dk) {
+						user.properties = user.properties || {
+							pw_pbkdf2_salt	: dk.salt,
+							pw_pbkdf2_dk	: dk.dk,
+						};
+
+						persistAll(user, function onUserPersisted() {
+							cb(null, user.id);
+						});
+					});
+				} else {
+					persistAll(user, function onUserPersisted() {
+						cb(null, user.id);
+					});
+				}
+			}
+		}
+	);
+}
+
+function generatePasswordDerivedKey(password, cb) {
+	crypto.randomBytes(User.PBKDF2.saltLen, function onRandomSalt(err, salt) {
 		if(err) {
 			cb(err);
 			return;
@@ -44,171 +107,44 @@ User.generatePasswordDerivedKey = function(password, cb) {
 
 		password = new Buffer(password).toString('hex');
 
-		crypto.pbkdf2(password, salt, PBKDF2.iterations, PBKDF2.keyLen, function onDerivedKey(err, dk) {
+		crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, function onDerivedKey(err, dk) {
 			if(err) {
 				cb(err);
-				return;
+			} else {
+				cb(null, { dk : dk.toString('hex'), salt : salt } );
 			}
-
-			cb(null, { dk : dk.toString('hex'), salt : salt });
 		});
 	});
-};
+}
 
-//
-//	:TODO: createNewUser(userName, password, groups)
+function persistProperties(user, cb) {
+	assert(user.id > 0);
 
-User.addNew = function(user, cb) {
-	userDb.run('INSERT INTO user (user_name) VALUES(?);', [ user.userName ], function onUserInsert(err) {
-		if(err) {
-			cb(err);
-			return;
-		}
+	var stmt = userDb.prepare(
+		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
+		'VALUES (?, ?, ?);');
 
-		user.id = this.lastID;
-		user.persist(cb);
+	Object.keys(user.properties).forEach(function onProp(name) {
+		stmt.run(user.id, name, user.properties[name]);
 	});
-};
 
-User.prototype.persist = function(cb) {
-	var self = this;
+	stmt.finalize(function onFinalized() {
+		if(cb) {
+			cb();
+		}
+	});
+}
 
-	if(0 === this.id || 0 === this.userName.length) {
-		cb(new Error(UserErrorCodes.INVALID_USER));
-		return;
-	}
+function persistAll(user, cb) {
+	assert(user.id > 0);
 
 	userDb.serialize(function onSerialized() {
 		userDb.run('BEGIN;');
 
-		//	:TODO: Create persistProperties(id, {props})
-		var stmt = userDb.prepare('REPLACE INTO user_property (user_id, prop_name, prop_value) VALUES(?, ?, ?);');
-		Object.keys(self.properties).forEach(function onPropName(propName) {
-			stmt.run(self.id, propName, self.properties[propName]);
-		});
+		persistProperties(user);
 
-		stmt.finalize(function onFinalized() {
-			userDb.run('COMMIT;');
-			cb(null, self.id);
-		});
+		userDb.run('COMMIT;');
 	});
-};
 
-//	:TODO: make standalone function(password, dk, salt)
-User.prototype.validatePassword = function(password, cb) {
-	assert(this.properties.pw_pbkdf2_salt);
-	assert(this.properties.pw_pbkdf2_dk);
-
-	var self = this;
-
-	password = new Buffer(password).toString('hex');
-
-	crypto.pbkdf2(password, this.properties.pw_pbkdf2_salt, PBKDF2.iterations, PBKDF2.keyLen, function onDerivedKey(err, dk) {
-		if(err) {
-			cb(err);
-			return;
-		}
-
-		//	Constant time compare
-		var propDk = new Buffer(self.properties.pw_pbkdf2_dk, 'hex');
-
-		console.log(propDk);
-		console.log(dk);
-
-		if(propDk.length !== dk.length) {
-			cb(new Error('Unexpected buffer length'));
-			return;
-		}
-
-		var c = 0;
-		for(var i = 0; i < dk.length; i++) {
-			c |= propDk[i] ^ dk[i];
-		}
-		cb(null, c === 0);
-	});
-};
-
-//	:TODO: make this something like getUserProperties(id, [propNames], cb)
-function getUserDerivedKeyAndSalt(id, cb) {
-	var properties = {};
-	userDb.each(
-		'SELECT prop_name, prop_value ' +
-		'FROM user_property ' +
-		'WHERE user_id = ? AND prop_name="pw_pbkdf2_salt" OR prop_name="pw_pbkdf2_dk";', 
-		[ id ], 
-		function onPwPropRow(err, propRow) {
-			if(err) {
-				cb(err);
-			} else {
-				properties[propRow.prop_name] = propRow.prop_value;
-			}
-		}, 
-		function onComplete() {
-			cb(null, properties);
-		}
-	);
+	cb();
 }
-
-User.loadWithCredentials = function(userName, password, cb) {
-	userDb.get('SELECT id, user_name FROM user WHERE user_name LIKE ? LIMIT 1;"', [ userName ], function onUserIds(err, userRow) {
-		if(err) {
-			cb(err);
-			return;
-		}
-
-		if(!userRow) {
-			cb(new Error(UserErrorCodes.INVALID_USER));
-			return;
-		}
-
-		//	Load dk & salt properties for password validation
-		getUserDerivedKeyAndSalt(userRow.id, function onDkAndSalt(err, props) {
-			var user		= new User();
-			user.properties = props;
-			
-			user.validatePassword(password, function onValidatePw(err, isCorrect) {
-				if(err) {
-					cb(err);
-					return;
-				}
-
-				if(!isCorrect) {
-					cb(new Error(UserErrorCodes.INVALID_PASSWORD));
-					return;
-				}
-
-				//	userName and password OK -- load the rest.
-				
-				user.id			= userRow.id;
-				user.userName	= userRow.user_name;
-
-				cb(null, user);
-			});
-		});
-	});
-};
-
-User.prototype.setPassword = function(password, cb) {
-	//	:TODO: validate min len, etc. here?
-
-	crypto.randomBytes(PBKDF2.saltLen, function onRandomSalt(err, salt) {
-		if(err) {
-			cb(err);
-			return;
-		}
-
-		password = Buffer.isBuffer(password) ? password : new Buffer(password, 'hex');
-
-		crypto.pbkdf2(password, salt, PBKDF2.iterations, PBKDF2.keyLen, function onPbkdf2Generated(err, dk) {
-			if(err) {
-				cb(err);
-				return;
-			}
-
-			cb(null, dk);
-
-			this.properties['pw.pbkdf2.salt']	= salt;
-			this.properties['pw.pbkdf2.dk']		= dk;
-		});
-	});
-};

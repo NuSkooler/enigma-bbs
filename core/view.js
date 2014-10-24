@@ -6,10 +6,11 @@ var util		= require('util');
 var assert		= require('assert');
 var ansi		= require('./ansi_term.js');
 
-exports.View			= View;
+exports.View							= View;
+exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
 var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
-	enter		: [ 'enter' ],
+	accept		: [ 'enter' ],
 	exit		: [ 'esc' ],
 	backspace	: [ 'backspace' ],
 	del			: [ 'del' ],
@@ -105,4 +106,21 @@ View.prototype.setFocus = function(focused) {
 	assert(this.acceptsFocus, 'View does not accept focus');
 
 	this.hasFocus = focused;
+};
+
+View.prototype.onKeyPress = function(key, isSpecial) {
+	assert(this.hasFocus, 'View does not have focus');
+	assert(this.acceptsInput, 'View does not accept input');
+};
+
+View.prototype.onSpecialKeyPress = function(keyName) {
+	assert(this.hasFocus, 'View does not have focus');
+	assert(this.acceptsInput, 'View does not accept input');
+	assert(this.specialKeyMap, 'No special key map defined');
+
+	if(this.isSpecialKeyMapped('accept', keyName)) {
+		this.emit('action', 'accept');
+	} else if(this.isSpecialKeyMapped('next', keyName)) {
+		this.emit('action', 'next');
+	}
 };

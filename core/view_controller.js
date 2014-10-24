@@ -40,7 +40,7 @@ function ViewController(client) {
 				self.nextFocus();
 				break;
 
-			case 'accepted' :
+			case 'accept' :
 				//	:TODO: check if id is submit, etc.
 				self.nextFocus();
 				break;

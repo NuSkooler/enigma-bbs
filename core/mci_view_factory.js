@@ -3,6 +3,7 @@
 
 var TextView		= require('./text_view.js').TextView;
 var EditTextView	= require('./edit_text_view.js').EditTextView;
+var ButtonView		= require('./button_view.js').ButtonView;
 var assert			= require('assert');
 
 exports.MCIViewFactory		= MCIViewFactory;
@@ -36,6 +37,15 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			}
 
 			view = new EditTextView(this.client, options);
+			break;
+
+		case 'BV' : 
+			if(mci.args.length > 0) {
+				options.text 	= mci.args[0];
+				options.dimens	= { width : options.text.length };
+			}
+
+			view = new ButtonView(this.client, options);
 			break;
 	}
 

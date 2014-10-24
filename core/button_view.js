@@ -2,8 +2,11 @@
 'use strict';
 
 var TextView		= require('./text_view.js').TextView;
+var miscUtil		= require('./misc_util.js');
 var util			= require('util');
 var assert			= require('assert');
+
+exports.ButtonView			= ButtonView;
 
 function ButtonView(client, options) {
 	options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
@@ -15,15 +18,10 @@ function ButtonView(client, options) {
 util.inherits(ButtonView, TextView);
 
 ButtonView.prototype.onKeyPress = function(key, isSpecial) {
-	//	we accept input so this must be implemented -- nothing to do here, however
-	//	:TODO: Move this to View along with default asserts; update EditTextView to call View 
-}
+	ButtonView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 
-ButtonView.prototype.onSpecialKeyPress = function(keyName) {
-	assert(this.hasFocus);
-	assert(this.acceptsInput);
-	assert(this.specialKeyMap);
-
-	//	:TODO: see notes about making base handle 'enter' key(s)
-	//	...just make enter = enter | space for a button by default
-}
+	//	allow spacebar to 'click' buttons
+	if(' ' === key) {
+		this.emit('action', 'accept');
+	}
+};

@@ -22,10 +22,7 @@ function EditTextView(client, options) {
 
 util.inherits(EditTextView, TextView);
 
-EditTextView.prototype.onKeyPress = function(key, isSpecial) {
-	assert(this.hasFocus);
-	assert(this.acceptsInput);
-
+EditTextView.prototype.onKeyPress = function(key, isSpecial) {	
 	if(isSpecial) {
 		return;
 	}
@@ -43,26 +40,19 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 			this.client.term.write(key);
 		}
 	}
+
+	EditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
 
 EditTextView.prototype.onSpecialKeyPress = function(keyName) {
-	assert(this.hasFocus);
-	assert(this.acceptsInput);
-	assert(this.specialKeyMap);
+	//	:TODO: handle 'enter' & others for multiLine
 
 	if(this.isSpecialKeyMapped('backspace', keyName)) {
 		if(this.text.length > 0) {
 			this.text = this.text.substr(0, this.text.length - 1);
 			this.clientBackspace();
 		}
-	} else if(this.isSpecialKeyMapped('enter', keyName)) {
-		if(this.multiLine) {
-		} else {
-			//	:TODO: by default handle this in View/base. Can always "absorb" the call here for special handling
-			this.emit('action', 'accepted');
-		}
-	} else if(this.isSpecialKeyMapped('next', keyName)) {
-		//	:TODO: by default handle next in View/base
-		this.emit('action', 'next');	
 	}
+
+	EditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
