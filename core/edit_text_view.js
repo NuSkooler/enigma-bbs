@@ -29,6 +29,8 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 
 	assert(1 === key.length);
 
+	console.log('key: ' + key);
+
 	if(this.text.length < this.options.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 

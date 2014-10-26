@@ -60,8 +60,12 @@ function entryPoint(client) {
 
 				etv.redraw();*/
 
+				user.authenticate('NuSkooler', 'password', client, function onAuth(isValid) {
+					console.log(isValid);
+				});
+
 				user.createNew({
-					userName : 'Scooby',
+					userName : 'NuSkooler',
 					password : 'password',
 					//properties : {
 					//	pw_pbkdf2_salt : '81b45dc699c716ac1913039138b64e3057844128cf1f9291c6475d26dab3d4a5',
