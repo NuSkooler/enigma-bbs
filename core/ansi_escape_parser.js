@@ -76,8 +76,10 @@ function ANSIEscapeParser(options) {
 	};
 
 	self.resetColor = function() {
-		self.fgColor	= 7;
-		self.bgColor	= 0;
+		//self.fgColor	= 7;
+		//self.bgColor	= 0;
+		self.fgColor	= 39;
+		self.bgColor	= 49;
 	};
 
 	self.rowUpdated = function() {

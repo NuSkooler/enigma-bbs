@@ -437,6 +437,7 @@ function display(art, options, cb) {
 
 			mciPosQueue.push(mciCode);
 
+			//	:TODO: Move this out of the loop
 			if(!emitter) {
 				emitter = options.client.on('onPosition', function onPosition(pos) {
 					if(mciPosQueue.length > 0) {

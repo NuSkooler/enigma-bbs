@@ -44,12 +44,13 @@ TextView.prototype.redraw = function() {
 
 	var color = this.hasFocus ?	this.getFocusColor() : this.getColor();
 	
-	this.client.term.write(ansi.sgr(color.flags, color.fg, color.bg));
+	//this.client.term.write(ansi.sgr(color.flags, color.fg, color.bg));
+	this.client.term.write(this.getANSIColor(color));
 
 	if(this.isPasswordTextStyle) {
-		this.client.term.write(strUtil.pad(new Array(this.text.length).join(this.textMaskChar), this.dimens.width));
+		this.client.term.write(strUtil.pad(new Array(this.text.length + 1).join(this.textMaskChar), this.dimens.width));
 	} else {
-		this.client.term.write(strUtil.pad(this.text, this.dimens.width));
+		this.client.term.write(strUtil.pad(this.text, this.dimens.width));		
 	}
 };
 

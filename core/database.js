@@ -41,7 +41,8 @@ function createUserTables() {
 		'	user_id		INTEGER NOT NULL,' +
 		'	prop_name	VARCHAR NOT NULL,' +
 		'	prop_value	VARCHAR,' +
-		'	UNIQUE(user_id, prop_name)' +
+		'	UNIQUE(user_id, prop_name),' +
+		'	FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE' + 
 		');'
 		);
 }

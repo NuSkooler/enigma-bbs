@@ -6,6 +6,7 @@ var ansi		= require('../core/ansi_term.js');
 var lineEditor	= require('../core/line_editor.js');
 var art			= require('../core/art.js');
 var user		= require('../core/user.js');
+var theme		= require('../core/theme.js');
 
 //var view		= require('../core/view.js');
 var textView	= require('../core/text_view.js');
@@ -28,37 +29,15 @@ function entryPoint(client) {
 	//	:TODO: types, random, and others? could come from conf.mods.matrix or such
 
 	//art.getArt('SO-CC1.ANS'/* 'MATRIX'*/, { types: ['.ans'], random: true}, function onArt(err, theArt) {
-	art.getArt('MCI_TEST3.ANS', /*'MATRIX_TEST1.ANS'*/ {}, function onArt(err, theArt) {
+	theme.getThemeArt('MATRIX_1', 'NU-MAYAN', function onArt(err, theArt) {
+
+	//art.getArt('MATRIX_1.ANS', {}, function onArt(err, theArt) {
 		if(!err) {
 
-			art.display(theArt.data, { client : client,  mciReplaceChar : ' ' }, function onArtDisplayed(err, mci) {
+			art.display(theArt, { client : client,  mciReplaceChar : ' ' }, function onArtDisplayed(err, mci) {
 				if(err) {
 					return;					
 				}
-
-				/*
-				var tv = new textView.TextView(client, {
-					position : [5, 5],
-					text : 'Hello, World!',
-					textStyle : 'password',
-					maxLength : 10,
-					id : 1,
-				});
-
-				tv.redraw();
-
-				var etv = new editTextView.EditTextView(client, {
-					position : [10, 10],
-					textStyle : 'upper',
-					maxLength : 20,
-					dimens : { width : 30 },
-					text : 'default',
-					color : { flags : 0, fg : 31, bg : 40 },
-					focusColor : { flags : 1, fg : 37, bg : 44 },
-					id : 2,
-				});
-
-				etv.redraw();*/
 
 				user.authenticate('NuSkooler', 'password', client, function onAuth(isValid) {
 					console.log(isValid);

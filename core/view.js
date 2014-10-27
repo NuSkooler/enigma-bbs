@@ -60,6 +60,14 @@ function View(client, options) {
 	this.isSpecialKeyMapped = function(keySet, keyName) {
 		return this.specialKeyMap[keySet].indexOf(keyName) > -1;
 	};
+
+	this.getANSIColor = function(color) {
+		var sgr = [ color.flags, color.fg ];
+		if(color.bg !== color.flags) {
+			sgr.push(color.bg);
+		}
+		return ansi.sgr(sgr);
+	};
 }
 
 util.inherits(View, events.EventEmitter);

@@ -121,12 +121,13 @@ function createNew(user, cb) {
 		],
 		function onComplete(err) {								
 			if(err) {
+				var originalError = err;
 				userDb.run('ROLLBACK;', function onRollback(err) {
-					cb(err);
+					assert(!err);
+					cb(originalError);
 				});
 			} else {
 				userDb.run('COMMIT;', function onCommit(err) {
-
 					if(err) {
 						cb(err);
 					} else {
