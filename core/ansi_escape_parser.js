@@ -140,11 +140,12 @@ function ANSIEscapeParser(options) {
 	}
 
 	function parseMCI(buffer) {
-		var mciRe = /\%([A-Z]{2}[0-9]{1,2})(?:\(([0-9A-Z,]+)\))*/g;
+		var mciRe = /\%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Z,]+)\))*/g;
 		var pos = 0;
 		var match;
 		var mciCode;
 		var args;
+		var id;
 
 		do {
 			pos		= mciRe.lastIndex;
@@ -156,15 +157,16 @@ function ANSIEscapeParser(options) {
 				}
 
 				mciCode	= match[1];
+				id		= match[2] || null;
 
-				if(match[2]) {
-					args = match[2].split(',');
+				if(match[3]) {
+					args = match[3].split(',');
 				} else {
 					args = [];
 				}
 
 				
-				self.emit('mci', mciCode, args);
+				self.emit('mci', mciCode, id, args);
 
 				self.emit('chunk', getProcessedMCI(match[0]));
 			}

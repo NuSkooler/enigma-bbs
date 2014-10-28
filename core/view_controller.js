@@ -116,10 +116,14 @@ ViewController.prototype.setViewOrder = function(order) {
 
 	if(0 === viewIdOrder.length) {
 		for(var id in this.views) {
-			viewIdOrder.push(id);
+			if(this.views[id].acceptsFocus) {
+				viewIdOrder.push(id);
+			}
 		}
 
-		viewIdOrder.sort();
+		viewIdOrder.sort(function intSort(a, b) {
+			return a - b;
+		});
 	}
 
 	var view;
@@ -130,8 +134,7 @@ ViewController.prototype.setViewOrder = function(order) {
 
 	this.firstId = viewIdOrder[0];
 	var lastId = viewIdOrder[viewIdOrder.length - 1];
-	this.views[lastId].nextId = this.firstId;
-	
+	this.views[lastId].nextId = this.firstId;	
 };
 
 ViewController.prototype.loadFromMCIMap = function(mciMap) {
@@ -145,6 +148,7 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 		if(view) {
 			view.on('action', self.onViewAction);
 			self.addView(view);
+			view.redraw();
 		}
 	});
 };

@@ -416,33 +416,37 @@ function display(art, options, cb) {
 	var emitter			= null;
 	var parseComplete	= false;
 
-	parser.on('mci', function onMCI(mciCode, args) {
-		if(mci[mciCode]) {
-			mci[mciCode].focusColor = {
+	var generatedId		= 100;
+
+	parser.on('mci', function onMCI(mciCode, id, args) {
+		id = id || generatedId++;
+		var mapItem = mciCode + id;
+		if(mci[mapItem]) {
+			mci[mapItem].focusColor = {
 				fg		: parser.fgColor,
 				bg		: parser.bgColor,
 				flags	: parser.flags,
 			};
 		} else {
-			mci[mciCode] = {
+			mci[mapItem] = {
 				args : args,
 				color : {
 					fg		: parser.fgColor,
 					bg		: parser.bgColor,
 					flags	: parser.flags,
 				},
-				code	: mciCode.substr(0, 2),
-				id		: mciCode.substr(2, 1),	//	:TODO: This NEEDs to read 01-99
+				code	: mciCode,
+				id		: parseInt(id, 10),
 			};
 
-			mciPosQueue.push(mciCode);
+			mciPosQueue.push(mapItem);
 
 			//	:TODO: Move this out of the loop
 			if(!emitter) {
 				emitter = options.client.on('onPosition', function onPosition(pos) {
 					if(mciPosQueue.length > 0) {
-						var forMciCode = mciPosQueue.shift();
-						mci[forMciCode].position = pos;
+						var forMapItem = mciPosQueue.shift();
+						mci[forMapItem].position = pos;
 
 						if(parseComplete && 0 === mciPosQueue.length) {
 							cb(null, mci);
@@ -451,7 +455,7 @@ function display(art, options, cb) {
 				});
 			}
 
-			options.client.term.write(ansi.queryPos());
+			options.client.term.write(ansi.queryPos());			
 		}
 	});
 
@@ -468,208 +472,4 @@ function display(art, options, cb) {
 	});
 
 	parser.parse(art);
-}
-
-ArtDisplayer.prototype.display = function(art, options) {
-	var client	= this.client;
-	var self	= this;
-
-	var cancelKeys			= miscUtil.valueWithDefault(options.cancelKeys, []);
-	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
-	var pauseAtTermHeight	= miscUtil.valueWithDefault(options.pauseAtTermHeight, false);
-
-	var canceled = false;
-	if(cancelKeys.length > 0 || pauseKeys.length > 0) {
-		var onDataKeyCheck = function(data) {
-			var key = String.fromCharCode(data[0]);
-			if(-1 !== cancelKeys.indexOf(key)) {
-				canceled = true;
-				removeDataListener();
-			}
-		};
-		client.on('data', onDataKeyCheck);
-	}
-
-	function removeDataListener() {
-		client.removeListener('data', onDataKeyCheck);
-	}
-
-	//
-	//	Try to split lines supporting various linebreaks we may encounter:
-	//	- DOS		\r\n
-	//	- *nix		\n
-	//	- Old Apple	\r
-	//	- Unicode	PARAGRAPH SEPARATOR (U+2029) and LINE SEPARATOR (U+2028)
-	//	
-	//	See also http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
-	//
-	var lines = art.split(/\r?\n|\r|[\u2028\u2029]/);
-	var i = 0;
-	var count = lines.length;
-	if(0 === count) {
-		return;
-	}
-		
-	var termHeight = client.term.termHeight;
-
-	var aep = require('./ansi_escape_parser.js');
-	var p = new aep.ANSIEscapeParser();
-
-	var currentRow	= 0;
-	var lastRow		= 0;
-	p.on('row update', function onRowUpdated(row) {
-		currentRow = row;
-	});
-
-	//--------
-	var mci = {};
-	var mciPosQueue = [];
-	var parseComplete = false;
-
-	var emitter = null;
-
-	p.on('mci', function onMCI(mciCode, args) {
-		if(mci[mciCode]) {
-			mci[mciCode].fgColorAlt = p.fgColor;
-			mci[mciCode].bgColorAlt = p.bgColor;
-			mci[mciCode].flagsAlt	= p.flags;
-		} else {
-			mci[mciCode] = {
-				args	: args,
-				fgColor : p.fgColor,
-				bgColor : p.bgColor,
-				flags 	: p.flags,
-			};
-
-			mciPosQueue.push(mciCode);
-
-			if(!emitter) {
-				emitter = client.on('onPosition', function onPosition(pos) {
-					if(mciPosQueue.length > 0) {
-						var mc = mciPosQueue.shift();
-						console.log('position @ ' + mc + ': ' + pos);
-						mci[mc].pos = pos;
-
-						if(parseComplete && 0 === mciPosQueue.length) {
-							//console.log(mci);
-							var p1 = mci['LV1'].pos;
-							client.term.write(ansi.sgr(['red']));
-							var g = ansi.goto(p1);
-							console.log(g);
-							client.term.write(ansi.goto(p1[0], p1[1]));
-							client.term.write('Hello, World');
-						}
-					}
-				});
-			}
-		}
-	});
-
-	p.on('chunk', function onChunk(chunk) {
-		client.term.write(chunk);
-	});
-
-	p.on('complete', function onComplete() {
-		//console.log(mci);
-		parseComplete = true;
-		if(0 === mciPosQueue.length) {
-			console.log('mci from complete');
-			console.log(mci);
-		}
-	});
-
-	p.parse(art);
-
-
-	//-----------
-	/*
-	var line;
-	(function nextLine() {
-		if(i === count) {
-			self.emit('complete');
-			removeDataListener();
-			return;
-		}
-
-		if(canceled) {
-			self.emit('canceled');
-			removeDataListener();
-			return;
-		}
-
-		line = lines[i];
-		client.term.write(line + '\n');
-		p.parse(line + '\r\n');
-		i++;
-
-		if(pauseAtTermHeight && currentRow !== lastRow && (0 === currentRow % termHeight)) {
-			lastRow = currentRow;
-			client.getch(function onKey(k) {
-				nextLine();				
-			});
-		} else {
-			setTimeout(nextLine, 20);
-		}
-	})();
-
-	*/
-
-/*
-
-	(function nextLine() {
-		if(i === count) {
-			client.emit('complete', true);
-			removeDataListener();
-			return;
-		}
-
-		if(canceled) {
-			console.log('canceled');
-			client.emit('canceled');
-			removeDataListener();
-			return;
-		}
-
-		client.term.write(lines[i] + '\n');
-
-		//
-		//	:TODO: support pauseAtTermHeight:
-		//
-		//	- All cursor movement should be recorded for pauseAtTermHeight support &
-		//	  handling > termWidth scenarios
-		//	- MCI codes should be processed
-		//	- All other ANSI/CSI ignored
-		//	- Count normal chars
-		//
-
-		//setTimeout(nextLine, 20);
-		//i++;
-
-		if(pauseAtTermHeight && i > 0 && (0 === i % termHeight)) {
-			console.log('pausing @ ' + i);
-			client.getch(function onKey() {
-				i++;
-				nextLine();
-			});	
-		} else {
-			i++;
-			//	:TODO: If local, use setTimeout(nextLine, 20) or so -- allow to pause/cancel
-			//process.nextTick(nextLine);
-			setTimeout(nextLine, 20);
-		}
-		
-	})();
-*/
-};
-
-//
-//	ANSI parser for quick scanning & handling
-//	of basic ANSI sequences that can be used for output to clients:
-//
-function ANSIOutputParser(ansi) {
-	//
-	//	cb's
-	//	- onMCI
-	//	- onTermHeight
-	// 	- 
 }

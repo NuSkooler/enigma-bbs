@@ -19,8 +19,9 @@ function TextView(client, options) {
 		this.maxLength = this.options.maxLength;
 	}
 
-	this.textStyle = this.options.textStyle || 'normal';
-	this.multiLine = this.options.multiLine || false;
+	this.textStyle	= this.options.textStyle || 'normal';
+	this.multiLine	= this.options.multiLine || false;
+	this.fillChar	= miscUtil.valueWithDefault(this.options.fillChar, ' ').substr(0, 1);
 
 	assert(!this.multiLine);	//	:TODO: not yet supported
 
@@ -43,21 +44,20 @@ TextView.prototype.redraw = function() {
 	TextView.super_.prototype.redraw.call(this);
 
 	var color = this.hasFocus ?	this.getFocusColor() : this.getColor();
-	
-	//this.client.term.write(ansi.sgr(color.flags, color.fg, color.bg));
 	this.client.term.write(this.getANSIColor(color));
+
+	//	:TODO: If using fillChar, don't just pad. switch to non-focus color & fill with |fillChar|
 
 	if(this.isPasswordTextStyle) {
 		this.client.term.write(strUtil.pad(new Array(this.text.length + 1).join(this.textMaskChar), this.dimens.width));
 	} else {
-		this.client.term.write(strUtil.pad(this.text, this.dimens.width));		
+		this.client.term.write(strUtil.pad(this.text, this.dimens.width));
 	}
 };
 
 TextView.prototype.setFocus = function(focused) {
 	TextView.super_.prototype.setFocus.call(this, focused);
 
-	this.client.term.write(ansi.goto(this.position.x, this.position.y));
 	this.redraw();
 	this.client.term.write(ansi.goto(this.position.x, this.position.y + this.text.length));
 };

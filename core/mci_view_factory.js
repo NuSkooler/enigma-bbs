@@ -4,6 +4,8 @@
 var TextView		= require('./text_view.js').TextView;
 var EditTextView	= require('./edit_text_view.js').EditTextView;
 var ButtonView		= require('./button_view.js').ButtonView;
+var Config			= require('./config.js').config;
+var packageJson 	= require('../package.json');
 var assert			= require('assert');
 
 exports.MCIViewFactory		= MCIViewFactory;
@@ -11,6 +13,16 @@ exports.MCIViewFactory		= MCIViewFactory;
 function MCIViewFactory(client) {
 	this.client = client;
 }
+
+MCIViewFactory.prototype.getPredefinedViewLabel = function(name) {
+	var label;
+	switch(name) {
+		case 'BN' : label = Config.bbsName; break;
+		case 'VL' : label = 'ENiGMA½ v' + packageJson.version; break;
+	}
+
+	return label;
+};
 
 MCIViewFactory.prototype.createFromMCI = function(mci) {
 	assert(mci.code);
@@ -26,7 +38,24 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 	};
 
 	switch(mci.code) {
-		case 'EV' :
+		case 'TL' : 
+			if(mci.args.length > 0) {
+				options.textStyle = mci.args[0];
+			}
+
+			if(mci.args.length > 1) {
+				options.justify = mci.args[1];
+			}
+
+			if(mci.args.length > 2) {
+				options.maxLength	= mci.args[2];
+				options.dimens		= { width : options.maxLength };
+			}
+
+			view = new TextView(this.client, options);
+			break;
+
+		case 'ET' :
 			if(mci.args.length > 0) {
 				options.maxLength	= mci.args[0];
 				options.dimens		= { width : options.maxLength };
@@ -37,6 +66,28 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			}
 
 			view = new EditTextView(this.client, options);
+			break;
+
+		case 'PL' : 
+			if(mci.args.length > 0) {
+				options.text = this.getPredefinedViewLabel(mci.args[0]);
+				if(options.text) {
+					if(mci.args.length > 1) {
+						options.textStyle = mci.args[1];
+					}
+
+					if(mci.args.length > 2) {
+						options.justify = mci.args[2];
+					}
+
+					if(mci.args.length > 3) {
+						options.maxLength	= mci.args[3];
+						options.dimens		= { width : options.maxLength };
+					}
+
+					view = new TextView(this.client, options);
+				}
+			}
 			break;
 
 		case 'BV' : 
