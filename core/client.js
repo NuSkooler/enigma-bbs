@@ -61,6 +61,15 @@ var ANSI_F_KEY_NAME_MAP_2 = {
 	24		: 'F12',
 };
 
+//	:TODO: put this in a common area!!!!
+function getIntArgArray(array) {
+	var i = array.length;
+	while(i--) {
+		array[i] = parseInt(array[i], 10);
+	}
+	return array;
+}
+
 function Client(input, output) {
 	stream.call(this);
 
@@ -71,10 +80,10 @@ function Client(input, output) {
 	this.term			= new term.ClientTerminal(this.output);
 
 	self.on('data', function onData1(data) {
-		console.log(data);
+		//console.log(data);
 
 		onData(data);
-		handleANSIControlResponse(data);
+		//handleANSIControlResponse(data);
 	});
 
 	function handleANSIControlResponse(data) {
@@ -140,7 +149,27 @@ function Client(input, output) {
 					self.emit('key press', data, true);
 				}
 			}
-		} else if(len > 4 && len < 11 && 0x52 === data[len]) {
+		} else if(len > 3) {
+			//	:TODO: Implement various responses to DSR's & such
+			//	See e.g. http://www.vt100.net/docs/vt100-ug/chapter3.html
+			var dsrResponseRe = /\u001b\[([0-9\;]+)([R])/g;
+			var match;
+			var args;
+			do {
+				match = dsrResponseRe.exec(data);
+
+				if(null !== match) {
+					switch(match[2]) {
+						case 'R' :
+							args = getIntArgArray(match[1].split(';'));
+							if(2 === args.length) {
+								//	:TODO: rename to 'cpr' or 'cursor position report'
+								self.emit('onPosition', args);
+							}
+							break;
+					}
+				}
+			} while(0 !== dsrResponseRe.lastIndex);
 			//	:TODO: Look for various DSR responses such as cursor position
 		}
 	}

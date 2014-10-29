@@ -83,6 +83,7 @@ var clientConnections  = [];
 function startListening() {
 	if(!conf.config.servers) {
 		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
+		logger.log.error('No servers configured');
 		return [];
 	}
 
