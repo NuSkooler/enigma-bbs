@@ -34,6 +34,7 @@ module.exports = {
 				mods				: paths.join(__dirname, './../mods/'),
 				servers				: paths.join(__dirname, './servers/'),
 				art					: paths.join(__dirname, './../mods/art/'),
+				themes				: paths.join(__dirname, './../mods/art/themes/'),
 				logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
 				db					: paths.join(__dirname, './../db/'),
 			},

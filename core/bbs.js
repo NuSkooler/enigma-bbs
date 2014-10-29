@@ -10,8 +10,11 @@ var database	= require('./database.js');
 
 var iconv		= require('iconv-lite');
 var paths		= require('path');
+var async		= require('async');
 
-exports.bbsMain = function() {
+exports.bbsMain			= bbsMain;
+
+function bbsMain() {
 	var mainArgs = parseArgs();
 
 	var configPathSupplied = false;
@@ -72,6 +75,41 @@ function parseArgs() {
 	});
 
 	return args;
+}
+
+function initialize(cb) {
+	async.series(
+		[
+			function basicInit(callback) {
+				logger.init();
+
+				process.on('SIGINT', function onSigInt() {
+					//	:TODO: for any client in |clientConnections|, if 'ready', send a "Server Disconnecting" + semi-gracefull hangup
+					//	e.g. client.disconnectNow()
+
+					logger.log.info('Process interrupted, shutting down');
+					process.exit();
+				});
+
+				callback(null);
+			},
+			function initDatabases(callback) {
+				database.initializeDatabases();
+				callback(null);
+			},
+			function initThemes(callback) {
+				//	Have to pull in here so it's after Config init
+				var theme = require('./theme.js');
+				theme.initAvailableThemes(function onThemesInit(err, themeCount) {
+					logger.log.info({ themeCount : themeCount }, 'Themes initialized');
+					callback(err);
+				});
+			}
+		],
+		function onComplete(err) {
+			cb(err);
+		}
+	);
 }
 
 function preServingInit() {
@@ -164,16 +202,11 @@ function prepareClient(client, cb) {
 	if('*' === conf.config.preLoginTheme) {
 		var theme = require('./theme.js');
 		theme.getRandomTheme(function onRandTheme(err, themeId) {
-			if(err) {
-				//	:TODO: how to propertly set default/fallback?
-				client.user.properties.art_theme_name = '';
-			} else {
-				client.user.properties.art_theme_name = themeId;
-			}
-			cb();
+			client.user.properties.art_theme_id = themeId || '';
+			cb(null);
 		});
 	} else {
-		client.user.properties.art_theme_name = conf.config.preLoginTheme;
-		cb();
+		client.user.properties.art_theme_id = conf.config.preLoginTheme;
+		cb(null);
 	}
 }

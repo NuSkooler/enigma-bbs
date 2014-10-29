@@ -562,14 +562,16 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 		//	* Map COLUMNS -> 'termWidth' and only update if ours is 0
 		//	* Map ROWS -> 'termHeight' and only update if ours is 0
 		//	* Add any new variables, ignore any existing
-		//		
+		//
 		Object.keys(evt.envVars).forEach(function onEnv(name) {
 			if('TERM' === name && 'unknown' === self.term.termType) {
 				self.setTermType(evt.envVars[name]);
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {
 				self.term.termWidth = parseInt(evt.envVars[name]);
+				logger.log.debug({ termWidth : self.term.termWidth, updateSource : 'NEW-ENVIRON'}, 'Window width updated');
 			} else if('ROWS' === name && 0 === self.term.termHeight) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
+				logger.log.debug({ termHeight : self.term.termHeight, updateSource : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
 					assert(evt.type === SB_COMMANDS.INFO);
@@ -582,6 +584,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				}
 			}
 		});
+
 	} else if('window size' === evt.option) {
 		//
 		//	Update termWidth & termHeight.
@@ -598,7 +601,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 			self.term.env['ROWS'] = evt.height;
 		}
 
-		logger.log.debug({ termWidth : evt.width , termHeight : evt.height }, 'Window size updated');
+		logger.log.debug({ termWidth : evt.width , termHeight : evt.height, updateSource : 'NAWS' }, 'Window size updated');
 	} else {
 		console.log('unhandled SB: ' + JSON.stringify(evt));
 	}

@@ -11,18 +11,10 @@ var async		= require('async');
 exports.getThemeInfo			= getThemeInfo;
 exports.getThemeArt				= getThemeArt;
 exports.getRandomTheme			= getRandomTheme;
-
-
-//	getThemeInfo(themeName)
-/*
-//	getThemeFile(themeShortName, name)
-	//	getArt(name, {
-		basePath : themeDir,
-	}
-*/
+exports.initAvailableThemes		= initAvailableThemes;
 
 function getThemeInfo(themeID, cb) {
-	var path = paths.join(Config.paths.art, themeID, 'theme_info.json');
+	var path = paths.join(Config.paths.themes, themeID, 'theme_info.json');
 
 	fs.readFile(path, function onData(err, data) {
 		if(err) {
@@ -38,20 +30,20 @@ function getThemeInfo(themeID, cb) {
 	});
 }
 
-var availableThemes;
+var availableThemes = {};
 
-function loadAvailableThemes(cb) {
+function initAvailableThemes(cb) {
 	//	lazy init
 	async.waterfall(
 		[
 			function getDir(callback) {
-				fs.readdir(Config.paths.art, function onReadDir(err, files) {
+				fs.readdir(Config.paths.themes, function onReadDir(err, files) {
 					callback(err, files);
 				});
 			},
 			function filterFiles(files, callback) {
 				var filtered = files.filter(function onFilter(file) {
-					return fs.statSync(paths.join(Config.paths.art, file)).isDirectory(); 
+					return fs.statSync(paths.join(Config.paths.themes, file)).isDirectory(); 
 				});
 				callback(null, filtered);
 			},
@@ -75,30 +67,17 @@ function loadAvailableThemes(cb) {
 				return;
 			}
 
-			if(!availableThemes) {
-				cb(new Error('No themes found'));
-				return;
-			}
-
-			cb(null);
+			cb(null, availableThemes.length);
 		}
 	);
 }
 
 function getRandomTheme(cb) {
-	var themeIds;
-	if(availableThemes) {
-		themeIds = Object.keys(availableThemes);
+	if(availableThemes.length > 0) {
+		var themeIds = Object.keys(availableThemes);
 		cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
 	} else {
-		loadAvailableThemes(function onThemes(err) {
-			if(err) {
-				cb(err);
-			} else {
-				themeIds = Object.keys(availableThemes);
-				cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
-			}
-		});
+		cb(new Error('No themes available'));
 	}
 }
 
@@ -113,11 +92,11 @@ function getThemeArt(name, themeID, options, cb) {
 	options.asAnsi		= true;
 	options.readSauce	= true;	//	can help with encoding
 	options.random		= miscUtil.valueWithDefault(options.random, true);
-	options.basePath	= paths.join(Config.paths.art, themeID);
+	options.basePath	= paths.join(Config.paths.themes, themeID);
 
 	art.getArt(name, options, function onThemeArt(err, theArt) {
 		if(err) {
-			//	try fallback
+			//	try fallback of art directory
 			options.basePath = Config.paths.art;
 			art.getArt(name, options, function onFallbackArt(err, theArt) {
 				if(err) {
