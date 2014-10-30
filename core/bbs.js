@@ -119,7 +119,9 @@ function startListening() {
 
 			client.on('ready', function onClientReady() {
 				//	Go to module -- use default error handler
-				modules.goto(conf.config.entryMod, client);
+				prepareClient(client, function onPrepared() {
+					modules.goto(conf.config.entryMod, client);
+				});
 			});
 
 			client.on('end', function onClientEnd() {
@@ -155,5 +157,23 @@ function removeClient(client) {
 	if(i > -1) {
 		clientConnections.splice(i, 1);
 		logger.log.debug('Connection count is now %d', clientConnections.length);
+	}
+}
+
+function prepareClient(client, cb) {
+	if('*' === conf.config.preLoginTheme) {
+		var theme = require('./theme.js');
+		theme.getRandomTheme(function onRandTheme(err, themeId) {
+			if(err) {
+				//	:TODO: how to propertly set default/fallback?
+				client.user.properties.art_theme_name = '';
+			} else {
+				client.user.properties.art_theme_name = themeId;
+			}
+			cb();
+		});
+	} else {
+		client.user.properties.art_theme_name = conf.config.preLoginTheme;
+		cb();
 	}
 }

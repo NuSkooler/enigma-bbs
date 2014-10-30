@@ -10,6 +10,7 @@ var async		= require('async');
 
 exports.getThemeInfo			= getThemeInfo;
 exports.getThemeArt				= getThemeArt;
+exports.getRandomTheme			= getRandomTheme;
 
 
 //	getThemeInfo(themeName)
@@ -29,12 +30,76 @@ function getThemeInfo(themeID, cb) {
 		} else {
 			try {
 				var info = JSON.parse(data);
-				return info;
+				cb(null, info);
 			} catch(e) {
 				cb(err);
 			}
 		}
 	});
+}
+
+var availableThemes;
+
+function loadAvailableThemes(cb) {
+	//	lazy init
+	async.waterfall(
+		[
+			function getDir(callback) {
+				fs.readdir(Config.paths.art, function onReadDir(err, files) {
+					callback(err, files);
+				});
+			},
+			function filterFiles(files, callback) {
+				var filtered = files.filter(function onFilter(file) {
+					return fs.statSync(paths.join(Config.paths.art, file)).isDirectory(); 
+				});
+				callback(null, filtered);
+			},
+			function populateAvailable(filtered, callback) {
+				filtered.forEach(function onTheme(themeId) {
+					getThemeInfo(themeId, function onThemeInfo(err, info) {
+						if(!err) {
+							if(!availableThemes) {
+								availableThemes = {};
+							}
+							availableThemes[themeId] = info;
+						}
+						callback(null);
+					});
+				});
+			}
+		],
+		function onComplete(err) {
+			if(err) {
+				cb(err);
+				return;
+			}
+
+			if(!availableThemes) {
+				cb(new Error('No themes found'));
+				return;
+			}
+
+			cb(null);
+		}
+	);
+}
+
+function getRandomTheme(cb) {
+	var themeIds;
+	if(availableThemes) {
+		themeIds = Object.keys(availableThemes);
+		cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
+	} else {
+		loadAvailableThemes(function onThemes(err) {
+			if(err) {
+				cb(err);
+			} else {
+				themeIds = Object.keys(availableThemes);
+				cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
+			}
+		});
+	}
 }
 
 function getThemeArt(name, themeID, options, cb) {

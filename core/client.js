@@ -7,6 +7,7 @@ var assert		= require('assert');
 var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
 var logger		= require('./logger.js');
+var user		= require('./user.js');
 
 exports.Client	= Client;
 
@@ -78,28 +79,13 @@ function Client(input, output) {
 	this.input			= input;
 	this.output			= output;
 	this.term			= new term.ClientTerminal(this.output);
-
-	self.on('data', function onData1(data) {
-		//console.log(data);
-
-		onData(data);
-		//handleANSIControlResponse(data);
-	});
-
-	function handleANSIControlResponse(data) {
-		//console.log(data);
-		ansi.forEachControlCode(data, function onControlResponse(name, params) {
-			var eventName = 'on' + name[0].toUpperCase() + name.substr(1);
-			console.log(eventName + ': ' + params);
-			self.emit(eventName, params);
-		});
-	}
+	this.user			= new user.User();
 
 	//
 	//	Peek at |data| and emit for any specialized handling
 	//	such as ANSI control codes or user/keyboard input
 	//
-	function onData(data) {
+	self.on('data', function onData(data) {
 		var len = data.length;
 		var c;
 		var name;
@@ -163,16 +149,14 @@ function Client(input, output) {
 						case 'R' :
 							args = getIntArgArray(match[1].split(';'));
 							if(2 === args.length) {
-								//	:TODO: rename to 'cpr' or 'cursor position report'
-								self.emit('onPosition', args);
+								self.emit('cursor position report', args);
 							}
 							break;
 					}
 				}
 			} while(0 !== dsrResponseRe.lastIndex);
-			//	:TODO: Look for various DSR responses such as cursor position
 		}
-	}
+	});
 }
 
 require('util').inherits(Client, stream);

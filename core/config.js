@@ -25,7 +25,10 @@ module.exports = {
 		this.config = {
 			bbsName		: 'Another Fine ENiGMA½ BBS',
 
+			//	:TODO: probably replace this with 'firstMenu' or somthing once that's available
 			entryMod	: 'connect',
+			
+			preLoginTheme : '*',
 
 			paths		: {
 				mods				: paths.join(__dirname, './../mods/'),

@@ -94,8 +94,13 @@ View.prototype.setPosition = function(pos) {
 	assert(!(isNaN(this.position.x)));
 	assert(!(isNaN(this.position.y)));
 
-	assert(this.position.x > 0 && this.position.x < this.client.term.termHeight);
-	assert(this.position.y > 0 && this.position.y < this.client.term.termWidth);
+	assert(
+		this.position.x > 0 && this.position.x <= this.client.term.termHeight, 
+		'X position ' + this.position.x + ' out of terminal range ' + this.client.term.termHeight);
+
+	assert(
+		this.position.y > 0 && this.position.y <= this.client.term.termWidth, 
+		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
 };
 
 View.prototype.getColor = function() {

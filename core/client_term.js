@@ -92,10 +92,10 @@ ClientTerminal.prototype.isANSI = function() {
 	return 'ansi' === this.termType;
 };
 
-ClientTerminal.prototype.write = function(s) {
-	if(this.convertLF && typeof s === 'string') {
+ClientTerminal.prototype.write = function(s, convertLineFeeds) {
+	convertLineFeeds = typeof convertLineFeeds === 'undefined' ? this.convertLF : convertLineFeeds;
+	if(convertLineFeeds && typeof s === 'string') {
 		s = s.replace(/\n/g, '\r\n');
 	}
-
 	this.output.write(iconv.encode(s, this.outputEncoding));
 };

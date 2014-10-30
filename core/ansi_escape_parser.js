@@ -116,7 +116,7 @@ function ANSIEscapeParser(options) {
 					break;
 			}
 
-			if(self.row === 26) {
+			if(self.row === 26) {	//	:TODO: should be termHeight + 1 ?
 				self.scrollBack++;
 				self.row--;
 				self.rowUpdated();
@@ -126,14 +126,10 @@ function ANSIEscapeParser(options) {
 		self.emit('chunk', text);
 	}
 
-	function mci(mciCode, args) {
-		console.log(mciCode, args);
-	}
-
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
 			var eraseColor = ansi.sgr(self.lastFlags, self.lastFgColor, self.lastBgColor);
-			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);
+			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);			
 		} else {
 			return mci;
 		}
@@ -167,8 +163,20 @@ function ANSIEscapeParser(options) {
 
 				
 				self.emit('mci', mciCode, id, args);
+				console.log(self.row + ', ' + self.column);
+				console.log(match[0]);
 
-				self.emit('chunk', getProcessedMCI(match[0]));
+				if(self.mciReplaceChar.length > 0) {
+					escape('m', [self.lastFlags, self.lastFgColor, self.lastBgColor]);
+					self.emit('chunk', ansi.sgr(self.lastFlags, self.lastFgColor, self.lastBgColor));
+					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
+				} else {
+					literal(match[0]);
+				}
+
+				//literal(getProcessedMCI(match[0]));
+
+				//self.emit('chunk', getProcessedMCI(match[0]));
 			}
 
 		} while(0 !== mciRe.lastIndex);

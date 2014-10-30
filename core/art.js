@@ -17,8 +17,6 @@ exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;
 exports.display							= display;
 exports.defaultEncodingFromExtension	= defaultEncodingFromExtension;
-exports.ArtDisplayer					= ArtDisplayer;
-
 
 var SAUCE_SIZE		= 128;
 var SAUCE_ID		= new Buffer([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
@@ -366,21 +364,10 @@ function defaultEofFromExtension(ext) {
 	return SUPPORTED_ART_TYPES[ext.toLowerCase()].eof;
 }
 
-function ArtDisplayer(client) {
-	if(!(this instanceof ArtDisplayer)) {
-		return new ArtDisplayer(client);
-	}
-
-	events.EventEmitter.call(this);
-
-	this.client = client;
-}
-
-util.inherits(ArtDisplayer, events.EventEmitter);
-
 //	:TODO: change to display(art, options, cb)
 //	cb(err, mci)
 
+//	:TODO: display({ art : art, client : client, ...}, cb)
 function display(art, options, cb) {
 	if(!art || 0 === art.length) {
 		cb(new Error('Missing or empty art'));
@@ -413,10 +400,28 @@ function display(art, options, cb) {
 
 	var mci				= {};
 	var mciPosQueue		= [];
-	var emitter			= null;
 	var parseComplete	= false;
 
 	var generatedId		= 100;
+
+	var onCPR = function(pos) {
+		if(mciPosQueue.length > 0) {
+			var forMapItem = mciPosQueue.shift();
+			mci[forMapItem].position = pos;
+
+			if(parseComplete && 0 === mciPosQueue.length) {
+				completed();
+			}
+		}
+	};
+
+	function completed() {
+		options.client.removeListener('cursor position report', onCPR);
+		parser.removeAllListeners();	//	:TODO: Necessary???
+		cb(null, mci);
+	}
+
+	options.client.on('cursor position report', onCPR);
 
 	parser.on('mci', function onMCI(mciCode, id, args) {
 		id = id || generatedId++;
@@ -441,33 +446,19 @@ function display(art, options, cb) {
 
 			mciPosQueue.push(mapItem);
 
-			//	:TODO: Move this out of the loop
-			if(!emitter) {
-				emitter = options.client.on('onPosition', function onPosition(pos) {
-					if(mciPosQueue.length > 0) {
-						var forMapItem = mciPosQueue.shift();
-						mci[forMapItem].position = pos;
-
-						if(parseComplete && 0 === mciPosQueue.length) {
-							cb(null, mci);
-						}
-					}
-				});
-			}
-
-			options.client.term.write(ansi.queryPos());			
+			options.client.term.write(ansi.queryPos(), false);	//	:TODO: don't convert LF's
 		}
 	});
 
 	parser.on('chunk', function onChunk(chunk) {
-		options.client.term.write(chunk);
+		options.client.term.write(chunk, false);//	:TODO: don't convert LF's
 	});
 
 	parser.on('complete', function onComplete() {
 		parseComplete = true;
 
 		if(0 === mciPosQueue.length) {
-			cb(null, mci);
+			completed();
 		}		
 	});
 

@@ -17,6 +17,7 @@ function User() {
 
 	this.id			= 0;
 	this.userName	= '';
+	this.properties	= {};
 
 	this.isValid = function() {
 		if(self.id <= 0 || self.userName.length < 2) {

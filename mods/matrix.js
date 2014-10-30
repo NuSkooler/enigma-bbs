@@ -29,7 +29,7 @@ function entryPoint(client) {
 	//	:TODO: types, random, and others? could come from conf.mods.matrix or such
 
 	//art.getArt('SO-CC1.ANS'/* 'MATRIX'*/, { types: ['.ans'], random: true}, function onArt(err, theArt) {
-	theme.getThemeArt('MATRIX_1', 'NU-MAYAN', function onArt(err, theArt) {
+	theme.getThemeArt('MATRIX_1', client.user.properties.art_theme_name, function onArt(err, theArt) {
 
 	//art.getArt('MATRIX_1.ANS', {}, function onArt(err, theArt) {
 		if(!err) {

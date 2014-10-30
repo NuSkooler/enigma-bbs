@@ -22,7 +22,6 @@ exports.goHome						= goHome;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTermFont				= setSyncTermFont;
 exports.fromPipeCode				= fromPipeCode;
-exports.forEachControlCode			= forEachControlCode;
 
 
 //
@@ -48,6 +47,7 @@ var CONTROL = {
 	savePos			: 's',
 	restorePos		: 'u',
 	queryPos		: '6n',
+	queryScreenSize	: '255n',	//	See bansi.txt
 	goto			: 'H',	//	row Pr, column Pc -- same as f
 	gotoAlt			: 'f',	//	same as H
 
@@ -154,61 +154,6 @@ Object.keys(CONTROL).forEach(function onControlName(name) {
 		return ESC_CSI + c;
 	};
 });
-
-//	Create a reverse map of CONTROL values to their key/names
-
-/*
-var CONTROL_REVERSE_MAP = {};
-Object.keys(CONTROL).forEach(function onControlName(name) {
-	var code = CONTROL[name];
-
-	CONTROL_REVERSE_MAP[code] = name;
-});
-*/
-
-var CONTROL_RESPONSE = {
-	'R'			: 'position',
-};
-
-//	:TODO: move this to misc utils or such -- use here & parser
-function getIntArgArray(array) {
-	var i = array.length;
-	while(i--) {
-		array[i] = parseInt(array[i], 10);
-	}
-	return array;
-}
-
-//	:TODO: rename this
-function forEachControlCode(data, cb) {
-	//var re = /\u001b\[([0-9\;])*[R]/g;
-
-	var len = data.length;
-	var pos = 0;
-
-	while(pos < len) {
-		if(0x1b !== data[pos++] || 0x5b !== data[pos++]) {
-			continue;
-		}
-
-		var params = '';
-
-		while(pos < len) {
-			var c = data[pos++];
-					
-			if(((c > 64) && (c <  91)) || ((c > 96) && (c < 123))) {
-				c = String.fromCharCode(c);
-				var name = CONTROL_RESPONSE[c];
-				if(name) {
-					params = getIntArgArray(params.split(';'));
-					cb(name, params);
-				}
-			}
-
-			params += String.fromCharCode(c);
-		}
-	}
-}
 
 //	Create various color methods such as white(), yellowBG(), reset(), ...
 Object.keys(SGR).forEach(function onSgrName(name) {
