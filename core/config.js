@@ -6,9 +6,6 @@ var paths		= require('path');
 var miscUtil	= require('./misc_util.js');
 
 module.exports = {
-	//	:TODO: remove this ... anti-pattern!
-	//config			: undefined,
-
 	defaultPath		: function() {
 		var base = miscUtil.resolvePath('~/');
 		if(base) {

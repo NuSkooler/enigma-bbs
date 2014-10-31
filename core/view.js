@@ -33,6 +33,9 @@ function View(client, options) {
 	this.position 		= { x : 0, y : 0 };
 	this.dimens			= { height : 1, width : 0 };
 
+	this.textStyle		= this.options.textStyle || 'normal';
+	this.focusTextStyle	= this.options.focusTextStyle || this.textStyle;
+	
 	if(this.options.id) {
 		this.setId(this.options.id);
 	}
@@ -40,6 +43,8 @@ function View(client, options) {
 	if(this.options.position) {
 		this.setPosition(this.options.position);
 	}
+
+	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
 
 	//	:TODO: Don't allow width/height > client.term
 	if(this.options.dimens && this.options.dimens.height) {

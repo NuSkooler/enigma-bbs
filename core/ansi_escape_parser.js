@@ -163,8 +163,6 @@ function ANSIEscapeParser(options) {
 
 				
 				self.emit('mci', mciCode, id, args);
-				console.log(self.row + ', ' + self.column);
-				console.log(match[0]);
 
 				if(self.mciReplaceChar.length > 0) {
 					escape('m', [self.lastFlags, self.lastFgColor, self.lastBgColor]);

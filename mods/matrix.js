@@ -30,7 +30,7 @@ function entryPoint(client) {
 
 	//art.getArt('SO-CC1.ANS'/* 'MATRIX'*/, { types: ['.ans'], random: true}, function onArt(err, theArt) {
 	//client.user.properties.art_theme_id = '';
-	theme.getThemeArt('MATRIX_1', client.user.properties.art_theme_id, function onArt(err, theArt) {
+	theme.getThemeArt('MCI_VM1.ANS', client.user.properties.art_theme_id, function onArt(err, theArt) {
 
 	//art.getArt('MATRIX_1.ANS', {}, function onArt(err, theArt) {
 		if(!err) {
@@ -65,46 +65,6 @@ function entryPoint(client) {
 				//vc.getView(4).setText('Login');
 				vc.setViewOrder();
 				vc.switchFocus(1);
-				//vc.addView(etv);
-				//vc.switchFocus(2);
-
-				/*
-
-				client.on('key press', function onKp(key, isSpecial) {
-					key = 'string' === typeof key ? key : key.toString();
-					etv.onKeyPress(key, isSpecial);
-				});
-
-				client.on('special key', function onSK(keyName) {
-					etv.onSpecialKeyPress(keyName);
-				});
-			*/
-				
-				/*
-				var vc = new view.ViewsController(client);
-				vc.loadFromMCIMap(mci);
-				vc.setViewOrder();
-				vc.switchFocus(1);
-				vc.setSubmitView(2);
-
-				vc.on('action', function onAction(act) {
-					if('submit' === act.action) {
-						var un = vc.getView(1).value;
-						var pw = vc.getView(2).value;
-						console.log('userName: ' + un);
-						console.log('password: ' + pw);			
-
-						user.User.loadWithCredentials(un, pw, function onUser(err, user) {
-							if(err) {
-								console.log(err);
-								return;
-							}
-
-							console.log(user.id);
-						});
-					}
-				});
-				*/
 			});
 		}
 	});

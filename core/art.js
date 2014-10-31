@@ -426,6 +426,7 @@ function display(art, options, cb) {
 	parser.on('mci', function onMCI(mciCode, id, args) {
 		id = id || generatedId++;
 		var mapItem = mciCode + id;
+		//	:TODO: Avoid mutiple [] lookups here
 		if(mci[mapItem]) {
 			mci[mapItem].focusColor = {
 				fg		: parser.fgColor,

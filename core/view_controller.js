@@ -126,15 +126,17 @@ ViewController.prototype.setViewOrder = function(order) {
 		});
 	}
 
-	var view;
-	var count = viewIdOrder.length - 1;
-	for(var i = 0; i < count; ++i) {
-		this.views[viewIdOrder[i]].nextId = viewIdOrder[i + 1];
-	}
+	if(viewIdOrder.length > 0) {
+		var view;
+		var count = viewIdOrder.length - 1;
+		for(var i = 0; i < count; ++i) {
+			this.views[viewIdOrder[i]].nextId = viewIdOrder[i + 1];
+		}
 
-	this.firstId = viewIdOrder[0];
-	var lastId = viewIdOrder[viewIdOrder.length - 1];
-	this.views[lastId].nextId = this.firstId;	
+		this.firstId = viewIdOrder[0];
+		var lastId = viewIdOrder.length > 1 ? viewIdOrder[viewIdOrder.length - 1] : this.firstId;
+		this.views[lastId].nextId = this.firstId;
+	}
 };
 
 ViewController.prototype.loadFromMCIMap = function(mciMap) {
@@ -148,7 +150,7 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 		if(view) {
 			view.on('action', self.onViewAction);
 			self.addView(view);
-			view.redraw();
+			view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
 		}
 	});
 };

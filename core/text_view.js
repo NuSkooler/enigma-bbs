@@ -17,7 +17,6 @@ function TextView(client, options) {
 		this.maxLength = this.options.maxLength;
 	}
 
-	this.textStyle	= this.options.textStyle || 'normal';
 	this.multiLine	= this.options.multiLine || false;
 	this.fillChar	= miscUtil.valueWithDefault(this.options.fillChar, ' ').substr(0, 1);
 
@@ -28,8 +27,6 @@ function TextView(client, options) {
 	}
 
 	this.setText(this.options.text || '');
-
-	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
 
 	if(this.isPasswordTextStyle) {
 		this.textMaskChar = miscUtil.valueWithDefault(this.options.textMaskChar, '*').substr(0, 1);
@@ -45,7 +42,7 @@ TextView.prototype.redraw = function() {
 	this.client.term.write(this.getANSIColor(color));
 
 	//	:TODO: If using fillChar, don't just pad. switch to non-focus color & fill with |fillChar|
-
+	//	:TODO: Apply justification
 	if(this.isPasswordTextStyle) {
 		this.client.term.write(strUtil.pad(new Array(this.text.length + 1).join(this.textMaskChar), this.dimens.width));
 	} else {
