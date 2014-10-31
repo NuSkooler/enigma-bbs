@@ -1,21 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-var ansi		= require('../core/ansi_term.js');
-var artwork		= require('../core/art.js');
-var modules		= require('../core/modules.js');
-var Log			= require('../core/logger.js').log;
+var ansi		= require('./ansi_term.js');
+var artwork		= require('./art.js');
+var modules		= require('./modules.js');
+var Log			= require('./logger.js').log;
+var Config		= require('./config.js').config;
 var packageJson = require('../package.json');
 
+var assert		= require('assert');
 var util		= require('util');
 
-exports.moduleInfo = {
-	name	: 'Connect',
-	desc	: 'First module upon connection',
-	author	: 'NuSkooler',
-};
-
-exports.entryPoint	= entryPoint;
+exports.connectEntry	= connectEntry;
 
 function ansiQueryTermSizeIfNeeded(client) {
 	if(client.term.termHeight > 0 || client.term.termWidth > 0) {
@@ -30,10 +26,13 @@ function ansiQueryTermSizeIfNeeded(client) {
 			return;
 		}
 
+		assert(2 === pos.length);
 		client.term.termHeight	= pos[0];
 		client.term.termWidth	= pos[1];
 
-		Log.debug({ termWidth : client.term.termWidth, termHeight : client.term.termHeight, updateSource : 'ANSI CPR' }, 'Window size updated');
+		Log.debug(
+			{ termWidth : client.term.termWidth, termHeight : client.term.termHeight, updateSource : 'ANSI CPR' }, 
+			'Window size updated');
 	};
 
 	client.once('cursor position report', onCPR);
@@ -46,7 +45,21 @@ function ansiQueryTermSizeIfNeeded(client) {
 	client.term.write(ansi.queryScreenSize());
 }
 
-function entryPoint(client) {
+function prepareTerminal(term) {
+	term.write(ansi.normal());
+	term.write(ansi.disableVT100LineWrapping());
+	//	:TODO: set xterm stuff -- see x84/others
+}
+
+function displayBanner(term) {
+	//	:TODO: add URL to banner
+	term.write(ansi.fromPipeCode(util.format('' + 
+		'|33Conected to |32EN|33|01i|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
+		'|00|33Copyright (c) 2014 Bryan Ashby\n' + 
+		'|00', packageJson.version)));
+}
+
+function connectEntry(client) {
 	var term = client.term;
 
 	//	
@@ -55,24 +68,8 @@ function entryPoint(client) {
 	//
 	ansiQueryTermSizeIfNeeded(client);
 
-	term.write(ansi.normal());
-
-	term.write(ansi.disableVT100LineWrapping());
-
-
-
-	//
-	//	If we don't yet know the client term width/height, try
-	//	a nonstandard ANSI query
-	//
-
-	//	:TODO: set xterm stuff -- see x84/others
-
-	//	:TODO: add URL to banner
-	term.write(ansi.fromPipeCode(util.format('' + 
-		'|33Conected to |32EN|33|01i|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
-		'|00|33Copyright (c) 2014 Bryan Ashby\n' + 
-		'|00', packageJson.version)));
+	prepareTerminal(term);
+	displayBanner(term);
 
 	setTimeout(function onTimeout() {
 		term.write(ansi.clearScreen());
@@ -87,7 +84,7 @@ function entryPoint(client) {
 
 			setTimeout(function onTimeout() {
 				term.write(ansi.clearScreen());
-				modules.goto('matrix', client);
+				modules.goto(Config.entryMod, client);
 			}, timeout);
 		});
 	}, 500);

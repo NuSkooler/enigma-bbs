@@ -40,8 +40,6 @@ function entryPoint(client) {
 					return;					
 				}
 
-				console.log(mci);
-
 				user.authenticate('NuSkooler', 'password', client, function onAuth(isValid) {
 					console.log(isValid);
 				});

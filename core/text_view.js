@@ -13,8 +13,6 @@ exports.TextView			= TextView;
 function TextView(client, options) {
 	View.call(this, client, options);
 
-	var self = this;
-
 	if(this.options.maxLength) {
 		this.maxLength = this.options.maxLength;
 	}
@@ -31,7 +29,7 @@ function TextView(client, options) {
 
 	this.setText(this.options.text || '');
 
-	this.isPasswordTextStyle = 'P' === self.textStyle || 'password' === self.textStyle;
+	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
 
 	if(this.isPasswordTextStyle) {
 		this.textMaskChar = miscUtil.valueWithDefault(this.options.textMaskChar, '*').substr(0, 1);

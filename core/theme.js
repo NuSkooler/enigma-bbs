@@ -33,15 +33,14 @@ function getThemeInfo(themeID, cb) {
 var availableThemes = {};
 
 function initAvailableThemes(cb) {
-	//	lazy init
 	async.waterfall(
 		[
 			function getDir(callback) {
-				fs.readdir(Config.paths.themes, function onReadDir(err, files) {
+				fs.readdir(Config.paths.themes, function onReadDir(err, files) {					
 					callback(err, files);
 				});
 			},
-			function filterFiles(files, callback) {
+			function filterFiles(files, callback) {				
 				var filtered = files.filter(function onFilter(file) {
 					return fs.statSync(paths.join(Config.paths.themes, file)).isDirectory(); 
 				});
@@ -56,9 +55,9 @@ function initAvailableThemes(cb) {
 							}
 							availableThemes[themeId] = info;
 						}
-						callback(null);
 					});
 				});
+				callback(null);
 			}
 		],
 		function onComplete(err) {

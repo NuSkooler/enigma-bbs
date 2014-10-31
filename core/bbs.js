@@ -11,6 +11,7 @@ var database	= require('./database.js');
 var iconv		= require('iconv-lite');
 var paths		= require('path');
 var async		= require('async');
+var util		= require('util');
 
 exports.bbsMain			= bbsMain;
 
@@ -51,22 +52,15 @@ function bbsMain() {
 		conf.createDefault();
 	}
 
-	logger.init();
+	initialize(function onInit(err) {
+		if(err) {
+			console.error('Error initializing: ' + util.inspect(err));
+			return;
+		}
 
-	process.on('SIGINT', function onSigInt() {
-		//	:TODO: for any client in |clientConnections|, if 'ready', send a "Server Disconnecting" + semi-gracefull hangup
-		//	e.g. client.disconnectNow()
-
-		logger.log.info('Process interrupted, shutting down');
-		process.exit();
+		startListening();
 	});
-
-	database.initializeDatabases();
-
-	preServingInit();
-
-	startListening();
-};
+}
 
 function parseArgs() {
 	var args = [];
@@ -91,11 +85,13 @@ function initialize(cb) {
 					process.exit();
 				});
 
+				iconv.extendNodeEncodings();
+
 				callback(null);
 			},
 			function initDatabases(callback) {
 				database.initializeDatabases();
-				callback(null);
+				callback(null);			
 			},
 			function initThemes(callback) {
 				//	Have to pull in here so it's after Config init
@@ -110,10 +106,6 @@ function initialize(cb) {
 			cb(err);
 		}
 	);
-}
-
-function preServingInit() {
-	iconv.extendNodeEncodings();
 }
 
 var clientConnections  = [];
@@ -151,14 +143,13 @@ function startListening() {
 			}
 
 			addNewClient(client);
-			//client.runtime.id = clientConnections.push(client) - 1;
 
 			//logger.log.info({ clientId : client.runtime.id, from : client.address(), server : module.moduleInfo.name }, 'Client connected');
 
 			client.on('ready', function onClientReady() {
 				//	Go to module -- use default error handler
 				prepareClient(client, function onPrepared() {
-					modules.goto(conf.config.entryMod, client);
+					require('./connect.js').connectEntry(client);
 				});
 			});
 
@@ -199,6 +190,7 @@ function removeClient(client) {
 }
 
 function prepareClient(client, cb) {
+	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
 	if('*' === conf.config.preLoginTheme) {
 		var theme = require('./theme.js');
 		theme.getRandomTheme(function onRandTheme(err, themeId) {

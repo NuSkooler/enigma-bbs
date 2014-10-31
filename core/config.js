@@ -7,7 +7,7 @@ var miscUtil	= require('./misc_util.js');
 
 module.exports = {
 	//	:TODO: remove this ... anti-pattern!
-	config			: undefined,
+	//config			: undefined,
 
 	defaultPath		: function() {
 		var base = miscUtil.resolvePath('~/');
@@ -26,7 +26,7 @@ module.exports = {
 			bbsName		: 'Another Fine ENiGMA½ BBS',
 
 			//	:TODO: probably replace this with 'firstMenu' or somthing once that's available
-			entryMod	: 'connect',
+			entryMod	: 'matrix',
 			
 			preLoginTheme : '*',
 
