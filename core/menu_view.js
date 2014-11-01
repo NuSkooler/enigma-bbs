@@ -11,12 +11,11 @@ exports.MenuView	= MenuView;
 
 function MenuView(client, options) {
 	options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
-	var self = this;
+	options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
 
 	View.call(this, client, options);
 
-	this.focusedItemIndex = 0;
-	
+	var self = this;
 
 	//// --- TESTING 
 	options.items = [ 'Login', 'Apply', 'Logout' ];
@@ -32,6 +31,9 @@ function MenuView(client, options) {
 			});
 		});
 	}
+
+	this.focusedItemIndex = this.options.focusedItemIndex || 0;
+	this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
 	this.itemSpacing	= this.options.itemSpacing || 1;
 	this.itemSpacing	= parseInt(this.itemSpacing, 10);

@@ -28,6 +28,35 @@ function VerticalMenuView(client, options) {
 			self.xPositionCacheExpired = false;
 		}
 	};
+
+	this.drawItem = function(index) {
+		assert(!this.xPositionCacheExpired);
+
+		var item = self.items[index];
+		if(!item) {
+			return;
+		}
+
+		self.client.term.write(ansi.goto(item.xPosition, self.position.y));
+		this.client.term.write(self.getANSIColor(
+			index === self.focusedItemIndex || item.selected ? self.getFocusColor() : self.getColor()));
+
+		var text = strUtil.stylizeString(item.text, item.hasFocus ? self.focusTextStyle : self.textStyle);
+		self.client.term.write(text);	//	:TODO: apply justify
+	};
+
+	this.moveSelection = function(fromIndex, toIndex) {
+		assert(!self.xPositionCacheExpired);
+		assert(fromIndex >= 0 && fromIndex <= self.items.length);
+		assert(toIndex >= 0 && toIndex <= self.items.length);
+
+		self.items[fromIndex].focused	= false;
+		self.drawItem(fromIndex);
+
+		self.items[toIndex].focused 	= true;
+		self.focusedItemIndex			= toIndex;
+		self.drawItem(toIndex);
+	};
 }
 
 util.inherits(VerticalMenuView, MenuView);
@@ -41,27 +70,11 @@ VerticalMenuView.prototype.setPosition = function(pos) {
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
-	var color		= this.getColor();
-	var focusColor	= this.getFocusColor();
-	console.log(focusColor);
-	var x			= this.position.x;
-	var y			= this.position.y;
-
-	var count = this.items.length;
-	var item;
-	var text;
-
 	this.cacheXPositions();
 
+	var count = this.items.length;
 	for(var i = 0; i < count; ++i) {
-		item = this.items[i];
-
-		this.client.term.write(ansi.goto(item.xPosition, y));
-
-		this.client.term.write(this.getANSIColor(i === this.focusedItemIndex || item.selected ? focusColor : color));
-
-		text = strUtil.stylizeString(item.text, item.hasFocus ? this.focusTextStyle : this.textStyle);
-		this.client.term.write(text);	//	:TODO: apply justify, and style		
+		this.drawItem(i);
 	}
 };
 
@@ -69,4 +82,29 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 	VerticalMenuView.super_.prototype.setFocus.call(this, focused);
 
 	this.redraw();
+};
+
+VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
+
+	var prevFocusedItemIndex = this.focusedItemIndex;
+
+	if(this.isSpecialKeyMapped('up', keyName)) {		
+		if(0 === this.focusedItemIndex) {
+			this.focusedItemIndex = this.items.length - 1;
+		} else {
+			this.focusedItemIndex--;
+		}
+	} else if(this.isSpecialKeyMapped('down', keyName)) {
+		if(this.items.length - 1 === this.focusedItemIndex) {
+			this.focusedItemIndex = 0;
+		} else {
+			this.focusedItemIndex++;
+		}
+	}
+
+	if(prevFocusedItemIndex !== this.focusedItemIndex) {
+		this.moveSelection(prevFocusedItemIndex, this.focusedItemIndex);
+	}
+
+	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };

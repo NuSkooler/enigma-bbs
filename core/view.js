@@ -15,6 +15,8 @@ var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	backspace	: [ 'backspace' ],
 	del			: [ 'del' ],
 	next		: [ 'tab' ],
+	up			: [ 'up arrow' ],
+	down		: [ 'down arrow' ],
 };
 
 function View(client, options) {
