@@ -17,19 +17,10 @@ function MenuView(client, options) {
 
 	var self = this;
 
-	//// --- TESTING 
-	options.items = [ 'Login', 'Apply', 'Logout' ];
-	//options.itemSpacing = 2;
-	//// --- TESTING 
-
-	this.items = [];
 	if(this.options.items) {
-		this.options.items.forEach(function onItem(itemText) {
-			self.items.push({
-				text		: itemText,
-				selected	: false,
-			});
-		});
+		this.setItems(this.options.items);
+	} else {
+		this.items = [];
 	}
 
 	this.focusedItemIndex = this.options.focusedItemIndex || 0;
@@ -40,7 +31,23 @@ function MenuView(client, options) {
 
 	this.focusPrefix	= this.options.focusPrefix || '';
 	this.focusSuffix	= this.options.focusSuffix || '';
+
+	this.fillChar		= miscUtil.valueWithDefault(this.options.fillChar, ' ').substr(0, 1);
+	this.justify		= this.options.justify || 'none';
 }
 
 util.inherits(MenuView, View);
+
+MenuView.prototype.setItems = function(items) {
+	var self = this;
+	if(items) {	
+		this.items = [];	//	:TODO: better way?
+		items.forEach(function onItem(itemText) {
+			self.items.push({
+				text		: itemText,
+				selected	: false,
+			});
+		});
+	}
+};
 

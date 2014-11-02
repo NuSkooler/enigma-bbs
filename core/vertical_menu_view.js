@@ -14,6 +14,25 @@ function VerticalMenuView(client, options) {
 
 	var self = this;
 
+	this.calculateDimens = function() {
+		if(!self.dimens || !self.dimens.width) {
+			var l = 0;
+			self.items.forEach(function onItem(item) {
+				if(item.text.length > l) {
+					l = item.text.length;
+				}
+			});
+			self.dimens = self.dimens || {};
+			self.dimens.width = l;
+		}
+
+		if(!self.dimens.height) {
+			//this.dimens.height = self.items.length
+		}
+	};
+
+	this.calculateDimens();
+
 	this.cacheXPositions = function() {
 		if(self.xPositionCacheExpired) {
 			var count = this.items.length;
@@ -42,9 +61,12 @@ function VerticalMenuView(client, options) {
 			index === self.focusedItemIndex || item.selected ? self.getFocusColor() : self.getColor()));
 
 		var text = strUtil.stylizeString(item.text, item.hasFocus ? self.focusTextStyle : self.textStyle);
-		self.client.term.write(text);	//	:TODO: apply justify
+
+		self.client.term.write(
+			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify));
 	};
 
+	//	:TODO: move to MenuView
 	this.moveSelection = function(fromIndex, toIndex) {
 		assert(!self.xPositionCacheExpired);
 		assert(fromIndex >= 0 && fromIndex <= self.items.length);
@@ -67,6 +89,7 @@ VerticalMenuView.prototype.setPosition = function(pos) {
 	this.xPositionCacheExpired = true;
 };
 
+//	:TODO: Could be moved to base with just this.cachePositions() ?
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
@@ -107,4 +130,16 @@ VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 	}
 
 	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
+};
+
+VerticalMenuView.prototype.getViewData = function() {
+	return this.focusedItemIndex;
+};
+
+VerticalMenuView.prototype.setItems = function(items) {
+	VerticalMenuView.super_.prototype.setItems.call(this, items);
+
+	this.xPositionCacheExpired = true;
+	this.cacheXPositions();
+	this.calculateDimens();
 };

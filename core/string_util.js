@@ -120,16 +120,20 @@ function pad(s, len, padChar, dir) {
 	var padlen	= len - s.length;
 
 	switch(dir) {
+		case 'L' :
 		case 'left' : 
 			s = new Array(padlen).join(padChar) + s;
 			break;
 
+		case 'C' :
+		case 'center' :
 		case 'both' : 
-			var right	= Math.ceil(padlen) / 2;
+			var right	= Math.ceil(padlen / 2);
 			var left	= padlen - right;
 			s			= new Array(left + 1).join(padChar) + s + new Array(right + 1).join(padChar);
 			break;
 
+		case 'R' : 
 		case 'right' :
 			s = s + new Array(padlen).join(padChar);
 			break;

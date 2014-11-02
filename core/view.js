@@ -32,6 +32,8 @@ function View(client, options) {
 	this.acceptsFocus	= options.acceptsFocus || false;
 	this.acceptsInput	= options.acceptsInput || false;
 
+	this.submit			= this.acceptsInput ? options.acceptsInput || false : false;
+
 	this.position 		= { x : 0, y : 0 };
 	this.dimens			= { height : 1, width : 0 };
 
@@ -143,4 +145,7 @@ View.prototype.onSpecialKeyPress = function(keyName) {
 	} else if(this.isSpecialKeyMapped('next', keyName)) {
 		this.emit('action', 'next');
 	}
+};
+
+View.prototype.getViewData = function() {
 };

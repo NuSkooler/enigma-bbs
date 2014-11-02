@@ -64,6 +64,8 @@ function entryPoint(client) {
 				//vc.getView(3).setText('New');
 				//vc.getView(4).setText('Login');
 				vc.setViewOrder();
+				vc.getView(1).submit = true;
+				vc.getView(1).setItems(['System Login', 'Apply', 'GTFO!']);
 				vc.switchFocus(1);
 			});
 		}

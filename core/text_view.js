@@ -20,6 +20,8 @@ function TextView(client, options) {
 	this.multiLine	= this.options.multiLine || false;
 	this.fillChar	= miscUtil.valueWithDefault(this.options.fillChar, ' ').substr(0, 1);
 
+	this.justify	= this.options.justify || 'none';
+
 	assert(!this.multiLine);	//	:TODO: not yet supported
 
 	if(!this.multiLine) {
@@ -29,7 +31,7 @@ function TextView(client, options) {
 	this.setText(this.options.text || '');
 
 	if(this.isPasswordTextStyle) {
-		this.textMaskChar = miscUtil.valueWithDefault(this.options.textMaskChar, '*').substr(0, 1);
+		this.textMaskChar = miscUtil.valueWithDefault(this.textMaskChar, '*').substr(0, 1);
 	}
 }
 

@@ -8,13 +8,14 @@ var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 
 exports.ViewController		= ViewController;
 
-function ViewController(client) {
+function ViewController(client, formId) {
 	events.EventEmitter.call(this);
 
 	var self		= this;
 
 	this.client		= client;
 	this.views		= {};	//	map of ID -> view
+	this.formId		= formId || 0;
 
 	this.onClientKeyPress = function(key, isSpecial) {
 		if(isSpecial) {
@@ -40,11 +41,40 @@ function ViewController(client) {
 				self.nextFocus();
 				break;
 
-			case 'accept' :
+			case 'accept' :	//	:TODO: consider naming this 'done'
 				//	:TODO: check if id is submit, etc.
-				self.nextFocus();
+				if(self.focusedView && self.focusedView.submit) {					
+					self.submitForm();
+				} else {
+					self.nextFocus();
+				}
 				break;
 		}
+	};
+
+	this.submitForm = function() {
+		var formData = {
+			id		: self.formId,
+			viewId	: self.focusedView.id,
+			values	: [],
+		};
+
+		var viewData;
+		for(var id in self.views) {
+			try {
+				viewData = self.views[id].getViewData();				
+				if(typeof viewData !== 'undefined') {
+					formData.values.push({
+						id		: id,
+						data	: viewData,
+					});
+				}
+			} catch(e) {
+				console.log(e);
+			}
+		}
+
+		self.emit('submit', formData);
 	};
 
 	this.attachClientEvents();
@@ -149,7 +179,7 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 
 		if(view) {
 			view.on('action', self.onViewAction);
-			self.addView(view);
+			self.addView(view);	//	:TODO: Needs detached
 			view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
 		}
 	});

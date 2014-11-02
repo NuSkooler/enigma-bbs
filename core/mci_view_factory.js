@@ -119,6 +119,8 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 		case 'VM' :
 			setOption(0, 'itemSpacing');
+			setOption(1, 'justify');
+			setOption(2, 'textStyle');
 
 			view = new VerticalMenuView(this.client, options);
 			break;
