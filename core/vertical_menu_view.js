@@ -14,6 +14,8 @@ function VerticalMenuView(client, options) {
 
 	var self = this;
 
+	this.itemSpacing = 3;
+
 	this.calculateDimens = function() {
 		if(!self.dimens || !self.dimens.width) {
 			var l = 0;
@@ -26,15 +28,17 @@ function VerticalMenuView(client, options) {
 			self.dimens.width = l;
 		}
 
-		if(!self.dimens.height) {
-			//this.dimens.height = self.items.length
+		if(this.items.length > 0) {
+			this.dimens.height = (self.items.length * self.itemSpacing) - (self.itemSpacing - 1);
+		} else {
+			this.dimens.height = 0;
 		}
 	};
 
 	this.calculateDimens();
 
-	this.cacheXPositions = function() {
-		if(self.xPositionCacheExpired) {
+	this.cachePositions = function() {
+		if(self.positionCacheExpired) {
 			var count = this.items.length;
 			var x = self.position.x;
 			for(var i = 0; i < count; ++i) {
@@ -44,12 +48,12 @@ function VerticalMenuView(client, options) {
 
 				self.items[i].xPosition = x;
 			}
-			self.xPositionCacheExpired = false;
+			self.positionCacheExpired = false;
 		}
 	};
 
 	this.drawItem = function(index) {
-		assert(!this.xPositionCacheExpired);
+		assert(!this.positionCacheExpired);
 
 		var item = self.items[index];
 		if(!item) {
@@ -60,24 +64,10 @@ function VerticalMenuView(client, options) {
 		this.client.term.write(self.getANSIColor(
 			index === self.focusedItemIndex || item.selected ? self.getFocusColor() : self.getColor()));
 
-		var text = strUtil.stylizeString(item.text, item.hasFocus ? self.focusTextStyle : self.textStyle);
+		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 
 		self.client.term.write(
 			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify));
-	};
-
-	//	:TODO: move to MenuView
-	this.moveSelection = function(fromIndex, toIndex) {
-		assert(!self.xPositionCacheExpired);
-		assert(fromIndex >= 0 && fromIndex <= self.items.length);
-		assert(toIndex >= 0 && toIndex <= self.items.length);
-
-		self.items[fromIndex].focused	= false;
-		self.drawItem(fromIndex);
-
-		self.items[toIndex].focused 	= true;
-		self.focusedItemIndex			= toIndex;
-		self.drawItem(toIndex);
 	};
 }
 
@@ -86,19 +76,7 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.setPosition = function(pos) {
 	VerticalMenuView.super_.prototype.setPosition.call(this, pos);
 
-	this.xPositionCacheExpired = true;
-};
-
-//	:TODO: Could be moved to base with just this.cachePositions() ?
-VerticalMenuView.prototype.redraw = function() {
-	VerticalMenuView.super_.prototype.redraw.call(this);
-
-	this.cacheXPositions();
-
-	var count = this.items.length;
-	for(var i = 0; i < count; ++i) {
-		this.drawItem(i);
-	}
+	this.positionCacheExpired = true;
 };
 
 VerticalMenuView.prototype.setFocus = function(focused) {
@@ -139,7 +117,7 @@ VerticalMenuView.prototype.getViewData = function() {
 VerticalMenuView.prototype.setItems = function(items) {
 	VerticalMenuView.super_.prototype.setItems.call(this, items);
 
-	this.xPositionCacheExpired = true;
-	this.cacheXPositions();
+	this.positionCacheExpired = true;
+	this.cachePositions();
 	this.calculateDimens();
 };

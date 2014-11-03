@@ -9,8 +9,10 @@ var assert			= require('assert');
 exports.ButtonView			= ButtonView;
 
 function ButtonView(client, options) {
-	options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
-	options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
+	console.log(options);
+	options.acceptsFocus	= miscUtil.valueWithDefault(options.acceptsFocus, true);
+	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
+	options.justify			= miscUtil.valueWithDefault(options.justify, 'center');
 
 	TextView.call(this, client, options);
 }
@@ -21,6 +23,7 @@ ButtonView.prototype.onKeyPress = function(key, isSpecial) {
 	ButtonView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 
 	//	allow spacebar to 'click' buttons
+	//	:TODO: need to check configurable mapping here
 	if(' ' === key) {
 		this.emit('action', 'accept');
 	}

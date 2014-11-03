@@ -16,7 +16,8 @@ function EditTextView(client, options) {
 	TextView.call(this, client, options);
 
 	this.clientBackspace = function() {
-		this.client.term.write('\b \b');
+		this.client.term.write(
+			'\b' + this.getANSIColor(this.getColor()) + this.fillChar + '\b' + this.getANSIColor(this.getFocusColor()));
 	};
 }
 
@@ -29,7 +30,7 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 
 	assert(1 === key.length);
 
-	console.log('key: ' + key);
+	//	:TODO: how to handle justify left/center?
 
 	if(this.text.length < this.options.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);

@@ -3,7 +3,6 @@
 
 //var art			= require('../core/art.js');
 var ansi		= require('../core/ansi_term.js');
-var lineEditor	= require('../core/line_editor.js');
 var art			= require('../core/art.js');
 var user		= require('../core/user.js');
 var theme		= require('../core/theme.js');
@@ -30,7 +29,7 @@ function entryPoint(client) {
 
 	//art.getArt('SO-CC1.ANS'/* 'MATRIX'*/, { types: ['.ans'], random: true}, function onArt(err, theArt) {
 	//client.user.properties.art_theme_id = '';
-	theme.getThemeArt('MCI_VM1.ANS', client.user.properties.art_theme_id, function onArt(err, theArt) {
+	theme.getThemeArt('MCI_FORM1.ANS', client.user.properties.art_theme_id, function onArt(err, theArt) {
 
 	//art.getArt('MATRIX_1.ANS', {}, function onArt(err, theArt) {
 		if(!err) {
@@ -60,12 +59,18 @@ function entryPoint(client) {
 				});
 
 				var vc = new viewController.ViewController(client);
+				vc.on('submit', function onSubmit(formData) {
+					console.log(formData);
+				});
+
 				vc.loadFromMCIMap(mci);
 				//vc.getView(3).setText('New');
 				//vc.getView(4).setText('Login');
 				vc.setViewOrder();
-				vc.getView(1).submit = true;
-				vc.getView(1).setItems(['System Login', 'Apply', 'GTFO!']);
+				//vc.getView(1).submit = true;
+				//vc.getView(1).setItems(['System Login', 'Apply', 'GTFO!']);
+				vc.getView(2).submit = true;
+				vc.getView(3).setText('Apply');
 				vc.switchFocus(1);
 			});
 		}

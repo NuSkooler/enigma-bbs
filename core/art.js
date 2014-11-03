@@ -433,6 +433,7 @@ function display(art, options, cb) {
 				bg		: parser.bgColor,
 				flags	: parser.flags,
 			};
+			mci[mapItem].focusArgs = args;
 		} else {
 			mci[mapItem] = {
 				args : args,
