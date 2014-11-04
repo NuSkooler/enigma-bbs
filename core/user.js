@@ -305,7 +305,23 @@ function authenticate(userName, password, client, cb) {
 			if(err) {
 				cb(false);
 			} else {
-				cb(passDk === propsDk);
+				//
+				//	Use constant time comparison here for security feel-goods
+				//
+				var passDkBuf	= new Buffer(passDk, 'hex');
+				var propsDkBuf	= new Buffer(propsDk, 'hex');
+
+				if(passDkBuf.length !== propsDkBuf.length) {
+					cb(false);
+					return;
+				}
+
+				var c = 0;
+				for(var i = 0; i < passDkBuf.length; i++) {
+					c |= passDkBuf[i] ^ propsDkBuf[i];
+				}
+
+				cb(0 === c);
 			}
 		}
 	);

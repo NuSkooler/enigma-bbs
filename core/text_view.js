@@ -82,4 +82,6 @@ TextView.prototype.setText = function(text) {
 	if(!this.multiLine && !this.dimens.width) {
 		this.dimens.width = this.text.length;
 	}
+
+	this.redraw();
 };
