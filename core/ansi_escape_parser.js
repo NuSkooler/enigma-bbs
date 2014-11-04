@@ -274,7 +274,7 @@ function ANSIEscapeParser(options) {
 
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
-					if(0x00 === arg) {
+					/*if(0x00 === arg) {
 						self.flags = 0x00;
 						self.resetColor();
 					} else {
@@ -284,6 +284,17 @@ function ANSIEscapeParser(options) {
 							case 4	: self.bgColor = arg; break;
 							//case 3	: self.fgColor = arg - 30; break;
 							//case 4	: self.bgColor = arg - 40; break;
+						}
+					}
+					*/
+					if(arg >= 30 && arg <= 37) {
+						self.fgColor = arg;
+					} else if(arg >= 40 && arg <= 47) {
+						self.bgColor = arg;
+					} else {
+						self.flags = arg;
+						if(0 === arg) {
+							self.resetColor();
 						}
 					}
 				}
