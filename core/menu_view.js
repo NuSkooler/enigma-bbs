@@ -36,7 +36,7 @@ function MenuView(client, options) {
 	this.justify		= this.options.justify || 'none';
 
 	this.moveSelection = function(fromIndex, toIndex) {
-		assert(!self.xPositionCacheExpired);
+		assert(!self.positionCacheExpired);
 		assert(fromIndex >= 0 && fromIndex <= self.items.length);
 		assert(toIndex >= 0 && toIndex <= self.items.length);
 
@@ -48,13 +48,14 @@ function MenuView(client, options) {
 		self.drawItem(toIndex);
 	};
 
+	/*
 	this.cachePositions = function() {
 		//	:TODO: implement me!
 	};
 
 	this.drawItem = function(index) {
 		//	:TODO: implement me!
-	};
+	};*/
 }
 
 util.inherits(MenuView, View);

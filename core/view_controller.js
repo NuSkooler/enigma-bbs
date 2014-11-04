@@ -101,6 +101,10 @@ ViewController.prototype.detachClientEvents = function() {
 	this.client.removeListener('key press', this.onClientKeyPress);
 	this.client.removeListener('special key', this.onClientSpecialKeyPress);
 
+	for(var id in this.views) {
+		this.views[id].removeAllListeners();
+	}
+
 	this.attached = false;
 };
 
@@ -179,7 +183,7 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 
 		if(view) {
 			view.on('action', self.onViewAction);
-			self.addView(view);	//	:TODO: Needs detached
+			self.addView(view);
 			view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
 		}
 	});

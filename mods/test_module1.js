@@ -35,6 +35,7 @@ function entryPoint(client) {
 			function artDisplayed(mci, callback) {
 				var vc = new viewController.ViewController(client);
 				vc.loadFromMCIMap(mci);
+				vc.getView(1).setItems(['Item 1', 'Item Two', 'The Third']);
 				vc.setViewOrder();
 				vc.switchFocus(1);
 			}
