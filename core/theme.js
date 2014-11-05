@@ -12,6 +12,7 @@ exports.getThemeInfo			= getThemeInfo;
 exports.getThemeArt				= getThemeArt;
 exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
+exports.displayThemeArt			= displayThemeArt;
 
 function getThemeInfo(themeID, cb) {
 	var path = paths.join(Config.paths.themes, themeID, 'theme_info.json');
@@ -106,6 +107,18 @@ function getThemeArt(name, themeID, options, cb) {
 			});
 		} else {
 			cb(null, theArt.data);
+		}
+	});
+}
+
+function displayThemeArt(name, client, cb) {
+	getThemeArt(name, client.user.properties.art_theme_id, function onArt(err, theArt) {
+		if(err) {
+			cb(err);
+		} else {
+			art.display( { art : theArt, client : client }, function onDisplayed(err, mci) {
+				cb(err, mci);
+			});
 		}
 	});
 }

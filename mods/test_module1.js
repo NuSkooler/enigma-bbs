@@ -28,7 +28,7 @@ function entryPoint(client) {
 				});
 			},
 			function displayArt(theArt, callback) {
-				art.display(theArt, { client : client, mciReplaceChar : ' ' }, function onDisplayed(err, mci) {
+				art.display( { art : theArt, client : client }, function onDisplayed(err, mci) {
 					callback(err, mci);
 				});
 			},

@@ -10,14 +10,14 @@ var assert			= require('assert');
 
 exports.TickerTextView		= TickerTextView;
 
-TickerTextView = function(client, options) {
+function TickerTextView(client, options) {
 	View.call(this, client, options);
 
 	var self = this;
 
 	this.text				= this.options.text || '';
 	this.tickerStyle		= this.options.tickerStyle || 'rightToLeft';
-	asssert(this.tickerStyle in TickerTextView.TickerStyles);
+	assert(this.tickerStyle in TickerTextView.TickerStyles);
 	
 	//	:TODO: Ticker |text| should have ANSI stripped before calculating any lengths/etc.
 	//	strUtil.ansiTextLength(s)

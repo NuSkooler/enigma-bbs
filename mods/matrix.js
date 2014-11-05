@@ -10,7 +10,9 @@ var modules		= require('../core/modules.js');
 //var view		= require('../core/view.js');
 var textView	= require('../core/text_view.js');
 var editTextView	= require('../core/edit_text_view.js');
-var viewController	= require('../core/view_controller.js');
+var ViewController	= require('../core/view_controller.js').ViewController;
+
+var async		= require('async');
 
 exports.moduleInfo = {
 	name	: 'Matrix',
@@ -21,14 +23,49 @@ exports.moduleInfo = {
 exports.entryPoint	= entryPoint;
 
 function entryPoint(client) {
+
+	theme.displayThemeArt('MATRIX', client, function onMatrix(err, mciMap) {
+		if(mciMap.ET1 && mciMap.ET2 && mciMap.BN1 && mciMap.BN2 && mciMap.BN3) {
+			//
+			//	Form via EditTextViews and ButtonViews
+			//	* ET1 - userName
+			//	* ET2 - password
+			//	* BN1 - Login
+			//	* BN2 - New
+			//	* BN3 - Bye!
+			//
+		} else if(mciMap.VM1) {
+			//
+			//	Menu via VerticalMenuView
+			//
+			//	* VM1 - menu with the following items:
+			//		0 - Login
+			//		1 - New
+			//		2 - Bye!
+			//
+			var vc = new ViewController(client);
+
+			vc.on('submit', function onSubmit(form) {
+
+			});
+
+			vc.loadFromMCIMap(mciMap);
+			vc.setViewOrder();
+			//	:TODO: Localize
+			vc.getView(1).setItems(['Login', 'New User', 'Goodbye!']);
+			vc.switchFocus(1);
+		}
+	});
+}
+
+/*
+function entryPoint(client) {
 	var term = client.term;
 
 	term.write(ansi.resetScreen());	
 	
 	//	:TODO: types, random, and others? could come from conf.mods.matrix or such
 
-	//art.getArt('SO-CC1.ANS'/* 'MATRIX'*/, { types: ['.ans'], random: true}, function onArt(err, theArt) {
-	//client.user.properties.art_theme_id = '';
 	theme.getThemeArt('MCI_ET1.ANS', client.user.properties.art_theme_id, function onArt(err, theArt) {
 
 	//art.getArt('MATRIX_1.ANS', {}, function onArt(err, theArt) {
@@ -64,3 +101,4 @@ function entryPoint(client) {
 		}
 	});
 }
+*/

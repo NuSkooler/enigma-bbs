@@ -368,26 +368,22 @@ function defaultEofFromExtension(ext) {
 //	cb(err, mci)
 
 //	:TODO: display({ art : art, client : client, ...}, cb)
-function display(art, options, cb) {
-	if(!art || 0 === art.length) {
-		cb(new Error('Missing or empty art'));
-		return;
-	}
+function display(options, cb) {
+	assert(
+		'undefined' !== typeof options &&
+		'undefined' !== typeof options.client &&
+		'undefined' !== typeof options.art,
+		'Missing required options');
 
-	if('undefined' === typeof options) {
-		cb(new Error('Missing options'));
-		return;
-	}
-
-	if('undefined' === typeof options.client) {
-		cb(new Error('Missing client in options'));
+	if(0 === options.art.length) {
+		cb(new Error('Empty art'));
 		return;
 	}
 
 	var cancelKeys			= miscUtil.valueWithDefault(options.cancelKeys, []);
 	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
 	var pauseAtTermHeight	= miscUtil.valueWithDefault(options.pauseAtTermHeight, false);
-	var mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, '');
+	var mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, ' ');
 
 	//	:TODO: support pause/cancel & pause @ termHeight
 	var canceled = false;
@@ -464,5 +460,5 @@ function display(art, options, cb) {
 		}		
 	});
 
-	parser.parse(art);
+	parser.parse(options.art);
 }
