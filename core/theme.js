@@ -73,7 +73,7 @@ function initAvailableThemes(cb) {
 }
 
 function getRandomTheme(cb) {
-	if(availableThemes.length > 0) {
+	if(Object.getOwnPropertyNames(availableThemes).length > 0) {
 		var themeIds = Object.keys(availableThemes);
 		cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
 	} else {
@@ -94,29 +94,37 @@ function getThemeArt(name, themeID, options, cb) {
 	options.random		= miscUtil.valueWithDefault(options.random, true);
 	options.basePath	= paths.join(Config.paths.themes, themeID);
 
-	art.getArt(name, options, function onThemeArt(err, theArt) {
+	art.getArt(name, options, function onThemeArt(err, artInfo) {
 		if(err) {
 			//	try fallback of art directory
 			options.basePath = Config.paths.art;
-			art.getArt(name, options, function onFallbackArt(err, theArt) {
+			art.getArt(name, options, function onFallbackArt(err, artInfo) {
 				if(err) {
 					cb(err);
 				} else {
-					cb(null, theArt.data);
+					cb(null, artInfo);
 				}
 			});
 		} else {
-			cb(null, theArt.data);
+			cb(null, artInfo);
 		}
 	});
 }
 
 function displayThemeArt(name, client, cb) {
-	getThemeArt(name, client.user.properties.art_theme_id, function onArt(err, theArt) {
+	getThemeArt(name, client.user.properties.art_theme_id, function onArt(err, artInfo) {
 		if(err) {
 			cb(err);
 		} else {
-			art.display( { art : theArt, client : client }, function onDisplayed(err, mci) {
+			var iceColors = false;
+			if(artInfo.sauce && artInfo.sauce.ansiFlags) {
+				if(artInfo.sauce.ansiFlags & (1 << 0)) {
+					iceColors = true;
+				}
+			}
+
+			console.log(artInfo.sauce.flags);
+			art.display( { art : artInfo.data, client : client, iceColors : iceColors }, function onDisplayed(err, mci) {
 				cb(err, mci);
 			});
 		}

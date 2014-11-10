@@ -24,7 +24,11 @@ exports.entryPoint	= entryPoint;
 
 function entryPoint(client) {
 
+	client.term.write(ansi.resetScreen());
+	//client.term.write('\x1b[?33h');
+
 	theme.displayThemeArt('MATRIX', client, function onMatrix(err, mciMap) {
+		console.log(mciMap);
 		if(mciMap.ET1 && mciMap.ET2 && mciMap.BN1 && mciMap.BN2 && mciMap.BN3) {
 			//
 			//	Form via EditTextViews and ButtonViews

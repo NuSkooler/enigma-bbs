@@ -173,6 +173,9 @@ function parseCharacterSAUCE(sauce) {
 	result.fileType	= SAUCE_CHARACTER_FILE_TYPES[sauce.fileType] || 'Unknown';
 
 	if(sauce.fileType === 0 || sauce.fileType === 1 || sauce.fileType === 2) {
+		//	convience: create ansiFlags
+		sauce.ansiFlags = sauce.flags;
+
 		var i = 0;
 		while(i < sauce.tinfos.length && sauce.tinfos[i] !== 0x00) {
 			++i;
@@ -384,6 +387,7 @@ function display(options, cb) {
 	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
 	var pauseAtTermHeight	= miscUtil.valueWithDefault(options.pauseAtTermHeight, false);
 	var mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, ' ');
+	var iceColors			= miscUtil.valueWithDefault(options.iceColors, false);
 
 	//	:TODO: support pause/cancel & pause @ termHeight
 	var canceled = false;
@@ -414,6 +418,11 @@ function display(options, cb) {
 	function completed() {
 		options.client.removeListener('cursor position report', onCPR);
 		parser.removeAllListeners();	//	:TODO: Necessary???
+
+		if(iceColors) {
+			options.client.term.write(ansi.blinkNormal());
+		}
+
 		cb(null, mci);
 	}
 
@@ -459,6 +468,10 @@ function display(options, cb) {
 			completed();
 		}		
 	});
+
+	if(iceColors) {
+		options.client.term.write(ansi.blinkToBrightIntensity());
+	}
 
 	parser.parse(options.art);
 }
