@@ -29,11 +29,6 @@ function ANSIEscapeParser(options) {
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
 
-	function saveLastColor() {
-		self.lastFlags		= self.flags;
-		self.lastFgCololr	= self.fgColor;
-		self.lastBgColor	= self.bgColor;
-	}
 	
 	function getArgArray(array) {
 		var i = array.length;
@@ -128,7 +123,7 @@ function ANSIEscapeParser(options) {
 
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
-			var eraseColor = ansi.sgr(self.lastFlags, self.lastFgColor, self.lastBgColor);
+			var eraseColor = ansi.sgr(self.eraseColor.flags, self.eraseColor.fgColor, self.eraseColor.bgColor);
 			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);			
 		} else {
 			return mci;
@@ -161,12 +156,24 @@ function ANSIEscapeParser(options) {
 					args = [];
 				}
 
+				//	if MCI codes are changing, save off the current color
+				var fullMciCode = mciCode + (id || '');
+				if(self.lastMciCode !== fullMciCode) {
+
+					self.lastMciCode = fullMciCode;
+					
+					self.eraseColor = {
+						flags	: self.flags,
+						fgColor : self.fgColor,
+						bgColor : self.bgColor, 
+					};
+				}
+
 				
 				self.emit('mci', mciCode, id, args);
 
 				if(self.mciReplaceChar.length > 0) {
-					escape('m', [self.lastFlags, self.lastFgColor, self.lastBgColor]);
-					self.emit('chunk', ansi.sgr(self.lastFlags, self.lastFgColor, self.lastBgColor));
+					self.emit('chunk', ansi.sgr(self.eraseColor.flags, self.eraseColor.fgColor, self.eraseColor.bgColor));
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -270,8 +277,6 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
-				saveLastColor();
-
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 					/*if(0x00 === arg) {
@@ -292,7 +297,7 @@ function ANSIEscapeParser(options) {
 					} else if(arg >= 40 && arg <= 47) {
 						self.bgColor = arg;
 					} else {
-						self.flags = arg;
+						self.flags |= arg;
 						if(0 === arg) {
 							self.resetColor();
 						}
@@ -310,8 +315,7 @@ function ANSIEscapeParser(options) {
 		}
 	}
 
-	this.resetColor();
-	saveLastColor();
+	this.resetColor();	
 }
 
 util.inherits(ANSIEscapeParser, events.EventEmitter);

@@ -4,6 +4,7 @@
 var Config		= require('./config.js').config;
 var art			= require('./art.js');
 var miscUtil	= require('./misc_util.js');
+var logger		= require('./logger.js').log;
 var fs			= require('fs');
 var paths		= require('path');
 var async		= require('async');
@@ -55,6 +56,7 @@ function initAvailableThemes(cb) {
 								availableThemes = {};
 							}
 							availableThemes[themeId] = info;
+							logger.debug( { info : info }, 'Theme loaded');
 						}
 					});
 				});
@@ -123,7 +125,6 @@ function displayThemeArt(name, client, cb) {
 				}
 			}
 
-			console.log(artInfo.sauce.flags);
 			art.display( { art : artInfo.data, client : client, iceColors : iceColors }, function onDisplayed(err, mci) {
 				cb(err, mci);
 			});

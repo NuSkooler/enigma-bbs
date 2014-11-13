@@ -420,7 +420,7 @@ function display(options, cb) {
 		parser.removeAllListeners();	//	:TODO: Necessary???
 
 		if(iceColors) {
-			options.client.term.write(ansi.blinkNormal());
+		//	options.client.term.write(ansi.blinkNormal());
 		}
 
 		cb(null, mci);

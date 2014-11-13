@@ -51,8 +51,8 @@ var CONTROL = {
 	goto			: 'H',	//	row Pr, column Pc -- same as f
 	gotoAlt			: 'f',	//	same as H
 
-	blinkToBrightIntensity	: '33h',
-	blinkNormal				: '33l',
+	blinkToBrightIntensity : '?33h',
+	blinkNormal				: '?33l',
 
 	emulationSpeed	: '*r'	//	Set output emulation speed. See cterm.txt
 };

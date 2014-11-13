@@ -1,4 +1,5 @@
-"use strict";
+/* jslint node: true */
+'use strict';
 
 var bunyan		= require('bunyan');
 var miscUtil	= require('./misc_util.js');
@@ -6,8 +7,6 @@ var paths		= require('path');
 var conf		= require('./config.js');
 
 module.exports	= {
-	log		: undefined,
-
 	init	: function() {
 		//var ringBufferLimit = miscUtil.valueWithDefault(config.logRingBufferLimit, 100);
 		var logPath			= miscUtil.valueWithDefault(conf.config.paths.logs);
