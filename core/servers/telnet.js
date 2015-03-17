@@ -728,4 +728,4 @@ function createServer() {
 	});
 
 	return server;
-};
+}
