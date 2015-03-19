@@ -2,14 +2,16 @@
 'use strict';
 
 //	ENiGMA½
-var baseClient	= require('../client.js');
-var logger		= require('../logger.js');
+var baseClient		= require('../client.js');
+var logger			= require('../logger.js');
+var ServerModule	= require('../server_module.js').ServerModule;
 
-var net 		= require('net');
-var buffers		= require('buffers');
-var binary		= require('binary');
-var stream		= require('stream');
-var assert		= require('assert');
+var net 			= require('net');
+var buffers			= require('buffers');
+var binary			= require('binary');
+var stream			= require('stream');
+var assert			= require('assert');
+var util			= require('util');
 
 //var debug	= require('debug')('telnet');
 
@@ -19,7 +21,8 @@ exports.moduleInfo = {
 	author	: 'NuSkooler'
 };
 
-exports.createServer = createServer;
+exports.getModule	= TelnetServerModule;
+
 
 //
 //	Telnet Protocol Resources
@@ -469,7 +472,7 @@ function TelnetClient(input, output) {
 	});
 }
 
-require('util').inherits(TelnetClient, baseClient.Client);
+util.inherits(TelnetClient, baseClient.Client);
 
 ///////////////////////////////////////////////////////////////////////////////
 //	Telnet Command/Option handling
@@ -716,7 +719,7 @@ Object.keys(OPTIONS).forEach(function(name) {
 	});
 });
 
-
+/*
 function createServer() {
 	var server = net.createServer(function onConnection(sock) {
 		var self = this;
@@ -729,3 +732,27 @@ function createServer() {
 
 	return server;
 }
+*/
+
+function TelnetServerModule() {
+	console.log('TelnetServerModule')
+	ServerModule.call(this);
+}
+
+util.inherits(TelnetServerModule, ServerModule);
+
+TelnetServerModule.prototype.createServer = function() {
+	console.log('TelnetServerModule createServer')
+	TelnetServerModule.super_.prototype.createServer.call(this);
+
+	var server = net.createServer(function onConnection(sock) {
+		var self = this;
+		var client = new TelnetClient(sock, sock);
+		
+		client.banner();
+
+		self.emit('client', client);
+	});
+
+	return server;
+};

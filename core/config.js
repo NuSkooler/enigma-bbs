@@ -43,7 +43,7 @@ module.exports = {
 				},
 				ssh : {
 					port			: 8889,
-					enabled			: true,
+					enabled			: false,
 					rsaPrivateKey	: paths.join(__dirname, './../misc/default_key.rsa'),
 					dsaPrivateKey	: paths.join(__dirname, './../misc/default_key.dsa'),
 				}

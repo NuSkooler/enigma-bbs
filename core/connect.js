@@ -3,7 +3,7 @@
 
 var ansi		= require('./ansi_term.js');
 var artwork		= require('./art.js');
-var modules		= require('./modules.js');
+var moduleUtil	= require('./module_util.js');
 var Log			= require('./logger.js').log;
 var Config		= require('./config.js').config;
 var packageJson = require('../package.json');
@@ -84,7 +84,8 @@ function connectEntry(client) {
 
 			setTimeout(function onTimeout() {
 				term.write(ansi.clearScreen());
-				modules.goto(Config.entryMod, client);
+				client.gotoMenuModule(Config.entryMod);
+				//moduleUtil.goto(Config.entryMod, client);
 			}, timeout);
 		});
 	}, 500);

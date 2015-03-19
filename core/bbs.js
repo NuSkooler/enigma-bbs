@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 var conf		= require('./config.js');
-var modules		= require('./modules.js');
+var moduleUtil	= require('./module_util.js');
 var logger		= require('./logger.js');
 var miscUtil	= require('./misc_util.js');
 var database	= require('./database.js');
@@ -117,7 +117,7 @@ function startListening() {
 		return [];
 	}
 
-	modules.loadModulesForCategory('servers', function onServerModule(err, module) {
+	moduleUtil.loadModulesForCategory('servers', function onServerModule(err, module) {
 		if(err) {
 			logger.log.info(err);
 			return;
@@ -129,7 +129,8 @@ function startListening() {
 			return;
 		}
 
-		var server = module.createServer();
+		var moduleInst = new module.getModule();
+		var server = moduleInst.createServer();
 
 		//	:TODO: handle maxConnections, e.g. conf.maxConnections
 

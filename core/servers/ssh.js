@@ -25,7 +25,7 @@ function SSHClient(input, output) {
 	this.input.on('authentication', function onAuthentication(ctx) {
 		console.log('auth: ' + ctx.method);
 
-		if('password' == ctx.method) {
+		if('password' === ctx.method) {
 			//	:TODO: Log attempts
 			user.authenticate(ctx.username, ctx.password, self, function onAuthResult(isAuth) {
 				if(isAuth) {
@@ -34,9 +34,19 @@ function SSHClient(input, output) {
 					ctx.reject();
 				}
 			});
-		} else if('publickey' == ctx.method) {
+		} else if('publickey' === ctx.method) {
 			console.log('pub key path');
+		} else if('keyboard-interactive' === ctx.method) {
+			ctx.reject(['password']);
 			//	:TODO: support this. Allow users to generate a key for use or w/e
+		
+		/*} else if('keyboard-interactive' === ctx.method) {
+			console.log(ctx.submethods);	//	:TODO: proper logging; handle known types, etc.
+
+			ctx.prompt([ { prompt : 'Password: ', echo : false } ], function onPromptResponses(err, responses) {
+				console.log(err);
+				console.log(responses);
+			});*/
 		} else {
 			ctx.reject();
 		}
@@ -44,10 +54,10 @@ function SSHClient(input, output) {
 
 	this.input.on('ready', function onReady() {
 		console.log('Client authenticated');
-	});
 
-	this.input.on('session', function onSession(accept, reject) {
-		var session = accept();
+		self.input.on('session', function onSession(accept, reject) {
+
+		});
 	});
 
 	this.input.on('end', function onEnd() {
@@ -66,7 +76,8 @@ function createServer() {
 	};
 
 	var server = ssh2.Server(serverConf);
-	server.on('connection', function onConnection(conn) {
+	server.on('connection', function onConnection(conn, info) {
+		console.log(info);	//	:TODO: Proper logging
 		var client = new SSHClient(conn, conn);
 		this.emit('client', client);
 	});

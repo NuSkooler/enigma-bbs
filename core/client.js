@@ -2,12 +2,15 @@
 'use strict';
 
 var stream		= require('stream');
-var term		= require('./client_term.js');
 var assert		= require('assert');
+
+var term		= require('./client_term.js');
 var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
-var logger		= require('./logger.js');
+var logger		= require('./logger.js');	//	:TODO: cleanup and just use Log.
+var Log			= require('./logger.js').log;
 var user		= require('./user.js');
+var moduleUtil	= require('./module_util.js');
 
 exports.Client	= Client;
 
@@ -181,6 +184,33 @@ Client.prototype.waitForKeyPress = function(cb) {
 
 Client.prototype.address = function() {
 	return this.input.address();
+};
+
+Client.prototype.gotoMenuModule = function(name, cb) {
+	var self = this;
+	
+	//	Assign a default missing module handler callback if none was provided
+	cb = miscUtil.valueWithDefault(cb, self.defaultHandlerMissingMod());
+
+	if(self.currentMenuModule) {
+		self.currentMenuModule.leave();
+	}
+
+	moduleUtil.loadModule(name, 'mods', function onModuleLoaded(err, mod) {
+		if(err) {
+			cb(err);
+		} else {
+			try {
+				Log.debug({ moduleName : name }, 'Goto menu module');
+				var modInst = new mod.getModule();
+				modInst.enter(self);
+
+				self.currentMenuModule = modInst;
+			} catch(e) {
+				cb(e);
+			}
+		}
+	});
 };
 
 ///////////////////////////////////////////////////////////////////////////////
