@@ -21,7 +21,6 @@ function MenuModule(menuConfig) {
 		async.waterfall(
 			[
 				function displayArt(callback) {
-					console.log(self.menuConfig)
 					theme.displayThemeArt(self.menuConfig.art, self.client, function onArt(err, mciMap) {
 						callback(err, mciMap);
 					});

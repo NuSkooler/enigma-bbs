@@ -201,7 +201,6 @@ Client.prototype.gotoMenuModule = function(name, cb) {
 		if(err) {
 			cb(err);
 		} else {
-			//	:TODO: log module info not just menu!!
 			Log.debug({ menuName : name }, 'Goto menu module');
 
 			modInst.enter(self);

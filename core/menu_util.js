@@ -4,6 +4,7 @@
 var moduleUtil			= require('./module_util.js');
 var theme				= require('./theme.js');
 var async				= require('async');
+var Log					= require('./logger.js').log;
 
 var menuJson			= require('../mods/menu.json');
 
@@ -26,11 +27,16 @@ function loadMenu(name, client, cb) {
 	}
 
 	var menuConfig = menuJson[name];
+	Log.debug(menuConfig, 'Menu config');
 
-	moduleUtil.loadModule(menuConfig.module || 'standard_menu', 'mods', function onModule(err, mod) {
+	var moduleName = menuConfig.module || 'standard_menu';
+
+	moduleUtil.loadModule(moduleName, 'mods', function onModule(err, mod) {
 		if(err) {
 			cb(err);
 		} else {
+			Log.debug( { moduleName : moduleName, moduleInfo : mod.moduleInfo }, 'Loading menu module');
+
 			var modInst = new mod.getModule(menuConfig);
 			cb(null, modInst);
 		}
