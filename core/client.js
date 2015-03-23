@@ -11,6 +11,7 @@ var logger		= require('./logger.js');	//	:TODO: cleanup and just use Log.
 var Log			= require('./logger.js').log;
 var user		= require('./user.js');
 var moduleUtil	= require('./module_util.js');
+var menuUtil	= require('./menu_util.js');
 
 exports.Client	= Client;
 
@@ -196,19 +197,16 @@ Client.prototype.gotoMenuModule = function(name, cb) {
 		self.currentMenuModule.leave();
 	}
 
-	moduleUtil.loadModule(name, 'mods', function onModuleLoaded(err, mod) {
+	menuUtil.loadMenu(name, self, function onMenuModuleLoaded(err, modInst) {
 		if(err) {
 			cb(err);
 		} else {
-			try {
-				Log.debug({ moduleName : name }, 'Goto menu module');
-				var modInst = new mod.getModule();
-				modInst.enter(self);
+			//	:TODO: log module info not just menu!!
+			Log.debug({ menuName : name }, 'Goto menu module');
 
-				self.currentMenuModule = modInst;
-			} catch(e) {
-				cb(e);
-			}
+			modInst.enter(self);
+
+			self.currentMenuModule = modInst;
 		}
 	});
 };

@@ -2,12 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-var conf		= require('../config.js');
-var baseClient	= require('../client.js');
-var user		= require('../user.js');
+var conf			= require('../config.js');
+var baseClient		= require('../client.js');
+var user			= require('../user.js');
+var ServerModule	= require('../server_module.js').ServerModule;
 
 var ssh2			= require('ssh2');
 var fs				= require('fs');
+var util			= require('util');
 
 exports.moduleInfo = {
 	name	: 'SSH',
@@ -15,7 +17,7 @@ exports.moduleInfo = {
 	author	: 'NuSkooler'
 };
 
-exports.createServer	= createServer;
+exports.getModule		= SSHServerModule;
 
 function SSHClient(input, output) {
 	baseClient.Client.apply(this, arguments);
@@ -65,9 +67,17 @@ function SSHClient(input, output) {
 	});
 }
 
-require('util').inherits(SSHClient, baseClient.Client);
+util.inherits(SSHClient, baseClient.Client);
 
-function createServer() {
+function SSHServerModule() {
+	ServerModule.call(this);
+}
+
+util.inherits(SSHServerModule, ServerModule);
+
+SSHServerModule.prototype.createServer = function() {
+	SSHServerModule.super_.prototype.createServer.call(this);
+
 	//	:TODO: setup all options here. What should the banner, etc. really be????
 	var serverConf = {
 		privateKey : fs.readFileSync(conf.config.servers.ssh.rsaPrivateKey),
@@ -83,4 +93,4 @@ function createServer() {
 	});
 
 	return server;
-}
+};

@@ -735,14 +735,12 @@ function createServer() {
 */
 
 function TelnetServerModule() {
-	console.log('TelnetServerModule')
 	ServerModule.call(this);
 }
 
 util.inherits(TelnetServerModule, ServerModule);
 
 TelnetServerModule.prototype.createServer = function() {
-	console.log('TelnetServerModule createServer')
 	TelnetServerModule.super_.prototype.createServer.call(this);
 
 	var server = net.createServer(function onConnection(sock) {
