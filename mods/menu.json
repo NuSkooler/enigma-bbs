@@ -1,0 +1,14 @@
+{	
+	"matrix" : {
+		"art"		: "matrix",
+		"module"	: "matrix"
+	},
+	"login" : {
+		"art"		: "login",
+		"module"	: "login"
+	},
+	"goodbye" : {
+		"art"		: "logoff",
+		"module"	: "goodbye"
+	}
+}

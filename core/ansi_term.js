@@ -209,7 +209,7 @@ function clearScreen() {
 }
 
 function resetScreen() {
-	return exports.goHome() + exports.eraseData(2);
+	return exports.goHome() + exports.reset() + exports.eraseData(2);
 }
 
 function normal() {

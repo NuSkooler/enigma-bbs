@@ -126,7 +126,7 @@ function displayThemeArt(name, client, cb) {
 			}
 
 			art.display( { art : artInfo.data, client : client, iceColors : iceColors }, function onDisplayed(err, mci) {
-				cb(err, mci);
+				cb(err, mci, artInfo);
 			});
 		}
 	});

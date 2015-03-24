@@ -161,11 +161,20 @@ function Client(input, output) {
 			} while(0 !== dsrResponseRe.lastIndex);
 		}
 	});
+
+	self.detachCurrentMenuModule = function() {
+		if(self.currentMenuModule) {
+			self.currentMenuModule.leave();
+			self.currentMenuModule = null;
+		}
+	};
 }
 
 require('util').inherits(Client, stream);
 
 Client.prototype.end = function () {
+	this.detachCurrentMenuModule();
+	
 	return this.output.end.apply(this.output, arguments);
 };
 
@@ -193,9 +202,7 @@ Client.prototype.gotoMenuModule = function(name, cb) {
 	//	Assign a default missing module handler callback if none was provided
 	cb = miscUtil.valueWithDefault(cb, self.defaultHandlerMissingMod());
 
-	if(self.currentMenuModule) {
-		self.currentMenuModule.leave();
-	}
+	self.detachCurrentMenuModule();
 
 	menuUtil.loadMenu(name, self, function onMenuModuleLoaded(err, modInst) {
 		if(err) {

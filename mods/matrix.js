@@ -14,13 +14,15 @@ var ViewController	= require('../core/view_controller.js').ViewController;
 
 //var async			= require('async');
 
+//	:TODO: clean up requires
+//	:TODO: rename to matrix.js
+
 exports.moduleInfo = {
 	name	: 'Matrix',
 	desc	: 'Standardish Matrix',
 	author	: 'NuSkooler',
 };
 
-//exports.entryPoint	= entryPoint;
 exports.getModule	= MatrixModule;
 
 
@@ -32,10 +34,12 @@ require('util').inherits(MatrixModule, MenuModule);
 
 MatrixModule.prototype.enter = function(client) {
 	MatrixModule.super_.prototype.enter.call(this, client);
+};
 
-	client.term.write(ansi.resetScreen());
+MatrixModule.prototype.beforeArt = function() {
+	MatrixModule.super_.prototype.beforeArt.call(this);
 
-	this.loadArt();
+	this.client.term.write(ansi.resetScreen());
 };
 
 MatrixModule.prototype.mciReady = function(mciMap) {
@@ -66,6 +70,11 @@ MatrixModule.prototype.mciReady = function(mciMap) {
 
 		vc.on('submit', function onSubmit(form) {
 			console.log(form);
+
+			if(0 === form.id && 1 === form.viewId) {
+				//	:TODO: fix me. Need to finalize form data. Current is kinda... meh.
+				self.client.gotoMenuModule('goodbye');
+			}
 		});
 
 		vc.loadFromMCIMap(mciMap);

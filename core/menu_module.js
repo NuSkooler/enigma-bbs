@@ -17,26 +17,37 @@ function MenuModule(menuConfig) {
 
 	this.viewControllers	= [];
 
-	this.loadArt = function() {
+	this.initSequence = function() {
 		async.waterfall(
 			[
+				function beforeDisplayArt(callback) {
+					self.beforeArt();
+					callback(null);
+				},
 				function displayArt(callback) {
 					theme.displayThemeArt(self.menuConfig.art, self.client, function onArt(err, mciMap) {
-						callback(err, mciMap);
+						//	:TODO: If the art simply is not found, or failed to load... we need to continue
+						if(err) {
+							console.log('TODO: log this error properly... maybe handle slightly diff.');
+						}
+						callback(null, mciMap);
 					});
 				},
-				function artDisplayed(mciMap, callback) {
-					if(!mciMap) {
-						callback(null);
-					} else {
+				function afterArtDisplayed(mciMap, callback) {
+					if(mciMap) {
 						self.mciReady(mciMap);
 					}
+
+					callback(null);
 				}
 			],
 			function onComplete(err) {
 				if(err) {
 					//	:TODO: Log me!!! ... and what else?
+					console.log(err);
 				}
+
+				self.finishedLoading();
 			}
 		);
 	};
@@ -47,12 +58,16 @@ require('util').inherits(MenuModule, PluginModule);
 MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(typeof client !== 'undefined');
+
+	this.initSequence();
 };
 
 MenuModule.prototype.leave = function() {
-	this.viewControllers.forEach(function onVC(vc) {
-		vc.detachClientEvents();
-	});
+
+	var count = this.viewControllers.length;
+	for(var i = 0; i < count; ++i) {
+		this.viewControllers[i].detachClientEvents();
+	}
 };
 
 MenuModule.prototype.addViewController = function(vc) {
@@ -60,5 +75,13 @@ MenuModule.prototype.addViewController = function(vc) {
 	return vc;
 };
 
+MenuModule.prototype.beforeArt = function() {	
+};
+
 MenuModule.prototype.mciReady = function(mciMap) {
+	console.log('mciReady')
+};
+
+MenuModule.prototype.finishedLoading = function() {
+	console.log('finishedLoading')
 };
