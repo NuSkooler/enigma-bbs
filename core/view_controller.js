@@ -53,10 +53,24 @@ function ViewController(client, formId) {
 	};
 
 	this.submitForm = function() {
+		/*
+			Generate a form resonse. Example:
+
+			{
+				id : 0,
+				submitId : 1,
+				values : {
+					"1" : "hurp",
+					"2" : [ 'a', 'b', ... ],
+					"3 " 2,
+				}
+
+			}
+		*/
 		var formData = {
-			id		: self.formId,
-			viewId	: self.focusedView.id,
-			values	: [],
+			id			: self.formId,
+			submitId	: self.focusedView.id,
+			values		: {},
 		};
 
 		var viewData;
@@ -64,10 +78,7 @@ function ViewController(client, formId) {
 			try {
 				viewData = self.views[id].getViewData();				
 				if(typeof viewData !== 'undefined') {
-					formData.values.push({
-						id		: id,
-						data	: viewData,
-					});
+					formData.values[id] = viewData;
 				}
 			} catch(e) {
 				console.log(e);

@@ -1,4 +1,7 @@
 {	
+	/*
+		Menu Configuration
+	*/
 	"matrix" : {
 		"art"		: "matrix",
 		"module"	: "matrix"
@@ -7,8 +10,8 @@
 		"art"		: "login",
 		"module"	: "login"
 	},
-	"goodbye" : {
+	"logoff" : {
 		"art"		: "logoff",
-		"module"	: "goodbye"
+		"module"	: "logoff"
 	}
 }

@@ -1,44 +1,61 @@
 /* jslint node: true */
 'use strict';
 
+//	ENiGMA½
 var moduleUtil			= require('./module_util.js');
-var theme				= require('./theme.js');
-var async				= require('async');
 var Log					= require('./logger.js').log;
+var conf				= require('./config.js');
 
-var menuJson			= require('../mods/menu.json');
+var fs					= require('fs');
+var paths				= require('path');
+var async				= require('async');
+var stripJsonComments	= require('strip-json-comments');
 
 exports.loadMenu		= loadMenu;
 
 function loadMenu(name, client, cb) {
-	//	want client.loadMenu(...). Replace current "goto module"/etc. with "switchMenu(...)"
-	//	load options/etc -> call menuModule.enter(client, options)
-
 	/*
-		* Ensure JSON section exists
+		TODO: 
 		* check access / ACS
 		* 
-		* ...MenuModule(menuSection) ... .enter(client)
 	*/
 
-	if('object' !== typeof menuJson[name] || null === menuJson[name]) {
-		cb(new Error('No menu by the name of \'' + name + '\''));
-		return;
-	}
+	async.waterfall(
+		[
+			function loadMenuConfig(callback) {
+				var configJsonPath = paths.join(conf.config.paths.mods, 'menu.json');
 
-	var menuConfig = menuJson[name];
-	Log.debug(menuConfig, 'Menu config');
+				fs.readFile(configJsonPath, { encoding : 'utf8' }, function onMenuConfig(err, data) {
+					try {
+						var menuJson = JSON.parse(stripJsonComments(data));
 
-	var moduleName = menuConfig.module || 'standard_menu';
+						if('object' !== typeof menuJson[name] || null === menuJson[name]) {
+							callback(new Error('No configuration entry for \'' + name + '\''));
+						} else {
+							callback(err, menuJson[name]);
+						}
+					} catch(e) {
+						callback(e);
+					}
+				});
+			},
+			function menuConfigLoaded(menuConfig, callback) {
+				Log.debug( { config : menuConfig }, 'Menu configuration loaded');
 
-	moduleUtil.loadModule(moduleName, 'mods', function onModule(err, mod) {
-		if(err) {
-			cb(err);
-		} else {
-			Log.debug( { moduleName : moduleName, moduleInfo : mod.moduleInfo }, 'Loading menu module');
+				var moduleName = menuConfig.module || 'standard_menu';
 
-			var modInst = new mod.getModule(menuConfig);
-			cb(null, modInst);
+				moduleUtil.loadModule(moduleName, 'mods', function onModule(err, mod) {
+					callback(err, mod, menuConfig, moduleName);
+				});
+			},
+		],
+		function complete(err, mod, menuConfig, moduleName) {
+			if(err) {
+				cb(err);
+			} else {
+				Log.debug( { moduleName : moduleName, moduleInfo : mod.moduleInfo }, 'Loading menu module instance');
+				cb(null, new mod.getModule(menuConfig));
+			}
 		}
-	});
+	);
 }

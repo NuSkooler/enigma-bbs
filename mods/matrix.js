@@ -71,9 +71,15 @@ MatrixModule.prototype.mciReady = function(mciMap) {
 		vc.on('submit', function onSubmit(form) {
 			console.log(form);
 
-			if(0 === form.id && 1 === form.viewId) {
-				//	:TODO: fix me. Need to finalize form data. Current is kinda... meh.
-				self.client.gotoMenuModule('goodbye');
+			var viewModuleMap = {
+				'0' : 'login',
+				'1' : 'new',
+				'2' : 'logoff',
+			};
+
+			if(0 === form.id && 1 === form.submitId) {
+				console.log(viewModuleMap[form.values[1]]);
+				self.client.gotoMenuModule(viewModuleMap[form.values[1]]);
 			}
 		});
 
