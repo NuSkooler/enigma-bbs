@@ -4,7 +4,17 @@
 	*/
 	"matrix" : {
 		"art"		: "matrix",
-		"module"	: "matrix"
+		"form"		: [
+			{
+				"mciReq"	: [ "VM1" ],
+				"VM1" : {
+					"submit"	: true,
+					"focus"		: true,
+					"items" 	: [ "Login", "Apply", "Log Off" ]
+				}
+			}
+		]		
+		//"module"	: "matrix"
 	},
 	"login" : {
 		"art"		: "login",

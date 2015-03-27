@@ -34,6 +34,8 @@ LogOffModule.prototype.mciReady = function(mciMap) {
 
 LogOffModule.prototype.finishedLoading = function() {
 	LogOffModule.super_.prototype.finishedLoading.call(this);
+
+	this.client.term.write(ansi.normal() + '\nATH0\n');
 	
 	this.client.end();
 };
