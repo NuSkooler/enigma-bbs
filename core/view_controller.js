@@ -5,6 +5,9 @@ var events			= require('events');
 var util			= require('util');
 var assert			= require('assert');
 var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
+var menuUtil		= require('./menu_util.js');
+
+var async			= require('async');
 
 exports.ViewController		= ViewController;
 
@@ -200,3 +203,67 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 	});
 };
 
+ViewController.prototype.loadFromMCIMapAndConfig = function(mciMap, menuConfig, cb) {
+	var factory = new MCIViewFactory(this.client);
+	var self	= this;
+
+	async.waterfall(
+		[
+			function getFormConfig(callback) {
+				menuUtil.getFormConfig(menuConfig, mciMap, function onFormConfig(err, formConfig) {
+					if(err) {
+						//	:TODO: Log about missing form config -- this is not fatal, however
+					}
+					callback(null, formConfig);
+				});
+			},
+			function createViewsFromMCIMap(formConfig, callback) {
+				async.each(Object.keys(mciMap), function onMciEntry(name, eachCb) {
+					var mci		= mciMap[name];
+					var view	= factory.createFromMCI(mci);
+
+					if(view) {
+						view.on('action', self.onViewAction);
+						self.addView(view);
+						view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
+					}
+					eachCb(null);
+				},
+				function eachMciComplete(err) {
+					self.setViewOrder();
+
+					callback(err, formConfig);					
+				});
+			},
+			function applyFormConfig(formConfig, callback) {
+				async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
+					var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
+					var mciConf = formConfig.mci[mci];
+
+					//	:TODO: Break all of this up ... and/or better way of doing it
+					if(mciConf.items) {
+						self.getView(viewId).setItems(mciConf.items);
+					}
+
+					if(mciConf.submit) {
+						self.getView(viewId).submit = true;	//	:TODO: should really be actual value
+					}
+
+					if(mciConf.focus) {
+						self.switchFocus(viewId);
+					}
+
+					eachCb(null);
+				},
+				function eachMciConfComplete(err) {
+					callback(err);
+				});
+			}
+		],
+		function complete(err) {
+			if(cb) {
+				cb(err);
+			}
+		}
+	);
+};

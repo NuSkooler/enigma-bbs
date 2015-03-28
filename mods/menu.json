@@ -7,10 +7,12 @@
 		"form"		: [
 			{
 				"mciReq"	: [ "VM1" ],
-				"VM1" : {
-					"submit"	: true,
-					"focus"		: true,
-					"items" 	: [ "Login", "Apply", "Log Off" ]
+				"mci" : {
+					"VM1" : {
+						"submit"	: true,
+						"focus"		: true,
+						"items" 	: [ "Login", "Apply", "Log Off" ]
+					}
 				}
 			}
 		]		

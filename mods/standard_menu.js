@@ -36,16 +36,35 @@ StandardMenuModule.prototype.mciReady = function(mciMap) {
 
 	var self = this;
 
-	menuUtil.getFormConfig(self.menuConfig, mciMap, function onFormConfig(formConfig) {
+	var vc = self.addViewController(new ViewController(self.client));
+	vc.loadFromMCIMapAndConfig(mciMap, self.menuConfig, function onViewReady(err) {
+		if(err) {
+			console.log(err);
+		} else {
+	//		vc.switchFocus(1);
+		}
+	});
+	
+
+/*
+	menuUtil.getFormConfig(self.menuConfig, mciMap, function onFormConfig(err, formConfig) {
 		console.log(formConfig);
 		var vc = self.addViewController(new ViewController(self.client));
 		vc.loadFromMCIMap(mciMap);
 		vc.setViewOrder();
 
-		vc.getView(1).setItems(['Login', 'New User', 'Goodbye!']);
+		Object.keys(formConfig.mci).forEach(function onFormMci(mci) {
+			var viewId = parseInt(mci[2]);
+			if(formConfig.mci[mci].items && formConfig.mci[mci].items.length > 0) {
+				vc.getView(viewId).setItems(formConfig.mci[mci].items);
+			}
+		});
+
+		//vc.getView(1).setItems(['Login', 'New User', 'Goodbye!']);
 		vc.getView(1).submit = true;
 		vc.switchFocus(1);
 	});
+*/
 
 	/*
 	{

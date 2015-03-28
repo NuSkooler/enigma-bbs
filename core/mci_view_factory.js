@@ -122,4 +122,3 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 	return view;
 };
-

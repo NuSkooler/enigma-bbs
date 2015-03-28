@@ -85,9 +85,9 @@ function getFormConfig(menuConfig, mciMap, cb) {
 		function filtered(form) {
 			if(form.length > 0) {
 				assert(1 === form.length);
-				cb(form[0]);
+				cb(null, form[0]);
 			} else {
-				cb(null);
+				cb(new Error('No matching form configuration found'));
 			}
 		}
 	);
