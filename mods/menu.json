@@ -4,6 +4,7 @@
 	*/
 	"matrix" : {
 		"art"		: "matrix",
+		//	:TODO: Not currently supporting more than form 0. Should probably do that!
 		"form"		: [
 			{
 				"mciReq"	: [ "VM1" ],
@@ -11,12 +12,35 @@
 					"VM1" : {
 						"submit"	: true,
 						"focus"		: true,
+						//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
 						"items" 	: [ "Login", "Apply", "Log Off" ]
 					}
-				}
+				},
+				/*
+					Some Examples:
+						VerticalMenu: { id: 0, submitId: 1, value: { '1': 1 } }
+
+					Another concept:
+						
+						"menu" : "@helper.js/logoff" -> calls helper.js::logoff(...)
+
+				*/
+				"submit" : [
+					{
+						"value"		: { "1" : 0 },
+						"menu"		: "login"
+					},
+					{
+						"value"		: { "1" : 1 },
+						"menu"		: "apply"
+					},
+					{
+						"value"		: { "1" : 2 },
+						"menu"		: "logoff"
+					}
+				]
 			}
 		]		
-		//"module"	: "matrix"
 	},
 	"login" : {
 		"art"		: "login",

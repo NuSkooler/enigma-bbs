@@ -66,6 +66,13 @@ function loadMenu(name, client, cb) {
 
 
 function getFormConfig(menuConfig, mciMap, cb) {
+	assert(menuConfig);
+
+	if(!menuConfig.form) {
+		cb(new Error('No form section specified for menu'));
+		return;
+	}
+
 	async.filter(
 		menuConfig.form, 
 		function check(form, callback) {
@@ -75,12 +82,14 @@ function getFormConfig(menuConfig, mciMap, cb) {
 			}
 
 			var count = form.mciReq.length;
-			for(var i = 0; i < count; ++i) {
-				if(!mciMap[form.mciReq[i]]) {
-					callback(false);
+			if(Object.keys(mciMap).length === count) {
+				for(var i = 0; i < count; ++i) {
+					if(!mciMap[form.mciReq[i]]) {
+						callback(false);
+					}
 				}
+				callback(true);
 			}
-			callback(true);
 		},
 		function filtered(form) {
 			if(form.length > 0) {

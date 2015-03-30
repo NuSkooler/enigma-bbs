@@ -37,11 +37,13 @@ StandardMenuModule.prototype.mciReady = function(mciMap) {
 	var self = this;
 
 	var vc = self.addViewController(new ViewController(self.client));
-	vc.loadFromMCIMapAndConfig(mciMap, self.menuConfig, function onViewReady(err) {
+	vc.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
 		if(err) {
 			console.log(err);
 		} else {
-	//		vc.switchFocus(1);
+		/*	vc.on('submit', function onFormSubmit(formData) {
+				console.log(formData);
+			});*/
 		}
 	});
 	
@@ -117,8 +119,8 @@ StandardMenuModule.prototype.mciReady = function(mciMap) {
 			};
 
 			if(0 === form.id && 1 === form.submitId) {
-				console.log(viewModuleMap[form.values[1]]);
-				self.client.gotoMenuModule(viewModuleMap[form.values[1]]);
+				console.log(viewModuleMap[form.value[1]]);
+				self.client.gotoMenuModule(viewModuleMap[form.value[1]]);
 			}
 		});
 

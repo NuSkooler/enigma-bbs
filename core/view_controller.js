@@ -1,13 +1,16 @@
 /* jslint node: true */
 'use strict';
 
+//	ENiGMA½
+var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
+var menuUtil		= require('./menu_util.js');
+var Log				= require('./logger.js').log;
+
 var events			= require('events');
 var util			= require('util');
 var assert			= require('assert');
-var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
-var menuUtil		= require('./menu_util.js');
-
 var async			= require('async');
+var ld				= require('lodash');
 
 exports.ViewController		= ViewController;
 
@@ -62,7 +65,7 @@ function ViewController(client, formId) {
 			{
 				id : 0,
 				submitId : 1,
-				values : {
+				value : {
 					"1" : "hurp",
 					"2" : [ 'a', 'b', ... ],
 					"3 " 2,
@@ -73,7 +76,7 @@ function ViewController(client, formId) {
 		var formData = {
 			id			: self.formId,
 			submitId	: self.focusedView.id,
-			values		: {},
+			value		: {},
 		};
 
 		var viewData;
@@ -81,10 +84,10 @@ function ViewController(client, formId) {
 			try {
 				viewData = self.views[id].getViewData();				
 				if(typeof viewData !== 'undefined') {
-					formData.values[id] = viewData;
+					formData.value[id] = viewData;
 				}
 			} catch(e) {
-				console.log(e);
+				Log.error(e);	//	:TODO: Log better ;)
 			}
 		}
 
@@ -203,23 +206,26 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 	});
 };
 
-ViewController.prototype.loadFromMCIMapAndConfig = function(mciMap, menuConfig, cb) {
+ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
+	assert(options.mciMap);
+
 	var factory = new MCIViewFactory(this.client);
 	var self	= this;
 
 	async.waterfall(
 		[
 			function getFormConfig(callback) {
-				menuUtil.getFormConfig(menuConfig, mciMap, function onFormConfig(err, formConfig) {
+				menuUtil.getFormConfig(options.menuConfig, options.mciMap, function onFormConfig(err, formConfig) {
 					if(err) {
-						//	:TODO: Log about missing form config -- this is not fatal, however
+						Log.warn(err, 'Unable to load menu configuration');
 					}
+
 					callback(null, formConfig);
 				});
 			},
 			function createViewsFromMCIMap(formConfig, callback) {
-				async.each(Object.keys(mciMap), function onMciEntry(name, eachCb) {
-					var mci		= mciMap[name];
+				async.each(Object.keys(options.mciMap), function onMciEntry(name, eachCb) {
+					var mci		= options.mciMap[name];
 					var view	= factory.createFromMCI(mci);
 
 					if(view) {
@@ -236,28 +242,59 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(mciMap, menuConfig, 
 				});
 			},
 			function applyFormConfig(formConfig, callback) {
-				async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
-					var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
-					var mciConf = formConfig.mci[mci];
+				if(formConfig) {
+					async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
+						var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
+						var mciConf = formConfig.mci[mci];
 
-					//	:TODO: Break all of this up ... and/or better way of doing it
-					if(mciConf.items) {
-						self.getView(viewId).setItems(mciConf.items);
+						//	:TODO: Break all of this up ... and/or better way of doing it
+						if(mciConf.items) {
+							self.getView(viewId).setItems(mciConf.items);
+						}
+
+						if(mciConf.submit) {
+							self.getView(viewId).submit = true;	//	:TODO: should really be actual value
+						}
+
+						if(mciConf.focus) {
+							self.switchFocus(viewId);
+						}
+
+
+						eachCb(null);
+					},
+					function eachMciConfComplete(err) {
+						callback(err, formConfig);
+					});
+				} else {
+					callback(null);
+				}
+			},
+			function mapMenuSubmit(formConfig, callback) {
+				if(formConfig) {
+					//
+					//	If we have a 'submit' section, create a submit handler
+					//	and map the various entries to menus/etc.
+					//
+					if(formConfig.submit && formConfig.submit.length > 0) {
+						self.on('submit', function onSubmit(formData) {
+							Log.debug( { formData : formData }, 'Submit form');
+
+							for(var c = 0; c < formConfig.submit.length; ++c) {
+								console.log(formConfig.submit[c]);
+
+								if(ld.isEqual(formData.value, formConfig.submit[c].value)) {
+									self.client.gotoMenuModule(formConfig.submit[c].menu);
+									break;
+								}
+
+								//	:TODO: Match various wildcards, etc.
+							}						
+						});
 					}
-
-					if(mciConf.submit) {
-						self.getView(viewId).submit = true;	//	:TODO: should really be actual value
-					}
-
-					if(mciConf.focus) {
-						self.switchFocus(viewId);
-					}
-
-					eachCb(null);
-				},
-				function eachMciConfComplete(err) {
-					callback(err);
-				});
+				} else {
+					callback(null);
+				}
 			}
 		],
 		function complete(err) {
