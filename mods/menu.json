@@ -61,6 +61,23 @@
 						"text"		: "Cancel"
 					}
 				},
+				/*
+					"submit" : {
+						"3" : [	//	submitId
+							{
+								"value" : { "3" : null }
+							}
+						]
+					}
+					...
+					"submit" : {
+						"*" : [	//	submitId = any
+							{
+								"value" : { "1" : 1 }
+							}
+						]
+					}
+				*/
 				"submit" : [
 					{
 						"value"		: { "3" : null },
