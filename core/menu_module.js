@@ -63,7 +63,6 @@ MenuModule.prototype.enter = function(client) {
 };
 
 MenuModule.prototype.leave = function() {
-
 	var count = this.viewControllers.length;
 	for(var i = 0; i < count; ++i) {
 		this.viewControllers[i].detachClientEvents();
@@ -79,9 +78,7 @@ MenuModule.prototype.beforeArt = function() {
 };
 
 MenuModule.prototype.mciReady = function(mciMap) {
-	console.log('mciReady')
 };
 
 MenuModule.prototype.finishedLoading = function() {
-	console.log('finishedLoading')
 };

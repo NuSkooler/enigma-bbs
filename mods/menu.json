@@ -21,7 +21,7 @@
 						VerticalMenu: { id: 0, submitId: 1, value: { '1': 1 } }
 
 					Another concept:
-						
+
 						"menu" : "@helper.js/logoff" -> calls helper.js::logoff(...)
 
 				*/
@@ -44,7 +44,31 @@
 	},
 	"login" : {
 		"art"		: "login",
-		"module"	: "login"
+		"module"	: "login",
+		"form"		: [
+			{
+				"mciReq" : [ "ET1", "ET2", "BN3", "BN4" ],
+				"mci" :{
+					"ET1" : {
+						"focus"		: true
+					},
+					"BN3" : {
+						"submit"	: true,
+						"text"		: "Login"
+					},
+					"BN4" : {
+						"submit"	: true,
+						"text"		: "Cancel"
+					}
+				},
+				"submit" : [
+					{
+						"value"		: { "3" : null },
+						"menu"		: "pickles"
+					}
+				]
+			}
+		]
 	},
 	"logoff" : {
 		"art"		: "logoff",

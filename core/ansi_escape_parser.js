@@ -75,6 +75,7 @@ function ANSIEscapeParser(options) {
 		//self.bgColor	= 0;
 		self.fgColor	= 39;
 		self.bgColor	= 49;
+		self.flags		= 0;
 	};
 
 	self.rowUpdated = function() {
@@ -298,8 +299,10 @@ function ANSIEscapeParser(options) {
 						self.bgColor = arg;
 					} else {
 						self.flags |= arg;
+						
 						if(0 === arg) {
 							self.resetColor();
+							//self.flags = 0;
 						}
 					}
 				}

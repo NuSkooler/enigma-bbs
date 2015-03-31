@@ -9,7 +9,6 @@ var assert			= require('assert');
 exports.ButtonView			= ButtonView;
 
 function ButtonView(client, options) {
-	console.log(options);
 	options.acceptsFocus	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
 	options.justify			= miscUtil.valueWithDefault(options.justify, 'center');
@@ -27,4 +26,8 @@ ButtonView.prototype.onKeyPress = function(key, isSpecial) {
 	if(' ' === key) {
 		this.emit('action', 'accept');
 	}
+};
+
+ButtonView.prototype.getViewData = function() {
+	return null;
 };

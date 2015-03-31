@@ -49,7 +49,7 @@ function ViewController(client, formId) {
 
 			case 'accept' :	//	:TODO: consider naming this 'done'
 				//	:TODO: check if id is submit, etc.
-				if(self.focusedView && self.focusedView.submit) {					
+				if(self.focusedView && self.focusedView.submit) {
 					self.submitForm();
 				} else {
 					self.nextFocus();
@@ -245,19 +245,24 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 				if(formConfig) {
 					async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
 						var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
+						var view	= self.getView(viewId);
 						var mciConf = formConfig.mci[mci];
 
 						//	:TODO: Break all of this up ... and/or better way of doing it
 						if(mciConf.items) {
-							self.getView(viewId).setItems(mciConf.items);
+							view.setItems(mciConf.items);
 						}
 
 						if(mciConf.submit) {
-							self.getView(viewId).submit = true;	//	:TODO: should really be actual value
+							view.submit = true;	//	:TODO: should really be actual value
 						}
 
 						if(mciConf.focus) {
 							self.switchFocus(viewId);
+						}
+
+						if(mciConf.text) {
+							view.setText(mciConf.text);
 						}
 
 
@@ -280,14 +285,21 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 						self.on('submit', function onSubmit(formData) {
 							Log.debug( { formData : formData }, 'Submit form');
 
+							var submitCompare = function(value, other) {
+								console.log(value);
+								console.log(other);
+								return false;
+							};
+
 							for(var c = 0; c < formConfig.submit.length; ++c) {
-								console.log(formConfig.submit[c]);
+								//console.log(formConfig.submit[c]);
 
 								if(ld.isEqual(formData.value, formConfig.submit[c].value)) {
 									self.client.gotoMenuModule(formConfig.submit[c].menu);
 									break;
 								}
 
+								var equal = ld.isEqual(formData.value, formConfig.submit[c].value, submitCompare);
 								//	:TODO: Match various wildcards, etc.
 							}						
 						});
