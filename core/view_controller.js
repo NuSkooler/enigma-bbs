@@ -10,7 +10,7 @@ var events			= require('events');
 var util			= require('util');
 var assert			= require('assert');
 var async			= require('async');
-var ld				= require('lodash');
+var _				= require('lodash');
 
 exports.ViewController		= ViewController;
 
@@ -209,13 +209,14 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	assert(options.mciMap);
 
-	var factory = new MCIViewFactory(this.client);
-	var self	= this;
+	var factory 	= new MCIViewFactory(this.client);
+	var self		= this;
+	var formIdKey	= options.formId ? options.formId.toString() : '0';
 
 	async.waterfall(
 		[
 			function getFormConfig(callback) {
-				menuUtil.getFormConfig(options.menuConfig, options.mciMap, function onFormConfig(err, formConfig) {
+				menuUtil.getFormConfig(options.menuConfig, formIdKey, options.mciMap, function onFormConfig(err, formConfig) {
 					if(err) {
 						Log.warn(err, 'Unable to load menu configuration');
 					}
@@ -281,27 +282,51 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 					//	If we have a 'submit' section, create a submit handler
 					//	and map the various entries to menus/etc.
 					//
-					if(formConfig.submit && formConfig.submit.length > 0) {
+					if(_.isObject(formConfig.submit)) {
 						self.on('submit', function onSubmit(formData) {
 							Log.debug( { formData : formData }, 'Submit form');
 
-							var submitCompare = function(value, other) {
-								console.log(value);
-								console.log(other);
-								return false;
+							var confForFormId;
+							if(_.isObject(formConfig.submit[formData.submitId])) {
+								confForFormId = formConfig.submit[formData.submitId];
+							} else if(_.isObject(formConfig.submit['*'])) {
+								confForFormId = formConfig.submit['*'];
+							} else {
+								//	no configuration for this submitId
+								return;
+							}
+
+							var formValueCompare = function(formDataValue, formConfigValue) {
+								//
+								//	Any key(s) in formConfigValue must:
+								//	1) be present in formDataValue
+								//	2) must either:
+								//		a) be set to null (wildcard/any)
+								//		b) have matching values
+								//
+								var formConfigValueKeys = Object.keys(formConfigValue);
+								for(var k = 0; k < formConfigValueKeys.length; ++k) {
+									var memberKey = formConfigValueKeys[k];
+
+									//	submit data contains config key?
+									if(!_.has(formDataValue, memberKey)) {
+										return false;	//	not present in what was submitted
+									}
+
+									if(null !== formConfigValue[memberKey] && formConfigValue[memberKey] !== formDataValue[memberKey]) {
+										return false;
+									}
+								}
+								
+								return true;
 							};
 
-							for(var c = 0; c < formConfig.submit.length; ++c) {
-								//console.log(formConfig.submit[c]);
-
-								if(ld.isEqual(formData.value, formConfig.submit[c].value)) {
-									self.client.gotoMenuModule(formConfig.submit[c].menu);
+							for(var c = 0; c < confForFormId.length; ++c) {
+								if(_.isEqual(formData.value, confForFormId[c].value, formValueCompare)) {
+									self.client.gotoMenuModule(confForFormId[c].menu);
 									break;
 								}
-
-								var equal = ld.isEqual(formData.value, formConfig.submit[c].value, submitCompare);
-								//	:TODO: Match various wildcards, etc.
-							}						
+							}
 						});
 					}
 				} else {

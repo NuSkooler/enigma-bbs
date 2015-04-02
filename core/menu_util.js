@@ -10,6 +10,7 @@ var fs					= require('fs');
 var paths				= require('path');
 var async				= require('async');
 var assert				= require('assert');
+var _					= require('lodash');
 
 var stripJsonComments	= require('strip-json-comments');
 
@@ -32,7 +33,7 @@ function loadMenu(name, client, cb) {
 					try {
 						var menuJson = JSON.parse(stripJsonComments(data));
 
-						if('object' !== typeof menuJson[name] || null === menuJson[name]) {
+						if(!_.isObject(menuJson[name])) {
 							callback(new Error('No configuration entry for \'' + name + '\''));
 						} else {
 							callback(err, menuJson[name]);
@@ -63,8 +64,36 @@ function loadMenu(name, client, cb) {
 	);
 }
 
+function getFormConfig(menuConfig, formId, mciMap, cb) {
+	assert(_.isObject(menuConfig));
 
+	if(!_.isObject(menuConfig.form)) {
+		cb(new Error('Invalid or missing \'form\' member for menu'));
+		return;
+	}
 
+	if(!_.isObject(menuConfig.form[formId])) {
+		cb(new Error('No form found for formId ' + formId));
+		return;
+	}
+
+	var formForId = menuConfig.form[formId];
+
+	var mciReqKey = _.sortBy(Object.keys(mciMap), String).join('');
+	if(_.isObject(formForId[mciReqKey])) {
+		cb(null, formForId[mciReqKey]);
+		return;
+	} 
+
+	if(_.has(formForId, 'mci') || _.has(formForId, 'submit')) {
+		cb(null, formForId);
+		return;
+	}
+
+	cb(new Error('No matching form configuration found'));
+}
+
+/*
 function getFormConfig(menuConfig, mciMap, cb) {
 	assert(menuConfig);
 
@@ -101,6 +130,7 @@ function getFormConfig(menuConfig, mciMap, cb) {
 		}
 	);
 }
+*/
 
 /*
 function getFormConfig(menuConfig, mciMap) {

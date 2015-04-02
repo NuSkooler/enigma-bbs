@@ -227,6 +227,7 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 	function handler(err) {
 		logger.log.error(err);
 
+		self.term.write(ansi.resetScreen());
 		self.term.write('An unrecoverable error has been encountered!\n');
 		self.term.write('This has been logged for your SysOp to review.\n');
 		self.term.write('\nGoodbye!\n');

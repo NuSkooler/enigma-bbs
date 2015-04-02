@@ -5,87 +5,67 @@
 	"matrix" : {
 		"art"		: "matrix",
 		//	:TODO: Not currently supporting more than form 0. Should probably do that!
-		"form"		: [
-			{
-				"mciReq"	: [ "VM1" ],
-				"mci" : {
-					"VM1" : {
-						"submit"	: true,
-						"focus"		: true,
-						//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-						"items" 	: [ "Login", "Apply", "Log Off" ]
-					}
-				},
-				/*
-					Some Examples:
-						VerticalMenu: { id: 0, submitId: 1, value: { '1': 1 } }
-
-					Another concept:
-
-						"menu" : "@helper.js/logoff" -> calls helper.js::logoff(...)
-
-				*/
-				"submit" : [
-					{
-						"value"		: { "1" : 0 },
-						"menu"		: "login"
+		"form"		: {
+			"0"	: {
+				"VM1" : {
+					"mci" : {
+						"VM1" :  {
+							"submit"	: true,
+							"focus"		: true,
+							//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
+							"items" 	: [ "Login", "Apply", "Log Off" ]
+						}
 					},
-					{
-						"value"		: { "1" : 1 },
-						"menu"		: "apply"
-					},
-					{
-						"value"		: { "1" : 2 },
-						"menu"		: "logoff"
+					"submit" : {
+						"*" : [
+							{
+								"value"		: { "1" : 0 },
+								"menu"		: "login"
+							},
+							{
+								"value"		: { "1" : 1 },
+								"menu"		: "apply"
+							},
+							{
+								"value"		: { "1" : 2 },
+								"menu"		: "logoff"
+							}
+						]
 					}
-				]
+				}
 			}
-		]		
+		}
 	},
 	"login" : {
 		"art"		: "login",
 		"module"	: "login",
-		"form"		: [
-			{
-				"mciReq" : [ "ET1", "ET2", "BN3", "BN4" ],
-				"mci" :{
-					"ET1" : {
-						"focus"		: true
+		"form"		: {
+			"0"	: {
+				"BN3BN4ET1ET2" :{
+					"mci" :{
+						"ET1" : {
+							"focus"		: true
+						},
+						"BN3" : {
+							"submit"	: true,
+							"text"		: "Login"
+						},
+						"BN4" : {
+							"submit"	: true,
+							"text"		: "Cancel"
+						}
 					},
-					"BN3" : {
-						"submit"	: true,
-						"text"		: "Login"
-					},
-					"BN4" : {
-						"submit"	: true,
-						"text"		: "Cancel"
-					}
-				},
-				/*
 					"submit" : {
-						"3" : [	//	submitId
+						"3" : [	//	Login
 							{
-								"value" : { "3" : null }
+								"value" : { "3" : null },	//	:TODO: allow "value" : null
+								"menu"	: "attempt_login"
 							}
 						]
 					}
-					...
-					"submit" : {
-						"*" : [	//	submitId = any
-							{
-								"value" : { "1" : 1 }
-							}
-						]
-					}
-				*/
-				"submit" : [
-					{
-						"value"		: { "3" : null },
-						"menu"		: "pickles"
-					}
-				]
+				}
 			}
-		]
+		}		
 	},
 	"logoff" : {
 		"art"		: "logoff",

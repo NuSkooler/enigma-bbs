@@ -6,6 +6,7 @@ var paths		= require('path');
 
 var conf		= require('./config.js');
 var miscUtil	= require('./misc_util.js');
+var _			= require('lodash');
 
 //	exports
 exports.loadModule				= loadModule;
@@ -36,7 +37,7 @@ function loadModule(name, category, cb) {
 			return;
 		}
 
-		if(!mod.getModule || typeof mod.getModule !== 'function') {
+		if(!_.isFunction(mod.getModule)) {
 			cb(new Error('Invalid or missing missing \'getModule\' method'));
 			return;
 		}
