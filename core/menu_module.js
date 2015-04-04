@@ -3,17 +3,18 @@
 
 var PluginModule		= require('./plugin_module.js').PluginModule;
 var theme				= require('./theme.js');
+var Log					= require('./logger.js').log;
 
 var async				= require('async');
 var assert				= require('assert');
 
 exports.MenuModule		= MenuModule;
 
-function MenuModule(menuConfig) {
-	PluginModule.call(this);
+function MenuModule(options) {
+	PluginModule.call(this, options);
 
 	var self				= this;
-	this.menuConfig			= menuConfig;
+	this.menuConfig			= options.menuConfig;
 
 	this.viewControllers	= [];
 
@@ -41,7 +42,7 @@ function MenuModule(menuConfig) {
 					callback(null);
 				}
 			],
-			function onComplete(err) {
+			function complete(err) {
 				if(err) {
 					//	:TODO: Log me!!! ... and what else?
 					console.log(err);

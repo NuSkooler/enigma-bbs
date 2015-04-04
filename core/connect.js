@@ -84,7 +84,8 @@ function connectEntry(client) {
 
 			setTimeout(function onTimeout() {
 				term.write(ansi.clearScreen());
-				client.gotoMenuModule(Config.entryMod);
+				
+				client.gotoMenuModule({ name : Config.entryMod } );
 				//moduleUtil.goto(Config.entryMod, client);
 			}, timeout);
 		});

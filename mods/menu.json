@@ -1,6 +1,14 @@
 {	
 	/*
 		Menu Configuration
+
+		Some concept/ideas:
+			"mci" : {
+				"BN1" : {
+					...
+					"draw" : "@script:blah.js/drawButton"
+				}
+			}
 	*/
 	"matrix" : {
 		"art"		: "matrix",
@@ -20,7 +28,8 @@
 						"*" : [
 							{
 								"value"		: { "1" : 0 },
-								"menu"		: "login"
+								"menu"		: "loginForm",
+								"args"		: { "reason" : "show_form" }
 							},
 							{
 								"value"		: { "1" : 1 },
@@ -36,8 +45,8 @@
 			}
 		}
 	},
-	"login" : {
-		"art"		: "login",
+	"loginForm" : {
+		"art"		: "login",	//	TODO: rename to login_form
 		"module"	: "login",
 		"form"		: {
 			"0"	: {
@@ -58,14 +67,25 @@
 					"submit" : {
 						"3" : [	//	Login
 							{
-								"value" : { "3" : null },	//	:TODO: allow "value" : null
-								"menu"	: "attempt_login"
+								"value" : { "3" : null },
+								"menu"	: "attemptLogin",
+								"args" : { "reason" : "attempt_login", "username" : "{1}", "password" : "{2}" }
+							}
+						],
+						"4" : [	//	cancel
+							{
+								"value" : { "4" : null },
+								"menu"	: "matrix"
 							}
 						]
 					}
 				}
 			}
-		}		
+		}
+	},
+	"attemptLogin" : {
+		"art"		: "login",
+		"module"	: "login"
 	},
 	"logoff" : {
 		"art"		: "logoff",

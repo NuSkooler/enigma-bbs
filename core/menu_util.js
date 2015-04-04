@@ -17,7 +17,14 @@ var stripJsonComments	= require('strip-json-comments');
 exports.loadMenu		= loadMenu;
 exports.getFormConfig	= getFormConfig;
 
-function loadMenu(name, client, cb) {
+function loadMenu(options, cb) {
+
+	assert(options);
+	assert(options.name);
+	assert(options.client);
+
+	var name	= options.name;
+	var client	= options.client;
 	/*
 		TODO: 
 		* check access / ACS
@@ -44,21 +51,23 @@ function loadMenu(name, client, cb) {
 				});
 			},
 			function menuConfigLoaded(menuConfig, callback) {
-				Log.debug( { config : menuConfig }, 'Menu configuration loaded');
-
 				var moduleName = menuConfig.module || 'standard_menu';
 
 				moduleUtil.loadModule(moduleName, 'mods', function onModule(err, mod) {
 					callback(err, mod, menuConfig, moduleName);
 				});
-			},
+			}
 		],
 		function complete(err, mod, menuConfig, moduleName) {
 			if(err) {
 				cb(err);
 			} else {
-				Log.debug( { moduleName : moduleName, moduleInfo : mod.moduleInfo }, 'Loading menu module instance');
-				cb(null, new mod.getModule(menuConfig));
+				Log.debug(
+					{ moduleName : moduleName, args : options.args, config : menuConfig, info : mod.moduleInfo },
+					'Creating menu module instance');
+
+				//	:TODO: throw from MenuModule() - catch here
+				cb(null, new mod.getModule({ menuConfig : menuConfig, args : options.args } ));
 			}
 		}
 	);
@@ -92,61 +101,3 @@ function getFormConfig(menuConfig, formId, mciMap, cb) {
 
 	cb(new Error('No matching form configuration found'));
 }
-
-/*
-function getFormConfig(menuConfig, mciMap, cb) {
-	assert(menuConfig);
-
-	if(!menuConfig.form) {
-		cb(new Error('No form section specified for menu'));
-		return;
-	}
-
-	async.filter(
-		menuConfig.form, 
-		function check(form, callback) {
-			if(!form.mciReq || form.mciReq.length <= 0) {
-				callback(false);
-				return;
-			}
-
-			var count = form.mciReq.length;
-			if(Object.keys(mciMap).length === count) {
-				for(var i = 0; i < count; ++i) {
-					if(!mciMap[form.mciReq[i]]) {
-						callback(false);
-					}
-				}
-				callback(true);
-			}
-		},
-		function filtered(form) {
-			if(form.length > 0) {
-				assert(1 === form.length);
-				cb(null, form[0]);
-			} else {
-				cb(new Error('No matching form configuration found'));
-			}
-		}
-	);
-}
-*/
-
-/*
-function getFormConfig(menuConfig, mciMap) {
-	var count = menuConfig.form ? menuConfig.form.length : 0;
-	var mciReq;
-	for(var i = 0; i < count; ++i) {
-		mciReq = menuConfig.form[i].mciReq;
-		if(mciReq) {
-			if(mciReq.length === mciMap.length) {
-				for(var m = 0; m < mciReq.length; ++m) {
-					if(!mciMap[mciReq[m]]) {
-						return null;
-					}
-				}
-			}
-		}
-	}
-}
-*/

@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-var logger		= require('./logger.js');
+var Log			= require('./logger.js').log;
 
 var iconv		= require('iconv-lite');
 var assert		= require('assert');
@@ -41,7 +41,7 @@ function ClientTerminal(output) {
 			if(iconv.encodingExists(enc)) {
 				outputEncoding = enc;
 			} else {
-				logger.log.warn({ encoding : enc }, 'Unknown encoding');
+				Log.warn({ encoding : enc }, 'Unknown encoding');
 			}
 		}
 	});

@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 var baseClient		= require('../client.js');
-var logger			= require('../logger.js');
+var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
 
 var net 			= require('net');
@@ -322,7 +322,7 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 				event.type = vars.isOrInfo;
 
 				if(vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP) {
-					logger.log.warn('Handling deprecated RFC 1408 NEW-ENVIRON');
+					Log.warn('Handling deprecated RFC 1408 NEW-ENVIRON');
 				}
 	 		});
 
@@ -538,7 +538,7 @@ TelnetClient.prototype.setTermType = function(ttype) {
 	this.term.env['TERM']	= ttype;
 	this.term.termType		= ttype;
 
-	logger.log.debug({ termType : ttype }, 'Set terminal type');
+	Log.debug({ termType : ttype }, 'Set terminal type');
 }
 
 TelnetClient.prototype.handleSbCommand = function(evt) {
@@ -571,15 +571,15 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				self.setTermType(evt.envVars[name]);
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {
 				self.term.termWidth = parseInt(evt.envVars[name]);
-				logger.log.debug({ termWidth : self.term.termWidth, updateSource : 'NEW-ENVIRON'}, 'Window width updated');
+				Log.debug({ termWidth : self.term.termWidth, updateSource : 'NEW-ENVIRON'}, 'Window width updated');
 			} else if('ROWS' === name && 0 === self.term.termHeight) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
-				logger.log.debug({ termHeight : self.term.termHeight, updateSource : 'NEW-ENVIRON'}, 'Window height updated');
+				Log.debug({ termHeight : self.term.termHeight, updateSource : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
 					assert(evt.type === SB_COMMANDS.INFO);
 
-					logger.log.warn(
+					Log.warn(
 						{ varName : name, value : evt.envVars[name], existingValue : self.term.env[name] }, 
 						'Environment variable already exists');
 				} else {
@@ -604,7 +604,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 			self.term.env['ROWS'] = evt.height;
 		}
 
-		logger.log.debug({ termWidth : evt.width , termHeight : evt.height, updateSource : 'NAWS' }, 'Window size updated');
+		Log.debug({ termWidth : evt.width , termHeight : evt.height, updateSource : 'NAWS' }, 'Window size updated');
 	} else {
 		console.log('unhandled SB: ' + JSON.stringify(evt));
 	}
@@ -625,15 +625,15 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 	//
 	if('ip' === evt.command) {
 		//	Interrupt Process (IP)
-		logger.log.debug('Interrupt Process (IP) - Ending');
+		Log.debug('Interrupt Process (IP) - Ending');
 		this.input.end();
 	} else if('ayt' === evt.command) {
 		this.output.write('\b');
-		logger.log.debug('Are You There (AYT) - Replied "\\b"');
+		Log.debug('Are You There (AYT) - Replied "\\b"');
 	} else if(IGNORED_COMMANDS.indexOf(evt.commandCode)) {
-		logger.log.debug({ evt : evt }, 'Ignoring command');
+		Log.debug({ evt : evt }, 'Ignoring command');
 	} else {
-		logger.log.warn({ evt : evt }, 'Unknown command');
+		Log.warn({ evt : evt }, 'Unknown command');
 	}
 };
 

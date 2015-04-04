@@ -209,9 +209,12 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	assert(options.mciMap);
 
-	var factory 	= new MCIViewFactory(this.client);
-	var self		= this;
-	var formIdKey	= options.formId ? options.formId.toString() : '0';
+	var factory 		= new MCIViewFactory(this.client);
+	var self			= this;
+	var formIdKey		= options.formId ? options.formId.toString() : '0';
+	var initialFocusId;
+
+	//	:TODO: remove all the passing of fromConfig - use local
 
 	async.waterfall(
 		[
@@ -258,14 +261,13 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 							view.submit = true;	//	:TODO: should really be actual value
 						}
 
-						if(mciConf.focus) {
-							self.switchFocus(viewId);
-						}
-
 						if(mciConf.text) {
 							view.setText(mciConf.text);
 						}
 
+						if(mciConf.focus) {
+							initialFocusId = viewId;
+						}
 
 						eachCb(null);
 					},
@@ -321,17 +323,32 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 								return true;
 							};
 
+							var conf;
 							for(var c = 0; c < confForFormId.length; ++c) {
-								if(_.isEqual(formData.value, confForFormId[c].value, formValueCompare)) {
-									self.client.gotoMenuModule(confForFormId[c].menu);
+								conf = confForFormId[c];
+								if(_.isEqual(formData.value, conf.value, formValueCompare)) {
+
+									var formattedArgs;
+									if(conf.args) {
+										formattedArgs = self.formatMenuArgs(conf.args);
+									}
+								
+									self.client.gotoMenuModule( { name : conf.menu, args : formattedArgs } );
 									break;
 								}
 							}
 						});
 					}
-				} else {
-					callback(null);
 				}
+
+				callback(null);
+			},
+			function setInitialFocus(callback) {
+				if(initialFocusId) {
+					self.switchFocus(initialFocusId);
+				}
+
+				callback(null);
 			}
 		],
 		function complete(err) {
@@ -340,4 +357,29 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 			}
 		}
 	);
+};
+
+ViewController.prototype.formatMCIString = function(format) {
+	var self = this;
+	var view;
+
+	return format.replace(/{(\d+)}/g, function replacer(match, number) {
+		view = self.getView(number);
+		
+		if(!view) {
+			return match;
+		}
+
+		return view.getViewData();
+	});
+};
+
+ViewController.prototype.formatMenuArgs = function(args) {
+	var self = this;
+
+	return _.forIn(args, function onArg(value, key) {
+		if('string' === typeof value) {
+			args[key] = self.formatMCIString(value);
+		}
+	});
 };

@@ -7,7 +7,6 @@ var assert		= require('assert');
 var term		= require('./client_term.js');
 var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
-var logger		= require('./logger.js');	//	:TODO: cleanup and just use Log.
 var Log			= require('./logger.js').log;
 var user		= require('./user.js');
 var moduleUtil	= require('./module_util.js');
@@ -196,19 +195,27 @@ Client.prototype.address = function() {
 	return this.input.address();
 };
 
-Client.prototype.gotoMenuModule = function(name, cb) {
+Client.prototype.gotoMenuModule = function(options, cb) {
 	var self = this;
+
+	assert(options.name);
 	
 	//	Assign a default missing module handler callback if none was provided
 	cb = miscUtil.valueWithDefault(cb, self.defaultHandlerMissingMod());
 
 	self.detachCurrentMenuModule();
 
-	menuUtil.loadMenu(name, self, function onMenuModuleLoaded(err, modInst) {
+	var loadOptions = {
+		name	: options.name, 
+		client	: self, 
+		args	: options.args
+	};
+
+	menuUtil.loadMenu(loadOptions, function onMenuModuleLoaded(err, modInst) {
 		if(err) {
 			cb(err);
 		} else {
-			Log.debug({ menuName : name }, 'Goto menu module');
+			Log.debug({ name : options.name }, 'Goto menu module');
 
 			modInst.enter(self);
 
@@ -221,11 +228,12 @@ Client.prototype.gotoMenuModule = function(name, cb) {
 //	Default error handlers
 ///////////////////////////////////////////////////////////////////////////////
 
+//	:TODO: getDefaultHandler(name) -- handlers in default_handlers.js or something
 Client.prototype.defaultHandlerMissingMod = function(err) {
 	var self = this;
 
 	function handler(err) {
-		logger.log.error(err);
+		Log.error(err);
 
 		self.term.write(ansi.resetScreen());
 		self.term.write('An unrecoverable error has been encountered!\n');
