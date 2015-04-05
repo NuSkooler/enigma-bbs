@@ -23,6 +23,20 @@ exports.getModule	= LoginModule;
 
 function LoginModule(menuConfig) {
 	MenuModule.call(this, menuConfig);
+
+	var self = this;
+
+	this.menuMethods = {
+		attemptLogin : function(args) {
+			user.authenticate(args.username, args.password, self.client, function onAuth(err) {
+				if(err) {
+					console.log(err);
+				} else {
+					console.log('logged in!')
+				}
+			});
+		}
+	};
 }
 
 require('util').inherits(LoginModule, MenuModule);

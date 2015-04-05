@@ -7,12 +7,18 @@
 				"BN1" : {
 					...
 					"draw" : "@script:blah.js/drawButton"
+					//	@method:scriptName[.js]/methodName (foreign .js)
+					//	@art:artName
+					//	@method:/methodName (local to module.js)
+					"draw" : {
+						"normal" : ...,
+						"focus" : ...
+					}
 				}
 			}
 	*/
 	"matrix" : {
 		"art"		: "matrix",
-		//	:TODO: Not currently supporting more than form 0. Should probably do that!
 		"form"		: {
 			"0"	: {
 				"VM1" : {
@@ -28,16 +34,15 @@
 						"*" : [
 							{
 								"value"		: { "1" : 0 },
-								"menu"		: "loginForm",
-								"args"		: { "reason" : "show_form" }
+								"action"	: "@menu:login"
 							},
 							{
 								"value"		: { "1" : 1 },
-								"menu"		: "apply"
+								"action"	: "@menu:apply"
 							},
 							{
 								"value"		: { "1" : 2 },
-								"menu"		: "logoff"
+								"action"	: "@menu:logoff"
 							}
 						]
 					}
@@ -45,7 +50,7 @@
 			}
 		}
 	},
-	"loginForm" : {
+	"login" : {
 		"art"		: "login",	//	TODO: rename to login_form
 		"module"	: "login",
 		"form"		: {
@@ -67,25 +72,21 @@
 					"submit" : {
 						"3" : [	//	Login
 							{
-								"value" : { "3" : null },
-								"menu"	: "attemptLogin",
-								"args" : { "reason" : "attempt_login", "username" : "{1}", "password" : "{2}" }
+								"value" 	: { "3" : null },								
+								"action"	: "@method:attemptLogin",
+								"args"		: { "username" : "{1}", "password" : "{2}" }	//	:TODO: rename to actionArgs ?
 							}
 						],
 						"4" : [	//	cancel
 							{
-								"value" : { "4" : null },
-								"menu"	: "matrix"
+								"value"		: { "4" : null },
+								"action"	: "@menu:matrix"
 							}
 						]
 					}
 				}
 			}
 		}
-	},
-	"attemptLogin" : {
-		"art"		: "login",
-		"module"	: "login"
 	},
 	"logoff" : {
 		"art"		: "logoff",

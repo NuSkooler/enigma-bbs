@@ -5,6 +5,7 @@
 var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
 var Log				= require('./logger.js').log;
+var asset			= require('./asset.js');
 
 var events			= require('events');
 var util			= require('util');
@@ -215,6 +216,7 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	var initialFocusId;
 
 	//	:TODO: remove all the passing of fromConfig - use local
+	//	:TODO: break all of this up ... a lot
 
 	async.waterfall(
 		[
@@ -285,6 +287,8 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 					//	and map the various entries to menus/etc.
 					//
 					if(_.isObject(formConfig.submit)) {
+						//	:TODO: If this model is kept, formData does not need to include actual data, just form ID & submitID
+						//	we can get the rest here via each view in form -> getViewData()
 						self.on('submit', function onSubmit(formData) {
 							Log.debug( { formData : formData }, 'Submit form');
 
@@ -328,13 +332,31 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 								conf = confForFormId[c];
 								if(_.isEqual(formData.value, conf.value, formValueCompare)) {
 
+									if(!conf.action) {
+										continue;
+									}
+
 									var formattedArgs;
 									if(conf.args) {
 										formattedArgs = self.formatMenuArgs(conf.args);
 									}
-								
-									self.client.gotoMenuModule( { name : conf.menu, args : formattedArgs } );
-									break;
+
+									var actionAsset = asset.parseAsset(conf.action);
+									assert(_.isObject(actionAsset));
+
+									if('method' === actionAsset.type) {
+										if(actionAsset.location) {
+											//	:TODO: call with (client, args, ...) at least.
+										} else {
+											//	local to current module
+											var currentMod = self.client.currentMenuModule;
+											if(currentMod.menuMethods[actionAsset.asset]) {
+												currentMod.menuMethods[actionAsset.asset](formattedArgs);
+											}
+										}
+									} else if('menu' === actionAsset.type) {
+										self.client.gotoMenuModule( { name : actionAsset.asset, args : formattedArgs } );
+									}
 								}
 							}
 						});
@@ -377,9 +399,10 @@ ViewController.prototype.formatMCIString = function(format) {
 ViewController.prototype.formatMenuArgs = function(args) {
 	var self = this;
 
-	return _.forIn(args, function onArg(value, key) {
+	return _.mapValues(args, function val(value) {
 		if('string' === typeof value) {
-			args[key] = self.formatMCIString(value);
+			return self.formatMCIString(value);
 		}
+		return value;
 	});
 };

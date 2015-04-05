@@ -303,7 +303,7 @@ function authenticate(userName, password, client, cb) {
 		],
 		function validateAuth(err, passDk, propsDk) {
 			if(err) {
-				cb(false);
+				cb(err);
 			} else {
 				//
 				//	Use constant time comparison here for security feel-goods
@@ -321,7 +321,7 @@ function authenticate(userName, password, client, cb) {
 					c |= passDkBuf[i] ^ propsDkBuf[i];
 				}
 
-				cb(0 === c);
+				cb(0 === c ? null : new Error('Invalid password'));
 			}
 		}
 	);

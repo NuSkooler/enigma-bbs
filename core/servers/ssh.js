@@ -29,11 +29,11 @@ function SSHClient(input, output) {
 
 		if('password' === ctx.method) {
 			//	:TODO: Log attempts
-			user.authenticate(ctx.username, ctx.password, self, function onAuthResult(isAuth) {
-				if(isAuth) {
-					ctx.accept();
-				} else {
+			user.authenticate(ctx.username, ctx.password, self, function onAuthResult(err) {
+				if(err) {
 					ctx.reject();
+				} else {
+					ctx.accept();
 				}
 			});
 		} else if('publickey' === ctx.method) {
