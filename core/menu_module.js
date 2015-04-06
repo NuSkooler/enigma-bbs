@@ -15,7 +15,7 @@ function MenuModule(options) {
 
 	var self				= this;
 	this.menuConfig			= options.menuConfig;
-
+	this.menuMethods		= {};
 	this.viewControllers	= [];
 
 	this.initSequence = function() {

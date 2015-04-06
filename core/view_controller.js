@@ -214,6 +214,7 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	var self			= this;
 	var formIdKey		= options.formId ? options.formId.toString() : '0';
 	var initialFocusId;
+	var formConfig;
 
 	//	:TODO: remove all the passing of fromConfig - use local
 	//	:TODO: break all of this up ... a lot
@@ -221,15 +222,20 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	async.waterfall(
 		[
 			function getFormConfig(callback) {
-				menuUtil.getFormConfig(options.menuConfig, formIdKey, options.mciMap, function onFormConfig(err, formConfig) {
+				menuUtil.getFormConfig(options.menuConfig, formIdKey, options.mciMap, function onFormConfig(err, fc) {
+					formConfig = fc;
+
 					if(err) {
-						Log.warn(err, 'Unable to load menu configuration');
+						//	:TODO: fix logging of err here:
+						Log.warn( 
+							{ err : err, mci : Object.keys(options.mciMap), formIdKey : formIdKey } , 
+							'Unable to load menu configuration');
 					}
 
-					callback(null, formConfig);
+					callback(null);
 				});
 			},
-			function createViewsFromMCIMap(formConfig, callback) {
+			function createViewsFromMCIMap(callback) {
 				async.each(Object.keys(options.mciMap), function onMciEntry(name, eachCb) {
 					var mci		= options.mciMap[name];
 					var view	= factory.createFromMCI(mci);
@@ -244,10 +250,10 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 				function eachMciComplete(err) {
 					self.setViewOrder();
 
-					callback(err, formConfig);					
+					callback(err);					
 				});
 			},
-			function applyFormConfig(formConfig, callback) {
+			function applyFormConfig(callback) {
 				if(formConfig) {
 					async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
 						var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
@@ -274,13 +280,13 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 						eachCb(null);
 					},
 					function eachMciConfComplete(err) {
-						callback(err, formConfig);
+						callback(err);
 					});
 				} else {
 					callback(null);
 				}
 			},
-			function mapMenuSubmit(formConfig, callback) {
+			function mapMenuSubmit(callback) {
 				if(formConfig) {
 					//
 					//	If we have a 'submit' section, create a submit handler

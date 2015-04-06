@@ -5,6 +5,7 @@ var ansi			= require('../core/ansi_term.js');
 var art				= require('../core/art.js');
 var user			= require('../core/user.js');
 var theme			= require('../core/theme.js');
+var Log				= require('../core/logger.js').log;
 var MenuModule		= require('../core/menu_module.js').MenuModule;
 var ViewController	= require('../core/view_controller.js').ViewController;
 
@@ -26,16 +27,39 @@ function LoginModule(menuConfig) {
 
 	var self = this;
 
-	this.menuMethods = {
-		attemptLogin : function(args) {
-			user.authenticate(args.username, args.password, self.client, function onAuth(err) {
-				if(err) {
-					console.log(err);
-				} else {
-					console.log('logged in!')
-				}
-			});
-		}
+	//	:TODO: Handle max login attempts before hangup
+	//	:TODO: probably should persist failed login attempts to user DB
+
+	this.menuMethods.attemptLogin = function(args) {
+		self.client.user.authenticate(args.username, args.password, function onAuth(err) {
+			if(err) {
+				Log.info( { username : args.username }, 'Failed login attempt %s', err);
+
+				//	:TODO: localize:
+				//	:TODO: create a blink label of sorts - simulate blink with ICE
+				self.viewController.getView(5).setText('Invalid username or password!');
+				self.clearForm();
+				self.viewController.switchFocus(1);
+				
+				setTimeout(function onTimeout() {
+					//	:TODO: should there be a block input type of pattern here? self.client.ignoreInput() ... self.client.acceptInput()
+
+					self.viewController.getView(5).clearText();	//	:TODO: for some reason this doesn't clear the last character
+					self.viewController.switchFocus(1);
+				}, 2000);
+
+			} else {
+				Log.info( { username : self.client.user.username }, 'Successful login');
+
+				//	:TODO: persist information about login to user
+			}
+		});
+	};
+
+	this.clearForm = function() {
+		[ 1, 2, ].forEach(function onId(id) {
+			self.viewController.getView(id).clearText();
+		});
 	};
 }
 
@@ -56,7 +80,7 @@ LoginModule.prototype.mciReady = function(mciMap) {
 
 	var self = this;
 
-	var vc = self.addViewController(new ViewController(self.client));
-	vc.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
+	self.viewController = self.addViewController(new ViewController(self.client));
+	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
 	});
 };

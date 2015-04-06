@@ -7,20 +7,20 @@ var assert			= require('assert');
 var async			= require('async');
 
 exports.User						= User;
-exports.getUserId					= getUserId;
+exports.getUserIdAndName			= getUserIdAndName;
 exports.createNew					= createNew;
 exports.persistAll					= persistAll;
-exports.authenticate				= authenticate;
+//exports.authenticate				= authenticate;
 
 function User() {
 	var self = this;
 
-	this.id			= 0;
-	this.userName	= '';
+	this.userId		= 0;
+	this.username	= '';
 	this.properties	= {};
 
 	this.isValid = function() {
-		if(self.id <= 0 || self.userName.length < 2) {
+		if(self.userId <= 0 || self.username.length < 2) {
 			return false;
 		}
 
@@ -37,10 +37,11 @@ function User() {
 	};
 
 	this.isRoot = function() {
-		return 1 === this.id;
+		return 1 === this.userId;
 	};
 
 	this.isSysOp = this.isRoot;	//	alias
+
 }
 
 User.PBKDF2 = {
@@ -53,20 +54,90 @@ User.StandardPropertyGroups = {
 	password	: [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
 };
 
-function getUserId(userName, cb) {
+User.prototype.authenticate = function(username, password, cb) {
+	var self = this;
+
+	var cachedInfo = {};
+
+	async.waterfall(
+		[
+			function fetchUserId(callback) {
+				//	get user ID
+				getUserIdAndName(username, function onUserId(err, uid, un) {
+					cachedInfo.userId	= uid;
+					cachedInfo.username	= un;
+
+					callback(err);
+				});
+			},
+
+			function getRequiredAuthProperties(callback) {
+				//	fetch properties required for authentication
+				loadProperties( { userId : cachedInfo.userId, names : User.StandardPropertyGroups.password }, function onProps(err, props) {
+					callback(err, props);
+				});
+			},
+			function getDkWithSalt(props, callback) {
+				//	get DK from stored salt and password provided
+				generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, function onDk(err, dk) {
+					callback(err, dk, props.pw_pbkdf2_dk);
+				});
+			},
+			function validateAuth(passDk, propsDk, callback) {
+				//
+				//	Use constant time comparison here for security feel-goods
+				//
+				var passDkBuf	= new Buffer(passDk,	'hex');
+				var propsDkBuf	= new Buffer(propsDk,	'hex');
+
+				if(passDkBuf.length !== propsDkBuf.length) {
+					callback(new Error('Invalid password'));
+					return;
+				}
+
+				var c = 0;
+				for(var i = 0; i < passDkBuf.length; i++) {
+					c |= passDkBuf[i] ^ propsDkBuf[i];
+				}
+
+				callback(0 === c ? null : new Error('Invalid password'));
+			},
+			function initProps(callback) {
+				loadProperties({ userId : cachedInfo.userId }, function onProps(err, allProps) {
+					if(!err) {
+						cachedInfo.properties = allProps;
+					}
+
+					callback(err);
+				});
+			}
+		],
+		function complete(err) {
+			if(!err) {
+				self.userId		= cachedInfo.userId;
+				self.username	= cachedInfo.username;
+				self.properties	= cachedInfo.properties;
+			}
+
+			cb(err);
+		}
+	);
+};
+
+function getUserIdAndName(username, cb) {
 	userDb.get(
-		'SELECT id ' +
+		'SELECT id, user_name ' +
 		'FROM user ' +
 		'WHERE user_name LIKE ?;',
-		[ userName ],
+		[ username ],
 		function onResults(err, row) {
 			if(err) {
 				cb(err);
 			} else {
 				if(row) {
-					cb(null, row.id);
+					cb(null, row.id, row.user_name);
 				} else {
-					cb(new Error('No matching user name'));
+					cb(new Error('No matching username'));
 				}
 			}
 		}
@@ -74,7 +145,7 @@ function getUserId(userName, cb) {
 }
 
 function createNew(user, cb) {
-	assert(user.userName && user.userName.length > 1, 'Invalid userName');
+	assert(user.username && user.username.length > 1, 'Invalid userName');
 
 	async.series(
 		[
@@ -87,12 +158,12 @@ function createNew(user, cb) {
 				userDb.run(
 					'INSERT INTO user (user_name) ' +
 					'VALUES (?);',
-					[ user.userName ],
+					[ user.username ],
 					function onUserInsert(err) {
 						if(err) {
 							callback(err);
 						} else {
-							user.id = this.lastID;
+							user.userId = this.lastID;
 							callback(null);
 						}
 					}
@@ -132,7 +203,7 @@ function createNew(user, cb) {
 					if(err) {
 						cb(err);
 					} else {
-						cb(null, user.id);
+						cb(null, user.userId);
 					}
 				});
 			}
@@ -182,14 +253,14 @@ function generatePasswordDerivedKey(password, salt, cb) {
 }
 
 function persistProperties(user, cb) {
-	assert(user.id > 0);
+	assert(user.userId > 0);
 
 	var stmt = userDb.prepare(
 		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
 		'VALUES (?, ?, ?);');
 
 	async.each(Object.keys(user.properties), function onProp(propName, callback) {
-		stmt.run(user.id, propName, user.properties[propName], function onRun(err) {
+		stmt.run(user.userId, propName, user.properties[propName], function onRun(err) {
 			callback(err);
 		});
 	}, function onComplete(err) {
@@ -203,7 +274,35 @@ function persistProperties(user, cb) {
 	});
 }
 
-function getProperties(userId, propNames, cb) {
+function loadProperties(options, cb) {
+	assert(options.userId);
+
+	var sql =
+		'SELECT prop_name, prop_value ' +
+		'FROM user_property ' +
+		'WHERE user_id = ?';
+
+	if(options.names) {
+		sql +=' AND prop_name IN("' + options.names.join('","') + '");';
+	} else {
+		sql += ';';
+	}
+
+	var properties = {};
+
+	userDb.each(sql, [ options.userId ], function onRow(err, row) {
+		if(err) {
+			cb(err);
+			return;
+		} else {
+			properties[row.prop_name] = row.prop_value;
+		}
+	}, function complete() {
+		cb(null, properties);
+	});
+}
+
+/*function getProperties(userId, propNames, cb) {
 	var properties = {};
 
 	async.each(propNames, function onPropName(propName, next) {
@@ -225,7 +324,7 @@ function getProperties(userId, propNames, cb) {
 				}
 			}
 		);
-	}, function onCompleteOrError(err) {
+	}, function complete(err) {
 		if(err) {
 			cb(err);
 		} else {
@@ -233,9 +332,10 @@ function getProperties(userId, propNames, cb) {
 		}
 	});
 }
+*/
 
 function persistAll(user, useTransaction, cb) {
-	assert(user.id > 0);
+	assert(user.userId > 0);
 
 	async.series(
 		[
@@ -276,6 +376,7 @@ function persistAll(user, useTransaction, cb) {
 	);
 }
 
+/*
 function authenticate(userName, password, client, cb) {
 	assert(client);
 
@@ -283,7 +384,7 @@ function authenticate(userName, password, client, cb) {
 		[
 			function fetchUserId(callback) {
 				//	get user ID
-				getUserId(userName, function onUserId(err, userId) {
+				getUserIdAndName(userName, function onUserId(err, userId) {
 					callback(err, userId);
 				});
 			},
@@ -326,3 +427,4 @@ function authenticate(userName, password, client, cb) {
 		}
 	);
 }
+*/

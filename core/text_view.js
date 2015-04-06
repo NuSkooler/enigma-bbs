@@ -28,6 +28,31 @@ function TextView(client, options) {
 		this.dimens.height = 1;
 	}
 
+	
+
+	this.drawText = function(s) {
+		var ansiColor = this.getANSIColor(this.hasFocus ? this.getFocusColor() : this.getColor());
+
+		if(this.isPasswordTextStyle) {
+			this.client.term.write(strUtil.pad(
+				new Array(s.length + 1).join(this.textMaskChar), 
+				this.dimens.width + 1, 
+				this.fillChar, 
+				this.justify,
+				ansiColor,
+				this.getANSIColor(this.getColor())));
+		} else {
+			var text = strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+			this.client.term.write(strUtil.pad(
+				text, 
+				this.dimens.width + 1, 
+				this.fillChar, 
+				this.justify,
+				ansiColor,
+				this.getANSIColor(this.getColor())));
+		}
+	};
+
 	this.setText(this.options.text || '');
 
 	if(this.isPasswordTextStyle) {
@@ -40,26 +65,7 @@ util.inherits(TextView, View);
 TextView.prototype.redraw = function() {
 	TextView.super_.prototype.redraw.call(this);
 
-	var ansiColor = this.getANSIColor(this.hasFocus ? this.getFocusColor() : this.getColor());
-
-	if(this.isPasswordTextStyle) {
-		this.client.term.write(strUtil.pad(
-			new Array(this.text.length + 1).join(this.textMaskChar), 
-			this.dimens.width, 
-			this.fillChar, 
-			this.justify,
-			ansiColor,
-			this.getANSIColor(this.getColor())));
-	} else {
-		var text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
-		this.client.term.write(strUtil.pad(
-			text, 
-			this.dimens.width, 
-			this.fillChar, 
-			this.justify,
-			ansiColor,
-			this.getANSIColor(this.getColor())));
-	}
+	this.drawText(this.text);
 };
 
 TextView.prototype.setFocus = function(focused) {
@@ -81,11 +87,15 @@ TextView.prototype.setText = function(text) {
 		this.text = this.text.substr(0, this.maxLength);
 	}
 
-	this.text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
+	this.text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
 
 	if(!this.multiLine && !this.dimens.width) {
 		this.dimens.width = this.text.length;
 	}
 
 	this.redraw();
+};
+
+TextView.prototype.clearText = function() {
+	this.setText('');
 };
