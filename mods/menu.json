@@ -91,5 +91,20 @@
 	"logoff" : {
 		"art"		: "logoff",
 		"module"	: "logoff"
+	},
+	"apply" : {
+		"art"		: "apply",
+		"module"	: "apply",
+		"form"		: {
+			"0" : {
+				"ET1ET2ET3ET4ET5ET6ET7ET8ET9TL10TL11TL12" : {
+					"mci" : {
+						"ET1" : {
+							"focus" : true
+						}
+					}
+				}
+			}
+		}
 	}
 }
