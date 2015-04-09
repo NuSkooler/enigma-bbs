@@ -5,6 +5,7 @@ var events		= require('events');
 var util		= require('util');
 var assert		= require('assert');
 var ansi		= require('./ansi_term.js');
+var _			= require('lodash');
 
 exports.View							= View;
 exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
@@ -19,16 +20,18 @@ var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	down		: [ 'down arrow' ],
 };
 
-function View(client, options) {
+function View(options) {
 	events.EventEmitter.call(this);
 
-	assert(client);
+	assert(_.isObject(options));
+	assert(_.isObject(options.client));
 
 	var self			= this;
 
-	this.client			= client;
-	this.options		= options || {};
+	this.client			= options.client;
 	
+	this.cursor			= options.cursor || 'show';
+
 	this.acceptsFocus	= options.acceptsFocus || false;
 	this.acceptsInput	= options.acceptsInput || false;
 
@@ -37,34 +40,34 @@ function View(client, options) {
 	this.position 		= { x : 0, y : 0 };
 	this.dimens			= { height : 1, width : 0 };
 
-	this.textStyle		= this.options.textStyle || 'normal';
-	this.focusTextStyle	= this.options.focusTextStyle || this.textStyle;
+	this.textStyle		= options.textStyle || 'normal';
+	this.focusTextStyle	= options.focusTextStyle || this.textStyle;
 
-	if(this.options.id) {
-		this.setId(this.options.id);
+	if(options.id) {
+		this.setId(options.id);
 	}
 
-	if(this.options.position) {
-		this.setPosition(this.options.position);
+	if(options.position) {
+		this.setPosition(options.position);
 	}
 
 
 //	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
 
 	//	:TODO: Don't allow width/height > client.term
-	if(this.options.dimens && this.options.dimens.height) {
-		this.dimens.height = this.options.dimens.height;
+	if(options.dimens && options.dimens.height) {
+		this.dimens.height = options.dimens.height;
 	}
 
-	if(this.options.dimens && this.options.dimens.width) {
-		this.dimens.width = this.options.dimens.width;
+	if(options.dimens && options.dimens.width) {
+		this.dimens.width = options.dimens.width;
 	}
 
-	this.color			= this.options.color || { flags : 0, fg : 7,  bg : 0 };
-	this.focusColor		= this.options.focusColor || this.color;
+	this.color			= options.color || { flags : 0, fg : 7,  bg : 0 };
+	this.focusColor		= options.focusColor || this.color;
 
 	if(this.acceptsInput) {
-		this.specialKeyMap = this.options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
+		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
 	}
 
 	this.isSpecialKeyMapped = function(keySet, keyName) {
@@ -129,6 +132,7 @@ View.prototype.setFocus = function(focused) {
 	assert(this.acceptsFocus, 'View does not accept focus');
 
 	this.hasFocus = focused;
+	this.client.term.write('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
 };
 
 View.prototype.onKeyPress = function(key, isSpecial) {

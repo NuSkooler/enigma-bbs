@@ -10,19 +10,19 @@ var assert			= require('assert');
 
 exports.TextView			= TextView;
 
-function TextView(client, options) {
-	View.call(this, client, options);
+function TextView(options) {
+	View.call(this, options);
 
 	var self = this;
 
-	if(this.options.maxLength) {
-		this.maxLength = this.options.maxLength;
+	if(options.maxLength) {
+		this.maxLength = options.maxLength;
 	}
 
-	this.multiLine	= this.options.multiLine || false;
-	this.fillChar	= miscUtil.valueWithDefault(this.options.fillChar, ' ').substr(0, 1);
-	this.justify	= this.options.justify || 'right';
-	this.inputType	= this.options.inputType || 'normal';
+	this.multiLine	= options.multiLine || false;
+	this.fillChar	= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
+	this.justify	= options.justify || 'right';
+	//this.inputType	= options.inputType || 'normal';
 
 	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
 
@@ -56,7 +56,7 @@ function TextView(client, options) {
 		}
 	};
 
-	this.setText(this.options.text || '');
+	this.setText(options.text || '');
 
 	if(this.isPasswordTextStyle) {
 		this.textMaskChar = miscUtil.valueWithDefault(this.textMaskChar, '*').substr(0, 1);

@@ -33,6 +33,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 	var view;
 	var options = {
+		client		: this.client,
 		id			: mci.id,
 		color		: mci.color,
 		focusColor	: mci.focusColor,
@@ -63,7 +64,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 				options.dimens		= { width : options.maxLength };
 			}
 
-			view = new TextView(this.client, options);
+			view = new TextView(options);
 			break;
 
 		case 'ET' :
@@ -76,7 +77,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 			setFocusOption(0, 'focusTextStyle');
 
-			view = new EditTextView(this.client, options);
+			view = new EditTextView(options);
 			break;
 
 		case 'PL' : 
@@ -91,7 +92,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 						options.dimens		= { width : options.maxLength };
 					}
 
-					view = new TextView(this.client, options);
+					view = new TextView(options);
 				}
 			}
 			break;
@@ -106,7 +107,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 			setFocusOption(0, 'focusTextStyle');
 
-			view = new ButtonView(this.client, options);
+			view = new ButtonView(options);
 			break;
 
 		case 'VM' :
@@ -116,7 +117,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			
 			setFocusOption(0,	'focusTextStyle');
 
-			view = new VerticalMenuView(this.client, options);
+			view = new VerticalMenuView(options);
 			break;
 	}
 

@@ -9,8 +9,10 @@ var assert			= require('assert');
 
 exports.VerticalMenuView		= VerticalMenuView;
 
-function VerticalMenuView(client, options) {
-	MenuView.call(this, client, options);
+function VerticalMenuView(options) {
+	options.cursor = options.cursor || 'hide';
+
+	MenuView.call(this, options);
 
 	var self = this;
 

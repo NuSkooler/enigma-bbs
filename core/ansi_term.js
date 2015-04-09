@@ -54,7 +54,10 @@ var CONTROL = {
 	blinkToBrightIntensity : '?33h',
 	blinkNormal				: '?33l',
 
-	emulationSpeed	: '*r'	//	Set output emulation speed. See cterm.txt
+	emulationSpeed	: '*r',	//	Set output emulation speed. See cterm.txt
+
+	hideCursor		: '?25l',	//	Nonstandard - cterm.txt
+	showCursor		: '?25h',	//	Nonstandard - cterm.txt
 };
 
 /*

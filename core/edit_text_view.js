@@ -9,14 +9,11 @@ var assert			= require('assert');
 
 exports.EditTextView	= EditTextView;
 
-function EditTextView(client, options) {
+function EditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
-	options.inputType		= miscUtil.valueWithDefault(options.inputType, 'normal');
 
-	TextView.call(this, client, options);
-
-	assert(this.inputType in EditTextView.InputTypes);
+	TextView.call(this, options);
 
 	this.clientBackspace = function() {
 		this.client.term.write(
@@ -26,27 +23,6 @@ function EditTextView(client, options) {
 
 util.inherits(EditTextView, TextView);
 
-EditTextView.InputTypes = {
-	normal			: 1,
-	email			: 2,
-	numeric			: 3,
-	alpha			: 4,
-	alphaNumeric	: 5,
-	phone			: 6,
-};
-Object.freeze(EditTextView.InputTypes);
-
-EditTextView.prototype.isKeyValidForInputType = function(key) {
-	//	:TODO: add in the actual validations:
-	switch(this.inputType) {
-		case 'normal' 	: return true;
-		case 'email'	: return true;	//	:TODO: validate based on char + position
-		case 'numeric'	: return !isNaN(key);
-	}
-
-	return true;
-};
-
 EditTextView.prototype.onKeyPress = function(key, isSpecial) {	
 	if(isSpecial) {
 		return;
@@ -54,13 +30,9 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 
 	assert(1 === key.length);
 
-	if(!this.isKeyValidForInputType(key)) {
-		return;
-	}
-
 	//	:TODO: how to handle justify left/center?
 
-	if(this.text.length < this.options.maxLength) {
+	if(this.text.length < this.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 
 		this.text += key;

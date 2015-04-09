@@ -8,12 +8,13 @@ var assert			= require('assert');
 
 exports.ButtonView			= ButtonView;
 
-function ButtonView(client, options) {
+function ButtonView(options) {
 	options.acceptsFocus	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
 	options.justify			= miscUtil.valueWithDefault(options.justify, 'center');
+	options.cursor 			= miscUtil.valueWithDefault(options.cursor, 'hide');
 
-	TextView.call(this, client, options);
+	TextView.call(this, options);
 }
 
 util.inherits(ButtonView, TextView);
