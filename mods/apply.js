@@ -42,8 +42,6 @@ ApplyModule.prototype.enter = function(client) {
 
 ApplyModule.prototype.beforeArt = function() {
 	ApplyModule.super_.prototype.beforeArt.call(this);
-
-	this.client.term.write(ansi.resetScreen());
 };
 
 ApplyModule.prototype.mciReady = function(mciMap) {

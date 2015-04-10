@@ -72,7 +72,7 @@ LoginModule.prototype.enter = function(client) {
 LoginModule.prototype.beforeArt = function() {
 	LoginModule.super_.prototype.beforeArt.call(this);
 
-	this.client.term.write(ansi.resetScreen());
+	//this.client.term.write(ansi.resetScreen());
 };
 
 LoginModule.prototype.mciReady = function(mciMap) {

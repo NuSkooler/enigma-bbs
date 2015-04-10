@@ -216,6 +216,8 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	var initialFocusId;
 	var formConfig;
 
+	var mciRegEx 		= /([A-Z]{2})([0-9]{1,2})/;
+
 	//	:TODO: remove all the passing of fromConfig - use local
 	//	:TODO: break all of this up ... a lot
 
@@ -256,7 +258,8 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 			function applyFormConfig(callback) {
 				if(formConfig) {
 					async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
-						var viewId	= parseInt(mci[2]);	//	:TODO: what about auto-generated ID's? Do they simply not apply to menu configs?
+						var mciMatch = mci.match(mciRegEx);	//	:TODO: what about auto-generated IDs? Do they simply not apply to menu configs?
+						var viewId	= parseInt(mciMatch[2]);
 						var view	= self.getView(viewId);
 						var mciConf = formConfig.mci[mci];
 

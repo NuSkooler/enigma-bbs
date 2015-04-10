@@ -27,8 +27,6 @@ StandardMenuModule.prototype.enter = function(client) {
 
 StandardMenuModule.prototype.beforeArt = function() {
 	StandardMenuModule.super_.prototype.beforeArt.call(this);
-
-	this.client.term.write(ansi.resetScreen());	//	:TODO: this should be optional
 };
 
 StandardMenuModule.prototype.mciReady = function(mciMap) {

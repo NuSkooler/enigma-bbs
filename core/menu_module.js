@@ -4,6 +4,7 @@
 var PluginModule		= require('./plugin_module.js').PluginModule;
 var theme				= require('./theme.js');
 var Log					= require('./logger.js').log;
+var ansi				= require('./ansi_term.js');
 
 var async				= require('async');
 var assert				= require('assert');
@@ -15,6 +16,7 @@ function MenuModule(options) {
 
 	var self				= this;
 	this.menuConfig			= options.menuConfig;
+	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};
 	this.viewControllers	= [];
 
@@ -76,6 +78,10 @@ MenuModule.prototype.addViewController = function(vc) {
 };
 
 MenuModule.prototype.beforeArt = function() {	
+	if(this.menuConfig.options.clearScreen) {
+		this.client.term.write(ansi.resetScreen());
+	}
+
 };
 
 MenuModule.prototype.mciReady = function(mciMap) {

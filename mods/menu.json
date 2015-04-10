@@ -14,6 +14,8 @@
 						"normal" : ...,
 						"focus" : ...
 					}
+
+					..note that script/methods should be part of a *theme* - or at least checked first with fallback
 				}
 			}
 	*/
@@ -48,6 +50,9 @@
 					}
 				}
 			}
+		},
+		"options" : {
+			"clearScreen" : true
 		}
 	},
 	"login" : {
@@ -86,6 +91,9 @@
 					}
 				}
 			}
+		},
+		"options" : {
+			"clearScreen" : true
 		}
 	},
 	"logoff" : {
@@ -97,14 +105,23 @@
 		"module"	: "apply",
 		"form"		: {
 			"0" : {
-				"ET1ET2ET3ET4ET5ET6ET7ET8ET9TL10TL11TL12" : {
+				"BN13BN14ET1ET2ET3ET4ET5ET6ET7ET8ET9TL10TL11TL12" : {
 					"mci" : {
 						"ET1" : {
 							"focus" : true
+						},
+						"BN13" : {
+							"text"	: "Apply"
+						},
+						"BN14" : {
+							"text" : "Cancel"
 						}
 					}
 				}
 			}
+		},
+		"options" : {
+			"clearScreen" : true
 		}
 	}
 }

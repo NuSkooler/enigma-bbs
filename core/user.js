@@ -5,6 +5,7 @@ var userDb			= require('./database.js').dbs.user;
 var crypto			= require('crypto');
 var assert			= require('assert');
 var async			= require('async');
+var _				= require('lodash');
 
 exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
@@ -114,9 +115,10 @@ User.prototype.authenticate = function(username, password, cb) {
 		],
 		function complete(err) {
 			if(!err) {
-				self.userId		= cachedInfo.userId;
-				self.username	= cachedInfo.username;
-				self.properties	= cachedInfo.properties;
+				self.userId			= cachedInfo.userId;
+				self.username		= cachedInfo.username;
+				self.properties		= cachedInfo.properties;
+				self.authenticated	= true;
 			}
 
 			cb(err);
@@ -143,6 +145,110 @@ function getUserIdAndName(username, cb) {
 		}
 	);
 }
+
+User.prototype.create = function(options, cb) {
+	assert(0 === this.userId);
+	assert(this.username.length > 0);	//	:TODO: Min username length? Max?
+	assert(_.isObject(options));
+	assert(_.isString(options.password));
+
+	var self = this;
+
+	async.series(
+		[
+			function beginTransaction(callback) {
+				userDb.run('BEGIN;', function transBegin(err) {
+					callback(err);
+				});
+			},
+			function createUserRec(callback) {
+				userDb.run(
+					'INSERT INTO user (user_name) ' +
+					'VALUES (?);',
+					[ self.username ],
+					function userInsert(err) {
+						if(err) {
+							callback(err);
+						} else {
+							self.userId = this.lastID;
+							callback(null);
+						}
+					}
+				);
+			},
+			function genAuthCredentials(callback) {
+				generatePasswordDerivedKeySalt(options.password, function dkAndSalt(err, info) {
+					if(err) {
+						callback(err);
+					} else {
+						self.properties.pw_pbkdf2_salt	= info.salt;
+						self.properties.pw_pbkdf2_dk	= info.dk;
+						callback(null);
+					}
+				});
+			},
+			function saveAll(callback) {
+				//	:TODO: persist all data - props/etc.
+				callback(null);
+			}
+		],
+		function complete(err) {
+			if(err) {
+				var originalError = err;
+				userDb.run('ROLLBACK;', function rollback(err) {
+					assert(!err);
+					cb(originalError);
+				});
+			} else {
+				userDb.run('COMMIT;', function commited(err) {
+					cb(err);
+				});
+			}
+		}
+	);
+};
+
+User.prototype.persist = function(useTransaction, cb) {
+	assert(this.userId > 0);
+
+	async.series(
+		[
+			function beginTransaction(callback) {
+				if(useTransaction) {
+					userDb.run('BEGIN;', function transBegin(err) {
+						callback(err);
+					});
+				} else {
+					callback(null);
+				}
+			},
+			function saveProps(callback) {
+				persistProperties(this, function persisted(err) {
+					callback(err);
+				});
+			}
+		],
+		function complete(err) {
+			if(err) {
+				if(useTransaction) {
+					userDb.run('ROLLBACK;', function rollback(err) {
+						cb(err);
+					});
+				} else {
+					cb(err);
+				}
+			} else {
+				if(useTransaction) {
+					userDb.run('COMMIT;', function commited(err) {
+						cb(err);
+					});
+				} else {
+					cb(null);
+				}
+			}
+		}
+	);
+};
 
 function createNew(user, cb) {
 	assert(user.username && user.username.length > 1, 'Invalid userName');
