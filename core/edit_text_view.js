@@ -12,6 +12,7 @@ exports.EditTextView	= EditTextView;
 function EditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
+	options.resizable		= false;
 
 	TextView.call(this, options);
 

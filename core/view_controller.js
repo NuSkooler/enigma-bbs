@@ -140,6 +140,10 @@ ViewController.prototype.getView = function(id) {
 	return this.views[id];
 };
 
+ViewController.prototype.getFocusedView = function() {
+	return this.focusedView;
+};
+
 ViewController.prototype.switchFocus = function(id) {
 	if(this.focusedView && this.focusedView.acceptsFocus) {
 		this.focusedView.setFocus(false);

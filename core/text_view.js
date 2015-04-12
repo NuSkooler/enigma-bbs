@@ -22,6 +22,7 @@ function TextView(options) {
 	this.multiLine	= options.multiLine || false;
 	this.fillChar	= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
 	this.justify	= options.justify || 'right';
+	this.resizable	= miscUtil.valueWithDefault(options.resizable, true);
 	//this.inputType	= options.inputType || 'normal';
 
 	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
@@ -84,6 +85,12 @@ TextView.prototype.getViewData = function() {
 };
 
 TextView.prototype.setText = function(text) {
+
+	var widthDelta = 0;
+	if(this.text && this.text !== text) {
+		widthDelta = Math.abs(this.text.length - text.length);
+	}
+
 	this.text = text;
 
 	if(this.maxLength > 0) {
@@ -92,8 +99,14 @@ TextView.prototype.setText = function(text) {
 
 	this.text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
 
-	if(!this.multiLine && !this.dimens.width) {
+	/*if(!this.multiLine && !this.dimens.width) {
 		this.dimens.width = this.text.length;
+	}*/
+
+	if(!this.multiLine) {
+		if(this.resizable) {
+			this.dimens.width = this.text.length + widthDelta;
+		}
 	}
 
 	this.redraw();

@@ -116,6 +116,20 @@ View.prototype.setPosition = function(pos) {
 		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
 };
 
+View.prototype.setColor = function(fg, bg, flags) {
+	if(fg) {
+		this.color.fg = fg;
+	}
+
+	if(bg) {
+		this.color.bg = bg;
+	}
+
+	if('undefined' !== typeof flags) {
+		this.color.flags = flags;
+	}
+};
+
 View.prototype.getColor = function() {
 	return this.color;
 };
@@ -133,6 +147,8 @@ View.prototype.setFocus = function(focused) {
 
 	this.hasFocus = focused;
 	this.client.term.write('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
+
+	this.emit(focused ? 'enter' : 'leave');
 };
 
 View.prototype.onKeyPress = function(key, isSpecial) {
