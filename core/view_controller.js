@@ -15,14 +15,17 @@ var _				= require('lodash');
 
 exports.ViewController		= ViewController;
 
-function ViewController(client, formId) {
+function ViewController(options) {
+	assert(_.isObject(options));
+	assert(_.isObject(options.client));
+
 	events.EventEmitter.call(this);
 
 	var self		= this;
 
-	this.client		= client;
+	this.client		= options.client;
 	this.views		= {};	//	map of ID -> view
-	this.formId		= formId || 0;
+	this.formId		= options.formId || 0;
 
 	this.onClientKeyPress = function(key, isSpecial) {
 		if(isSpecial) {
@@ -95,6 +98,16 @@ function ViewController(client, formId) {
 		self.emit('submit', formData);
 	};
 
+	this.switchFocusEvent = function(event, view) {
+		if(self.emitSwitchFocus) {
+			return;
+		}
+
+		self.emitSwitchFocus = true;
+		self.emit(event, view);
+		self.emitSwitchFocus = false;
+	};
+
 	this.attachClientEvents();
 }
 
@@ -146,16 +159,17 @@ ViewController.prototype.getFocusedView = function() {
 
 ViewController.prototype.switchFocus = function(id) {
 	if(this.focusedView && this.focusedView.acceptsFocus) {
+		this.switchFocusEvent('leave', this.focusedView);
 		this.focusedView.setFocus(false);
 	}
 
 	var view = this.getView(id);
 	if(view && view.acceptsFocus) {
+		this.switchFocusEvent('enter', view);
+
 		this.focusedView = view;
 		this.focusedView.setFocus(true);
 	}
-
-	//	:TODO: Probably log here
 };
 
 ViewController.prototype.nextFocus = function() {
@@ -234,7 +248,7 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 					if(err) {
 						//	:TODO: fix logging of err here:
 						Log.warn( 
-							{ err : err, mci : Object.keys(options.mciMap), formIdKey : formIdKey } , 
+							{ err : err.toString(), mci : Object.keys(options.mciMap), formIdKey : formIdKey } , 
 							'Unable to load menu configuration');
 					}
 

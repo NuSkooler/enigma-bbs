@@ -14,6 +14,8 @@ var assert		= require('assert');
 var binary		= require('binary');
 var miscUtil	= require('./misc_util.js');
 
+exports.getFGColorValue				= getFGColorValue;
+exports.getBGColorValue				= getBGColorValue;
 exports.sgr							= sgr;
 exports.clearScreen					= clearScreen;
 exports.resetScreen					= resetScreen;
@@ -69,7 +71,7 @@ var CONTROL = {
 //	Select Graphics Rendition
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
 //
-var SGR = {
+var SGRValues = {
 	reset			: 0,
 	bold			: 1,
 	dim				: 2,
@@ -96,10 +98,20 @@ var SGR = {
 	greenBG			: 42,
 	yellowBG		: 43,
 	blueBG			: 44,
-	magentaBG		: 45,
+	
 	cyanBG			: 47,
 	whiteBG			: 47,
 };
+
+function getFGColorValue(name) {
+	return SGRValues[name];
+}
+
+function getBGColorValue(name) {
+	return SGRValues[name + 'BG'];
+}
+
+
 
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
 //	:TODO: document
@@ -162,8 +174,8 @@ Object.keys(CONTROL).forEach(function onControlName(name) {
 });
 
 //	Create various color methods such as white(), yellowBG(), reset(), ...
-Object.keys(SGR).forEach(function onSgrName(name) {
-	var code = SGR[name];
+Object.keys(SGRValues).forEach(function onSgrName(name) {
+	var code = SGRValues[name];
 
 	exports[name] = function() {
 		return ESC_CSI + code + 'm';
@@ -173,7 +185,7 @@ Object.keys(SGR).forEach(function onSgrName(name) {
 function sgr() {
 	//
 	//	- Allow an single array or variable number of arguments
-	//	- Each element can be either a integer or string found in SGR
+	//	- Each element can be either a integer or string found in SGRValues
 	//	  which in turn maps to a integer
 	//
 	if(arguments.length <= 0) {
@@ -187,11 +199,11 @@ function sgr() {
 	var args = Array.isArray(arguments[0]) ? arguments[0] : arguments;
 	for(var i = 0; i < args.length; i++) {
 		if(typeof args[i] === 'string') {
-			if(args[i] in SGR) {
+			if(args[i] in SGRValues) {
 				if(result.length > 0) {
 					result += ';';
 				}
-				result += SGR[args[i]];
+				result += SGRValues[args[i]];
 			}
 		} else if(typeof args[i] === 'number') {
 			if(result.length > 0) {

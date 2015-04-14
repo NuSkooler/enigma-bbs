@@ -34,7 +34,7 @@ StandardMenuModule.prototype.mciReady = function(mciMap) {
 
 	var self = this;
 
-	var vc = self.addViewController(new ViewController(self.client));
+	var vc = self.addViewController(new ViewController({ client : self.client } ));
 	vc.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
 		if(err) {
 			console.log(err);

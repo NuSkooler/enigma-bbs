@@ -1,4 +1,7 @@
 {
 	"name" : "Nu Mayan",
-	"author" : "NuSkooler"
+	"author" : "NuSkooler",
+	"config" : {
+		"passwordChar" : "*"
+	}
 }

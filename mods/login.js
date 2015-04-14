@@ -80,7 +80,7 @@ LoginModule.prototype.mciReady = function(mciMap) {
 
 	var self = this;
 
-	self.viewController = self.addViewController(new ViewController(self.client));
+	self.viewController = self.addViewController(new ViewController( { client : self.client } ));
 	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
 	});
 };

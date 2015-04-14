@@ -105,17 +105,44 @@
 		"module"	: "apply",
 		"form"		: {
 			"0" : {
-				"BN13BN14ET1ET2ET3ET4ET5ET6ET7ET8ET9TL10TL11TL12" : {
+				"BN12BN13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
 					"mci" : {
 						"ET1" : {
 							"focus" : true
 						},
-						"BN13" : {
+						"BN12" : {
+							"submit" : true,
 							"text"	: "Apply"
 						},
-						"BN14" : {
+						"BN13" : {
+							"submit" : true,
 							"text" : "Cancel"
 						}
+					},
+					"submit" : {
+						"12" : [	//	Apply
+							{
+								"value" : { "12" : null },
+								"action" : "@method:submitApplication",
+								"args" : {
+									"username"	: "{1}",
+									"realName"	: "{2}",
+									"age"		: "{3}",
+									"sex"		: "{4}",
+									"location"	: "{5}",
+									"affils"	: "{6}",
+									"email"		: "{7}",
+									"web"		: "{8}",
+									"password"	: "{9}"
+								}
+							}
+						],
+						"13" : [	//	Cancel
+							{
+								"value" : { "13" : null },
+								"action"	: "@menu:matrix"
+							}
+						]
 					}
 				}
 			}

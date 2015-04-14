@@ -66,7 +66,7 @@ MatrixModule.prototype.mciReady = function(mciMap) {
 		//		2 - Bye!
 		//
 		//var vc = new ViewController(client);
-		var vc = self.addViewController(new ViewController(self.client));
+		var vc = self.addViewController(new ViewController({ client : self.client } ));
 
 		vc.on('submit', function onSubmit(form) {
 			console.log(form);

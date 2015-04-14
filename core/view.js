@@ -13,7 +13,7 @@ exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
 var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	accept		: [ 'enter' ],
 	exit		: [ 'esc' ],
-	backspace	: [ 'backspace' ],
+	backspace	: [ 'backspace', 'del' ],
 	del			: [ 'del' ],
 	next		: [ 'tab' ],
 	up			: [ 'up arrow' ],
@@ -89,6 +89,10 @@ View.prototype.setId = function(id) {
 	this.id = id;
 };
 
+View.prototype.getId = function() {
+	return this.id;
+};
+
 View.prototype.setPosition = function(pos) {
 	//
 	//	We allow [x, y], { x : x, y : y }, or (x, y)
@@ -116,18 +120,35 @@ View.prototype.setPosition = function(pos) {
 		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
 };
 
-View.prototype.setColor = function(fg, bg, flags) {
-	if(fg) {
-		this.color.fg = fg;
+View.prototype.setColor = function(color, bgColor, flags) {
+	if(_.isObject(color)) {
+		assert(_.has(color, 'fg'));
+		assert(_.has(color, 'bg'));
+		assert(_.has(color, 'flags'));
+
+		this.color = color;
+	} else {
+		if(color) {
+			this.color.fg = color;
+		}
+
+		if(bgColor) {
+			this.color.bg = bgColor;
+		}
+
+		if(_.isNumber(flags)) {
+			this.color.flags = flags;
+		}
 	}
 
-	if(bg) {
-		this.color.bg = bg;
+	//	allow strings such as 'red', 'black', etc. to be passed
+	if(_.isString(this.color.fg)) {
+		this.color.fg = ansi.getFGColorValue(this.color.fg);
 	}
 
-	if('undefined' !== typeof flags) {
-		this.color.flags = flags;
-	}
+	if(_.isString(this.color.bg)) {
+		this.color.bg = ansi.getBGColorValue(this.color.bg);
+	}	
 };
 
 View.prototype.getColor = function() {
@@ -147,8 +168,6 @@ View.prototype.setFocus = function(focused) {
 
 	this.hasFocus = focused;
 	this.client.term.write('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
-
-	this.emit(focused ? 'enter' : 'leave');
 };
 
 View.prototype.onKeyPress = function(key, isSpecial) {

@@ -27,10 +27,8 @@ function ApplyModule(menuConfig) {
 
 	var self = this;
 
-	this.clearForm = function() {
-		[ 1, 2, ].forEach(function onId(id) {
-			self.viewController.getView(id).clearText();
-		});
+	this.menuMethods.submitApplication = function(args) {
+		console.log('do submit')
 	};
 }
 
@@ -49,46 +47,63 @@ ApplyModule.prototype.mciReady = function(mciMap) {
 
 	var self = this;
 
-	self.viewController = self.addViewController(new ViewController(self.client));
+	self.viewController = self.addViewController(new ViewController({ client : self.client } ));
 	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
 
 		var usernameView		= self.viewController.getView(1);
-		var userExistsView		= self.viewController.getView(10);
-		usernameView.on('leave', function leave() {
+		var passwordView		= self.viewController.getView(9);
+		var pwConfirmView		= self.viewController.getView(10);
+		var statusView			= self.viewController.getView(11);
+
+		self.viewController.on('leave', function leaveView(view) {
+			switch(view.getId()) {
+				case 1 : 
+					user.getUserIdAndName(view.getViewData(), function userIdAndName(err) {
+						var alreadyExists = !err;
+						if(alreadyExists) {
+							statusView.setText('Username unavailable!');
+							self.viewController.switchFocus(1);	//	don't allow to leave
+						} else {
+							statusView.setText('');
+							self.viewController.switchFocus(2);
+						}
+					});
+					break;
+			}
+		});
+/*
+		usernameView.on('leave', function leaveUsername() {
 			user.getUserIdAndName(usernameView.getViewData(), function userIdAndName(err) {
-				if(!err) {
-					userExistsView.setText('That username already exists!');
+				var alreadyExists = !err;
+				if(alreadyExists) {
+					statusView.setText('Username unavailable!');
+					self.viewController.switchFocus(1);	//	don't allow to leave
 				} else {
-					userExistsView.setText('');
+					statusView.setText('');
+					self.viewController.switchFocus(2);
 				}
-				//if(11 !== self.viewController.getFocusedView()) {
-				self.viewController.switchFocus(2);
-				//}
 			});
 		});
 
-		var pwView 				= self.viewController.getView(8);
-		var pwConfirmView		= self.viewController.getView(9);
-		var pwSecureView		= self.viewController.getView(11);
-		var pwConfirmNoticeView	= self.viewController.getView(12);
-
-		//	:TODO: show a secure meter here instead
-		pwView.on('leave', function pwLeave() {
-			if(pwView.getViewData().length > 3) {
-				pwSecureView.setColor(32);
-				pwSecureView.setText('Secure');
+		passwordView.on('leave', function leavePw() {
+			if(passwordView.getViewData().length < 3) {
+				statusView.setText('Password too short!');
+				self.viewController.switchFocus(9);
 			} else {
-				pwSecureView.setColor(31);
-				pwSecureView.setText('Insecure!');
+				statusView.setText('');
 			}
 		});
 
-		pwConfirmView.on('leave', function confirmPwLeave() {
-			if(pwView.getViewData() !== pwConfirmView.getViewData()) {
-				pwConfirmNoticeView.setText('Passwords must match!');
+		pwConfirmView.on('leave', function leavePwConfirm() {
+			if(passwordView.getViewData() !== pwConfirmView.getViewData()) {
+				statusView.setText('Passwords must match!');
+				self.viewController.switchFocus(9);
 			} else {
-				pwConfirmNoticeView.setText('');
+				statusView.setText('');
 			}
 		});
+*/
+
+		
 	});
 };
