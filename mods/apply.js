@@ -8,6 +8,9 @@ var theme			= require('../core/theme.js');
 var Log				= require('../core/logger.js').log;
 var MenuModule		= require('../core/menu_module.js').MenuModule;
 var ViewController	= require('../core/view_controller.js').ViewController;
+var Config			= require('../core/config.js').config;
+
+var util			= require('util');
 
 //var async			= require('async');
 
@@ -28,11 +31,81 @@ function ApplyModule(menuConfig) {
 	var self = this;
 
 	this.menuMethods.submitApplication = function(args) {
-		console.log('do submit')
+		var usernameView		= self.viewController.getView(1);
+		var passwordView		= self.viewController.getView(9);
+		var pwConfirmView		= self.viewController.getView(10);
+		var statusView			= self.viewController.getView(11);
+
+		self.validateApplication(args, function validated(errString, clearFields) {
+			if(errString) {
+				statusView.setText(errString);
+
+				clearFields.forEach(function formId(id) {
+					self.viewController.getView(id).setText('');
+				});
+
+				self.viewController.switchFocus(clearFields[0]);
+			} else {
+				var newUser = new user.User();
+				newUser.username				= args.username;
+				newUser.properties = {
+					real_name		: args.realName,
+					age				: args.age,
+					sex				: args.sex,
+					location		: args.location,
+					affiliation		: args.affils,
+					email_address	: args.email,
+					web_address		: args.web,
+
+					//	:TODO: Other defaults
+					//	:TODO: should probably have a place to create defaults/etc.					
+					//	:TODO: set account_status to default based on Config.user...
+				};
+
+				newUser.create({ password : args.pw }, function created(err) {
+					if(err) {
+						console.log(err)
+					} else {
+						Log.info( { username : args.username, userId : newUser.userId }, 'New user created');
+					}
+				});			
+			}
+		});
+	};
+
+	this.validateApplication = function(args, cb) {
+		if(args.username.length < Config.users.usernameMin) {
+			cb('Handle too short!', [ 1 ]);
+			return;
+		}
+
+		if(args.username.length > Config.users.usernameMax) {
+			cb('Handle too long!', [ 1 ]);
+			return;
+		}
+
+		if(args.pw.length < Config.users.passwordMin) {
+			cb('Password too short!', [ 9, 10 ]);
+			return;
+		}
+
+		if(args.pw !== args.pwConfirm) {
+			cb('Passwords do not match!', [ 9, 10 ]);
+			return;
+		}
+
+		user.getUserIdAndName(args.username, function userIdAndName(err) {
+			var alreadyExists = !err;
+			if(alreadyExists) {
+				cb('Username unavailable!', [ 1  ] );
+			} else {
+				cb(null);
+			}
+		});
 	};
 }
 
-require('util').inherits(ApplyModule, MenuModule);
+util.inherits(ApplyModule, MenuModule);
 
 ApplyModule.prototype.enter = function(client) {
 	ApplyModule.super_.prototype.enter.call(this, client);
@@ -49,61 +122,6 @@ ApplyModule.prototype.mciReady = function(mciMap) {
 
 	self.viewController = self.addViewController(new ViewController({ client : self.client } ));
 	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
-
-		var usernameView		= self.viewController.getView(1);
-		var passwordView		= self.viewController.getView(9);
-		var pwConfirmView		= self.viewController.getView(10);
-		var statusView			= self.viewController.getView(11);
-
-		self.viewController.on('leave', function leaveView(view) {
-			switch(view.getId()) {
-				case 1 : 
-					user.getUserIdAndName(view.getViewData(), function userIdAndName(err) {
-						var alreadyExists = !err;
-						if(alreadyExists) {
-							statusView.setText('Username unavailable!');
-							self.viewController.switchFocus(1);	//	don't allow to leave
-						} else {
-							statusView.setText('');
-							self.viewController.switchFocus(2);
-						}
-					});
-					break;
-			}
-		});
-/*
-		usernameView.on('leave', function leaveUsername() {
-			user.getUserIdAndName(usernameView.getViewData(), function userIdAndName(err) {
-				var alreadyExists = !err;
-				if(alreadyExists) {
-					statusView.setText('Username unavailable!');
-					self.viewController.switchFocus(1);	//	don't allow to leave
-				} else {
-					statusView.setText('');
-					self.viewController.switchFocus(2);
-				}
-			});
-		});
-
-		passwordView.on('leave', function leavePw() {
-			if(passwordView.getViewData().length < 3) {
-				statusView.setText('Password too short!');
-				self.viewController.switchFocus(9);
-			} else {
-				statusView.setText('');
-			}
-		});
-
-		pwConfirmView.on('leave', function leavePwConfirm() {
-			if(passwordView.getViewData() !== pwConfirmView.getViewData()) {
-				statusView.setText('Passwords must match!');
-				self.viewController.switchFocus(9);
-			} else {
-				statusView.setText('');
-			}
-		});
-*/
-
-		
+	
 	});
 };

@@ -124,6 +124,9 @@
 							{
 								"value" : { "12" : null },
 								"action" : "@method:submitApplication",
+								//	:TODO: Need a way to supply next menu based on data from @method
+								//	@method:submitApplication|nextMenu1|nextMenu2|nextMenu3 ? method could cb(indexValue)
+								
 								"args" : {
 									"username"	: "{1}",
 									"realName"	: "{2}",
@@ -133,7 +136,8 @@
 									"affils"	: "{6}",
 									"email"		: "{7}",
 									"web"		: "{8}",
-									"password"	: "{9}"
+									"pw"		: "{9}",
+									"pwConfirm"	: "{10}"
 								}
 							}
 						],

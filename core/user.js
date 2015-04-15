@@ -177,7 +177,7 @@ User.prototype.create = function(options, cb) {
 				);
 			},
 			function genAuthCredentials(callback) {
-				generatePasswordDerivedKeySalt(options.password, function dkAndSalt(err, info) {
+				generatePasswordDerivedKeyAndSalt(options.password, function dkAndSalt(err, info) {
 					if(err) {
 						callback(err);
 					} else {
@@ -188,8 +188,9 @@ User.prototype.create = function(options, cb) {
 				});
 			},
 			function saveAll(callback) {
-				//	:TODO: persist all data - props/etc.
-				callback(null);
+				self.persist(false, function persisted(err) {
+					callback(err);
+				});
 			}
 		],
 		function complete(err) {
@@ -211,6 +212,8 @@ User.prototype.create = function(options, cb) {
 User.prototype.persist = function(useTransaction, cb) {
 	assert(this.userId > 0);
 
+	var self = this;
+
 	async.series(
 		[
 			function beginTransaction(callback) {
@@ -223,7 +226,7 @@ User.prototype.persist = function(useTransaction, cb) {
 				}
 			},
 			function saveProps(callback) {
-				persistProperties(this, function persisted(err) {
+				persistProperties(self, function persisted(err) {
 					callback(err);
 				});
 			}
@@ -249,6 +252,31 @@ User.prototype.persist = function(useTransaction, cb) {
 		}
 	);
 };
+
+User.prototype.persistProperties = function(cb) {
+	assert(this.userId > 0);
+
+	var self = this;
+
+	var stmt = userDb.prepare(
+		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
+		'VALUES (?, ?, ?);');
+
+	async.each(Object.keys(this.properties), function property(propName, callback) {
+		stmt.run(self.userId, propName, self.properties[propName], function onRun(err) {
+			callback(err);
+		});
+	}, function complete(err) {
+		if(err) {
+			cb(err);
+		} else {
+			stmt.finalize(function finalized() {
+				cb(null);
+			});
+		}
+	});
+};
+
 
 function createNew(user, cb) {
 	assert(user.username && user.username.length > 1, 'Invalid userName');

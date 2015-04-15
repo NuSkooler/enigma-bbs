@@ -27,6 +27,12 @@ module.exports = {
 			
 			preLoginTheme : '*',
 
+			users : {
+				usernameMin			: 2,
+				usernameMax			: 22,
+				passwordMin			: 6,
+			},
+
 			paths		: {
 				mods				: paths.join(__dirname, './../mods/'),
 				servers				: paths.join(__dirname, './servers/'),
