@@ -56,6 +56,8 @@ function ApplyModule(menuConfig) {
 					affiliation		: args.affils,
 					email_address	: args.email,
 					web_address		: args.web,
+					art_theme_id	: Config.users.defaultTheme,	//	:TODO: allow '*' = random
+					account_status	: user.User.AccountStatus.inactive,
 
 					//	:TODO: Other defaults
 					//	:TODO: should probably have a place to create defaults/etc.					
@@ -64,9 +66,15 @@ function ApplyModule(menuConfig) {
 
 				newUser.create({ password : args.pw }, function created(err) {
 					if(err) {
-						console.log(err)
+						self.client.gotoMenuModule( { name : args.next.error } );
 					} else {
 						Log.info( { username : args.username, userId : newUser.userId }, 'New user created');
+
+						if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
+							self.client.gotoMenuModule( { name : args.next.inactive } );
+						} else {
+							self.client.gotoMenuModule( { name : args.next.active } );
+						}
 					}
 				});			
 			}

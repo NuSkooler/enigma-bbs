@@ -31,6 +31,8 @@ module.exports = {
 				usernameMin			: 2,
 				usernameMax			: 22,
 				passwordMin			: 6,
+				requireActivation	: true,	//	require SysOp activation?
+				defaultTheme		: 'NU-MAYA',
 			},
 
 			paths		: {

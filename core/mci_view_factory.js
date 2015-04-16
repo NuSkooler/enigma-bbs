@@ -7,7 +7,11 @@ var ButtonView			= require('./button_view.js').ButtonView;
 var VerticalMenuView	= require('./vertical_menu_view.js').VerticalMenuView;
 var Config				= require('./config.js').config;
 var packageJson 		= require('../package.json');
+
+
 var assert				= require('assert');
+var os					= require('os');
+var _					= require('lodash');
 
 exports.MCIViewFactory		= MCIViewFactory;
 
@@ -15,12 +19,30 @@ function MCIViewFactory(client) {
 	this.client = client;
 }
 
-MCIViewFactory.prototype.getPredefinedViewLabel = function(name) {
+MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 	var label;
-	switch(name) {
+	switch(code) {
+		//	:TODO: Fix conflict with ButtonView (BN); chagne to BT
 		case 'BN' : label = Config.bbsName; break;
 		case 'VL' : label = 'ENiGMA½ v' + packageJson.version; break;
 		case 'VN' : label = packageJson.version; break;
+
+		case 'UN' : label = this.client.user.username; break;
+		case 'UR' : label = this.client.user.properties.real_name; break;
+		case 'LO' : label = this.client.user.properties.location; break;
+
+		case 'OS' : 
+			switch(os.platform()) {
+				case 'linux' : label = 'Linux'; break;
+				case 'darwin' : label = 'OS X'; break;
+				case 'win32' : label = 'Windows'; break;
+				case 'sunos' : label = 'SunOS'; break;
+				default : label = os.type(); break;
+			}
+			break;
+
+		case 'OA' : label = os.arch(); break;
+		case 'SC' : label = os.cpus()[0].model; break;
 	}
 
 	return label;
@@ -56,6 +78,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 	}
 
 	switch(mci.code) {
+		//	Text Label (Text View)
 		case 'TL' : 
 			setOption(0,	'textStyle');
 			setOption(1,	'justify');
@@ -67,6 +90,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			view = new TextView(options);
 			break;
 
+		//	Edit Text
 		case 'ET' :
 			if(setOption(0, 'maxLength')) {
 				options.maxLength	= parseInt(options.maxLength, 10);
@@ -75,11 +99,29 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 			setOption(1, 'textStyle');
 
+			if(options.textStyle === 'P') {
+				//	Supply from theme, if available
+				//	:TODO: Move this logic elsewhere
+				if(this.client.currentThemeInfo && this.client.currentThemeInfo.config) {
+					var themePwChar = this.client.currentThemeInfo.config.passwordChar;
+					if(_.isString(themePwChar)) {
+						options.textMaskChar = themePwChar.substr(0, 1);
+					} else if(_.isNumber(themePwChar)) {
+						options.textMaskChar = String.fromCharCode(themePwChar);
+					} else {
+						options.textMaskChar = '*';
+					}
+				} else {
+					options.textMaskChar = '*';
+				}
+			}
+
 			setFocusOption(0, 'focusTextStyle');
 
 			view = new EditTextView(options);
 			break;
 
+		//	Pre-defined Label (Text View)
 		case 'PL' : 
 			if(mci.args.length > 0) {
 				options.text = this.getPredefinedViewLabel(mci.args[0]);
@@ -97,7 +139,8 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			}
 			break;
 
-		case 'BN' : 	
+		//	Button
+		case 'BT' : 
 			if(mci.args.length > 0) {
 				options.dimens = { width : parseInt(mci.args[0], 10) };
 			}
@@ -110,6 +153,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			view = new ButtonView(options);
 			break;
 
+		//	Vertial Menu
 		case 'VM' :
 			setOption(0,		'itemSpacing');
 			setOption(1, 		'justify');
@@ -118,6 +162,13 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new VerticalMenuView(options);
+			break;
+
+		default :
+			options.text = this.getPredefinedViewLabel(mci.code);
+			if(options.text) {
+				view = new TextView(options);
+			}
 			break;
 	}
 

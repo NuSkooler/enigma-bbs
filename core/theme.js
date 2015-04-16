@@ -5,9 +5,11 @@ var Config		= require('./config.js').config;
 var art			= require('./art.js');
 var miscUtil	= require('./misc_util.js');
 var Log			= require('./logger.js').log;
+
 var fs			= require('fs');
 var paths		= require('path');
 var async		= require('async');
+var _			= require('lodash');
 
 exports.getThemeInfo			= getThemeInfo;
 exports.getThemeArt				= getThemeArt;
@@ -23,6 +25,7 @@ function getThemeInfo(themeID, cb) {
 			cb(err);
 		} else {
 			try {
+				//	:TODO: strip comments/etc. ala menu.json
 				var info = JSON.parse(data);
 				cb(null, info);
 			} catch(e) {
@@ -85,7 +88,7 @@ function getRandomTheme(cb) {
 
 function getThemeArt(name, themeID, options, cb) {
 	//	allow options to be optional
-	if(typeof cb === 'undefined') {
+	if(_.isUndefined(cb)) {
 		cb		= options;
 		options = {};
 	}

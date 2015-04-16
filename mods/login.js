@@ -9,7 +9,7 @@ var Log				= require('../core/logger.js').log;
 var MenuModule		= require('../core/menu_module.js').MenuModule;
 var ViewController	= require('../core/view_controller.js').ViewController;
 
-//var async			= require('async');
+var async			= require('async');
 
 //	:TODO: clean up requires
 
@@ -33,6 +33,8 @@ function LoginModule(menuConfig) {
 	this.menuMethods.attemptLogin = function(args) {
 		self.client.user.authenticate(args.username, args.password, function onAuth(err) {
 			if(err) {
+				//	:TODO: change to simple login/username prompts - no buttons.
+
 				Log.info( { username : args.username }, 'Failed login attempt %s', err);
 
 				//	:TODO: localize:
@@ -52,6 +54,20 @@ function LoginModule(menuConfig) {
 				Log.info( { username : self.client.user.username }, 'Successful login');
 
 				//	:TODO: persist information about login to user
+
+				async.parallel(
+					[
+						function loadThemeConfig(callback) {
+							theme.getThemeInfo(self.client.user.properties.art_theme_id, function themeInfo(err, info) {
+								self.client.currentThemeInfo = info;
+								callback(null);
+							});
+						}
+					],
+					function complete(err, results) {
+						self.client.gotoMenuModule( { name : args.next.success } );		
+					}
+				);
 			}
 		});
 	};

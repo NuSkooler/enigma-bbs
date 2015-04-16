@@ -86,7 +86,6 @@ function connectEntry(client) {
 				term.write(ansi.clearScreen());
 				
 				client.gotoMenuModule({ name : Config.entryMod } );
-				//moduleUtil.goto(Config.entryMod, client);
 			}, timeout);
 		});
 	}, 500);

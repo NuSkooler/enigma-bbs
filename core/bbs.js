@@ -12,6 +12,7 @@ var iconv		= require('iconv-lite');
 var paths		= require('path');
 var async		= require('async');
 var util		= require('util');
+var async		= require('async');
 
 exports.bbsMain			= bbsMain;
 
@@ -194,10 +195,26 @@ function prepareClient(client, cb) {
 	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
 	if('*' === conf.config.preLoginTheme) {
 		var theme = require('./theme.js');
-		theme.getRandomTheme(function onRandTheme(err, themeId) {
-			client.user.properties.art_theme_id = themeId || '';
-			cb(null);
-		});
+
+		async.waterfall(
+			[
+				function getRandTheme(callback) {
+					theme.getRandomTheme(function randTheme(err, themeId) {
+						client.user.properties.art_theme_id = themeId || '';
+						callback(null);
+					});
+				},
+				function setCurrentThemeInfo(callback) {
+					theme.getThemeInfo(client.user.properties.art_theme_id, function themeInfo(err, info) {
+						client.currentThemeInfo = info;
+						callback(null);
+					});
+				}
+			],
+			function complete(err) {
+				cb(err);
+			}
+		);
 	} else {
 		client.user.properties.art_theme_id = conf.config.preLoginTheme;
 		cb(null);

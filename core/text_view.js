@@ -60,7 +60,7 @@ function TextView(options) {
 	this.setText(options.text || '');
 
 	if(this.isPasswordTextStyle) {
-		this.textMaskChar = miscUtil.valueWithDefault(this.textMaskChar, '*').substr(0, 1);
+		this.textMaskChar = miscUtil.valueWithDefault(options.textMaskChar, '*').substr(0, 1);
 	}
 }
 

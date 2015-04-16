@@ -27,7 +27,7 @@ function MenuModule(options) {
 					self.beforeArt();
 					callback(null);
 				},
-				function displayArt(callback) {
+				function displayArt(callback) {					
 					theme.displayThemeArt(self.menuConfig.art, self.client, function onArt(err, mciMap) {
 						//	:TODO: If the art simply is not found, or failed to load... we need to continue
 						if(err) {

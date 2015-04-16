@@ -4,7 +4,7 @@
 
 		Some concept/ideas:
 			"mci" : {
-				"BN1" : {
+				"BT1" : {
 					...
 					"draw" : "@script:blah.js/drawButton"
 					//	@method:scriptName[.js]/methodName (foreign .js)
@@ -16,6 +16,7 @@
 					}
 
 					..note that script/methods should be part of a *theme* - or at least checked first with fallback
+					.....why?
 				}
 			}
 	*/
@@ -60,16 +61,16 @@
 		"module"	: "login",
 		"form"		: {
 			"0"	: {
-				"BN3BN4ET1ET2TL5" :{
+				"BT3BT4ET1ET2TL5" :{
 					"mci" :{
 						"ET1" : {
 							"focus"		: true
 						},
-						"BN3" : {
+						"BT3" : {
 							"submit"	: true,
 							"text"		: "Login"
 						},
-						"BN4" : {
+						"BT4" : {
 							"submit"	: true,
 							"text"		: "Cancel"
 						}
@@ -79,10 +80,16 @@
 							{
 								"value" 	: { "3" : null },								
 								"action"	: "@method:attemptLogin",
-								"args"		: { "username" : "{1}", "password" : "{2}" }	//	:TODO: rename to actionArgs ?
+								"args"		: { 
+									"next" : {
+										"success"	: "newUserActive"
+									},
+									"username" : "{1}", 
+									"password" : "{2}" 
+								}	//	:TODO: rename to actionArgs ?
 							}
 						],
-						"4" : [	//	cancel
+						"4" : [	//	Cancel
 							{
 								"value"		: { "4" : null },
 								"action"	: "@menu:matrix"
@@ -105,16 +112,16 @@
 		"module"	: "apply",
 		"form"		: {
 			"0" : {
-				"BN12BN13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
+				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
 					"mci" : {
 						"ET1" : {
 							"focus" : true
 						},
-						"BN12" : {
+						"BT12" : {
 							"submit" : true,
 							"text"	: "Apply"
 						},
-						"BN13" : {
+						"BT13" : {
 							"submit" : true,
 							"text" : "Cancel"
 						}
@@ -124,10 +131,12 @@
 							{
 								"value" : { "12" : null },
 								"action" : "@method:submitApplication",
-								//	:TODO: Need a way to supply next menu based on data from @method
-								//	@method:submitApplication|nextMenu1|nextMenu2|nextMenu3 ? method could cb(indexValue)
-								
 								"args" : {
+									"next"		: {
+										"inactive"	: "userNeedsActivated",
+										"active"	: "newUserActive",
+										"error"		: "newUserCreateError"
+									},
 									"username"	: "{1}",
 									"realName"	: "{2}",
 									"age"		: "{3}",
@@ -143,7 +152,7 @@
 						],
 						"13" : [	//	Cancel
 							{
-								"value" : { "13" : null },
+								"value" : { "13" : null },	//	:TODO: allow just "13" (number)
 								"action"	: "@menu:matrix"
 							}
 						]
@@ -153,6 +162,21 @@
 		},
 		"options" : {
 			"clearScreen" : true
+		}
+	},
+	"newUserActive" : {
+		"art" : "NEWACT",
+		"options" : {
+			"clearScreen" : true
+		},
+		"form" : {
+			"0" : { 
+				"UN1UR2" : {
+					"mci" : {
+
+					}
+				}
+			}
 		}
 	}
 }

@@ -2,6 +2,8 @@
 'use strict';
 
 var userDb			= require('./database.js').dbs.user;
+var Config			= require('./config.js').config;
+
 var crypto			= require('crypto');
 var assert			= require('assert');
 var async			= require('async');
@@ -53,6 +55,12 @@ User.PBKDF2 = {
 
 User.StandardPropertyGroups = {
 	password	: [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
+};
+
+User.AccountStatus = {
+	disabled	: -1,
+	inactive	: 0,
+	active		: 1,
 };
 
 User.prototype.authenticate = function(username, password, cb) {
@@ -154,6 +162,9 @@ User.prototype.create = function(options, cb) {
 
 	var self = this;
 
+	//	:TODO: set various defaults, e.g. default activation status, etc.
+	self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
+
 	async.series(
 		[
 			function beginTransaction(callback) {
@@ -171,6 +182,12 @@ User.prototype.create = function(options, cb) {
 							callback(err);
 						} else {
 							self.userId = this.lastID;
+
+							//	Do not SGRValuesre activation for userId 1 (root/admin)
+							if(1 === self.userId) {
+								self.properties.account_status = User.AccountStatus.active;
+							}
+
 							callback(null);
 						}
 					}
