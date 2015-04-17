@@ -10,6 +10,7 @@ var fs			= require('fs');
 var paths		= require('path');
 var async		= require('async');
 var _			= require('lodash');
+var assert		= require('assert');
 
 exports.getThemeInfo			= getThemeInfo;
 exports.getThemeArt				= getThemeArt;
@@ -27,6 +28,22 @@ function getThemeInfo(themeID, cb) {
 			try {
 				//	:TODO: strip comments/etc. ala menu.json
 				var info = JSON.parse(data);
+
+				//
+				//	Create some handy helpers
+				//
+				info.getPasswordChar = function() {
+					var pwChar = Config.defaults.passwordChar;
+					if(_.isObject(info.config)) {
+						if(_.isString(info.config.passwordChar)) {
+							pwChar = info.config.passwordChar.substr(0, 1);
+						} else if(_.isNumber(info.config.passwordChar)) {
+							pwChar = String.fromCharCode(info.config.passwordChar);
+						}
+					}
+					return pwChar;
+				};
+
 				cb(null, info);
 			} catch(e) {
 				cb(err);
@@ -116,8 +133,12 @@ function getThemeArt(name, themeID, options, cb) {
 	});
 }
 
-function displayThemeArt(name, client, cb) {
-	getThemeArt(name, client.user.properties.art_theme_id, function onArt(err, artInfo) {
+function displayThemeArt(options, cb) {
+	assert(_.isObject(options));
+	assert(_.isObject(options.client));
+	assert(_.isString(options.name));
+
+	getThemeArt(options.name, options.client.user.properties.art_theme_id, function onArt(err, artInfo) {
 		if(err) {
 			cb(err);
 		} else {
@@ -128,7 +149,16 @@ function displayThemeArt(name, client, cb) {
 				}
 			}
 
-			art.display( { art : artInfo.data, client : client, iceColors : iceColors }, function onDisplayed(err, mci) {
+			var dispOptions = {
+				art			: artInfo.data,
+				sauce		: artInfo.sauce,
+				client		: options.client,
+				iceColors	: iceColors,
+				font		: options.font,
+			};
+
+
+			art.display(dispOptions, function onDisplayed(err, mci) {
 				cb(err, mci, artInfo);
 			});
 		}

@@ -189,6 +189,12 @@ function parseCharacterSAUCE(sauce) {
 	return result;
 }
 
+function getFontNameFromSAUCE(sauce) {
+	if(sauce.Character) {
+		return sauce.Character.fontName;
+	}
+}
+
 function sliceAtEOF(data, eofMarker) {
 	var eof = data.length;
 	//	:TODO: max scan back or other beter way of doing this?!	
@@ -213,7 +219,7 @@ function getArtFromPath(path, options, cb) {
 		//
 		var ext = paths.extname(path).toLowerCase();
 		var encoding = options.encodedAs || defaultEncodingFromExtension(ext);
-	
+
 		//	:TODO: how are BOM's currently handled if present? Are they removed? Do we need to?
 
 		function sliceOfData() {
@@ -248,12 +254,14 @@ function getArtFromPath(path, options, cb) {
 					//	the information provided by SAUCE, use that.
 					//
 					if(!options.encodedAs) {
+						/*
 						if(sauce.Character && sauce.Character.fontName) {
 							var enc = SAUCE_FONT_TO_ENCODING_HINT[sauce.Character.fontName];
 							if(enc) {
 								encoding = enc;
 							}
 						}
+						*/
 					}
 					cb(null, getResult(sauce));
 				}
@@ -468,6 +476,26 @@ function display(options, cb) {
 			completed();
 		}		
 	});
+
+	//	:TODO: If options.font, set the font via ANSI
+	//	...this should come from sauce, be passed in, or defaulted
+
+	var ansiFont = '';
+	if(options.font) {
+		//	:TODO: how to set to ignore SAUCE?		
+		ansiFont = ansi.setFont(options.font);
+	} else if(options.sauce) {
+		var fontName = getFontNameFromSAUCE(options.sauce);
+		
+		if(fontName) {
+			ansiFont = ansi.setFont(fontName);
+		}
+	}
+
+	if(ansiFont.length > 1) {
+		options.client.term.write(ansiFont);
+	}
+
 
 	if(iceColors) {
 		options.client.term.write(ansi.blinkToBrightIntensity());

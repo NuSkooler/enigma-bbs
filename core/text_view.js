@@ -80,7 +80,7 @@ TextView.prototype.setFocus = function(focused) {
 	this.client.term.write(this.getANSIColor(this.getFocusColor()));
 };
 
-TextView.prototype.getViewData = function() {
+TextView.prototype.getData = function() {
 	return this.text;
 };
 

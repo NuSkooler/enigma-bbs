@@ -2,7 +2,8 @@
 'use strict';
 
 var ansi		= require('./ansi_term.js');
-var artwork		= require('./art.js');
+//var artwork		= require('./art.js');
+var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
 var Log			= require('./logger.js').log;
 var Config		= require('./config.js').config;
@@ -74,7 +75,23 @@ function connectEntry(client) {
 	setTimeout(function onTimeout() {
 		term.write(ansi.clearScreen());
 
-		artwork.getArt('CONNECT', { random : true, readSauce : true }, function onArt(err, art) {
+
+		var dispOptions = {
+			name		: 'CONNECT',
+			client		: client,
+		};
+
+		//	:TODO: if connect.js were a MenuModule, MCI/etc. would function here!
+		//	... could also avoid some of the boilerplate code 
+		theme.displayThemeArt(dispOptions, function artDisplayed(err) {
+			var timeout = err ? 0 : 2000;
+
+			setTimeout(function timeout() {
+				client.gotoMenuModule( { name : Config.entryMod } );
+			}, timeout);
+		});
+
+		/*artwork.getArt('CONNECT', { random : true, readSauce : true }, function onArt(err, art) {
 			var timeout = 0;
 			
 			if(!err) {
@@ -88,6 +105,7 @@ function connectEntry(client) {
 				client.gotoMenuModule({ name : Config.entryMod } );
 			}, timeout);
 		});
+*/
 	}, 500);
 }
 

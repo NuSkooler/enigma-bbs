@@ -167,6 +167,7 @@
 	"newUserActive" : {
 		"art" : "NEWACT",
 		"options" : {
+			//	:TODO: implement MCI codes for this
 			"clearScreen" : true
 		},
 		"form" : {

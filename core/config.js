@@ -5,6 +5,8 @@ var fs			= require('fs');
 var paths		= require('path');
 var miscUtil	= require('./misc_util.js');
 
+//	:TODO: it would be nice to allow for defaults here & .json file only overrides -- e.g. merge the two
+
 module.exports = {
 	defaultPath		: function() {
 		var base = miscUtil.resolvePath('~/');
@@ -15,6 +17,7 @@ module.exports = {
 
 	initFromFile	: function(path, cb) {
 		var data	= fs.readFileSync(path, 'utf8');
+		//	:TODO: strip comments
 		this.config = JSON.parse(data);
 	},
 
@@ -32,7 +35,11 @@ module.exports = {
 				usernameMax			: 22,
 				passwordMin			: 6,
 				requireActivation	: true,	//	require SysOp activation?
-				defaultTheme		: 'NU-MAYA',
+			},
+
+			defaults : {
+				theme			: 'NU-MAYA',
+				passwordChar	: '*',
 			},
 
 			paths		: {

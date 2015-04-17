@@ -14,6 +14,8 @@ var assert		= require('assert');
 var binary		= require('binary');
 var miscUtil	= require('./misc_util.js');
 
+var _			= require('lodash');
+
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
 exports.sgr							= sgr;
@@ -22,7 +24,7 @@ exports.resetScreen					= resetScreen;
 exports.normal						= normal;
 exports.goHome						= goHome;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
-exports.setSyncTermFont				= setSyncTermFont;
+exports.setFont						= setFont;
 exports.fromPipeCode				= fromPipeCode;
 
 
@@ -115,6 +117,95 @@ function getBGColorValue(name) {
 
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
 //	:TODO: document
+//	:TODO: Create mappings for aliases... maybe make this a map to values instead
+var FONT_MAP = {
+	//	Codepage 437 English
+	'cp437'			: 0,
+	'ibmpc'			: 0,
+	'ibm_pc'		: 0,
+	'ibm_vga'		: 0,
+	'pc'			: 0,
+	'cp437_art'	 	: 0,
+	'ibmpcart'		: 0,
+	'ibmpc_art'		: 0,
+	'ibm_pc_art'	: 0,
+	'msdos_art'		: 0,
+	'msdosart'		: 0,
+	'pc_art'		: 0,
+	'pcart'			: 0,
+
+	//	Codepage 1251 Cyrillic, (swiss)
+	'cp1251-swiss'	: 1,
+
+	//	Russian koi8-r
+	'koi8_r'		: 2,
+	'koi8-r'		: 2,
+	'koi8r'			: 2,
+
+	//	ISO-8859-2 Central European
+	'iso8859_2'		: 3,
+	'iso8859-2'		: 3,
+
+	//	ISO-8859-4 Baltic wide (VGA 9bit mapped)
+	'iso8859_4-baltic9b'	: 4,
+
+	//	Codepage 866 (c) Russian
+	'cp866-c'			: 5,
+
+	'iso8859_9'		: 6, 
+    'haik8'			: 7, 
+    'iso8859_8'		: 8, 
+    'koi8_u'		: 9, 
+    'iso8859_15-thin'	: 10, 
+    'iso8859_4'		: 11,
+    'koi8_r_b'		: 12, 
+    'iso8859_4-baltic-wide'	: 13, 
+    'iso8859_5'		: 14, 
+    'ARMSCII_8'		: 15, 
+    'iso8859_15'	: 16,
+    'cp850'			: 17, 
+    'cp850-thin'			: 18, 
+    'cp885-thin'			: 19, 
+    'cp1251'		: 20, 
+    'iso8859_7'		: 21, 
+    'koi8-r_c'		: 22,
+    'iso8859_4-baltic'		: 23, 
+    'iso8859_1'		: 24, 
+    'cp866'			: 25, 
+    'cp437-thin'			: 26, 
+    'cp866-b'			: 27, 
+    'cp885'			: 28,
+    'cp866_u'		: 29, 
+    'iso8859_1-thin'		: 30, 
+    'cp1131'		: 31, 
+    'c64_upper'		: 32, 
+    'c64_lower'		: 33,
+    'c128_upper'	: 34, 
+    'c128_lower'	: 35,
+
+    'atari'			: 36,
+    'atarist'		: 36,
+
+	'pot_noodle'	: 37,
+	'p0tnoodle'		: 37, 
+    
+    'mo_soul'		: 38,
+    'mosoul'		: 38,
+    'mO\'sOul'		: 38,
+
+    'microknight_plus'	: 39, 
+    
+    'topaz_plus'		: 40,
+    'topazplus'			: 40,
+    'amiga_topaz_2+'	: 40,
+    'topaz2plus'		: 40,
+
+    'microknight'		: 41,
+    'topaz'				: 42,
+
+};
+
+
 var SYNC_TERM_FONTS = [
 	'cp437',
 	'cp1251', 
@@ -155,8 +246,10 @@ var SYNC_TERM_FONTS = [
     'atari', 
     'pot_noodle', 
     'mo_soul',
-    'microknight', 
-    'topaz'
+    'microknight_plus', 
+    'topaz_plus',
+    'microknight',
+    'topaz',
 ];
 
 //	Create methods such as up(), nextLine(),...
@@ -242,7 +335,12 @@ function disableVT100LineWrapping() {
 	return ESC_CSI + '7l';
 }
 
-function setSyncTermFont(name, fontPage) {
+//
+//	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
+//
+//	:TODO: allow full spec here.
+/*
+function setFont(name, fontPage) {
 	fontPage = miscUtil.valueWithDefault(fontPage, 0);
 
 	assert(fontPage === 0 || fontPage === 1);	//	see spec
@@ -251,6 +349,22 @@ function setSyncTermFont(name, fontPage) {
 	if(-1 != i) {
 		return ESC_CSI + fontPage + ';' + i + ' D';
 	}
+	return '';
+}
+*/
+
+function setFont(name, fontPage) {
+	name = name.toLowerCase().replace(/ /g, '_');	//	conform to map
+
+	var p1 = miscUtil.valueWithDefault(fontPage, 0);
+
+	assert(p1 >= 0 && p1 <= 3);
+
+	var p2 = FONT_MAP[name];
+	if(_.isNumber(p2)) {
+		return ESC_CSI + p1 + ';' + p2 + ' D';
+	}
+
 	return '';
 }
 

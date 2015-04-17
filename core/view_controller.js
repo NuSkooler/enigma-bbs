@@ -86,7 +86,7 @@ function ViewController(options) {
 		var viewData;
 		for(var id in self.views) {
 			try {
-				viewData = self.views[id].getViewData();				
+				viewData = self.views[id].getData();				
 				if(typeof viewData !== 'undefined') {
 					formData.value[id] = viewData;
 				}
@@ -315,7 +315,7 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 					//
 					if(_.isObject(formConfig.submit)) {
 						//	:TODO: If this model is kept, formData does not need to include actual data, just form ID & submitID
-						//	we can get the rest here via each view in form -> getViewData()
+						//	we can get the rest here via each view in form -> getData()
 						self.on('submit', function onSubmit(formData) {
 							Log.debug( { formData : formData }, 'Submit form');
 
@@ -419,7 +419,7 @@ ViewController.prototype.formatMCIString = function(format) {
 			return match;
 		}
 
-		return view.getViewData();
+		return view.getData();
 	});
 };
 

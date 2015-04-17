@@ -29,6 +29,6 @@ ButtonView.prototype.onKeyPress = function(key, isSpecial) {
 	}
 };
 
-ButtonView.prototype.getViewData = function() {
+ButtonView.prototype.getData = function() {
 	return null;
 };

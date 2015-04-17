@@ -112,7 +112,7 @@ VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
 
-VerticalMenuView.prototype.getViewData = function() {
+VerticalMenuView.prototype.getData = function() {
 	return this.focusedItemIndex;
 };
 

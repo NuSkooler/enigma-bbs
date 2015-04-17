@@ -187,5 +187,5 @@ View.prototype.onSpecialKeyPress = function(keyName) {
 	}
 };
 
-View.prototype.getViewData = function() {
+View.prototype.getData = function() {
 };

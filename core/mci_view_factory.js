@@ -100,20 +100,9 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setOption(1, 'textStyle');
 
 			if(options.textStyle === 'P') {
-				//	Supply from theme, if available
-				//	:TODO: Move this logic elsewhere
-				if(this.client.currentThemeInfo && this.client.currentThemeInfo.config) {
-					var themePwChar = this.client.currentThemeInfo.config.passwordChar;
-					if(_.isString(themePwChar)) {
-						options.textMaskChar = themePwChar.substr(0, 1);
-					} else if(_.isNumber(themePwChar)) {
-						options.textMaskChar = String.fromCharCode(themePwChar);
-					} else {
-						options.textMaskChar = '*';
-					}
-				} else {
-					options.textMaskChar = '*';
-				}
+				//	Assign the proper password character / text mask
+				assert(_.isObject(this.client.currentThemeInfo));
+				options.textMaskChar = this.client.currentThemeInfo.getPasswordChar();
 			}
 
 			setFocusOption(0, 'focusTextStyle');

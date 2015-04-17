@@ -56,7 +56,7 @@ function ApplyModule(menuConfig) {
 					affiliation		: args.affils,
 					email_address	: args.email,
 					web_address		: args.web,
-					art_theme_id	: Config.users.defaultTheme,	//	:TODO: allow '*' = random
+					art_theme_id	: Config.defaults.theme,	//	:TODO: allow '*' = random
 					account_status	: user.User.AccountStatus.inactive,
 
 					//	:TODO: Other defaults

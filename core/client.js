@@ -79,10 +79,11 @@ function Client(input, output) {
 
 	var self	= this;
 
-	this.input			= input;
-	this.output			= output;
-	this.term			= new term.ClientTerminal(this.output);
-	this.user			= new user.User();
+	this.input				= input;
+	this.output				= output;
+	this.term				= new term.ClientTerminal(this.output);
+	this.user				= new user.User();
+	this.currentThemeInfo	= { name : 'N/A', description : 'None' };
 
 	//
 	//	Peek at |data| and emit for any specialized handling
