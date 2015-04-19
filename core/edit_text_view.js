@@ -6,6 +6,7 @@ var miscUtil		= require('./misc_util.js');
 var strUtil			= require('./string_util.js');
 var util			= require('util');
 var assert			= require('assert');
+var _				= require('lodash');
 
 exports.EditTextView	= EditTextView;
 
@@ -32,8 +33,7 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 	assert(1 === key.length);
 
 	//	:TODO: how to handle justify left/center?
-
-	if(this.text.length < this.maxLength) {
+	if(!_.isNumber(this.maxLength) || this.text.length < this.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 
 		this.text += key;

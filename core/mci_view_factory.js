@@ -23,7 +23,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 	var label;
 	switch(code) {
 		//	:TODO: Fix conflict with ButtonView (BN); chagne to BT
-		case 'BN' : label = Config.bbsName; break;
+		case 'BN' : label = Config.general.boardName; break;
 		case 'VL' : label = 'ENiGMA½ v' + packageJson.version; break;
 		case 'VN' : label = packageJson.version; break;
 
@@ -93,7 +93,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		//	Edit Text
 		case 'ET' :
 			if(setOption(0, 'maxLength')) {
-				options.maxLength	= parseInt(options.maxLength, 10);
+				options.maxLength	= parseInt(options.maxLength, 10);	//	ensure number
 				options.dimens		= { width : options.maxLength };
 			}
 

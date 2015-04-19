@@ -12,10 +12,70 @@ var iconv		= require('iconv-lite');
 var paths		= require('path');
 var async		= require('async');
 var util		= require('util');
-var async		= require('async');
+var _			= require('lodash');
 
 exports.bbsMain			= bbsMain;
 
+function bbsMain() {
+	async.waterfall(
+		[
+			function processArgs(callback) {
+				var args = parseArgs();
+
+				var configPath;
+
+				if(args.indexOf('--help') > 0) {
+					//	:TODO: display help
+				} else {
+					var argCount = args.length;
+					for(var i = 0; i < argCount; ++i) {
+						var arg = args[i];
+						if('--config' == arg) {
+							configPath = args[i + 1];
+						}
+					}
+				}
+
+				var configPathSupplied = _.isString(configPath);
+				callback(null, configPath || conf.getDefaultPath(), configPathSupplied);
+			},
+			function initConfig(configPath, configPathSupplied, callback) {
+				conf.init(configPath, function configInit(err) {
+
+					//
+					//	If the user supplied a path and we can't read/parse it 
+					//	then it's a fatal error
+					//
+					if(configPathSupplied && err) {
+						if('ENOENT' === err.code) {
+							console.error('Configuration file does not existing: ' + configPath);
+						} else {
+							console.error('Failed parsing configuration: ' + configPath);
+						}
+						callback(err);
+					} else {
+						callback(null);
+					}
+				});
+			},
+			function initSystem(callback) {
+				initialize(function init(err) {
+					if(err) {
+						console.error('Error initializing: ' + util.inspect(err));
+					}
+					callback(err);
+				});
+			}
+		],
+		function complete(err) {
+			if(!err) {
+				startListening();
+			}
+		}
+	);
+}
+
+/*
 function bbsMain() {
 	var mainArgs = parseArgs();
 
@@ -62,6 +122,7 @@ function bbsMain() {
 		startListening();
 	});
 }
+*/
 
 function parseArgs() {
 	var args = [];

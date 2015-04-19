@@ -29,19 +29,61 @@ StandardMenuModule.prototype.beforeArt = function() {
 	StandardMenuModule.super_.prototype.beforeArt.call(this);
 };
 
-StandardMenuModule.prototype.mciReady = function(mciMap) {
-	StandardMenuModule.super_.prototype.mciReady.call(this, mciMap);
+StandardMenuModule.prototype.mciReady = function(mciData) {
+	StandardMenuModule.super_.prototype.mciReady.call(this, mciData);
 
 	var self = this;
 
+	//
+	//	A quick rundown:
+	//	*	We may have mciData.menu, mciData.prompt, or both.
+	//	*	Prompt form is favored over menu form if both are present.
+	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+	//
+	self.viewControllers = {};
+
+	var vcOpts = { client : self.client };
+	
+	if(mciData.menu) {
+		self.viewControllers.menu = new ViewController(vcOpts);
+	}
+
+	if(mciData.prompt) {
+		self.viewControllers.prompt = new ViewController(vcOpts);
+	}
+
+	var viewsReady = function(err) {
+		//	:TODO: Hrm.....
+	};
+
+
+	if(self.viewControllers.menu) {
+		var menuLoadOpts = {
+			mciMap		: mciData.menu,
+			menuConfig	: self.menuConfig,
+			withForm	: !mciData.prompt,
+		};
+
+		self.viewControllers.menu.loadFromMCIMapAndConfig(menuLoadOpts, viewsReady);
+	}
+
+	if(self.viewControllers.prompt) {
+		var promptLoadOpts = {
+			callingMenu		: self,
+			mciMap			: mciData.prompt,
+			//promptConfig	: self.menuConfig.promptConfig,
+		};
+
+		self.viewControllers.prompt.loadFromPrompt(promptLoadOpts, viewsReady);
+	}
+
+	/*
 	var vc = self.addViewController(new ViewController({ client : self.client } ));
-	vc.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
+	vc.loadFromMCIMapAndConfig( { mciMap : mciData.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
 		if(err) {
 			console.log(err);
 		} else {
-		/*	vc.on('submit', function onFormSubmit(formData) {
-				console.log(formData);
-			});*/
 		}
 	});	
+*/
 };

@@ -183,7 +183,7 @@ View.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('accept', keyName)) {
 		this.emit('action', 'accept');
 	} else if(this.isSpecialKeyMapped('next', keyName)) {
-		this.emit('action', 'next');
+		console.log('next')
 	}
 };
 

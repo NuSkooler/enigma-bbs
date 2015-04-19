@@ -42,6 +42,7 @@ function loadModule(name, category, cb) {
 			return;
 		}
 
+		//	:TODO: what was the point of this? Remove it
 		mod.runtime = {
 			config : config
 		};

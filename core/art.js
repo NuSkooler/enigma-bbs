@@ -13,6 +13,8 @@ var util		= require('util');
 var ansi		= require('./ansi_term.js');
 var aep			= require('./ansi_escape_parser.js');
 
+var _			= require('lodash');
+
 exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;
 exports.display							= display;
@@ -395,7 +397,19 @@ function display(options, cb) {
 	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
 	var pauseAtTermHeight	= miscUtil.valueWithDefault(options.pauseAtTermHeight, false);
 	var mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, ' ');
-	var iceColors			= miscUtil.valueWithDefault(options.iceColors, false);
+
+	var iceColors			= options.iceColors;
+	if(_.isUndefined(options.iceColors)) {
+		//	detect from SAUCE, if present
+		iceColors = false;
+		if(_.isObject(options.sauce) && _.isNumber(options.sauce.ansiFlags)) {
+			if(options.sauce.ansiFlags & (1 << 0)) {
+				iceColors = true;
+			}
+		}
+	}
+
+	//var iceColors			= miscUtil.valueWithDefault(options.iceColors, false);
 
 	//	:TODO: support pause/cancel & pause @ termHeight
 	var canceled = false;
@@ -437,6 +451,7 @@ function display(options, cb) {
 	options.client.on('cursor position report', onCPR);
 
 	parser.on('mci', function onMCI(mciCode, id, args) {
+		//	:TODO: ensure generatedId's do not conflict with any |id|
 		id = id || generatedId++;
 		var mapItem = mciCode + id;
 		//	:TODO: Avoid mutiple [] lookups here

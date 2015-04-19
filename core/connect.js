@@ -70,42 +70,14 @@ function connectEntry(client) {
 	ansiQueryTermSizeIfNeeded(client);
 
 	prepareTerminal(term);
+
+	//
+	//	Always show a ENiGMA½ banner
+	//
 	displayBanner(term);
 
 	setTimeout(function onTimeout() {
-		term.write(ansi.clearScreen());
-
-
-		var dispOptions = {
-			name		: 'CONNECT',
-			client		: client,
-		};
-
-		//	:TODO: if connect.js were a MenuModule, MCI/etc. would function here!
-		//	... could also avoid some of the boilerplate code 
-		theme.displayThemeArt(dispOptions, function artDisplayed(err) {
-			var timeout = err ? 0 : 2000;
-
-			setTimeout(function timeout() {
-				client.gotoMenuModule( { name : Config.entryMod } );
-			}, timeout);
-		});
-
-		/*artwork.getArt('CONNECT', { random : true, readSauce : true }, function onArt(err, art) {
-			var timeout = 0;
-			
-			if(!err) {
-				term.write(art.data);
-				timeout = 1000;
-			}
-
-			setTimeout(function onTimeout() {
-				term.write(ansi.clearScreen());
-				
-				client.gotoMenuModule({ name : Config.entryMod } );
-			}, timeout);
-		});
-*/
+		client.gotoMenuModule( { name : Config.firstMenu });
 	}, 500);
 }
 

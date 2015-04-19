@@ -1,7 +1,11 @@
 /* jslint node: true */
 'use strict';
 
+var _			= require('lodash');
+var assert		= require('assert');
+
 exports.parseAsset			= parseAsset;
+exports.getArtAsset			= getArtAsset;
 
 var ALL_ASSETS = [
 	'art',
@@ -10,8 +14,7 @@ var ALL_ASSETS = [
 	'prompt',
 ];
 
-//	\@(art|menu|method)\:([\w\.]*)(?:\/?([\w\d\_]+))*
-var ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\.]*)(?:\\?/([\\w\\d\\_]+))*');
+var ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
 
 function parseAsset(s) {	
 	var m = ASSET_RE.exec(s);
@@ -27,5 +30,23 @@ function parseAsset(s) {
 		}
 
 		return result;
+	}
+}
+
+function getArtAsset(art, cb) {
+	if(!_.isString(art)) {
+		return null;
+	}
+
+	if('@' === art[0]) {
+		var artAsset = parseAsset(art);
+		assert('art' === artAsset.type || 'method' === artAsset.type);
+
+		return artAsset;
+	} else {
+		return {
+			type	: 'art',
+			asset	: art,
+		};
 	}
 }

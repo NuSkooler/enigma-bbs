@@ -10,6 +10,7 @@
 					//	@method:scriptName[.js]/methodName (foreign .js)
 					//	@art:artName
 					//	@method:/methodName (local to module.js)
+					//	... pass isFocused/etc. into draw method
 					"draw" : {
 						"normal" : ...,
 						"focus" : ...
@@ -20,10 +21,18 @@
 				}
 			}
 	*/
+	"connected" : {
+		"art" 		: "connect",
+		"next"		: "matrix",
+		"options"	: {
+			"clearScreen"	: true,
+			"nextTimeout"	: 1500
+		}
+	},
 	"matrix" : {
 		"art"		: "matrix",
 		"form"		: {
-			"0"	: {
+			"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)
 				"VM1" : {
 					"mci" : {
 						"VM1" :  {
@@ -57,12 +66,18 @@
 		}
 	},
 	"login" : {
-		"art"		: "login",	//	TODO: rename to login_form
-		"module"	: "login",
+		//"art"		: "login",	//	TODO: rename to login_form
+		"prompt"	: "userCredentials",
+		"fallback"	: "matrix",
+		"next"		: "newUserActive",
+		//"module"	: "login",
+		/*
 		"form"		: {
 			"0"	: {
 				"BT3BT4ET1ET2TL5" :{
 					"mci" :{
+						//	:TODO: LIke prompts, assign "argName" values here, e.g.:
+						//	"argName" : "username", ...
 						"ET1" : {
 							"focus"		: true
 						},
@@ -80,25 +95,30 @@
 							{
 								"value" 	: { "3" : null },								
 								"action"	: "@method:attemptLogin",
+								//	:TODO: see above about argName;
+								//	any other args should be "extraArgs"
 								"args"		: { 
 									"next" : {
+										//	:TODO: just use menu.next
 										"success"	: "newUserActive"
 									},
 									"username" : "{1}", 
 									"password" : "{2}" 
-								}	//	:TODO: rename to actionArgs ?
+								}
 							}
 						],
 						"4" : [	//	Cancel
 							{
 								"value"		: { "4" : null },
 								"action"	: "@menu:matrix"
+								//	:TODO: Just use menu.fallback, e.g. @fallback
 							}
 						]
 					}
 				}
 			}
 		},
+		*/
 		"options" : {
 			"clearScreen" : true
 		}
@@ -165,19 +185,10 @@
 		}
 	},
 	"newUserActive" : {
-		"art" : "NEWACT",
+		"art" : "STATS",
 		"options" : {
 			//	:TODO: implement MCI codes for this
 			"clearScreen" : true
-		},
-		"form" : {
-			"0" : { 
-				"UN1UR2" : {
-					"mci" : {
-
-					}
-				}
-			}
 		}
 	}
 }

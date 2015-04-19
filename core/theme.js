@@ -112,7 +112,7 @@ function getThemeArt(name, themeID, options, cb) {
 
 	//	set/override some options
 	options.asAnsi		= true;
-	options.readSauce	= true;	//	can help with encoding
+	options.readSauce	= true;	//	encoding/fonts/etc.
 	options.random		= miscUtil.valueWithDefault(options.random, true);
 	options.basePath	= paths.join(Config.paths.themes, themeID);
 
@@ -138,28 +138,19 @@ function displayThemeArt(options, cb) {
 	assert(_.isObject(options.client));
 	assert(_.isString(options.name));
 
-	getThemeArt(options.name, options.client.user.properties.art_theme_id, function onArt(err, artInfo) {
+	getThemeArt(options.name, options.client.user.properties.art_theme_id, function themeArt(err, artInfo) {
 		if(err) {
 			cb(err);
 		} else {
-			var iceColors = false;
-			if(artInfo.sauce && artInfo.sauce.ansiFlags) {
-				if(artInfo.sauce.ansiFlags & (1 << 0)) {
-					iceColors = true;
-				}
-			}
-
 			var dispOptions = {
 				art			: artInfo.data,
 				sauce		: artInfo.sauce,
 				client		: options.client,
-				iceColors	: iceColors,
 				font		: options.font,
 			};
 
-
-			art.display(dispOptions, function onDisplayed(err, mci) {
-				cb(err, mci, artInfo);
+			art.display(dispOptions, function displayed(err, mciMap) {
+				cb(err, mciMap, artInfo);
 			});
 		}
 	});

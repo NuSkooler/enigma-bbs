@@ -205,53 +205,6 @@ var FONT_MAP = {
 
 };
 
-
-var SYNC_TERM_FONTS = [
-	'cp437',
-	'cp1251', 
-	'koi8_r', 
-	'iso8859_2', 
-	'iso8859_4', 
-	'cp866',
-    'iso8859_9', 
-    'haik8', 
-    'iso8859_8', 
-    'koi8_u', 
-    'iso8859_15', 
-    'iso8859_4',
-    'koi8_r_b', 
-    'iso8859_4', 
-    'iso8859_5', 
-    'ARMSCII_8', 
-    'iso8859_15',
-    'cp850', 
-    'cp850', 
-    'cp885', 
-    'cp1251', 
-    'iso8859_7', 
-    'koi8-r_c',
-    'iso8859_4', 
-    'iso8859_1', 
-    'cp866', 
-    'cp437', 
-    'cp866', 
-    'cp885',
-    'cp866_u', 
-    'iso8859_1', 
-    'cp1131', 
-    'c64_upper', 
-    'c64_lower',
-    'c128_upper', 
-    'c128_lower', 
-    'atari', 
-    'pot_noodle', 
-    'mo_soul',
-    'microknight_plus', 
-    'topaz_plus',
-    'microknight',
-    'topaz',
-];
-
 //	Create methods such as up(), nextLine(),...
 Object.keys(CONTROL).forEach(function onControlName(name) {
 	var code = CONTROL[name];
@@ -338,21 +291,6 @@ function disableVT100LineWrapping() {
 //
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
 //
-//	:TODO: allow full spec here.
-/*
-function setFont(name, fontPage) {
-	fontPage = miscUtil.valueWithDefault(fontPage, 0);
-
-	assert(fontPage === 0 || fontPage === 1);	//	see spec
-
-	var i = SYNC_TERM_FONTS.indexOf(name);
-	if(-1 != i) {
-		return ESC_CSI + fontPage + ';' + i + ' D';
-	}
-	return '';
-}
-*/
-
 function setFont(name, fontPage) {
 	name = name.toLowerCase().replace(/ /g, '_');	//	conform to map
 

@@ -5,6 +5,7 @@
 var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
 var Log				= require('./logger.js').log;
+var Config			= require('./config.js').config;
 var asset			= require('./asset.js');
 
 var events			= require('events');
@@ -12,8 +13,11 @@ var util			= require('util');
 var assert			= require('assert');
 var async			= require('async');
 var _				= require('lodash');
+var paths			= require('path');
 
 exports.ViewController		= ViewController;
+
+var MCI_REGEXP	= /([A-Z]{2})([0-9]{1,2})/;
 
 function ViewController(options) {
 	assert(_.isObject(options));
@@ -44,7 +48,7 @@ function ViewController(options) {
 		}
 	};
 
-	this.onViewAction = function(action) {
+	this.viewActionListener = function(action) {
 		switch(action) {
 			case 'next' :
 				self.emit('action', { view : this, action : action });
@@ -84,11 +88,17 @@ function ViewController(options) {
 		};
 
 		var viewData;
+		var view;
 		for(var id in self.views) {
 			try {
-				viewData = self.views[id].getData();				
-				if(typeof viewData !== 'undefined') {
-					formData.value[id] = viewData;
+				view = self.views[id];
+				viewData = view.getData();
+				if(!_.isUndefined(viewData)) {
+					if(_.isString(view.submitArgName)) {
+						formData.value[view.submitArgName] = viewData;
+					} else {
+						formData.value[id] = viewData;
+					}
 				}
 			} catch(e) {
 				Log.error(e);	//	:TODO: Log better ;)
@@ -106,6 +116,42 @@ function ViewController(options) {
 		self.emitSwitchFocus = true;
 		self.emit(event, view);
 		self.emitSwitchFocus = false;
+	};
+
+	this.handleSubmitAction = function(callingMenu, formData, conf) {
+		assert(_.isObject(conf));
+		assert(_.isString(conf.action));
+
+		var actionAsset = asset.parseAsset(conf.action);
+		assert(_.isObject(actionAsset));
+
+		var extraArgs;
+		if(conf.extraArgs) {
+			extraArgs = self.formatMenuArgs(conf.extraArgs);
+		}
+
+		switch(actionAsset.type) {
+			case 'method' :
+				if(_.isString(actionAsset.location)) {
+					//	:TODO: allow omition of '.js'
+					var methodMod = require(paths.join(Config.paths.mods, actionAsset.location));
+					if(_.isFunction(methodMod[actionAsset.asset])) {
+						methodMod[actionAsset.asset](callingMenu, formData, extraArgs);
+					}
+				} else {
+					//	local to current module
+					var currentModule = self.client.currentMenuModule;
+					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+						currentModule.menuMethods[actionAsset.asset](formData, extraArgs);
+					}
+				}
+				break;
+
+			case 'menu' :
+			//	:TODO: update everythign to handle this format
+				self.client.gotoMenuModule( { name : actionAsset.asset, submitData : formData, extraArgs : extraArgs } );
+				break;
+		}
 	};
 
 	this.attachClientEvents();
@@ -128,7 +174,7 @@ ViewController.prototype.detachClientEvents = function() {
 	if(!this.attached) {
 		return;
 	}
-
+	
 	this.client.removeListener('key press', this.onClientKeyPress);
 	this.client.removeListener('special key', this.onClientSpecialKeyPress);
 
@@ -218,12 +264,205 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 		var view	= factory.createFromMCI(mci);
 
 		if(view) {
-			view.on('action', self.onViewAction);
+			view.on('action', self.viewActionListener);
 			self.addView(view);
 			view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
 		}
 	});
 };
+
+function setViewPropertiesFromMCIConf(view, conf) {
+	view.submit = conf.submit || false;
+
+	if(_.isArray(conf.items)) {
+		view.setItems(conf.items);
+	}
+
+	if(_.isString(conf.text)) {
+		view.setText(conf.text);
+	}
+
+	if(_.isString(conf.argName)) {
+		view.submitArgName = conf.argName;
+	}
+}
+
+ViewController.prototype.loadFromPrompt = function(options, cb) {
+	assert(_.isObject(options));
+	//assert(_.isObject(options.promptConfig));
+	assert(_.isObject(options.callingMenu));
+	assert(_.isObject(options.callingMenu.menuConfig));
+	assert(_.isObject(options.callingMenu.menuConfig.promptConfig));
+	assert(_.isObject(options.mciMap));
+
+	var promptConfig	= options.callingMenu.menuConfig.promptConfig;
+	var self			= this;
+	var factory			= new MCIViewFactory(this.client);
+	var initialFocusId	= 1;	//	default to first
+
+	//	:TODO: if 'submit' is not present anywhere default to last ID
+
+	async.waterfall(
+		[
+			function createViewsFromMCI(callback) {
+				async.each(Object.keys(options.mciMap), function entry(name, nextItem) {
+					var mci		= options.mciMap[name];
+					var view	= factory.createFromMCI(mci);
+
+					if(view) {
+						view.on('action', self.viewActionListener);
+
+						self.addView(view);
+
+						view.redraw();	//	:TODO: fix double-redraw if this is the item we set focus to!
+					}
+
+					nextItem(null);
+				},
+				function complete(err) {
+					self.setViewOrder();
+					callback(err);
+				});
+			},
+			function applyPromptConfig(callback) {
+				var highestId = 1;
+				var submitId;
+
+				async.each(Object.keys(promptConfig.mci), function entry(mci, nextItem) {
+					var mciMatch	= mci.match(MCI_REGEXP);	//	:TODO: what about auto-generated IDs? Do they simply not apply to menu configs?
+					
+					var viewId		= parseInt(mciMatch[2]);
+					assert(!isNaN(viewId));
+
+					var view		= self.getView(viewId);
+					var mciConf		= promptConfig.mci[mci];
+
+					setViewPropertiesFromMCIConf(view, mciConf);
+
+					if(mciConf.focus) {
+						initialFocusId = viewId;
+					}
+
+					if(view.submit) {
+						submitId = viewId;
+					}
+
+					nextItem(null);
+				},
+				function complete(err) {
+					
+					//	default to highest ID if no 'submit' entry present
+					if(!submitId) {
+						self.getView(highestId).submit = true;
+					}
+
+					callback(err);
+				});
+			},
+			function setupSubmit(callback) {
+
+				self.on('submit', function promptSubmit(formData) {
+					//	:TODO: Need to come up with a way to log without dumping sensitive form data here, e.g. remove password, etc.
+					Log.trace( { formData : formData }, 'Prompt submit');
+
+					var actionAsset = asset.parseAsset(promptConfig.action);
+					assert(_.isObject(actionAsset));
+
+					var extraArgs;
+					if(promptConfig.extraArgs) {
+						extraArgs = self.formatMenuArgs(promptConfig.extraArgs);
+					}
+
+
+					self.handleSubmitAction(options.callingMenu, formData, promptConfig);
+
+
+
+
+					/*var formattedArgs;
+									if(conf.args) {
+										formattedArgs = self.formatMenuArgs(conf.args);
+									}
+
+									var actionAsset = asset.parseAsset(conf.action);
+									assert(_.isObject(actionAsset));
+
+									if('method' === actionAsset.type) {
+										if(actionAsset.location) {
+											//	:TODO: call with (client, args, ...) at least.
+										} else {
+											//	local to current module
+											var currentMod = self.client.currentMenuModule;
+											if(currentMod.menuMethods[actionAsset.asset]) {
+												currentMod.menuMethods[actionAsset.asset](formattedArgs);
+											}
+										}
+									} else if('menu' === actionAsset.type) {
+										self.client.gotoMenuModule( { name : actionAsset.asset, args : formattedArgs } );
+									}*/
+				});
+
+				callback(null);
+			},
+			function setInitialFocus(callback) {
+				if(initialFocusId) {
+					self.switchFocus(initialFocusId);
+				}
+			}
+		],
+		function complete(err) {
+			console.log(err)
+			cb(err);
+		}
+	);
+};
+
+/*
+ViewController.prototype.loadFromPrompt = function(options, cb) {
+	assert(_.isObject(options));
+	assert(_.isObject(options.prompt));
+	assert(_.isObject(options.prompt.artInfo));
+	assert(_.isObject(options.prompt.artInfo.mciMap));
+	assert(_.isObject(options.prompt.config));
+
+
+	//
+	//	Prompts are like simplified forms:
+	//	*	They do not contain submit information themselves; this must
+	//		the owning menu: options.prompt.config
+	//	*	There is only one form in a prompt (e.g. form 0, but this is not explicit)
+	//	*	Only one MCI mapping: options.prompt.artInfo.mciMap
+	//
+	var self	= this;
+	var factory = new MCIViewFactory(this.client);
+	var mciMap 	= options.prompt.artInfo.mciMap;
+
+	async.waterfall(
+		[
+			function createViewsFromMCI(callback) {
+				async.each(Object.keys(mciMap), function mciEntry(name, nextItem) {
+					var mci		= mciMap[name];
+					var view	= factory.createFromMCI(mci);
+
+					if(view) {
+						self.addView(view);
+						view.redraw();	//	:TODO: fix double-redraw if this is the item we set focus to!
+					}
+
+					nextItem(null);
+				},
+				function mciComplete(err) {
+					callback(err);
+				});
+			}
+		],
+		function compelte(err) {
+			cb(err);
+		}
+	);
+
+};
+*/
 
 ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 	assert(options.mciMap);
@@ -247,7 +486,7 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 
 					if(err) {
 						//	:TODO: fix logging of err here:
-						Log.warn( 
+						Log.trace( 
 							{ err : err.toString(), mci : Object.keys(options.mciMap), formIdKey : formIdKey } , 
 							'Unable to load menu configuration');
 					}
@@ -255,13 +494,13 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 					callback(null);
 				});
 			},
-			function createViewsFromMCIMap(callback) {
+			function createViewsFromMCI(callback) {
 				async.each(Object.keys(options.mciMap), function onMciEntry(name, eachCb) {
 					var mci		= options.mciMap[name];
 					var view	= factory.createFromMCI(mci);
 
 					if(view) {
-						view.on('action', self.onViewAction);
+						view.on('action', self.viewActionListener);
 						self.addView(view);
 						view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
 					}
@@ -269,7 +508,6 @@ ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
 				},
 				function eachMciComplete(err) {
 					self.setViewOrder();
-
 					callback(err);					
 				});
 			},

@@ -21,6 +21,37 @@ exports.moduleInfo = {
 
 exports.getModule	= LoginModule;
 
+exports.attemptLogin	= attemptLogin;
+
+function attemptLogin(callingMenu, formData, extraArgs) {
+	var client = callingMenu.client;
+
+	client.user.authenticate(formData.value.username, formData.value.password, function authenticated(err) {
+		if(err) {
+			Log.info( { username : formData.value.username }, 'Failed login attempt %s', err);
+
+			client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
+		} else {
+			//	use client.user so we can get correct case
+			Log.info( { username : callingMenu.client.user.username }, 'Successful login');
+
+			async.parallel(
+					[
+						function loadThemeConfig(callback) {
+							theme.getThemeInfo(client.user.properties.art_theme_id, function themeInfo(err, info) {
+								client.currentThemeInfo = info;
+								callback(null);
+							});
+						}
+					],
+					function complete(err, results) {
+						client.gotoMenuModule( { name : callingMenu.menuConfig.next } );
+					}
+				);
+		}
+	});
+}
+
 
 function LoginModule(menuConfig) {
 	MenuModule.call(this, menuConfig);
@@ -91,12 +122,12 @@ LoginModule.prototype.beforeArt = function() {
 	//this.client.term.write(ansi.resetScreen());
 };
 
-LoginModule.prototype.mciReady = function(mciMap) {
-	LoginModule.super_.prototype.mciReady.call(this, mciMap);
+LoginModule.prototype.mciReady = function(mciData) {
+	LoginModule.super_.prototype.mciReady.call(this, mciData);
 
 	var self = this;
 
 	self.viewController = self.addViewController(new ViewController( { client : self.client } ));
-	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
+	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciData.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
 	});
 };

@@ -38,8 +38,6 @@ MatrixModule.prototype.enter = function(client) {
 
 MatrixModule.prototype.beforeArt = function() {
 	MatrixModule.super_.prototype.beforeArt.call(this);
-
-	this.client.term.write(ansi.resetScreen());
 };
 
 MatrixModule.prototype.mciReady = function(mciMap) {

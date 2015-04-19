@@ -28,8 +28,8 @@ LogOffModule.prototype.beforeArt = function() {
 	this.client.term.write(ansi.resetScreen());
 };
 
-LogOffModule.prototype.mciReady = function(mciMap) {
-	LogOffModule.super_.prototype.mciReady.call(this, mciMap);
+LogOffModule.prototype.mciReady = function(mciData) {
+	LogOffModule.super_.prototype.mciReady.call(this, mciData);
 };
 
 LogOffModule.prototype.finishedLoading = function() {

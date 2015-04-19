@@ -216,7 +216,7 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 		if(err) {
 			cb(err);
 		} else {
-			Log.debug({ name : options.name }, 'Goto menu module');
+			Log.debug( { menuName : options.name }, 'Goto menu module');
 
 			modInst.enter(self);
 

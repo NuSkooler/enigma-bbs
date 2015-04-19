@@ -92,6 +92,12 @@ function ApplyModule(menuConfig) {
 			return;
 		}
 
+		var re = new RegExp(Config.users.usernamePattern);
+		if(!re.test(args.username)) {
+			cb('Handle contains invalid characters!', [ 1 ] );
+			return;
+		}
+
 		if(args.pw.length < Config.users.passwordMin) {
 			cb('Password too short!', [ 9, 10 ]);
 			return;
@@ -123,13 +129,13 @@ ApplyModule.prototype.beforeArt = function() {
 	ApplyModule.super_.prototype.beforeArt.call(this);
 };
 
-ApplyModule.prototype.mciReady = function(mciMap) {
-	ApplyModule.super_.prototype.mciReady.call(this, mciMap);
+ApplyModule.prototype.mciReady = function(mciMaps) {
+	ApplyModule.super_.prototype.mciReady.call(this, mciMaps);
 
 	var self = this;
 
 	self.viewController = self.addViewController(new ViewController({ client : self.client } ));
-	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMap, menuConfig : self.menuConfig }, function onViewReady(err) {
+	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMaps.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
 	
 	});
 };
