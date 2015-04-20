@@ -7,7 +7,6 @@ var art					= require('./art.js');
 var Log					= require('./logger.js').log;
 var ansi				= require('./ansi_term.js');
 var asset				= require('./asset.js');
-//var promptUtil			= require('./prompt_util.js');
 var ViewController		= require('./view_controller.js').ViewController;
 
 var async				= require('async');

@@ -17,8 +17,8 @@ var _					= require('lodash');
 
 var stripJsonComments	= require('strip-json-comments');
 
-exports.loadMenu		= loadMenu;
-exports.getFormConfig	= getFormConfig;
+exports.loadMenu				= loadMenu;
+exports.getFormConfigByIDAndMap	= getFormConfigByIDAndMap;
 
 
 function loadModJSON(fileName, cb) {
@@ -181,7 +181,7 @@ function loadMenu2(options, cb) {
 	);
 }
 
-function getFormConfig(menuConfig, formId, mciMap, cb) {
+function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	assert(_.isObject(menuConfig));
 
 	if(!_.isObject(menuConfig.form)) {

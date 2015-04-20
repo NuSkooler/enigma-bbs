@@ -13,13 +13,13 @@ var async			= require('async');
 
 //	:TODO: clean up requires
 
-exports.moduleInfo = {
+/*exports.moduleInfo = {
 	name	: 'Login',
 	desc	: 'Login Module',
 	author	: 'NuSkooler',
-};
+};*/
 
-exports.getModule	= LoginModule;
+//exports.getModule	= LoginModule;
 
 exports.attemptLogin	= attemptLogin;
 
@@ -52,7 +52,7 @@ function attemptLogin(callingMenu, formData, extraArgs) {
 	});
 }
 
-
+/*
 function LoginModule(menuConfig) {
 	MenuModule.call(this, menuConfig);
 
@@ -131,3 +131,4 @@ LoginModule.prototype.mciReady = function(mciData) {
 	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciData.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
 	});
 };
+*/

@@ -30,13 +30,13 @@ function ApplyModule(menuConfig) {
 
 	var self = this;
 
-	this.menuMethods.submitApplication = function(args) {
+	this.menuMethods.submitApplication = function(formData, extraArgs) {
 		var usernameView		= self.viewController.getView(1);
 		var passwordView		= self.viewController.getView(9);
 		var pwConfirmView		= self.viewController.getView(10);
 		var statusView			= self.viewController.getView(11);
 
-		self.validateApplication(args, function validated(errString, clearFields) {
+		self.validateApplication(formData, function validated(errString, clearFields) {
 			if(errString) {
 				statusView.setText(errString);
 
@@ -47,15 +47,17 @@ function ApplyModule(menuConfig) {
 				self.viewController.switchFocus(clearFields[0]);
 			} else {
 				var newUser = new user.User();
-				newUser.username				= args.username;
+				newUser.username = formData.value.username;
+
 				newUser.properties = {
-					real_name		: args.realName,
-					age				: args.age,
-					sex				: args.sex,
-					location		: args.location,
-					affiliation		: args.affils,
-					email_address	: args.email,
-					web_address		: args.web,
+					real_name		: formData.value.realName,
+					age				: formData.value.age,
+					sex				: formData.value.sex,
+					location		: formData.value.location,
+					affiliation		: formData.value.affils,
+					email_address	: formData.value.email,
+					web_address		: formData.value.web,
+					
 					art_theme_id	: Config.defaults.theme,	//	:TODO: allow '*' = random
 					account_status	: user.User.AccountStatus.inactive,
 
@@ -64,16 +66,16 @@ function ApplyModule(menuConfig) {
 					//	:TODO: set account_status to default based on Config.user...
 				};
 
-				newUser.create({ password : args.pw }, function created(err) {
+				newUser.create({ password : formData.value.pw }, function created(err) {
 					if(err) {
-						self.client.gotoMenuModule( { name : args.next.error } );
+						self.client.gotoMenuModule( { name : extraArgs.error } );
 					} else {
-						Log.info( { username : args.username, userId : newUser.userId }, 'New user created');
+						Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
 
 						if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
-							self.client.gotoMenuModule( { name : args.next.inactive } );
+							self.client.gotoMenuModule( { name : extraArgs.inactive } );
 						} else {
-							self.client.gotoMenuModule( { name : args.next.active } );
+							self.client.gotoMenuModule( { name : this.menuConfig.next } );
 						}
 					}
 				});			
@@ -81,34 +83,34 @@ function ApplyModule(menuConfig) {
 		});
 	};
 
-	this.validateApplication = function(args, cb) {
-		if(args.username.length < Config.users.usernameMin) {
+	this.validateApplication = function(formData, cb) {
+		if(formData.value.username.length < Config.users.usernameMin) {
 			cb('Handle too short!', [ 1 ]);
 			return;
 		}
 
-		if(args.username.length > Config.users.usernameMax) {
+		if(formData.value.username.length > Config.users.usernameMax) {
 			cb('Handle too long!', [ 1 ]);
 			return;
 		}
 
 		var re = new RegExp(Config.users.usernamePattern);
-		if(!re.test(args.username)) {
+		if(!re.test(formData.value.username)) {
 			cb('Handle contains invalid characters!', [ 1 ] );
 			return;
 		}
 
-		if(args.pw.length < Config.users.passwordMin) {
+		if(formData.value.pw.length < Config.users.passwordMin) {
 			cb('Password too short!', [ 9, 10 ]);
 			return;
 		}
 
-		if(args.pw !== args.pwConfirm) {
+		if(formData.value.pw !== formData.value.pwConfirm) {
 			cb('Passwords do not match!', [ 9, 10 ]);
 			return;
 		}
 
-		user.getUserIdAndName(args.username, function userIdAndName(err) {
+		user.getUserIdAndName(formData.value.username, function userIdAndName(err) {
 			var alreadyExists = !err;
 			if(alreadyExists) {
 				cb('Username unavailable!', [ 1  ] );
@@ -129,13 +131,13 @@ ApplyModule.prototype.beforeArt = function() {
 	ApplyModule.super_.prototype.beforeArt.call(this);
 };
 
-ApplyModule.prototype.mciReady = function(mciMaps) {
-	ApplyModule.super_.prototype.mciReady.call(this, mciMaps);
+ApplyModule.prototype.mciReady = function(mciData) {
+	ApplyModule.super_.prototype.mciReady.call(this, mciData);
 
 	var self = this;
 
 	self.viewController = self.addViewController(new ViewController({ client : self.client } ));
-	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciMaps.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
+	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciData.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
 	
 	});
 };

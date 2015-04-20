@@ -66,59 +66,11 @@
 		}
 	},
 	"login" : {
-		//"art"		: "login",	//	TODO: rename to login_form
+		//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
 		"prompt"	: "userCredentials",
 		"fallback"	: "matrix",
 		"next"		: "newUserActive",
-		//"module"	: "login",
-		/*
-		"form"		: {
-			"0"	: {
-				"BT3BT4ET1ET2TL5" :{
-					"mci" :{
-						//	:TODO: LIke prompts, assign "argName" values here, e.g.:
-						//	"argName" : "username", ...
-						"ET1" : {
-							"focus"		: true
-						},
-						"BT3" : {
-							"submit"	: true,
-							"text"		: "Login"
-						},
-						"BT4" : {
-							"submit"	: true,
-							"text"		: "Cancel"
-						}
-					},
-					"submit" : {
-						"3" : [	//	Login
-							{
-								"value" 	: { "3" : null },								
-								"action"	: "@method:attemptLogin",
-								//	:TODO: see above about argName;
-								//	any other args should be "extraArgs"
-								"args"		: { 
-									"next" : {
-										//	:TODO: just use menu.next
-										"success"	: "newUserActive"
-									},
-									"username" : "{1}", 
-									"password" : "{2}" 
-								}
-							}
-						],
-						"4" : [	//	Cancel
-							{
-								"value"		: { "4" : null },
-								"action"	: "@menu:matrix"
-								//	:TODO: Just use menu.fallback, e.g. @fallback
-							}
-						]
-					}
-				}
-			}
-		},
-		*/
+		"action"	: "@method:login.js/attemptLogin",		
 		"options" : {
 			"clearScreen" : true
 		}
@@ -130,13 +82,24 @@
 	"apply" : {
 		"art"		: "apply",
 		"module"	: "apply",
+		"next"		: "newUserActive",
 		"form"		: {
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
 					"mci" : {
 						"ET1" : {
-							"focus" : true
+							"focus"		: true,
+							"argName"	: "username"
 						},
+						"ET2" : { "argName" : "realName" },
+						"ET3" : { "argName" : "age" },
+						"ET4" : { "argName" : "sex" },
+						"ET5" : { "argName" : "location" },
+						"ET6" : { "argName" : "affils" },
+						"ET7" : { "argName" : "email" },
+						"ET8" : { "argName" : "web" },
+						"ET9" : { "argName" : "pw" },
+						"ET10" : { "argName" : "pwConfirm" },
 						"BT12" : {
 							"submit" : true,
 							"text"	: "Apply"
@@ -151,23 +114,10 @@
 							{
 								"value" : { "12" : null },
 								"action" : "@method:submitApplication",
-								"args" : {
-									"next"		: {
-										"inactive"	: "userNeedsActivated",
-										"active"	: "newUserActive",
-										"error"		: "newUserCreateError"
-									},
-									"username"	: "{1}",
-									"realName"	: "{2}",
-									"age"		: "{3}",
-									"sex"		: "{4}",
-									"location"	: "{5}",
-									"affils"	: "{6}",
-									"email"		: "{7}",
-									"web"		: "{8}",
-									"pw"		: "{9}",
-									"pwConfirm"	: "{10}"
-								}
+								"extraArgs" : {
+									"inactive"	: "userNeedsActivated",
+									"error"		: "newUserCreateError"
+								}								
 							}
 						],
 						"13" : [	//	Cancel

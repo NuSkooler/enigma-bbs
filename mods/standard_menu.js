@@ -6,6 +6,8 @@ var MenuModule		= require('../core/menu_module.js').MenuModule;
 var ViewController	= require('../core/view_controller.js').ViewController;
 var menuUtil		= require('../core/menu_util.js');
 
+var _				= require('lodash');
+
 exports.getModule	= StandardMenuModule;
 
 exports.moduleInfo = {
@@ -40,6 +42,7 @@ StandardMenuModule.prototype.mciReady = function(mciData) {
 	//	*	Prompt form is favored over menu form if both are present.
 	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
 	//
+	//	:TODO: Create MenuModule.standardMciReady() method that others can call that does this -- even custom modules will generally want most of this
 	self.viewControllers = {};
 
 	var vcOpts = { client : self.client };
@@ -60,21 +63,21 @@ StandardMenuModule.prototype.mciReady = function(mciData) {
 	if(self.viewControllers.menu) {
 		var menuLoadOpts = {
 			mciMap		: mciData.menu,
-			menuConfig	: self.menuConfig,
-			withForm	: !mciData.prompt,
+			callingMenu	: self,
+			//menuConfig	: self.menuConfig,
+			withoutForm	: _.isObject(mciData.prompt),
 		};
 
-		self.viewControllers.menu.loadFromMCIMapAndConfig(menuLoadOpts, viewsReady);
+		self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, viewsReady);
 	}
 
 	if(self.viewControllers.prompt) {
 		var promptLoadOpts = {
 			callingMenu		: self,
 			mciMap			: mciData.prompt,
-			//promptConfig	: self.menuConfig.promptConfig,
 		};
 
-		self.viewControllers.prompt.loadFromPrompt(promptLoadOpts, viewsReady);
+		self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, viewsReady);
 	}
 
 	/*
