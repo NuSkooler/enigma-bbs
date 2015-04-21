@@ -167,29 +167,34 @@ function handleAction(client, formData, conf) {
 
 	var actionAsset = asset.parseAsset(conf.action);
 	assert(_.isObject(actionAsset));
-	
+
+	function callModuleMenuMethod(path) {
+		if('' === paths.extname(path)) {
+			path += '.js';
+		}
+
+		try {
+			var methodMod = require(path);
+			methodMod[actionAsset.asset](client.currentMenuModule, formData, conf.extraArgs);
+		} catch(e) {
+			Log.error( { error : e.toString(), methodName : actionAsset.asset }, 'Failed to execute asset method');
+		}
+	}
+
 	switch(actionAsset.type) {
 		case 'method' :
+		case 'systemMethod' : 
 			if(_.isString(actionAsset.location)) {
-				try {
-					//	allow ".js" omission
-					if(''=== paths.extname(actionAsset.location)) {
-						actionAsset.location += '.js';
-					}
-
-					var methodMod = require(paths.join(Config.paths.mods, actionAsset.location));
-
-					if(_.isFunction(methodMod[actionAsset.asset])) {
-						methodMod[actionAsset.asset](client.currentMenuModule, formData, conf.extraArgs);
-					}
-				} catch(e) {
-					Log.error( { error : e, methodName : actionAsset.asset }, 'Failed to execute asset method');
-				}
+				callModuleMenuMethod(paths.join(Config.paths.mods, actionAsset.location));
 			} else {
-				//	local to current module
-				var currentModule = client.currentMenuModule;
-				if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-					currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
+				if('systemMethod' === actionAsset.type) {
+					callModuleMenuMethod(paths.join(__dirname, 'system_menu_method.js'));
+				} else {
+					//	local to current module
+					var currentModule = client.currentMenuModule;
+					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+						currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
+					}
 				}
 			}
 			break;

@@ -13,6 +13,7 @@ var ALL_ASSETS = [
 	'art',
 	'menu',
 	'method',
+	'systemMethod',
 	'prompt',
 ];
 

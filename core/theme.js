@@ -94,6 +94,14 @@ function initAvailableThemes(cb) {
 	);
 }
 
+function getRandomTheme() {
+	if(Object.getOwnPropertyNames(availableThemes).length > 0) {
+		var themeIds = Object.keys(availableThemes);
+		return themeIds[Math.floor(Math.random() * themeIds.length)];
+	}
+}
+
+/*
 function getRandomTheme(cb) {
 	if(Object.getOwnPropertyNames(availableThemes).length > 0) {
 		var themeIds = Object.keys(availableThemes);
@@ -102,6 +110,7 @@ function getRandomTheme(cb) {
 		cb(new Error('No themes available'));
 	}
 }
+*/
 
 function getThemeArt(name, themeID, options, cb) {
 	//	allow options to be optional

@@ -71,7 +71,7 @@
 		"prompt"	: "userCredentials",
 		"fallback"	: "matrix",
 		"next"		: "newUserActive",
-		"action"	: "@method:general_menu_methods/login",
+		"action"	: "@systemMethod:login",
 
 		//	:TODO: support alt submit method for prompts
 		//	if present, standard filters apply. No need for multiple submit ID's
@@ -90,7 +90,7 @@
 	"logoff" : {
 		"art"		: "LOGOFF",
 		//"module"	: "logoff",
-		"action"	: "@method:general_menu_methods/logoff",
+		"action"	: "@systemMethod:logoff",
 		"options" : { "cls" : true }
 	},
 	"apply" : {

@@ -87,12 +87,17 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				email_address	: formData.value.email,
 				web_address		: formData.value.web,
 				
-				theme_id	: Config.defaults.theme,	//	:TODO: allow '*' = random
 				account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
 
 				//	:TODO: Other defaults
 				//	:TODO: should probably have a place to create defaults/etc.					
 			};
+
+			if('*' === Config.defaults.theme) {
+				newUser.properties.theme_id = theme.getRandomTheme();
+			} else {
+				newUser.properties.theme_id = Config.defaults.theme;
+			}
 
 			newUser.create( { password : formData.value.password }, function created(err) {
 				if(err) {

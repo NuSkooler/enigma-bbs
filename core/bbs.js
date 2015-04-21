@@ -209,25 +209,12 @@ function prepareClient(client, cb) {
 	if('*' === conf.config.preLoginTheme) {
 		var theme = require('./theme.js');
 
-		async.waterfall(
-			[
-				function getRandTheme(callback) {
-					theme.getRandomTheme(function randTheme(err, themeId) {
-						client.user.properties.theme_id = themeId || '';
-						callback(null);
-					});
-				},
-				function setCurrentThemeInfo(callback) {
-					theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
-						client.currentThemeInfo = info;
-						callback(null);
-					});
-				}
-			],
-			function complete(err) {
-				cb(err);
-			}
-		);
+		client.user.properties.theme_id = theme.getRandomTheme() || '';
+
+		theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
+			client.currentThemeInfo = info;
+			cb(null);
+		});
 	} else {
 		client.user.properties.theme_id = conf.config.preLoginTheme;
 		cb(null);
