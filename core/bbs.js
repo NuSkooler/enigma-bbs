@@ -3,7 +3,6 @@
 
 //	ENiGMA½
 var conf		= require('./config.js');
-var moduleUtil	= require('./module_util.js');
 var logger		= require('./logger.js');
 var miscUtil	= require('./misc_util.js');
 var database	= require('./database.js');
@@ -75,55 +74,6 @@ function bbsMain() {
 	);
 }
 
-/*
-function bbsMain() {
-	var mainArgs = parseArgs();
-
-	var configPathSupplied = false;
-	var configPath = conf.defaultPath();
-
-	if(mainArgs.indexOf('--help') > 0) {
-		//	:TODO: display help
-	} else {
-		var argCount = mainArgs.length;
-		for(var i = 0; i < argCount; ++i) {
-			var arg = mainArgs[i];
-			if('--config' == arg) {
-				configPathSupplied = true;
-				configPath = mainArgs[i + 1];
-			}
-		}
-	}
-
-	try {
-		conf.initFromFile(configPath);
-	} catch(e) {
-		//
-		//	If the user supplied a config and we can't read, parse, whatever
-		//	then output a error and bail.
-		//
-		if(configPathSupplied) {
-			if(e.code === 'ENOENT') {
-				console.error('Configuration file does not exist: ' + configPath);
-			}
-			return;
-		}
-
-		console.log('No configuration file found, creating defaults.');
-		conf.createDefault();
-	}
-
-	initialize(function onInit(err) {
-		if(err) {
-			console.error('Error initializing: ' + util.inspect(err));
-			return;
-		}
-
-		startListening();
-	});
-}
-*/
-
 function parseArgs() {
 	var args = [];
 	process.argv.slice(2).forEach(function(val, index, array) {
@@ -178,6 +128,8 @@ function startListening() {
 		logger.log.error('No servers configured');
 		return [];
 	}
+
+	var moduleUtil = require('./module_util.js');	//	late load so we get Config
 
 	moduleUtil.loadModulesForCategory('servers', function onServerModule(err, module) {
 		if(err) {
@@ -261,12 +213,12 @@ function prepareClient(client, cb) {
 			[
 				function getRandTheme(callback) {
 					theme.getRandomTheme(function randTheme(err, themeId) {
-						client.user.properties.art_theme_id = themeId || '';
+						client.user.properties.theme_id = themeId || '';
 						callback(null);
 					});
 				},
 				function setCurrentThemeInfo(callback) {
-					theme.getThemeInfo(client.user.properties.art_theme_id, function themeInfo(err, info) {
+					theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
 						client.currentThemeInfo = info;
 						callback(null);
 					});
@@ -277,7 +229,7 @@ function prepareClient(client, cb) {
 			}
 		);
 	} else {
-		client.user.properties.art_theme_id = conf.config.preLoginTheme;
+		client.user.properties.theme_id = conf.config.preLoginTheme;
 		cb(null);
 	}
 }

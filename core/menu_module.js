@@ -8,6 +8,7 @@ var Log					= require('./logger.js').log;
 var ansi				= require('./ansi_term.js');
 var asset				= require('./asset.js');
 var ViewController		= require('./view_controller.js').ViewController;
+var menuUtil			= require('./menu_util.js');
 
 var async				= require('async');
 var assert				= require('assert');
@@ -90,7 +91,7 @@ function MenuModule(options) {
 						}
 
 						//	Prompts *must* have art. If it's missing it's an error
-						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> "memberName" : { ... }
+						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
 						var promptConfig = self.menuConfig.promptConfig;
 						self.displayArtAsset(promptConfig.art, function displayed(err, mciMap) {
 							mciData.prompt = mciMap;
@@ -114,92 +115,6 @@ function MenuModule(options) {
 			}
 		);
 	};
-/*
-	this.initSequence2 = function() {
-		async.waterfall(
-			[
-				function beforeDisplayArt(callback) {
-					self.beforeArt();
-					callback(null);
-				},
-				function displayArtAsset(callback) {
-					var artAsset = asset.getArtAsset(self.menuConfig.art);
-
-					if(!artAsset) {
-						//	no art to display
-						callback(null, null);
-						return;
-					}
-
-					var dispOptions = {
-						name		: artAsset.asset,
-						client		: self.client,
-						font		: self.menuConfig.font,
-					};
-
-					if('art' === artAsset.type) {
-						theme.displayThemeArt(dispOptions, function displayedArt(err, mciMap) {
-							callback(null, mciMap);
-						});
-					} else if('method' === artAsset.type) {
-						//	:TODO: support fetching the asset (e.g. rendering into buffer) -> display it.
-					}
-				},
-				function afterArtDisplayed(mciMap, callback) {
-					if(mciMap) {
-						self.mciReady(mciMap);
-					}
-
-					callback(null);
-				},
-				function loadPrompt(callback) {
-					if(!_.isString(self.menuConfig.prompt)) {
-						//	no prompt supplied
-						callback(null, null);
-						return;
-					}
-
-					var loadPromptOpts = {
-						name	: self.menuConfig.prompt,
-						client	: self.client,
-					};
-
-					promptUtil.loadPrompt(loadPromptOpts, function promptLoaded(err, prompt) {
-						callback(err, prompt);
-					});
-				},
-				function displayPrompt(prompt, callback) {
-					if(!prompt) {
-						callback(null);
-						return;
-					}
-
-					//	:TODO: go to proper prompt location before displaying
-
-					var dispOptions = {
-						art		: prompt.artInfo.data,
-						sauce	: prompt.artInfo.sauce,
-						client	: self.client,
-						font	: prompt.config.font,
-					};
-
-
-					art.display(dispOptions, function displayed(err, mciMap) {
-
-					});
-				}
-			],
-			function complete(err) {
-				if(err) {
-					//	:TODO: Log me!!! ... and what else?
-					console.log(err);
-				}
-
-				self.finishedLoading();
-			}
-		);
-	};
-	*/
 }
 
 require('util').inherits(MenuModule, PluginModule);
@@ -225,12 +140,56 @@ MenuModule.prototype.addViewController = function(name, vc) {
 };
 
 MenuModule.prototype.beforeArt = function() {	
-	if(this.menuConfig.options.clearScreen) {
+	if(this.menuConfig.options.cls) {
 		this.client.term.write(ansi.resetScreen());
 	}
 };
 
 MenuModule.prototype.mciReady = function(mciData) {
+};
+
+MenuModule.prototype.standardMCIReadyHandler = function(mciData) {
+	//
+	//	A quick rundown:
+	//	*	We may have mciData.menu, mciData.prompt, or both.
+	//	*	Prompt form is favored over menu form if both are present.
+	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+	//
+	var self				= this;
+	self.viewControllers	= {};
+
+	//var vcOpts				= { client : self.client };
+
+	_.forEach(mciData, function entry(mciMap, name) {
+		assert('menu' === name || 'prompt' === name);
+		self.viewControllers[name] = new ViewController( { client : self.client } );
+	});
+	
+	var viewsReady = function(err) {
+		//	:TODO: what should really happen here?
+		if(err) {
+			Log.warn(err);
+		}
+	};
+
+	if(self.viewControllers.menu) {
+		var menuLoadOpts = {
+			mciMap		: mciData.menu,
+			callingMenu	: self,
+			withoutForm	: _.isObject(mciData.prompt),
+		};
+
+		self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, viewsReady);
+	}
+
+	if(self.viewControllers.prompt) {
+		var promptLoadOpts = {
+			callingMenu		: self,
+			mciMap			: mciData.prompt,
+		};
+
+		self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, viewsReady);
+	}
 };
 
 MenuModule.prototype.finishedLoading = function() {
@@ -243,5 +202,12 @@ MenuModule.prototype.finishedLoading = function() {
 		setTimeout(function nextTimeout() {
 			self.client.gotoMenuModule( { name : self.menuConfig.next } );
 		}, this.menuConfig.options.nextTimeout);
+	} else {
+		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
+			_.isString(self.menuConfig.action))
+		{
+			menuUtil.handleAction(self.client, null, self.menuConfig);
+		}
+
 	}
 };

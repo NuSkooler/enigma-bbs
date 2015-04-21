@@ -138,7 +138,7 @@ function displayThemeArt(options, cb) {
 	assert(_.isObject(options.client));
 	assert(_.isString(options.name));
 
-	getThemeArt(options.name, options.client.user.properties.art_theme_id, function themeArt(err, artInfo) {
+	getThemeArt(options.name, options.client.user.properties.theme_id, function themeArt(err, artInfo) {
 		if(err) {
 			cb(err);
 		} else {

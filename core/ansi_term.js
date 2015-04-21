@@ -101,7 +101,7 @@ var SGRValues = {
 	yellowBG		: 43,
 	blueBG			: 44,
 	
-	cyanBG			: 47,
+	cyanBG			: 46,
 	whiteBG			: 47,
 };
 

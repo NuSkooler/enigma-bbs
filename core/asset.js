@@ -1,6 +1,8 @@
 /* jslint node: true */
 'use strict';
 
+var Config		= require('./config.js').config;
+
 var _			= require('lodash');
 var assert		= require('assert');
 

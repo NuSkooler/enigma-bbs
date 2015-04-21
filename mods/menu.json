@@ -16,16 +16,17 @@
 						"focus" : ...
 					}
 
-					..note that script/methods should be part of a *theme* - or at least checked first with fallback
-					.....why?
+					NOte that @draw & @art should check theme first. 
+					@draw:myMethod -> theme/draw.js::myMethod(opts)
+
 				}
 			}
 	*/
 	"connected" : {
-		"art" 		: "connect",
+		"art" 		: "CONNECT",
 		"next"		: "matrix",
 		"options"	: {
-			"clearScreen"	: true,
+			"cls"	: true,
 			"nextTimeout"	: 1500
 		}
 	},
@@ -62,7 +63,7 @@
 			}
 		},
 		"options" : {
-			"clearScreen" : true
+			"cls" : true
 		}
 	},
 	"login" : {
@@ -70,22 +71,35 @@
 		"prompt"	: "userCredentials",
 		"fallback"	: "matrix",
 		"next"		: "newUserActive",
-		"action"	: "@method:login.js/attemptLogin",		
+		"action"	: "@method:general_menu_methods/login",
+
+		//	:TODO: support alt submit method for prompts
+		//	if present, standard filters apply. No need for multiple submit ID's
+		//	since a prompt can only utilize one:
+		"submit" : [
+			{
+				"value" : { "1" : "thing" },
+				"action" : "@method:doThings"
+			}
+		],
+
 		"options" : {
-			"clearScreen" : true
+			"cls" : true
 		}
 	},
 	"logoff" : {
-		"art"		: "logoff",
-		"module"	: "logoff"
+		"art"		: "LOGOFF",
+		//"module"	: "logoff",
+		"action"	: "@method:general_menu_methods/logoff",
+		"options" : { "cls" : true }
 	},
 	"apply" : {
-		"art"		: "apply",
-		"module"	: "apply",
+		"art"		: "APPLY",
 		"next"		: "newUserActive",
 		"form"		: {
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
+					"cancelKeys" : [ "esc" ],
 					"mci" : {
 						"ET1" : {
 							"focus"		: true,
@@ -98,7 +112,7 @@
 						"ET6" : { "argName" : "affils" },
 						"ET7" : { "argName" : "email" },
 						"ET8" : { "argName" : "web" },
-						"ET9" : { "argName" : "pw" },
+						"ET9" : { "argName" : "password" },
 						"ET10" : { "argName" : "pwConfirm" },
 						"BT12" : {
 							"submit" : true,
@@ -112,8 +126,8 @@
 					"submit" : {
 						"12" : [	//	Apply
 							{
-								"value" : { "12" : null },
-								"action" : "@method:submitApplication",
+								"value" : 12,
+								"action" : "@method:apply/submitApplication",
 								"extraArgs" : {
 									"inactive"	: "userNeedsActivated",
 									"error"		: "newUserCreateError"
@@ -122,7 +136,7 @@
 						],
 						"13" : [	//	Cancel
 							{
-								"value" : { "13" : null },	//	:TODO: allow just "13" (number)
+								"value" : 13,
 								"action"	: "@menu:matrix"
 							}
 						]
@@ -131,14 +145,14 @@
 			}
 		},
 		"options" : {
-			"clearScreen" : true
+			"cls" : true
 		}
 	},
 	"newUserActive" : {
 		"art" : "STATS",
 		"options" : {
 			//	:TODO: implement MCI codes for this
-			"clearScreen" : true
+			"cls" : true
 		}
 	}
 }

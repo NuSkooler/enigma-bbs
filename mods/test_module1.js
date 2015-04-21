@@ -23,7 +23,7 @@ function entryPoint(client) {
 	async.waterfall(
 		[
 			function getArt(callback) {
-				theme.getThemeArt('MCI_VM1.ANS', client.user.properties.art_theme_id, function onArt(err, theArt) {
+				theme.getThemeArt('MCI_VM1.ANS', client.user.properties.theme_id, function onArt(err, theArt) {
 					callback(err, theArt);
 				});
 			},

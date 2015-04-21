@@ -19,6 +19,7 @@ var stripJsonComments	= require('strip-json-comments');
 
 exports.loadMenu				= loadMenu;
 exports.getFormConfigByIDAndMap	= getFormConfigByIDAndMap;
+exports.handleAction			= handleAction;
 
 
 function loadModJSON(fileName, cb) {
@@ -93,11 +94,18 @@ function loadMenu(options, cb) {
 				});
 			},
 			function loadMenuModule(menuConfig, callback) {
-				var moduleName = menuConfig.module || 'standard_menu';
 
-				moduleUtil.loadModule(moduleName, 'mods', function moduleLoaded(err, mod) {
+				var modSupplied = _.isString(menuConfig.module);
+
+				var modLoadOpts = {
+					name		: modSupplied ? menuConfig.module : 'standard_menu',
+					path		: modSupplied ? Config.paths.mods : __dirname,
+					category	: modSupplied ? 'mods' : null,
+				};
+
+				moduleUtil.loadModuleEx(modLoadOpts, function moduleLoaded(err, mod) {
 					var modData = {
-						name	: moduleName,
+						name	: modLoadOpts.name,
 						config	: menuConfig,
 						mod		: mod,
 					};
@@ -120,63 +128,6 @@ function loadMenu(options, cb) {
 		],
 		function complete(err, modInst) {
 			cb(err, modInst);
-		}
-	);
-}
-
-function loadMenu2(options, cb) {
-
-	assert(options);
-	assert(options.name);
-	assert(options.client);
-
-	var name	= options.name;
-	var client	= options.client;
-	/*
-		TODO: 
-		* check access / ACS
-		* 
-	*/
-
-	async.waterfall(
-		[
-			//	:TODO: Need a good way to cache this information & only (re)load if modified
-			function loadMenuConfig(callback) {
-				var configJsonPath = paths.join(conf.config.paths.mods, 'menu.json');
-
-				fs.readFile(configJsonPath, { encoding : 'utf8' }, function onMenuConfig(err, data) {
-					try {
-						var menuJson = JSON.parse(stripJsonComments(data));
-
-						if(!_.isObject(menuJson[name])) {
-							callback(new Error('No configuration entry for \'' + name + '\''));
-						} else {
-							callback(err, menuJson[name]);
-						}
-					} catch(e) {
-						callback(e);
-					}
-				});
-			},
-			function menuConfigLoaded(menuConfig, callback) {
-				var moduleName = menuConfig.module || 'standard_menu';
-
-				moduleUtil.loadModule(moduleName, 'mods', function onModule(err, mod) {
-					callback(err, mod, menuConfig, moduleName);
-				});
-			}
-		],
-		function complete(err, mod, menuConfig, moduleName) {
-			if(err) {
-				cb(err);
-			} else {
-				Log.debug(
-					{ moduleName : moduleName, args : options.args, config : menuConfig, info : mod.moduleInfo },
-					'Creating menu module instance');
-
-				//	:TODO: throw from MenuModule() - catch here
-				cb(null, new mod.getModule({ menuConfig : menuConfig, args : options.args } ));
-			}
 		}
 	);
 }
@@ -208,4 +159,43 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	}
 
 	cb(new Error('No matching form configuration found'));
+}
+
+function handleAction(client, formData, conf) {
+	assert(_.isObject(conf));
+	assert(_.isString(conf.action));
+
+	var actionAsset = asset.parseAsset(conf.action);
+	assert(_.isObject(actionAsset));
+	
+	switch(actionAsset.type) {
+		case 'method' :
+			if(_.isString(actionAsset.location)) {
+				try {
+					//	allow ".js" omission
+					if(''=== paths.extname(actionAsset.location)) {
+						actionAsset.location += '.js';
+					}
+
+					var methodMod = require(paths.join(Config.paths.mods, actionAsset.location));
+
+					if(_.isFunction(methodMod[actionAsset.asset])) {
+						methodMod[actionAsset.asset](client.currentMenuModule, formData, conf.extraArgs);
+					}
+				} catch(e) {
+					Log.error( { error : e, methodName : actionAsset.asset }, 'Failed to execute asset method');
+				}
+			} else {
+				//	local to current module
+				var currentModule = client.currentMenuModule;
+				if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+					currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
+				}
+			}
+			break;
+
+		case 'menu' :
+			client.gotoMenuModule( { name : actionAsset.asset, formData : formData, extraArgs : conf.extraArgs } );
+			break;
+	}
 }

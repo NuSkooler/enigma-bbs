@@ -22,6 +22,7 @@ var MCI_REGEXP	= /([A-Z]{2})([0-9]{1,2})/;
 function ViewController(options) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.client));
+	
 
 	events.EventEmitter.call(this);
 
@@ -32,7 +33,7 @@ function ViewController(options) {
 	this.formId			= options.formId || 0;
 	this.mciViewFactory	= new MCIViewFactory(this.client);
 
-	this.onClientKeyPress = function(key, isSpecial) {
+	this.clientKeyPressHandler = function(key, isSpecial) {
 		if(isSpecial) {
 			return;
 		}
@@ -43,7 +44,10 @@ function ViewController(options) {
 		}
 	};
 
-	this.onClientSpecialKeyPress = function(keyName) {
+	this.clientSpecialKeyHandler = function(keyName) {
+
+		//	:TODO: Handle special key mappings from config, e.g. 'esc'
+
 		if(self.focusedView && self.focusedView.acceptsInput) {
 			self.focusedView.onSpecialKeyPress(keyName);
 		}
@@ -125,42 +129,6 @@ function ViewController(options) {
 		self.emitSwitchFocus = true;
 		self.emit(event, view);
 		self.emitSwitchFocus = false;
-	};
-
-	this.handleSubmitAction = function(callingMenu, formData, conf) {
-		assert(_.isObject(conf));
-		assert(_.isString(conf.action));
-
-		var actionAsset = asset.parseAsset(conf.action);
-		assert(_.isObject(actionAsset));
-
-		var extraArgs;
-		if(conf.extraArgs) {
-			extraArgs = self.formatMenuArgs(conf.extraArgs);
-		}
-
-		switch(actionAsset.type) {
-			case 'method' :
-				if(_.isString(actionAsset.location)) {
-					//	:TODO: allow omition of '.js'
-					var methodMod = require(paths.join(Config.paths.mods, actionAsset.location));
-					if(_.isFunction(methodMod[actionAsset.asset])) {
-						methodMod[actionAsset.asset](callingMenu, formData, extraArgs);
-					}
-				} else {
-					//	local to current module
-					var currentModule = self.client.currentMenuModule;
-					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-						currentModule.menuMethods[actionAsset.asset](formData, extraArgs);
-					}
-				}
-				break;
-
-			case 'menu' :
-			//	:TODO: update everythign to handle this format
-				self.client.gotoMenuModule( { name : actionAsset.asset, submitData : formData, extraArgs : extraArgs } );
-				break;
-		}
 	};
 
 	this.createViewsFromMCI = function(mciMap, cb) {
@@ -247,8 +215,8 @@ ViewController.prototype.attachClientEvents = function() {
 		return;
 	}
 
-	this.client.on('key press', this.onClientKeyPress);
-	this.client.on('special key', this.onClientSpecialKeyPress);
+	this.client.on('key press', this.clientKeyPressHandler);
+	this.client.on('special key', this.clientSpecialKeyHandler);
 
 	this.attached = true;
 };
@@ -258,8 +226,8 @@ ViewController.prototype.detachClientEvents = function() {
 		return;
 	}
 	
-	this.client.removeListener('key press', this.onClientKeyPress);
-	this.client.removeListener('special key', this.onClientSpecialKeyPress);
+	this.client.removeListener('key press', this.clientKeyPressHandler);
+	this.client.removeListener('special key', this.clientSpecialKeyHandler);
 
 	for(var id in this.views) {
 		this.views[id].removeAllListeners();
@@ -356,13 +324,10 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 
 ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options));
-	assert(_.isObject(options.callingMenu));
-	assert(_.isObject(options.callingMenu.menuConfig));
-	assert(_.isObject(options.callingMenu.menuConfig.promptConfig));
 	assert(_.isObject(options.mciMap));
-
-	var promptConfig	= options.callingMenu.menuConfig.promptConfig;
+	
 	var self			= this;
+	var promptConfig	= self.client.currentMenuModule.menuConfig.promptConfig;
 	var initialFocusId	= 1;	//	default to first
 
 	async.waterfall(
@@ -383,7 +348,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				self.on('submit', function promptSubmit(formData) {
 					Log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
-					self.handleSubmitAction(options.callingMenu, formData, options.callingMenu.menuConfig);
+					menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
 				});
 
 				callback(null);
@@ -403,8 +368,6 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 
 ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	assert(_.isObject(options));
-	assert(_.isObject(options.callingMenu));
-	assert(_.isObject(options.callingMenu.menuConfig));
 	assert(_.isObject(options.mciMap));
 
 	var self			= this;
@@ -417,33 +380,40 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	//	method for comparing submitted form data to configuration entries
 	var actionBlockValueComparator = function(formValue, actionValue) {
 		//
-		//	Any key(s) in actionValue must:
-		//	1) Be present in formValue
-		//	2) Either:
-		//		a) Be set to null (wildcard/any)
-		//		b) Have matching value(s)
+		//	For a match to occur, one of the following must be true:
 		//
-		var keys = Object.keys(actionValue);
-		for(var i = 0; i < keys.length; ++i) {
-			var name = keys[i];
-
-			//	submit data contains config key?
-			if(!_.has(formValue, name)) {
-				return false;	//	not present in what was submitted
-			}
-
-			if(null !== actionValue[name] && actionValue[name] !== formValue[name]) {
+		//	*	actionValue is a Object:
+		//		a)	All key/values must exactly match
+		//		b)	value is null; The key (view ID) must be present
+		//			in formValue. This is a wildcard/any match.
+		//	*	actionValue is a Number: This represents a view ID that
+		//		must be present in formValue.
+		//
+		if(_.isNumber(actionValue)) {
+			if(_.isUndefined(formValue[actionValue])) {
 				return false;
 			}
+		} else {
+			var actionValueKeys = Object.keys(actionValue);
+			for(var i = 0; i < actionValueKeys.length; ++i) {
+				var viewId = actionValueKeys[i];
+				if(!_.has(formValue, viewId)) {
+					return false;
+				}
+
+				if(null !== actionValue[viewId] && actionValue[viewId] !== formValue[viewId]) {
+					return false;
+				}
+			}
 		}
-		
+
 		return true;
 	};
 
 	async.waterfall(
 		[
 			function findMatchingFormConfig(callback) {
-				menuUtil.getFormConfigByIDAndMap(options.callingMenu.menuConfig, formIdKey, options.mciMap, function matchingConfig(err, fc) {
+				menuUtil.getFormConfigByIDAndMap(self.client.currentMenuModule.menuConfig, formIdKey, options.mciMap, function matchingConfig(err, fc) {
 					formConfig = fc;
 
 					if(err) {
@@ -501,7 +471,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 						var actionBlock = confForFormId[c];
 
 						if(_.isEqual(formData.value, actionBlock.value, actionBlockValueComparator)) {
-							self.handleSubmitAction(options.callingMenu, formData, actionBlock);
+							menuUtil.handleAction(self.client, formData, actionBlock);
 							break;	//	there an only be one...
 						}
 					}
@@ -524,176 +494,6 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	);
 };
 
-ViewController.prototype.loadFromMCIMapAndConfig = function(options, cb) {
-	assert(options.mciMap);
-
-	var factory 		= new MCIViewFactory(this.client);
-	var self			= this;
-	var formIdKey		= options.formId ? options.formId.toString() : '0';
-	var initialFocusId;
-	var formConfig;
-
-	var mciRegEx 		= /([A-Z]{2})([0-9]{1,2})/;
-
-	//	:TODO: remove all the passing of fromConfig - use local
-	//	:TODO: break all of this up ... a lot
-
-	async.waterfall(
-		[
-			function getFormConfig(callback) {
-				menuUtil.getFormConfigByIDAndMap(options.menuConfig, formIdKey, options.mciMap, function onFormConfig(err, fc) {
-					formConfig = fc;
-
-					if(err) {
-						//	:TODO: fix logging of err here:
-						Log.trace( 
-							{ err : err.toString(), mci : Object.keys(options.mciMap), formIdKey : formIdKey } , 
-							'Unable to load menu configuration');
-					}
-
-					callback(null);
-				});
-			},
-			function createViews(callback) {
-				self.createViewsFromMCI(options.mciMap, function viewsCreated(err) {
-					callback(err);
-				});
-			},
-			function applyFormConfig(callback) {
-				if(formConfig) {
-					async.each(Object.keys(formConfig.mci), function onMciConf(mci, eachCb) {
-						var mciMatch = mci.match(mciRegEx);	//	:TODO: what about auto-generated IDs? Do they simply not apply to menu configs?
-						var viewId	= parseInt(mciMatch[2]);
-						var view	= self.getView(viewId);
-						var mciConf = formConfig.mci[mci];
-
-						//	:TODO: Break all of this up ... and/or better way of doing it
-						if(mciConf.items) {
-							view.setItems(mciConf.items);
-						}
-
-						if(mciConf.submit) {
-							view.submit = true;	//	:TODO: should really be actual value
-						}
-
-						if(mciConf.text) {
-							view.setText(mciConf.text);
-						}
-
-						if(mciConf.focus) {
-							initialFocusId = viewId;
-						}
-
-						eachCb(null);
-					},
-					function eachMciConfComplete(err) {
-						callback(err);
-					});
-				} else {
-					callback(null);
-				}
-			},
-			function mapMenuSubmit(callback) {
-				if(formConfig) {
-					//
-					//	If we have a 'submit' section, create a submit handler
-					//	and map the various entries to menus/etc.
-					//
-					if(_.isObject(formConfig.submit)) {
-						//	:TODO: If this model is kept, formData does not need to include actual data, just form ID & submitID
-						//	we can get the rest here via each view in form -> getData()
-						self.on('submit', function onSubmit(formData) {
-							Log.debug( { formData : formData }, 'Submit form');
-
-							var confForFormId;
-							if(_.isObject(formConfig.submit[formData.submitId])) {
-								confForFormId = formConfig.submit[formData.submitId];
-							} else if(_.isObject(formConfig.submit['*'])) {
-								confForFormId = formConfig.submit['*'];
-							} else {
-								//	no configuration for this submitId
-								return;
-							}
-
-							var formValueCompare = function(formDataValue, formConfigValue) {
-								//
-								//	Any key(s) in formConfigValue must:
-								//	1) be present in formDataValue
-								//	2) must either:
-								//		a) be set to null (wildcard/any)
-								//		b) have matching values
-								//
-								var formConfigValueKeys = Object.keys(formConfigValue);
-								for(var k = 0; k < formConfigValueKeys.length; ++k) {
-									var memberKey = formConfigValueKeys[k];
-
-									//	submit data contains config key?
-									if(!_.has(formDataValue, memberKey)) {
-										return false;	//	not present in what was submitted
-									}
-
-									if(null !== formConfigValue[memberKey] && formConfigValue[memberKey] !== formDataValue[memberKey]) {
-										return false;
-									}
-								}
-								
-								return true;
-							};
-
-							var conf;
-							for(var c = 0; c < confForFormId.length; ++c) {
-								conf = confForFormId[c];
-								if(_.isEqual(formData.value, conf.value, formValueCompare)) {
-
-									if(!conf.action) {
-										continue;
-									}
-
-									var formattedArgs;
-									if(conf.args) {
-										formattedArgs = self.formatMenuArgs(conf.args);
-									}
-
-									var actionAsset = asset.parseAsset(conf.action);
-									assert(_.isObject(actionAsset));
-
-									if('method' === actionAsset.type) {
-										if(actionAsset.location) {
-											//	:TODO: call with (client, args, ...) at least.
-										} else {
-											//	local to current module
-											var currentMod = self.client.currentMenuModule;
-											if(currentMod.menuMethods[actionAsset.asset]) {
-												currentMod.menuMethods[actionAsset.asset](formattedArgs);
-											}
-										}
-									} else if('menu' === actionAsset.type) {
-										self.client.gotoMenuModule( { name : actionAsset.asset, args : formattedArgs } );
-									}
-								}
-							}
-						});
-					}
-				}
-
-				callback(null);
-			},
-			function setInitialFocus(callback) {
-				if(initialFocusId) {
-					self.switchFocus(initialFocusId);
-				}
-
-				callback(null);
-			}
-		],
-		function complete(err) {
-			if(cb) {
-				cb(err);
-			}
-		}
-	);
-};
-
 ViewController.prototype.formatMCIString = function(format) {
 	var self = this;
 	var view;
@@ -709,6 +509,7 @@ ViewController.prototype.formatMCIString = function(format) {
 	});
 };
 
+/*
 ViewController.prototype.formatMenuArgs = function(args) {
 	var self = this;
 
@@ -719,3 +520,4 @@ ViewController.prototype.formatMenuArgs = function(args) {
 		return value;
 	});
 };
+*/

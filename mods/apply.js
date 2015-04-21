@@ -12,132 +12,101 @@ var Config			= require('../core/config.js').config;
 
 var util			= require('util');
 
-//var async			= require('async');
+exports.submitApplication	= submitApplication;
 
-//	:TODO: clean up requires
+function validateApplicationData(formData, cb) {
+	if(formData.value.username.length < Config.users.usernameMin) {
+		cb('Handle too short!', [ 1 ]);
+		return;
+	}
 
-exports.moduleInfo = {
-	name	: 'Apply',
-	desc	: 'Application Module',
-	author	: 'NuSkooler',
-};
+	if(formData.value.username.length > Config.users.usernameMax) {
+		cb('Handle too long!', [ 1 ]);
+		return;
+	}
 
-exports.getModule	= ApplyModule;
+	var re = new RegExp(Config.users.usernamePattern);
+	if(!re.test(formData.value.username)) {
+		cb('Handle contains invalid characters!', [ 1 ] );
+		return;
+	}
 
+	if(formData.value.password.length < Config.users.passwordMin) {
+		cb('Password too short!', [ 9, 10 ]);
+		return;
+	}
 
-function ApplyModule(menuConfig) {
-	MenuModule.call(this, menuConfig);
+	if(formData.value.password !== formData.value.pwConfirm) {
+		cb('Passwords do not match!', [ 9, 10 ]);
+		return;
+	}
 
-	var self = this;
-
-	this.menuMethods.submitApplication = function(formData, extraArgs) {
-		var usernameView		= self.viewController.getView(1);
-		var passwordView		= self.viewController.getView(9);
-		var pwConfirmView		= self.viewController.getView(10);
-		var statusView			= self.viewController.getView(11);
-
-		self.validateApplication(formData, function validated(errString, clearFields) {
-			if(errString) {
-				statusView.setText(errString);
-
-				clearFields.forEach(function formId(id) {
-					self.viewController.getView(id).setText('');
-				});
-
-				self.viewController.switchFocus(clearFields[0]);
-			} else {
-				var newUser = new user.User();
-				newUser.username = formData.value.username;
-
-				newUser.properties = {
-					real_name		: formData.value.realName,
-					age				: formData.value.age,
-					sex				: formData.value.sex,
-					location		: formData.value.location,
-					affiliation		: formData.value.affils,
-					email_address	: formData.value.email,
-					web_address		: formData.value.web,
-					
-					art_theme_id	: Config.defaults.theme,	//	:TODO: allow '*' = random
-					account_status	: user.User.AccountStatus.inactive,
-
-					//	:TODO: Other defaults
-					//	:TODO: should probably have a place to create defaults/etc.					
-					//	:TODO: set account_status to default based on Config.user...
-				};
-
-				newUser.create({ password : formData.value.pw }, function created(err) {
-					if(err) {
-						self.client.gotoMenuModule( { name : extraArgs.error } );
-					} else {
-						Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
-
-						if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
-							self.client.gotoMenuModule( { name : extraArgs.inactive } );
-						} else {
-							self.client.gotoMenuModule( { name : this.menuConfig.next } );
-						}
-					}
-				});			
-			}
-		});
-	};
-
-	this.validateApplication = function(formData, cb) {
-		if(formData.value.username.length < Config.users.usernameMin) {
-			cb('Handle too short!', [ 1 ]);
-			return;
+	user.getUserIdAndName(formData.value.username, function userIdAndName(err) {
+		var alreadyExists = !err;
+		if(alreadyExists) {
+			cb('Username unavailable!', [ 1  ] );
+		} else {
+			cb(null);
 		}
-
-		if(formData.value.username.length > Config.users.usernameMax) {
-			cb('Handle too long!', [ 1 ]);
-			return;
-		}
-
-		var re = new RegExp(Config.users.usernamePattern);
-		if(!re.test(formData.value.username)) {
-			cb('Handle contains invalid characters!', [ 1 ] );
-			return;
-		}
-
-		if(formData.value.pw.length < Config.users.passwordMin) {
-			cb('Password too short!', [ 9, 10 ]);
-			return;
-		}
-
-		if(formData.value.pw !== formData.value.pwConfirm) {
-			cb('Passwords do not match!', [ 9, 10 ]);
-			return;
-		}
-
-		user.getUserIdAndName(formData.value.username, function userIdAndName(err) {
-			var alreadyExists = !err;
-			if(alreadyExists) {
-				cb('Username unavailable!', [ 1  ] );
-			} else {
-				cb(null);
-			}
-		});
-	};
+	});
 }
 
-util.inherits(ApplyModule, MenuModule);
+function submitApplication(callingMenu, formData, extraArgs) {
+	var client				= callingMenu.client;
+	var menuConfig			= callingMenu.menuConfig;
+	var menuViewController	= callingMenu.viewControllers.menu;
 
-ApplyModule.prototype.enter = function(client) {
-	ApplyModule.super_.prototype.enter.call(this, client);
-};
+	var views = {
+		username	: menuViewController.getView(1),
+		password	: menuViewController.getView(9),
+		confirm		: menuViewController.getView(10),
+		errorMsg	: menuViewController.getView(11)
+	};
 
-ApplyModule.prototype.beforeArt = function() {
-	ApplyModule.super_.prototype.beforeArt.call(this);
-};
+	validateApplicationData(formData, function validationResult(errorMsg, viewIds) {
+		if(errorMsg) {
+			views.errorMsg.setText(errorMsg);
 
-ApplyModule.prototype.mciReady = function(mciData) {
-	ApplyModule.super_.prototype.mciReady.call(this, mciData);
+			viewIds.forEach(function formId(id) {
+				menuViewController.getView(id).clearText('');
+			});
 
-	var self = this;
+			menuViewController.switchFocus(viewIds[0]);
+		} else {
+			//	Seems legit!
+			var newUser = new user.User();
 
-	self.viewController = self.addViewController(new ViewController({ client : self.client } ));
-	self.viewController.loadFromMCIMapAndConfig( { mciMap : mciData.menu, menuConfig : self.menuConfig }, function onViewReady(err) {
-	
+			newUser.username = formData.value.username;
+
+			newUser.properties = {
+				real_name		: formData.value.realName,
+				age				: formData.value.age,
+				sex				: formData.value.sex,
+				location		: formData.value.location,
+				affiliation		: formData.value.affils,
+				email_address	: formData.value.email,
+				web_address		: formData.value.web,
+				
+				theme_id	: Config.defaults.theme,	//	:TODO: allow '*' = random
+				account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
+
+				//	:TODO: Other defaults
+				//	:TODO: should probably have a place to create defaults/etc.					
+			};
+
+			newUser.create( { password : formData.value.password }, function created(err) {
+				if(err) {
+					client.gotoMenuModule( { name : extraArgs.error } );
+				} else {
+					Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
+
+					if(user.User.AccountStatus.inactive === client.user.properties.account_status) {
+						client.gotoMenuModule( { name : extraArgs.inactive } );
+					} else {
+						client.gotoMenuModule( { name : menuConfig.next } );
+					}
+				}
+			});
+		}
 	});
-};
+}

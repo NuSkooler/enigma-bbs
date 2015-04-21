@@ -1,51 +1,46 @@
 /* jslint node: true */
 'use strict';
 
+var Config		= require('./config.js').config;
+var miscUtil	= require('./misc_util.js');
+
 var fs 			= require('fs');
 var paths		= require('path');
-
-var conf		= require('./config.js');
-var miscUtil	= require('./misc_util.js');
 var _			= require('lodash');
+var assert		= require('assert');
 
 //	exports
+exports.loadModuleEx			= loadModuleEx;
 exports.loadModule				= loadModule;
 exports.loadModulesForCategory	= loadModulesForCategory;
 
-function loadModule(name, category, cb) {
-	var config	= conf.config;
-	var path	= config.paths[category];
+function loadModuleEx(options, cb) {
+	assert(_.isObject(options));
+	assert(_.isString(options.name));
+	assert(_.isString(options.path));
 
-	if(!path) {
-		cb(new Error('not sure where to look for "' + name + '" of category "' + category + '"'));
-		return;
-	}
+	var modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
-	//	update conf to point at this module's section, if any
-	config = config[category] ? config[category][name] : null;
-	
-	if(config && false === config.enabled) {
-		cb(new Error('module "' + name + '" is disabled'));
+	if(_.isObject(modConfig) && false === modConfig.enabled) {
+		cb(new Error('Module "' + options.name + '" is disabled'));
 		return;
 	}
 
 	try {
-		var mod = require(paths.join(path, name + '.js'));
+		var mod = require(paths.join(options.path, options.name + '.js'));
 
-		if(!mod.moduleInfo) {
-			cb(new Error('module is missing \'moduleInfo\' section'));
+		if(!_.isObject(mod.moduleInfo)) {
+			cb(new Error('Module is missing "moduleInfo" section'));
 			return;
 		}
 
 		if(!_.isFunction(mod.getModule)) {
-			cb(new Error('Invalid or missing missing \'getModule\' method'));
+			cb(new Error('Invalid or missing "getModule" method for module!'));
 			return;
 		}
 
-		//	:TODO: what was the point of this? Remove it
-		mod.runtime = {
-			config : config
-		};
+		//	Safe configuration, if any, for convience to the module
+		mod.runtime = { config : modConfig };
 
 		cb(null, mod);
 	} catch(e) {
@@ -53,8 +48,21 @@ function loadModule(name, category, cb) {
 	}
 }
 
+function loadModule(name, category, cb) {
+	var path = Config.paths[category];
+
+	if(!_.isString(path)) {
+		cb(new Error('Not sure where to look for "' + name + '" of category "' + category + '"'));
+		return;
+	}
+
+	loadModuleEx( { name : name, path : path, category : category }, function loaded(err, mod) {
+		cb(err, mod);
+	});
+}
+
 function loadModulesForCategory(category, cb) {
-	var path = conf.config.paths[category];
+	var path = Config.paths[category];
 
 	fs.readdir(path, function onFiles(err, files) {
 		if(err) {
