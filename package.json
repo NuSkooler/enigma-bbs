@@ -1,5 +1,16 @@
 {
 	"name"	: "enigma-bbs",
 	"version" : "0.0.1-beta",
-	"description" : "ENiGMA½ Bulletin Board System"
+	"description" : "ENiGMA½ Bulletin Board System",
+	"author" : "Bryan Ashby <bryan@l33t.codes>",
+	"dependencies" : {
+		"async" : "0.9.x",
+		"binary" : "0.3.x",
+		"bunyan" : "1.3.x",
+		"iconv-lite" : "0.4.x",
+		"lodash" : "3.7.x",
+		"sqlite3" : "3.0.x",
+		"strip-json-comments" : "1.0.x"
+	},
+	"engine" : "node >= 0.12.2"
 }
