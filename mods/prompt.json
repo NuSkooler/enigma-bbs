@@ -1,0 +1,14 @@
+{
+	"userCredentials" : {
+		"art" : "USERCRED",
+		"mci" : {
+			"ET1" : {
+				"argName" : "username"
+			},
+			"ET2" : {
+				"submit" : true,
+				"argName" : "password"
+			}
+		}
+	}
+}

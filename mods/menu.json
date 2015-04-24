@@ -33,7 +33,7 @@
 	"matrix" : {
 		"art"		: "matrix",
 		"form"		: {
-			"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)
+			"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
 				"VM1" : {
 					"mci" : {
 						"VM1" :  {
@@ -99,7 +99,6 @@
 		"form"		: {
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
-					"cancelKeys" : [ "esc" ],
 					"mci" : {
 						"ET1" : {
 							"focus"		: true,
@@ -113,20 +112,20 @@
 						"ET7" : { "argName" : "email" },
 						"ET8" : { "argName" : "web" },
 						"ET9" : { "argName" : "password" },
-						"ET10" : { "argName" : "pwConfirm" },
+						"ET10" : { "argName" : "passwordConfirm" },
 						"BT12" : {
 							"submit" : true,
 							"text"	: "Apply"
 						},
 						"BT13" : {
-							"submit" : true,
+							"submit" : [ "esc" ],
 							"text" : "Cancel"
 						}
 					},
 					"submit" : {
 						"12" : [	//	Apply
 							{
-								"value" : 12,
+								"value" : 12,	//	:TODO: better, this should be optional; if not present it's a any match
 								"action" : "@method:apply/submitApplication",
 								"extraArgs" : {
 									"inactive"	: "userNeedsActivated",

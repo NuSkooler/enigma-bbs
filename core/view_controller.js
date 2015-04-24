@@ -32,6 +32,7 @@ function ViewController(options) {
 	this.views			= {};	//	map of ID -> view
 	this.formId			= options.formId || 0;
 	this.mciViewFactory	= new MCIViewFactory(this.client);
+	this.submitKeyMap	= {};
 
 	this.clientKeyPressHandler = function(key, isSpecial) {
 		if(isSpecial) {
@@ -46,10 +47,14 @@ function ViewController(options) {
 
 	this.clientSpecialKeyHandler = function(keyName) {
 
-		//	:TODO: Handle special key mappings from config, e.g. 'esc'
-
-		if(self.focusedView && self.focusedView.acceptsInput) {
-			self.focusedView.onSpecialKeyPress(keyName);
+		var submitViewId = self.submitKeyMap[keyName];
+		if(submitViewId) {
+			self.switchFocus(submitViewId);
+			self.submitForm();
+		} else {
+			if(self.focusedView && self.focusedView.acceptsInput) {
+				self.focusedView.onSpecialKeyPress(keyName);
+			}
 		}
 	};
 
@@ -81,7 +86,8 @@ function ViewController(options) {
 				value : {
 					"1" : "hurp",
 					"2" : [ 'a', 'b', ... ],
-					"3 " 2,
+					"3" 2,
+					"pants" : "no way"
 				}
 
 			}
@@ -118,6 +124,9 @@ function ViewController(options) {
 		if(safeFormData.value.password) {
 			safeFormData.value.password = '*****';
 		}
+		if(safeFormData.value.passwordConfirm) {
+			safeFormData.value.passwordConfirm = '*****';
+		}
 		return safeFormData;
 	};
 
@@ -153,7 +162,14 @@ function ViewController(options) {
 	};
 
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
-		view.submit = conf.submit || false;
+		if(_.isBoolean(conf.submit)) {
+			view.submit = conf.submit;
+		} else if(_.isArray(conf.submit) && conf.submit.length > 0) {
+			view.submit = true;
+		} else {
+			view.submit = false;
+		}
+		//view.submit = conf.submit || false;
 
 		if(_.isArray(conf.items)) {
 			view.setItems(conf.items);
@@ -190,6 +206,12 @@ function ViewController(options) {
 
 			if(view.submit) {
 				submitId = viewId;
+
+				if(_.isArray(mciConf.submit)) {
+					for(var i = 0; i < mciConf.submit.length; i++) {
+						self.submitKeyMap[mciConf.submit[i]] = viewId;
+					}
+				}
 			}
 
 			nextItem(null);

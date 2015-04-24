@@ -36,7 +36,7 @@ function validateApplicationData(formData, cb) {
 		return;
 	}
 
-	if(formData.value.password !== formData.value.pwConfirm) {
+	if(formData.value.password !== formData.value.passwordConfirm) {
 		cb('Passwords do not match!', [ 9, 10 ]);
 		return;
 	}

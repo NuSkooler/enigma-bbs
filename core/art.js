@@ -498,12 +498,15 @@ function display(options, cb) {
 	var ansiFont = '';
 	if(options.font) {
 		//	:TODO: how to set to ignore SAUCE?		
-		ansiFont = ansi.setFont(options.font);
+		ansiFont = ansi.setSyncTERMFont(options.font);
 	} else if(options.sauce) {
 		var fontName = getFontNameFromSAUCE(options.sauce);
+		if(fontName) {
+			fontName = ansi.getSyncTERMFontFromAlias(fontName);
+		}
 		
 		if(fontName) {
-			ansiFont = ansi.setFont(fontName);
+			ansiFont = ansi.setSyncTERMFont(fontName);
 		}
 	}
 
