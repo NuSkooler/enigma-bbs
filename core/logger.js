@@ -23,7 +23,11 @@ module.exports	= {
 				logPathError = logPath + ' is not a directory!';
 			}
 		} catch(e) {
-			logPathError = e.message;
+			if('ENOENT' === e.code) {
+				logPathError = 'No such file or directory: ' + logPath;
+			} else {
+				logPathError = e.message;
+			}
 		}
 
 		if(logPathError) {

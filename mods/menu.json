@@ -153,5 +153,20 @@
 			//	:TODO: implement MCI codes for this
 			"cls" : true
 		}
+	},
+	"demoMain" : {
+		"art" : "DEMOMAIN",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"VM1" : {
+					"mci" : {
+						"VM1" : {
+							"items" : [ "Views" ]
+						}
+					}
+				}
+			}
+		}
 	}
 }

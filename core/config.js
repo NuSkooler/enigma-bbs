@@ -77,6 +77,7 @@ function getDefaultConfig() {
 		
 		preLoginTheme : '*',
 
+		//	:TODO: change to nua
 		users : {
 			usernameMin			: 2,
 			usernameMax			: 22,
