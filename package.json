@@ -6,10 +6,12 @@
 	"dependencies" : {
 		"async" : "0.9.x",
 		"binary" : "0.3.x",
+		"buffers" : "0.1.x",
 		"bunyan" : "1.3.x",
 		"iconv-lite" : "0.4.x",
 		"lodash" : "3.7.x",
 		"sqlite3" : "3.0.x",
+		"ssh2" : "0.4.x",
 		"strip-json-comments" : "1.0.x"
 	},
 	"engine" : "node >= 0.12.2"
