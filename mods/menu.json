@@ -162,9 +162,27 @@
 				"VM1" : {
 					"mci" : {
 						"VM1" : {
-							"items" : [ "Views" ]
+							"items" : [ "Edit Text View", "Other" ]
 						}
+					},
+					"submit" : {
+						"*" : [
+							{
+								"value" : { "1" : 0 },
+								"action" : "@menu:demoEditTextView"
+							}
+						]
 					}
+				}
+			}
+		}
+	},
+	"demoEditTextView" : {
+		"art" : "demo_edit_text_view.ans",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"CB4ET1ET2ET3ET4ET5" : {
 				}
 			}
 		}
