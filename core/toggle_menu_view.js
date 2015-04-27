@@ -60,13 +60,13 @@ ToggleMenuView.prototype.setFocus = function(focused) {
 };
 
 ToggleMenuView.prototype.onKeyPress = function(key, isSpecial) {	
-	if(isSpecial || !this.hotkeys) {
+	if(isSpecial || !this.hotKeys) {
 		return;
 	}
 
 	assert(1 === key.length);
 
-	var keyIndex = this.hotkeys[key];
+	var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? key.toLowerCase() : key];
 	if(!_.isUndefined(keyIndex)) {
 		this.focusedItemIndex = keyIndex;
 		this.updateSelection();

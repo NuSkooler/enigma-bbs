@@ -25,7 +25,9 @@ function MenuView(options) {
 		this.items = [];
 	}
 
-	this.setHotKeys(options.hotkeys);
+	this.caseInsensitiveHotKeys = miscUtil.valueWithDefault(options.caseInsensitiveHotKeys, true);
+
+	this.setHotKeys(options.hotKeys);
 
 	this.focusedItemIndex = options.focusedItemIndex || 0;
 	this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
@@ -103,9 +105,16 @@ MenuView.prototype.setItems = function(items) {
 	}
 };
 
-MenuView.prototype.setHotKeys = function(hotkeys) {
-	if(_.isObject(hotkeys)) {
-		this.hotkeys = hotkeys;
+MenuView.prototype.setHotKeys = function(hotKeys) {
+	if(_.isObject(hotKeys)) {
+		if(this.caseInsensitiveHotKeys) {
+			this.hotKeys = {};
+			for(var key in hotKeys) {
+				this.hotKeys[key.toLowerCase()] = hotKeys[key];
+			}
+		} else {
+			this.hotKeys = hotKeys;	
+		}	
 	}
 }
 
