@@ -34,7 +34,6 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 
 	assert(1 === key.length);
 
-	//	:TODO: how to handle justify left/center?
 	if(this.text.length < this.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 
@@ -58,8 +57,6 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 };
 
 EditTextView.prototype.onSpecialKeyPress = function(keyName) {
-	//	:TODO: handle 'enter' & others for multiLine
-
 	if(this.isSpecialKeyMapped('backspace', keyName)) {
 		if(this.text.length > 0) {
 			this.text = this.text.substr(0, this.text.length - 1);
@@ -73,6 +70,10 @@ EditTextView.prototype.onSpecialKeyPress = function(keyName) {
 				}
 			}
 		}
+	} else if(this.isSpecialKeyMapped('clearLine', keyName)) {
+		this.text			= '';
+		this.cursorPos.x	= 0;
+		this.setFocus(true);	//	resetting focus will redraw & adjust cursor
 	}
 
 

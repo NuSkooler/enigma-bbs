@@ -203,6 +203,11 @@ function ViewController(options) {
 			view.textMaskChar = self.client.currentThemeInfo.getPasswordChar();
 		}
 
+		value = getViewProp('hotkeys');
+		if(_.isObject(value)) {
+			view.setHotKeys(value);
+		}
+
 
 		value = getViewProp('submit');
 		if(_.isBoolean(value)) {

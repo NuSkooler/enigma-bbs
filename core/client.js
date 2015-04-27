@@ -17,12 +17,18 @@ exports.Client	= Client;
 //var ANSI_CONTROL_REGEX	= /(?:(?:\u001b\[)|\u009b)(?:(?:[0-9]{1,3})?(?:(?:;[0-9]{0,3})*)?[A-M|f-m])|\u001b[A-M]/g;
 
 //	:TODO: Move all of the key stuff to it's own module
+
+//
+//	Resources & Standards:
+//	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
+//
 var ANSI_KEY_NAME_MAP = {
-	0x08	: 'backspace',
-	0x09	: 'tab',
+	0x08	: 'backspace',		//	BS
+	0x09	: 'tab',			//	
 	0x7f	: 'del',
 	0x1b	: 'esc',
 	0x0d	: 'enter',
+	0x19	: 'end of medium',	//	EM / CTRL-Y
 };
 
 var ANSI_KEY_CSI_NAME_MAP = {

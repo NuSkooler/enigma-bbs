@@ -16,7 +16,7 @@ function VerticalMenuView(options) {
 
 	var self = this;
 
-	this.itemSpacing = 3;
+	this.itemSpacing = 3;	//	:TODO: bring from options/configurable
 
 	this.calculateDimens = function() {
 		if(!self.dimens || !self.dimens.width) {
@@ -52,6 +52,19 @@ function VerticalMenuView(options) {
 			}
 			self.positionCacheExpired = false;
 		}
+	};
+
+	this.changeSelection = function(fromIndex, toIndex) {
+		assert(!self.positionCacheExpired);
+		assert(fromIndex >= 0 && fromIndex <= self.items.length);
+		assert(toIndex >= 0 && toIndex <= self.items.length);
+
+		self.items[fromIndex].focused	= false;
+		self.drawItem(fromIndex);
+
+		self.items[toIndex].focused 	= true;
+		self.focusedItemIndex			= toIndex;
+		self.drawItem(toIndex);
 	};
 
 	this.drawItem = function(index) {
@@ -91,6 +104,7 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
+
 VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 
 	var prevFocusedItemIndex = this.focusedItemIndex;
@@ -110,7 +124,7 @@ VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 	}
 
 	if(prevFocusedItemIndex !== this.focusedItemIndex) {
-		this.moveSelection(prevFocusedItemIndex, this.focusedItemIndex);
+		this.changeSelection(prevFocusedItemIndex, this.focusedItemIndex);
 	}
 
 	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);

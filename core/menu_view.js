@@ -4,8 +4,10 @@
 var View			= require('./view.js').View;
 var ansi			= require('./ansi_term.js');
 var miscUtil		= require('./misc_util.js');
+
 var util			= require('util');
 var assert			= require('assert');
+var _				= require('lodash');
 
 exports.MenuView	= MenuView;
 
@@ -23,6 +25,8 @@ function MenuView(options) {
 		this.items = [];
 	}
 
+	this.setHotKeys(options.hotkeys);
+
 	this.focusedItemIndex = options.focusedItemIndex || 0;
 	this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
@@ -35,6 +39,7 @@ function MenuView(options) {
 	this.fillChar		= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
 	this.justify		= options.justify || 'none';
 
+	/*
 	this.moveSelection = function(fromIndex, toIndex) {
 		assert(!self.positionCacheExpired);
 		assert(fromIndex >= 0 && fromIndex <= self.items.length);
@@ -47,6 +52,7 @@ function MenuView(options) {
 		self.focusedItemIndex			= toIndex;
 		self.drawItem(toIndex);
 	};
+	*/
 
 	/*
 	this.cachePositions = function() {
@@ -96,4 +102,10 @@ MenuView.prototype.setItems = function(items) {
 		});
 	}
 };
+
+MenuView.prototype.setHotKeys = function(hotkeys) {
+	if(_.isObject(hotkeys)) {
+		this.hotkeys = hotkeys;
+	}
+}
 
