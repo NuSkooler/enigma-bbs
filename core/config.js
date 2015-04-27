@@ -83,7 +83,7 @@ function getDefaultConfig() {
 			usernameMax			: 22,
 			usernamePattern		: '^[A-Za-z0-9~!@#$%^&*()\\-\\_+]+$',
 			passwordMin			: 6,
-			passwordMax			: 256,
+			passwordMax			: 128,
 			requireActivation	: true,	//	require SysOp activation?
 			invalidUsernames	: [],
 		},

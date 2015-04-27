@@ -14,8 +14,10 @@ function EditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
 	options.resizable		= false;
-
+	
 	TextView.call(this, options);
+
+	this.cursorPos = { x : 0 };
 
 	this.clientBackspace = function() {
 		this.client.term.write(
@@ -33,15 +35,22 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 	assert(1 === key.length);
 
 	//	:TODO: how to handle justify left/center?
-	if(!_.isNumber(this.maxLength) || this.text.length < this.maxLength) {
+	if(this.text.length < this.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 
 		this.text += key;
 
-		if(this.textMaskChar) {
-			this.client.term.write(this.textMaskChar);
+		if(this.text.length > this.dimens.width) {
+			//	no shortcuts - redraw the view
+			this.redraw();
 		} else {
-			this.client.term.write(key);
+			this.cursorPos.x += 1;
+
+			if(this.textMaskChar) {
+				this.client.term.write(this.textMaskChar);
+			} else {
+				this.client.term.write(key);
+			}
 		}
 	}
 
@@ -54,9 +63,18 @@ EditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('backspace', keyName)) {
 		if(this.text.length > 0) {
 			this.text = this.text.substr(0, this.text.length - 1);
-			this.clientBackspace();
+
+			if(this.text.length >= this.dimens.width) {
+				this.redraw();
+			} else {
+				this.cursorPos.x -= 1;
+				if(this.cursorPos.x >= 0) {
+					this.clientBackspace();
+				}
+			}
 		}
 	}
+
 
 	EditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };

@@ -49,9 +49,6 @@ function View(options) {
 		this.setPosition(options.position);
 	}
 
-
-//	this.isPasswordTextStyle = 'P' === this.textStyle || 'password' === this.textStyle;
-
 	//	:TODO: Don't allow width/height > client.term
 	if(options.dimens && options.dimens.height) {
 		this.dimens.height = options.dimens.height;

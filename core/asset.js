@@ -8,6 +8,7 @@ var assert		= require('assert');
 
 exports.parseAsset			= parseAsset;
 exports.getArtAsset			= getArtAsset;
+exports.resolveConfigAsset	= resolveConfigAsset;
 
 var ALL_ASSETS = [
 	'art',
@@ -15,6 +16,7 @@ var ALL_ASSETS = [
 	'method',
 	'systemMethod',
 	'prompt',
+	'config',
 ];
 
 var ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
@@ -36,7 +38,7 @@ function parseAsset(s) {
 	}
 }
 
-function getArtAsset(art, cb) {
+function getArtAsset(art) {
 	if(!_.isString(art)) {
 		return null;
 	}
@@ -51,5 +53,24 @@ function getArtAsset(art, cb) {
 			type	: 'art',
 			asset	: art,
 		};
+	}
+}
+
+function resolveConfigAsset(from) {
+	var asset = parseAsset(from);
+	if(asset) {
+		assert('config' === asset.type);
+
+		var path = asset.asset.split('.');
+		var conf = Config;
+		for(var i = 0; i < path.length; ++i) {
+			if(_.isUndefined(conf[path[i]])) {
+				return from;
+			}
+			conf = conf[path[i]];
+		}
+		return conf;
+	} else {
+		return from;
 	}
 }

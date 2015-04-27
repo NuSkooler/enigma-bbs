@@ -70,6 +70,17 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		return false;
 	}
 
+	function setWidth(pos) {
+		if(mci.args.length > pos && mci.args[pos].length > 0) {
+			if(!_.isObject(options.dimens)) {
+				options.dimens = {};
+			}
+			options.dimens.width = parseInt(mci.args[pos], 10);
+			return true;
+		}
+		return false;
+	}
+
 	function setFocusOption(pos, name) {
 		if(mci.focusArgs && mci.focusArgs.length > pos && mci.focusArgs[pos].length > 0) {
 			options[name] = mci.focusArgs[pos];
@@ -82,30 +93,31 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		case 'TL' : 
 			setOption(0,	'textStyle');
 			setOption(1,	'justify');
+			setWidth(2);
+
+
+			/*
 			if(setOption(2,	'maxLength')) {
 				options.maxLength	= parseInt(options.maxLength, 10);
 				options.dimens		= { width : options.maxLength };
 			}
+			*/
 
 			view = new TextView(options);
 			break;
 
 		//	Edit Text
 		case 'ET' :
+			setWidth(0);
+			/*
 			if(setOption(0, 'maxLength')) {
 				options.maxLength	= parseInt(options.maxLength, 10);	//	ensure number
 				options.dimens		= { width : options.maxLength };
 			}
+			*/
 
-			setOption(1, 'textStyle');
-
-			if(options.textStyle === 'P') {
-				//	Assign the proper password character / text mask
-				assert(_.isObject(this.client.currentThemeInfo));
-				options.textMaskChar = this.client.currentThemeInfo.getPasswordChar();
-			}
-
-			setFocusOption(0, 'focusTextStyle');
+			setOption(1, 		'textStyle');
+			setFocusOption(0,	'focusTextStyle');
 
 			view = new EditTextView(options);
 			break;
@@ -117,11 +129,14 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 				if(options.text) {
 					setOption(1, 'textStyle');
 					setOption(2, 'justify');
+					setWidth(3);
 
+					/*
 					if(setOption(3, 'maxLength')) {
 						options.maxLength	= parseInt(options.maxLength, 10);
 						options.dimens		= { width : options.maxLength };
 					}
+					*/
 
 					view = new TextView(options);
 				}

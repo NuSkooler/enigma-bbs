@@ -99,20 +99,41 @@
 		"form"		: {
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
+					//
+					//	"beforeViewsDraw" : "@method:location.js/myBeforeViewsDraw" -> myBeforeViewsDraw(views)
 					"mci" : {
 						"ET1" : {
 							"focus"		: true,
 							"argName"	: "username"
 						},
-						"ET2" : { "argName" : "realName" },
+						"ET2" : {
+							"argName" : "realName",
+							"maxLength" : "@config:users.usernameMax"
+						},
 						"ET3" : { "argName" : "age" },
 						"ET4" : { "argName" : "sex" },
 						"ET5" : { "argName" : "location" },
-						"ET6" : { "argName" : "affils" },
-						"ET7" : { "argName" : "email" },
-						"ET8" : { "argName" : "web" },
-						"ET9" : { "argName" : "password" },
-						"ET10" : { "argName" : "passwordConfirm" },
+						"ET6" : {
+							"argName" : "affils",
+							"maxLength" : 30
+						},
+						"ET7" : {
+							"argName" : "email",
+							"maxLength" : 255
+						},
+						"ET8" : {
+							"argName" : "web",
+							"maxLength" : 255
+						},
+						"ET9" : {
+							"argName" : "password",
+							"password" : true
+						},
+						"ET10" : {
+							"argName" : "passwordConfirm",
+							"password" : true,
+							"maxLength" : "@config:users.passwordMax"
+						},
 						"BT12" : {
 							"submit" : true,
 							"text"	: "Apply"
@@ -162,7 +183,8 @@
 				"VM1" : {
 					"mci" : {
 						"VM1" : {
-							"items" : [ "Edit Text View", "Other" ]
+							"items" : [ "Edit Text View", "Other" ],
+							"focusTextStyle" : "U"
 						}
 					},
 					"submit" : {
@@ -182,7 +204,17 @@
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
-				"CB4ET1ET2ET3ET4ET5" : {
+				"CB4ET1ET2ET3ET5" : {
+					"mci" : {
+						"ET1" : { "maxLength" : 1 },
+						"ET2" : { "maxLength" : 1 },
+						"ET3" : { "maxLength" : 1 },
+						"ET5" : {
+							"password" : true,
+							"submit" : [ "esc" ],
+							"fillChar" : "#"
+						}
+					}
 				}
 			}
 		}

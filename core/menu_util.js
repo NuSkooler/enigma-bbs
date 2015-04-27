@@ -148,6 +148,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	var formForId = menuConfig.form[formId];
 
 	var mciReqKey = _.sortBy(Object.keys(mciMap), String).join('');
+	Log.trace( { mciKey : mciReqKey }, 'Looking for MCI configuration key');
 	if(_.isObject(formForId[mciReqKey])) {
 		cb(null, formForId[mciReqKey]);
 		return;

@@ -120,6 +120,7 @@ function ViewController(options) {
 	};
 
 	this.getLogFriendlyFormData = function(formData) {
+		//	:TODO: these fields should be part of menu.json sensitiveMembers[]
 		var safeFormData = _.cloneDeep(formData);
 		if(safeFormData.value.password) {
 			safeFormData.value.password = '*****';
@@ -149,8 +150,6 @@ function ViewController(options) {
 				view.on('action', self.viewActionListener);
 
 				self.addView(view);
-
-				view.redraw();	//	:TODO: fix double-redraw if this is the item we set focus to!
 			}
 
 			nextItem(null);
@@ -162,21 +161,54 @@ function ViewController(options) {
 	};
 
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
-		if(_.isBoolean(conf.submit)) {
-			view.submit = conf.submit;
-		} else if(_.isArray(conf.submit) && conf.submit.length > 0) {
-			view.submit = true;
+
+		function getViewProp(propName) {
+			if(conf[propName]) {
+				return asset.resolveConfigAsset(conf[propName]);
+			}
+		}
+
+		function setSimpleViewProp(propName) {
+			var propValue = getViewProp(propName);
+			if(propValue) {
+				view[propName] = propValue;
+			}
+		}
+
+		var value;
+
+		value = getViewProp('items');
+		if(value) {
+			view.setItems(value);
+		}
+
+		value = getViewProp('text');
+		if(value) {
+			view.setText(value);
+		}
+
+		setSimpleViewProp('textStyle');
+		setSimpleViewProp('focusTextStyle');
+		setSimpleViewProp('fillChar');
+		setSimpleViewProp('maxLength');
+
+		value = getViewProp('textMaskChar');
+		if(_.isString(value)) {
+			view.textMaskChar = value.substr(0, 1);
+		} else if(value && true === value) {
+			//
+			//	Option that should normally be used in order to
+			//	get the password character from Config/theme
+			//
+			view.textMaskChar = self.client.currentThemeInfo.getPasswordChar();
+		}
+
+
+		value = getViewProp('submit');
+		if(_.isBoolean(value)) {
+			view.submit = value;
 		} else {
-			view.submit = false;
-		}
-		//view.submit = conf.submit || false;
-
-		if(_.isArray(conf.items)) {
-			view.setItems(conf.items);
-		}
-
-		if(_.isString(conf.text)) {
-			view.setText(conf.text);
+			view.submit = _.isArray(value) && value.length > 0;
 		}
 
 		if(_.isString(conf.argName)) {
@@ -196,6 +228,13 @@ function ViewController(options) {
 			assert(!isNaN(viewId));
 
 			var view		= self.getView(viewId);
+			
+			if(!view) {
+				Log.warn( { viewId : viewId }, 'Cannot find view');
+				nextItem(null);
+				return;
+			}
+
 			var mciConf		= config.mci[mci];
 
 			self.setViewPropertiesFromMCIConf(view, mciConf);
@@ -328,6 +367,7 @@ ViewController.prototype.setViewOrder = function(order) {
 	}
 };
 
+/*
 ViewController.prototype.loadFromMCIMap = function(mciMap) {
 	var factory = new MCIViewFactory(this.client);
 	var self	= this;
@@ -343,6 +383,7 @@ ViewController.prototype.loadFromMCIMap = function(mciMap) {
 		}
 	});
 };
+*/
 
 ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options));
@@ -373,6 +414,15 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 					menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
 				});
 
+				callback(null);
+			},
+			function drawAllViews(callback) {
+				for(var id in self.views) {
+					if(initialFocusId === id) {
+						continue;	//	will draw @ focus
+					}
+					self.views[id].redraw();
+				}
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
@@ -499,6 +549,15 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					}
 				});
 
+				callback(null);
+			},
+			function drawAllViews(callback) {
+				for(var id in self.views) {
+					if(initialFocusId === id) {
+						continue;	//	will draw @ focus
+					}
+					self.views[id].redraw();
+				}
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
