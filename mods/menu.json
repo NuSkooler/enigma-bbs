@@ -204,11 +204,14 @@
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
-				"CB4ET1ET2ET3ET5" : {
+				"ET1ET2ET3ET5SM4" : {
 					"mci" : {
 						"ET1" : { "maxLength" : 1 },
 						"ET2" : { "maxLength" : 1 },
 						"ET3" : { "maxLength" : 1 },
+						"SM4" : {
+							"items" : [ "YES", "NO", "Maybe So" ]
+						},
 						"ET5" : {
 							"password" : true,
 							"submit" : [ "esc" ],

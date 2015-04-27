@@ -60,7 +60,7 @@ function MenuView(options) {
 
 util.inherits(MenuView, View);
 
-MenuView.prototype.redraw = function() {
+MenuView.prototype.redrawAllItems = function() {
 	MenuView.super_.prototype.redraw.call(this);
 
 	this.cachePositions();
@@ -71,6 +71,19 @@ MenuView.prototype.redraw = function() {
 		this.drawItem(i);
 	}
 };
+/*
+
+MenuView.prototype.redraw = function() {
+	MenuView.super_.prototype.redraw.call(this);
+
+	this.cachePositions();
+
+	var count = this.items.length;
+	for(var i = 0; i < count; ++i) {
+		this.items[i].focused = this.focusedItemIndex === i;
+		this.drawItem(i);
+	}
+};*/
 
 MenuView.prototype.setItems = function(items) {
 	var self = this;
@@ -78,8 +91,7 @@ MenuView.prototype.setItems = function(items) {
 		this.items = [];	//	:TODO: better way?
 		items.forEach(function onItem(itemText) {
 			self.items.push({
-				text		: itemText,
-				selected	: false,
+				text		: itemText
 			});
 		});
 	}

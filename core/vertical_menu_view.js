@@ -64,7 +64,7 @@ function VerticalMenuView(options) {
 
 		self.client.term.write(ansi.goto(item.xPosition, self.position.y));
 		this.client.term.write(self.getANSIColor(
-			index === self.focusedItemIndex || item.selected ? self.getFocusColor() : self.getColor()));
+			index === self.focusedItemIndex ? self.getFocusColor() : self.getColor()));
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 
@@ -74,6 +74,10 @@ function VerticalMenuView(options) {
 }
 
 util.inherits(VerticalMenuView, MenuView);
+
+VerticalMenuView.prototype.redraw = function() {
+	VerticalMenuView.super_.prototype.redrawAllItems.call(this);
+};
 
 VerticalMenuView.prototype.setPosition = function(pos) {
 	VerticalMenuView.super_.prototype.setPosition.call(this, pos);

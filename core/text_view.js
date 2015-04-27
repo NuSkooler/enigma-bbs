@@ -37,11 +37,11 @@ function TextView(options) {
 	this.drawText = function(s) {
 
 		//             
+		//                     |<- this.maxLength
 		//	 ABCDEFGHIJK
-		//	|ABCDEFG|  ^_ length
-		//	        ^-- dimens.width
+		//	|ABCDEFG|  ^_ this.text.length
+		//	        ^-- this.dimens.width
 		//
-
 		var textToDraw = _.isString(this.textMaskChar) ? 
 			new Array(s.length + 1).join(this.textMaskChar) : 
 			strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
@@ -58,31 +58,7 @@ function TextView(options) {
 		var textAnsiColor = this.getANSIColor(this.hasFocus ? this.getFocusColor() : this.getColor());
 		var fillAnsiColor = this.getANSIColor(this.getColor());
 
-		//console.log(textToDraw)
-		///console.log(this.dimens.width + 1)
-
 		this.client.term.write(strUtil.pad(textToDraw, this.dimens.width + 1, this.fillChar, this.justify, textAnsiColor, fillAnsiColor));
-
-/*
-		if(_.isString(this.textMaskChar)) {
-			this.client.term.write(strUtil.pad(
-				new Array(s.length + 1).join(this.textMaskChar), 
-				this.dimens.width + 1, 
-				this.fillChar, 
-				this.justify,
-				ansiColor,
-				this.getANSIColor(this.getColor())));
-		} else {
-			var text = strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
-			this.client.term.write(strUtil.pad(
-				text, 
-				this.dimens.width + 1, 
-				this.fillChar, 
-				this.justify,
-				ansiColor,
-				this.getANSIColor(this.getColor())));
-		}
-		*/
 	};
 
 	this.setText(options.text || '');

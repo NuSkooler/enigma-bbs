@@ -5,9 +5,9 @@ var TextView			= require('./text_view.js').TextView;
 var EditTextView		= require('./edit_text_view.js').EditTextView;
 var ButtonView			= require('./button_view.js').ButtonView;
 var VerticalMenuView	= require('./vertical_menu_view.js').VerticalMenuView;
+var SpinnerMenuView		= require('./spinner_menu_view.js').SpinnerMenuView;
 var Config				= require('./config.js').config;
 var packageJson 		= require('../package.json');
-
 
 var assert				= require('assert');
 var os					= require('os');
@@ -166,6 +166,15 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new VerticalMenuView(options);
+			break;
+
+		case 'SM' :
+			setOption(0,		'textStyle');
+			setOption(1, 		'justify');
+
+			setFocusOption(0,	'focusTextStyle');
+			
+			view = new SpinnerMenuView(options);
 			break;
 
 		default :
