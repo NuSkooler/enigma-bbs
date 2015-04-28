@@ -42,7 +42,6 @@ function TextView(options) {
 		//	|ABCDEFG|  ^_ this.text.length
 		//	        ^-- this.dimens.width
 		//
-		console.log(this.position.x)
 		var textToDraw = _.isString(this.textMaskChar) ? 
 			new Array(s.length + 1).join(this.textMaskChar) : 
 			strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);

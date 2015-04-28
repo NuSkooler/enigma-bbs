@@ -7,6 +7,7 @@ var menuUtil		= require('./menu_util.js');
 var Log				= require('./logger.js').log;
 var Config			= require('./config.js').config;
 var asset			= require('./asset.js');
+var ansi			= require('./ansi_term.js');
 
 var events			= require('events');
 var util			= require('util');
@@ -160,65 +161,55 @@ function ViewController(options) {
 		});
 	};
 
+	//	:TODO: move this elsewhere
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
 
-		function getViewProp(propName) {
+		function setViewProp(propName, setter) {
 			if(conf[propName]) {
-				return asset.resolveConfigAsset(conf[propName]);
+				var propValue = asset.resolveConfigAsset(conf[propName]);
+				if(propValue) {
+					if(setter) {
+						setter(propValue);
+					} else {
+						view[propName] = propValue;
+					}
+				}
 			}
 		}
 
-		function setSimpleViewProp(propName) {
-			var propValue = getViewProp(propName);
-			if(propValue) {
-				view[propName] = propValue;
+		setViewProp('items', function(v) { view.setItems(v); });
+		setViewProp('text', function(v) { view.setText(v); });
+		setViewProp('textStyle');
+		setViewProp('focusTextStyle');
+		setViewProp('maxLength');
+		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
+
+		setViewProp('fillChar', function(v) {
+			if(_.isNumber(v)) {
+				view.fillChar = String.fromCharCode(v);
+			} else if(_.isString(v)) {
+				view.fillChar = v.substr(0, 1);
 			}
-		}
+		});
 
-		var value;
+		setViewProp('password', function(v) {
+			if(true === v) {
+				view.textMaskChar = self.client.currentThemeInfo.getPasswordChar();
+			}
+		});
 
-		value = getViewProp('items');
-		if(value) {
-			view.setItems(value);
-		}
+		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
+		setViewProp('hotKeys', function(v) { view.setHotKeys(v); });
 
-		value = getViewProp('text');
-		if(value) {
-			view.setText(value);
-		}
+		setViewProp('submit', function(v) {
+			if(_.isBoolean(v)) {
+				view.submit = v;
+			} else {
+				view.submit = _.isArray(v) && v.length > 0;
+			}
+		});
 
-		setSimpleViewProp('textStyle');
-		setSimpleViewProp('focusTextStyle');
-		setSimpleViewProp('fillChar');
-		setSimpleViewProp('maxLength');
-
-		value = getViewProp('textMaskChar');
-		if(_.isString(value)) {
-			view.textMaskChar = value.substr(0, 1);
-		} else if(value && true === value) {
-			//
-			//	Option that should normally be used in order to
-			//	get the password character from Config/theme
-			//
-			view.textMaskChar = self.client.currentThemeInfo.getPasswordChar();
-		}
-
-		value = getViewProp('hotkeys');
-		if(_.isObject(value)) {
-			view.setHotKeys(value);
-		}
-
-
-		value = getViewProp('submit');
-		if(_.isBoolean(value)) {
-			view.submit = value;
-		} else {
-			view.submit = _.isArray(value) && value.length > 0;
-		}
-
-		if(_.isString(conf.argName)) {
-			view.submitArgName = conf.argName;
-		}
+		setViewProp('argName', function(v) { view.submitArgName = v; });
 	};
 
 	this.applyViewConfig = function(config, cb) {
@@ -372,24 +363,6 @@ ViewController.prototype.setViewOrder = function(order) {
 	}
 };
 
-/*
-ViewController.prototype.loadFromMCIMap = function(mciMap) {
-	var factory = new MCIViewFactory(this.client);
-	var self	= this;
-
-	Object.keys(mciMap).forEach(function onMciEntry(name) {
-		var mci		= mciMap[name];
-		var view	= factory.createFromMCI(mci);
-
-		if(view) {
-			view.on('action', self.viewActionListener);
-			self.addView(view);
-			view.redraw();	//	:TODO: This can result in double redraw() if we set focus on this item after
-		}
-	});
-};
-*/
-
 ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.mciMap));
@@ -422,6 +395,8 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
+				self.client.term.write(ansi.hideCursor());
+				
 				for(var id in self.views) {
 					if(initialFocusId === id) {
 						continue;	//	will draw @ focus
@@ -557,6 +532,8 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
+				self.client.term.write(ansi.hideCursor());
+
 				for(var id in self.views) {
 					if(initialFocusId === id) {
 						continue;	//	will draw @ focus

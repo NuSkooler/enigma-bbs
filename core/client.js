@@ -100,8 +100,6 @@ function Client(input, output) {
 		var c;
 		var name;
 
-		console.log(data)
-
 		if(1 === len) {
 			c = data[0];
 			

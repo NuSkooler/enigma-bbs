@@ -204,19 +204,29 @@
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
-				"BT4ET1ET2ET3" : {
+				"BT5ET1ET2ET3ET4" : {
 					"mci" : {
 						"ET1" : {
+							"width"		: 20,
 							"maxLength" : 20
 						},
 						"ET2" : {
-							"maxLength" : 20
+							"width"		: 20,
+							"maxLength" : 40
 						},
 						"ET3" : {
-							"fillChar" : " ",
+							"width"		: 20,
+							"fillChar" : "-",
+							//	:TODO: fillColor
 							"maxLength" : 20
 						},
-						"BT4" : {
+						"ET4" : {
+							"width"		: 20,
+							"maxLength"	: 20,
+							"password"	: true
+						},
+						"BT5" : {
+							"width" : 8,
 							"text" : "Back",
 							"submit" : true
 						}
@@ -233,6 +243,16 @@
 			}
 		}
 	}
+	/*
+	:TODO: conceptual simplified menus -- actions/etc. without forms
+	"thing" : {
+		"mci" : {
+			"ET1" : {
+				"action" : "@menu:stuff"
+			}
+		}
+	}
+	*/
 	/*
 	"demoEditTextView" : {
 		"art" : "demo_edit_text_view.ans",
