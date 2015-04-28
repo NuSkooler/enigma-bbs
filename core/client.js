@@ -23,6 +23,7 @@ var ANSI_KEY_NAME_MAP = {
 	0x7f	: 'del',
 	0x1b	: 'esc',
 	0x0d	: 'enter',
+	0x19	: 'ctrl-y'
 };
 
 var ANSI_KEY_CSI_NAME_MAP = {
@@ -93,6 +94,8 @@ function Client(input, output) {
 		var len = data.length;
 		var c;
 		var name;
+
+		console.log(data)
 
 		if(1 === len) {
 			c = data[0];

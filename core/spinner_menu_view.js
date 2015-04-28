@@ -13,20 +13,14 @@ exports.SpinnerMenuView	= SpinnerMenuView;
 
 function SpinnerMenuView(options) {
 	options.justify	= options.justify || 'center';
+	options.cursor	= options.cursor || 'hide';
 
 	MenuView.call(this, options);
 	
 	var self = this;
 
 	this.cachePositions = function() {
-		if(self.positionCacheExpired) {
-			var count = this.items.length;
-			//	:TODO: change all xPosition, yPosition -> position.x, .y
-			for(var i = 0; i < count; ++i) {
-				self.items[i].xPosition = self.position.x;
-			}
-			self.positionCacheExpired = false;
-		}
+		self.positionCacheExpired = false;
 	};
 
 	this.updateSelection = function() {

@@ -26,6 +26,7 @@ exports.goHome						= goHome;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
+exports.setCursorStyle				= setCursorStyle;
 exports.fromPipeCode				= fromPipeCode;
 
 
@@ -245,6 +246,25 @@ function setSyncTERMFont(name, fontPage) {
 
 function getSyncTERMFontFromAlias(alias) {
 	return FONT_ALIAS_TO_SYNCTERM_MAP[alias.toLowerCase().replace(/ /g, '_')];
+}
+
+var DEC_CURSOR_STYLE = {
+	'blinking block'	: 0,
+	'default'			: 1,
+	'steady block'		: 2,
+	'blinking underline'	: 3,
+	'steady underline'	: 4,
+	'blinking bar'		: 5,
+	'steady bar'		: 6,
+};
+
+function setCursorStyle(cursorStyle) {
+	var ps = DEC_CURSOR_STYLE[cursorStyle];
+	if(ps) {
+		return ESC_CSI + ps + ' q';
+	}
+	return '';
+	
 }
 
 
