@@ -188,7 +188,8 @@
 								"Spinner & Toggle Views",
 								"Other"
 							],
-							"focusTextStyle" : "U"
+							//	:TODO: justify not working??
+							"focusTextStyle" : "small i"
 						}
 					},
 					"submit" : {

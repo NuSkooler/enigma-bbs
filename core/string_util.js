@@ -84,7 +84,7 @@ function stylizeString(s, style) {
 
 		//	Small i's: DEMENTiA
 		case 'small i' : 
-		case 'i' : return s.toUpperCase().replace('I', 'i');
+		case 'i' : return s.toUpperCase().replace(/I/g, 'i');
 
 		//	mIxeD CaSE (random upper/lower)
 		case 'mixed' :
