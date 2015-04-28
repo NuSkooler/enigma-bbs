@@ -176,14 +176,18 @@
 		}
 	},
 	"demoMain" : {
-		"art" : "DEMOMAIN",
+		"art" : "demo_main",
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
 				"VM1" : {
 					"mci" : {
 						"VM1" : {
-							"items" : [ "Edit Text View", "Other" ],
+							"items" : [
+								"Single Line Text Editing Views", 
+								"Spinner & Toggle Views",
+								"Other"
+							],
 							"focusTextStyle" : "U"
 						}
 					},
@@ -227,14 +231,14 @@
 						},
 						"BT5" : {
 							"width" : 8,
-							"text" : "Back",
-							"submit" : true
+							"text" : "< Back",
+							"submit" : [ "esc" ]
 						}
 					},
 					"submit" : {
 						"*" : [
 							{
-								"value" : 4,
+								"value" : 5,
 								"action" : "@menu:demoMain"
 							}
 						]
@@ -245,10 +249,18 @@
 	}
 	/*
 	:TODO: conceptual simplified menus -- actions/etc. without forms
-	"thing" : {
-		"mci" : {
-			"ET1" : {
-				"action" : "@menu:stuff"
+
+	{
+		"myMenu" : {
+			"art" : "MENUART",
+			"mci" : {	//	lack of "form": direct to form:0 {}
+				"VM1" : {
+					"items" : [ "Hello", "Goodbye" ],
+					"action" : "@method:someMethod"	//	implies  { "submit" : true }
+				},
+				"submit" : {
+					//	alternate form with filters
+				}
 			}
 		}
 	}

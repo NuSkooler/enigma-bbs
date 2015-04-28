@@ -459,6 +459,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			}
 		}
 
+		Log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
 		return true;
 	};
 
