@@ -18,10 +18,11 @@ var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	next		: [ 'tab' ],
 	up			: [ 'up arrow' ],
 	down		: [ 'down arrow' ],
-
-	clear		: [ 'ctrl-y' ],
 	end			: [ 'end' ],
 	home		: [ 'home' ],
+	left		: [ 'left arrow' ],
+	right		: [ 'right arrow' ],
+	clearLine	: [ 'end of medium' ],
 };
 
 function View(options) {

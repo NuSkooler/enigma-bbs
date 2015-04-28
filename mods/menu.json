@@ -200,26 +200,66 @@
 		}
 	},
 	"demoEditTextView" : {
+		"art" : "demo_edit_text_view1.ans",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"BT4ET1ET2ET3" : {
+					"mci" : {
+						"ET1" : {
+							"maxLength" : 20
+						},
+						"ET2" : {
+							"maxLength" : 20
+						},
+						"ET3" : {
+							"fillChar" : " ",
+							"maxLength" : 20
+						},
+						"BT4" : {
+							"text" : "Back",
+							"submit" : true
+						}
+					},
+					"submit" : {
+						"*" : [
+							{
+								"value" : 4,
+								"action" : "@menu:demoMain"
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+	/*
+	"demoEditTextView" : {
 		"art" : "demo_edit_text_view.ans",
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
-				"ET1ET2ET3ET5SM4" : {
+				"ET1ET2ET3ET5SM4TM6" : {
 					"mci" : {
 						"ET1" : { "maxLength" : 1 },
 						"ET2" : { "maxLength" : 1 },
 						"ET3" : { "maxLength" : 1 },
 						"SM4" : {
-							"items" : [ "YES", "NO", "Maybe So" ]
+							"items" : [ "One", "Two", "Three", "Four" ]
 						},
 						"ET5" : {
 							"password" : true,
 							"submit" : [ "esc" ],
 							"fillChar" : "#"
+						},
+						"TM6" : {
+							"items" : [ "Yes", "No" ],
+							"hotkeys" : { "Y" : 0, "n" : 1 }
 						}
 					}
 				}
 			}
 		}
 	}
+	*/
 }
