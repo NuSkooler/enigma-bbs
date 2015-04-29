@@ -76,8 +76,7 @@ function VerticalMenuView(options) {
 		}
 
 		self.client.term.write(ansi.goto(item.xPosition, self.position.y));
-		this.client.term.write(self.getANSIColor(
-			index === self.focusedItemIndex ? self.getFocusColor() : self.getColor()));
+		this.client.term.write(index === self.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 

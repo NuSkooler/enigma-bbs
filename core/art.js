@@ -456,22 +456,29 @@ function display(options, cb) {
 		var mapItem = mciCode + id;
 		//	:TODO: Avoid mutiple [] lookups here
 		if(mci[mapItem]) {
+			mci[mapItem].focusGraphicRendition = parser.graphicRendition;
+
+			/*
 			mci[mapItem].focusColor = {
 				fg		: parser.fgColor,
 				bg		: parser.bgColor,
 				flags	: parser.style,
 			};
+			*/
 			mci[mapItem].focusArgs = args;
 		} else {
 			mci[mapItem] = {
-				args : args,
+				args		: args,
+				/*
 				color : {
 					fg		: parser.fgColor,
 					bg		: parser.bgColor,
 					flags	: parser.style,
 				},
-				code	: mciCode,
-				id		: parseInt(id, 10),
+				*/
+				graphicRendition	: parser.graphicRendition,
+				code				: mciCode,
+				id					: parseInt(id, 10),
 			};
 
 			mciPosQueue.push(mapItem);

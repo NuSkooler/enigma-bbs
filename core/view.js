@@ -64,8 +64,8 @@ function View(options) {
 		this.dimens.width = options.dimens.width;
 	}
 
-	this.color			= options.color || { flags : 0, fg : 7,  bg : 0 };
-	this.focusColor		= options.focusColor || this.color;
+	this.graphicRendition		= options.graphicRendition || { fg : 7, bg : 0, styles : [ 0 ] };
+	this.focusGraphicRendition	= options.focusGraphicRendition || this.graphicRendition;
 
 	if(options.styleColor1) {
 		this.styleColor1 = options.styleColor1;
@@ -134,6 +134,7 @@ View.prototype.setPosition = function(pos) {
 		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
 };
 
+/*
 View.prototype.setColor = function(color, bgColor, flags) {
 	if(_.isObject(color)) {
 		assert(_.has(color, 'fg'));
@@ -164,14 +165,23 @@ View.prototype.setColor = function(color, bgColor, flags) {
 		this.color.bg = ansi.getBGColorValue(this.color.bg);
 	}	
 };
+*/
 
-View.prototype.getColor = function() {
-	return this.color;
-};
+View.prototype.getGraphicRendition = function() {
+	return this.graphicRendition;
+}
 
-View.prototype.getFocusColor = function() {
-	return this.focusColor;
-};
+View.prototype.getFocusGraphicRendition = function() {
+	return this.focusGraphicRendition;
+}
+
+View.prototype.getSGR = function() {
+	return ansi.getSGRFromGraphicRendition(this.getGraphicRendition());
+}
+
+View.prototype.getFocusSGR = function() {
+	return ansi.getSGRFromGraphicRendition(this.getFocusGraphicRendition());
+}
 
 View.prototype.redraw = function() {
 	this.client.term.write(ansi.goto(this.position.x, this.position.y));

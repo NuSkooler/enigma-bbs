@@ -19,6 +19,7 @@ var _			= require('lodash');
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
 exports.sgr							= sgr;
+exports.getSGRFromGraphicRendition	= getSGRFromGraphicRendition;
 exports.clearScreen					= clearScreen;
 exports.resetScreen					= resetScreen;
 exports.normal						= normal;
@@ -321,6 +322,21 @@ function sgr() {
 		}
 	}
 	return ESC_CSI + result + 'm';
+}
+
+//
+//	Converts a Graphic Rendition object used elsewhere
+//	to a ANSI SGR sequence
+//
+function getSGRFromGraphicRendition(graphicRendition) {
+	var sgrSeq = graphicRendition.styles.slice(0);	//	start out with styles
+	if(graphicRendition.fg) {
+		sgrSeq.push(graphicRendition.fg);
+	}
+	if(graphicRendition.bg) {
+		sgrSeq.push(graphicRendition.bg);
+	}
+	return sgr(sgrSeq);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

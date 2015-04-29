@@ -37,7 +37,7 @@ ToggleMenuView.prototype.redraw = function() {
 
 	this.cachePositions();
 
-	this.client.term.write(this.getANSIColor(this.hasFocus ? this.getFocusColor() : this.getColor()));
+	this.client.term.write(this.hasFocus ? this.getFocusSGR() : this.getSGR());
 
 	assert(this.items.length === 2);
 	for(var i = 0; i < 2; i++) {
@@ -47,13 +47,13 @@ ToggleMenuView.prototype.redraw = function() {
 		
 		if(1 === i) {
 			//console.log(this.styleColor1)
-			var sepColor = this.getANSIColor(this.styleColor1 || this.getColor());
-			console.log(sepColor.substr(1))
-			//sepColor = '\u001b[0m\u001b[1;30m';
+			//var sepColor = this.getANSIColor(this.styleColor1 || this.getColor());
+			//console.log(sepColor.substr(1))
+			var sepColor = '\u001b[0m\u001b[1;30m';	//	:TODO: FIX ME!!!
 			this.client.term.write(sepColor + ' / ');
 		}
 
-		this.client.term.write(this.getANSIColor(i === this.focusedItemIndex ? this.getFocusColor() : this.getColor()));
+		this.client.term.write(i === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
 		this.client.term.write(text);
 	}
 };

@@ -23,8 +23,7 @@ function EditTextView(options) {
 	this.cursorPos = { x : 0 };
 
 	this.clientBackspace = function() {
-		this.client.term.write(
-			'\b' + this.getANSIColor(this.getColor()) + this.fillChar + '\b' + this.getANSIColor(this.getFocusColor()));
+		this.client.term.write('\b' + this.getSGR() + this.fillChar + '\b' + this.getFocusSGR());
 	};
 }
 
