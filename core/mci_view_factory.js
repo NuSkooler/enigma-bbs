@@ -179,9 +179,15 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 
 		case 'TM' :
-			setOption(0,		'textStyle');
+			if(mci.args.length > 0) {
+				var color = { fg : parseInt(mci.args[0], 10), flags : 0 };
+				if(mci.args.length > 1) {
+					color.bg = parseInt(mci.args[1], 10);
+				}
+				options.styleColor1 = color;
+			}
 
-			setFocusOption(0,	'focusTextStyle')
+			setFocusOption(0,	'focusTextStyle');
 
 			view = new ToggleMenuView(options);
 			break;

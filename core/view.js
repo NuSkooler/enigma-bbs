@@ -67,6 +67,10 @@ function View(options) {
 	this.color			= options.color || { flags : 0, fg : 7,  bg : 0 };
 	this.focusColor		= options.focusColor || this.color;
 
+	if(options.styleColor1) {
+		this.styleColor1 = options.styleColor1;
+	}
+
 	if(this.acceptsInput) {
 		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
 	}

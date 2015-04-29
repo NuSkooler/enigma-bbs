@@ -459,7 +459,7 @@ function display(options, cb) {
 			mci[mapItem].focusColor = {
 				fg		: parser.fgColor,
 				bg		: parser.bgColor,
-				flags	: parser.flags,
+				flags	: parser.style,
 			};
 			mci[mapItem].focusArgs = args;
 		} else {
@@ -468,7 +468,7 @@ function display(options, cb) {
 				color : {
 					fg		: parser.fgColor,
 					bg		: parser.bgColor,
-					flags	: parser.flags,
+					flags	: parser.style,
 				},
 				code	: mciCode,
 				id		: parseInt(id, 10),

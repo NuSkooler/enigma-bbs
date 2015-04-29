@@ -16,7 +16,8 @@ function ANSIEscapeParser(options) {
 
 	this.column		= 1;
 	this.row		= 1;
-	this.flags		= 0x00;
+	this.style		= 0x00;
+	//this.style		= { 0 : true };
 	this.scrollBack	= 0;
 
 	options = miscUtil.valueWithDefault(options, {
@@ -75,7 +76,9 @@ function ANSIEscapeParser(options) {
 		//self.bgColor	= 0;
 		self.fgColor	= 39;
 		self.bgColor	= 49;
-		self.flags		= 0;
+		//self.style		= { 0 : true };
+		//delete self.style;
+		self.style		= 0;
 	};
 
 	self.rowUpdated = function() {
@@ -124,7 +127,7 @@ function ANSIEscapeParser(options) {
 
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
-			var eraseColor = ansi.sgr(self.eraseColor.flags, self.eraseColor.fgColor, self.eraseColor.bgColor);
+			var eraseColor = ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor);
 			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);			
 		} else {
 			return mci;
@@ -164,7 +167,7 @@ function ANSIEscapeParser(options) {
 					self.lastMciCode = fullMciCode;
 					
 					self.eraseColor = {
-						flags	: self.flags,
+						flags	: self.style,
 						fgColor : self.fgColor,
 						bgColor : self.bgColor, 
 					};
@@ -174,7 +177,7 @@ function ANSIEscapeParser(options) {
 				self.emit('mci', mciCode, id, args);
 
 				if(self.mciReplaceChar.length > 0) {
-					self.emit('chunk', ansi.sgr(self.eraseColor.flags, self.eraseColor.fgColor, self.eraseColor.bgColor));
+					self.emit('chunk', ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor));
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -278,33 +281,46 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
+
+				//	:TODO: reset state here for new system
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
-					/*if(0x00 === arg) {
-						self.flags = 0x00;
-						self.resetColor();
-					} else {
-						switch(Math.floor(arg / 10)) {
-							case 0	: self.flags |= arg; break;
-							case 3	: self.fgColor = arg; break;
-							case 4	: self.bgColor = arg; break;
-							//case 3	: self.fgColor = arg - 30; break;
-							//case 4	: self.bgColor = arg - 40; break;
-						}
+
+					//	:TODO: finish this system
+					//	* style is map of styleName -> boolean
+					//	* Change all fg/bg/etc -> self.state.color { fg, bg, style{} }
+					//	* Change all refs to use this new system
+					//	* When passing color -> sgr, iterate enabled styles -> additional params
+					//	* view.getANSIColor() will need updated
+					//	* art.js will need updated	
+					/*
+					if(ANSIEscapeParser.foregroundColors[arg]) {
+						self.fgColor = arg;//ANSIEscapeParser.foregroundColors[arg];
+					} else if(ANSIEscapeParser.backgroundColors[arg]) {
+						self.bgColor = arg;//ANSIEscapeParser.backgroundColors[arg];
+					} else if(39 === arg) {
+						delete self.fgColor;
+					} else if(49 === arg) {
+						delete self.bgColor;
+					} else if(ANSIEscapeParser.styles[arg]) {
+						self.style = arg;
 					}
+
 					*/
+					
 					if(arg >= 30 && arg <= 37) {
 						self.fgColor = arg;
 					} else if(arg >= 40 && arg <= 47) {
 						self.bgColor = arg;
 					} else {
-						self.flags |= arg;
+						self.style |= arg;
 						
 						if(0 === arg) {
 							self.resetColor();
-							//self.flags = 0;
+							//self.style = 0;
 						}
 					}
+					
 				}
 				break;
 
@@ -322,3 +338,41 @@ function ANSIEscapeParser(options) {
 }
 
 util.inherits(ANSIEscapeParser, events.EventEmitter);
+
+ANSIEscapeParser.foregroundColors = {
+	30	: 'black',
+	31	: 'red',
+	32	: 'green',
+	33	: 'yellow',
+	34	: 'blue',
+	35	: 'magenta',
+	36	: 'cyan',
+	37	: 'white',
+	90	: 'grey'
+};
+Object.freeze(ANSIEscapeParser.foregroundColors);
+
+ANSIEscapeParser.backgroundColors = {
+	40	: 'black',
+	41	: 'red',
+	42	: 'green',
+	43	: 'yellow',
+	44	: 'blue',
+	45	: 'magenta',
+	46	: 'cyan',
+	47	: 'white'
+};
+Object.freeze(ANSIEscapeParser.backgroundColors);
+
+ANSIEscapeParser.styles = {
+	0		: 'default',
+	1		: 'bright',
+	2		: 'dim',
+	5		: 'slow blink',
+	6		: 'fast blink',
+	7		: 'negative',
+	8		: 'concealed',
+	22		: 'normal',
+	27		: 'positive',
+};
+Object.freeze(ANSIEscapeParser.styles);

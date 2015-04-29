@@ -266,7 +266,8 @@
 							"items" : [ "Razor 1911", "DrinkOrDie", "TRSI" ]
 						},
 						"TM3" : {
-							"items" : [ "Yarly", "Nowaii" ]
+							"items" : [ "Yarly", "Nowaii" ],
+							"styleColor1" : { "fg" : 30, "flags" : 1 }
 						},
 						"BT8" : {
 							"text" : "< Back",

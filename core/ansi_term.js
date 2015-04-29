@@ -313,7 +313,7 @@ function sgr() {
 				}
 				result += SGRValues[args[i]];
 			}
-		} else if(typeof args[i] === 'number') {
+		} else if(typeof args[i] === 'number') {			
 			if(result.length > 0) {
 				result += ';';
 			}

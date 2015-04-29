@@ -183,6 +183,20 @@ function ViewController(options) {
 		setViewProp('focusTextStyle');
 		setViewProp('maxLength');
 		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
+		
+		setViewProp('styleColor1', function(v) {
+			if(!_.has(v, 'fg')) {
+				return;
+			}
+
+			var color = {
+				fg : v.fg,
+				bg : v.bg || 0,
+				flags : v.flags || 0
+			};
+
+			view.styleColor1 = color;
+		});
 
 		setViewProp('fillChar', function(v) {
 			if(_.isNumber(v)) {

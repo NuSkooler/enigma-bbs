@@ -46,7 +46,11 @@ ToggleMenuView.prototype.redraw = function() {
 			item.text, i === this.focusedItemIndex && this.hasFocus ? this.focusTextStyle : this.textStyle);
 		
 		if(1 === i) {
-			this.client.term.write(this.getANSIColor(this.getColor()) + ' / ');	//	:TODO: We need a color for this!!!
+			//console.log(this.styleColor1)
+			var sepColor = this.getANSIColor(this.styleColor1 || this.getColor());
+			console.log(sepColor.substr(1))
+			//sepColor = '\u001b[0m\u001b[1;30m';
+			this.client.term.write(sepColor + ' / ');
 		}
 
 		this.client.term.write(this.getANSIColor(i === this.focusedItemIndex ? this.getFocusColor() : this.getColor()));
