@@ -197,6 +197,10 @@
 							{
 								"value" : { "1" : 0 },
 								"action" : "@menu:demoEditTextView"
+							},
+							{
+								"value" : { "1" : 1 },
+								"action" : "@menu:demoSpinAndToggleView"
 							}
 						]
 					}
@@ -240,6 +244,39 @@
 						"*" : [
 							{
 								"value" : 5,
+								"action" : "@menu:demoMain"
+							}
+						]
+					}
+				}
+			}
+		}
+	},
+	"demoSpinAndToggleView" : {
+		"art" : "demo_spin_and_toggle.ans",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"BT8SM1SM2TM3" : {
+					"mci" : {
+						"SM1" : {
+							"items" : [ "Henry Morgan", "François l'Ollonais", "Roche Braziliano", "Black Bart", "Blackbeard" ]
+						},
+						"SM2" : {
+							"items" : [ "Razor 1911", "DrinkOrDie", "TRSI" ]
+						},
+						"TM3" : {
+							"items" : [ "Yarly", "Nowaii" ]
+						},
+						"BT8" : {
+							"text" : "< Back",
+							"submit" : [ "esc" ]
+						}
+					},
+					"submit" : {
+						"*" : [
+							{
+								"value" : 8,
 								"action" : "@menu:demoMain"
 							}
 						]

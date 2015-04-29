@@ -42,7 +42,8 @@ ToggleMenuView.prototype.redraw = function() {
 	assert(this.items.length === 2);
 	for(var i = 0; i < 2; i++) {
 		var item = this.items[i];
-		var text = strUtil.stylizeString(item.text, i === this.focusedItemIndex ? this.focusTextStyle : this.textStyle);
+		var text = strUtil.stylizeString(
+			item.text, i === this.focusedItemIndex && this.hasFocus ? this.focusTextStyle : this.textStyle);
 		
 		if(1 === i) {
 			this.client.term.write(this.getANSIColor(this.getColor()) + ' / ');	//	:TODO: We need a color for this!!!
@@ -51,7 +52,7 @@ ToggleMenuView.prototype.redraw = function() {
 		this.client.term.write(this.getANSIColor(i === this.focusedItemIndex ? this.getFocusColor() : this.getColor()));
 		this.client.term.write(text);
 	}
-}
+};
 
 ToggleMenuView.prototype.setFocus = function(focused) {
 	ToggleMenuView.super_.prototype.setFocus.call(this, focused);
@@ -73,7 +74,7 @@ ToggleMenuView.prototype.onKeyPress = function(key, isSpecial) {
 	}
 
 	ToggleMenuView.super_.prototype.onKeyPress.call(this, key, isSpecial);
-}
+};
 
 ToggleMenuView.prototype.onSpecialKeyPress = function(keyName) {
 
@@ -94,7 +95,7 @@ ToggleMenuView.prototype.onSpecialKeyPress = function(keyName) {
 	this.updateSelection();
 
 	ToggleMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
-}
+};
 
 ToggleMenuView.prototype.getData = function() {
 	return this.focusedItemIndex;
@@ -105,5 +106,5 @@ ToggleMenuView.prototype.setItems = function(items) {
 
 	this.items = this.items.splice(0, 2);	//	switch/toggle only works with two elements
 
-	this.dimens.width = this.items.join(' / ').length;	//	:TODO: allow configurable seperator
-}
+	this.dimens.width = this.items.join(' / ').length;	//	:TODO: allow configurable seperator... string & color, e.g. styleColor1 (same as fillChar color)
+};
