@@ -288,6 +288,7 @@ function ANSIEscapeParser(options) {
 
 					//	:TODO: finish this system
 					//	* style is map of styleName -> boolean
+					//	* change self.style -> self.styles
 					//	* Change all fg/bg/etc -> self.state.color { fg, bg, style{} }
 					//	* Change all refs to use this new system
 					//	* When passing color -> sgr, iterate enabled styles -> additional params

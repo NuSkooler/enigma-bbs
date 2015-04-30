@@ -323,6 +323,25 @@ function sgr() {
 	return ESC_CSI + result + 'm';
 }
 
+function ansiFromColor(color) {
+	var sgrParams = [];
+	for(var k in color.styles) {
+		if(true === color.styles[k]) {
+			sgrParams.push(k);
+		}
+	}
+
+	if(color.fg) {
+		sgrParams.push(color.fg);
+	}
+
+	if(color.bg) {
+		sgrParams.push(color.bg);
+	}
+
+	return sgr(sgrParams);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //	Shortcuts for common functions
 ///////////////////////////////////////////////////////////////////////////////
