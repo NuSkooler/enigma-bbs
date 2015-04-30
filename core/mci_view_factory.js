@@ -8,6 +8,8 @@ var VerticalMenuView	= require('./vertical_menu_view.js').VerticalMenuView;
 var SpinnerMenuView		= require('./spinner_menu_view.js').SpinnerMenuView;
 var ToggleMenuView		= require('./toggle_menu_view.js').ToggleMenuView;
 var Config				= require('./config.js').config;
+var ansi				= require('./ansi_term.js');
+
 var packageJson 		= require('../package.json');
 
 var assert				= require('assert');
@@ -96,26 +98,12 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setOption(1,	'justify');
 			setWidth(2);
 
-
-			/*
-			if(setOption(2,	'maxLength')) {
-				options.maxLength	= parseInt(options.maxLength, 10);
-				options.dimens		= { width : options.maxLength };
-			}
-			*/
-
 			view = new TextView(options);
 			break;
 
 		//	Edit Text
 		case 'ET' :
 			setWidth(0);
-			/*
-			if(setOption(0, 'maxLength')) {
-				options.maxLength	= parseInt(options.maxLength, 10);	//	ensure number
-				options.dimens		= { width : options.maxLength };
-			}
-			*/
 
 			setOption(1, 		'textStyle');
 			setFocusOption(0,	'focusTextStyle');
@@ -131,13 +119,6 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 					setOption(1, 'textStyle');
 					setOption(2, 'justify');
 					setWidth(3);
-
-					/*
-					if(setOption(3, 'maxLength')) {
-						options.maxLength	= parseInt(options.maxLength, 10);
-						options.dimens		= { width : options.maxLength };
-					}
-					*/
 
 					view = new TextView(options);
 				}
@@ -179,13 +160,12 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 
 		case 'TM' :
-		//	:TODO: convert to new Graphics Rendition system here:
 			if(mci.args.length > 0) {
-				var color = { fg : parseInt(mci.args[0], 10), flags : 0 };
+				var styleSG1 = { fg : parseInt(mci.args[0], 10) };
 				if(mci.args.length > 1) {
-					color.bg = parseInt(mci.args[1], 10);
+					styleSG1.bg = parseInt(mci.args[1], 10);
 				}
-				options.styleColor1 = color;
+				options.styleSG1 = ansi.getSGRFromGraphicRendition(styleSG1, true);
 			}
 
 			setFocusOption(0,	'focusTextStyle');

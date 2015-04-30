@@ -67,9 +67,8 @@ function View(options) {
 	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
 
-	if(options.styleColor1) {
-		this.styleColor1 = options.styleColor1;
-	}
+	this.styleSGR1		= options.styleSGR1 || this.ansiSGR;
+	this.styleSGR2		= options.styleSGR2 || this.ansiFocusSGR;
 
 	if(this.acceptsInput) {
 		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;

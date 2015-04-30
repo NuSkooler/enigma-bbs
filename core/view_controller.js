@@ -183,21 +183,24 @@ function ViewController(options) {
 		setViewProp('focusTextStyle');
 		setViewProp('maxLength');
 		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
-		
-		//	:TODO: This needs converted to new GraphicRendition object and possibly allow escaped ANSI SGR here if string
-		setViewProp('styleColor1', function(v) {
-			if(!_.has(v, 'fg')) {
-				return;
+
+		setViewProp('styleSGR1', function(v) {
+			if(_.isObject(v)) {
+				view.styleSGR1 = ansi.getSGRFromGraphicRendition(v, true);
+				console.log(view.styleSGR1.substr(1))
+			} else if(_.isString(v)) {
+				view.styleSGR1 = v;
 			}
-
-			var color = {
-				fg : v.fg,
-				bg : v.bg || 0,
-				flags : v.flags || 0
-			};
-
-			view.styleColor1 = color;
 		});
+
+		setViewProp('styleSGR2', function(v) {
+			if(_.isObject(v)) {
+				view.styleSGR2 = ansi.getSGRFromGraphicRendition(v, true);
+			} else if(_.isString(v)) {
+				view.styleSGR2 = v;
+			}
+		});
+		
 
 		setViewProp('fillChar', function(v) {
 			if(_.isNumber(v)) {

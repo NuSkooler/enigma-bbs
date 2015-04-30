@@ -267,7 +267,7 @@
 						},
 						"TM3" : {
 							"items" : [ "Yarly", "Nowaii" ],
-							"styleColor1" : { "fg" : 30, "flags" : 1 }
+							"styleSGR1" : { "fg" : 30, "intensity" : 1 }
 						},
 						"BT8" : {
 							"text" : "< Back",
