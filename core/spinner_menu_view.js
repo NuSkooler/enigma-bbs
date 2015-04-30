@@ -38,7 +38,7 @@ function SpinnerMenuView(options) {
 		}
 
 		this.client.term.write(ansi.goto(this.position.x, this.position.y));
-		this.client.term.write(self.getANSIColor(this.hasFocus ? self.getFocusColor() : self.getColor()));
+		this.client.term.write(self.hasFocus ? self.getFocusSGR() : self.getSGR());
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 

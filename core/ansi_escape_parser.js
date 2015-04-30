@@ -1,24 +1,27 @@
 /* jslint node: true */
 'use strict';
 
-var events		= require('events');
-var util		= require('util');
 var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
 
+var events		= require('events');
+var util		= require('util');
+var _			= require('lodash');
+
 exports.ANSIEscapeParser		= ANSIEscapeParser;
 
+var CR = 0x0d;
+var LF = 0x0a;
 
 function ANSIEscapeParser(options) {
 	var self = this;
 
 	events.EventEmitter.call(this);
 
-	this.column		= 1;
-	this.row		= 1;
-	this.style		= 0x00;
-	//this.style		= { 0 : true };
-	this.scrollBack	= 0;
+	this.column				= 1;
+	this.row				= 1;
+	this.scrollBack			= 0;
+	this.graphicRendition	= { styles : [] };
 
 	options = miscUtil.valueWithDefault(options, {
 		mciReplaceChar		: '',
@@ -71,23 +74,11 @@ function ANSIEscapeParser(options) {
 		self.emit('clear screen');
 	};
 
-	self.resetColor = function() {
-		//self.fgColor	= 7;
-		//self.bgColor	= 0;
-		self.fgColor	= 39;
-		self.bgColor	= 49;
-		//self.style		= { 0 : true };
-		//delete self.style;
-		self.style		= 0;
-	};
-
 	self.rowUpdated = function() {
 		self.emit('row update', self.row + self.scrollBack);
 	};
 
 	function literal(text) {
-		var CR = 0x0d;
-		var LF = 0x0a;
 		var charCode;
 
 		var len = text.length;
@@ -127,14 +118,14 @@ function ANSIEscapeParser(options) {
 
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
-			var eraseColor = ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor);
-			return eraseColor + new Array(mci.length + 1).join(self.mciReplaceChar);			
+			return ansi.getSGRFromGraphicRendition(self.graphicRendition) + new Array(mci.length + 1).join(self.mciReplaceChar);			
 		} else {
 			return mci;
 		}
 	}
 
 	function parseMCI(buffer) {
+		//	:TODO: move this to "constants" seciton @ top
 		var mciRe = /\%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Z,]+)\))*/g;
 		var pos = 0;
 		var match;
@@ -165,19 +156,16 @@ function ANSIEscapeParser(options) {
 				if(self.lastMciCode !== fullMciCode) {
 
 					self.lastMciCode = fullMciCode;
-					
-					self.eraseColor = {
-						flags	: self.style,
-						fgColor : self.fgColor,
-						bgColor : self.bgColor, 
-					};
+
+					self.graphicRenditionForErase = _.clone(self.graphicRendition, true);
 				}
 
 				
 				self.emit('mci', mciCode, id, args);
 
 				if(self.mciReplaceChar.length > 0) {
-					self.emit('chunk', ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor));
+					//self.emit('chunk', ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor));
+					self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -197,6 +185,7 @@ function ANSIEscapeParser(options) {
 
 	self.parse = function(buffer, savedRe) {
 		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
+		//	:TODO: move this to "constants" section @ top
 		var re	= /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
 		var pos = 0;
 		var match;
@@ -282,47 +271,28 @@ function ANSIEscapeParser(options) {
 			//	set graphic rendition
 			case 'm' :
 
-				//	:TODO: reset state here for new system
+				self.graphicRendition = { styles : [ 0 ] };	//	reset
+				//self.graphicRendition.styles = [ 0 ];
+
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 
-					//	:TODO: finish this system
-					//	* style is map of styleName -> boolean
-					//	* change self.style -> self.styles
-					//	* Change all fg/bg/etc -> self.state.color { fg, bg, style{} }
-					//	* Change all refs to use this new system
-					//	* When passing color -> sgr, iterate enabled styles -> additional params
-					//	* view.getANSIColor() will need updated
-					//	* art.js will need updated	
-					/*
 					if(ANSIEscapeParser.foregroundColors[arg]) {
-						self.fgColor = arg;//ANSIEscapeParser.foregroundColors[arg];
+						self.graphicRendition.fg = arg;
 					} else if(ANSIEscapeParser.backgroundColors[arg]) {
-						self.bgColor = arg;//ANSIEscapeParser.backgroundColors[arg];
+						self.graphicRendition.bg = arg;
 					} else if(39 === arg) {
-						delete self.fgColor;
+						delete self.graphicRendition.fg;
 					} else if(49 === arg) {
-						delete self.bgColor;
+						delete self.graphicRendition.bg;
 					} else if(ANSIEscapeParser.styles[arg]) {
-						self.style = arg;
+						self.graphicRendition.styles.push(arg);
+					} else if(22 === arg) {
+						//	:TODO: remove bold.
 					}
-
-					*/
-					
-					if(arg >= 30 && arg <= 37) {
-						self.fgColor = arg;
-					} else if(arg >= 40 && arg <= 47) {
-						self.bgColor = arg;
-					} else {
-						self.style |= arg;
-						
-						if(0 === arg) {
-							self.resetColor();
-							//self.style = 0;
-						}
-					}
-					
 				}
+
+				console.log(self.graphicRendition)
 				break;
 
 			//	erase display/screen
@@ -334,8 +304,6 @@ function ANSIEscapeParser(options) {
 				break;
 		}
 	}
-
-	this.resetColor();	
 }
 
 util.inherits(ANSIEscapeParser, events.EventEmitter);
@@ -365,12 +333,13 @@ ANSIEscapeParser.backgroundColors = {
 };
 Object.freeze(ANSIEscapeParser.backgroundColors);
 
+//	:TODO: ensure these all align with that of ansi_term.js
 ANSIEscapeParser.styles = {
 	0		: 'default',
 	1		: 'bright',
 	2		: 'dim',
-	5		: 'slow blink',
-	6		: 'fast blink',
+	5		: 'slowBlink',
+	6		: 'fastBlink',
 	7		: 'negative',
 	8		: 'concealed',
 	22		: 'normal',

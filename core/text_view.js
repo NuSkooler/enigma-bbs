@@ -51,14 +51,18 @@ function TextView(options) {
 			//	this is the text but too long
 			//	text but too long
 			if(this.horizScroll) {
-				textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);//0, this.dimens.width);//textToDraw.length - (this.dimens.width + 1));
+				textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
 			}
 		}
 
-		var textAnsiColor = this.getANSIColor(this.hasFocus ? this.getFocusColor() : this.getColor());
-		var fillAnsiColor = this.getANSIColor(this.getColor());
-
-		this.client.term.write(strUtil.pad(textToDraw, this.dimens.width + 1, this.fillChar, this.justify, textAnsiColor, fillAnsiColor));
+		this.client.term.write(strUtil.pad(
+			textToDraw,
+			this.dimens.width + 1,
+			this.fillChar,
+			this.justify,
+			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
+			this.getSGR()	//	:TODO: use extended style color if avail
+			));
 	};
 
 	this.setText(options.text || '');
@@ -76,8 +80,15 @@ TextView.prototype.setFocus = function(focused) {
 	TextView.super_.prototype.setFocus.call(this, focused);
 
 	this.redraw();
+
+	console.log('---')
+	console.log(this.graphicRendition)
+	console.log(this.focusGraphicRendition)
+	console.log('---')
+
+	//	position & SGR for cursor
 	this.client.term.write(ansi.goto(this.position.x, this.position.y + this.text.length));
-	this.client.term.write(this.getANSIColor(this.getFocusColor()));
+	this.client.term.write(this.getFocusSGR());
 };
 
 TextView.prototype.getData = function() {
