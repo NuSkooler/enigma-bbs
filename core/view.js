@@ -64,8 +64,8 @@ function View(options) {
 		this.dimens.width = options.dimens.width;
 	}
 
-	this.graphicRendition		= options.graphicRendition || { fg : 7, bg : 0, styles : [ 0 ] };
-	this.focusGraphicRendition	= options.focusGraphicRendition || this.graphicRendition;
+	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
 
 	if(options.styleColor1) {
 		this.styleColor1 = options.styleColor1;
@@ -167,20 +167,12 @@ View.prototype.setColor = function(color, bgColor, flags) {
 };
 */
 
-View.prototype.getGraphicRendition = function() {
-	return this.graphicRendition;
-}
-
-View.prototype.getFocusGraphicRendition = function() {
-	return this.focusGraphicRendition;
-}
-
 View.prototype.getSGR = function() {
-	return ansi.getSGRFromGraphicRendition(this.getGraphicRendition());
+	return this.ansiSGR;
 }
 
 View.prototype.getFocusSGR = function() {
-	return ansi.getSGRFromGraphicRendition(this.getFocusGraphicRendition());
+	return this.ansiFocusSGR;
 }
 
 View.prototype.redraw = function() {

@@ -21,7 +21,7 @@ function ANSIEscapeParser(options) {
 	this.column				= 1;
 	this.row				= 1;
 	this.scrollBack			= 0;
-	this.graphicRendition	= { styles : [] };
+	this.graphicRendition	= {};
 
 	options = miscUtil.valueWithDefault(options, {
 		mciReplaceChar		: '',
@@ -118,7 +118,7 @@ function ANSIEscapeParser(options) {
 
 	function getProcessedMCI(mci) {
 		if(self.mciReplaceChar.length > 0) {
-			return ansi.getSGRFromGraphicRendition(self.graphicRendition) + new Array(mci.length + 1).join(self.mciReplaceChar);			
+			return ansi.getSGRFromGraphicRendition(self.graphicRendition, true) + new Array(mci.length + 1).join(self.mciReplaceChar);
 		} else {
 			return mci;
 		}
@@ -161,10 +161,14 @@ function ANSIEscapeParser(options) {
 				}
 
 				
-				self.emit('mci', mciCode, id, args);
+				self.emit('mci', { 
+					mci		: mciCode, 
+					id		: id ? parseInt(id, 10) : null,
+					args	: args, 
+					SGR		: ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
+					});
 
 				if(self.mciReplaceChar.length > 0) {
-					//self.emit('chunk', ansi.sgr(self.eraseColor.style, self.eraseColor.fgColor, self.eraseColor.bgColor));
 					self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
@@ -270,10 +274,6 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
-
-				self.graphicRendition = { styles : [ 0 ] };	//	reset
-				//self.graphicRendition.styles = [ 0 ];
-
 				for(i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 
@@ -281,18 +281,54 @@ function ANSIEscapeParser(options) {
 						self.graphicRendition.fg = arg;
 					} else if(ANSIEscapeParser.backgroundColors[arg]) {
 						self.graphicRendition.bg = arg;
-					} else if(39 === arg) {
-						delete self.graphicRendition.fg;
-					} else if(49 === arg) {
-						delete self.graphicRendition.bg;
 					} else if(ANSIEscapeParser.styles[arg]) {
-						self.graphicRendition.styles.push(arg);
-					} else if(22 === arg) {
-						//	:TODO: remove bold.
+						switch(arg) {
+							case 0 :
+								//	clear out everything
+								delete self.graphicRendition.intensity;
+								delete self.graphicRendition.underline;
+								delete self.graphicRendition.blink;
+								delete self.graphicRendition.negative;
+								delete self.graphicRendition.invisible;
+
+								self.graphicRendition.fg = 39;
+								self.graphicRendition.bg = 49;
+								break;
+
+							case 1 :
+							case 2 :
+							case 22 : 
+								self.graphicRendition.intensity = arg;
+								break;
+
+							case 4 :
+							case 24 :
+								self.graphicRendition.underline = arg;
+								break;
+
+							case 5 :
+							case 6 :
+							case 25 :
+								self.graphicRendition.blink = arg;
+								break;
+
+							case 7 :
+							case 27 :
+								self.graphicRendition.negative = arg;
+								break;
+
+							case 8 :
+							case 28 :
+								self.graphicRendition.invisible = arg;
+								break;
+
+							default :
+								console.log('Unknown attribute: ' + arg);	//	:TODO: Log properly
+								break;
+						}
 					}
 				}
 
-				console.log(self.graphicRendition)
 				break;
 
 			//	erase display/screen
@@ -317,6 +353,8 @@ ANSIEscapeParser.foregroundColors = {
 	35	: 'magenta',
 	36	: 'cyan',
 	37	: 'white',
+	39	: 'default',	//	same as white for most implementations
+
 	90	: 'grey'
 };
 Object.freeze(ANSIEscapeParser.foregroundColors);
@@ -329,20 +367,39 @@ ANSIEscapeParser.backgroundColors = {
 	44	: 'blue',
 	45	: 'magenta',
 	46	: 'cyan',
-	47	: 'white'
+	47	: 'white',
+	49	: 'default',	//	same as black for most implementations
 };
 Object.freeze(ANSIEscapeParser.backgroundColors);
 
-//	:TODO: ensure these all align with that of ansi_term.js
+//	:TODO: ensure these names all align with that of ansi_term.js
+//
+//	See the following specs:
+//	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
+//	* http://www.vt100.net/docs/vt510-rm/SGR
+//	* https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//
+//	Note that these are intentionally not in order such that they
+//	can be grouped by concept here in code.
+//
 ANSIEscapeParser.styles = {
-	0		: 'default',
-	1		: 'bright',
-	2		: 'dim',
-	5		: 'slowBlink',
-	6		: 'fastBlink',
-	7		: 'negative',
-	8		: 'concealed',
-	22		: 'normal',
-	27		: 'positive',
+	0		: 'default',			//	Everything disabled
+
+	1		: 'intensityBright',	//	aka bold
+	2		: 'intensityDim',
+	22		: 'intensityNormal',
+
+	4		: 'underlineOn',		//	Not supported by most BBS-like terminals
+	24		: 'underlineOff',		//	Not supported by most BBS-like terminals
+
+	5		: 'blinkSlow',			//	blinkSlow & blinkFast are generally treated the same
+	6		: 'blinkFast',			//	blinkSlow & blinkFast are generally treated the same
+	25		: 'blinkOff',
+
+	7		: 'negativeImageOn',	//	Generally not supported or treated as "reverse FG & BG"
+	27		: 'negativeImageOff',	//	Generally not supported or treated as "reverse FG & BG"
+
+	8		: 'invisibleOn',		//	FG set to BG
+	28		: 'invisibleOff',		//	Not supported by most BBS-like terminals
 };
 Object.freeze(ANSIEscapeParser.styles);

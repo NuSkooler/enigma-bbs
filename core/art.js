@@ -420,7 +420,7 @@ function display(options, cb) {
 		termWidth		: options.client.term.termWidth,
 	});
 
-	var mci				= {};
+	var mciMap			= {};
 	var mciPosQueue		= [];
 	var parseComplete	= false;
 
@@ -429,7 +429,7 @@ function display(options, cb) {
 	var onCPR = function(pos) {
 		if(mciPosQueue.length > 0) {
 			var forMapItem = mciPosQueue.shift();
-			mci[forMapItem].position = pos;
+			mciMap[forMapItem].position = pos;
 
 			if(parseComplete && 0 === mciPosQueue.length) {
 				completed();
@@ -445,50 +445,36 @@ function display(options, cb) {
 		//	options.client.term.write(ansi.blinkNormal());
 		}
 
-		cb(null, mci);
+		cb(null, mciMap);
 	}
 
 	options.client.on('cursor position report', onCPR);
 
-	parser.on('mci', function onMCI(mciCode, id, args) {
+	parser.on('mci', function mciEncountered(mciInfo) {
+
 		//	:TODO: ensure generatedId's do not conflict with any |id|
-		id = id || generatedId++;
-		var mapItem = mciCode + id;
-		//	:TODO: Avoid mutiple [] lookups here
-		if(mci[mapItem]) {
-			mci[mapItem].focusGraphicRendition = parser.graphicRendition;
-
-			/*
-			mci[mapItem].focusColor = {
-				fg		: parser.fgColor,
-				bg		: parser.bgColor,
-				flags	: parser.style,
-			};
-			*/
-			mci[mapItem].focusArgs = args;
+		var id			= _.isUndefined(mciInfo.id) ? generatedId++ : mciInfo.id;
+		var mapKey		= mciInfo.mci + id;
+		var mapEntry	= mciMap[mapKey];
+		if(mapEntry) {
+			mapEntry.focusSGR	= mciInfo.SGR;
+			mapEntry.focusArgs	= mciInfo.args;
 		} else {
-			mci[mapItem] = {
-				args		: args,
-				/*
-				color : {
-					fg		: parser.fgColor,
-					bg		: parser.bgColor,
-					flags	: parser.style,
-				},
-				*/
-				graphicRendition	: parser.graphicRendition,
-				code				: mciCode,
-				id					: parseInt(id, 10),
+			mciMap[mapKey] = {
+				args	: mciInfo.args,
+				SGR		: mciInfo.SGR,
+				code	: mciInfo.mci,
+				id		: id,
 			};
 
-			mciPosQueue.push(mapItem);
+			mciPosQueue.push(mapKey);
 
 			options.client.term.write(ansi.queryPos(), false);	//	:TODO: don't convert LF's
 		}
 	});
 
 	parser.on('chunk', function onChunk(chunk) {
-		options.client.term.write(chunk, false);//	:TODO: don't convert LF's
+		options.client.term.write(chunk, false);
 	});
 
 	parser.on('complete', function onComplete() {

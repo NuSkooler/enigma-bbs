@@ -56,15 +56,11 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
 	var view;
 	var options = {
-		client					: this.client,
-		id						: mci.id,
-		color					: mci.color,
-		focusColor				: mci.focusColor,
-
-		graphicRendition		: mci.graphicRendition,
-		focusGraphicRendition	: mci.focusGraphicRendition,
-
-		position				: { x : mci.position[0], y : mci.position[1] },
+		client			: this.client,
+		id				: mci.id,
+		ansiSGR			: mci.SGR,
+		ansiFocusSGR	: mci.focusSGR,
+		position		: { x : mci.position[0], y : mci.position[1] },
 	};
 
 	function setOption(pos, name) {
@@ -183,6 +179,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 
 		case 'TM' :
+		//	:TODO: convert to new Graphics Rendition system here:
 			if(mci.args.length > 0) {
 				var color = { fg : parseInt(mci.args[0], 10), flags : 0 };
 				if(mci.args.length > 1) {

@@ -112,19 +112,19 @@ function stylizeString(s, style) {
 }
 
 //	Based on http://www.webtoolkit.info/
-function pad(s, len, padChar, dir, stringColor, padColor) {
+function pad(s, len, padChar, dir, stringSGR, padSGR) {
 	len			= miscUtil.valueWithDefault(len, 0);
 	padChar		= miscUtil.valueWithDefault(padChar, ' ');
 	dir			= miscUtil.valueWithDefault(dir, 'right');
-	stringColor	= miscUtil.valueWithDefault(stringColor, '');
-	padColor	= miscUtil.valueWithDefault(padColor, '');
+	stringSGR	= miscUtil.valueWithDefault(stringSGR, '');
+	padSGR		= miscUtil.valueWithDefault(padSGR, '');
 
 	var padlen	= len - s.length;
 
 	switch(dir) {
 		case 'L' :
 		case 'left' : 
-			s = padColor + new Array(padlen).join(padChar) + stringColor + s;
+			s = padSGR + new Array(padlen).join(padChar) + stringSGR + s;
 			break;
 
 		case 'C' :
@@ -132,16 +132,16 @@ function pad(s, len, padChar, dir, stringColor, padColor) {
 		case 'both' : 
 			var right	= Math.ceil(padlen / 2);
 			var left	= padlen - right;
-			s			= padColor + new Array(left + 1).join(padChar) + stringColor + s + padColor + new Array(right + 1).join(padChar);
+			s			= padSGR + new Array(left + 1).join(padChar) + stringSGR + s + padSGR + new Array(right + 1).join(padChar);
 			break;
 
 		case 'R' : 
 		case 'right' :
-			s = stringColor + s + padColor + new Array(padlen).join(padChar);
+			s = stringSGR + s + padSGR + new Array(padlen).join(padChar);
 			break;
 
 		default : break;
 	}
 
-	return stringColor + s;
+	return stringSGR + s;
 }

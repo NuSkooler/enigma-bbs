@@ -184,6 +184,7 @@ function ViewController(options) {
 		setViewProp('maxLength');
 		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
 		
+		//	:TODO: This needs converted to new GraphicRendition object and possibly allow escaped ANSI SGR here if string
 		setViewProp('styleColor1', function(v) {
 			if(!_.has(v, 'fg')) {
 				return;

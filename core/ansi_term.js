@@ -326,16 +326,35 @@ function sgr() {
 
 //
 //	Converts a Graphic Rendition object used elsewhere
-//	to a ANSI SGR sequence
+//	to a ANSI SGR sequence.
 //
-function getSGRFromGraphicRendition(graphicRendition) {
-	var sgrSeq = graphicRendition.styles.slice(0);	//	start out with styles
+function getSGRFromGraphicRendition(graphicRendition, initialReset) {
+	var sgrSeq = [];
+
+	var styleCount = 0;
+	[ 'intensity', 'underline', 'blink', 'negative', 'invisible' ].forEach(function style(s) {
+		if(graphicRendition[s]) {
+			sgrSeq.push(graphicRendition[s]);
+			++styleCount;
+		}
+	});
+
+	if(!styleCount) {
+		sgrSeq.push(0);
+	}
+
 	if(graphicRendition.fg) {
 		sgrSeq.push(graphicRendition.fg);
 	}
+
 	if(graphicRendition.bg) {
 		sgrSeq.push(graphicRendition.bg);
 	}
+
+	if(initialReset) {
+		sgrSeq.unshift(0);
+	}
+
 	return sgr(sgrSeq);
 }
 

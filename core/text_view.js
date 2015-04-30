@@ -81,11 +81,6 @@ TextView.prototype.setFocus = function(focused) {
 
 	this.redraw();
 
-	console.log('---')
-	console.log(this.graphicRendition)
-	console.log(this.focusGraphicRendition)
-	console.log('---')
-
 	//	position & SGR for cursor
 	this.client.term.write(ansi.goto(this.position.x, this.position.y + this.text.length));
 	this.client.term.write(this.getFocusSGR());
