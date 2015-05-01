@@ -50,6 +50,13 @@ function MenuModule(options) {
 				//	:TODO: fetch and render via method/generator
 				break;
 
+			case 'inline' :
+				if(_.isString(assetSpec.asset)) {
+					//	:TODO: think about this more in relation to themes, etc. How can this come
+					//	from a theme (with override from menu.json) ???
+				}
+				break;
+
 			default :
 				cb(new Error('Unsupported art asset type'));
 				break;

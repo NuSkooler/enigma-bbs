@@ -184,23 +184,15 @@ function ViewController(options) {
 		setViewProp('maxLength');
 		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
 
-		setViewProp('styleSGR1', function(v) {
-			if(_.isObject(v)) {
-				view.styleSGR1 = ansi.getSGRFromGraphicRendition(v, true);
-				console.log(view.styleSGR1.substr(1))
-			} else if(_.isString(v)) {
-				view.styleSGR1 = v;
-			}
-		});
-
-		setViewProp('styleSGR2', function(v) {
-			if(_.isObject(v)) {
-				view.styleSGR2 = ansi.getSGRFromGraphicRendition(v, true);
-			} else if(_.isString(v)) {
-				view.styleSGR2 = v;
-			}
-		});
-		
+		['styleSGR1', 'styleSGR2'].forEach(function styleSgr(style) {
+			setViewProp(style, function(v) {
+				if(_.isObject(v)) {
+					view.styleSGR1 = ansi.getSGRFromGraphicRendition(v, true);
+				} else if(_.isString(v)) {
+					view.styleSGR1 = v;
+				}
+			});
+		});		
 
 		setViewProp('fillChar', function(v) {
 			if(_.isNumber(v)) {
@@ -397,10 +389,14 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				});
 			},
 			function applyViewConfiguration(callback) {
-				self.applyViewConfig(promptConfig, function configApplied(err, info) {
-					initialFocusId = info.initialFocusId;
-					callback(err);
-				});				
+				if(_.isObject(promptConfig.mci)) {
+					self.applyViewConfig(promptConfig, function configApplied(err, info) {
+						initialFocusId = info.initialFocusId;
+						callback(err);
+					});
+				} else {
+					callback(null);
+				}
 			},
 			function prepareFormSubmission(callback) {
 

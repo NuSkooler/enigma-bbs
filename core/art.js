@@ -452,8 +452,18 @@ function display(options, cb) {
 
 	parser.on('mci', function mciEncountered(mciInfo) {
 
+		/*
+		if('PA' === mciInfo.mci) {
+			//	:TODO: can't do this until this thing is pausable anyway...
+			options.client.waitForKeyPress(function kp(k) {
+				console.log('got a key: ' + k);
+			});
+			return;
+		}
+		*/
+
 		//	:TODO: ensure generatedId's do not conflict with any |id|
-		var id			= _.isUndefined(mciInfo.id) ? generatedId++ : mciInfo.id;
+		var id			= !_.isNumber(mciInfo.id) ? generatedId++ : mciInfo.id;
 		var mapKey		= mciInfo.mci + id;
 		var mapEntry	= mciMap[mapKey];
 		if(mapEntry) {

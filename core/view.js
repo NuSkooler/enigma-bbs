@@ -56,13 +56,20 @@ function View(options) {
 	}
 
 	//	:TODO: Don't allow width/height > client.term
-	if(options.dimens && options.dimens.height) {
-		this.dimens.height = options.dimens.height;
+	if(_.isObject(options.dimens)) {
+		if(_.isNumber(options.dimens.height)) {
+			this.dimens.height = options.dimens.height;
+		}
+
+		if(_.isNumber(options.dimens.width)) {
+			this.dimens.width = options.dimens.width;
+		}
+	} else {
+		options.dimens = { width : 1, height : 1 };
 	}
 
-	if(options.dimens && options.dimens.width) {
-		this.dimens.width = options.dimens.width;
-	}
+	options.dimens.width	= options.dimens.width || 1;
+	options.dimens.height	= options.dimens.height || 1;
 
 	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;

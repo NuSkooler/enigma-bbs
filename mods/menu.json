@@ -19,6 +19,22 @@
 					NOte that @draw & @art should check theme first. 
 					@draw:myMethod -> theme/draw.js::myMethod(opts)
 
+					priority:
+					@draw:location.js/myMethod -> outside of theme
+					@draw:myMethod -> checks theme -> local first
+					
+					-OR- just inside themes for customization...
+					e.g; 
+					{
+						"myTheme" {
+							"views" : {
+								"VerticalMenuView" : {
+									"draw" : "@method:location.js/myMethod"
+								}
+							}
+						}
+					}
+
 				}
 			}
 	*/
@@ -100,39 +116,63 @@
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
 					//
+					//	:TODO: defaults { width : XX, ... } kinda thing would be nice
+					//
 					//	"beforeViewsDraw" : "@method:location.js/myBeforeViewsDraw" -> myBeforeViewsDraw(views)
 					"mci" : {
 						"ET1" : {
 							"focus"		: true,
-							"argName"	: "username"
+							"argName"	: "username",
+							"width"		: 15,
+							"maxLength"	: "@config:users.usernameMax"
 						},
 						"ET2" : {
-							"argName" : "realName",
-							"maxLength" : "@config:users.usernameMax"
+							"width"		: 15,
+							"argName"	: "realName",
+							"width"		: 15,
+							"maxLength"	: 32
 						},
-						"ET3" : { "argName" : "age" },
-						"ET4" : { "argName" : "sex" },
-						"ET5" : { "argName" : "location" },
+						"ET3" : {
+							"argName"	: "age",
+							"width"		: 3,
+							"maxLength"	: 3
+						},
+						"ET4" : {
+							"argName"	: "sex",
+							"width"		: 1,
+							"maxLength"	: 1
+						},
+						"ET5" : {
+							"argName"	: "location",
+							"width"		: 15,
+							"maxLength"	: 32
+						},
 						"ET6" : {
 							"argName" : "affils",
-							"maxLength" : 30
+							"width"		: 15,
+							"maxLength" : 32
 						},
 						"ET7" : {
 							"argName" : "email",
+							"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET8" : {
 							"argName" : "web",
+							"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET9" : {
-							"argName" : "password",
-							"password" : true
+							"argName"	: "password",
+							"password"	: true,
+							"width"		: 15,
+							"maxLength"	: "@config:users.passwordMax"
 						},
 						"ET10" : {
-							"argName" : "passwordConfirm",
-							"password" : true,
-							"maxLength" : "@config:users.passwordMax"
+							"argName"	: "passwordConfirm",
+							"password"	: true,
+							"width"		: 15,
+							"maxLength"	: "@config:users.passwordMax"
 						},
 						"BT12" : {
 							"submit" : true,
@@ -170,6 +210,7 @@
 	},
 	"newUserActive" : {
 		"art" : "STATS",
+		"prompt" : "pause",
 		"options" : {
 			//	:TODO: implement MCI codes for this
 			"cls" : true
@@ -266,8 +307,9 @@
 							"items" : [ "Razor 1911", "DrinkOrDie", "TRSI" ]
 						},
 						"TM3" : {
-							"items" : [ "Yarly", "Nowaii" ],
-							"styleSGR1" : { "fg" : 30, "intensity" : 1 }
+							"items" 	: [ "Yarly", "Nowaii" ],
+							"styleSGR1" : { "fg" : 30, "intensity" : 1 },
+							"hotkeys"	: { "Y" : 0, "N" : 1 }
 						},
 						"BT8" : {
 							"text" : "< Back",
