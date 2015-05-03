@@ -13,6 +13,11 @@ exports.ANSIEscapeParser		= ANSIEscapeParser;
 var CR = 0x0d;
 var LF = 0x0a;
 
+//
+//	Resources, Specs, etc.
+//
+//	* https://github.com/M-griffin/EtherTerm/blob/master/ansiParser.cpp
+
 function ANSIEscapeParser(options) {
 	var self = this;
 
@@ -22,6 +27,10 @@ function ANSIEscapeParser(options) {
 	this.row				= 1;
 	this.scrollBack			= 0;
 	this.graphicRendition	= {};
+
+	this.parseState = {
+		re	: /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,
+	};
 
 	options = miscUtil.valueWithDefault(options, {
 		mciReplaceChar		: '',
@@ -187,6 +196,60 @@ function ANSIEscapeParser(options) {
 		}
 	}
 
+	self.reset = function(buffer) {
+		self.parseState = {
+			//	ignore anything past EOF marker, if any
+			buffer	: buffer.split(String.fromCharCode(0x1a), 1)[0],
+			re		: /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,
+			stop	: false,
+		};
+	};
+
+	self.stop = function()  {
+		self.parseState.stop = true;
+	};
+
+	self.parse = function() {
+		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
+		var pos;
+		var match;
+		var opCode;
+		var args;
+		var re		= self.parseState.re;
+		var buffer	= self.parseState.buffer;
+
+		self.parseState.stop = false;
+
+		do {
+			if(self.parseState.stop) {
+				return;
+			}
+
+			pos		= re.lastIndex;
+			match	= re.exec(buffer);
+
+			if(null !== match) {
+				if(match.index > pos) {
+					parseMCI(buffer.slice(pos, match.index));
+				}
+
+				opCode	= match[2];
+				args	= getArgArray(match[1].split(';'));
+
+				escape(opCode, args);
+
+				self.emit('chunk', match[0]);
+			}
+		} while(0 !== re.lastIndex);
+
+		if(pos < buffer.length) {
+			parseMCI(buffer.slice(pos));
+		}
+
+		self.emit('complete');
+	};
+
+/*
 	self.parse = function(buffer, savedRe) {
 		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
 		//	:TODO: move this to "constants" section @ top
@@ -216,6 +279,8 @@ function ANSIEscapeParser(options) {
 				self.emit('chunk', match[0]);
 			}
 
+
+
 		} while(0 !== re.lastIndex);
 
 		if(pos < buffer.length) {
@@ -224,6 +289,7 @@ function ANSIEscapeParser(options) {
 
 		self.emit('complete');
 	};
+	*/
 
 	function escape(opCode, args) {
 		var arg;

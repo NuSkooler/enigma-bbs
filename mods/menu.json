@@ -217,7 +217,7 @@
 		}
 	},
 	"demoMain" : {
-		"art" : "demo_main",
+		"art" : "demo_selection_vm.ans",
 		"options" : { "cls" : true },
 		"form" : {
 			"0" : {
@@ -227,6 +227,7 @@
 							"items" : [
 								"Single Line Text Editing Views", 
 								"Spinner & Toggle Views",
+								"Art Display",
 								"Other"
 							],
 							//	:TODO: justify not working??
@@ -242,6 +243,10 @@
 							{
 								"value" : { "1" : 1 },
 								"action" : "@menu:demoSpinAndToggleView"
+							},
+							{
+								"value" : { "1" : 2 },
+								"action" : "@menu:demoArtDisplay"
 							}
 						]
 					}
@@ -327,7 +332,41 @@
 				}
 			}
 		}
+	},
+	"demoArtDisplay" : {
+		"art" : "demo_selection_vm.ans",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"VM1" : {
+					"mci" : {
+						"VM1" : {
+							"items" : [
+								"Defaults - DOS ANSI",
+								"Defaults - Amiga",
+								"Pause at Term Height"
+							],
+							//	:TODO: justify not working??
+							"focusTextStyle" : "small i"
+						}
+					},
+					"submit" : {
+						"*" : [
+							{
+								"value" : { "1" : 0 },
+								"action" : "@menu:demoDefaultsDosAnsi"
+							}							
+						]
+					}
+				}
+			}
+		}
+	},
+	"demoDefaultsDosAnsi" : {
+		"art" : "bw_bc.ans",
+		"options" : { "cls" : true }
 	}
+	
 	/*
 	:TODO: conceptual simplified menus -- actions/etc. without forms
 

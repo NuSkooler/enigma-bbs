@@ -382,16 +382,16 @@ function defaultEofFromExtension(ext) {
 
 //	:TODO: display({ art : art, client : client, ...}, cb)
 function display(options, cb) {
-	assert(
-		'undefined' !== typeof options &&
-		'undefined' !== typeof options.client &&
-		'undefined' !== typeof options.art,
-		'Missing required options');
+	assert(_.isObject(options));
+	assert(_.isObject(options.client));
+	assert(!_.isUndefined(options.art));
 
 	if(0 === options.art.length) {
 		cb(new Error('Empty art'));
 		return;
 	}
+
+	//	pause = none/off | end | termHeight | [ "key1", "key2", ... ]
 
 	var cancelKeys			= miscUtil.valueWithDefault(options.cancelKeys, []);
 	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
@@ -426,7 +426,7 @@ function display(options, cb) {
 
 	var generatedId		= 100;
 
-	var onCPR = function(pos) {
+	var cprListener = function(pos) {
 		if(mciPosQueue.length > 0) {
 			var forMapItem = mciPosQueue.shift();
 			mciMap[forMapItem].position = pos;
@@ -438,7 +438,7 @@ function display(options, cb) {
 	};
 
 	function completed() {
-		options.client.removeListener('cursor position report', onCPR);
+		options.client.removeListener('cursor position report', cprListener);
 		parser.removeAllListeners();	//	:TODO: Necessary???
 
 		if(iceColors) {
@@ -448,7 +448,22 @@ function display(options, cb) {
 		cb(null, mciMap);
 	}
 
-	options.client.on('cursor position report', onCPR);
+	options.client.on('cursor position report', cprListener);
+
+	//options.pause = 'termHeight';	//	:TODO: remove!!
+	var nextTermHeight = options.client.termHeight;
+
+	parser.on('row update', function rowUpdate(row) {
+		if(row >= nextTermHeight) {
+			if('termHeight' === options.pause) {
+				options.client.waitForKeyPress(function kp(k) {
+					parser.parse();
+				});
+				parser.stop();
+			}
+			nextTermHeight *= 2;
+		}
+	});
 
 	parser.on('mci', function mciEncountered(mciInfo) {
 
@@ -463,6 +478,7 @@ function display(options, cb) {
 		*/
 
 		//	:TODO: ensure generatedId's do not conflict with any |id|
+		//	:TODO: Bug here - should only generate & increment ID's for the initial entry, not the "focus" version 
 		var id			= !_.isNumber(mciInfo.id) ? generatedId++ : mciInfo.id;
 		var mapKey		= mciInfo.mci + id;
 		var mapEntry	= mciMap[mapKey];
@@ -522,5 +538,7 @@ function display(options, cb) {
 		options.client.term.write(ansi.blinkToBrightIntensity());
 	}
 
-	parser.parse(options.art);
+	parser.reset(options.art);
+	parser.parse();
+	//parser.parse(options.art);
 }
