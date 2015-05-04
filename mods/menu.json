@@ -363,7 +363,7 @@
 		}
 	},
 	"demoDefaultsDosAnsi" : {
-		"art" : "bw_bc.ans",
+		"art" : "WE-CIZB.ANS",
 		"options" : { "cls" : true }
 	}
 	

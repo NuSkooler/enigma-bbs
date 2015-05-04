@@ -450,18 +450,23 @@ function display(options, cb) {
 
 	options.client.on('cursor position report', cprListener);
 
-	//options.pause = 'termHeight';	//	:TODO: remove!!
-	var nextTermHeight = options.client.termHeight;
+	options.pause = 'termHeight';	//	:TODO: remove!!
+	var nextPauseTermHeight = options.client.term.termHeight;
+	var continous = false;
 
 	parser.on('row update', function rowUpdate(row) {
-		if(row >= nextTermHeight) {
-			if('termHeight' === options.pause) {
+		if(row >= nextPauseTermHeight) {
+			if(!continous && 'termHeight' === options.pause) {
 				options.client.waitForKeyPress(function kp(k) {
+					//	:TODO: Allow for configurable key(s) here; or none
+					if('C' === k || 'c' == k) {
+						continous = true;
+					}
 					parser.parse();
 				});
 				parser.stop();
 			}
-			nextTermHeight *= 2;
+			nextPauseTermHeight += options.client.term.termHeight;
 		}
 	});
 

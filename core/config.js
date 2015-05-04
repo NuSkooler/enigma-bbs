@@ -63,7 +63,7 @@ function init(configPath, cb) {
 function getDefaultPath() {
 	var base = miscUtil.resolvePath('~/');
 	if(base) {
-		return paths.join(base, '.enigmabbs', 'config.json');
+		return paths.join(base, '.enigma-bbs', 'config.json');
 	}
 }
 
