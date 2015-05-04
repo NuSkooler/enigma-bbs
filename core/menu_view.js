@@ -32,8 +32,7 @@ function MenuView(options) {
 	this.focusedItemIndex = options.focusedItemIndex || 0;
 	this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
-	this.itemSpacing	= options.itemSpacing || 1;
-	this.itemSpacing	= parseInt(this.itemSpacing, 10);
+	this.itemSpacing	= _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
 
 	this.focusPrefix	= options.focusPrefix || '';
 	this.focusSuffix	= options.focusSuffix || '';
@@ -103,6 +102,13 @@ MenuView.prototype.setItems = function(items) {
 			});
 		});
 	}
+};
+
+MenuView.prototype.setItemSpacing = function(itemSpacing) {
+	assert(_.isNumber(itemSpacing));
+
+	this.itemSpacing			= itemSpacing;
+	this.positionCacheExpired	= true;
 };
 
 MenuView.prototype.setHotKeys = function(hotKeys) {

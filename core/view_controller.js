@@ -178,9 +178,13 @@ function ViewController(options) {
 		}
 
 		setViewProp('items', function(v) { view.setItems(v); });
+		setViewProp('itemSpacing', function(v) { view.setItemSpacing(v); });
+
 		setViewProp('text', function(v) { view.setText(v); });
 		setViewProp('textStyle');
 		setViewProp('focusTextStyle');
+		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
+		
 		setViewProp('maxLength');
 		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
 
@@ -208,7 +212,7 @@ function ViewController(options) {
 			}
 		});
 
-		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
+		
 		setViewProp('hotKeys', function(v) { view.setHotKeys(v); });
 
 		setViewProp('submit', function(v) {

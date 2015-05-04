@@ -230,6 +230,7 @@
 								"Art Display",
 								"Other"
 							],
+							"itemSpacing" : 1,
 							//	:TODO: justify not working??
 							"focusTextStyle" : "small i"
 						}

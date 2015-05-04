@@ -4,6 +4,8 @@
 var MenuView		= require('./menu_view.js').MenuView;
 var ansi			= require('./ansi_term.js');
 var strUtil			= require('./string_util.js');
+var miscUtil		= require('./misc_util.js');
+
 var util			= require('util');
 var assert			= require('assert');
 
@@ -15,8 +17,6 @@ function VerticalMenuView(options) {
 	MenuView.call(this, options);
 
 	var self = this;
-
-	this.itemSpacing = 3;	//	:TODO: bring from options/configurable
 
 	this.calculateDimens = function() {
 		if(!self.dimens || !self.dimens.width) {
@@ -31,7 +31,7 @@ function VerticalMenuView(options) {
 		}
 
 		if(this.items.length > 0) {
-			this.dimens.height = (self.items.length * self.itemSpacing) - (self.itemSpacing - 1);
+			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
 		} else {
 			this.dimens.height = 0;
 		}
@@ -45,7 +45,7 @@ function VerticalMenuView(options) {
 			var x = self.position.x;
 			for(var i = 0; i < count; ++i) {
 				if(i > 0) {
-					x += self.itemSpacing;
+					x += self.itemSpacing + 1;
 				}
 
 				self.items[i].xPosition = x;
