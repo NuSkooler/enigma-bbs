@@ -8,6 +8,7 @@ var miscUtil		= require('./misc_util.js');
 
 var util			= require('util');
 var assert			= require('assert');
+var _				= require('lodash');
 
 exports.VerticalMenuView		= VerticalMenuView;
 
@@ -17,6 +18,29 @@ function VerticalMenuView(options) {
 	MenuView.call(this, options);
 
 	var self = this;
+
+	//
+	//	:TODO: view.setDimens() would set autoSize to false. Otherwise, we cna scale @ setItems()
+	//	topViewIndex = top visibile item
+	//	itemsInView = height * (1 + itemSpacing)
+	this.calculateDimens2 = function() {
+		if(this.autoSize) {
+			self.dimens = self.dimens || {};
+
+			if(!_.isNumber(this.dimens.height) || this.dimens.height < 1) {
+				this.dimens.height = 1;
+			}
+
+			var l = 0;
+			self.items.forEach(function item(i) {
+				if(i.text.length > l) {
+					l = Math.min(l.text.length, self.client.term.termWidth - self.position.y);
+				}
+			});
+			self.dimens.width = l;
+		}
+	};
+
 
 	this.calculateDimens = function() {
 		if(!self.dimens || !self.dimens.width) {

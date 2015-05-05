@@ -68,8 +68,8 @@ function View(options) {
 		options.dimens = { width : 1, height : 1 };
 	}
 
-	options.dimens.width	= options.dimens.width || 1;
-	options.dimens.height	= options.dimens.height || 1;
+	//options.dimens.width	= options.dimens.width || 1;
+	//options.dimens.height	= options.dimens.height || 1;
 
 	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;

@@ -24,7 +24,7 @@ function ToggleMenuView (options) {
 
 	this.updateSelection = function() {
 		assert(!self.positionCacheExpired);
-		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);		
+		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
 
 		self.redraw();
 	};
