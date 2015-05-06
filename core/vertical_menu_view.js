@@ -21,19 +21,22 @@ function VerticalMenuView(options) {
 
 	//
 	//	:TODO: view.setDimens() would set autoSize to false. Otherwise, we cna scale @ setItems()
-	//	topViewIndex = top visibile item
+	//	topViewIndex = top visible item
 	//	itemsInView = height * (1 + itemSpacing)
-
-	this.updateViewable = function() {
-		var viewableItems = self.dimens.height / ((self.itemSpacing + 1) - self.itemSpacing);
-console.log(viewableItems)
-		this.viewableRange = {
-			top		: self.focusedItemIndex,
-			bottom	: viewableItems - self.focusedItemIndex,
+	this.jumpVisibleToTop = function() {
+		this.visibleRange = {
+			top		: 0,
+			bottom	: this.maxVisibleItems,
 		};
-
-		console.log(this.viewableRange)
 	};
+
+	this.jumpVisibleToBottom = function() {
+		this.visibleRange = {
+			top		: this.items.length - this.jumpVisibleToTop,
+			bottom	: this.items.length,
+		};
+	};
+
 
 	this.scaleDimension = function() {
 		if(this.autoScale) {
@@ -76,7 +79,7 @@ console.log(viewableItems)
 	this.cacheVisiblePositions = function() {
 		if(self.positionCacheExpired) {
 			var x = self.position.x;
-			for(var i = this.viewableRange.top; i < this.viewableRange.bottom; ++i) {
+			for(var i = this.visibleRange.top; i < this.visibleRange.bottom; ++i) {
 				if(i > 0) {
 					x += self.itemSpacing + 1;
 				}
@@ -106,6 +109,33 @@ console.log(viewableItems)
 			}
 			self.positionCacheExpired = false;
 		}
+	};
+
+	this.changeSelection2 = function(fromIndex, toIndex) {
+		assert(!self.positionCacheExpired);
+		assert(fromIndex >= 0 && fromIndex <= self.items.length);
+		assert(toIndex >= 0 && toIndex <= self.items.length);
+
+		if(fromIndex === self.items.length - 1 && fromIndex > toIndex) {
+			console.log('jump to top')
+			this.redraw();
+			return;
+		} else if(0 === fromIndex && toIndex > fromIndex) {
+			console.log('jump to bottom')
+			this.redraw();
+			return;
+		}
+
+
+
+		/*if(fromIndex > toIndex && self.items.length === fromIndex) {
+			console.log('jump to top')
+			this.jumpVisibleToTop();
+		} else if(0 === fromIndex && fromIndex < toIndex) {
+			console.log('jump to bottom')
+			this.jumpVisibleToBottom();
+		}*/
+
 	};
 
 	this.changeSelection = function(fromIndex, toIndex) {
@@ -142,10 +172,9 @@ console.log(viewableItems)
 util.inherits(VerticalMenuView, MenuView);
 
 VerticalMenuView.prototype.redraw = function() {
-	//VerticalMenuView.super_.prototype.redrawAllItems.call(this);
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
-	for(var i = this.viewableRange.top; i < this.viewableRange.bottom; ++i) {
+	for(var i = this.visibleRange.top; i < this.visibleRange.bottom; ++i) {
 		this.items[i].focused = this.focusedItemIndex === i;
 		this.drawItem(i);
 	}
@@ -162,7 +191,6 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 
 	this.redraw();
 };
-
 
 VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 
@@ -184,6 +212,8 @@ VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 
 	if(prevFocusedItemIndex !== this.focusedItemIndex) {
 		this.changeSelection(prevFocusedItemIndex, this.focusedItemIndex);
+
+		this.changeSelection2(prevFocusedItemIndex, this.focusedItemIndex);
 	}
 
 	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
@@ -200,5 +230,7 @@ VerticalMenuView.prototype.setItems = function(items) {
 	this.cachePositions();
 	this.scaleDimension();
 
-	this.updateViewable();
+	this.maxVisibleItems = this.dimens.height / (this.itemSpacing + 1);
+
+	this.jumpVisibleToTop();
 };
