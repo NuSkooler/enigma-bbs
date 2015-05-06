@@ -34,12 +34,12 @@ function MenuView(options) {
 
 	this.itemSpacing	= _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
 
+	//	:TODO: probably just replace this with owner draw / pipe codes / etc. more control, less specialization
 	this.focusPrefix	= options.focusPrefix || '';
 	this.focusSuffix	= options.focusSuffix || '';
 
 	this.fillChar		= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
 	this.justify		= options.justify || 'none';
-
 	/*
 	this.moveSelection = function(fromIndex, toIndex) {
 		assert(!self.positionCacheExpired);
@@ -122,5 +122,5 @@ MenuView.prototype.setHotKeys = function(hotKeys) {
 			this.hotKeys = hotKeys;	
 		}	
 	}
-}
+};
 

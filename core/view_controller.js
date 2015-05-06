@@ -177,16 +177,19 @@ function ViewController(options) {
 			}
 		}
 
-		setViewProp('items', function(v) { view.setItems(v); });
+		setViewProp('width', function(v) { view.setWidth(parseInt(v, 10)); });
+		setViewProp('height', function(v) { view.setHeight(parseInt(v, 10)); });
+		
 		setViewProp('itemSpacing', function(v) { view.setItemSpacing(v); });
-
+		setViewProp('items', function(v) { view.setItems(v); });
+		
 		setViewProp('text', function(v) { view.setText(v); });
 		setViewProp('textStyle');
 		setViewProp('focusTextStyle');
 		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
 		
 		setViewProp('maxLength');
-		setViewProp('width', function(v) { view.dimens.width = parseInt(v, 10); });
+
 
 		['styleSGR1', 'styleSGR2'].forEach(function styleSgr(style) {
 			setViewProp(style, function(v) {

@@ -23,25 +23,34 @@ function VerticalMenuView(options) {
 	//	:TODO: view.setDimens() would set autoSize to false. Otherwise, we cna scale @ setItems()
 	//	topViewIndex = top visibile item
 	//	itemsInView = height * (1 + itemSpacing)
-	this.calculateDimens2 = function() {
-		if(this.autoSize) {
-			self.dimens = self.dimens || {};
 
-			if(!_.isNumber(this.dimens.height) || this.dimens.height < 1) {
-				this.dimens.height = 1;
-			}
+	this.updateViewable = function() {
+		var viewableItems = self.dimens.height / ((self.itemSpacing + 1) - self.itemSpacing);
+console.log(viewableItems)
+		this.viewableRange = {
+			top		: self.focusedItemIndex,
+			bottom	: viewableItems - self.focusedItemIndex,
+		};
+
+		console.log(this.viewableRange)
+	};
+
+	this.scaleDimension = function() {
+		if(this.autoScale) {
+			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
+			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.x);
 
 			var l = 0;
 			self.items.forEach(function item(i) {
 				if(i.text.length > l) {
-					l = Math.min(l.text.length, self.client.term.termWidth - self.position.y);
+					l = Math.min(i.text.length, self.client.term.termWidth - self.position.y);
 				}
 			});
 			self.dimens.width = l;
 		}
 	};
 
-
+	/*
 	this.calculateDimens = function() {
 		if(!self.dimens || !self.dimens.width) {
 			var l = 0;
@@ -60,8 +69,29 @@ function VerticalMenuView(options) {
 			this.dimens.height = 0;
 		}
 	};
+	*/
 
-	this.calculateDimens();
+	this.scaleDimension();
+
+	this.cacheVisiblePositions = function() {
+		if(self.positionCacheExpired) {
+			var x = self.position.x;
+			for(var i = this.viewableRange.top; i < this.viewableRange.bottom; ++i) {
+				if(i > 0) {
+					x += self.itemSpacing + 1;
+				}
+				self.items[i].xPosition = x;
+			}
+
+			self.positionCacheExpired = false;
+		}
+	};
+
+	this.scrollToVisible = function() {
+
+	};
+
+	
 
 	this.cachePositions = function() {
 		if(self.positionCacheExpired) {
@@ -92,7 +122,7 @@ function VerticalMenuView(options) {
 	};
 
 	this.drawItem = function(index) {
-		assert(!this.positionCacheExpired);
+		assert(self.positionCacheExpired === false);
 
 		var item = self.items[index];
 		if(!item) {
@@ -100,7 +130,7 @@ function VerticalMenuView(options) {
 		}
 
 		self.client.term.write(ansi.goto(item.xPosition, self.position.y));
-		this.client.term.write(index === self.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
+		self.client.term.write(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 
@@ -112,7 +142,13 @@ function VerticalMenuView(options) {
 util.inherits(VerticalMenuView, MenuView);
 
 VerticalMenuView.prototype.redraw = function() {
-	VerticalMenuView.super_.prototype.redrawAllItems.call(this);
+	//VerticalMenuView.super_.prototype.redrawAllItems.call(this);
+	VerticalMenuView.super_.prototype.redraw.call(this);
+
+	for(var i = this.viewableRange.top; i < this.viewableRange.bottom; ++i) {
+		this.items[i].focused = this.focusedItemIndex === i;
+		this.drawItem(i);
+	}
 };
 
 VerticalMenuView.prototype.setPosition = function(pos) {
@@ -162,5 +198,7 @@ VerticalMenuView.prototype.setItems = function(items) {
 
 	this.positionCacheExpired = true;
 	this.cachePositions();
-	this.calculateDimens();
+	this.scaleDimension();
+
+	this.updateViewable();
 };

@@ -55,21 +55,14 @@ function View(options) {
 		this.setPosition(options.position);
 	}
 
-	//	:TODO: Don't allow width/height > client.term
-	if(_.isObject(options.dimens)) {
-		if(_.isNumber(options.dimens.height)) {
-			this.dimens.height = options.dimens.height;
-		}
+	this.autoScale		= _.isBoolean(options.autoScale) ? options.autoScale : true;
 
-		if(_.isNumber(options.dimens.width)) {
-			this.dimens.width = options.dimens.width;
-		}
+	if(options.dimens) {
+		this.setDimension(options.dimens);
+		this.autoScale = false;	//	no auto scaling dimens supplied
 	} else {
-		options.dimens = { width : 1, height : 1 };
+		this.dimens = { width : 0, height : 0 };
 	}
-
-	//options.dimens.width	= options.dimens.width || 1;
-	//options.dimens.height	= options.dimens.height || 1;
 
 	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
@@ -140,6 +133,21 @@ View.prototype.setPosition = function(pos) {
 		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
 };
 
+View.prototype.setDimension = function(dimens) {
+	assert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
+
+	this.dimens		= dimens;
+	this.autoScale	= false;
+};
+
+View.prototype.setHeight = function(height) {
+	this.setDimension( { height : height, width : this.dimens.width } );
+};
+
+View.prototype.setWidth = function(width) {
+	this.setDimension( { height : this.dimens.height, width : width } );
+};
+
 /*
 View.prototype.setColor = function(color, bgColor, flags) {
 	if(_.isObject(color)) {
@@ -175,11 +183,11 @@ View.prototype.setColor = function(color, bgColor, flags) {
 
 View.prototype.getSGR = function() {
 	return this.ansiSGR;
-}
+};
 
 View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
-}
+};
 
 View.prototype.redraw = function() {
 	this.client.term.write(ansi.goto(this.position.x, this.position.y));

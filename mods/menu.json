@@ -227,9 +227,13 @@
 							"items" : [
 								"Single Line Text Editing Views", 
 								"Spinner & Toggle Views",
+								"Vertical Menu Views",
+								"Horizontal Menu Views",
 								"Art Display",
+								"Some More Stuff",
 								"Other"
 							],
+							"height" : 4,
 							"itemSpacing" : 1,
 							//	:TODO: justify not working??
 							"focusTextStyle" : "small i"
