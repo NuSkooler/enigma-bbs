@@ -235,7 +235,7 @@
 							],
 							"height" : 10,
 							"itemSpacing" : 1,
-							//	:TODO: justify not working??
+							"justify" : "center",
 							"focusTextStyle" : "small i"
 						}
 					},

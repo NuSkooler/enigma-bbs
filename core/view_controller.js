@@ -187,6 +187,7 @@ function ViewController(options) {
 		setViewProp('textStyle');
 		setViewProp('focusTextStyle');
 		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
+		setViewProp('justify');
 		
 		setViewProp('maxLength');
 
