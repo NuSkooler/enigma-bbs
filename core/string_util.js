@@ -119,7 +119,7 @@ function pad(s, len, padChar, dir, stringSGR, padSGR) {
 	stringSGR	= miscUtil.valueWithDefault(stringSGR, '');
 	padSGR		= miscUtil.valueWithDefault(padSGR, '');
 
-	var padlen	= len - s.length;
+	var padlen	= len >= s.length ? len - s.length : 0;
 
 	switch(dir) {
 		case 'L' :

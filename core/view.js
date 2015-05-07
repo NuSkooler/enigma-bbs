@@ -55,11 +55,15 @@ function View(options) {
 		this.setPosition(options.position);
 	}
 
-	this.autoScale		= _.isBoolean(options.autoScale) ? options.autoScale : true;
+	if(_.isObject(options.autoScale)) {
+		this.autoScale = options.autoScale;
+	} else {
+		this.autoScale = { height : true, width : true };
+	}
 
 	if(options.dimens) {
 		this.setDimension(options.dimens);
-		this.autoScale = false;	//	no auto scaling dimens supplied
+		this.autoScale = { height : false, width : false };
 	} else {
 		this.dimens = { width : 0, height : 0 };
 	}
@@ -137,15 +141,17 @@ View.prototype.setDimension = function(dimens) {
 	assert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
 
 	this.dimens		= dimens;
-	this.autoScale	= false;
+	this.autoScale	= { height : false, width : false };
 };
 
 View.prototype.setHeight = function(height) {
-	this.setDimension( { height : height, width : this.dimens.width } );
+	this.dimens.height		= height;
+	this.autoScale.height	= false;
 };
 
 View.prototype.setWidth = function(width) {
-	this.setDimension( { height : this.dimens.height, width : width } );
+	this.dimens.width		= width;
+	this.autoScale.width	= false;
 };
 
 /*

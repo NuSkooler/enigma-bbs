@@ -14,60 +14,32 @@ exports.VerticalMenuView		= VerticalMenuView;
 
 function VerticalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
-	options.justify = options.justify || 'center';
+	options.justify = options.justify || 'right';
 
 	MenuView.call(this, options);
 
 	var self = this;
 
 	this.performAutoScale = function() {
-		if(this.autoScale) {
+		if(this.autoScale.height) {
 			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
 			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.x);
+		}
 
+		if(this.autoScale.width) {
 			var l = 0;
 			self.items.forEach(function item(i) {
 				if(i.text.length > l) {
 					l = Math.min(i.text.length, self.client.term.termWidth - self.position.y);
 				}
 			});
-			self.dimens.width = l;
+			self.dimens.width = l + 1;
 		}
 	};
 
 	this.performAutoScale();
 
-	this.cachePositions = function() {
-		if(self.positionCacheExpired) {
-			var count = this.items.length;
-			var x = self.position.x;
-			for(var i = 0; i < count; ++i) {
-				if(i > 0) {
-					x += self.itemSpacing + 1;
-				}
-
-				self.items[i].xPosition = x;
-			}
-			self.positionCacheExpired = false;
-		}
-	};
-
-	this.changeSelection = function(fromIndex, toIndex) {
-		assert(!self.positionCacheExpired);
-		assert(fromIndex >= 0 && fromIndex <= self.items.length);
-		assert(toIndex >= 0 && toIndex <= self.items.length);
-
-		self.items[fromIndex].focused	= false;
-		self.drawItem(fromIndex);
-
-		self.items[toIndex].focused 	= true;
-		self.focusedItemIndex			= toIndex;
-		self.drawItem(toIndex);
-	};
-
 	this.drawItem = function(index) {
-		assert(self.positionCacheExpired === false);
-
 		var item = self.items[index];
 		if(!item) {
 			return;
@@ -161,11 +133,9 @@ VerticalMenuView.prototype.getData = function() {
 VerticalMenuView.prototype.setItems = function(items) {
 	VerticalMenuView.super_.prototype.setItems.call(this, items);
 
-	this.positionCacheExpired = true;
-	this.cachePositions();
 	this.performAutoScale();
 
-	this.maxVisibleItems = this.dimens.height / (this.itemSpacing + 1);
+	this.maxVisibleItems = Math.ceil(this.dimens.height / (this.itemSpacing + 1));
 
 	this.viewWindow = {
 		top		: this.focusedItemIndex,
