@@ -233,7 +233,8 @@
 								"Some More Stuff",
 								"Other"
 							],
-							"height" : 4,
+							"height" : 8,
+							"width" : 33,
 							"itemSpacing" : 1,
 							//	:TODO: justify not working??
 							"focusTextStyle" : "small i"

@@ -13,32 +13,14 @@ var _				= require('lodash');
 exports.VerticalMenuView		= VerticalMenuView;
 
 function VerticalMenuView(options) {
-	options.cursor = options.cursor || 'hide';
+	options.cursor	= options.cursor || 'hide';
+	options.justify = options.justify || 'center';
 
 	MenuView.call(this, options);
 
 	var self = this;
 
-	//
-	//	:TODO: view.setDimens() would set autoSize to false. Otherwise, we cna scale @ setItems()
-	//	topViewIndex = top visible item
-	//	itemsInView = height * (1 + itemSpacing)
-	this.jumpVisibleToTop = function() {
-		this.visibleRange = {
-			top		: 0,
-			bottom	: this.maxVisibleItems,
-		};
-	};
-
-	this.jumpVisibleToBottom = function() {
-		this.visibleRange = {
-			top		: this.items.length - this.jumpVisibleToTop,
-			bottom	: this.items.length,
-		};
-	};
-
-
-	this.scaleDimension = function() {
+	this.performAutoScale = function() {
 		if(this.autoScale) {
 			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
 			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.x);
@@ -53,48 +35,7 @@ function VerticalMenuView(options) {
 		}
 	};
 
-	/*
-	this.calculateDimens = function() {
-		if(!self.dimens || !self.dimens.width) {
-			var l = 0;
-			self.items.forEach(function onItem(item) {
-				if(item.text.length > l) {
-					l = item.text.length;
-				}
-			});
-			self.dimens = self.dimens || {};
-			self.dimens.width = l;
-		}
-
-		if(this.items.length > 0) {
-			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
-		} else {
-			this.dimens.height = 0;
-		}
-	};
-	*/
-
-	this.scaleDimension();
-
-	this.cacheVisiblePositions = function() {
-		if(self.positionCacheExpired) {
-			var x = self.position.x;
-			for(var i = this.visibleRange.top; i < this.visibleRange.bottom; ++i) {
-				if(i > 0) {
-					x += self.itemSpacing + 1;
-				}
-				self.items[i].xPosition = x;
-			}
-
-			self.positionCacheExpired = false;
-		}
-	};
-
-	this.scrollToVisible = function() {
-
-	};
-
-	
+	this.performAutoScale();
 
 	this.cachePositions = function() {
 		if(self.positionCacheExpired) {
@@ -109,33 +50,6 @@ function VerticalMenuView(options) {
 			}
 			self.positionCacheExpired = false;
 		}
-	};
-
-	this.changeSelection2 = function(fromIndex, toIndex) {
-		assert(!self.positionCacheExpired);
-		assert(fromIndex >= 0 && fromIndex <= self.items.length);
-		assert(toIndex >= 0 && toIndex <= self.items.length);
-
-		if(fromIndex === self.items.length - 1 && fromIndex > toIndex) {
-			console.log('jump to top')
-			this.redraw();
-			return;
-		} else if(0 === fromIndex && toIndex > fromIndex) {
-			console.log('jump to bottom')
-			this.redraw();
-			return;
-		}
-
-
-
-		/*if(fromIndex > toIndex && self.items.length === fromIndex) {
-			console.log('jump to top')
-			this.jumpVisibleToTop();
-		} else if(0 === fromIndex && fromIndex < toIndex) {
-			console.log('jump to bottom')
-			this.jumpVisibleToBottom();
-		}*/
-
 	};
 
 	this.changeSelection = function(fromIndex, toIndex) {
@@ -174,7 +88,10 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
-	for(var i = this.visibleRange.top; i < this.visibleRange.bottom; ++i) {
+	var x = this.position.x;
+	for(var i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
+		this.items[i].xPosition = x;
+		x += this.itemSpacing + 1;
 		this.items[i].focused = this.focusedItemIndex === i;
 		this.drawItem(i);
 	}
@@ -199,21 +116,39 @@ VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('up', keyName)) {		
 		if(0 === this.focusedItemIndex) {
 			this.focusedItemIndex = this.items.length - 1;
+			
+			this.viewWindow = {
+				top		: this.items.length - this.maxVisibleItems,
+				bottom	: this.items.length - 1
+			};
 		} else {
 			this.focusedItemIndex--;
+
+			if(this.focusedItemIndex < this.viewWindow.top) {
+				this.viewWindow.top--;
+				this.viewWindow.bottom--;
+			}
 		}
 	} else if(this.isSpecialKeyMapped('down', keyName)) {
 		if(this.items.length - 1 === this.focusedItemIndex) {
 			this.focusedItemIndex = 0;
+			
+			this.viewWindow = {
+				top		: 0,
+				bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+			};
 		} else {
 			this.focusedItemIndex++;
+
+			if(this.focusedItemIndex > this.viewWindow.bottom) {
+				this.viewWindow.top++;
+				this.viewWindow.bottom++;
+			}
 		}
 	}
 
 	if(prevFocusedItemIndex !== this.focusedItemIndex) {
-		this.changeSelection(prevFocusedItemIndex, this.focusedItemIndex);
-
-		this.changeSelection2(prevFocusedItemIndex, this.focusedItemIndex);
+		this.redraw();
 	}
 
 	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
@@ -228,9 +163,12 @@ VerticalMenuView.prototype.setItems = function(items) {
 
 	this.positionCacheExpired = true;
 	this.cachePositions();
-	this.scaleDimension();
+	this.performAutoScale();
 
 	this.maxVisibleItems = this.dimens.height / (this.itemSpacing + 1);
 
-	this.jumpVisibleToTop();
+	this.viewWindow = {
+		top		: this.focusedItemIndex,
+		bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+	};
 };
