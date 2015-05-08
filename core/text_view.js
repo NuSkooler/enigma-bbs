@@ -27,6 +27,10 @@ function TextView(options) {
 	this.justify			= options.justify || 'right';
 	this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
 	this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
+	
+	if(_.isString(options.textOverflow)) {
+		this.textOverflow = options.textOverflow;
+	}
 
 	if(_.isString(options.textMaskChar) && 1 === options.textMaskChar.length) {
 		this.textMaskChar = options.textMaskChar;
@@ -50,8 +54,22 @@ function TextView(options) {
 			//	XXXXXXXXXXXXXXXXX
 			//	this is the text but too long
 			//	text but too long
-			if(this.horizScroll) {
-				textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
+			if(this.hasFocus) {
+				if(this.horizScroll) {
+					textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
+				}
+			} else {
+				//	:TODO: support configurable textOverflow (default="")
+				if(textToDraw.length > this.dimens.width) {
+					if(this.textOverflow && 
+						this.dimens.width > this.textOverflow.length &&
+						textToDraw.length - this.textOverflow.length >= this.textOverflow.length)
+					{
+						textToDraw = textToDraw.substr(0, this.dimens.width - this.textOverflow.length) + this.textOverflow;
+					} else {
+						textToDraw = textToDraw.substr(0, this.dimens.width);
+					}
+				}				
 			}
 		}
 
@@ -82,7 +100,8 @@ TextView.prototype.setFocus = function(focused) {
 	this.redraw();
 
 	//	position & SGR for cursor
-	this.client.term.write(ansi.goto(this.position.x, this.position.y + this.text.length));
+	var offset = Math.min(this.text.length, this.dimens.width);
+	this.client.term.write(ansi.goto(this.position.x, this.position.y + offset));
 	this.client.term.write(this.getFocusSGR());
 };
 

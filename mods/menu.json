@@ -272,7 +272,8 @@
 						},
 						"ET2" : {
 							"width"		: 20,
-							"maxLength" : 40
+							"maxLength" : 40,
+							"textOverflow" : "..."
 						},
 						"ET3" : {
 							"width"		: 20,
