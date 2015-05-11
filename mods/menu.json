@@ -56,7 +56,8 @@
 							"submit"	: true,
 							"focus"		: true,
 							//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-							"items" 	: [ "Login", "Apply", "Log Off" ]
+							"items" 	: [ "Login", "Apply", "Log Off" ],
+							"itemSpacing" : 1
 						}
 					},
 					"submit" : {

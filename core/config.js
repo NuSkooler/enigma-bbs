@@ -86,6 +86,7 @@ function getDefaultConfig() {
 			passwordMax			: 128,
 			requireActivation	: true,	//	require SysOp activation?
 			invalidUsernames	: [],
+			defaultGroups		: [ 'users' ]
 		},
 
 		defaults : {

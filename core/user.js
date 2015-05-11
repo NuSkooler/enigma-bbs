@@ -3,6 +3,7 @@
 
 var userDb			= require('./database.js').dbs.user;
 var Config			= require('./config.js').config;
+var userGroup		= require('./user_group.js');
 
 var crypto			= require('crypto');
 var assert			= require('assert');
@@ -118,6 +119,15 @@ User.prototype.authenticate = function(username, password, cb) {
 
 					callback(err);
 				});
+			},
+			function initGroups(callback) {
+				userGroup.getGroupsForUser(cachedInfo.userId, function groupsLoaded(err, groups) {
+					if(!err) {
+						cachedInfo.groups = groups;
+					}
+
+					callback(err);
+				});
 			}
 		],
 		function complete(err) {
@@ -125,6 +135,7 @@ User.prototype.authenticate = function(username, password, cb) {
 				self.userId			= cachedInfo.userId;
 				self.username		= cachedInfo.username;
 				self.properties		= cachedInfo.properties;
+				self.groups			= cachedInfo.groups;
 				self.authenticated	= true;
 			}
 
@@ -164,6 +175,8 @@ User.prototype.create = function(options, cb) {
 	//	:TODO: set various defaults, e.g. default activation status, etc.
 	self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
+	//	:TODO: Set default groups from Config.users.defaultGroups[]
+
 	async.series(
 		[
 			function beginTransaction(callback) {
@@ -199,6 +212,16 @@ User.prototype.create = function(options, cb) {
 					} else {
 						self.properties.pw_pbkdf2_salt	= info.salt;
 						self.properties.pw_pbkdf2_dk	= info.dk;
+						callback(null);
+					}
+				});
+			},
+			function setInitialGroupMembership(callback) {
+				userGroup.getGroupsByName(Config.users.defaultGroups, function defaultGroups(err, groups) {
+					if(err) {
+						callback(err);
+					} else {
+						self.groups = groups;
 						callback(null);
 					}
 				});
@@ -243,6 +266,11 @@ User.prototype.persist = function(useTransaction, cb) {
 			},
 			function saveProps(callback) {
 				persistProperties(self, function persisted(err) {
+					callback(err);
+				});
+			},
+			function saveGroups(callback) {
+				userGroup.addUserToGroups(self.userId, self.groups, function groupsSaved(err) {
 					callback(err);
 				});
 			}
@@ -450,34 +478,6 @@ function loadProperties(options, cb) {
 	}, function complete() {
 		cb(null, properties);
 	});
-}
-
-function loadGroups(userId, cb) {
-	//
-	//	user_group
-	//	group_id	| group_name
-	//
-	//
-	//	user_group_member
-	//	group_id	| user_id
-	//	
-	//	
-	var sql = '';
-
-	var groups = {};	//	id:name
-
-	userDb.each(sql, [ userId ], function dbRow(err, row) {
-		if(err) {
-			cb(err);
-			return;
-		} else {
-			//groups[row.group_id]
-		}
-	},
-	function complete() {
-		cb(null, groups);
-	});
-
 }
 
 /*function getProperties(userId, propNames, cb) {

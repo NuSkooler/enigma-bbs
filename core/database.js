@@ -70,4 +70,9 @@ function createInitialValues() {
 		'INSERT OR IGNORE INTO user_group ' + 
 		'VALUES(1, "users");'
 		);
+
+	dbs.user.run(
+		'INSERT OR IGNORE INTO user_group ' +
+		'VALUES(2, "sysops");'
+		);
 }

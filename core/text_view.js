@@ -13,6 +13,10 @@ var _				= require('lodash');
 exports.TextView			= TextView;
 
 function TextView(options) {
+	if(options.dimens) {
+		options.dimens.height = 1;	//	force height of 1 for TextView's & sub classes
+	}
+
 	View.call(this, options);
 
 	var self = this;
@@ -35,8 +39,6 @@ function TextView(options) {
 	if(_.isString(options.textMaskChar) && 1 === options.textMaskChar.length) {
 		this.textMaskChar = options.textMaskChar;
 	}
-
-	this.dimens.height = 1;
 
 	this.drawText = function(s) {
 

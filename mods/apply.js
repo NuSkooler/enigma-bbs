@@ -74,6 +74,7 @@ function submitApplication(callingMenu, formData, extraArgs) {
 			menuViewController.switchFocus(viewIds[0]);
 		} else {
 			//	Seems legit!
+			//	:TODO: All of this should be a system API, not a mod
 			var newUser = new user.User();
 
 			newUser.username = formData.value.username;
@@ -87,10 +88,11 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				email_address	: formData.value.email,
 				web_address		: formData.value.web,
 				
+				//	:TODO: This is set in User.create() -- proabbly don't need it here:
 				account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
 
 				//	:TODO: Other defaults
-				//	:TODO: should probably have a place to create defaults/etc.					
+				//	:TODO: should probably have a place to create defaults/etc.
 			};
 
 			if('*' === Config.defaults.theme) {
