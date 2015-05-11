@@ -13,7 +13,6 @@ exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
 exports.createNew					= createNew;
 exports.persistAll					= persistAll;
-//exports.authenticate				= authenticate;
 
 function User() {
 	var self = this;
@@ -453,6 +452,34 @@ function loadProperties(options, cb) {
 	});
 }
 
+function loadGroups(userId, cb) {
+	//
+	//	user_group
+	//	group_id	| group_name
+	//
+	//
+	//	user_group_member
+	//	group_id	| user_id
+	//	
+	//	
+	var sql = '';
+
+	var groups = {};	//	id:name
+
+	userDb.each(sql, [ userId ], function dbRow(err, row) {
+		if(err) {
+			cb(err);
+			return;
+		} else {
+			//groups[row.group_id]
+		}
+	},
+	function complete() {
+		cb(null, groups);
+	});
+
+}
+
 /*function getProperties(userId, propNames, cb) {
 	var properties = {};
 
@@ -526,56 +553,3 @@ function persistAll(user, useTransaction, cb) {
 		}
 	);
 }
-
-/*
-function authenticate(userName, password, client, cb) {
-	assert(client);
-
-	async.waterfall(
-		[
-			function fetchUserId(callback) {
-				//	get user ID
-				getUserIdAndName(userName, function onUserId(err, userId) {
-					callback(err, userId);
-				});
-			},
-
-			function getRequiredAuthProperties(userId, callback) {
-				//	fetch properties required for authentication
-				getProperties(userId, User.StandardPropertyGroups.password, function onProps(err, props) {
-					callback(err, props);
-				});
-			},
-			function getDkWithSalt(props, callback) {
-				//	get DK from stored salt and password provided
-				generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, function onDk(err, dk) {
-					callback(err, dk, props.pw_pbkdf2_dk);
-				});
-			}		
-		],
-		function validateAuth(err, passDk, propsDk) {
-			if(err) {
-				cb(err);
-			} else {
-				//
-				//	Use constant time comparison here for security feel-goods
-				//
-				var passDkBuf	= new Buffer(passDk, 'hex');
-				var propsDkBuf	= new Buffer(propsDk, 'hex');
-
-				if(passDkBuf.length !== propsDkBuf.length) {
-					cb(false);
-					return;
-				}
-
-				var c = 0;
-				for(var i = 0; i < passDkBuf.length; i++) {
-					c |= passDkBuf[i] ^ propsDkBuf[i];
-				}
-
-				cb(0 === c ? null : new Error('Invalid password'));
-			}
-		}
-	);
-}
-*/

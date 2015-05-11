@@ -59,7 +59,6 @@ function TextView(options) {
 					textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
 				}
 			} else {
-				//	:TODO: support configurable textOverflow (default="")
 				if(textToDraw.length > this.dimens.width) {
 					if(this.textOverflow && 
 						this.dimens.width > this.textOverflow.length &&
