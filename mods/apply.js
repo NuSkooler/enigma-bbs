@@ -89,7 +89,7 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				web_address		: formData.value.web,
 				
 				//	:TODO: This is set in User.create() -- proabbly don't need it here:
-				account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
+				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
 
 				//	:TODO: Other defaults
 				//	:TODO: should probably have a place to create defaults/etc.

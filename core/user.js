@@ -12,15 +12,14 @@ var _				= require('lodash');
 
 exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
-exports.createNew					= createNew;
-exports.persistAll					= persistAll;
 
 function User() {
 	var self = this;
 
 	this.userId		= 0;
 	this.username	= '';
-	this.properties	= {};
+	this.properties	= {};	//	name:value
+	this.groups		= {};	//	id:name
 
 	this.isValid = function() {
 		if(self.userId <= 0 || self.username.length < 2) {
@@ -44,6 +43,10 @@ function User() {
 	};
 
 	this.isSysOp = this.isRoot;	//	alias
+
+	this.isGroupMember = function(groupIdOrName) {
+		return _.isString(self.groups[groupIdOrName]);
+	}
 
 }
 
@@ -112,7 +115,7 @@ User.prototype.authenticate = function(username, password, cb) {
 				callback(0 === c ? null : new Error('Invalid password'));
 			},
 			function initProps(callback) {
-				loadProperties({ userId : cachedInfo.userId }, function onProps(err, allProps) {
+				loadProperties( { userId : cachedInfo.userId }, function onProps(err, allProps) {
 					if(!err) {
 						cachedInfo.properties = allProps;
 					}
@@ -144,26 +147,6 @@ User.prototype.authenticate = function(username, password, cb) {
 	);
 };
 
-function getUserIdAndName(username, cb) {
-	userDb.get(
-		'SELECT id, user_name ' +
-		'FROM user ' +
-		'WHERE user_name LIKE ?;',
-		[ username ],
-		function onResults(err, row) {
-			if(err) {
-				cb(err);
-			} else {
-				if(row) {
-					cb(null, row.id, row.user_name);
-				} else {
-					cb(new Error('No matching username'));
-				}
-			}
-		}
-	);
-}
-
 User.prototype.create = function(options, cb) {
 	assert(0 === this.userId);
 	assert(this.username.length > 0);	//	:TODO: Min username length? Max?
@@ -174,8 +157,6 @@ User.prototype.create = function(options, cb) {
 
 	//	:TODO: set various defaults, e.g. default activation status, etc.
 	self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
-
-	//	:TODO: Set default groups from Config.users.defaultGroups[]
 
 	async.series(
 		[
@@ -195,10 +176,12 @@ User.prototype.create = function(options, cb) {
 						} else {
 							self.userId = this.lastID;
 
-							//	Do not SGRValuesre activation for userId 1 (root/admin)
+							//	Do not require activation for userId 1 (root/admin)
 							if(1 === self.userId) {
 								self.properties.account_status = User.AccountStatus.active;
 							}
+
+
 
 							callback(null);
 						}
@@ -222,6 +205,21 @@ User.prototype.create = function(options, cb) {
 						callback(err);
 					} else {
 						self.groups = groups;
+						callback(null);
+					}
+				});
+			},
+			function setInitialSysOpGroupMembership(callback) {
+				if(1 !== self.userId) {
+					callback(null);
+					return;
+				}
+
+				userGroup.getGroupsByName( [ 'sysops' ], function sysopGroups(err, groups) {
+					if(err) {
+						callback(err);
+					} else {
+						_.assign(self.groups, self.groups, groups);
 						callback(null);
 					}
 				});
@@ -265,7 +263,7 @@ User.prototype.persist = function(useTransaction, cb) {
 				}
 			},
 			function saveProps(callback) {
-				persistProperties(self, function persisted(err) {
+				self.persistProperties(function persisted(err) {
 					callback(err);
 				});
 			},
@@ -321,74 +319,32 @@ User.prototype.persistProperties = function(cb) {
 	});
 };
 
-
-function createNew(user, cb) {
-	assert(user.username && user.username.length > 1, 'Invalid userName');
-
-	async.series(
-		[
-			function beginTransaction(callback) {
-				userDb.run('BEGIN;', function onBegin(err) {
-					callback(err);
-				});
-			},
-			function createUserRec(callback) {
-				userDb.run(
-					'INSERT INTO user (user_name) ' +
-					'VALUES (?);',
-					[ user.username ],
-					function onUserInsert(err) {
-						if(err) {
-							callback(err);
-						} else {
-							user.userId = this.lastID;
-							callback(null);
-						}
-					}
-				);
-			},
-			function genPasswordDkAndSaltIfRequired(callback) {
-				if(user.password && user.password.length > 0) {
-					generatePasswordDerivedKeyAndSalt(user.password, function onDkAndSalt(err, info) {
-						if(err) {
-							callback(err);
-						} else {
-							user.properties = user.properties || {};
-							user.properties.pw_pbkdf2_salt	= info.salt;
-							user.properties.pw_pbkdf2_dk	= info.dk;
-							callback(null);
-						}
-					});					
-				} else {
-					callback(null);
-				}
-			},
-			function saveAll(callback) {
-				persistAll(user, false, function onPersisted(err) {
-					callback(err);
-				});				
-			}
-		],
-		function onComplete(err) {								
+///////////////////////////////////////////////////////////////////////////////
+//	Exported methods
+///////////////////////////////////////////////////////////////////////////////
+function getUserIdAndName(username, cb) {
+	userDb.get(
+		'SELECT id, user_name ' +
+		'FROM user ' +
+		'WHERE user_name LIKE ?;',
+		[ username ],
+		function onResults(err, row) {
 			if(err) {
-				var originalError = err;
-				userDb.run('ROLLBACK;', function onRollback(err) {
-					assert(!err);
-					cb(originalError);
-				});
+				cb(err);
 			} else {
-				userDb.run('COMMIT;', function onCommit(err) {
-					if(err) {
-						cb(err);
-					} else {
-						cb(null, user.userId);
-					}
-				});
+				if(row) {
+					cb(null, row.id, row.user_name);
+				} else {
+					cb(new Error('No matching username'));
+				}
 			}
 		}
 	);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//	Internal utility methods
+///////////////////////////////////////////////////////////////////////////////
 function generatePasswordDerivedKeyAndSalt(password, cb) {
 	async.waterfall(
 		[
@@ -430,28 +386,6 @@ function generatePasswordDerivedKey(password, salt, cb) {
 	});
 }
 
-function persistProperties(user, cb) {
-	assert(user.userId > 0);
-
-	var stmt = userDb.prepare(
-		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
-		'VALUES (?, ?, ?);');
-
-	async.each(Object.keys(user.properties), function onProp(propName, callback) {
-		stmt.run(user.userId, propName, user.properties[propName], function onRun(err) {
-			callback(err);
-		});
-	}, function onComplete(err) {
-		if(err) {
-			cb(err);
-		} else {
-			stmt.finalize(function onFinalized() {
-				cb(null);
-			});
-		}
-	});
-}
-
 function loadProperties(options, cb) {
 	assert(options.userId);
 
@@ -478,78 +412,4 @@ function loadProperties(options, cb) {
 	}, function complete() {
 		cb(null, properties);
 	});
-}
-
-/*function getProperties(userId, propNames, cb) {
-	var properties = {};
-
-	async.each(propNames, function onPropName(propName, next) {
-		userDb.get(
-			'SELECT prop_value ' +
-			'FROM user_property ' + 
-			'WHERE user_id = ? AND prop_name = ?;',
-			[ userId, propName ], 
-			function onRow(err, row) {
-				if(err) {
-					next(err);
-				} else {
-					if(row) {
-						properties[propName] = row.prop_value;
-						next();
-					} else {
-						next(new Error('No property "' + propName + '" for user ' + userId));
-					}
-				}
-			}
-		);
-	}, function complete(err) {
-		if(err) {
-			cb(err);
-		} else {
-			cb(null, properties);
-		}
-	});
-}
-*/
-
-function persistAll(user, useTransaction, cb) {
-	assert(user.userId > 0);
-
-	async.series(
-		[
-			function beginTransaction(callback) {
-				if(useTransaction) {
-					userDb.run('BEGIN;', function onBegin(err) {
-						callback(err);
-					});
-				} else {
-					callback(null);
-				}
-			},
-			function saveProps(callback) {
-				persistProperties(user, function onPropPersist(err) {
-					callback(err);
-				});
-			}
-		],
-		function onComplete(err) {
-			if(err) {
-				if(useTransaction) {
-					userDb.run('ROLLBACK;', function onRollback(err) {
-						cb(err);
-					});
-				} else {
-					cb(err);
-				}
-			} else {
-				if(useTransaction) {
-					userDb.run('COMMIT;', function onCommit(err) {
-						cb(err);
-					});
-				} else {
-					cb(null);
-				}
-			}
-		}
-	);
 }

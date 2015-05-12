@@ -89,5 +89,12 @@ function addUserToGroups(userId, groups, cb) {
 }
 
 function removeUserFromGroup(userId, groupId, cb) {
-
+	userDb.run(
+		'DELETE FROM user_group_member ' +
+		'WHERE group_id = ? AND user_id = ?;', 
+		[ groupId, userId ],
+		function complete(err) {
+			cb(err);
+		}
+	);
 }
