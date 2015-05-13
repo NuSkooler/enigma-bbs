@@ -24,7 +24,7 @@ function login(callingMenu, formData, extraArgs) {
 				[
 					function loadThemeConfig(callback) {
 						theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
-							client.currentThemeInfo = info;
+							client.currentTheme = info;
 							callback(null);
 						});
 					}

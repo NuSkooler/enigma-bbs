@@ -1,0 +1,18 @@
+{
+	"info" : {
+		"name"		: "Nu Mayan",
+		"author"	: "NuSkooler"
+	},
+	"defaults" : {
+		"general" : {
+			"passwordChar" : "φ"
+		}
+	},
+	"menus" : {
+		"matrix" : {
+			"VM1" : {
+				"itemSpacing" : 0
+			}
+		}
+	}
+}

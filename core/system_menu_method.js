@@ -25,9 +25,9 @@ function login(callingMenu, formData, extraArgs) {
 			async.parallel(
 				[
 					function loadThemeConfig(callback) {
-						theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
-							client.currentThemeInfo = info;
-							callback(null);
+						theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
+							client.currentTheme = theme;
+							callback(null);	//	always non-fatal
 						});
 					}
 				],

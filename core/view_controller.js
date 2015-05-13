@@ -196,9 +196,9 @@ function ViewController(options) {
 		['styleSGR1', 'styleSGR2'].forEach(function styleSgr(style) {
 			setViewProp(style, function(v) {
 				if(_.isObject(v)) {
-					view.styleSGR1 = ansi.getSGRFromGraphicRendition(v, true);
+					view[style] = ansi.getSGRFromGraphicRendition(v, true);
 				} else if(_.isString(v)) {
-					view.styleSGR1 = v;
+					view[style] = ansi.fromPipeCode(v);
 				}
 			});
 		});		
@@ -213,7 +213,7 @@ function ViewController(options) {
 
 		setViewProp('password', function(v) {
 			if(true === v) {
-				view.textMaskChar = self.client.currentThemeInfo.getPasswordChar();
+				view.textMaskChar = self.client.currentTheme.helpers.getPasswordChar();
 			}
 		});
 

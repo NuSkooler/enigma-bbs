@@ -22,7 +22,7 @@ function User() {
 	this.groups		= {};	//	id:name
 
 	this.isValid = function() {
-		if(self.userId <= 0 || self.username.length < 2) {
+		if(self.userId <= 0 || self.username.length < Config.users.usernameMin) {
 			return false;
 		}
 

@@ -1,50 +1,60 @@
 /* jslint node: true */
 'use strict';
 
-var Config		= require('./config.js').config;
-var art			= require('./art.js');
-var miscUtil	= require('./misc_util.js');
-var Log			= require('./logger.js').log;
+var Config				= require('./config.js').config;
+var art					= require('./art.js');
+var miscUtil			= require('./misc_util.js');
+var Log					= require('./logger.js').log;
 
-var fs			= require('fs');
-var paths		= require('path');
-var async		= require('async');
-var _			= require('lodash');
-var assert		= require('assert');
+var fs					= require('fs');
+var paths				= require('path');
+var async				= require('async');
+var _					= require('lodash');
+var assert				= require('assert');
+var stripJsonComments	= require('strip-json-comments');
 
-exports.getThemeInfo			= getThemeInfo;
+exports.loadTheme				= loadTheme;
 exports.getThemeArt				= getThemeArt;
 exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
 
-function getThemeInfo(themeID, cb) {
-	var path = paths.join(Config.paths.themes, themeID, 'theme_info.json');
+function loadTheme(themeID, cb) {
+	var path = paths.join(Config.paths.themes, themeID, 'theme.json');
 
-	fs.readFile(path, function onData(err, data) {
+	fs.readFile(path, { encoding : 'utf8' }, function onData(err, data) {
 		if(err) {
 			cb(err);
 		} else {
 			try {
-				//	:TODO: strip comments/etc. ala menu.json
-				var info = JSON.parse(data);
+				var theme = JSON.parse(stripJsonComments(data));
+
+				if(!_.isObject(theme.info)) {
+					cb(new Error('Invalid theme JSON'));
+					return;
+				}
+
+				assert(!_.isObject(theme.helpers));	//	we create this on the fly!
 
 				//
 				//	Create some handy helpers
 				//
-				info.getPasswordChar = function() {
-					var pwChar = Config.defaults.passwordChar;
-					if(_.isObject(info.config)) {
-						if(_.isString(info.config.passwordChar)) {
-							pwChar = info.config.passwordChar.substr(0, 1);
-						} else if(_.isNumber(info.config.passwordChar)) {
-							pwChar = String.fromCharCode(info.config.passwordChar);
+				theme.helpers = {
+					getPasswordChar : function() {
+						var pwChar = Config.defaults.passwordChar;
+						if(_.isObject(theme.defaults) && _.isObject(theme.defaults.general)) {
+							var themePasswordChar = theme.defaults.general.passwordChar;
+							if(_.isString(themePasswordChar)) {
+								pwChar = themePasswordChar.substr(0, 1);
+							} else if(_.isNumber(themePasswordChar)) {
+								pwChar = String.fromCharCode(themePasswordChar);
+							}
 						}
+						return pwChar;
 					}
-					return pwChar;
-				};
+				}
 
-				cb(null, info);
+				cb(null, theme);
 			} catch(e) {
 				cb(err);
 			}
@@ -70,15 +80,13 @@ function initAvailableThemes(cb) {
 			},
 			function populateAvailable(filtered, callback) {
 				filtered.forEach(function onTheme(themeId) {
-					getThemeInfo(themeId, function onThemeInfo(err, info) {
+					loadTheme(themeId, function themeLoaded(err, theme) {
 						if(!err) {
-							if(!availableThemes) {
-								availableThemes = {};
-							}
-							availableThemes[themeId] = info;
-							Log.debug( { info : info }, 'Theme loaded');
+							availableThemes[themeId] = theme;
+							Log.debug( { info : theme.info }, 'Theme loaded');
 						}
 					});
+
 				});
 				callback(null);
 			}
@@ -100,17 +108,6 @@ function getRandomTheme() {
 		return themeIds[Math.floor(Math.random() * themeIds.length)];
 	}
 }
-
-/*
-function getRandomTheme(cb) {
-	if(Object.getOwnPropertyNames(availableThemes).length > 0) {
-		var themeIds = Object.keys(availableThemes);
-		cb(null, themeIds[Math.floor(Math.random() * themeIds.length)]);
-	} else {
-		cb(new Error('No themes available'));
-	}
-}
-*/
 
 function getThemeArt(name, themeID, options, cb) {
 	//	allow options to be optional

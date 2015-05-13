@@ -211,8 +211,8 @@ function prepareClient(client, cb) {
 
 		client.user.properties.theme_id = theme.getRandomTheme() || '';
 
-		theme.getThemeInfo(client.user.properties.theme_id, function themeInfo(err, info) {
-			client.currentThemeInfo = info;
+		theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
+			client.currentTheme = theme;
 			cb(null);
 		});
 	} else {
