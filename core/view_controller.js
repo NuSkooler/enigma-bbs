@@ -508,6 +508,9 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				});
 			},
 			function applyViewConfiguration(callback) {
+				//
+				//	:TODO: need to merge configs from menu -> theme (specific) -> theme (default) -> defaults
+
 				if(_.isObject(formConfig)) {
 					self.applyViewConfig(formConfig, function configApplied(err, info) {
 						initialFocusId = info.initialFocusId;

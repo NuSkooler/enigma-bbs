@@ -6,6 +6,12 @@
 	"defaults" : {
 		"general" : {
 			"passwordChar" : "φ"
+		},
+		"views" : {
+			//	:TODO: This should apply - by default - to all ToggleMenu's unless overridden elsewhere
+			"TM" : {
+				"styleSGR1" : "|00|30|01"
+			}
 		}
 	},
 	"menus" : {
