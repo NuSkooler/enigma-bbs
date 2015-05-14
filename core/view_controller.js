@@ -507,10 +507,22 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					callback(err);
 				});
 			},
+			function applyThemeCustomization(callback) {
+				if(_.isObject(formConfig)) {
+					menuUtil.applyThemeCustomization({
+						name		: self.client.currentMenuModule.menuName,
+						client		: self.client,
+						configMci	: formConfig.mci,
+					});
+				}
+
+				//console.log(test)
+
+				callback(null);
+			},
 			function applyViewConfiguration(callback) {
 				//
 				//	:TODO: need to merge configs from menu -> theme (specific) -> theme (default) -> defaults
-
 				if(_.isObject(formConfig)) {
 					self.applyViewConfig(formConfig, function configApplied(err, info) {
 						initialFocusId = info.initialFocusId;

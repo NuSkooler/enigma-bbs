@@ -93,6 +93,15 @@ function getDefaultConfig() {
 			passwordChar	: '*',		//	TODO: move to user ?
 		},
 
+		/*
+		Concept
+		"theme" : {
+			"default" : "defaultThemeName", // or "*"
+			"passwordChar" : "*",
+			...
+		}
+		*/
+
 		paths		: {
 			mods				: paths.join(__dirname, './../mods/'),
 			servers				: paths.join(__dirname, './servers/'),

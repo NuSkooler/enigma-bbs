@@ -17,9 +17,10 @@ var _					= require('lodash');
 
 var stripJsonComments	= require('strip-json-comments');
 
-exports.loadMenu				= loadMenu;
-exports.getFormConfigByIDAndMap	= getFormConfigByIDAndMap;
-exports.handleAction			= handleAction;
+exports.loadMenu						= loadMenu;
+exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
+exports.handleAction					= handleAction;
+exports.applyThemeCustomization			= applyThemeCustomization;
 
 
 function loadModJSON(fileName, cb) {
@@ -119,7 +120,12 @@ function loadMenu(options, cb) {
 					'Creating menu module instance');
 
 				try {
-					var moduleInstance = new modData.mod.getModule( { menuConfig : modData.config, args : options.args } );
+					var moduleInstance = new modData.mod.getModule(
+						{
+							menuName	: options.name,
+							menuConfig	: modData.config, 
+							args		: options.args,
+						});
 					callback(null, moduleInstance);
 				} catch(e) {
 					callback(e);
@@ -204,4 +210,29 @@ function handleAction(client, formData, conf) {
 			client.gotoMenuModule( { name : actionAsset.asset, formData : formData, extraArgs : conf.extraArgs } );
 			break;
 	}
+}
+
+function applyThemeCustomization(options) {
+	//
+	//	options.name : menu/prompt name
+	//	options.configMci	: menu or prompt config (menu.json / prompt.json) specific mci section
+	//	options.client	: client
+	//
+	assert(_.isString(options.name));
+	assert(_.isObject(options.client));
+
+	console.log(options.configMci)
+	
+	if(_.isUndefined(options.configMci)) {
+		options.configMci = {};
+	}
+
+	if(_.has(options.client.currentTheme, [ 'customization', 'byName', options.name ])) {
+		var themeConfig = options.client.currentTheme.customization.byName[options.name];
+		Object.keys(themeConfig).forEach(function mciEntry(mci) {
+			_.defaults(options.configMci[mci], themeConfig[mci]);		
+		});
+	}
+
+	//	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
 }

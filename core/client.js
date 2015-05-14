@@ -89,7 +89,7 @@ function Client(input, output) {
 	this.output				= output;
 	this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
-	this.currentThemeInfo	= { name : 'N/A', description : 'None' };
+	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 
 	//
 	//	Peek at |data| and emit for any specialized handling

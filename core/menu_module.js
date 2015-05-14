@@ -20,6 +20,7 @@ function MenuModule(options) {
 	PluginModule.call(this, options);
 
 	var self				= this;
+	this.menuName			= options.menuName;
 	this.menuConfig			= options.menuConfig;
 	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};	//	methods called from @method's

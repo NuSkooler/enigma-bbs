@@ -3,21 +3,34 @@
 		"name"		: "Nu Mayan",
 		"author"	: "NuSkooler"
 	},
-	"defaults" : {
-		"general" : {
-			"passwordChar" : "φ"
-		},
-		"views" : {
-			//	:TODO: This should apply - by default - to all ToggleMenu's unless overridden elsewhere
-			"TM" : {
-				"styleSGR1" : "|00|30|01"
+	"customization" : {
+		"defaults" : {
+			"general" : {
+				"passwordChar" : "φ"
+			},
+			"mci" : {
+				"TM" : {
+					"styleSGR1" : "|00|30|01"
+				}
 			}
-		}
-	},
-	"menus" : {
-		"matrix" : {
-			"VM1" : {
-				"itemSpacing" : 0
+		},
+		"byName" : {
+			"matrix" : {
+				"VM1" : {
+					"itemSpacing" : 1
+				}
+			},
+			"apply" : {
+				"ET1" : { "width" : 21 },
+				"ET2" : { "width" : 21 },
+				"ET3" : { "width" : 21 },
+				"ET4" : { "width" : 21 },
+				"ET5" : { "width" : 21 },
+				"ET6" : { "width" : 21 },
+				"ET7" : { "width" : 21 },
+				"ET8" : { "width" : 21 },
+				"ET9" : { "width" : 21 },
+				"ET10" : { "width" : 21 }
 			}
 		}
 	}

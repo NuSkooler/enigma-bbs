@@ -42,8 +42,8 @@ function loadTheme(themeID, cb) {
 				theme.helpers = {
 					getPasswordChar : function() {
 						var pwChar = Config.defaults.passwordChar;
-						if(_.isObject(theme.defaults) && _.isObject(theme.defaults.general)) {
-							var themePasswordChar = theme.defaults.general.passwordChar;
+						if(_.has(theme, 'customization.defaults.general')) {
+							var themePasswordChar = theme.customization.defaults.general.passwordChar;
 							if(_.isString(themePasswordChar)) {
 								pwChar = themePasswordChar.substr(0, 1);
 							} else if(_.isNumber(themePasswordChar)) {

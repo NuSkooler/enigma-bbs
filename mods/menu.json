@@ -56,8 +56,8 @@
 							"submit"	: true,
 							"focus"		: true,
 							//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-							"items" 	: [ "Login", "Apply", "Log Off" ],
-							"itemSpacing" : 1
+							"items" 	: [ "Login", "Apply", "Log Off" ]//,
+							//"itemSpacing" : 1
 						}
 					},
 					"submit" : {
@@ -124,13 +124,13 @@
 						"ET1" : {
 							"focus"		: true,
 							"argName"	: "username",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength"	: "@config:users.usernameMax"
 						},
 						"ET2" : {
 							"width"		: 15,
 							"argName"	: "realName",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength"	: 32
 						},
 						"ET3" : {
@@ -145,34 +145,34 @@
 						},
 						"ET5" : {
 							"argName"	: "location",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength"	: 32
 						},
 						"ET6" : {
 							"argName" : "affils",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength" : 32
 						},
 						"ET7" : {
 							"argName" : "email",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET8" : {
 							"argName" : "web",
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET9" : {
 							"argName"	: "password",
 							"password"	: true,
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength"	: "@config:users.passwordMax"
 						},
 						"ET10" : {
 							"argName"	: "passwordConfirm",
 							"password"	: true,
-							"width"		: 15,
+							//"width"		: 15,
 							"maxLength"	: "@config:users.passwordMax"
 						},
 						"BT12" : {
