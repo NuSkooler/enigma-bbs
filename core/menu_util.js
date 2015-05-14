@@ -217,18 +217,18 @@ function applyThemeCustomization(options) {
 	//	options.name : menu/prompt name
 	//	options.configMci	: menu or prompt config (menu.json / prompt.json) specific mci section
 	//	options.client	: client
+	//	options.type	: menu|prompt
 	//
 	assert(_.isString(options.name));
+	assert("menus" === options.type || "prompts" === options.type);
 	assert(_.isObject(options.client));
-
-	console.log(options.configMci)
 	
 	if(_.isUndefined(options.configMci)) {
 		options.configMci = {};
 	}
 
-	if(_.has(options.client.currentTheme, [ 'customization', 'byName', options.name ])) {
-		var themeConfig = options.client.currentTheme.customization.byName[options.name];
+	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
+		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
 		Object.keys(themeConfig).forEach(function mciEntry(mci) {
 			_.defaults(options.configMci[mci], themeConfig[mci]);		
 		});

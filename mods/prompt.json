@@ -4,14 +4,12 @@
 		"mci" : {
 			"ET1" : {
 				"argName"	: "username",
-				"width"		: 15,
 				"maxLength"	: "@config:users.usernameMax"
 			},
 			"ET2" : {
 				"submit"	: true,
 				"argName"	: "password",
 				"password"	: true,
-				"width"		: 15,
 				"maxLength"	: "@config:users.passwordMax"
 			}
 		}
