@@ -285,9 +285,9 @@ function getArt(name, options, cb) {
 	if('' !== ext) {
 		options.types = [ ext.toLowerCase() ];
 	} else {
-		if(typeof options.types === 'undefined') {
+		if(_.isUndefined(options.types)) {
 			options.types = Object.keys(SUPPORTED_ART_TYPES);
-		} else if(typeof options.types === 'string') {
+		} else if(_.isString(options.types)) {
 			options.types = [ options.types.toLowerCase() ];
 		}
 	}

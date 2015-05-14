@@ -55,6 +55,7 @@ function MenuModule(options) {
 				if(_.isString(assetSpec.asset)) {
 					//	:TODO: think about this more in relation to themes, etc. How can this come
 					//	from a theme (with override from menu.json) ???
+					//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
 				}
 				break;
 
