@@ -334,7 +334,8 @@
 				"BT5ME1ME2" : {
 					"mci" : {
 						"ME1" : {
-							"maskPattern" : "##/##/##"
+							"maskPattern"	: "##/##/##",
+							"styleSGR1"		: "|00|30|01"
 						}
 					}
 				}

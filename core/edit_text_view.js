@@ -4,9 +4,9 @@
 var TextView		= require('./text_view.js').TextView;
 var miscUtil		= require('./misc_util.js');
 var strUtil			= require('./string_util.js');
-var ansi			= require('./ansi_term.js');
+//var ansi			= require('./ansi_term.js');
 
-var util			= require('util');
+//var util			= require('util');
 var assert			= require('assert');
 var _				= require('lodash');
 
@@ -28,7 +28,7 @@ function EditTextView(options) {
 	};
 }
 
-util.inherits(EditTextView, TextView);
+require('util').inherits(EditTextView, TextView);
 
 EditTextView.prototype.onKeyPress = function(key, isSpecial) {	
 	if(isSpecial) {

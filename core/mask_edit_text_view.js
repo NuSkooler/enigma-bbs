@@ -3,9 +3,12 @@
 
 var TextView		= require('./text_view.js').TextView;
 var miscUtil		= require('./misc_util.js');
+var strUtil			= require('./string_util.js');
+var ansi			= require('./ansi_term.js');
 
-var util			= require('util');
+//var util			= require('util');
 var assert			= require('assert');
+var _				= require('lodash');
 
 exports.MaskEditTextView	= MaskEditTextView;
 
@@ -13,6 +16,10 @@ exports.MaskEditTextView	= MaskEditTextView;
 //	  ^- styleSGR1
 //	buildPattern -> [ RE, RE, '/', RE, RE, '/', RE, RE, RE, RE ]
 //	patternIndex -----^
+
+//	styleSGR1: Literal's (non-focus)
+//	styleSGR2: Literals (focused)
+//	styleSGR3: fillChar
 
 function MaskEditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
@@ -22,39 +29,74 @@ function MaskEditTextView(options) {
 
 	TextView.call(this, options);
 
-	this.cursorPos = { x : 0 };
+	this.cursorPos			= { x : 0 };
+	this.patternArrayPos	= 0;
 
 	var self = this;
 
 	this.maskPattern = options.maskPattern || '';
 
-	this.buildPattern = function(pattern) {
-		this.patternArray = [];
-		for(var i = 0; i < pattern.length; i++) {
-			if(pattern[i] in MaskEditTextView.maskPatternCharacterRegEx) {
-				this.patternArray.push(MaskEditTextView.maskPatternCharacterRegEx[pattern[i]]);
-			} else {
-				this.patternArray.push(pattern[i]);
-			}
-		}
-		console.log(this.patternArray)
+	this.clientBackspace = function() {
+		var fillCharSGR = this.getStyleSGR(2) || this.getSGR();
+		this.client.term.write('\b' + fillCharSGR + this.fillChar + '\b' + this.getFocusSGR());
 	};
 
-	this.buildPattern(this.maskPattern);
+	this.drawText = function(s) {
+		var textToDraw = strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+		
+		assert(textToDraw.length <= self.patternArray.length);
+
+		//	draw out the text we have so far
+		var i = 0;
+		var t = 0;
+		while(i < self.patternArray.length) {
+			if(_.isRegExp(self.patternArray[i])) {
+				if(t < textToDraw.length) {
+					self.client.term.write((self.hasFocus ? self.getFocusSGR() : self.getSGR()) + textToDraw[t]);
+					t++;
+				} else {
+					self.client.term.write((self.getStyleSGR(2) || '') + self.fillChar);
+				}
+			} else {
+				self.client.term.write((self.getStyleSGR(1) || '') + self.maskPattern[i]);
+			}
+			i++;
+		}
+	};
+
+	this.buildPattern = function() {
+		self.patternArray	= [];
+		self.maxLength		= 0;
+
+		for(var i = 0; i < self.maskPattern.length; i++) {
+			//	:TODO: support escaped characters, e.g. \#. Also allow \\ for a '\' mark!
+			if(self.maskPattern[i] in MaskEditTextView.maskPatternCharacterRegEx) {
+				self.patternArray.push(MaskEditTextView.maskPatternCharacterRegEx[self.maskPattern[i]]);
+				++self.maxLength;
+			} else {
+				self.patternArray.push(self.maskPattern[i]);
+			}
+		}
+	};
+
+	this.buildPattern();
 
 }
 
-util.inherits(MaskEditTextView, TextView);
+require('util').inherits(MaskEditTextView, TextView);
 
 MaskEditTextView.maskPatternCharacterRegEx = {
-	'#'				: /[0-9]/,
-	'?'				: /[a-zA-Z]/,
-	'&'				: /[\w\d\s]/,	//	32-126, 128-255
-	'A'				: /[0-9a-zA-Z]/,
+	'#'				: /[0-9]/,				//	Numeric
+	'A'				: /[a-zA-Z]/,			//	Alpha
+	'@'				: /[0-9a-zA-Z]/,		//	Alphanumeric
+	'&'				: /[\w\d\s]/,			//	Any "printable" 32-126, 128-255
 };
 
 MaskEditTextView.prototype.setMaskPattern = function(pattern) {
-	this.buildPattern(pattern);
+	this.dimens.width = pattern.length;
+
+	this.maskPattern = pattern;
+	this.buildPattern();
 };
 
 MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
@@ -67,36 +109,59 @@ MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
 	if(this.text.length < this.maxLength) {
 		key = strUtil.stylizeString(key, this.textStyle);
 
-		/*this.text += key;
-
-		if(this.text.length > this.dimens.width) {
-			//	no shortcuts - redraw the view
-			this.redraw();
-		} else {
-			this.cursorPos.x += 1;
-
-			if(this.maskPatternChar) {
-				this.client.term.write(this.maskPatternChar);
-			} else {
-				this.client.term.write(key);
-			}
+		if(!key.match(this.patternArray[this.patternArrayPos])) {
+			return;
 		}
-		*/
+
+		this.text += key;
+		this.patternArrayPos++;
+
+		while(this.patternArrayPos < this.patternArray.length && 
+			!_.isRegExp(this.patternArray[this.patternArrayPos]))
+		{
+			this.patternArrayPos++;
+		}
+
+		this.redraw();
 	}
 	
 
-	MaskEditTextView.super_.prototype.onKeyPress(this, key, isSpecial);
+	MaskEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
 
 MaskEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 
 	if(this.isSpecialKeyMapped('backspace', keyName)) {
-		/*
 		if(this.text.length > 0) {
-			this.text = this.text.substr(0, this.text.length - 1);
-			this.clientBackspace();
+			this.patternArrayPos--;
+			assert(this.patternArrayPos >= 0);
+
+			if(_.isRegExp(this.patternArray[this.patternArrayPos])) {
+				this.text = this.text.substr(0, this.text.length - 1);
+				this.clientBackspace();
+			} else {
+				var offset = -1;
+				while(this.patternArrayPos > 0) {
+					if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
+						this.text = this.text.substr(0, this.text.length - 1);
+						this.client.term.write(ansi.goto(this.position.x, this.position.y + (this.text.length - offset)));
+						//	:TODO: use better ANSI Position code to just go back
+					//	this.client.term.write(ansi.goto(this.position.x, yPosition));
+
+						this.clientBackspace();
+						break;
+					}
+					console.log('skip past ' + this.patternArray[this.patternArrayPos])
+					//this.client.term.write(ansi.back() + ansi.back());
+					this.patternArrayPos--;
+					offset++;
+				}				
+			}
 		}
-		*/
+	} else if(this.isSpecialKeyMapped('clearLine', keyName)) {
+		this.text				= '';
+		this.patternArrayPos	= 0;
+		this.setFocus(true);	//	redraw + adjust cursor
 	}
 
 	MaskEditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
