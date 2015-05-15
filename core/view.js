@@ -191,6 +191,11 @@ View.prototype.getSGR = function() {
 	return this.ansiSGR;
 };
 
+View.prototype.getStyleSGR = function(x) {
+	assert(_.isNumber(x));
+	return this['styleSGR' + x];
+}
+
 View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
 };

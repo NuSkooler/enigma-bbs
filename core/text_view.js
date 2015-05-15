@@ -80,7 +80,7 @@ function TextView(options) {
 			this.fillChar,
 			this.justify,
 			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
-			this.getSGR()	//	:TODO: use extended style color if avail
+			this.getStyleSGR(1) || this.getSGR()
 			));
 	};
 

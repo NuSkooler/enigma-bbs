@@ -169,8 +169,6 @@ function startListening() {
 			});
 
 			client.on('end', function onClientEnd() {
-				logger.log.info({ clientId : client.runtime.id }, 'Client disconnected');
-
 				removeClient(client);
 			});
 
@@ -192,7 +190,20 @@ function startListening() {
 
 function addNewClient(client) {
 	var id = client.runtime.id = clientConnections.push(client) - 1;
-	logger.log.debug('Connection count is now %d', clientConnections.length);
+
+	var connInfo = {
+		connectionCount : clientConnections.length, 
+		clientId		: client.runtime.id,
+	};
+
+	if(logger.log.debug()) {
+		connInfo.address = client.address();
+	} else {
+		connInfo.ip = client.address().address;
+	}
+	
+	logger.log.info(connInfo, 'Client connected');
+
 	return id;
 }
 
@@ -200,7 +211,14 @@ function removeClient(client) {
 	var i = clientConnections.indexOf(client);
 	if(i > -1) {
 		clientConnections.splice(i, 1);
-		logger.log.debug('Connection count is now %d', clientConnections.length);
+		
+		logger.log.info(
+			{ 
+				connectionCount	: clientConnections.length,
+				clientId		: client.runtime.id 
+			}, 
+			'Client disconnected'
+			);
 	}
 }
 

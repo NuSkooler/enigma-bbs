@@ -10,12 +10,7 @@
 					//	@method:scriptName[.js]/methodName (foreign .js)
 					//	@art:artName
 					//	@method:/methodName (local to module.js)
-					//	... pass isFocused/etc. into draw method
-					"draw" : {
-						"normal" : ...,
-						"focus" : ...
-					}
-
+					//	... pass isFocused/etc. into draw method				
 					NOte that @draw & @art should check theme first. 
 					@draw:myMethod -> theme/draw.js::myMethod(opts)
 
@@ -57,7 +52,6 @@
 							"focus"		: true,
 							//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
 							"items" 	: [ "Login", "Apply", "Log Off" ]//,
-							//"itemSpacing" : 1
 						}
 					},
 					"submit" : {
@@ -116,21 +110,14 @@
 		"form"		: {
 			"0" : {
 				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
-					//
-					//	:TODO: defaults { width : XX, ... } kinda thing would be nice
-					//
-					//	"beforeViewsDraw" : "@method:location.js/myBeforeViewsDraw" -> myBeforeViewsDraw(views)
 					"mci" : {
 						"ET1" : {
 							"focus"		: true,
 							"argName"	: "username",
-							//"width"		: 15,
 							"maxLength"	: "@config:users.usernameMax"
 						},
 						"ET2" : {
-							"width"		: 15,
 							"argName"	: "realName",
-							//"width"		: 15,
 							"maxLength"	: 32
 						},
 						"ET3" : {
@@ -145,34 +132,28 @@
 						},
 						"ET5" : {
 							"argName"	: "location",
-							//"width"		: 15,
 							"maxLength"	: 32
 						},
 						"ET6" : {
 							"argName" : "affils",
-							//"width"		: 15,
 							"maxLength" : 32
 						},
 						"ET7" : {
 							"argName" : "email",
-							//"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET8" : {
 							"argName" : "web",
-							//"width"		: 15,
 							"maxLength" : 255
 						},
 						"ET9" : {
 							"argName"	: "password",
 							"password"	: true,
-							//"width"		: 15,
 							"maxLength"	: "@config:users.passwordMax"
 						},
 						"ET10" : {
 							"argName"	: "passwordConfirm",
 							"password"	: true,
-							//"width"		: 15,
 							"maxLength"	: "@config:users.passwordMax"
 						},
 						"BT12" : {
@@ -210,8 +191,8 @@
 		}
 	},
 	"newUserActive" : {
-		"art" : "STATS",
-		"prompt" : "pause",
+		"art" : "userstats",
+		//"prompt" : "pause",
 		"options" : {
 			//	:TODO: implement MCI codes for this
 			"cls" : true
@@ -228,6 +209,7 @@
 							"items" : [
 								"Single Line Text Editing Views", 
 								"Spinner & Toggle Views",
+								"Mask Edit Views",
 								"Vertical Menu Views",
 								"Horizontal Menu Views",
 								"Art Display",
@@ -252,6 +234,10 @@
 							},
 							{
 								"value" : { "1" : 2 },
+								"action" : "@menu:demoMaskEditView"
+							},
+							{
+								"value" : { "1" : 5 },
 								"action" : "@menu:demoArtDisplay"
 							}
 						]
@@ -279,7 +265,7 @@
 						"ET3" : {
 							"width"		: 20,
 							"fillChar" : "-",
-							//	:TODO: fillColor
+							"styleSGR1" : "|00|36",
 							"maxLength" : 20
 						},
 						"ET4" : {
@@ -335,6 +321,21 @@
 								"action" : "@menu:demoMain"
 							}
 						]
+					}
+				}
+			}
+		}
+	},
+	"demoMaskEditView" : {
+		"art" : "demo_mask_edit_text_view1.ans",
+		"options" : { "cls" : true },
+		"form" : {
+			"0" : {
+				"BT5ME1ME2" : {
+					"mci" : {
+						"ME1" : {
+							"maskPattern" : "##/##/##"
+						}
 					}
 				}
 			}

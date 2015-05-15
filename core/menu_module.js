@@ -80,11 +80,11 @@ function MenuModule(options) {
 							mciData.menu = mciMap;
 							callback(err);
 						});
-					} else {
+					} else {						
 						callback(null);
 					}
 				},
-				function moveToPromptLocation(callback) {
+				function moveToPromptLocation(callback) {												
 					if(self.menuConfig.prompt) {
 						//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
 					}
@@ -106,7 +106,7 @@ function MenuModule(options) {
 							mciData.prompt = mciMap;
 							callback(err);
 						});
-					} else {
+					} else {						
 						callback(null);
 					}
 				},

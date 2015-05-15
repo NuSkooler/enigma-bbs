@@ -17,7 +17,10 @@
 		"menus" : {
 			"matrix" : {
 				"VM1" : {
-					"itemSpacing" : 1
+					"itemSpacing"		: 1,
+					"justify"			: "center",
+					"width"				: 12,
+					"focusTextStyle"	: "l33t"
 				}
 			},
 			"apply" : {

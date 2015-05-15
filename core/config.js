@@ -79,7 +79,7 @@ function getDefaultConfig() {
 
 		users : {
 			usernameMin			: 2,
-			usernameMax			: 22,
+			usernameMax			: 16,
 			usernamePattern		: '^[A-Za-z0-9~!@#$%^&*()\\-\\_+]+$',
 			passwordMin			: 6,
 			passwordMax			: 128,

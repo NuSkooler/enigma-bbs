@@ -189,6 +189,8 @@ function ViewController(options) {
 		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
 		setViewProp('justify');
 		setViewProp('textOverflow');
+
+		setViewProp('maskPattern', function(v) { view.setMaskPattern(v); });
 		
 		setViewProp('maxLength');
 

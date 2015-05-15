@@ -7,6 +7,7 @@ var ButtonView			= require('./button_view.js').ButtonView;
 var VerticalMenuView	= require('./vertical_menu_view.js').VerticalMenuView;
 var SpinnerMenuView		= require('./spinner_menu_view.js').SpinnerMenuView;
 var ToggleMenuView		= require('./toggle_menu_view.js').ToggleMenuView;
+var MaskEditTextView	= require('./mask_edit_text_view.js').MaskEditTextView;
 var Config				= require('./config.js').config;
 var ansi				= require('./ansi_term.js');
 
@@ -23,32 +24,37 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
-	var label;
-	switch(code) {
-		//	:TODO: Fix conflict with ButtonView (BN); chagne to BT
-		case 'BN' : label = Config.general.boardName; break;
-		case 'VL' : label = 'ENiGMA½ v' + packageJson.version; break;
-		case 'VN' : label = packageJson.version; break;
 
-		case 'UN' : label = this.client.user.username; break;
-		case 'UR' : label = this.client.user.properties.real_name; break;
-		case 'LO' : label = this.client.user.properties.location; break;
+	return {
+		BN	: Config.general.boardName,
+		VL	: 'ENiGMA½ v' + packageJson.version,
+		VN	: packageJson.version,
 
-		case 'OS' : 
-			switch(os.platform()) {
-				case 'linux' : label = 'Linux'; break;
-				case 'darwin' : label = 'OS X'; break;
-				case 'win32' : label = 'Windows'; break;
-				case 'sunos' : label = 'SunOS'; break;
-				default : label = os.type(); break;
-			}
-			break;
+		UN	: this.client.user.username,
+		UI	: this.client.user.userId,
+		UG	: _.values(this.client.user.groups).join(', '),
+		UR	: this.client.user.properties.real_name,
+		LO	: this.client.user.properties.location,
+		UA	: this.client.user.properties.age,
+		US	: this.client.user.properties.sex,
+		UE	: this.client.user.properties.email_address,
+		UW	: this.client.user.properties.web_address,
+		UF	: this.client.user.properties.affiliation,
+		UT	: this.client.user.properties.theme_id,
 
-		case 'OA' : label = os.arch(); break;
-		case 'SC' : label = os.cpus()[0].model; break;
-	}
+		OS	: {
+			linux	: 'Linux',
+			darwin	: 'Mac OS X',
+			win32	: 'Windows',
+			sunos	: 'SunOS',
+			freebsd	: 'FreeBSD',
+		}[os.platform()] || os.type(),
 
-	return label;
+		OA	: os.arch(),
+		SC	: os.cpus()[0].model,
+
+		IP	: this.client.address().address,
+	}[code];
 };
 
 MCIViewFactory.prototype.createFromMCI = function(mci) {
@@ -109,6 +115,14 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new EditTextView(options);
+			break;
+
+		//	Masked Edit Text
+		case 'ME' :
+			setOption(0,		'textStyle');
+			setFocusOption(0,	'focusTextStyle');
+
+			view = new MaskEditTextView(options);
 			break;
 
 		//	Pre-defined Label (Text View)
