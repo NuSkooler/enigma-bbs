@@ -14,33 +14,56 @@ var util		= require('util');
 
 exports.connectEntry	= connectEntry;
 
-function ansiQueryTermSizeIfNeeded(client) {
+function ansiQueryTermSizeIfNeeded(client, cb) {
 	if(client.term.termHeight > 0 || client.term.termWidth > 0) {
+		cb(true);
 		return;
 	}
 
-	var onCPR = function(pos) {
+	var cprListener = function(pos) {
 		//
 		//	If we've already found out, disregard
 		//
 		if(client.term.termHeight > 0 || client.term.termWidth > 0) {
+			cb(true);
 			return;
 		}
 
 		assert(2 === pos.length);
-		client.term.termHeight	= pos[0];
-		client.term.termWidth	= pos[1];
+		var h = pos[0];
+		var w = pos[1];
+
+		//
+		//	Netrunner for example gives us 1x1 here. Not really useful. Ignore
+		//	values that seem obviously bad.
+		//
+		if(h < 10 || w < 10) {
+			Log.warn(
+				{ height : h, width : w }, 
+				'Ignoring ANSI CPR screen size query response due to very small values');
+			cb(false);
+			return;
+		}
+
+		client.term.termHeight	= h;
+		client.term.termWidth	= w;
 
 		Log.debug(
-			{ termWidth : client.term.termWidth, termHeight : client.term.termHeight, updateSource : 'ANSI CPR' }, 
-			'Window size updated');
+			{ 
+				termWidth	: client.term.termWidth, 
+				termHeight	: client.term.termHeight, 
+				source		: 'ANSI CPR' 
+			}, 
+			'Window size updated'
+			);
 	};
 
-	client.once('cursor position report', onCPR);
+	client.once('cursor position report', cprListener);
 
 	//	give up after 2s
 	setTimeout(function onTimeout() {
-		client.removeListener('cursor position report', onCPR);
+		client.removeListener('cursor position report', cprListener);
+		cb(true);
 	}, 2000);
 
 	client.term.write(ansi.queryScreenSize());
@@ -53,10 +76,10 @@ function prepareTerminal(term) {
 }
 
 function displayBanner(term) {
-	//	:TODO: add URL to banner
+	//	:TODO: add URL(s) to banner
 	term.write(ansi.fromPipeCode(util.format('' + 
-		'|33Conected to |32EN|33|01i|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
-		'|00|33Copyright (c) 2014 Bryan Ashby\n' + 
+		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
+		'|00|33Copyright (c) 2014-2015 Bryan Ashby\n' + 
 		'|00', packageJson.version)));
 }
 
@@ -67,17 +90,30 @@ function connectEntry(client) {
 	//	If we don't yet know the client term width/height,
 	//	try with a nonstandard ANSI DSR type request.
 	//
-	ansiQueryTermSizeIfNeeded(client);
+	ansiQueryTermSizeIfNeeded(client, function ansiCprResult(result) {
 
-	prepareTerminal(term);
+		if(!result) {
+			//
+			//	We still don't have something good for term height/width.
+			//	Default to DOS size 80x25. 
+			//
+			//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
+			Log.warn('Failed to negotiate term size; Defaulting to 80x25!');
+			
+			term.termHeight	= 25;
+			term.termWidth	= 80;
+		}
 
-	//
-	//	Always show a ENiGMA½ banner
-	//
-	displayBanner(term);
+		prepareTerminal(term);
 
-	setTimeout(function onTimeout() {
-		client.gotoMenuModule( { name : Config.firstMenu });
-	}, 500);
+		//
+		//	Always show a ENiGMA½ banner
+		//
+		displayBanner(term);
+
+		setTimeout(function onTimeout() {
+			client.gotoMenuModule( { name : Config.firstMenu });
+		}, 500);
+	});	
 }
 

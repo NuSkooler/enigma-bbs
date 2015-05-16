@@ -37,7 +37,7 @@ function MaskEditTextView(options) {
 	this.maskPattern = options.maskPattern || '';
 
 	this.clientBackspace = function() {
-		var fillCharSGR = this.getStyleSGR(2) || this.getSGR();
+		var fillCharSGR = this.getStyleSGR(3) || this.getSGR();
 		this.client.term.write('\b' + fillCharSGR + this.fillChar + '\b' + this.getFocusSGR());
 	};
 
@@ -55,10 +55,11 @@ function MaskEditTextView(options) {
 					self.client.term.write((self.hasFocus ? self.getFocusSGR() : self.getSGR()) + textToDraw[t]);
 					t++;
 				} else {
-					self.client.term.write((self.getStyleSGR(2) || '') + self.fillChar);
+					self.client.term.write((self.getStyleSGR(3) || '') + self.fillChar);
 				}
 			} else {
-				self.client.term.write((self.getStyleSGR(1) || '') + self.maskPattern[i]);
+				var styleSgr = this.hasFocus ? (self.getStyleSGR(2) || '') : (self.getStyleSGR(1) || '');
+				self.client.term.write(styleSgr + self.maskPattern[i]);
 			}
 			i++;
 		}
@@ -79,6 +80,10 @@ function MaskEditTextView(options) {
 		}
 	};
 
+	this.getCursorEditYPosition = function() {
+		return this.position.y + this.patternArrayPos;
+	};
+
 	this.buildPattern();
 
 }
@@ -90,6 +95,21 @@ MaskEditTextView.maskPatternCharacterRegEx = {
 	'A'				: /[a-zA-Z]/,			//	Alpha
 	'@'				: /[0-9a-zA-Z]/,		//	Alphanumeric
 	'&'				: /[\w\d\s]/,			//	Any "printable" 32-126, 128-255
+};
+
+MaskEditTextView.prototype.setFocus = function(focused) {
+	//	:TODO: can't call super unless we want wasted redraw stuff. This seems sloppy & should probably be looked into
+	//MaskEditTextView.super_.prototype.setFocus.call(this, focused);
+	assert(this.acceptsFocus, 'View does not accept focus');
+
+	this.hasFocus = focused;
+	this.restoreCursor();
+
+	this.redraw();
+
+	//	position & SGR for cursor
+	this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition()));
+	this.client.term.write(this.getFocusSGR());
 };
 
 MaskEditTextView.prototype.setMaskPattern = function(pattern) {
@@ -123,8 +143,8 @@ MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
 		}
 
 		this.redraw();
-	}
-	
+		this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition()));
+	}	
 
 	MaskEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
@@ -140,21 +160,14 @@ MaskEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 				this.text = this.text.substr(0, this.text.length - 1);
 				this.clientBackspace();
 			} else {
-				var offset = -1;
 				while(this.patternArrayPos > 0) {
 					if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
 						this.text = this.text.substr(0, this.text.length - 1);
-						this.client.term.write(ansi.goto(this.position.x, this.position.y + (this.text.length - offset)));
-						//	:TODO: use better ANSI Position code to just go back
-					//	this.client.term.write(ansi.goto(this.position.x, yPosition));
-
+						this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition() + 1));
 						this.clientBackspace();
 						break;
 					}
-					console.log('skip past ' + this.patternArray[this.patternArrayPos])
-					//this.client.term.write(ansi.back() + ansi.back());
 					this.patternArrayPos--;
-					offset++;
 				}				
 			}
 		}

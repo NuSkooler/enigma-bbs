@@ -1,71 +1,72 @@
 {
-	"userCredentials" : {
+	"prompts" : {
 		"art" : "usercred",
-		"mci" : {
-			"ET1" : {
-				"argName"	: "username",
-				"maxLength"	: "@config:users.usernameMax"
-			},
-			"ET2" : {
-				"submit"	: true,
-				"argName"	: "password",
-				"password"	: true,
-				"maxLength"	: "@config:users.passwordMax"
+		"userCredentials" : {
+			"mci" : {
+				"ET1" : {
+					"argName"	: "username",
+					"maxLength"	: "@config:users.usernameMax"
+				},
+				"ET2" : {
+					"submit"	: true,
+					"argName"	: "password",
+					"password"	: true,
+					"maxLength"	: "@config:users.passwordMax"
+				}
 			}
-		}
-	},
-	"pause" : {
-		"art" : "pause"
-		/*
-		"mci" : {
-			//	:TODO: Need special pause for a key MCI
-			//	e.g. %PA -> themed prompt
-		}
-
-		...or maybe pause should just be special:
-		{
-			...
-			"pause" true
-			// uses theme pause which can be art/inline/etc.
-
-		}
-
-		... better, a special prompt
-
-		GetKeyView
-			* showKey : false
-
-		*/
-	},
-	"standard" : {
+		},
 		"pause" : {
 			"art" : "pause"
+			/*
+			"mci" : {
+				//	:TODO: Need special pause for a key MCI
+				//	e.g. %PA -> themed prompt
+			}
+
+			...or maybe pause should just be special:
+			{
+				...
+				"pause" true
+				// uses theme pause which can be art/inline/etc.
+
+			}
+
+			... better, a special prompt
+
+			GetKeyView
+				* echoKey : false
+
+			*/
+		},
+		"standard" : {
+			"pause" : {
+				"art" : "pause"
+			}
+		},
+		"custom" : {
+
 		}
-	},
-	"custom" : {
+		/*
+		see notes in menu_module.js also
+		...how to allow for this to come from the theme first???
+		same as custom vc drawing/etc.? ... 
 
-	}
-	/*
-	see notes in menu_module.js also
-	...how to allow for this to come from the theme first???
-	same as custom vc drawing/etc.? ... 
-
-	{
-		"theme" : {
-			"inlineArt" : {
-				"something" : "%MC and |01Pipe codes here"
+		{
+			"theme" : {
+				"inlineArt" : {
+					"something" : "%MC and |01Pipe codes here"
+				}
 			}
 		}
-	}
 
-	"pause" :  {
-		"art" : "@inline:simplePrompt",
-		//	support pipe codes & MCI
-		"simplePrompt" : "--------/ Pause /----------------",
-		"mci" : {
+		"pause" :  {
+			"art" : "@inline:simplePrompt",
+			//	support pipe codes & MCI
+			"simplePrompt" : "--------/ Pause /----------------",
+			"mci" : {
 
+			}
 		}
+		*/
 	}
-	*/
-
 }

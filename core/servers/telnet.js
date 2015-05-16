@@ -538,7 +538,7 @@ TelnetClient.prototype.setTermType = function(ttype) {
 	this.term.env['TERM']	= ttype;
 	this.term.termType		= ttype;
 
-	Log.debug({ termType : ttype }, 'Set terminal type');
+	Log.debug( { termType : ttype }, 'Set terminal type');
 }
 
 TelnetClient.prototype.handleSbCommand = function(evt) {
@@ -571,10 +571,10 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				self.setTermType(evt.envVars[name]);
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {
 				self.term.termWidth = parseInt(evt.envVars[name]);
-				Log.debug({ termWidth : self.term.termWidth, updateSource : 'NEW-ENVIRON'}, 'Window width updated');
+				Log.debug({ termWidth : self.term.termWidth, source : 'NEW-ENVIRON'}, 'Window width updated');
 			} else if('ROWS' === name && 0 === self.term.termHeight) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
-				Log.debug({ termHeight : self.term.termHeight, updateSource : 'NEW-ENVIRON'}, 'Window height updated');
+				Log.debug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
 					assert(evt.type === SB_COMMANDS.INFO);
@@ -604,7 +604,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 			self.term.env['ROWS'] = evt.height;
 		}
 
-		Log.debug({ termWidth : evt.width , termHeight : evt.height, updateSource : 'NAWS' }, 'Window size updated');
+		Log.debug({ termWidth : evt.width , termHeight : evt.height, source : 'NAWS' }, 'Window size updated');
 	} else {
 		console.log('unhandled SB: ' + JSON.stringify(evt));
 	}

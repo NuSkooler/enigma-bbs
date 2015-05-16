@@ -194,16 +194,18 @@ function ViewController(options) {
 		
 		setViewProp('maxLength');
 
-
-		['styleSGR1', 'styleSGR2'].forEach(function styleSgr(style) {
-			setViewProp(style, function(v) {
+		//
+		//	styleSGRx: 1..25
+		//
+		for(var i = 1; i <= 25; i++) {
+			setViewProp('styleSGR' + i, function(v) {
 				if(_.isObject(v)) {
-					view[style] = ansi.getSGRFromGraphicRendition(v, true);
+					view['styleSGR' + i] = ansi.getSGRFromGraphicRendition(v, true);
 				} else if(_.isString(v)) {
-					view[style] = ansi.fromPipeCode(v);
+					view['styleSGR' + i] = ansi.fromPipeCode(v);
 				}
 			});
-		});		
+		}
 
 		setViewProp('fillChar', function(v) {
 			if(_.isNumber(v)) {

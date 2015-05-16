@@ -48,8 +48,8 @@ function getMenuConfig(name, cb) {
 				});
 			},
 			function locateMenuConfig(menuJson, callback) {
-				if(_.isObject(menuJson[name])) {
-					menuConfig = menuJson[name];
+				if(_.has(menuJson, [ 'menus', name ])) {
+					menuConfig = menuJson.menus[name];
 					callback(null);
 				} else {
 					callback(new Error('No menu entry for \'' + name + '\''));
@@ -66,7 +66,7 @@ function getMenuConfig(name, cb) {
 			},
 			function locatePromptConfig(promptJson, callback) {
 				if(promptJson) {
-					if(_.isObject(promptJson[menuConfig.prompt])) {
+					if(_.has(promptJson, [ 'prompts', menuConfig.prompt ])) {
 						menuConfig.promptConfig = promptJson[menuConfig.prompt];
 					} else {
 						callback(new Error('No prompt entry for \'' + menuConfig.prompt + '\''));

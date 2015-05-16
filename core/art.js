@@ -454,6 +454,7 @@ function display(options, cb) {
 	var nextPauseTermHeight = options.client.term.termHeight;
 	var continous = false;
 
+	/*
 	parser.on('row update', function rowUpdate(row) {
 		if(row >= nextPauseTermHeight) {
 			if(!continous && 'termHeight' === options.pause) {
@@ -469,6 +470,7 @@ function display(options, cb) {
 			nextPauseTermHeight += options.client.term.termHeight;
 		}
 	});
+	*/
 
 	parser.on('mci', function mciEncountered(mciInfo) {
 

@@ -33,394 +33,397 @@
 				}
 			}
 	*/
-	"connected" : {
+	"menus" : {
 		"art" 		: "CONNECT",
-		"next"		: "matrix",
-		"options"	: {
-			"cls"	: true,
-			"nextTimeout"	: 1500
-		}
-	},
-	"matrix" : {
-		"art"		: "matrix",
-		"form"		: {
-			"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
-				"VM1" : {
-					"mci" : {
-						"VM1" :  {
-							"submit"	: true,
-							"focus"		: true,
-							//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-							"items" 	: [ "Login", "Apply", "Log Off" ]//,
-						}
-					},
-					"submit" : {
-						"*" : [
-							{
-								"value"		: { "1" : 0 },
-								"action"	: "@menu:login"
-							},
-							{
-								"value"		: { "1" : 1 },
-								"action"	: "@menu:apply"
-							},
-							{
-								"value"		: { "1" : 2 },
-								"action"	: "@menu:logoff"
+		"connected" : {
+			"next"		: "matrix",
+			"options"	: {
+				"cls"	: true,
+				"nextTimeout"	: 1500
+			}
+		},
+		"matrix" : {
+			"art"		: "matrix",
+			"form"		: {
+				"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
+					"VM1" : {
+						"mci" : {
+							"VM1" :  {
+								"submit"	: true,
+								"focus"		: true,
+								//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
+								"items" 	: [ "Login", "Apply", "Log Off" ]//,
 							}
-						]
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: { "1" : 0 },
+									"action"	: "@menu:login"
+								},
+								{
+									"value"		: { "1" : 1 },
+									"action"	: "@menu:apply"
+								},
+								{
+									"value"		: { "1" : 2 },
+									"action"	: "@menu:logoff"
+								}
+							]
+						}
+					}
+				}
+			},
+			"options" : {
+				"cls" : true
+			}
+		},
+		"login" : {
+			//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
+			"prompt"	: "userCredentials",
+			"fallback"	: "matrix",
+			"next"		: "newUserActive",
+			"action"	: "@systemMethod:login",
+
+			//	:TODO: support alt submit method for prompts
+			//	if present, standard filters apply. No need for multiple submit ID's
+			//	since a prompt can only utilize one:
+			"submit" : [
+				{
+					"value" : { "1" : "thing" },
+					"action" : "@method:doThings"
+				}
+			],
+
+			"options" : {
+				"cls" : true
+			}
+		},
+		"logoff" : {
+			"art"		: "LOGOFF",
+			//"module"	: "logoff",
+			"action"	: "@systemMethod:logoff",
+			"options" : { "cls" : true }
+		},
+		"apply" : {
+			"art"		: "APPLY",
+			"next"		: "newUserActive",
+			"form"		: {
+				"0" : {
+					"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
+						"mci" : {
+							"ET1" : {
+								"focus"		: true,
+								"argName"	: "username",
+								"maxLength"	: "@config:users.usernameMax"
+							},
+							"ET2" : {
+								"argName"	: "realName",
+								"maxLength"	: 32
+							},
+							"ET3" : {
+								"argName"	: "age",
+								"width"		: 3,
+								"maxLength"	: 3
+							},
+							"ET4" : {
+								"argName"	: "sex",
+								"width"		: 1,
+								"maxLength"	: 1
+							},
+							"ET5" : {
+								"argName"	: "location",
+								"maxLength"	: 32
+							},
+							"ET6" : {
+								"argName" : "affils",
+								"maxLength" : 32
+							},
+							"ET7" : {
+								"argName" : "email",
+								"maxLength" : 255
+							},
+							"ET8" : {
+								"argName" : "web",
+								"maxLength" : 255
+							},
+							"ET9" : {
+								"argName"	: "password",
+								"password"	: true,
+								"maxLength"	: "@config:users.passwordMax"
+							},
+							"ET10" : {
+								"argName"	: "passwordConfirm",
+								"password"	: true,
+								"maxLength"	: "@config:users.passwordMax"
+							},
+							"BT12" : {
+								"submit" : true,
+								"text"	: "Apply"
+							},
+							"BT13" : {
+								"submit" : [ "esc" ],
+								"text" : "Cancel"
+							}
+						},
+						"submit" : {
+							"12" : [	//	Apply
+								{
+									"value" : 12,	//	:TODO: better, this should be optional; if not present it's a any match
+									"action" : "@method:apply/submitApplication",
+									"extraArgs" : {
+										"inactive"	: "userNeedsActivated",
+										"error"		: "newUserCreateError"
+									}								
+								}
+							],
+							"13" : [	//	Cancel
+								{
+									"value" : 13,
+									"action"	: "@menu:matrix"
+								}
+							]
+						}
+					}
+				}
+			},
+			"options" : {
+				"cls" : true
+			}
+		},
+		"newUserActive" : {
+			"art" : "userstats",
+			//"prompt" : "pause",
+			"options" : {
+				//	:TODO: implement MCI codes for this
+				"cls" : true
+			}
+		},
+		"demoMain" : {
+			"art" : "demo_selection_vm.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"VM1" : {
+						"mci" : {
+							"VM1" : {
+								"items" : [
+									"Single Line Text Editing Views", 
+									"Spinner & Toggle Views",
+									"Mask Edit Views",
+									"Vertical Menu Views",
+									"Horizontal Menu Views",
+									"Art Display",
+									"Some More Stuff",
+									"Other"
+								],
+								"height" : 10,
+								"itemSpacing" : 1,
+								"justify" : "center",
+								"focusTextStyle" : "small i"
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : { "1" : 0 },
+									"action" : "@menu:demoEditTextView"
+								},
+								{
+									"value" : { "1" : 1 },
+									"action" : "@menu:demoSpinAndToggleView"
+								},
+								{
+									"value" : { "1" : 2 },
+									"action" : "@menu:demoMaskEditView"
+								},
+								{
+									"value" : { "1" : 5 },
+									"action" : "@menu:demoArtDisplay"
+								}
+							]
+						}
 					}
 				}
 			}
 		},
-		"options" : {
-			"cls" : true
-		}
-	},
-	"login" : {
-		//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
-		"prompt"	: "userCredentials",
-		"fallback"	: "matrix",
-		"next"		: "newUserActive",
-		"action"	: "@systemMethod:login",
-
-		//	:TODO: support alt submit method for prompts
-		//	if present, standard filters apply. No need for multiple submit ID's
-		//	since a prompt can only utilize one:
-		"submit" : [
-			{
-				"value" : { "1" : "thing" },
-				"action" : "@method:doThings"
-			}
-		],
-
-		"options" : {
-			"cls" : true
-		}
-	},
-	"logoff" : {
-		"art"		: "LOGOFF",
-		//"module"	: "logoff",
-		"action"	: "@systemMethod:logoff",
-		"options" : { "cls" : true }
-	},
-	"apply" : {
-		"art"		: "APPLY",
-		"next"		: "newUserActive",
-		"form"		: {
-			"0" : {
-				"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
-					"mci" : {
-						"ET1" : {
-							"focus"		: true,
-							"argName"	: "username",
-							"maxLength"	: "@config:users.usernameMax"
+		"demoEditTextView" : {
+			"art" : "demo_edit_text_view1.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"BT5ET1ET2ET3ET4" : {
+						"mci" : {
+							"ET1" : {
+								"width"		: 20,
+								"maxLength" : 20
+							},
+							"ET2" : {
+								"width"		: 20,
+								"maxLength" : 40,
+								"textOverflow" : "..."
+							},
+							"ET3" : {
+								"width"		: 20,
+								"fillChar" : "-",
+								"styleSGR1" : "|00|36",
+								"maxLength" : 20
+							},
+							"ET4" : {
+								"width"		: 20,
+								"maxLength"	: 20,
+								"password"	: true
+							},
+							"BT5" : {
+								"width" : 8,
+								"text" : "< Back",
+								"submit" : [ "esc" ]
+							}
 						},
-						"ET2" : {
-							"argName"	: "realName",
-							"maxLength"	: 32
-						},
-						"ET3" : {
-							"argName"	: "age",
-							"width"		: 3,
-							"maxLength"	: 3
-						},
-						"ET4" : {
-							"argName"	: "sex",
-							"width"		: 1,
-							"maxLength"	: 1
-						},
-						"ET5" : {
-							"argName"	: "location",
-							"maxLength"	: 32
-						},
-						"ET6" : {
-							"argName" : "affils",
-							"maxLength" : 32
-						},
-						"ET7" : {
-							"argName" : "email",
-							"maxLength" : 255
-						},
-						"ET8" : {
-							"argName" : "web",
-							"maxLength" : 255
-						},
-						"ET9" : {
-							"argName"	: "password",
-							"password"	: true,
-							"maxLength"	: "@config:users.passwordMax"
-						},
-						"ET10" : {
-							"argName"	: "passwordConfirm",
-							"password"	: true,
-							"maxLength"	: "@config:users.passwordMax"
-						},
-						"BT12" : {
-							"submit" : true,
-							"text"	: "Apply"
-						},
-						"BT13" : {
-							"submit" : [ "esc" ],
-							"text" : "Cancel"
+						"submit" : {
+							"*" : [
+								{
+									"value" : 5,
+									"action" : "@menu:demoMain"
+								}
+							]
 						}
-					},
-					"submit" : {
-						"12" : [	//	Apply
-							{
-								"value" : 12,	//	:TODO: better, this should be optional; if not present it's a any match
-								"action" : "@method:apply/submitApplication",
-								"extraArgs" : {
-									"inactive"	: "userNeedsActivated",
-									"error"		: "newUserCreateError"
-								}								
-							}
-						],
-						"13" : [	//	Cancel
-							{
-								"value" : 13,
-								"action"	: "@menu:matrix"
-							}
-						]
 					}
 				}
 			}
 		},
-		"options" : {
-			"cls" : true
-		}
-	},
-	"newUserActive" : {
-		"art" : "userstats",
-		//"prompt" : "pause",
-		"options" : {
-			//	:TODO: implement MCI codes for this
-			"cls" : true
-		}
-	},
-	"demoMain" : {
-		"art" : "demo_selection_vm.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"VM1" : {
-					"mci" : {
-						"VM1" : {
-							"items" : [
-								"Single Line Text Editing Views", 
-								"Spinner & Toggle Views",
-								"Mask Edit Views",
-								"Vertical Menu Views",
-								"Horizontal Menu Views",
-								"Art Display",
-								"Some More Stuff",
-								"Other"
-							],
-							"height" : 10,
-							"itemSpacing" : 1,
-							"justify" : "center",
-							"focusTextStyle" : "small i"
-						}
-					},
-					"submit" : {
-						"*" : [
-							{
-								"value" : { "1" : 0 },
-								"action" : "@menu:demoEditTextView"
+		"demoSpinAndToggleView" : {
+			"art" : "demo_spin_and_toggle.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"BT8SM1SM2TM3" : {
+						"mci" : {
+							"SM1" : {
+								"items" : [ "Henry Morgan", "François l'Ollonais", "Roche Braziliano", "Black Bart", "Blackbeard" ]
 							},
-							{
-								"value" : { "1" : 1 },
-								"action" : "@menu:demoSpinAndToggleView"
+							"SM2" : {
+								"items" : [ "Razor 1911", "DrinkOrDie", "TRSI" ]
 							},
-							{
-								"value" : { "1" : 2 },
-								"action" : "@menu:demoMaskEditView"
+							"TM3" : {
+								"items" 	: [ "Yarly", "Nowaii" ],
+								"styleSGR1" : "|00|30|01",
+								"hotkeys"	: { "Y" : 0, "N" : 1 }
 							},
-							{
-								"value" : { "1" : 5 },
-								"action" : "@menu:demoArtDisplay"
+							"BT8" : {
+								"text" : "< Back",
+								"submit" : [ "esc" ]
 							}
-						]
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : 8,
+									"action" : "@menu:demoMain"
+								}
+							]
+						}
 					}
 				}
 			}
-		}
-	},
-	"demoEditTextView" : {
-		"art" : "demo_edit_text_view1.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"BT5ET1ET2ET3ET4" : {
-					"mci" : {
-						"ET1" : {
-							"width"		: 20,
-							"maxLength" : 20
-						},
-						"ET2" : {
-							"width"		: 20,
-							"maxLength" : 40,
-							"textOverflow" : "..."
-						},
-						"ET3" : {
-							"width"		: 20,
-							"fillChar" : "-",
-							"styleSGR1" : "|00|36",
-							"maxLength" : 20
-						},
-						"ET4" : {
-							"width"		: 20,
-							"maxLength"	: 20,
-							"password"	: true
-						},
-						"BT5" : {
-							"width" : 8,
-							"text" : "< Back",
-							"submit" : [ "esc" ]
-						}
-					},
-					"submit" : {
-						"*" : [
-							{
-								"value" : 5,
-								"action" : "@menu:demoMain"
+		},
+		"demoMaskEditView" : {
+			"art" : "demo_mask_edit_text_view1.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"BT5ME1ME2" : {
+						"mci" : {
+							"ME1" : {
+								"maskPattern"	: "##/##/##",
+								"styleSGR1"		: "|00|30|01",
+								"styleSGR2"		: "|00|45|01"
 							}
-						]
+						}
 					}
 				}
 			}
-		}
-	},
-	"demoSpinAndToggleView" : {
-		"art" : "demo_spin_and_toggle.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"BT8SM1SM2TM3" : {
-					"mci" : {
-						"SM1" : {
-							"items" : [ "Henry Morgan", "François l'Ollonais", "Roche Braziliano", "Black Bart", "Blackbeard" ]
-						},
-						"SM2" : {
-							"items" : [ "Razor 1911", "DrinkOrDie", "TRSI" ]
-						},
-						"TM3" : {
-							"items" 	: [ "Yarly", "Nowaii" ],
-							"styleSGR1" : "|00|30|01",
-							"hotkeys"	: { "Y" : 0, "N" : 1 }
-						},
-						"BT8" : {
-							"text" : "< Back",
-							"submit" : [ "esc" ]
-						}
-					},
-					"submit" : {
-						"*" : [
-							{
-								"value" : 8,
-								"action" : "@menu:demoMain"
+		},
+		"demoArtDisplay" : {
+			"art" : "demo_selection_vm.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"VM1" : {
+						"mci" : {
+							"VM1" : {
+								"items" : [
+									"Defaults - DOS ANSI",
+									"Defaults - Amiga",
+									"Pause at Term Height"
+								],
+								//	:TODO: justify not working??
+								"focusTextStyle" : "small i"
 							}
-						]
-					}
-				}
-			}
-		}
-	},
-	"demoMaskEditView" : {
-		"art" : "demo_mask_edit_text_view1.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"BT5ME1ME2" : {
-					"mci" : {
-						"ME1" : {
-							"maskPattern"	: "##/##/##",
-							"styleSGR1"		: "|00|30|01"
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : { "1" : 0 },
+									"action" : "@menu:demoDefaultsDosAnsi"
+								}							
+							]
 						}
 					}
 				}
 			}
+		},
+		"demoDefaultsDosAnsi" : {
+			"art" : "WE-CIZB.ANS",
+			"options" : { "cls" : true }
 		}
-	},
-	"demoArtDisplay" : {
-		"art" : "demo_selection_vm.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"VM1" : {
-					"mci" : {
-						"VM1" : {
-							"items" : [
-								"Defaults - DOS ANSI",
-								"Defaults - Amiga",
-								"Pause at Term Height"
-							],
-							//	:TODO: justify not working??
-							"focusTextStyle" : "small i"
-						}
-					},
-					"submit" : {
-						"*" : [
-							{
-								"value" : { "1" : 0 },
-								"action" : "@menu:demoDefaultsDosAnsi"
-							}							
-						]
-					}
-				}
-			}
-		}
-	},
-	"demoDefaultsDosAnsi" : {
-		"art" : "WE-CIZB.ANS",
-		"options" : { "cls" : true }
-	}
-	
-	/*
-	:TODO: conceptual simplified menus -- actions/etc. without forms
+		
+		/*
+		:TODO: conceptual simplified menus -- actions/etc. without forms
 
-	{
-		"myMenu" : {
-			"art" : "MENUART",
-			"mci" : {	//	lack of "form": direct to form:0 {}
-				"VM1" : {
-					"items" : [ "Hello", "Goodbye" ],
-					"action" : "@method:someMethod"	//	implies  { "submit" : true }
-				},
-				"submit" : {
-					//	alternate form with filters
+		{
+			"myMenu" : {
+				"art" : "MENUART",
+				"mci" : {	//	lack of "form": direct to form:0 {}
+					"VM1" : {
+						"items" : [ "Hello", "Goodbye" ],
+						"action" : "@method:someMethod"	//	implies  { "submit" : true }
+					},
+					"submit" : {
+						//	alternate form with filters
+					}
 				}
 			}
 		}
-	}
-	*/
-	/*
-	"demoEditTextView" : {
-		"art" : "demo_edit_text_view.ans",
-		"options" : { "cls" : true },
-		"form" : {
-			"0" : {
-				"ET1ET2ET3ET5SM4TM6" : {
-					"mci" : {
-						"ET1" : { "maxLength" : 1 },
-						"ET2" : { "maxLength" : 1 },
-						"ET3" : { "maxLength" : 1 },
-						"SM4" : {
-							"items" : [ "One", "Two", "Three", "Four" ]
-						},
-						"ET5" : {
-							"password" : true,
-							"submit" : [ "esc" ],
-							"fillChar" : "#"
-						},
-						"TM6" : {
-							"items" : [ "Yes", "No" ],
-							"hotkeys" : { "Y" : 0, "n" : 1 }
+		*/
+		/*
+		"demoEditTextView" : {
+			"art" : "demo_edit_text_view.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"ET1ET2ET3ET5SM4TM6" : {
+						"mci" : {
+							"ET1" : { "maxLength" : 1 },
+							"ET2" : { "maxLength" : 1 },
+							"ET3" : { "maxLength" : 1 },
+							"SM4" : {
+								"items" : [ "One", "Two", "Three", "Four" ]
+							},
+							"ET5" : {
+								"password" : true,
+								"submit" : [ "esc" ],
+								"fillChar" : "#"
+							},
+							"TM6" : {
+								"items" : [ "Yes", "No" ],
+								"hotkeys" : { "Y" : 0, "n" : 1 }
+							}
 						}
 					}
 				}
 			}
 		}
+		*/
 	}
-	*/
 }
