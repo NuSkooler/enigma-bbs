@@ -80,7 +80,7 @@ function MaskEditTextView(options) {
 		}
 	};
 
-	this.getCursorEditYPosition = function() {
+	this.getEndOfTextYPosition = function() {
 		return this.position.y + this.patternArrayPos;
 	};
 
@@ -95,21 +95,6 @@ MaskEditTextView.maskPatternCharacterRegEx = {
 	'A'				: /[a-zA-Z]/,			//	Alpha
 	'@'				: /[0-9a-zA-Z]/,		//	Alphanumeric
 	'&'				: /[\w\d\s]/,			//	Any "printable" 32-126, 128-255
-};
-
-MaskEditTextView.prototype.setFocus = function(focused) {
-	//	:TODO: can't call super unless we want wasted redraw stuff. This seems sloppy & should probably be looked into
-	//MaskEditTextView.super_.prototype.setFocus.call(this, focused);
-	assert(this.acceptsFocus, 'View does not accept focus');
-
-	this.hasFocus = focused;
-	this.restoreCursor();
-
-	this.redraw();
-
-	//	position & SGR for cursor
-	this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition()));
-	this.client.term.write(this.getFocusSGR());
 };
 
 MaskEditTextView.prototype.setMaskPattern = function(pattern) {
@@ -143,7 +128,7 @@ MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
 		}
 
 		this.redraw();
-		this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition()));
+		this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition()));
 	}	
 
 	MaskEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
@@ -163,7 +148,7 @@ MaskEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 				while(this.patternArrayPos > 0) {
 					if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
 						this.text = this.text.substr(0, this.text.length - 1);
-						this.client.term.write(ansi.goto(this.position.x, this.getCursorEditYPosition() + 1));
+						this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition() + 1));
 						this.clientBackspace();
 						break;
 					}

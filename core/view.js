@@ -154,39 +154,6 @@ View.prototype.setWidth = function(width) {
 	this.autoScale.width	= false;
 };
 
-/*
-View.prototype.setColor = function(color, bgColor, flags) {
-	if(_.isObject(color)) {
-		assert(_.has(color, 'fg'));
-		assert(_.has(color, 'bg'));
-		assert(_.has(color, 'flags'));
-
-		this.color = color;
-	} else {
-		if(color) {
-			this.color.fg = color;
-		}
-
-		if(bgColor) {
-			this.color.bg = bgColor;
-		}
-
-		if(_.isNumber(flags)) {
-			this.color.flags = flags;
-		}
-	}
-
-	//	allow strings such as 'red', 'black', etc. to be passed
-	if(_.isString(this.color.fg)) {
-		this.color.fg = ansi.getFGColorValue(this.color.fg);
-	}
-
-	if(_.isString(this.color.bg)) {
-		this.color.bg = ansi.getBGColorValue(this.color.bg);
-	}	
-};
-*/
-
 View.prototype.getSGR = function() {
 	return this.ansiSGR;
 };

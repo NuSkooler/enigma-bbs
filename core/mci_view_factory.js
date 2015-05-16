@@ -1,21 +1,23 @@
 /* jslint node: true */
 'use strict';
 
-var TextView			= require('./text_view.js').TextView;
-var EditTextView		= require('./edit_text_view.js').EditTextView;
-var ButtonView			= require('./button_view.js').ButtonView;
-var VerticalMenuView	= require('./vertical_menu_view.js').VerticalMenuView;
-var SpinnerMenuView		= require('./spinner_menu_view.js').SpinnerMenuView;
-var ToggleMenuView		= require('./toggle_menu_view.js').ToggleMenuView;
-var MaskEditTextView	= require('./mask_edit_text_view.js').MaskEditTextView;
-var Config				= require('./config.js').config;
-var ansi				= require('./ansi_term.js');
+var TextView				= require('./text_view.js').TextView;
+var EditTextView			= require('./edit_text_view.js').EditTextView;
+var ButtonView				= require('./button_view.js').ButtonView;
+var VerticalMenuView		= require('./vertical_menu_view.js').VerticalMenuView;
+var SpinnerMenuView			= require('./spinner_menu_view.js').SpinnerMenuView;
+var ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
+var MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
+var MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
 
-var packageJson 		= require('../package.json');
+var Config					= require('./config.js').config;
+var ansi					= require('./ansi_term.js');
 
-var assert				= require('assert');
-var os					= require('os');
-var _					= require('lodash');
+var packageJson 			= require('../package.json');
+
+var assert					= require('assert');
+var os						= require('os');
+var _						= require('lodash');
 
 exports.MCIViewFactory		= MCIViewFactory;
 
@@ -123,6 +125,12 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new MaskEditTextView(options);
+			break;
+
+		//	Multi Line Edit Text
+		case 'MT' : 
+			//	:TODO: apply params
+			view = new MultiLineEditTextView(options);
 			break;
 
 		//	Pre-defined Label (Text View)

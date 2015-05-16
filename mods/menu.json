@@ -211,6 +211,7 @@
 									"Single Line Text Editing Views", 
 									"Spinner & Toggle Views",
 									"Mask Edit Views",
+									"Multi Line Text Editor",
 									"Vertical Menu Views",
 									"Horizontal Menu Views",
 									"Art Display",
@@ -238,7 +239,11 @@
 									"action" : "@menu:demoMaskEditView"
 								},
 								{
-									"value" : { "1" : 5 },
+									"value" : { "1" : 3 },
+									"action" : "@menu:demoMultiLineEditTextView"
+								},
+								{
+									"value" : { "1" : 6 },
 									"action" : "@menu:demoArtDisplay"
 								}
 							]
@@ -338,6 +343,31 @@
 								"maskPattern"	: "##/##/##",
 								"styleSGR1"		: "|00|30|01",
 								"styleSGR2"		: "|00|45|01"
+							},
+							"BT5" : {
+								"text" : "< Back",
+								"submit" : [ "esc" ]
+							}
+						}
+					}
+				}
+			}
+		},
+		"demoMultiLineEditTextView" : {
+			"art" : "demo_multi_line_edit_text_view1.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"BT5MT1" : {
+						"mci" : { 
+							"MT1" : {
+								"width" : 50,
+								"height" : 5,
+								"text" : "Now all the time I was watching this, I was beginning to get very aware of like not feeling all that well, but I tried to forget this, concentrating on the next film, which jumped right away on a young devotchka, who was being given the old in-out, in-out, first by one malchick, then another, then another. This seemed real, very real, though if you thought about it properly you couldn't imagine lewdies actually agreeing to having all this done to them in a film, and if these films were made by the good, or the State, you couldn't imagine them being allowed to take these films, without like interfering with what was going on.\nWhen it came to the sixth or seventh malchick, leering and smecking and then going into it, I began to feel really sick. But I could not shut my glazzies and even if I tried to move my glazballs about I still not get out of the line of fire of this picture."
+							},
+							"BT5" : {
+								"text" : "< Back",
+								"submit" : [ "esc" ]
 							}
 						}
 					}

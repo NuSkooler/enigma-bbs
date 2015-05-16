@@ -84,6 +84,11 @@ function TextView(options) {
 			));
 	};
 
+	this.getEndOfTextYPosition = function() {
+		var offset = Math.min(this.text.length, this.dimens.width);
+		return this.position.y + offset;	
+	};
+
 	this.setText(options.text || '');
 }
 
@@ -99,10 +104,8 @@ TextView.prototype.setFocus = function(focused) {
 	TextView.super_.prototype.setFocus.call(this, focused);
 
 	this.redraw();
-
-	//	position & SGR for cursor
-	var offset = Math.min(this.text.length, this.dimens.width);
-	this.client.term.write(ansi.goto(this.position.x, this.position.y + offset));
+	
+	this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition()));
 	this.client.term.write(this.getFocusSGR());
 };
 
