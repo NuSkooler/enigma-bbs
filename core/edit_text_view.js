@@ -46,7 +46,7 @@ EditTextView.prototype.onKeyPress = function(key, isSpecial) {
 			//	no shortcuts - redraw the view
 			this.redraw();
 		} else {
-			this.cursorPos.x += 1;
+			this.cursorPos.row += 1;
 
 			if(this.textMaskChar) {
 				this.client.term.write(this.textMaskChar);
@@ -67,15 +67,15 @@ EditTextView.prototype.onSpecialKeyPress = function(keyName) {
 			if(this.text.length >= this.dimens.width) {
 				this.redraw();
 			} else {
-				this.cursorPos.x -= 1;
-				if(this.cursorPos.x >= 0) {
+				this.cursorPos.row -= 1;
+				if(this.cursorPos.row >= 0) {
 					this.clientBackspace();
 				}
 			}
 		}
 	} else if(this.isSpecialKeyMapped('clearLine', keyName)) {
 		this.text			= '';
-		this.cursorPos.x	= 0;
+		this.cursorPos.row	= 0;
 		this.setFocus(true);	//	resetting focus will redraw & adjust cursor
 	}
 

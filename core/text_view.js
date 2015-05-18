@@ -24,7 +24,7 @@ function TextView(options) {
 	if(options.maxLength) {
 		this.maxLength = options.maxLength;
 	} else {
-		this.maxLength = this.client.term.termWidth - this.position.x;
+		this.maxLength = this.client.term.termWidth - this.position.row;
 	}
 
 	this.fillChar			= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
@@ -84,9 +84,9 @@ function TextView(options) {
 			));
 	};
 
-	this.getEndOfTextYPosition = function() {
+	this.getEndOfTextColumn = function() {
 		var offset = Math.min(this.text.length, this.dimens.width);
-		return this.position.y + offset;	
+		return this.position.col + offset;	
 	};
 
 	this.setText(options.text || '');
@@ -105,7 +105,7 @@ TextView.prototype.setFocus = function(focused) {
 
 	this.redraw();
 	
-	this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition()));
+	this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
 	this.client.term.write(this.getFocusSGR());
 };
 

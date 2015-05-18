@@ -112,29 +112,29 @@ View.prototype.getId = function() {
 
 View.prototype.setPosition = function(pos) {
 	//
-	//	We allow [x, y], { x : x, y : y }, or (x, y)
+	//	Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
 	//
 	if(util.isArray(pos)) {
-		this.position.x = pos[0];
-		this.position.y = pos[1];
-	} else if(pos.x && pos.y) {
-		this.position.x = pos.x;
-		this.position.y = pos.y;
+		this.position.row = pos[0];
+		this.position.col = pos[1];
+	} else if(pos.row && pos.col) {
+		this.position.row = pos.row;
+		this.position.col = pos.col;
 	} else if(2 === arguments.length) {
-		this.position.x = parseInt(arguments[0], 10);
-		this.position.y = parseInt(arguments[1], 10);
+		this.position.row = parseInt(arguments[0], 10);
+		this.position.col = parseInt(arguments[1], 10);
 	}
 	
-	assert(!(isNaN(this.position.x)));
-	assert(!(isNaN(this.position.y)));
+	assert(!(isNaN(this.position.row)));
+	assert(!(isNaN(this.position.col)));
 
 	assert(
-		this.position.x > 0 && this.position.x <= this.client.term.termHeight, 
-		'X position ' + this.position.x + ' out of terminal range ' + this.client.term.termHeight);
+		this.position.row > 0 && this.position.row <= this.client.term.termHeight, 
+		'X position ' + this.position.row + ' out of terminal range ' + this.client.term.termHeight);
 
 	assert(
-		this.position.y > 0 && this.position.y <= this.client.term.termWidth, 
-		'Y position ' + this.position.y + ' out of terminal range ' + this.client.term.termWidth);
+		this.position.col > 0 && this.position.col <= this.client.term.termWidth, 
+		'Y position ' + this.position.col + ' out of terminal range ' + this.client.term.termWidth);
 };
 
 View.prototype.setDimension = function(dimens) {
@@ -158,17 +158,17 @@ View.prototype.getSGR = function() {
 	return this.ansiSGR;
 };
 
-View.prototype.getStyleSGR = function(x) {
-	assert(_.isNumber(x));
-	return this['styleSGR' + x];
-}
+View.prototype.getStyleSGR = function(n) {
+	assert(_.isNumber(n));
+	return this['styleSGR' + n];
+};
 
 View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
 };
 
 View.prototype.redraw = function() {
-	this.client.term.write(ansi.goto(this.position.x, this.position.y));
+	this.client.term.write(ansi.goto(this.position.row, this.position.col));
 };
 
 View.prototype.setFocus = function(focused) {

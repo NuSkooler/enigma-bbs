@@ -80,8 +80,8 @@ function MaskEditTextView(options) {
 		}
 	};
 
-	this.getEndOfTextYPosition = function() {
-		return this.position.y + this.patternArrayPos;
+	this.getEndOfTextColumn = function() {
+		return this.position.col + this.patternArrayPos;
 	};
 
 	this.buildPattern();
@@ -128,7 +128,7 @@ MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
 		}
 
 		this.redraw();
-		this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition()));
+		this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
 	}	
 
 	MaskEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
@@ -148,7 +148,7 @@ MaskEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 				while(this.patternArrayPos > 0) {
 					if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
 						this.text = this.text.substr(0, this.text.length - 1);
-						this.client.term.write(ansi.goto(this.position.x, this.getEndOfTextYPosition() + 1));
+						this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn() + 1));
 						this.clientBackspace();
 						break;
 					}

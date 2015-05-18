@@ -70,7 +70,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		id				: mci.id,
 		ansiSGR			: mci.SGR,
 		ansiFocusSGR	: mci.focusSGR,
-		position		: { x : mci.position[0], y : mci.position[1] },
+		position		: { row : mci.position[0], col : mci.position[1] },
 	};
 
 	function setOption(pos, name) {

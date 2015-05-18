@@ -27,7 +27,7 @@ function TickerTextView(options) {
 	this.tickerState = {};
 	switch(this.tickerStyle) {
 		case 'rightToLeft' :
-			this.tickerState.pos = this.position.x + this.dimens.width;
+			this.tickerState.pos = this.position.row + this.dimens.width;
 			break;
 	}
 

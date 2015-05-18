@@ -56,18 +56,18 @@ function MultiLineEditTextView(options) {
 	/*
 	this.redrawViewableText = function() {
 		//
-		//	v--- position.x/y
+		//	v--- position.row/y
 		//	+-----------------------------------+ <--- x + width
 		//	|                                   |
 		//	|                                   |
 		//	|                                   |
 		//	+-----------------------------------+
-		//	^--- position.x + height
+		//	^--- position.row + height
 		//
 		//	A given line in lines[] may need to take up 1:n physical lines
 		//	due to wrapping / available space.
 		//
-		var x		= self.position.x;
+		var x		= self.position.row;
 		var bottom	= x + self.dimens.height;
 		var idx		= self.topLineIndex;
 
@@ -80,7 +80,7 @@ function MultiLineEditTextView(options) {
 			} else {
 				lines = self.wordWrap(self.lines[idx]);
 				for(var y = 0; y < lines.length && x < bottom; ++y) {
-					self.client.term.write(ansi.goto(x, this.position.y));
+					self.client.term.write(ansi.goto(x, this.position.col));
 					self.client.term.write(lines[y]);
 					++x;
 				}
@@ -91,14 +91,14 @@ function MultiLineEditTextView(options) {
 	};
 	*/
 	this.redrawViewableText = function() {
-		var x		= self.position.x;
+		var x		= self.position.row;
 		var bottom	= x + self.dimens.height;
 		var index	= self.topLineIndex;
 
 		self.client.term.write(self.getSGR());
 
 		while(index < self.lines.length && x < bottom) {
-			self.client.term.write(ansi.goto(x, this.position.y));
+			self.client.term.write(ansi.goto(x, this.position.col));
 			self.writeLine(self.lines[index]);
 			console.log(self.lines[index])
 			++x;
@@ -140,8 +140,8 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.keyUp = function() {
-		if(self.cursorPos.x > 0) {
-			self.cursorPos.x--;
+		if(self.cursorPos.row > 0) {
+			self.cursorPos.row--;
 			console.log(self.lines[self.getLineIndex()])
 		} else if(self.topLineIndex > 0) {
 			//	:TODO: scroll 
@@ -154,7 +154,7 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.getLineIndex = function() {
-		return self.topLineIndex + self.cursorPos.x;
+		return self.topLineIndex + self.cursorPos.row;
 	};
 }
 
@@ -176,7 +176,7 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	//	:TODO: text.split(/\r\n|\n|\r/))
 	//this.lines = text.split(/\r?\n/);
 
-	//this.cursorPos.x = this.position.x + this.dimens.height;
+	//this.cursorPos.row = this.position.row + this.dimens.height;
 	this.lines = this.wordWrap(text);
 }
 

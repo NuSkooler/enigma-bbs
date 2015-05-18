@@ -23,14 +23,14 @@ function VerticalMenuView(options) {
 	this.performAutoScale = function() {
 		if(this.autoScale.height) {
 			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
-			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.x);
+			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.row);
 		}
 
 		if(this.autoScale.width) {
 			var l = 0;
 			self.items.forEach(function item(i) {
 				if(i.text.length > l) {
-					l = Math.min(i.text.length, self.client.term.termWidth - self.position.y);
+					l = Math.min(i.text.length, self.client.term.termWidth - self.position.col);
 				}
 			});
 			self.dimens.width = l + 1;
@@ -45,7 +45,7 @@ function VerticalMenuView(options) {
 			return;
 		}
 
-		self.client.term.write(ansi.goto(item.xPosition, self.position.y));
+		self.client.term.write(ansi.goto(item.row, self.position.col));
 		self.client.term.write(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
@@ -60,9 +60,9 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
-	var x = this.position.x;
+	var x = this.position.row;
 	for(var i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
-		this.items[i].xPosition = x;
+		this.items[i].row = x;
 		x += this.itemSpacing + 1;
 		this.items[i].focused = this.focusedItemIndex === i;
 		this.drawItem(i);
