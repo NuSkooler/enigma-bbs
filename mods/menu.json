@@ -348,6 +348,14 @@
 								"text" : "< Back",
 								"submit" : [ "esc" ]
 							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : 5,
+									"action" : "@menu:demoMain"
+								}
+							]
 						}
 					}
 				}
@@ -361,14 +369,23 @@
 					"BT5MT1" : {
 						"mci" : { 
 							"MT1" : {
-								"width" : 50,
-								"height" : 5,
-								"text" : "Now all the time I was watching this, I was beginning to get very aware of like not feeling all that well, but I tried to forget this, concentrating on the next film, which jumped right away on a young devotchka, who was being given the old in-out, in-out, first by one malchick, then another, then another. This seemed real, very real, though if you thought about it properly you couldn't imagine lewdies actually agreeing to having all this done to them in a film, and if these films were made by the good, or the State, you couldn't imagine them being allowed to take these films, without like interfering with what was going on.\nWhen it came to the sixth or seventh malchick, leering and smecking and then going into it, I began to feel really sick. But I could not shut my glazzies and even if I tried to move my glazballs about I still not get out of the line of fire of this picture."
+								"width"		: 67,
+								"height"	: 17,
+								"text"		: "Hints:\n  * Press CTRL-Y to clear a line\n  * Arrow keys to move around\n\nTry editing the text below:\nLet me be sick... I want to get up. Get me something to be sick in... Stop the film... Please stop it... I can't stand it any more. Stop it please... please.\n\nWell, that was a very promising start. By my calculations, you should be starting to feel alright again. Yes? Dr. Brodsky's pleased with you. Now tomorrow there'll be two sessions, of course, morning and afternoon.\n\nYou mean, I have to viddy two sessions in one day?\n\nI imagine you'll be feeling a little bit limp by the end of the day. But we have to be hard on you. You have to be cured.\n",
+								"focus"		: true
 							},
 							"BT5" : {
 								"text" : "< Back",
 								"submit" : [ "esc" ]
 							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : 5,
+									"action" : "@menu:demoMain"
+								}
+							]
 						}
 					}
 				}
