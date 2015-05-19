@@ -47,6 +47,12 @@ function MultiLineEditTextView(options) {
 
 	View.call(this, options);
 
+	if(0 !== this.position.col) {
+		//	:TODO: experimental - log this as warning if kept
+		this.position.col = 0;	
+	}
+	
+
 	var self = this;
 
 	this.lines			= [];				//	a given line is text...until EOL
@@ -90,6 +96,11 @@ function MultiLineEditTextView(options) {
 		}
 	};
 	*/
+
+	this.createScrollRegion = function() {
+		self.client.term.write(ansi.setScrollRegion(self.position.row, self.position.row + 5));//self.dimens.height));
+	};
+
 	this.redrawViewableText = function() {
 		var x		= self.position.row;
 		var bottom	= x + self.dimens.height;
@@ -156,14 +167,22 @@ function MultiLineEditTextView(options) {
 	this.getLineIndex = function() {
 		return self.topLineIndex + self.cursorPos.row;
 	};
+
 }
 
 require('util').inherits(MultiLineEditTextView, View);
 
+MultiLineEditTextView.prototype.setPosition = function(pos) {
+	MultiLineEditTextView.super_.prototype.setPosition.call(this, pos);
+
+	
+};
+
 MultiLineEditTextView.prototype.redraw = function() {
 	MultiLineEditTextView.super_.prototype.redraw.call(this);
 
-	this.redrawViewableText();
+	//this.redrawViewableText();
+	this.client.term.write(this.text);
 };
 
 /*MultiLineEditTextView.prototype.setFocus = function(focused) {
@@ -178,6 +197,9 @@ MultiLineEditTextView.prototype.setText = function(text) {
 
 	//this.cursorPos.row = this.position.row + this.dimens.height;
 	this.lines = this.wordWrap(text);
+	this.createScrollRegion();
+
+	this.text = text;
 }
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {

@@ -51,6 +51,7 @@ var CONTROL = {
 	deleteLine		: 'M',
 	scrollUp		: 'S',
 	scrollDown		: 'T',
+	setScrollRegion	: 'r',
 	savePos			: 's',
 	restorePos		: 'u',
 	queryPos		: '6n',
