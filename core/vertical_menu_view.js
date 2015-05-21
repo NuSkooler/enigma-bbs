@@ -60,10 +60,10 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
-	var x = this.position.row;
+	var row = this.position.row;
 	for(var i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
-		this.items[i].row = x;
-		x += this.itemSpacing + 1;
+		this.items[i].row = row;
+		row += this.itemSpacing + 1;
 		this.items[i].focused = this.focusedItemIndex === i;
 		this.drawItem(i);
 	}

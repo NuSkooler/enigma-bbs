@@ -10,6 +10,35 @@ var assert			= require('assert');
 var _				= require('lodash');
 var GapBuffer		= require('gapbuffer').GapBuffer;
 
+//
+//	Notes
+//	* options.tabSize can be used to resolve \t
+//	* See https://github.com/dominictarr/hipster/issues/15 about insert/delete lines
+//
+//	Blessed
+//		insertLine: CSR(top, bottom) + CUP(y, 0) + IL(1) + CSR(0, height)
+//		deleteLine: CSR(top, bottom) + CUP(y, 0) + DL(1) + CSR(0, height)
+//	Quick Ansi -- update only what was changed:
+//	https://github.com/dominictarr/quickansi
+//
+//	This thread is awesome:
+//	https://github.com/dominictarr/hipster/issues/15
+//
+//	See Atom's implementations
+//	Newer TextDocument
+//		https://github.com/atom/text-document
+//
+//	Older TextBuffer
+//		http://www.oscon.com/oscon2014/public/schedule/detail/37593
+//
+//	Span Skip List could be used for mappings of rows/cols (display) to
+//	character offsets in a buffer
+//		https://github.com/atom/span-skip-list
+
+//
+//	Buffer: Actual text buffer
+//	Transform: Display of soft wrap & tab expansion (e.g. tab -> ' ' * tabWidth)
+//
 
 //
 //	General Design
@@ -34,7 +63,15 @@ exports.MultiLineEditTextView	= MultiLineEditTextView;
 //
 //	Syncronet
 //
-
+//
+//	Projects of use/interest:
+//
+//	https://github.com/atom/text-buffer
+//	http://danieltao.com/lazy.js/
+//	http://www.jbox.dk/downloads/edit.c
+//	https://github.com/slap-editor/slap
+//	https://github.com/chjj/blessed
+//
 
 function MultiLineEditTextView(options) {
 	

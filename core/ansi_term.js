@@ -8,6 +8,7 @@
 //	* http://ansi-bbs.org/
 //	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
 //	* http://en.wikipedia.org/wiki/ANSI_escape_code
+//	* https://github.com/chjj/term.js/blob/master/src/term.js
 //
 
 var assert		= require('assert');
@@ -66,6 +67,9 @@ var CONTROL = {
 
 	hideCursor		: '?25l',	//	Nonstandard - cterm.txt
 	showCursor		: '?25h',	//	Nonstandard - cterm.txt
+
+	//	:TODO: see https://code.google.com/p/conemu-maximus5/wiki/AnsiEscapeCodes
+	//	apparently some terms can report screen size and text area via 18t and 19t
 };
 
 /*
