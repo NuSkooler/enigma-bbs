@@ -8,6 +8,7 @@ var ansi			= require('./ansi_term.js');
 
 var assert			= require('assert');
 var _				= require('lodash');
+var GapBuffer		= require('gapbuffer').GapBuffer;
 
 
 //
@@ -47,13 +48,20 @@ function MultiLineEditTextView(options) {
 
 	View.call(this, options);
 
-	if(0 !== this.position.col) {
-		//	:TODO: experimental - log this as warning if kept
-		this.position.col = 0;	
-	}
-	
+	//
+	//	defualt tabWidth is 4
+	//	See the following:
+	//	* http://www.ansi-bbs.org/ansi-bbs2/control_chars/
+	//	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+	//
+	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 8;
+	this.tabString	= new Array(self.tabWidth).join(' ');
+
 
 	var self = this;
+
+	this.renderBuffer	= [];
+	this.textBuffer		= new GapBuffer(1024);
 
 	this.lines			= [];				//	a given line is text...until EOL
 	this.topLineIndex	= 0;
@@ -97,23 +105,24 @@ function MultiLineEditTextView(options) {
 	};
 	*/
 
+	/*
 	this.createScrollRegion = function() {
 		self.client.term.write(ansi.setScrollRegion(self.position.row, self.position.row + 5));//self.dimens.height));
 	};
+	*/
 
 	this.redrawViewableText = function() {
-		var x		= self.position.row;
-		var bottom	= x + self.dimens.height;
-		var index	= self.topLineIndex;
+		var row		= self.position.row;
+		var bottom	= row + self.dimens.height;
+		var i		= self.topLineIndex;
 
 		self.client.term.write(self.getSGR());
 
-		while(index < self.lines.length && x < bottom) {
-			self.client.term.write(ansi.goto(x, this.position.col));
-			self.writeLine(self.lines[index]);
-			console.log(self.lines[index])
-			++x;
-			++index;
+		while(i < self.renderBuffer.length && row < bottom) {
+			self.client.term.write(ansi.goto(row, this.position.col));
+			self.client.term.write(self.renderBuffer[i]);
+			++row; 
+			++i;
 		}
 	};
 
@@ -130,18 +139,32 @@ function MultiLineEditTextView(options) {
 		return line.match(re) || [];
 	};
 
-	this.writeLine = function(s) {
-		//
-		//	Hello, World\n
-		//	\tThis is a test, it is only a test!
-		//
-		//	Loop through |s| finding control characters & processing them
-		//	with our own internal handling.
+	this.regenerateRenderBuffer = function() {
+		self.renderBuffer = [];
 
-		var clean = s.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-		self.client.term.write(clean);
+		//	:TODO: optimize this by only rending what is visible -- or at least near there, e.g. topindex -> maxchars that can fit at most
+
+		//	:TODO: asArray() should take a optional scope, e.g. asArray(beg, end)
+		var lines = self.textBuffer.asArray()
+			.join('')
+			.replace(/\t/g, self.tabString)
+			.split(/\r\n|\n|\r/g);
+
+		var maxLines = self.dimens.height - self.position.row;
+		
+		for(var i = 0; i < lines.length && self.renderBuffer.length < maxLines; ++i) {
+			if(0 === lines[i].length) {
+				self.renderBuffer.push('');
+			} else {
+				Array.prototype.push.apply(self.renderBuffer, self.wordWrap(lines[i]));
+			}
+		}
 	};
 
+	this.getTextBufferPosition = function(row, col) {
+		
+	};
+	
 	this.scrollUp = function(count) {
 
 	};
@@ -150,7 +173,7 @@ function MultiLineEditTextView(options) {
 
 	};
 
-	this.keyUp = function() {
+	this.cursorUp = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
 			console.log(self.lines[self.getLineIndex()])
@@ -181,8 +204,8 @@ MultiLineEditTextView.prototype.setPosition = function(pos) {
 MultiLineEditTextView.prototype.redraw = function() {
 	MultiLineEditTextView.super_.prototype.redraw.call(this);
 
-	//this.redrawViewableText();
-	this.client.term.write(this.text);
+	this.redrawViewableText();
+	//this.client.term.write(this.text);
 };
 
 /*MultiLineEditTextView.prototype.setFocus = function(focused) {
@@ -192,19 +215,36 @@ MultiLineEditTextView.prototype.redraw = function() {
 */
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	//	:TODO: text.split(/\r\n|\n|\r/))
-	//this.lines = text.split(/\r?\n/);
-
 	//this.cursorPos.row = this.position.row + this.dimens.height;
-	this.lines = this.wordWrap(text);
-	this.createScrollRegion();
+	//this.lines = this.wordWrap(text);
 
-	this.text = text;
+	if(this.textBuffer.length > 0) {	//	:TODO: work around GapBuffer bug: if it's already empty this will cause gapEnd to be undefined
+		this.textBuffer.clear();
+	}
+
+	//this.textBuffer.insertAll(0, text);
+	text = text.replace(/\b/g, '');
+
+	var c;
+	for(var i = 0; i < text.length; ++i) {
+		c = text[i];
+
+		//	:TODO: what should really be removed here??? Any non-printable besides \t and \r\n?
+		if('\b' === c) {
+			continue;
+		}
+
+		this.textBuffer.insert(i, c);
+	}
+
+	this.regenerateRenderBuffer();
+
+	console.log(this.renderBuffer)
 }
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('up', keyName)) {
-		this.keyUp();
+		this.cursorUp();
 	} else if(this.isSpecialKeyMapped('down', keyName)) {
 
 	} else if(this.isSpecialKeyMapped('left', keyName)) {

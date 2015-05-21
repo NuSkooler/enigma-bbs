@@ -371,7 +371,7 @@
 							"MT1" : {
 								"width"		: 67,
 								"height"	: 17,
-								"text"		: "Hints:\n  * Press CTRL-Y to clear a line\n  * Arrow keys to move around\n\nTry editing the text below:\nLet me be sick... I want to get up. Get me something to be sick in... Stop the film... Please stop it... I can't stand it any more. Stop it please... please.\n\nWell, that was a very promising start. By my calculations, you should be starting to feel alright again. Yes? Dr. Brodsky's pleased with you. Now tomorrow there'll be two sessions, of course, morning and afternoon.\n\nYou mean, I have to viddy two sessions in one day?\n\nI imagine you'll be feeling a little bit limp by the end of the day. But we have to be hard on you. You have to be cured.\n",
+								"text"		: "Hints:\n  * Press CTRL-Y to clear a line\n  * Arrow keys to move around\n\nTry editing the text below:\nThis\tis\ttabbbed!\nLet me be sick... I want to get up. Get me something to be sick in... Stop the film... Please stop it... I can't stand it any more. Stop it please... please.\n\nWell, that was a very promising start. By my calculations, you should be starting to feel alright again. Yes? Dr. Brodsky's pleased with you. Now tomorrow there'll be two sessions, of course, morning and afternoon.\n\nYou mean, I have to viddy two sessions in one day?\n\nI imagine you'll be feeling a little bit limp by the end of the day. But we have to be hard on you. You have to be cured.\n",
 								"focus"		: true
 							},
 							"BT5" : {
