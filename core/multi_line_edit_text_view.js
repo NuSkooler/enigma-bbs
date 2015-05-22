@@ -92,7 +92,6 @@ function MultiLineEditTextView(options) {
 	//	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
 	//
 	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 8;
-	this.tabString	= new Array(self.tabWidth).join(' ');
 
 
 	var self = this;
@@ -103,6 +102,7 @@ function MultiLineEditTextView(options) {
 	this.lines			= [];				//	a given line is text...until EOL
 	this.topLineIndex	= 0;
 	this.cursorPos		= { x : 0, y : 0 };	//	relative to view window
+	this.renderStartIndex	= 0;
 
 	/*
 	this.redrawViewableText = function() {
@@ -148,6 +148,10 @@ function MultiLineEditTextView(options) {
 	};
 	*/
 
+	this.getTabString = function() {
+		return new Array(self.tabWidth).join(' ');
+	};
+
 	this.redrawViewableText = function() {
 		var row		= self.position.row;
 		var bottom	= row + self.dimens.height;
@@ -176,15 +180,22 @@ function MultiLineEditTextView(options) {
 		return line.match(re) || [];
 	};
 
+	this.wordWrap2 = function(line) {
+		var tabString = self.getTabString();
+		var re = new RegExp(
+			'.{1,' + self.dimens.width + '}(\\s+|$)|\\S+?(\\s+|$)', 'g');
+		var checkLine = line.replace(/\t/g, tabString);
+	};
+
 	this.regenerateRenderBuffer = function() {
 		self.renderBuffer = [];
 
 		//	:TODO: optimize this by only rending what is visible -- or at least near there, e.g. topindex -> maxchars that can fit at most
 
 		//	:TODO: asArray() should take a optional scope, e.g. asArray(beg, end)
-		var lines = self.textBuffer.asArray()
+		var lines = self.textBuffer.asArray().slice(self.renderStartIndex)
 			.join('')
-			.replace(/\t/g, self.tabString)
+			//.replace(/\t/g, self.tabString)
 			.split(/\r\n|\n|\r/g);
 
 		var maxLines = self.dimens.height - self.position.row;
@@ -262,6 +273,9 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	//this.textBuffer.insertAll(0, text);
 	text = text.replace(/\b/g, '');
 
+	this.textBuffer.insertAll(0, text);
+
+	/*
 	var c;
 	for(var i = 0; i < text.length; ++i) {
 		c = text[i];
@@ -272,7 +286,7 @@ MultiLineEditTextView.prototype.setText = function(text) {
 		}
 
 		this.textBuffer.insert(i, c);
-	}
+	}*/
 
 	this.regenerateRenderBuffer();
 
