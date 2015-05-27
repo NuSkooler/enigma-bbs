@@ -236,18 +236,42 @@ function MultiLineEditTextView(options) {
 
 	};
 
+	this.getCharAtCursorPosition = function() {
+		var pos = self.getTextBufferPosition(self.cursorPos.row, self.cursorPos.col);
+		return self.textBuffer.get(pos);
+	};
+
 	this.cursorUp = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
-			console.log(self.textBuffer.asArray().join('').slice(self.getTextBufferPosition(self.cursorPos.row, 0), 1));
+			
 		} else if(self.topLineIndex > 0) {
 			//	:TODO: scroll 
 		}
 
-
-
 		//	:TODO: if there is text @ cursor y position we're ok, otherwise,
 		//	jump to the end of the line
+	};
+
+	this.cursorRight = function() {
+		var max = Math.min(self.dimens.width, self.renderBuffer[self.cursorPos.row].length);
+		if(self.cursorPos.col < max) {
+			self.cursorPos.col++;
+		} else {
+
+		}
+	};
+
+	this.cursorLeft = function() {
+		if(self.cursorPos.col > 0) {
+			self.cursorPos.col--;
+		} else {
+			if(self.cursorPos.row > 0) {
+				self.cursorPos.row--;
+				self.cursorPos.col = self.renderBuffer[self.cursorPos.row].length;
+			}
+			//self.cursorUp();
+		}
 	};
 
 	this.getLineIndex = function() {
@@ -298,7 +322,8 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	for(var i = idx; i < idx + 4; ++i) {
 		console.log(i + ' = "' + this.textBuffer.asArray()[i] + '"');
 	}
-	this.cursorPos.row = 3;
+	this.cursorPos.row = 15;
+	this.cursorPos.col = 0;
 }
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
@@ -307,10 +332,12 @@ MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	} else if(this.isSpecialKeyMapped('down', keyName)) {
 
 	} else if(this.isSpecialKeyMapped('left', keyName)) {
-
+		this.cursorLeft();
 	} else if(this.isSpecialKeyMapped('right', keyName)) {
-
+		this.cursorRight();
 	}
+
+	console.log(this.getCharAtCursorPosition());
 
 	MultiLineEditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 }
