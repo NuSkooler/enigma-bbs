@@ -12,7 +12,8 @@
 		"lodash" : "3.7.x",
 		"sqlite3" : "3.0.x",
 		"ssh2" : "0.4.x",
-		"strip-json-comments" : "1.0.x"
+		"strip-json-comments" : "1.0.x",
+		"gapbuffer" : "0.0.2"
 	},
 	"engine" : "node >= 0.12.2"
 }

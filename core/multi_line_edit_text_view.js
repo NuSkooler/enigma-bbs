@@ -210,9 +210,13 @@ function MultiLineEditTextView(options) {
 		}
 	};
 
+	this.getReplaceTabsRegExp = function() {
+		return new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+	};
+
 	this.getTextBufferPosition = function(row, col) {
-		var line = self.renderBuffer[row];
-		var replaceTabsRe	= new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+		var line			= self.renderBuffer[row];
+		var replaceTabsRe	= self.getReplaceTabsRegExp();
 		var pos = 0;
 		for(var r = 0; r < row; ++r) {
 			if(self.renderBuffer[r].length > 0) {
@@ -227,13 +231,16 @@ function MultiLineEditTextView(options) {
 			.length;
 		return pos;
 	};
-	
-	this.scrollUp = function(count) {
 
+	this.getEndOfLinePosition = function(row) {
+		row = row || self.cursorPos.row;
+		return self.position.col + self.renderBuffer[row].length;
 	};
 
-	this.scrollDown = function(count) {
-
+	this.getAbsolutePosition = function(row, col) {
+		row = row || self.cursorPos.row;
+		col = col || self.cursorPos.col;
+		return { row : self.position.row + row, col : self.position.col + col };
 	};
 
 	this.getCharAtCursorPosition = function() {
@@ -241,25 +248,54 @@ function MultiLineEditTextView(options) {
 		return self.textBuffer.get(pos);
 	};
 
+	this.moveCursorTo = function(row, col) {
+		var absPos = self.getAbsolutePosition(row, col);
+		self.client.term.write(ansi.goto(absPos.row, absPos.col));
+	};
+	
+	this.scrollUp = function(count) {
+
+	};
+
+	this.scrollDown = function(count) {
+
+	};	
+
 	this.cursorUp = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
-			
+			self.client.term.write(ansi.up());
 		} else if(self.topLineIndex > 0) {
-			//	:TODO: scroll 
+			//	:TODO: scroll up if possible to do so
 		}
+
+		var endOfLinePos = self.getEndOfLinePosition();
+		console.log('col=' + self.cursorPos.col + ' / eolPos=' + endOfLinePos)
+		if(self.cursorPos.col > endOfLinePos) {
+			self.client.term.write(ansi.right(self.cursorPos.col - endOfLinePos));
+			self.cursorPos.col = endOfLinePos;
+		}
+
 
 		//	:TODO: if there is text @ cursor y position we're ok, otherwise,
 		//	jump to the end of the line
+
+		
 	};
 
 	this.cursorRight = function() {
 		var max = Math.min(self.dimens.width, self.renderBuffer[self.cursorPos.row].length);
 		if(self.cursorPos.col < max) {
 			self.cursorPos.col++;
+			self.client.term.write(ansi.right());
 		} else {
-
+			if(self.cursorPos.row > 0) {
+				self.cursorPos.row--;
+				self.cursorPos.col = 0;
+				self.moveCursorTo(self.cursorPos.row, self.cursorPos.col);
+			}
 		}
+		
 	};
 
 	this.cursorLeft = function() {
@@ -295,11 +331,13 @@ MultiLineEditTextView.prototype.redraw = function() {
 	//this.client.term.write(this.text);
 };
 
-/*MultiLineEditTextView.prototype.setFocus = function(focused) {
+MultiLineEditTextView.prototype.setFocus = function(focused) {
 
 	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
+
+	this.moveCursorTo(this.cursorPos.row, this.cursorPos.col);
 };
-*/
+
 
 MultiLineEditTextView.prototype.setText = function(text) {
 	//this.cursorPos.row = this.position.row + this.dimens.height;
@@ -317,14 +355,18 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	this.updateRenderBuffer();
 
 	console.log(this.renderBuffer)
-
+	/*
 	var idx = this.getTextBufferPosition(4, 0);
 	for(var i = idx; i < idx + 4; ++i) {
 		console.log(i + ' = "' + this.textBuffer.asArray()[i] + '"');
 	}
 	this.cursorPos.row = 15;
 	this.cursorPos.col = 0;
-}
+	*/
+
+	this.cursorPos.row = 14;
+	this.cursorPos.col = 0;
+};
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('up', keyName)) {
@@ -337,7 +379,7 @@ MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 		this.cursorRight();
 	}
 
-	console.log(this.getCharAtCursorPosition());
+	console.log(JSON.stringify(this.getAbsolutePosition()) + ': ' + this.getCharAtCursorPosition())
 
 	MultiLineEditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
-}
+};

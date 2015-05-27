@@ -41,8 +41,13 @@ var ESC_CSI 	= '\u001b[';
 var CONTROL = {
 	up				: 'A',
 	down			: 'B',
+
 	forward			: 'C',
+	right			: 'C',
+
 	back			: 'D',
+	left			: 'D',
+
 	nextLine		: 'E',
 	prevLine		: 'F',
 	horizAbsolute	: 'G',
