@@ -101,7 +101,7 @@ function MultiLineEditTextView(options) {
 
 	this.lines			= [];				//	a given line is text...until EOL
 	this.topLineIndex	= 0;
-	this.cursorPos		= { x : 0, y : 0 };	//	relative to view window
+	this.cursorPos		= { row : 0, col : 0 };	//	relative to view window
 	this.renderStartIndex	= 0;
 
 	/*
@@ -161,7 +161,7 @@ function MultiLineEditTextView(options) {
 
 		while(i < self.renderBuffer.length && row < bottom) {
 			self.client.term.write(ansi.goto(row, this.position.col));
-			self.client.term.write(self.renderBuffer[i]);
+			self.client.term.write(self.getRenderLine(self.renderBuffer[i]));
 			++row; 
 			++i;
 		}
@@ -180,22 +180,22 @@ function MultiLineEditTextView(options) {
 		return line.match(re) || [];
 	};
 
-	this.wordWrap2 = function(line) {
-		var tabString = self.getTabString();
-		var re = new RegExp(
-			'.{1,' + self.dimens.width + '}(\\s+|$)|\\S+?(\\s+|$)', 'g');
-		var checkLine = line.replace(/\t/g, tabString);
+	this.wordWrap3 = function(line, width) {
+		var re = new RegExp('.{1,' + width + '}(\\s+|$)|\\S+?(\\s+|$)', 'g');  
+	    return line.replace(/\t/g, new Array(self.tabWidth).join('\t')).match(re) || [];
 	};
 
-	this.regenerateRenderBuffer = function() {
+	this.getRenderLine = function(line) {
+		var replaceTabsRe	= new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+		var tabSpaces		= new Array(self.tabWidth).join(' ');
+		return line.replace(replaceTabsRe, tabSpaces).replace(/\n/g, '');
+	};
+
+	this.updateRenderBuffer = function() {
 		self.renderBuffer = [];
-
-		//	:TODO: optimize this by only rending what is visible -- or at least near there, e.g. topindex -> maxchars that can fit at most
-
-		//	:TODO: asArray() should take a optional scope, e.g. asArray(beg, end)
-		var lines = self.textBuffer.asArray().slice(self.renderStartIndex)
+		//	:TODO: optimize this with asArray() taking the slice information
+		var lines = self.textBuffer.asArray().slice(self.renderStartIndex, self.renderStartIndex + self.dimens.width * self.dimens.height)
 			.join('')
-			//.replace(/\t/g, self.tabString)
 			.split(/\r\n|\n|\r/g);
 
 		var maxLines = self.dimens.height - self.position.row;
@@ -204,13 +204,28 @@ function MultiLineEditTextView(options) {
 			if(0 === lines[i].length) {
 				self.renderBuffer.push('');
 			} else {
-				Array.prototype.push.apply(self.renderBuffer, self.wordWrap(lines[i]));
+				Array.prototype.push.apply(self.renderBuffer, self.wordWrap3(lines[i] + '\n', self.dimens.width));
+				
 			}
 		}
 	};
 
 	this.getTextBufferPosition = function(row, col) {
-		
+		var line = self.renderBuffer[row];
+		var replaceTabsRe	= new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+		var pos = 0;
+		for(var r = 0; r < row; ++r) {
+			if(self.renderBuffer[r].length > 0) {
+				pos += self.renderBuffer[r].replace(replaceTabsRe, '\t').length;
+			} else {
+				pos += 1;
+			}
+		}
+		pos += self.renderBuffer[row]
+			.replace(replaceTabsRe, '\t')
+			.slice(0, Math.min(col, self.dimens.width))
+			.length;
+		return pos;
 	};
 	
 	this.scrollUp = function(count) {
@@ -224,7 +239,7 @@ function MultiLineEditTextView(options) {
 	this.cursorUp = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
-			console.log(self.lines[self.getLineIndex()])
+			console.log(self.textBuffer.asArray().join('').slice(self.getTextBufferPosition(self.cursorPos.row, 0), 1));
 		} else if(self.topLineIndex > 0) {
 			//	:TODO: scroll 
 		}
@@ -275,22 +290,15 @@ MultiLineEditTextView.prototype.setText = function(text) {
 
 	this.textBuffer.insertAll(0, text);
 
-	/*
-	var c;
-	for(var i = 0; i < text.length; ++i) {
-		c = text[i];
-
-		//	:TODO: what should really be removed here??? Any non-printable besides \t and \r\n?
-		if('\b' === c) {
-			continue;
-		}
-
-		this.textBuffer.insert(i, c);
-	}*/
-
-	this.regenerateRenderBuffer();
+	this.updateRenderBuffer();
 
 	console.log(this.renderBuffer)
+
+	var idx = this.getTextBufferPosition(4, 0);
+	for(var i = idx; i < idx + 4; ++i) {
+		console.log(i + ' = "' + this.textBuffer.asArray()[i] + '"');
+	}
+	this.cursorPos.row = 3;
 }
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
