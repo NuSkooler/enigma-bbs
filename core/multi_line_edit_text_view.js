@@ -267,6 +267,7 @@ function MultiLineEditTextView(options) {
 				self.client.term.write(ansi.right(self.tabWidth - 1));
 			}
 		} else {
+			//	:TODO: completely backwards -- should go down
 			if(self.cursorPos.row > 0) {
 				self.cursorPos.row--;
 				self.cursorPos.col = 0;
