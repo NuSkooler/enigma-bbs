@@ -215,7 +215,6 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.getTextBufferPosition = function(row, col) {
-		var line			= self.renderBuffer[row];
 		var replaceTabsRe	= self.getReplaceTabsRegExp();
 		var pos = 0;
 		for(var r = 0; r < row; ++r) {
@@ -232,9 +231,14 @@ function MultiLineEditTextView(options) {
 		return pos;
 	};
 
+	this.getLineTextLength = function(row) {
+		return self.renderBuffer[row].replace(self.getReplaceTabsRegExp(), '\t').replace(/\n/g, '').length;
+		//return self.renderBuffer[row].replace(/\n/g, '').length;
+	};
+
 	this.getEndOfLinePosition = function(row) {
 		row = row || self.cursorPos.row;
-		return self.position.col + self.renderBuffer[row].length;
+		return self.position.col + self.getLineTextLength(row);
 	};
 
 	this.getAbsolutePosition = function(row, col) {
@@ -284,10 +288,16 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.cursorRight = function() {
-		var max = Math.min(self.dimens.width, self.renderBuffer[self.cursorPos.row].length);
+		var max = Math.min(self.dimens.width, self.getLineTextLength(self.cursorPos.row) - 1);
 		if(self.cursorPos.col < max) {
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
+			
+			//	make tab adjustment if necessary
+			if('\t' === self.getCharAtCursorPosition()) {
+				self.cursorPos.col++;
+				self.client.term.write(ansi.right(self.tabWidth - 1));
+			}
 		} else {
 			if(self.cursorPos.row > 0) {
 				self.cursorPos.row--;
@@ -379,7 +389,10 @@ MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 		this.cursorRight();
 	}
 
-	console.log(JSON.stringify(this.getAbsolutePosition()) + ': ' + this.getCharAtCursorPosition())
+	console.log(
+		'row=' + this.cursorPos.row + ' / col=' + this.cursorPos.col + 
+		' / abs=' + JSON.stringify(this.getAbsolutePosition()) + 
+		': ' + this.getCharAtCursorPosition() + '( ' + this.getCharAtCursorPosition().charCodeAt(0) + ')')
 
 	MultiLineEditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
