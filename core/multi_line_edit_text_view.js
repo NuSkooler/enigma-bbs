@@ -182,10 +182,12 @@ function MultiLineEditTextView(options) {
 				pos += 1;
 			}
 		}
+
 		pos += self.renderBuffer[row]
-			.replace(replaceTabsRe, '\t')
 			.slice(0, Math.min(col, self.dimens.width))
+			.replace(replaceTabsRe, '\t')			
 			.length;
+
 		return pos;
 	};
 
@@ -237,7 +239,7 @@ function MultiLineEditTextView(options) {
 		}
 
 		var endOfLinePos = self.getEndOfLinePosition();
-		console.log('col=' + self.cursorPos.col + ' / eolPos=' + endOfLinePos)
+		//console.log('col=' + self.cursorPos.col + ' / eolPos=' + endOfLinePos)
 		if(self.cursorPos.col > endOfLinePos) {
 			self.client.term.write(ansi.right(self.cursorPos.col - endOfLinePos));
 			self.cursorPos.col = endOfLinePos;
@@ -251,14 +253,17 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.cursorRight = function() {
-		var max = Math.min(self.dimens.width, self.getLineTextLength(self.cursorPos.row) - 1);
+		var rowVisibleLen = self.renderBuffer[self.cursorPos.row].replace(/\n/g, '').length;
+		var max = Math.min(self.dimens.width, rowVisibleLen - 1);//selfself.getLineTextLength(self.cursorPos.row) - 1);
+		console.log('self.dimens.width: ' + self.dimens.width + ' / lineLength: ' + (self.getLineTextLength(self.cursorPos.row) - 1))
 		if(self.cursorPos.col < max) {
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
 			
 			//	make tab adjustment if necessary
 			if('\t' === self.getCharAtCursorPosition()) {
-				self.cursorPos.col++;
+				//self.cursorPos.col++;
+				self.cursorPos.col += (self.tabWidth - 1);
 				self.client.term.write(ansi.right(self.tabWidth - 1));
 			}
 		} else {
