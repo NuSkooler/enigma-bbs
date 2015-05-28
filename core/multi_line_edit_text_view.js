@@ -73,6 +73,8 @@ exports.MultiLineEditTextView	= MultiLineEditTextView;
 //	https://github.com/chjj/blessed
 //
 
+//	need self.skipTabs(dir): if pos='\t', skip ahead (in dir) until reg char. This can be used @ up, left, right, down
+
 function MultiLineEditTextView(options) {
 	
 	if(!_.isBoolean(options.acceptsFocus)) {
@@ -103,50 +105,6 @@ function MultiLineEditTextView(options) {
 	this.topLineIndex	= 0;
 	this.cursorPos		= { row : 0, col : 0 };	//	relative to view window
 	this.renderStartIndex	= 0;
-
-	/*
-	this.redrawViewableText = function() {
-		//
-		//	v--- position.row/y
-		//	+-----------------------------------+ <--- x + width
-		//	|                                   |
-		//	|                                   |
-		//	|                                   |
-		//	+-----------------------------------+
-		//	^--- position.row + height
-		//
-		//	A given line in lines[] may need to take up 1:n physical lines
-		//	due to wrapping / available space.
-		//
-		var x		= self.position.row;
-		var bottom	= x + self.dimens.height;
-		var idx		= self.topLineIndex;
-
-		self.client.term.write(self.getSGR());
-
-		var lines;
-		while(idx < self.lines.length && x < bottom) {
-			if(0 === self.lines[idx].length) {
-				++x;
-			} else {
-				lines = self.wordWrap(self.lines[idx]);
-				for(var y = 0; y < lines.length && x < bottom; ++y) {
-					self.client.term.write(ansi.goto(x, this.position.col));
-					self.client.term.write(lines[y]);
-					++x;
-				}
-			}
-
-			++idx;
-		}
-	};
-	*/
-
-	/*
-	this.createScrollRegion = function() {
-		self.client.term.write(ansi.setScrollRegion(self.position.row, self.position.row + 5));//self.dimens.height));
-	};
-	*/
 
 	this.getTabString = function() {
 		return new Array(self.tabWidth).join(' ');
@@ -236,6 +194,10 @@ function MultiLineEditTextView(options) {
 		//return self.renderBuffer[row].replace(/\n/g, '').length;
 	};
 
+	this.getLineTextLengthToColumn = function(row, col) {
+		return self.renderBuffer[row].replace(self.getReplaceTabsRegExp(), '\t').replace(/\n/g, '').slice(0, col).length;
+	};
+
 	this.getEndOfLinePosition = function(row) {
 		row = row || self.cursorPos.row;
 		return self.position.col + self.getLineTextLength(row);
@@ -267,6 +229,7 @@ function MultiLineEditTextView(options) {
 
 	this.cursorUp = function() {
 		if(self.cursorPos.row > 0) {
+			self.cursorPos.col = self.getLineTextLengthToColumn(self.cursorPos.row, self.cursorPos.col);
 			self.cursorPos.row--;
 			self.client.term.write(ansi.up());
 		} else if(self.topLineIndex > 0) {

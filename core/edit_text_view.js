@@ -20,7 +20,7 @@ function EditTextView(options) {
 	
 	TextView.call(this, options);
 
-	this.cursorPos = { x : 0 };
+	this.cursorPos = { row : 0, col : 0 };
 
 	this.clientBackspace = function() {
 		var fillCharSGR = this.getStyleSGR(1) || this.getSGR();
