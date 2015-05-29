@@ -150,9 +150,16 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.updateRenderBuffer = function() {
+		//
+		//	We can estimate what is visible:
+		//	* Starting point = start of buffer or previous LF from where we were previously
+		//	* Ending point = start + width * height (max chars possible)
+		//	If this system is kept, this can be optimized as per above
+		//
+
 		self.renderBuffer = [];
 		//	:TODO: optimize this with asArray() taking the slice information
-		var lines = self.textBuffer.asArray().slice(self.renderStartIndex, self.renderStartIndex + self.dimens.width * self.dimens.height)
+		var lines = self.textBuffer.asArray()//.slice(self.renderStartIndex, self.renderStartIndex + self.dimens.width * self.dimens.height)
 			.join('')
 			.split(/\r\n|\n|\r/g);
 
@@ -194,6 +201,10 @@ function MultiLineEditTextView(options) {
 	this.getLineTextLength = function(row) {
 		return self.renderBuffer[row].replace(self.getReplaceTabsRegExp(), '\t').replace(/\n/g, '').length;
 		//return self.renderBuffer[row].replace(/\n/g, '').length;
+	};
+
+	this.getRenderTextLength = function(row) {
+		return self.renderBuffer[row].replace(/\n/g, '').length;
 	};
 
 	this.getLineTextLengthToColumn = function(row, col) {
@@ -252,6 +263,55 @@ function MultiLineEditTextView(options) {
 		
 	};
 
+	this.cursorMoveJumpTab = function(cursorDir) {
+		assert('\t' === self.getCharAtCursorPosition());
+
+		//
+		//	A few scenarios:
+		//	* Cursor just moved up or down and we got dumped in the middle of a tab sequence. Always jump right here.
+		//	* Cursor moved left or right: We should be on the first \t in either direction & need to jump
+		//	* Tabs may expand to start/end of line -- in this case we should move to the next line
+		//
+		//	Example tab sequence when up/down (tabSize=8)
+		//	Actual: Hello\tWorld!
+		//	Render: Hello\t\t\t\t\t\t\t\tWorld!
+		//                     ^-- cursor up from here
+		//
+		switch(cursorDir) {
+			case 'left' :
+				self.cursorPos.col -= (self.tabWidth - 1);
+				if(self.cursorPos.col <= 0) {
+					self.cursorToEndOfPreviousLine();
+				} else {
+					self.client.term.write(ansi.left(self.tabWidth - 1));
+				}
+				break;
+
+			case 'right' :
+				self.cursorPos.col += (self.tabWidth - 1);
+				if(self.cursorPos.col >= self.dimens.width) {
+					self.cursorToStartOfNextLine();
+				} else {
+					self.client.term.write(ansi.right(self.tabWidth - 1));
+				}
+				break;
+
+			case 'up' :
+			case 'down' :
+				//
+				//	We're going to move right, but we need to know where we're at in
+				//	in the render buffer expanded tabs
+				//
+				var pos = self.cursorPos.col;
+				var prevTabs = 0;
+				while('\t' === self.renderBuffer[pos--]) {
+					prevTabs++;
+				}
+				console.log(prevTabs)
+				break;
+		}		
+	};
+
 	this.cursorDown = function() {
 		var lastRow = self.dimens.height - self.position.row;	//	:TODO: should be calculated elsewhere
 		if(self.cursorPos.row > lastRow) {
@@ -271,9 +331,9 @@ function MultiLineEditTextView(options) {
 			
 			//	make tab adjustment if necessary
 			if('\t' === self.getCharAtCursorPosition()) {
-				//self.cursorPos.col++;
-				self.cursorPos.col += (self.tabWidth - 1);
-				self.client.term.write(ansi.right(self.tabWidth - 1));
+				self.cursorMoveJumpTab('right');
+				//self.cursorPos.col += (self.tabWidth - 1);
+				//self.client.term.write(ansi.right(self.tabWidth - 1));
 			}
 		} else {
 			//	:TODO: completely backwards -- should go down
@@ -285,7 +345,7 @@ function MultiLineEditTextView(options) {
 		}
 	};
 
-	this.cursorUpOneLine = function() {
+	this.cursorToStartOfPreviousLine = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
 			self.cursorPos.col = 0;
@@ -295,18 +355,34 @@ function MultiLineEditTextView(options) {
 		}
 	};
 
-	this.cursorDownOneLine = function() {
+	this.cursorToEndOfPreviousLine = function() {
+		if(self.cursorPos.row > 0) {
+			self.cursorPos.row--;
+			self.cursorPos.col = self.getRenderTextLength(self.cursorPos.row) - 1;
+			self.moveCursorTo(self.cursorPos.row, self.cursorPos.col);
+		} else {
+			//	can we scroll??!!!
+		}
+	};
+
+	this.cursorToStartOfNextLine = function() {
 	};
 
 	this.cursorLeft = function() {
 		if(self.cursorPos.col > 0) {
 			self.cursorPos.col--;
+			self.client.term.write(ansi.left());
+
+			if('\t' === self.getCharAtCursorPosition()) {
+				self.cursorMoveJumpTab('left');
+			}
 		} else {
-			if(self.cursorPos.row > 0) {
+			self.cursorToEndOfPreviousLine();
+			/*if(self.cursorPos.row > 0) {
 				self.cursorPos.row--;
 				self.cursorPos.col = self.renderBuffer[self.cursorPos.row].length;
 			}
-			//self.cursorUp();
+			*/
 		}
 	};
 
