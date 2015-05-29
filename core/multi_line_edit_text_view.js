@@ -252,6 +252,15 @@ function MultiLineEditTextView(options) {
 		
 	};
 
+	this.cursorDown = function() {
+		var lastRow = self.dimens.height - self.position.row;	//	:TODO: should be calculated elsewhere
+		if(self.cursorPos.row > lastRow) {
+			self.cursorPos.col = self.getLineTextLengthToColumn(self.cursorPos.row, self.cursorPos.col);
+			self.cursorPos.row++;
+			self.client.term.write(ansi.down());
+		}
+	};
+
 	this.cursorRight = function() {
 		var rowVisibleLen = self.renderBuffer[self.cursorPos.row].replace(/\n/g, '').length;
 		var max = Math.min(self.dimens.width, rowVisibleLen - 1);//selfself.getLineTextLength(self.cursorPos.row) - 1);
@@ -274,7 +283,19 @@ function MultiLineEditTextView(options) {
 				self.moveCursorTo(self.cursorPos.row, self.cursorPos.col);
 			}
 		}
-		
+	};
+
+	this.cursorUpOneLine = function() {
+		if(self.cursorPos.row > 0) {
+			self.cursorPos.row--;
+			self.cursorPos.col = 0;
+			self.moveCursorTo(self.cursorPos.row, self.cursorPos.col);
+		} else {
+			//	can we scroll up?
+		}
+	};
+
+	this.cursorDownOneLine = function() {
 	};
 
 	this.cursorLeft = function() {
@@ -351,7 +372,7 @@ MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
 	if(this.isSpecialKeyMapped('up', keyName)) {
 		this.cursorUp();
 	} else if(this.isSpecialKeyMapped('down', keyName)) {
-
+		this.cursorDown();
 	} else if(this.isSpecialKeyMapped('left', keyName)) {
 		this.cursorLeft();
 	} else if(this.isSpecialKeyMapped('right', keyName)) {
