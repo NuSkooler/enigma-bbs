@@ -110,6 +110,16 @@ function MultiLineEditTextView(options) {
 		return new Array(self.tabWidth).join(' ');
 	};
 
+	this.getRenderLine = function(line) {
+		//	:TODO: fix tabbing here
+		line = line.replace(self.getReplaceTabsRegExp(), self.getTabString()).replace(/\n/g, '');
+		var remain = self.dimens.width - line.length;
+		if(remain > 0) {
+			line += new Array(remain).join(' ');
+		}
+		return line;
+	};
+
 	this.redrawViewableText = function() {
 		var row		= self.position.row;
 		var bottom	= row + self.dimens.height;
@@ -141,12 +151,6 @@ function MultiLineEditTextView(options) {
 	this.wordWrap3 = function(line, width) {
 		var re = new RegExp('.{1,' + width + '}(\\s+|$)|\\S+?(\\s+|$)', 'g');  
 	    return line.replace(/\t/g, new Array(self.tabWidth).join('\t')).match(re) || [];
-	};
-
-	this.getRenderLine = function(line) {
-		var replaceTabsRe	= new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
-		var tabSpaces		= new Array(self.tabWidth).join(' ');
-		return line.replace(replaceTabsRe, tabSpaces).replace(/\n/g, '');
 	};
 
 	this.updateRenderBuffer = function() {
@@ -408,6 +412,13 @@ function MultiLineEditTextView(options) {
 		return self.topLineIndex + self.cursorPos.row;
 	};
 
+	this.insertCharacterAtCurrentPosition = function(c) {
+		var pos = self.getTextBufferPosition(self.cursorPos.row, self.cursorPos.col);
+		self.cursorPos.col++;
+		self.client.term.write(c);
+		self.textBuffer.insert(pos, c);
+	};
+
 }
 
 require('util').inherits(MultiLineEditTextView, View);
@@ -430,6 +441,7 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 
 	this.moveCursorTo(this.cursorPos.row, this.cursorPos.col);
+	this.client.term.write(this.getSGR());
 };
 
 
@@ -460,6 +472,26 @@ MultiLineEditTextView.prototype.setText = function(text) {
 
 	this.cursorPos.row = 14;
 	this.cursorPos.col = 0;
+};
+
+MultiLineEditTextView.prototype.onKeyPress = function(key, isSpecial) {
+	if(isSpecial) {
+		return;
+	}
+
+	assert(1 === key.length);
+
+	this.insertCharacterAtCurrentPosition(key);
+	this.updateRenderBuffer();
+
+	//	:TODO: is save/restore supported enough? Should we do it ourselves?
+	this.client.term.write(ansi.savePos());
+	//	:TODO: Just draw from position onward
+	this.redraw();
+	this.client.term.write(ansi.restorePos());
+
+
+	MultiLineEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
