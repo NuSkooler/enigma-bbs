@@ -88,7 +88,7 @@ function MultiLineEditTextView(options) {
 	View.call(this, options);
 
 	//
-	//	defualt tabWidth is 4
+	//	defualt tabWidth is 8
 	//	See the following:
 	//	* http://www.ansi-bbs.org/ansi-bbs2/control_chars/
 	//	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
@@ -415,6 +415,10 @@ function MultiLineEditTextView(options) {
 	this.insertCharacterAtCurrentPosition = function(c) {
 		var pos = self.getTextBufferPosition(self.cursorPos.row, self.cursorPos.col);
 		self.cursorPos.col++;
+		if(self.cursorPos.col >= self.dimens.width) {
+			self.cursorToStartOfNextLine();
+
+		}
 		self.client.term.write(c);
 		self.textBuffer.insert(pos, c);
 	};

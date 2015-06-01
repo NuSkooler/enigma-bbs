@@ -8,7 +8,9 @@ var VerticalMenuView		= require('./vertical_menu_view.js').VerticalMenuView;
 var SpinnerMenuView			= require('./spinner_menu_view.js').SpinnerMenuView;
 var ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
 var MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
-var MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
+
+//var MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
+var MultiLineEditTextView	= require('./multi_line_edit_text_view2.js').MultiLineEditTextView2;
 
 var Config					= require('./config.js').config;
 var ansi					= require('./ansi_term.js');
