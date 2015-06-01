@@ -103,9 +103,12 @@ TextBuffer.prototype.insertFragment = function(index, fragment) {
 		throw new RangeError('Index must be >= 0');
 	}
 
+/*
 	if(index > this.length) {
+		console.log(this.gapStart)
+		console.log(this.gapEnd)
 		throw new RangeError('Index must be <= length');
-	}
+	}*/
 
 	if(this.gapStart === this.gapEnd) {
 		this.spliceArgs[0] = index;
@@ -137,7 +140,7 @@ TextBuffer.prototype.insertText = function(index, text) {
 		return;
 	}
 
-	var re = /\s+|\r\n|\n|\r/g;
+	var re = /\r\n|\n|\r|\t|\s+/g;
 	var m;
 	var i = index;
 	var from;
@@ -153,7 +156,7 @@ TextBuffer.prototype.insertText = function(index, text) {
 			switch(m[0].charAt(0)) {
 				case '\t' :
 					for(var j = 0; j < m[0].length; ++j) {
-						this.insertFragment(i++, new TextBuffer({
+						this.insertFragment(i++, new TextBuferFragment({
 							text : m[0].charAt(j)
 						}));
 					}
@@ -163,22 +166,23 @@ TextBuffer.prototype.insertText = function(index, text) {
 				case '\n' :
 					var count = m[0].split(/\r\n|\n|\r/g).length;
 					for(var j = 0; j < count; ++j) {
-						this.insertFragment(i++, new TextBuffer({
+						this.insertFragment(i++, new TextBuferFragment({
 							text : '\n'	//	always normalized
 						}));
 					}
 				break;
 
 				case ' ' :
-					this.insertFragment(i++, new TextBuffer({
+					this.insertFragment(i++, new TextBuferFragment({
 						text : m[0],
 					}));
 				break;
-			}		
+			}
 		}
 	} while(0 !== re.lastIndex);
 };
 
+//	:TODO: getArray() should take range
 TextBuffer.prototype.getArray = function() {
 	return this.buffer.slice(0, this.gapStart).concat(this.buffer.slice(this.gapEnd));
 };

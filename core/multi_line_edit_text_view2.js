@@ -53,5 +53,5 @@ MultiLineEditTextView2.prototype.redraw = function() {
 
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textBuffer.insertText(0, text);
-	console.log(this.textBuffer.getArray());
+	console.log(this.textBuffer.getArray())
 };
