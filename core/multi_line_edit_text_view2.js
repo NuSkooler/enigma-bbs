@@ -34,29 +34,48 @@ function MultiLineEditTextView2(options) {
 
 	this.textLines			= [];
 	this.topVisibleIndex	= 0;
+	this.cursorPos			= { col : 0, row : 0 };
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex < self.textLines.length);
 
 		self.client.term.write(self.getSGR());
+		self.client.term.write(ansi.hideCursor());
 
 		var bottomIndex = Math.min(self.topVisibleIndex + self.dimens.height, self.textLines.length);
 		var row			= self.position.row;
 		for(var i = self.topVisibleIndex; i < bottomIndex; i++) {
 			self.client.term.write(ansi.goto(row, this.position.col));
-			self.client.term.write(self.getRenderText(self.textLines[i].text));
+			//self.client.term.write(self.getRenderText(self.textLines[i].text));
+			self.client.term.write(self.getRenderText(i));
 			++row;
 		}
+		self.client.term.write(ansi.showCursor());
 	};
 
+	this.getVisibleText = function(index) {
+		return self.textLines[index].text.replace(/\t/g, ' ');	
+	};
+
+	this.getRenderText = function(index) {
+		var text = self.getVisibleText(index);
+		var remain	= self.dimens.width - text.length;
+		if(remain > 0) {
+			text += new Array(remain).join(' ');
+		}
+		return text;
+	};
+
+	/*
 	this.getRenderText = function(text) {
-		text = text.replace(/\t/g, ' ')
+		text = text.replace(/\t/g, ' ');
 		var remain = self.dimens.width - text.length;
 		if(remain > 0) {
 			text += new Array(remain).join(' ');
 		}
 		return text;
-	}
+	};
+	*/
 
 	this.expandTab = function(col, expandChar) {
 		expandChar = expandChar || ' ';
@@ -76,7 +95,8 @@ function MultiLineEditTextView2(options) {
 		//
 		//	note: we cannot simply use \s below as it includes \t
 		var re = new RegExp(
-			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
+			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​' + 
+			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
 		var m;
 		var wordStart;
 		var wrapped = [ '' ];
@@ -172,8 +192,55 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
+	this.getAbsolutePosition = function(row, col) {
+		return { row : self.position.row + self.cursorPos.row, col : self.position.col + self.cursorPos.col };
+	};
+
+	this.moveClientCusorToCursorPos = function() {
+		var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+		self.client.term.write(ansi.goto(absPos.row, absPos.col));
+	};
+
 	this.cursorUp = function() {
 		console.log('up')
+	};
+
+	this.cursorDown = function() {
+	};
+
+	this.cursorLeft = function() {
+
+	};
+
+	this.cursorRight = function() {
+		var colEnd = self.getVisibleText(self.cursorPos.row).length;
+		if(self.cursorPos.col < colEnd) {
+			self.cursorPos.col++;
+			self.client.term.write(ansi.right());
+		} else {
+			//	:TODO: goto next line; scroll if needed, etc.
+		}
+	};
+
+	this.cursorHome = function() {
+		self.topVisibleIndex	= 0;
+		self.cursorPos			= { row : 0, col : 0 };
+
+		self.redraw();
+		self.moveClientCusorToCursorPos();
+	};
+
+	this.cursorEnd = function() {
+		self.topVisibleIndex	= Math.max(self.textLines.length - self.dimens.height, 0);
+		var row					= (self.textLines.length - self.topVisibleIndex) - 1;
+		
+		self.cursorPos			= { 
+			row : row,
+			col : self.getVisibleText(row).length
+		};
+
+		self.redraw();
+		self.moveClientCusorToCursorPos();
 	};
 }
 
@@ -187,6 +254,7 @@ MultiLineEditTextView2.prototype.redraw = function() {
 
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [];
+	//text = 'Supper fluffy bunny test thing\nHello, everyone!\n\nStuff and thing and what nots\r\na\tb\tc\td\te';
 	//text = "You. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.";
 	this.insertText(text);//, 0, 0);
 
@@ -197,11 +265,11 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
 	var self = this;
 
-	[ 'up', 'down', 'left', 'right' ].forEach(function key(arrowKey) {
+	[ 'up', 'down', 'left', 'right', 'home', 'end' ].forEach(function key(arrowKey) {
 		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
 			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.substring(1)]();
 		}
 	});
 
 	MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
-}
+};
