@@ -32,19 +32,31 @@ function MultiLineEditTextView2(options) {
 	//
 	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 8;
 
-
-	this.textLines	= [];
+	this.textLines			= [];
+	this.topVisibleIndex	= 0;
 
 	this.redrawVisibleArea = function() {
+		assert(self.topVisibleIndex < self.textLines.length);
 
+		self.client.term.write(self.getSGR());
+
+		var bottomIndex = Math.min(self.topVisibleIndex + self.dimens.height, self.textLines.length);
+		var row			= self.position.row;
+		for(var i = self.topVisibleIndex; i < bottomIndex; i++) {
+			self.client.term.write(ansi.goto(row, this.position.col));
+			self.client.term.write(self.getRenderText(self.textLines[i].text));
+			++row;
+		}
 	};
 
-	/*
-	this.wordWrap = function(s, width) {
-		var re = new RegExp('.{1,' + width + '}(\\s+|$)|\\S+?(\\s+|$)', 'g');
-		return s.match(re) || [];
-	};
-	*/
+	this.getRenderText = function(text) {
+		text = text.replace(/\t/g, ' ')
+		var remain = self.dimens.width - text.length;
+		if(remain > 0) {
+			text += new Array(remain).join(' ');
+		}
+		return text;
+	}
 
 	this.expandTab = function(col, expandChar) {
 		expandChar = expandChar || ' ';
@@ -62,8 +74,9 @@ function MultiLineEditTextView2(options) {
 		//	*	Tabs in Sublime Text 3 are also treated as a word, so, e.g.
 		//		"\t" may resolve to "      " and must fit within the space.
 		//
-		var tabCount = self.dimens.width / self.tabWidth;
-		var re = /\t|\s+/g;
+		//	note: we cannot simply use \s below as it includes \t
+		var re = new RegExp(
+			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
 		var m;
 		var wordStart;
 		var wrapped = [ '' ];
@@ -83,8 +96,7 @@ function MultiLineEditTextView2(options) {
 			m			= re.exec(s);
 
 			if(null !== m) {
-				word = s.substring(wordStart, re.lastIndex);
-				console.log(m)
+				word = s.substring(wordStart, re.lastIndex - 1);
 
 				switch(m[0].charAt(0)) {
 					case ' ' :
@@ -127,15 +139,41 @@ function MultiLineEditTextView2(options) {
 		//	Try to handle any possible newline that can be fed to us.
 		//	See http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
 		//
+		//	:TODO: support row/col insertion point
+
+		if(_.isNumber(row)) {
+			if(_.isNumber(col)) {
+				//
+				//	Modify text to have information from row
+				//	before and and after column
+				//
+				//	:TODO: Need to clean this string (e.g. collapse tabs)
+				text = self.textLines
+
+				//	:TODO: Remove original line @ row
+			}
+		} else {
+			row = self.textLines.length;
+		}
+
 		var tempLines = text
 			.replace(/\b/g, '')
 			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
 		var wrapped;
+		
 		for(var i = 0; i < tempLines.length; ++i) {
 			wrapped = self.wordWrapSingleLine(tempLines[i], self.dimens.width);
-			console.log(wrapped)
+
+			for(var j = 0; j < wrapped.length - 1; ++j) {
+				self.textLines.splice(row++, 0, { text : wrapped[j] } );
+			}
+			self.textLines.splice(row++, 0, { text : wrapped[wrapped.length - 1], eol : true });
 		}
+	};
+
+	this.cursorUp = function() {
+		console.log('up')
 	};
 }
 
@@ -149,7 +187,21 @@ MultiLineEditTextView2.prototype.redraw = function() {
 
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [];
-	this.insertText(text, 0, 0);
+	//text = "You. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.";
+	this.insertText(text);//, 0, 0);
 
 	console.log(this.textLines)
 };
+
+MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
+
+	var self = this;
+
+	[ 'up', 'down', 'left', 'right' ].forEach(function key(arrowKey) {
+		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
+			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.substring(1)]();
+		}
+	});
+
+	MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
+}
