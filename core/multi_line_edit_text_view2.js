@@ -61,7 +61,10 @@ function MultiLineEditTextView2(options) {
 	this.cursorPos			= { col : 0, row : 0 };
 
 	this.getTextLinesIndex = function(row) {
-		var index = self.topVisibleIndex + self.cursorPos.row;
+		if(!_.isNumber(row)) {
+			row = self.cursorPos.row;
+		}
+		var index = self.topVisibleIndex + row;
 		return index;
 	};
 
@@ -75,7 +78,6 @@ function MultiLineEditTextView2(options) {
 		var row			= self.position.row;
 		for(var i = self.topVisibleIndex; i < bottomIndex; i++) {
 			self.client.term.write(ansi.goto(row, this.position.col));
-			//self.client.term.write(self.getRenderText(self.textLines[i].text));
 			self.client.term.write(self.getRenderText(i));
 			++row;
 		}
@@ -83,8 +85,21 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getVisibleText = function(index) {
-		index = _.isNumber(index) ? index : self.getTextLinesIndex(self.cursorPos.row);
+		if(!_.isNumber(index)) {
+			index = self.getTextLinesIndex();
+		}
 		return self.textLines[index].text.replace(/\t/g, ' ');	
+	};
+
+	this.getText = function(index) {
+		if(!_.isNumber(index)) {
+			index = self.getTextLinesIndex();
+		}
+		return self.textLines[index].text;
+	};
+
+	this.getTextEndOfLineColumn = function(index) {
+		return Math.max(0, self.getText(index).length - 1);
 	};
 
 	this.getRenderText = function(index) {
@@ -229,9 +244,22 @@ function MultiLineEditTextView2(options) {
 		} else if(self.topVisibleIndex > 0) {
 
 		}
+
+		self.adjustCursorIfPastEndOfLine();
 	};
 
 	this.cursorDown = function() {
+		var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
+		if(self.cursorPos.row < lastVisibleRow) {
+			self.cursorPos.row++;
+			self.client.term.write(ansi.down());
+
+			//	:TODO: make tab adjustment if needed
+		} else {
+			//	:TODO: can we scroll down more?
+		}
+
+		self.adjustCursorIfPastEndOfLine();
 	};
 
 	this.cursorLeft = function() {
@@ -245,8 +273,8 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.cursorRight = function() {
-		var colEnd = self.getVisibleText(self.cursorPos.row).length;
-		if(self.cursorPos.col < colEnd) {
+		var eolColumn = self.getTextEndOfLineColumn();
+		if(self.cursorPos.col < eolColumn) {
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
 
@@ -269,11 +297,19 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.cursorEnd = function() {
-		self.cursorPos.col = Math.max(self.getVisibleText().length - 1, 0);
+		self.cursorPos.col = self.getTextEndOfLineColumn();
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.cursorStartOfText = function() {
+	this.adjustCursorIfPastEndOfLine = function() {
+		var eolColumn = self.getTextEndOfLineColumn();
+		if(self.cursorPos.col > eolColumn) {
+			self.cursorPos.col = eolColumn;
+			self.moveClientCusorToCursorPos();
+		}
+	};
+
+	this.cursorStartOfDocument = function() {
 		self.topVisibleIndex	= 0;
 		self.cursorPos			= { row : 0, col : 0 };
 
@@ -281,13 +317,30 @@ function MultiLineEditTextView2(options) {
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.cursorEndOfText = function() {
+	this.cursorEndOfDocument = function() {
 		self.topVisibleIndex	= Math.max(self.textLines.length - self.dimens.height, 0);
 		self.cursorPos.row		= (self.textLines.length - self.topVisibleIndex) - 1;
-		self.cursorPos.col		= self.getVisibleText().length;	//	uses row set above
+		self.cursorPos.col		= self.getTextEndOfLineColumn();
 
 		self.redraw();
 		self.moveClientCusorToCursorPos();
+	};
+
+	this.scrollDocumentUp = function() {
+		//
+		//	Note: We scroll *up* when the cursor goes *down* beyond
+		//	the visible area!
+		//
+		var linesBelow = self.textLines.length - (self.topVisibleIndex + self.cursorPos.row);
+		if(linesBelow > 0) {
+			
+		}
+	};
+
+	this.scrollDocumentDown = function() {
+		//
+		//	Note: We scroll *down* when the cursor goes *up* beyond
+		//	the visible area!
 	};
 
 }
@@ -306,7 +359,8 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 	//text = "You. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.";
 	this.insertText(text);//, 0, 0);
 
-	console.log(this.textLines)
+	//console.log(this.textLines)
+	this.cursorEndOfDocument();
 };
 
 MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
@@ -341,8 +395,8 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
 	//	TEMP HACK FOR TESTING -----
 	if(self.isSpecialKeyMapped('lineFeed', keyName)) {
-		//self.cursorStartOfText();
-		self.cursorEndOfText();
+		//self.cursorStartOfDocument();
+		self.cursorStartOfDocument();
 	}
 
 	//MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
