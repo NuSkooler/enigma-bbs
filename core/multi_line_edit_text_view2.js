@@ -10,6 +10,21 @@ var ansi			= require('./ansi_term.js');
 var assert			= require('assert');
 var _				= require('lodash');
 
+var SPECIAL_KEY_MAP_DEFAULT = {
+	lineFeed	: [ 'enter' ],
+	exit		: [ 'esc' ],
+	backspace	: [ 'backspace' ],
+	del			: [ 'del' ],
+	tabs		: [ 'tab' ],
+	up			: [ 'up arrow' ],
+	down		: [ 'down arrow' ],
+	end			: [ 'end' ],
+	home		: [ 'home' ],
+	left		: [ 'left arrow' ],
+	right		: [ 'right arrow' ],
+	clearLine	: [ 'end of medium' ],
+}
+
 exports.MultiLineEditTextView2	= MultiLineEditTextView2;
 
 function MultiLineEditTextView2(options) {
@@ -19,6 +34,10 @@ function MultiLineEditTextView2(options) {
 
 	if(!_.isBoolean(this.acceptsInput)) {
 		options.acceptsInput = true;
+	}
+
+	if(!_.isObject(options.specialKeyMap)) {
+		options.specialKeyMap = SPECIAL_KEY_MAP_DEFAULT;
 	}
 
 	View.call(this, options);
@@ -34,7 +53,17 @@ function MultiLineEditTextView2(options) {
 
 	this.textLines			= [];
 	this.topVisibleIndex	= 0;
+
+	//
+	//	cursorPos represents zero-based row, col positions
+	//	within the editor itself
+	//
 	this.cursorPos			= { col : 0, row : 0 };
+
+	this.getTextLinesIndex = function(row) {
+		var index = self.topVisibleIndex + self.cursorPos.row;
+		return index;
+	};
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex < self.textLines.length);
@@ -54,6 +83,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getVisibleText = function(index) {
+		index = _.isNumber(index) ? index : self.getTextLinesIndex(self.cursorPos.row);
 		return self.textLines[index].text.replace(/\t/g, ' ');	
 	};
 
@@ -65,17 +95,6 @@ function MultiLineEditTextView2(options) {
 		}
 		return text;
 	};
-
-	/*
-	this.getRenderText = function(text) {
-		text = text.replace(/\t/g, ' ');
-		var remain = self.dimens.width - text.length;
-		if(remain > 0) {
-			text += new Array(remain).join(' ');
-		}
-		return text;
-	};
-	*/
 
 	this.expandTab = function(col, expandChar) {
 		expandChar = expandChar || ' ';
@@ -144,7 +163,7 @@ function MultiLineEditTextView2(options) {
 		return wrapped;
 	};
 
-	this.insertText = function(text, row, col) {
+	this.insertText = function(text, index, col) {
 		//
 		//	Perform the following on |text|:
 		//	*	Normalize various line feed formats -> \n
@@ -159,21 +178,21 @@ function MultiLineEditTextView2(options) {
 		//	Try to handle any possible newline that can be fed to us.
 		//	See http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
 		//
-		//	:TODO: support row/col insertion point
+		//	:TODO: support index/col insertion point
 
-		if(_.isNumber(row)) {
+		if(_.isNumber(index)) {
 			if(_.isNumber(col)) {
 				//
-				//	Modify text to have information from row
+				//	Modify text to have information from index
 				//	before and and after column
 				//
 				//	:TODO: Need to clean this string (e.g. collapse tabs)
 				text = self.textLines
 
-				//	:TODO: Remove original line @ row
+				//	:TODO: Remove original line @ index
 			}
 		} else {
-			row = self.textLines.length;
+			index = self.textLines.length;
 		}
 
 		var tempLines = text
@@ -186,9 +205,9 @@ function MultiLineEditTextView2(options) {
 			wrapped = self.wordWrapSingleLine(tempLines[i], self.dimens.width);
 
 			for(var j = 0; j < wrapped.length - 1; ++j) {
-				self.textLines.splice(row++, 0, { text : wrapped[j] } );
+				self.textLines.splice(index++, 0, { text : wrapped[j] } );
 			}
-			self.textLines.splice(row++, 0, { text : wrapped[wrapped.length - 1], eol : true });
+			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true });
 		}
 	};
 
@@ -202,14 +221,27 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.cursorUp = function() {
-		console.log('up')
+		if(self.cursorPos.row > 0) {
+			self.cursorPos.row--;
+			self.client.term.write(ansi.up());
+
+			//	:TODO: self.makeTabAdjustment('up')
+		} else if(self.topVisibleIndex > 0) {
+
+		}
 	};
 
 	this.cursorDown = function() {
 	};
 
 	this.cursorLeft = function() {
-
+		if(self.cursorPos.col > 0) {
+			self.cursorPos.col--;
+			self.client.term.write(ansi.left());
+			//	:TODO: handle landing on a tab
+		} else {
+			//	:TODO: goto previous line if possible and scroll if needed
+		}
 	};
 
 	this.cursorRight = function() {
@@ -217,12 +249,31 @@ function MultiLineEditTextView2(options) {
 		if(self.cursorPos.col < colEnd) {
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
+
+			//	:TODO: handle landing on a tab
 		} else {
 			//	:TODO: goto next line; scroll if needed, etc.
+
 		}
 	};
 
 	this.cursorHome = function() {
+		var firstNonWhitespace = self.getVisibleText().search(/\S/);
+		if(-1 !== firstNonWhitespace) {
+			self.cursorPos.col = firstNonWhitespace;
+		} else {
+			self.cursorPos.col = 0;
+		}
+		console.log(self.getVisibleText())
+		self.moveClientCusorToCursorPos();
+	};
+
+	this.cursorEnd = function() {
+		self.cursorPos.col = Math.max(self.getVisibleText().length - 1, 0);
+		self.moveClientCusorToCursorPos();
+	};
+
+	this.cursorStartOfText = function() {
 		self.topVisibleIndex	= 0;
 		self.cursorPos			= { row : 0, col : 0 };
 
@@ -230,18 +281,15 @@ function MultiLineEditTextView2(options) {
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.cursorEnd = function() {
+	this.cursorEndOfText = function() {
 		self.topVisibleIndex	= Math.max(self.textLines.length - self.dimens.height, 0);
-		var row					= (self.textLines.length - self.topVisibleIndex) - 1;
-		
-		self.cursorPos			= { 
-			row : row,
-			col : self.getVisibleText(row).length
-		};
+		self.cursorPos.row		= (self.textLines.length - self.topVisibleIndex) - 1;
+		self.cursorPos.col		= self.getVisibleText().length;	//	uses row set above
 
 		self.redraw();
 		self.moveClientCusorToCursorPos();
 	};
+
 }
 
 require('util').inherits(MultiLineEditTextView2, View);
@@ -265,11 +313,37 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
 	var self = this;
 
+	console.log(keyName);
+
+	//	:TODO: Determine CTRL-* keys for various things
+	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+	//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
+	//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
+
+	/* Mystic
+	 [^B]  Reformat Paragraph            [^O]  Show this help file
+       [^I]  Insert tab space              [^Q]  Enter quote mode
+       [^K]  Cut current line of text      [^V]  Toggle insert/overwrite
+       [^U]  Paste previously cut text     [^Y]  Delete current line
+
+
+                            BASIC MOVEMENT COMMANDS
+
+                  UP/^E       LEFT/^S      PGUP/^R      HOME/^F
+                DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
+*/
+
 	[ 'up', 'down', 'left', 'right', 'home', 'end' ].forEach(function key(arrowKey) {
 		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
 			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.substring(1)]();
 		}
 	});
 
-	MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
+	//	TEMP HACK FOR TESTING -----
+	if(self.isSpecialKeyMapped('lineFeed', keyName)) {
+		//self.cursorStartOfText();
+		self.cursorEndOfText();
+	}
+
+	//MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
