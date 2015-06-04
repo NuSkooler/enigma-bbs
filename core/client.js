@@ -1,6 +1,36 @@
 /* jslint node: true */
 'use strict';
 
+/*
+	Portions of this code for key handling heavily inspired from the following:
+	https://github.com/chjj/blessed/blob/master/lib/keys.js
+
+	MIT license is as follows:
+	--------------------------
+	The MIT License (MIT)
+
+	Copyright (c) <year> <copyright holders>
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in
+	all copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+	THE SOFTWARE.
+	--------------------------
+*/
+
 var stream		= require('stream');
 var assert		= require('assert');
 
@@ -80,6 +110,14 @@ function getIntArgArray(array) {
 	return array;
 }
 
+var REGEXP_ANSI_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
+var REGEXP_ANSI_KEYCODE					= new RegExp('^' + REGEXP_ANSI_KEYCODE_ANYWHERE.source + '$');
+var REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE	= /(?:\u001b+)(O|N|\[|\[\[)(?:(\d+)(?:;(\d+))?([~^$])|(?:M([@ #!a`])(.)(.))|(?:1;)?(\d+)?([a-zA-Z]))/;
+var REGEXP_ANSI_KEYCODE_FUNC			= new RegExp('^' + REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE.source);
+var REGEXP_ANSI_KEYCODE_ESC				= new RegExp(
+	[ REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE.source, REGEXP_ANSI_KEYCODE_ANYWHERE.source, /\u001b./.source].join('|'));
+
+
 function Client(input, output) {
 	stream.call(this);
 
@@ -90,6 +128,117 @@ function Client(input, output) {
 	this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
+
+	//
+	//	Peek at incoming |data| and emit events for any special
+	//	handling that may include:
+	//	*	Keyboard input
+	//	*	ANSI CSR's and the like
+	//
+	//	References:
+	//	*	http://www.ansi-bbs.org/ansi-bbs-core-server.html
+	//
+	//	Implementation inspired from https://github.com/chjj/blessed/blob/master/lib/keys.js
+	//
+	//	:TODO: this is a WIP v2 of onData()
+	this.isMouseInput = function(s) {
+		return /\x1b\[M/.test(s) ||
+		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(s) || 
+		/\u001b\[(\d+;\d+;\d+)M/.test(s) ||
+		/\u001b\[<(\d+;\d+;\d+)([mM])/.test(s) ||
+		/\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(s) || 
+		/\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(s) ||
+		/\u001b\[(O|I)/.test(s);
+	};
+
+	this.getKeyComponentsFromCode = function(code) {
+		return {
+			'OP' : { name : 'f1' },
+		}[code];
+	};
+
+	this.on('dataXXXX', function clientData(data) {
+		var len = data.length;
+
+		//	create a uniform format that can be parsed below
+		if(data[0] > 127 && undefined === data[1]) {
+			data[0] -= 128;
+			data = '\u001b' + data.toString('utf-8');
+		} else {
+			data = data.toString('utf-8');
+		}
+
+		if(self.isMouseInput(data)) {
+			return;
+		}
+
+		var buf = [];
+		var m;
+		while((m = REGEXP_ANSI_KEYCODE_ANYWHERE.exec(data))) {
+			buf = buf.concat(data.slice(0, m.index).split(''));
+			buf.push(m[0]);
+			data = data.slice(m.index + m[0].length);
+		}
+
+		buf = buf.concat(data.split(''));	//	remainder
+
+		buf.forEach(function bufPart(s) {
+			var key = {
+				seq			: s,
+				name		: undefined,
+				ctrl		: false,
+				meta		: false,
+				shift		: false,
+			};
+
+			var parts;
+
+			if('\r' === s) {
+				key.name = 'return';
+			} else if('\n' === s) {
+				key.name = 'line feed';
+			} else if('\t' === s) {
+				key.name = 'tab';
+			} else if ('\b' === s || '\x7f' === s || '\x1b\x7f' === s || '\x1b\b' === s) {
+				//	backspace, CTRL-H
+				key.name	= 'backspace';
+				key.meta	= ('\x1b' === s.charAt(0));
+			} else if('\x1b' === s || '\x1b\x1b' === s) {
+				key.name	= 'escape';
+				key.meta	= (2 === s.length);
+			} else if (' ' === s || '\x1b ' === s) {
+				//	rather annoying that space can come in other than just " "
+				key.name	= 'space';
+				key.meta	= (2 === s.length);
+			} else if(1 === s.length && s <= '\x1a') {
+				//	CTRL-<letter>
+				key.name	= String.fromCharCode(s.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
+				key.ctrl	= true;
+			} else if(1 === s.length && s >= 'a' && s <= 'z') {
+				//	normal, lowercased letter
+				key.name	= s;
+			} else if(1 === s.length && s >= 'A' && s <= 'Z') {
+				key.name	= s.toLowerCase();
+				key.shift	= true;
+			} else if ((parts = REGEXP_ANSI_KEYCODE.exec(s))) {
+				//	meta with character key
+				key.name	= parts[1].toLowerCase();
+				key.meta	= true;
+				key.shift	= /^[A-Z]$/.test(parts[1]);
+			} else if((parts = REGEXP_ANSI_KEYCODE_FUNC.exec(s))) {
+				var code = 
+					(parts[1] || '') + (parts[2] || '') +
+                 	(parts[4] || '') + (parts[9] || '');
+                var modifier = (parts[3] || parts[8] || 1) - 1;
+
+                key.ctrl	= !!(modifier & 4);
+				key.meta	= !!(modifier & 10);
+				key.shift	= !!(modifier & 1);
+				key.code	= code;
+			}
+
+		});
+	});
 
 	//
 	//	Peek at |data| and emit for any specialized handling

@@ -235,6 +235,15 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
+	this.getAbsolutePosition = function(row, col) {
+		return { row : self.position.row + self.cursorPos.row, col : self.position.col + self.cursorPos.col };
+	};
+
+	this.moveClientCusorToCursorPos = function() {
+		var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+		self.client.term.write(ansi.goto(absPos.row, absPos.col));
+	};
+
 	this.keyPressCharacter = function(c, row, col) {
 
 		var index = self.getTextLinesIndex(row);
@@ -256,16 +265,7 @@ function MultiLineEditTextView2(options) {
 
 	};
 
-	this.getAbsolutePosition = function(row, col) {
-		return { row : self.position.row + self.cursorPos.row, col : self.position.col + self.cursorPos.col };
-	};
-
-	this.moveClientCusorToCursorPos = function() {
-		var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-		self.client.term.write(ansi.goto(absPos.row, absPos.col));
-	};
-
-	this.cursorUp = function() {
+	this.keyPressUp = function() {
 		if(self.cursorPos.row > 0) {
 			self.cursorPos.row--;
 			self.client.term.write(ansi.up());
@@ -278,7 +278,7 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
-	this.cursorDown = function() {
+	this.keyPressDown = function() {
 		var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
 		if(self.cursorPos.row < lastVisibleRow) {
 			self.cursorPos.row++;
@@ -293,7 +293,7 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
-	this.cursorLeft = function() {
+	this.keyPressLeft = function() {
 		if(self.cursorPos.col > 0) {
 			self.cursorPos.col--;
 			self.client.term.write(ansi.left());
@@ -303,7 +303,7 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
-	this.cursorRight = function() {
+	this.keyPressRight = function() {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col < eolColumn) {
 			self.cursorPos.col++;
@@ -316,7 +316,7 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
-	this.cursorHome = function() {
+	this.keyPressHome = function() {
 		var firstNonWhitespace = self.getVisibleText().search(/\S/);
 		if(-1 !== firstNonWhitespace) {
 			self.cursorPos.col = firstNonWhitespace;
@@ -327,16 +327,20 @@ function MultiLineEditTextView2(options) {
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.cursorEnd = function() {
+	this.keyPressEnd = function() {
 		self.cursorPos.col = self.getTextEndOfLineColumn();
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.cursorPageUp = function() {
+	this.keyPressPageUp = function() {
 
 	};
 
-	this.cursorPageDown = function() {
+	this.keyPressPageDown = function() {
+
+	};
+
+	this.keyPressLineFeed = function() {
 
 	};
 
@@ -422,9 +426,11 @@ MultiLineEditTextView2.prototype.onKeyPress = function(key, isSpecial) {
 	MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
 
-var CURSOR_KEYS = [
-	'up', 'down', 'left', 'right', 'home', 'end',
-	'pageUp', 'pageDown'
+var HANDLED_SPECIAL_KEYS = [
+	'up', 'down', 'left', 'right', 
+	'home', 'end',
+	'pageUp', 'pageDown',
+	'lineFeed',
 ];
 
 MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
@@ -450,20 +456,15 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
                   UP/^E       LEFT/^S      PGUP/^R      HOME/^F
                 DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
 */
-	//	:TODO: Make these keyPressXXXXXXX, e.g. keyPressUp(), keyPressLeft(), ...
-
-	CURSOR_KEYS.forEach(function key(arrowKey) {
+	var handled = false;
+	HANDLED_SPECIAL_KEYS.forEach(function key(arrowKey) {
 		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
-			//self[makeKeyHandler('cursor', arrowKey)]();
-			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.replace(/\s/g, '').substring(1)]();
+			self[_.camelCase('keyPress ' + arrowKey)]();
+			handled = true;
 		}
 	});
 
-	//	TEMP HACK FOR TESTING -----
-	if(self.isSpecialKeyMapped('lineFeed', keyName)) {
-		//self.cursorStartOfDocument();
-		self.cursorStartOfDocument();
+	if(!handled) {
+		MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
 	}
-
-	//MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
