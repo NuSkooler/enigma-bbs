@@ -181,6 +181,7 @@ View.prototype.setFocus = function(focused) {
 View.prototype.onKeyPress = function(key, isSpecial) {
 	assert(this.hasFocus, 'View does not have focus');
 	assert(this.acceptsInput, 'View does not accept input');
+	assert(1 === key.length);
 };
 
 View.prototype.onSpecialKeyPress = function(keyName) {

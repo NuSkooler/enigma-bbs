@@ -6,6 +6,7 @@ var miscUtil	= require('./misc_util.js');
 
 exports.stylizeString	= stylizeString;
 exports.pad				= pad;
+exports.replaceAt		= replaceAt;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -144,4 +145,8 @@ function pad(s, len, padChar, dir, stringSGR, padSGR) {
 	}
 
 	return stringSGR + s;
+}
+
+function replaceAt(s, n, t) {
+    return s.substring(0, n) + t + s.substring(n + 1);
 }

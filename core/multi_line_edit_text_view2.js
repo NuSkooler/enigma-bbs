@@ -23,7 +23,9 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	left		: [ 'left arrow' ],
 	right		: [ 'right arrow' ],
 	clearLine	: [ 'end of medium' ],
-}
+	pageUp		: [ 'page up' ],
+	pageDown	: [ 'page down' ],
+};
 
 exports.MultiLineEditTextView2	= MultiLineEditTextView2;
 
@@ -60,6 +62,7 @@ function MultiLineEditTextView2(options) {
 	//
 	this.cursorPos			= { col : 0, row : 0 };
 
+	//	:TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
 	this.getTextLinesIndex = function(row) {
 		if(!_.isNumber(row)) {
 			row = self.cursorPos.row;
@@ -109,6 +112,11 @@ function MultiLineEditTextView2(options) {
 			text += new Array(remain).join(' ');
 		}
 		return text;
+	};
+
+	this.replaceCharacterInText = function(c, index, col) {
+		self.textLines[index].text = strUtil.replaceAt(
+			self.textLines[index].text, col, c);
 	};
 
 	this.expandTab = function(col, expandChar) {
@@ -178,6 +186,7 @@ function MultiLineEditTextView2(options) {
 		return wrapped;
 	};
 
+	//	:TODO: Change this to (text, row, col) & make proper adjustments
 	this.insertText = function(text, index, col) {
 		//
 		//	Perform the following on |text|:
@@ -226,6 +235,27 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
+	this.keyPressCharacter = function(c, row, col) {
+
+		var index = self.getTextLinesIndex(row);
+		if(!_.isNumber(col)) {
+			col = self.cursorPos.col;
+		}
+
+		//	:TODO: Even in overtypeMode, word wrapping must apply for e.g.
+		//	if a user types past bounds
+
+		if(self.overtypeMode) {
+			//	:TODO: special handing for insert over eol mark?
+			self.replaceCharacterInText(c, index, col);
+			self.cursorPos.col++;
+			self.client.term.write(c);
+		} else {
+
+		}
+
+	};
+
 	this.getAbsolutePosition = function(row, col) {
 		return { row : self.position.row + self.cursorPos.row, col : self.position.col + self.cursorPos.col };
 	};
@@ -241,11 +271,11 @@ function MultiLineEditTextView2(options) {
 			self.client.term.write(ansi.up());
 
 			//	:TODO: self.makeTabAdjustment('up')
-		} else if(self.topVisibleIndex > 0) {
-
+			self.adjustCursorIfPastEndOfLine(false);
+		} else {
+			self.scrollDocumentDown();
+			self.adjustCursorIfPastEndOfLine(true);
 		}
-
-		self.adjustCursorIfPastEndOfLine();
 	};
 
 	this.cursorDown = function() {
@@ -255,11 +285,12 @@ function MultiLineEditTextView2(options) {
 			self.client.term.write(ansi.down());
 
 			//	:TODO: make tab adjustment if needed
-		} else {
-			//	:TODO: can we scroll down more?
-		}
 
-		self.adjustCursorIfPastEndOfLine();
+			self.adjustCursorIfPastEndOfLine(false);
+		} else {
+			self.scrollDocumentUp();
+			self.adjustCursorIfPastEndOfLine(true);
+		}
 	};
 
 	this.cursorLeft = function() {
@@ -301,10 +332,22 @@ function MultiLineEditTextView2(options) {
 		self.moveClientCusorToCursorPos();
 	};
 
-	this.adjustCursorIfPastEndOfLine = function() {
+	this.cursorPageUp = function() {
+
+	};
+
+	this.cursorPageDown = function() {
+
+	};
+
+	this.adjustCursorIfPastEndOfLine = function(alwaysUpdateCursor) {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col > eolColumn) {
 			self.cursorPos.col = eolColumn;
+			alwaysUpdateCursor = true;
+		}
+
+		if(alwaysUpdateCursor) {
 			self.moveClientCusorToCursorPos();
 		}
 	};
@@ -331,9 +374,10 @@ function MultiLineEditTextView2(options) {
 		//	Note: We scroll *up* when the cursor goes *down* beyond
 		//	the visible area!
 		//
-		var linesBelow = self.textLines.length - (self.topVisibleIndex + self.cursorPos.row);
+		var linesBelow = self.textLines.length - (self.topVisibleIndex + self.cursorPos.row) - 1;
 		if(linesBelow > 0) {
-			
+			self.topVisibleIndex++;
+			self.redraw();
 		}
 	};
 
@@ -341,6 +385,11 @@ function MultiLineEditTextView2(options) {
 		//
 		//	Note: We scroll *down* when the cursor goes *up* beyond
 		//	the visible area!
+		//
+		if(self.topVisibleIndex > 0) {
+			self.topVisibleIndex--;
+			self.redraw();
+		}
 	};
 
 }
@@ -358,10 +407,25 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 	//text = 'Supper fluffy bunny test thing\nHello, everyone!\n\nStuff and thing and what nots\r\na\tb\tc\td\te';
 	//text = "You. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.";
 	this.insertText(text);//, 0, 0);
-
-	//console.log(this.textLines)
 	this.cursorEndOfDocument();
+
+	this.overtypeMode = true;	//	:TODO: remove... testing
 };
+
+MultiLineEditTextView2.prototype.onKeyPress = function(key, isSpecial) {
+	if(isSpecial) {
+		return;
+	}
+
+	this.keyPressCharacter(key);
+
+	MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, key, isSpecial);
+};
+
+var CURSOR_KEYS = [
+	'up', 'down', 'left', 'right', 'home', 'end',
+	'pageUp', 'pageDown'
+];
 
 MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
@@ -386,10 +450,12 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
                   UP/^E       LEFT/^S      PGUP/^R      HOME/^F
                 DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
 */
+	//	:TODO: Make these keyPressXXXXXXX, e.g. keyPressUp(), keyPressLeft(), ...
 
-	[ 'up', 'down', 'left', 'right', 'home', 'end' ].forEach(function key(arrowKey) {
+	CURSOR_KEYS.forEach(function key(arrowKey) {
 		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
-			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.substring(1)]();
+			//self[makeKeyHandler('cursor', arrowKey)]();
+			self['cursor' + arrowKey.substring(0,1).toUpperCase() + arrowKey.replace(/\s/g, '').substring(1)]();
 		}
 	});
 
