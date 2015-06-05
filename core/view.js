@@ -11,7 +11,7 @@ exports.View							= View;
 exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
 var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
-	accept		: [ 'enter' ],
+	accept		: [ 'return' ],
 	exit		: [ 'esc' ],
 	backspace	: [ 'backspace', 'del' ],
 	del			: [ 'del' ],

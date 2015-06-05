@@ -35,6 +35,30 @@ function ViewController(options) {
 	this.mciViewFactory	= new MCIViewFactory(this.client);
 	this.submitKeyMap	= {};
 
+	this.clientKeyPressHandler = function(ch, specialKey) {
+		console.log('ch=' + ch + ' / ' + JSON.stringify(specialKey));
+		//	:TODO: pass actual key object along here
+		if(specialKey) {
+			var submitViewId = self.submitKeyMap[specialKey.name];
+			if(submitViewId) {
+				self.switchFocus(submitViewId);
+				self.submitForm();
+			} else {
+				//	:TODO: pass actual key here
+				if(self.focusedView && self.focusedView.acceptsInput) {
+					self.focusedView.onSpecialKeyPress(specialKey.name);
+				}
+			}
+		} else {
+			assert(_.isString(ch));
+
+			if(self.focusedView && self.focusedView.acceptsInput) {
+				self.focusedView.onKeyPress(ch);
+			}
+		}
+	};
+
+	/*
 	this.clientKeyPressHandler = function(key, isSpecial) {
 		if(isSpecial) {
 			return;
@@ -58,6 +82,7 @@ function ViewController(options) {
 			}
 		}
 	};
+	*/
 
 	this.viewActionListener = function(action) {
 		switch(action) {
@@ -296,7 +321,7 @@ ViewController.prototype.attachClientEvents = function() {
 	}
 
 	this.client.on('key press', this.clientKeyPressHandler);
-	this.client.on('special key', this.clientSpecialKeyHandler);
+	//this.client.on('special key', this.clientSpecialKeyHandler);
 
 	this.attached = true;
 };
@@ -307,7 +332,7 @@ ViewController.prototype.detachClientEvents = function() {
 	}
 	
 	this.client.removeListener('key press', this.clientKeyPressHandler);
-	this.client.removeListener('special key', this.clientSpecialKeyHandler);
+	//this.client.removeListener('special key', this.clientSpecialKeyHandler);
 
 	for(var id in this.views) {
 		this.views[id].removeAllListeners();
@@ -342,7 +367,7 @@ ViewController.prototype.switchFocus = function(id) {
 
 	var view = this.getView(id);
 	if(view && view.acceptsFocus) {
-		this.switchFocusEvent('enter', view);
+		this.switchFocusEvent('return', view);
 
 		this.focusedView = view;
 		this.focusedView.setFocus(true);

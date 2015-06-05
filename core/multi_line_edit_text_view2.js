@@ -11,7 +11,7 @@ var assert			= require('assert');
 var _				= require('lodash');
 
 var SPECIAL_KEY_MAP_DEFAULT = {
-	lineFeed	: [ 'enter' ],
+	lineFeed	: [ 'return' ],
 	exit		: [ 'esc' ],
 	backspace	: [ 'backspace' ],
 	del			: [ 'del' ],

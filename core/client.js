@@ -30,10 +30,6 @@
 	THE SOFTWARE.
 	--------------------------
 */
-
-var stream		= require('stream');
-var assert		= require('assert');
-
 var term		= require('./client_term.js');
 var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
@@ -41,6 +37,10 @@ var Log			= require('./logger.js').log;
 var user		= require('./user.js');
 var moduleUtil	= require('./module_util.js');
 var menuUtil	= require('./menu_util.js');
+
+var stream		= require('stream');
+var assert		= require('assert');
+var _			= require('lodash');
 
 exports.Client	= Client;
 
@@ -110,12 +110,24 @@ function getIntArgArray(array) {
 	return array;
 }
 
-var REGEXP_ANSI_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
-var REGEXP_ANSI_KEYCODE					= new RegExp('^' + REGEXP_ANSI_KEYCODE_ANYWHERE.source + '$');
-var REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE	= /(?:\u001b+)(O|N|\[|\[\[)(?:(\d+)(?:;(\d+))?([~^$])|(?:M([@ #!a`])(.)(.))|(?:1;)?(\d+)?([a-zA-Z]))/;
-var REGEXP_ANSI_KEYCODE_FUNC			= new RegExp('^' + REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE.source);
-var REGEXP_ANSI_KEYCODE_ESC				= new RegExp(
-	[ REGEXP_ANSI_KEYCODE_FUNC_ANYWHERE.source, REGEXP_ANSI_KEYCODE_ANYWHERE.source, /\u001b./.source].join('|'));
+var RE_DSR_RESPONSE					= /(?:\u001b\[)([0-9\;]+)([R])/;
+
+var RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
+var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
+var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
+		'(\\d+)(?:;(\\d+))?([~^$])',
+		'(?:M([@ #!a`])(.)(.))',		// mouse stuff
+		'(?:1;)?(\\d+)?([a-zA-Z])'
+	].join('|') + ')');
+
+var RE_FUNCTION_KEYCODE				= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
+var RE_ESC_CODE_ANYWHERE			= new RegExp( [
+		RE_FUNCTION_KEYCODE_ANYWHERE.source, 
+		RE_META_KEYCODE_ANYWHERE.source, 
+		RE_DSR_RESPONSE.source,
+		/\u001b./.source
+	].join('|'));
+
 
 
 function Client(input, output) {
@@ -138,28 +150,120 @@ function Client(input, output) {
 	//	References:
 	//	*	http://www.ansi-bbs.org/ansi-bbs-core-server.html
 	//
-	//	Implementation inspired from https://github.com/chjj/blessed/blob/master/lib/keys.js
+	//	Implementation inspired from Christopher Jeffrey's Blessing library:
+	//	https://github.com/chjj/blessed/blob/master/lib/keys.js
 	//
 	//	:TODO: this is a WIP v2 of onData()
-	this.isMouseInput = function(s) {
-		return /\x1b\[M/.test(s) ||
-		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(s) || 
-		/\u001b\[(\d+;\d+;\d+)M/.test(s) ||
-		/\u001b\[<(\d+;\d+;\d+)([mM])/.test(s) ||
-		/\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(s) || 
-		/\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(s) ||
-		/\u001b\[(O|I)/.test(s);
+	this.isMouseInput = function(data) {
+		return /\x1b\[M/.test(data) ||
+		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) || 
+		/\u001b\[(\d+;\d+;\d+)M/.test(data) ||
+		/\u001b\[<(\d+;\d+;\d+)([mM])/.test(data) ||
+		/\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(data) || 
+		/\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(data) ||
+		/\u001b\[(O|I)/.test(data);
 	};
 
 	this.getKeyComponentsFromCode = function(code) {
 		return {
+			//	xterm/gnome
 			'OP' : { name : 'f1' },
+			'OQ' : { name : 'f2' },
+			'OR' : { name : 'f3' },
+			'OS' : { name : 'f4' },
+
+			'OA' : { name : 'up arrow' },
+			'OB' : { name : 'down arrow' },
+			'OC' : { name : 'right arrow' },
+			'OD' : { name : 'left arrow' },
+			'OE' : { name : 'clear' },
+			'OF' : { name : 'end' },
+			'OH' : { name : 'home' },
+			
+			//	xterm/rxvt
+        	'[11~'	: { name : 'f1' },
+        	'[12~'	: { name : 'f2' },
+        	'[13~'	: { name : 'f3' },
+        	'[14~'	: { name : 'f4' },
+
+        	'[1~'	: { name : 'home' },
+        	'[2~'	: { name : 'insert' },
+        	'[3~'	: { name : 'delete' },
+        	'[4~'	: { name : 'end' },
+        	'[5~'	: { name : 'page up' },
+        	'[6~'	: { name : 'page down' },
+
+        	//	Cygwin & libuv
+        	'[[A'	: { name : 'f1' },
+        	'[[B'	: { name : 'f2' },
+        	'[[C'	: { name : 'f3' },
+        	'[[D'	: { name : 'f4' },
+        	'[[E'	: { name : 'f5' },
+
+        	//	Common impls
+			'[15~'	: { name : 'f5' },
+			'[17~'	: { name : 'f6' },
+			'[18~'	: { name : 'f7' },
+			'[19~'	: { name : 'f8' },
+			'[20~'	: { name : 'f9' },
+			'[21~'	: { name : 'f10' },
+			'[23~'	: { name : 'f11' },
+			'[24~'	: { name : 'f12' },
+
+			//	xterm
+			'[A'	: { name : 'up arrow' },
+			'[B'	: { name : 'down arrow' },
+			'[C'	: { name : 'right arrow' },
+			'[D'	: { name : 'left arrow' },
+			'[E'	: { name : 'clear' },
+			'[F'	: { name : 'end' },
+			'[H'	: { name : 'home' },
+
+			//	PuTTY
+			'[[5~'	: { name : 'page up' },
+			'[[6~'	: { name : 'page down' },
+
+			//	rvxt
+        	'[7~'	: { name : 'home' },
+			'[8~'	: { name : 'end' },
+
+			//	rxvt with modifiers
+
+
+			/* rxvt keys with modifiers */
+			'[a'	: { name : 'up arrow', shift : true },
+			'[b'	: { name : 'down arrow', shift : true },
+			'[c'	: { name : 'right arrow', shift : true },
+			'[d'	: { name : 'left arrow', shift : true },
+			'[e'	: { name : 'clear', shift : true },
+
+			'[2$'	: { name : 'insert', shift : true },
+			'[3$'	: { name : 'delete', shift : true },
+			'[5$'	: { name : 'page up', shift : true },
+			'[6$'	: { name : 'page down', shift : true },
+			'[7$'	: { name : 'home', shift : true },
+			'[8$'	: { name : 'end', shift : true },
+
+			'Oa'	: { name : 'up arrow', ctrl :  true },
+			'Ob'	: { name : 'down arrow', ctrl :  true },
+			'Oc'	: { name : 'right arrow', ctrl :  true },
+			'Od'	: { name : 'left arrow', ctrl :  true },
+			'Oe'	: { name : 'clear', ctrl :  true },
+
+			'[2^'	: { name : 'insert', ctrl :  true },
+			'[3^'	: { name : 'delete', ctrl :  true },
+			'[5^'	: { name : 'page up', ctrl :  true },
+			'[6^'	: { name : 'page down', ctrl :  true },
+			'[7^'	: { name : 'home', ctrl :  true },
+			'[8^'	: { name : 'end', ctrl :  true },
+
+			//	other
+			'[Z'	: { name : 'tab', shift : true },
 		}[code];
 	};
 
-	this.on('dataXXXX', function clientData(data) {
-		var len = data.length;
-
+	this.on('data', function clientData(data) {
+		
 		//	create a uniform format that can be parsed below
 		if(data[0] > 127 && undefined === data[1]) {
 			data[0] -= 128;
@@ -174,7 +278,7 @@ function Client(input, output) {
 
 		var buf = [];
 		var m;
-		while((m = REGEXP_ANSI_KEYCODE_ANYWHERE.exec(data))) {
+		while((m = RE_ESC_CODE_ANYWHERE.exec(data))) {
 			buf = buf.concat(data.slice(0, m.index).split(''));
 			buf.push(m[0]);
 			data = data.slice(m.index + m[0].length);
@@ -193,7 +297,14 @@ function Client(input, output) {
 
 			var parts;
 
-			if('\r' === s) {
+			if((parts = RE_DSR_RESPONSE.exec(s))) {
+				if('R' === parts[2]) {
+					var cprArgs = getIntArgArray(parts[1].split(';'));
+					if(2 === cprArgs.length) {
+						self.emit('cursor position report', cprArgs);
+					}
+				}
+			} else if('\r' === s) {
 				key.name = 'return';
 			} else if('\n' === s) {
 				key.name = 'line feed';
@@ -220,12 +331,12 @@ function Client(input, output) {
 			} else if(1 === s.length && s >= 'A' && s <= 'Z') {
 				key.name	= s.toLowerCase();
 				key.shift	= true;
-			} else if ((parts = REGEXP_ANSI_KEYCODE.exec(s))) {
+			} else if ((parts = RE_META_KEYCODE.exec(s))) {
 				//	meta with character key
 				key.name	= parts[1].toLowerCase();
 				key.meta	= true;
 				key.shift	= /^[A-Z]$/.test(parts[1]);
-			} else if((parts = REGEXP_ANSI_KEYCODE_FUNC.exec(s))) {
+			} else if((parts = RE_FUNCTION_KEYCODE.exec(s))) {
 				var code = 
 					(parts[1] || '') + (parts[2] || '') +
                  	(parts[4] || '') + (parts[9] || '');
@@ -235,8 +346,25 @@ function Client(input, output) {
 				key.meta	= !!(modifier & 10);
 				key.shift	= !!(modifier & 1);
 				key.code	= code;
+
+				_.assign(key, self.getKeyComponentsFromCode(code));
 			}
 
+			var ch;
+			if(1 === s.length) {
+				ch = s;
+			} else if('space' === key.name) {
+				//	stupid hack to always get space as a regular char
+				ch = ' ';
+			}
+
+			if(_.isUndefined(key.name)) {
+				key = undefined;
+			}
+
+			if(key || ch) {
+				self.emit('key press', ch, key);
+			}
 		});
 	});
 
@@ -244,12 +372,10 @@ function Client(input, output) {
 	//	Peek at |data| and emit for any specialized handling
 	//	such as ANSI control codes or user/keyboard input
 	//
-	self.on('data', function onData(data) {
+	self.on('dataXX', function onData(data) {
 		var len = data.length;
 		var c;
 		var name;
-
-		console.log(data)
 
 		if(1 === len) {
 			c = data[0];
