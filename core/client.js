@@ -294,6 +294,8 @@ function Client(input, output) {
 
 		buf = buf.concat(data.split(''));	//	remainder
 
+		console.log(buf)
+
 		buf.forEach(function bufPart(s) {
 			var key = {
 				seq			: s,

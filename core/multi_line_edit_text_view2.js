@@ -459,7 +459,7 @@ MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
 	}
 
 	if(!handled) {
-		MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, key.name);
+		MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, ch, key);
 	}
 };
 
