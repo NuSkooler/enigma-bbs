@@ -120,7 +120,7 @@ MenuView.prototype.setHotKeys = function(hotKeys) {
 			}
 		} else {
 			this.hotKeys = hotKeys;	
-		}	
+		}
 	}
 };
 

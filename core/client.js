@@ -110,8 +110,7 @@ function getIntArgArray(array) {
 	return array;
 }
 
-var RE_DSR_RESPONSE					= /(?:\u001b\[)([0-9\;]+)([R])/;
-
+var RE_DSR_RESPONSE_ANYWHERE		= /(?:\u001b\[)([0-9\;]+)([R])/;
 var RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
 var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
@@ -124,10 +123,20 @@ var RE_FUNCTION_KEYCODE				= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.sourc
 var RE_ESC_CODE_ANYWHERE			= new RegExp( [
 		RE_FUNCTION_KEYCODE_ANYWHERE.source, 
 		RE_META_KEYCODE_ANYWHERE.source, 
-		RE_DSR_RESPONSE.source,
+		RE_DSR_RESPONSE_ANYWHERE.source,
 		/\u001b./.source
 	].join('|'));
 
+
+/*
+Convert names to eg 'ctrl-x', 'shift-x',...
+https://github.com/chjj/blessed/blob/master/lib/program.js
+
+Look at blessed DSR stuff, etc
+Also cursor shape
+
+Key filtering here: https://github.com/chjj/blessed/blob/master/lib/widgets/textarea.js
+*/
 
 
 function Client(input, output) {
@@ -149,11 +158,8 @@ function Client(input, output) {
 	//
 	//	References:
 	//	*	http://www.ansi-bbs.org/ansi-bbs-core-server.html
+	//	*	Christopher Jeffrey's Blessed library @ https://github.com/chjj/blessed/
 	//
-	//	Implementation inspired from Christopher Jeffrey's Blessing library:
-	//	https://github.com/chjj/blessed/blob/master/lib/keys.js
-	//
-	//	:TODO: this is a WIP v2 of onData()
 	this.isMouseInput = function(data) {
 		return /\x1b\[M/.test(data) ||
 		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) || 
@@ -257,13 +263,15 @@ function Client(input, output) {
 			'[7^'	: { name : 'home', ctrl :  true },
 			'[8^'	: { name : 'end', ctrl :  true },
 
+			//	SyncTERM
+			'[K'	: { name : 'end' },
+
 			//	other
 			'[Z'	: { name : 'tab', shift : true },
 		}[code];
 	};
 
 	this.on('data', function clientData(data) {
-		
 		//	create a uniform format that can be parsed below
 		if(data[0] > 127 && undefined === data[1]) {
 			data[0] -= 128;
@@ -297,7 +305,7 @@ function Client(input, output) {
 
 			var parts;
 
-			if((parts = RE_DSR_RESPONSE.exec(s))) {
+			if((parts = RE_DSR_RESPONSE_ANYWHERE.exec(s))) {
 				if('R' === parts[2]) {
 					var cprArgs = getIntArgArray(parts[1].split(';'));
 					if(2 === cprArgs.length) {
@@ -360,6 +368,15 @@ function Client(input, output) {
 
 			if(_.isUndefined(key.name)) {
 				key = undefined;
+			} else {
+				//
+				//	Adjust name for CTRL/Shift/Meta modifiers
+				//
+				key.name = 
+					(key.ctrl ? 'ctrl + ' : '') +
+					(key.meta ? 'meta + ' : '') +
+					(key.shift ? 'shift + ' : '') +
+					key.name;
 			}
 
 			if(key || ch) {
@@ -470,8 +487,8 @@ Client.prototype.destroySoon = function () {
 };
 
 Client.prototype.waitForKeyPress = function(cb) {
-	this.once('key press', function onKeyPress(kp) {
-		cb(kp);
+	this.once('key press', function kp(ch, key) {
+		cb(ch, key);
 	});
 };
 

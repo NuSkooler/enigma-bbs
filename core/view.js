@@ -22,7 +22,7 @@ var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	home		: [ 'home' ],
 	left		: [ 'left arrow' ],
 	right		: [ 'right arrow' ],
-	clearLine	: [ 'end of medium' ],
+	clearLine	: [ 'ctrl + y' ],
 };
 
 function View(options) {
@@ -177,7 +177,7 @@ View.prototype.setFocus = function(focused) {
 	this.hasFocus = focused;
 	this.restoreCursor();
 };
-
+/*
 View.prototype.onKeyPress = function(key, isSpecial) {
 	assert(this.hasFocus, 'View does not have focus');
 	assert(this.acceptsInput, 'View does not accept input');
@@ -193,6 +193,26 @@ View.prototype.onSpecialKeyPress = function(keyName) {
 		this.emit('action', 'accept');
 	} else if(this.isSpecialKeyMapped('next', keyName)) {
 		this.emit('action', 'next');
+	}
+};
+*/
+
+View.prototype.onKeyPress = function(ch, key) {
+	assert(this.hasFocus, 'View does not have focus');
+	assert(this.acceptsInput, 'View does not accept input');
+
+	if(key) {
+		assert(this.specialKeyMap, 'No special key map defined');
+
+		if(this.isSpecialKeyMapped('accept', key.name)) {
+			this.emit('action', 'accept');
+		} else if(this.isSpecialKeyMapped('next', key.name)) {
+			this.emit('action', 'next');
+		}
+	}
+
+	if(ch) {
+		assert(1 === ch.length);
 	}
 };
 

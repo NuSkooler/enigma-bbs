@@ -458,6 +458,7 @@ function display(options, cb) {
 	parser.on('row update', function rowUpdate(row) {
 		if(row >= nextPauseTermHeight) {
 			if(!continous && 'termHeight' === options.pause) {
+				//	:TODO: Must use new key type (ch, key)
 				options.client.waitForKeyPress(function kp(k) {
 					//	:TODO: Allow for configurable key(s) here; or none
 					if('C' === k || 'c' == k) {

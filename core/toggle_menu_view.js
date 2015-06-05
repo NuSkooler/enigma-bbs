@@ -66,41 +66,40 @@ ToggleMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
-ToggleMenuView.prototype.onKeyPress = function(key, isSpecial) {	
-	if(isSpecial || !this.hotKeys) {
-		return;
-	}
-
-	assert(1 === key.length);
-
-	var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? key.toLowerCase() : key];
-	if(!_.isUndefined(keyIndex)) {
-		this.focusedItemIndex = keyIndex;
-		this.updateSelection();
-	}
-
-	ToggleMenuView.super_.prototype.onKeyPress.call(this, key, isSpecial);
-};
-
-ToggleMenuView.prototype.onSpecialKeyPress = function(keyName) {
-
-	if(this.isSpecialKeyMapped('right', keyName) || this.isSpecialKeyMapped('down', keyName)) {
-		if(this.items.length - 1 === this.focusedItemIndex) {
-			this.focusedItemIndex = 0;
-		} else {
-			this.focusedItemIndex++;
+ToggleMenuView.prototype.onKeyPress = function(ch, key) {
+	if(key) {
+		var needsUpdate;
+		if(this.isSpecialKeyMapped('right', key.name) || this.isSpecialKeyMapped('down', key.name)) {
+			if(this.items.length - 1 === this.focusedItemIndex) {
+				this.focusedItemIndex = 0;
+			} else {
+				this.focusedItemIndex++;
+			}
+			needsUpdate = true;
+		} else if(this.isSpecialKeyMapped('left', key.name) || this.isSpecialKeyMapped('up', key.name)) {
+			if(0 === this.focusedItemIndex) {
+				this.focusedItemIndex = this.items.length - 1;
+			} else {
+				this.focusedItemIndex--;
+			}
+			needsUpdate = true;
 		}
-	} else if(this.isSpecialKeyMapped('left', keyName) || this.isSpecialKeyMapped('up', keyName)) {
-		if(0 === this.focusedItemIndex) {
-			this.focusedItemIndex = this.items.length - 1;
-		} else {
-			this.focusedItemIndex--;
+
+		if(needsUpdate) {
+			this.updateSelection();
+			return;
 		}
 	}
 
-	this.updateSelection();
+	if(ch && this.hotKeys) {
+		var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
+		if(!_.isUndefined(keyIndex)) {
+			this.focusedItemIndex = keyIndex;
+			this.updateSelection();
+		}
+	}
 
-	ToggleMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
+	ToggleMenuView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
 ToggleMenuView.prototype.getData = function() {

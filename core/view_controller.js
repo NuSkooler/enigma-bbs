@@ -35,27 +35,26 @@ function ViewController(options) {
 	this.mciViewFactory	= new MCIViewFactory(this.client);
 	this.submitKeyMap	= {};
 
-	this.clientKeyPressHandler = function(ch, specialKey) {
-		console.log('ch=' + ch + ' / ' + JSON.stringify(specialKey));
-		//	:TODO: pass actual key object along here
-		if(specialKey) {
-			var submitViewId = self.submitKeyMap[specialKey.name];
+	this.clientKeyPressHandler = function(ch, key) {
+		//
+		//	Process key presses treating form submit mapped
+		//	keys special. Everything else is forwarded on to
+		//	the focused View, if any.		//
+
+		console.log('ch=' + ch + ' / ' + JSON.stringify(key));
+
+		if(key) {
+			var submitViewId = self.submitKeyMap[key.name];
 			if(submitViewId) {
 				self.switchFocus(submitViewId);
 				self.submitForm();
-			} else {
-				//	:TODO: pass actual key here
-				if(self.focusedView && self.focusedView.acceptsInput) {
-					self.focusedView.onSpecialKeyPress(specialKey.name);
-				}
-			}
-		} else {
-			assert(_.isString(ch));
-
-			if(self.focusedView && self.focusedView.acceptsInput) {
-				self.focusedView.onKeyPress(ch);
+				return;
 			}
 		}
+
+		if(self.focusedView && self.focusedView.acceptsInput) {
+			self.focusedView.onKeyPress(ch, key);
+		}		
 	};
 
 	/*
@@ -223,6 +222,7 @@ function ViewController(options) {
 		//	styleSGRx: 1..25
 		//
 		for(var i = 1; i <= 25; i++) {
+			//	:TODO: fix function in loop
 			setViewProp('styleSGR' + i, function(v) {
 				if(_.isObject(v)) {
 					view['styleSGR' + i] = ansi.getSGRFromGraphicRendition(v, true);

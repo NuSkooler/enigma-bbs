@@ -30,6 +30,57 @@ function EditTextView(options) {
 
 require('util').inherits(EditTextView, TextView);
 
+EditTextView.prototype.onKeyPress = function(ch, key) {
+	if(key) {
+		if(this.isSpecialKeyMapped('backspace', key.name)) {
+			if(this.text.length > 0) {
+				this.text = this.text.substr(0, this.text.length - 1);
+
+				if(this.text.length >= this.dimens.width) {
+					this.redraw();
+				} else {
+					this.cursorPos.row -= 1;
+					if(this.cursorPos.row >= 0) {
+						this.clientBackspace();
+					}
+				}
+			}
+			
+			return;
+		} else if(this.isSpecialKeyMapped('clearLine', key.name)) {
+			this.text			= '';
+			this.cursorPos.row	= 0;
+			this.setFocus(true);	//	resetting focus will redraw & adjust cursor
+
+			return;
+		}
+	}
+
+	if(ch && strUtil.isPrintable(ch)) {
+		if(this.text.length < this.maxLength) {
+			ch = strUtil.stylizeString(ch, this.textStyle);
+
+			this.text += ch;
+
+			if(this.text.length > this.dimens.width) {
+				//	no shortcuts - redraw the view
+				this.redraw();
+			} else {
+				this.cursorPos.row += 1;
+
+				if(this.textMaskChar) {
+					this.client.term.write(this.textMaskChar);
+				} else {
+					this.client.term.write(ch);
+				}
+			}
+		}
+	}
+
+	EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
+};
+
+/*
 EditTextView.prototype.onKeyPress = function(key, isSpecial) {	
 	if(isSpecial) {
 		return;
@@ -82,3 +133,4 @@ EditTextView.prototype.onSpecialKeyPress = function(keyName) {
 
 	EditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
 };
+*/

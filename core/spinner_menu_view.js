@@ -62,25 +62,30 @@ SpinnerMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
-SpinnerMenuView.prototype.onSpecialKeyPress = function(keyName) {
-
-	if(this.isSpecialKeyMapped('up', keyName)) {		
-		if(0 === this.focusedItemIndex) {
-			this.focusedItemIndex = this.items.length - 1;
-		} else {
-			this.focusedItemIndex--;
-		}
-	} else if(this.isSpecialKeyMapped('down', keyName)) {
-		if(this.items.length - 1 === this.focusedItemIndex) {
-			this.focusedItemIndex = 0;
-		} else {
-			this.focusedItemIndex++;
+SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
+	if(key) {
+		if(this.isSpecialKeyMapped('up', key.name)) {		
+			if(0 === this.focusedItemIndex) {
+				this.focusedItemIndex = this.items.length - 1;
+			} else {
+				this.focusedItemIndex--;
+			}
+			
+			this.updateSelection();
+			return;
+		} else if(this.isSpecialKeyMapped('down', key.name)) {
+			if(this.items.length - 1 === this.focusedItemIndex) {
+				this.focusedItemIndex = 0;
+			} else {
+				this.focusedItemIndex++;
+			}
+			
+			this.updateSelection();
+			return;
 		}
 	}
 
-	this.updateSelection();
-
-	SpinnerMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
+	SpinnerMenuView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
 SpinnerMenuView.prototype.getData = function() {

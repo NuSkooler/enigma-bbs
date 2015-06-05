@@ -81,49 +81,51 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
-VerticalMenuView.prototype.onSpecialKeyPress = function(keyName) {
+VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 
-	var prevFocusedItemIndex = this.focusedItemIndex;
+	if(key) {
+		var prevFocusedItemIndex = this.focusedItemIndex;
 
-	if(this.isSpecialKeyMapped('up', keyName)) {		
-		if(0 === this.focusedItemIndex) {
-			this.focusedItemIndex = this.items.length - 1;
-			
-			this.viewWindow = {
-				top		: this.items.length - this.maxVisibleItems,
-				bottom	: this.items.length - 1
-			};
-		} else {
-			this.focusedItemIndex--;
+		if(this.isSpecialKeyMapped('up', key.name)) {		
+			if(0 === this.focusedItemIndex) {
+				this.focusedItemIndex = this.items.length - 1;
+				
+				this.viewWindow = {
+					top		: this.items.length - this.maxVisibleItems,
+					bottom	: this.items.length - 1
+				};
+			} else {
+				this.focusedItemIndex--;
 
-			if(this.focusedItemIndex < this.viewWindow.top) {
-				this.viewWindow.top--;
-				this.viewWindow.bottom--;
+				if(this.focusedItemIndex < this.viewWindow.top) {
+					this.viewWindow.top--;
+					this.viewWindow.bottom--;
+				}
+			}
+		} else if(this.isSpecialKeyMapped('down', key.name)) {
+			if(this.items.length - 1 === this.focusedItemIndex) {
+				this.focusedItemIndex = 0;
+				
+				this.viewWindow = {
+					top		: 0,
+					bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+				};
+			} else {
+				this.focusedItemIndex++;
+
+				if(this.focusedItemIndex > this.viewWindow.bottom) {
+					this.viewWindow.top++;
+					this.viewWindow.bottom++;
+				}
 			}
 		}
-	} else if(this.isSpecialKeyMapped('down', keyName)) {
-		if(this.items.length - 1 === this.focusedItemIndex) {
-			this.focusedItemIndex = 0;
-			
-			this.viewWindow = {
-				top		: 0,
-				bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
-			};
-		} else {
-			this.focusedItemIndex++;
 
-			if(this.focusedItemIndex > this.viewWindow.bottom) {
-				this.viewWindow.top++;
-				this.viewWindow.bottom++;
-			}
+		if(prevFocusedItemIndex !== this.focusedItemIndex) {
+			this.redraw();
 		}
 	}
 
-	if(prevFocusedItemIndex !== this.focusedItemIndex) {
-		this.redraw();
-	}
-
-	VerticalMenuView.super_.prototype.onSpecialKeyPress.call(this, keyName);
+	VerticalMenuView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
 VerticalMenuView.prototype.getData = function() {

@@ -10,6 +10,24 @@ var ansi			= require('./ansi_term.js');
 var assert			= require('assert');
 var _				= require('lodash');
 
+//	:TODO: Determine CTRL-* keys for various things
+	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+	//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
+	//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
+
+	/* Mystic
+	 [^B]  Reformat Paragraph            [^O]  Show this help file
+       [^I]  Insert tab space              [^Q]  Enter quote mode
+       [^K]  Cut current line of text      [^V]  Toggle insert/overwrite
+       [^U]  Paste previously cut text     [^Y]  Delete current line
+
+
+                            BASIC MOVEMENT COMMANDS
+
+                  UP/^E       LEFT/^S      PGUP/^R      HOME/^F
+                DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
+*/
+
 var SPECIAL_KEY_MAP_DEFAULT = {
 	lineFeed	: [ 'return' ],
 	exit		: [ 'esc' ],
@@ -22,7 +40,7 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	home		: [ 'home' ],
 	left		: [ 'left arrow' ],
 	right		: [ 'right arrow' ],
-	clearLine	: [ 'end of medium' ],
+	clearLine	: [ 'ctrl + y' ],
 	pageUp		: [ 'page up' ],
 	pageDown	: [ 'page down' ],
 };
@@ -416,6 +434,36 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 	this.overtypeMode = true;	//	:TODO: remove... testing
 };
 
+var HANDLED_SPECIAL_KEYS = [
+	'up', 'down', 'left', 'right', 
+	'home', 'end',
+	'pageUp', 'pageDown',
+	'lineFeed',
+];
+
+MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
+	var self = this;
+	var handled;
+
+	if(key) {		
+		HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
+			if(self.isSpecialKeyMapped(specialKey, key.name)) {
+				self[_.camelCase('keyPress ' + specialKey)]();
+				handled = true;
+			}
+		});
+	}
+
+	if(ch && strUtil.isPrintable(ch)) {
+		this.keyPressCharacter(ch);
+	}
+
+	if(!handled) {
+		MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, key.name);
+	}
+};
+
+/*
 MultiLineEditTextView2.prototype.onKeyPress = function(key, isSpecial) {
 	if(isSpecial) {
 		return;
@@ -426,12 +474,7 @@ MultiLineEditTextView2.prototype.onKeyPress = function(key, isSpecial) {
 	MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, key, isSpecial);
 };
 
-var HANDLED_SPECIAL_KEYS = [
-	'up', 'down', 'left', 'right', 
-	'home', 'end',
-	'pageUp', 'pageDown',
-	'lineFeed',
-];
+
 
 MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
@@ -439,23 +482,7 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 
 	console.log(keyName);
 
-	//	:TODO: Determine CTRL-* keys for various things
-	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
-	//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
-	//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
-
-	/* Mystic
-	 [^B]  Reformat Paragraph            [^O]  Show this help file
-       [^I]  Insert tab space              [^Q]  Enter quote mode
-       [^K]  Cut current line of text      [^V]  Toggle insert/overwrite
-       [^U]  Paste previously cut text     [^Y]  Delete current line
-
-
-                            BASIC MOVEMENT COMMANDS
-
-                  UP/^E       LEFT/^S      PGUP/^R      HOME/^F
-                DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
-*/
+	
 	var handled = false;
 	HANDLED_SPECIAL_KEYS.forEach(function key(arrowKey) {
 		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
@@ -468,3 +495,4 @@ MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
 		MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
 	}
 };
+*/

@@ -104,63 +104,60 @@ MaskEditTextView.prototype.setMaskPattern = function(pattern) {
 	this.buildPattern();
 };
 
-MaskEditTextView.prototype.onKeyPress = function(key, isSpecial) {
-	if(isSpecial) {
-		return;
-	}
+MaskEditTextView.prototype.onKeyPress = function(ch, key) {
+	if(key) {
+		if(this.isSpecialKeyMapped('backspace', key.name)) {
+			if(this.text.length > 0) {
+				this.patternArrayPos--;
+				assert(this.patternArrayPos >= 0);
 
-	assert(1 === key.length);
+				if(_.isRegExp(this.patternArray[this.patternArrayPos])) {
+					this.text = this.text.substr(0, this.text.length - 1);
+					this.clientBackspace();
+				} else {
+					while(this.patternArrayPos > 0) {
+						if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
+							this.text = this.text.substr(0, this.text.length - 1);
+							this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn() + 1));
+							this.clientBackspace();
+							break;
+						}
+						this.patternArrayPos--;
+					}				
+				}
+			}
 
-	if(this.text.length < this.maxLength) {
-		key = strUtil.stylizeString(key, this.textStyle);
+			return;
+		} else if(this.isSpecialKeyMapped('clearLine', key.name)) {
+			this.text				= '';
+			this.patternArrayPos	= 0;
+			this.setFocus(true);	//	redraw + adjust cursor
 
-		if(!key.match(this.patternArray[this.patternArrayPos])) {
 			return;
 		}
-
-		this.text += key;
-		this.patternArrayPos++;
-
-		while(this.patternArrayPos < this.patternArray.length && 
-			!_.isRegExp(this.patternArray[this.patternArrayPos]))
-		{
-			this.patternArrayPos++;
-		}
-
-		this.redraw();
-		this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
-	}	
-
-	MaskEditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
-};
-
-MaskEditTextView.prototype.onSpecialKeyPress = function(keyName) {
-
-	if(this.isSpecialKeyMapped('backspace', keyName)) {
-		if(this.text.length > 0) {
-			this.patternArrayPos--;
-			assert(this.patternArrayPos >= 0);
-
-			if(_.isRegExp(this.patternArray[this.patternArrayPos])) {
-				this.text = this.text.substr(0, this.text.length - 1);
-				this.clientBackspace();
-			} else {
-				while(this.patternArrayPos > 0) {
-					if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
-						this.text = this.text.substr(0, this.text.length - 1);
-						this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn() + 1));
-						this.clientBackspace();
-						break;
-					}
-					this.patternArrayPos--;
-				}				
-			}
-		}
-	} else if(this.isSpecialKeyMapped('clearLine', keyName)) {
-		this.text				= '';
-		this.patternArrayPos	= 0;
-		this.setFocus(true);	//	redraw + adjust cursor
 	}
 
-	MaskEditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
+	if(ch && strUtil.isPrintable(ch)) {
+		if(this.text.length < this.maxLength) {
+			ch = strUtil.stylizeString(ch, this.textStyle);
+
+			if(!ch.match(this.patternArray[this.patternArrayPos])) {
+				return;
+			}
+
+			this.text += ch;
+			this.patternArrayPos++;
+
+			while(this.patternArrayPos < this.patternArray.length && 
+				!_.isRegExp(this.patternArray[this.patternArrayPos]))
+			{
+				this.patternArrayPos++;
+			}
+
+			this.redraw();
+			this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn()));
+		}
+	}
+
+	MaskEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 };
