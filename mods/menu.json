@@ -162,7 +162,7 @@
 								"text"	: "Apply"
 							},
 							"BT13" : {
-								"submit" : [ "esc" ],
+								"submit" : [ "escape" ],
 								"text" : "Cancel"
 							}
 						},
@@ -282,7 +282,7 @@
 							"BT5" : {
 								"width" : 8,
 								"text" : "< Back",
-								"submit" : [ "esc" ]
+								"submit" : [ "escape" ]
 							}
 						},
 						"submit" : {
@@ -317,7 +317,7 @@
 							},
 							"BT8" : {
 								"text" : "< Back",
-								"submit" : [ "esc" ]
+								"submit" : [ "escape" ]
 							}
 						},
 						"submit" : {
@@ -346,7 +346,7 @@
 							},
 							"BT5" : {
 								"text" : "< Back",
-								"submit" : [ "esc" ]
+								"submit" : [ "escape" ]
 							}
 						},
 						"submit" : {
@@ -376,7 +376,7 @@
 							},
 							"BT5" : {
 								"text" : "< Back",
-								"submit" : [ "esc" ]
+								"submit" : [ "escape" ]
 							}
 						},
 						"submit" : {
@@ -459,7 +459,7 @@
 							},
 							"ET5" : {
 								"password" : true,
-								"submit" : [ "esc" ],
+								"submit" : [ "escape" ],
 								"fillChar" : "#"
 							},
 							"TM6" : {

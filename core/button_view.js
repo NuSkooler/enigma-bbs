@@ -19,14 +19,12 @@ function ButtonView(options) {
 
 util.inherits(ButtonView, TextView);
 
-ButtonView.prototype.onKeyPress = function(key, isSpecial) {
-	ButtonView.super_.prototype.onKeyPress.call(this, key, isSpecial);
-
-	//	allow spacebar to 'click' buttons
-	//	:TODO: need to check configurable mapping here
-	if(' ' === key) {
+ButtonView.prototype.onKeyPress = function(ch, key) {
+	if(' ' === ch) {
 		this.emit('action', 'accept');
 	}
+
+	ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
 ButtonView.prototype.getData = function() {

@@ -89,6 +89,13 @@ function MultiLineEditTextView2(options) {
 		return index;
 	};
 
+	this.getRemainingLinesBelowRow = function(row) {
+		if(!_.isNumber(row)) {
+			row = self.cursorPos.row;
+		}
+		return self.textLines.length - (self.topVisibleIndex + row) - 1;
+	};
+
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex < self.textLines.length);
 
@@ -137,10 +144,16 @@ function MultiLineEditTextView2(options) {
 			self.textLines[index].text, col, c);
 	};
 
+	this.getRemainingTabWidth = function(col) {
+		if(!_.isNumber(col)) {
+			col = self.cursorPos.col;
+		}
+		return self.tabWidth - (col % self.tabWidth);
+	};
+
 	this.expandTab = function(col, expandChar) {
 		expandChar = expandChar || ' ';
-		var count = self.tabWidth - (col % self.tabWidth);
-		return new Array(count).join(expandChar);
+		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
 	this.wordWrapSingleLine = function(s, width) {
@@ -153,7 +166,10 @@ function MultiLineEditTextView2(options) {
 		//	*	Tabs in Sublime Text 3 are also treated as a word, so, e.g.
 		//		"\t" may resolve to "      " and must fit within the space.
 		//
-		//	note: we cannot simply use \s below as it includes \t
+		//	*	If a word is ultimately too long to fit, break it up until it does.
+		//
+		//	RegExp below is JavaScript '\s' minus the '\t'
+		//
 		var re = new RegExp(
 			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​' + 
 			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
@@ -164,11 +180,13 @@ function MultiLineEditTextView2(options) {
 		var word;
 
 		function addWord() {
-			if(wrapped[i].length + word.length > self.dimens.width) {
-				wrapped[++i] = word;
-			} else {
-				wrapped[i] += word;
-			}
+			word.match(new RegExp('.{0,' + self.dimens.width + '}', 'g')).forEach(function wrd(w) {
+				if(wrapped[i].length + w.length > self.dimens.width) {
+					wrapped[++i] = w;
+				} else {
+					wrapped[i] += w;
+				}
+			});
 		}
 
 		do {
@@ -317,7 +335,7 @@ function MultiLineEditTextView2(options) {
 			self.client.term.write(ansi.left());
 			//	:TODO: handle landing on a tab
 		} else {
-			//	:TODO: goto previous line if possible and scroll if needed
+			self.cursorEndOfPreviousLine();
 		}
 	};
 
@@ -327,10 +345,9 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
 
-			//	:TODO: handle landing on a tab
+			self.adjustCursorToNextTab('right');
 		} else {
-			//	:TODO: goto next line; scroll if needed, etc.
-
+			self.cursorBeginOfNextLine();
 		}
 	};
 
@@ -362,15 +379,37 @@ function MultiLineEditTextView2(options) {
 
 	};
 
-	this.adjustCursorIfPastEndOfLine = function(alwaysUpdateCursor) {
+	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col > eolColumn) {
 			self.cursorPos.col = eolColumn;
-			alwaysUpdateCursor = true;
+			forceUpdate = true;
 		}
 
-		if(alwaysUpdateCursor) {
+		if(forceUpdate) {
 			self.moveClientCusorToCursorPos();
+		}
+	};
+
+	this.adjustCursorToNearestTab = function() {
+		//
+		//	When pressing up or down and landing on a tab, jump
+		//	to the nearest tabstop -- right or left.
+		//
+
+	};
+
+	this.adjustCursorToNextTab = function(direction) {
+		if('\t' === self.getText()[self.cursorPos.col]) {
+			//
+			//	When pressing right or left, jump to the next
+			//	tabstop in that direction.
+			//
+			if('right' === direction) {
+				var move = self.getRemainingTabWidth() - 1;
+				self.cursorPos.col += move;
+				self.client.term.write(ansi.right(move));
+			}
 		}
 	};
 
@@ -391,12 +430,38 @@ function MultiLineEditTextView2(options) {
 		self.moveClientCusorToCursorPos();
 	};
 
+	this.cursorBeginOfNextLine = function() {
+		//	e.g. when scrolling right past eol
+		var linesBelow = self.getRemainingLinesBelowRow();
+	
+		if(linesBelow > 0) {
+			var lastVisibleRow	= Math.min(self.dimens.height, self.textLines.length) - 1;
+			if(self.cursorPos.row < lastVisibleRow) {
+				self.cursorPos.row++;
+			} else {
+				self.scrollDocumentUp();
+			}
+			self.keyPressHome();	//	same as pressing 'home'
+		}
+	};
+
+	this.cursorEndOfPreviousLine = function() {
+		if(self.topVisibleIndex > 0) {
+			if(self.cursorPos.row > 0) {
+				self.cursorPos.row--;
+			} else {
+				self.scrollDocumentDown();
+			}
+			self.keyPressEnd();	//	same as pressing 'end'
+		}
+	};
+
 	this.scrollDocumentUp = function() {
 		//
 		//	Note: We scroll *up* when the cursor goes *down* beyond
 		//	the visible area!
 		//
-		var linesBelow = self.textLines.length - (self.topVisibleIndex + self.cursorPos.row) - 1;
+		var linesBelow = self.getRemainingLinesBelowRow();
 		if(linesBelow > 0) {
 			self.topVisibleIndex++;
 			self.redraw();
@@ -426,8 +491,7 @@ MultiLineEditTextView2.prototype.redraw = function() {
 
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [];
-	//text = 'Supper fluffy bunny test thing\nHello, everyone!\n\nStuff and thing and what nots\r\na\tb\tc\td\te';
-	//text = "You. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.";
+	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\tH\tI\tJ\tK\tL\tM\tN\tO\tP\nA reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 
@@ -462,37 +526,3 @@ MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
 		MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, ch, key);
 	}
 };
-
-/*
-MultiLineEditTextView2.prototype.onKeyPress = function(key, isSpecial) {
-	if(isSpecial) {
-		return;
-	}
-
-	this.keyPressCharacter(key);
-
-	MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, key, isSpecial);
-};
-
-
-
-MultiLineEditTextView2.prototype.onSpecialKeyPress = function(keyName) {
-
-	var self = this;
-
-	console.log(keyName);
-
-	
-	var handled = false;
-	HANDLED_SPECIAL_KEYS.forEach(function key(arrowKey) {
-		if(self.isSpecialKeyMapped(arrowKey, keyName)) {
-			self[_.camelCase('keyPress ' + arrowKey)]();
-			handled = true;
-		}
-	});
-
-	if(!handled) {
-		MultiLineEditTextView2.super_.prototype.onSpecialKeyPress.call(this, keyName);
-	}
-};
-*/

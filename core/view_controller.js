@@ -40,9 +40,6 @@ function ViewController(options) {
 		//	Process key presses treating form submit mapped
 		//	keys special. Everything else is forwarded on to
 		//	the focused View, if any.		//
-
-		console.log('ch=' + ch + ' / ' + JSON.stringify(key));
-
 		if(key) {
 			var submitViewId = self.submitKeyMap[key.name];
 			if(submitViewId) {
@@ -56,32 +53,6 @@ function ViewController(options) {
 			self.focusedView.onKeyPress(ch, key);
 		}		
 	};
-
-	/*
-	this.clientKeyPressHandler = function(key, isSpecial) {
-		if(isSpecial) {
-			return;
-		}
-
-		if(self.focusedView && self.focusedView.acceptsInput) {
-			key = 'string' === typeof key ? key : key.toString();
-			self.focusedView.onKeyPress(key, isSpecial);
-		}
-	};
-
-	this.clientSpecialKeyHandler = function(keyName) {
-
-		var submitViewId = self.submitKeyMap[keyName];
-		if(submitViewId) {
-			self.switchFocus(submitViewId);
-			self.submitForm();
-		} else {
-			if(self.focusedView && self.focusedView.acceptsInput) {
-				self.focusedView.onSpecialKeyPress(keyName);
-			}
-		}
-	};
-	*/
 
 	this.viewActionListener = function(action) {
 		switch(action) {

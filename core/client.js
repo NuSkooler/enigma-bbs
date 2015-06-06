@@ -116,7 +116,7 @@ var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$'
 var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
 		'(\\d+)(?:;(\\d+))?([~^$])',
 		'(?:M([@ #!a`])(.)(.))',		// mouse stuff
-		'(?:1;)?(\\d+)?([a-zA-Z])'
+		'(?:1;)?(\\d+)?([a-zA-Z@])'
 	].join('|') + ')');
 
 var RE_FUNCTION_KEYCODE				= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
@@ -234,9 +234,6 @@ function Client(input, output) {
 			'[8~'	: { name : 'end' },
 
 			//	rxvt with modifiers
-
-
-			/* rxvt keys with modifiers */
 			'[a'	: { name : 'up arrow', shift : true },
 			'[b'	: { name : 'down arrow', shift : true },
 			'[c'	: { name : 'right arrow', shift : true },
@@ -263,8 +260,9 @@ function Client(input, output) {
 			'[7^'	: { name : 'home', ctrl :  true },
 			'[8^'	: { name : 'end', ctrl :  true },
 
-			//	SyncTERM
+			//	SyncTERM / EtherTerm
 			'[K'	: { name : 'end' },
+			'[@'	: { name : 'insert' },
 
 			//	other
 			'[Z'	: { name : 'tab', shift : true },
@@ -293,8 +291,6 @@ function Client(input, output) {
 		}
 
 		buf = buf.concat(data.split(''));	//	remainder
-
-		console.log(buf)
 
 		buf.forEach(function bufPart(s) {
 			var key = {
@@ -382,86 +378,11 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
+				Log.trace( { key : key, ch : ch }, 'User keyboard input');
+
 				self.emit('key press', ch, key);
 			}
 		});
-	});
-
-	//
-	//	Peek at |data| and emit for any specialized handling
-	//	such as ANSI control codes or user/keyboard input
-	//
-	self.on('dataXX', function onData(data) {
-		var len = data.length;
-		var c;
-		var name;
-
-		if(1 === len) {
-			c = data[0];
-			
-			if(0x00 === c) {
-				//	ignore single NUL
-				return;
-			}
-
-			name = ANSI_KEY_NAME_MAP[c];
-			if(name) {
-				self.emit('special key', name);
-				self.emit('key press', data, true);
-			} else {
-				self.emit('key press', data, false);
-			}
-		}
-
-		if(0x1b !== data[0]) {
-			return;
-		}
-
-		if(3 === len) {
-			if(0x5b === data[1]) {
-				name = ANSI_KEY_CSI_NAME_MAP[data[2]];
-				if(name) {
-					self.emit('special key', name);
-					self.emit('key press', data, true);
-				}
-			} else if(0x4f === data[1]) {
-				name = ANSI_F_KEY_NAME_MAP_1[data[2]];
-				if(name) {
-					self.emit('special key', name);
-					self.emit('key press', data, true);
-				}
-			}
-		} else if(5 === len && 0x5b === data[1] && 0x7e === data[4]) {
-			var code = parseInt(data.slice(2,4), 10);
-
-			if(!isNaN(code)) {
-				name = ANSI_F_KEY_NAME_MAP_2[code];
-				if(name) {
-					self.emit('special key', name);
-					self.emit('key press', data, true);
-				}
-			}
-		} else if(len > 3) {
-			//	:TODO: Implement various responses to DSR's & such
-			//	See e.g. http://www.vt100.net/docs/vt100-ug/chapter3.html
-			var dsrResponseRe = /\u001b\[([0-9\;]+)([R])/g;
-			var match;
-			var args;
-			do {
-				match = dsrResponseRe.exec(data);
-
-				if(null !== match) {
-					switch(match[2]) {
-						case 'R' :
-							args = getIntArgArray(match[1].split(';'));
-							if(2 === args.length) {
-								self.emit('cursor position report', args);
-							}
-							break;
-					}
-				}
-			} while(0 !== dsrResponseRe.lastIndex);
-		}
 	});
 
 	self.detachCurrentMenuModule = function() {

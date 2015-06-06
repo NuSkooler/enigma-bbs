@@ -5,6 +5,7 @@ var events		= require('events');
 var util		= require('util');
 var assert		= require('assert');
 var ansi		= require('./ansi_term.js');
+
 var _			= require('lodash');
 
 exports.View							= View;
@@ -79,7 +80,7 @@ function View(options) {
 	}
 
 	this.isSpecialKeyMapped = function(keySet, keyName) {
-		return this.specialKeyMap[keySet].indexOf(keyName) > -1;
+		return _.has(this.specialKeyMap, keySet) && this.specialKeyMap[keySet].indexOf(keyName) > -1;
 	};
 
 	this.getANSIColor = function(color) {
@@ -177,25 +178,6 @@ View.prototype.setFocus = function(focused) {
 	this.hasFocus = focused;
 	this.restoreCursor();
 };
-/*
-View.prototype.onKeyPress = function(key, isSpecial) {
-	assert(this.hasFocus, 'View does not have focus');
-	assert(this.acceptsInput, 'View does not accept input');
-	assert(1 === key.length);
-};
-
-View.prototype.onSpecialKeyPress = function(keyName) {
-	assert(this.hasFocus, 'View does not have focus');
-	assert(this.acceptsInput, 'View does not accept input');
-	assert(this.specialKeyMap, 'No special key map defined');
-
-	if(this.isSpecialKeyMapped('accept', keyName)) {
-		this.emit('action', 'accept');
-	} else if(this.isSpecialKeyMapped('next', keyName)) {
-		this.emit('action', 'next');
-	}
-};
-*/
 
 View.prototype.onKeyPress = function(ch, key) {
 	assert(this.hasFocus, 'View does not have focus');
