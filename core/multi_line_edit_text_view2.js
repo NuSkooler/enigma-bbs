@@ -127,8 +127,30 @@ function MultiLineEditTextView2(options) {
 		return i + 1;
 	};
 
+	this.redrawRows = function(startRow, endRow) {
+		self.client.term.write(self.getSGR());
+		self.client.term.write(ansi.hideCursor());
+
+		var startIndex	= self.getTextLinesIndex(startRow);
+		var endIndex	= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
+		console.log(self.position)
+		var absPos		= self.getAbsolutePosition(startRow, 0);
+		console.log(absPos)
+
+		for(var i = startIndex; i < endIndex; ++i) {
+			self.client.term.write(ansi.goto(absPos.row++, absPos.col));
+			self.client.term.write(self.getRenderText(i));
+		}
+
+		self.client.term.write(ansi.showCursor());
+	};
+
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex <= self.textLines.length);
+
+		self.redrawRows(0, self.dimens.height);
+			//Math.min(self.topVisibleIndex + self.dimens.height, self.textLines.length));
+		/*
 
 		self.client.term.write(self.getSGR());
 		self.client.term.write(ansi.hideCursor());
@@ -141,6 +163,7 @@ function MultiLineEditTextView2(options) {
 			++row;
 		}
 		self.client.term.write(ansi.showCursor());
+		*/
 	};
 
 	this.getVisibleText = function(index) {
@@ -337,7 +360,10 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getAbsolutePosition = function(row, col) {
-		return { row : self.position.row + self.cursorPos.row, col : self.position.col + self.cursorPos.col };
+		return { 
+			row : self.position.row + row,
+			col : self.position.col + col,
+		};
 	};
 
 	this.moveClientCusorToCursorPos = function() {
@@ -367,44 +393,26 @@ function MultiLineEditTextView2(options) {
 
 			if(self.getText(index).length > self.dimens.width) {
 				//
-				//	We'll need to word wrap and ajust text below up
-				//	the next eol. Then, redraw from this point down
-				//
-				//	1)	Word wrap current line -> next actual EOL into a
-				//		temp array. For this we'll need the output version
-				//		of the buffer.
+				//	Past available space -- word wrap from current point
+				//	to the next EOL. Update textLines with the newly
+				//	formatted array.
 				//
 				var nextEolIndex	= self.getNextEndOfLineIndex(self.getTextLinesIndex());
 				var newLines		= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
 
-				//
-				//	Replace index -> nextEolIndex with our newly rendered line objects
-				//
-
-
-				//
-				//	Replace existing entries in textLines up to nextEolIndex, then
-				//	insert any additional required lines
-				//
-				var i = 0;
-				var j;
-				for(j = index; j < nextEolIndex; ++j) {
-					self.textLines[j].text = newLines[i++];
+				for(var i = 0; i < newLines.length; ++i) {
+					newLines[i] = { text : newLines[i] };
 				}
+				newLines[newLines.length - 1].eof = true;
 
-				//	:TODO: this part isn't working yet:
-				while(i < newLines.length) {
-					self.textLines.splice(j, 0, { text : newLines[i] } );
-					if(newLines.length == i) {
-						self.textLines[j].eof = true;
-					}
-					++i;
-					++j;
-				}
+				Array.prototype.splice.apply(self.textLines, [index, nextEolIndex - index].concat(newLines));				
 
-				//console.log(newLines)
-				console.log(self.textLines)
+				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				self.redrawRows(self.cursorPos.row, self.cursorPos.row + self.getRemainingLinesBelowRow());
+				self.client.term.write(ansi.goto(absPos.row, absPos.col));
 			} else {
+				
+
 				//
 				//	We must only redraw from col -> end of current visible line
 				//
@@ -415,6 +423,12 @@ function MultiLineEditTextView2(options) {
 					ansi.goto(absPos.row, absPos.col) +
 					ansi.showCursor()
 					);
+			}
+
+			if(self.cursorPos.col > self.dimens.width) {
+				self.cursorPos.col = 0;
+				self.cursorPos.row++;
+				self.moveClientCusorToCursorPos();
 			}
 		}
 
