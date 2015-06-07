@@ -6,9 +6,10 @@ var Config		= require('./config.js').config;
 var _			= require('lodash');
 var assert		= require('assert');
 
-exports.parseAsset			= parseAsset;
-exports.getArtAsset			= getArtAsset;
-exports.resolveConfigAsset	= resolveConfigAsset;
+exports.parseAsset				= parseAsset;
+exports.getArtAsset				= getArtAsset;
+exports.resolveConfigAsset		= resolveConfigAsset;
+exports.getViewPropertyAsset	= getViewPropertyAsset;
 
 var ALL_ASSETS = [
 	'art',
@@ -74,3 +75,11 @@ function resolveConfigAsset(from) {
 		return from;
 	}
 }
+
+function getViewPropertyAsset(src) {
+	if(!_.isString(src) || '@' !== src.charAt(0)) {
+		return null;
+	}
+
+	return parseAsset(src);
+};

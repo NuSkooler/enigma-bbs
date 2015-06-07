@@ -28,6 +28,25 @@ var _				= require('lodash');
                 DOWN/^X      RIGHT/^D      PGDN/^C       END/^G
 */
 
+//
+//	Some other interesting implementations, resources, etc.
+//
+//	Editors - BBS
+//	*	https://github.com/M-griffin/Enthral/blob/master/src/msg_fse.cpp
+//
+//	Editors - Other
+//	*	http://joe-editor.sourceforge.net/
+//	* 	http://www.jbox.dk/downloads/edit.c
+//
+
+//
+//	To-Do
+//	
+//	* Word wrap from pos to next { eol : true } when inserting text
+//	* Page up/down just divide by and set top index
+//	* Index pos % for emit scroll events
+//	* 
+
 var SPECIAL_KEY_MAP_DEFAULT = {
 	lineFeed	: [ 'return' ],
 	exit		: [ 'esc' ],
@@ -43,6 +62,7 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	clearLine	: [ 'ctrl + y' ],
 	pageUp		: [ 'page up' ],
 	pageDown	: [ 'page down' ],
+	insert		: [ 'insert', 'ctrl + v' ],
 };
 
 exports.MultiLineEditTextView2	= MultiLineEditTextView2;
@@ -69,7 +89,9 @@ function MultiLineEditTextView2(options) {
 	//	* http://www.ansi-bbs.org/ansi-bbs2/control_chars/
 	//	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
 	//
-	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 8;
+	//	This seems overkill though, so let's default to 4 :)
+	//
+	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
 	this.textLines			= [];
 	this.topVisibleIndex	= 0;
@@ -96,8 +118,17 @@ function MultiLineEditTextView2(options) {
 		return self.textLines.length - (self.topVisibleIndex + row) - 1;
 	};
 
+	this.getNextEndOfLineIndex = function(startIndex) {
+		for(var i = startIndex; i < self.textLines.length; ++i) {
+			if(self.textLines[i].eol) {
+				return i + 1;
+			}
+		}
+		return i + 1;
+	};
+
 	this.redrawVisibleArea = function() {
-		assert(self.topVisibleIndex < self.textLines.length);
+		assert(self.topVisibleIndex <= self.textLines.length);
 
 		self.client.term.write(self.getSGR());
 		self.client.term.write(ansi.hideCursor());
@@ -127,7 +158,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getTextEndOfLineColumn = function(index) {
-		return Math.max(0, self.getText(index).length - 1);
+		return Math.max(0, self.getText(index).length);
 	};
 
 	this.getRenderText = function(index) {
@@ -139,9 +170,40 @@ function MultiLineEditTextView2(options) {
 		return text;
 	};
 
+	this.getOutputText = function(startIndex, endIndex) {
+		var lines;
+		if(startIndex === endIndex) {
+			lines = [ self.textLines[startIndex] ];
+		} else {
+			lines = self.textLines.slice(startIndex, endIndex);
+		}
+
+		//
+		//	Convert lines to contiguous string -- all expanded
+		//	tabs put back to single '\t' characters.
+		//
+		var text = '';
+		var re = new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+		for(var i = 0; i < lines.length; ++i) {
+			text += lines[i].text.replace(re, '\t');
+			if(lines[i].eof) {
+				text += '\n';
+			}
+		}
+		return text;
+	};
+
 	this.replaceCharacterInText = function(c, index, col) {
 		self.textLines[index].text = strUtil.replaceAt(
 			self.textLines[index].text, col, c);
+	};
+
+	this.insertCharacterInText = function(c, index, col) {
+		self.textLines[index].text = [
+				self.textLines[index].text.slice(0, col), 
+				c, 
+				self.textLines[index].text.slice(col)				
+			].join('');
 	};
 
 	this.getRemainingTabWidth = function(col) {
@@ -170,6 +232,7 @@ function MultiLineEditTextView2(options) {
 		//
 		//	RegExp below is JavaScript '\s' minus the '\t'
 		//
+		console.log(s)
 		var re = new RegExp(
 			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​' + 
 			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
@@ -205,7 +268,9 @@ function MultiLineEditTextView2(options) {
 						//
 						//	Expand tab given position
 						//
-						word += self.expandTab(wrapped[i].length, '\t');
+						//	Nice info here: http://c-for-dummies.com/blog/?p=424
+						//
+						word += self.expandTab(wrapped[i].length + word.length, '\t');
 					break;
 				}
 
@@ -255,14 +320,14 @@ function MultiLineEditTextView2(options) {
 			index = self.textLines.length;
 		}
 
-		var tempLines = text
+		text = text
 			.replace(/\b/g, '')
 			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
 		var wrapped;
 		
-		for(var i = 0; i < tempLines.length; ++i) {
-			wrapped = self.wordWrapSingleLine(tempLines[i], self.dimens.width);
+		for(var i = 0; i < text.length; ++i) {
+			wrapped = self.wordWrapSingleLine(text[i], self.dimens.width);
 
 			for(var j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
@@ -280,23 +345,77 @@ function MultiLineEditTextView2(options) {
 		self.client.term.write(ansi.goto(absPos.row, absPos.col));
 	};
 
-	this.keyPressCharacter = function(c, row, col) {
+	this.keyPressCharacter = function(c) {
+		var index = self.getTextLinesIndex();
 
-		var index = self.getTextLinesIndex(row);
-		if(!_.isNumber(col)) {
-			col = self.cursorPos.col;
-		}
-
-		//	:TODO: Even in overtypeMode, word wrapping must apply for e.g.
-		//	if a user types past bounds
+		//
+		//	:TODO: stuff that needs to happen
+		//	* Break up into smaller methods
+		//	* Even in overtype mode, word wrapping must apply if past bounds
+		//	* A lot of this can be used for backspacing also
+		//	* See how Sublime treats tabs in *non* overtype mode... just overwrite them?
+		//
 
 		if(self.overtypeMode) {
 			//	:TODO: special handing for insert over eol mark?
-			self.replaceCharacterInText(c, index, col);
+			self.replaceCharacterInText(c, index, self.cursorPos.col);
 			self.cursorPos.col++;
 			self.client.term.write(c);
 		} else {
+			self.insertCharacterInText(c, index, self.cursorPos.col);
+			self.cursorPos.col++;
 
+			if(self.getText(index).length > self.dimens.width) {
+				//
+				//	We'll need to word wrap and ajust text below up
+				//	the next eol. Then, redraw from this point down
+				//
+				//	1)	Word wrap current line -> next actual EOL into a
+				//		temp array. For this we'll need the output version
+				//		of the buffer.
+				//
+				var nextEolIndex	= self.getNextEndOfLineIndex(self.getTextLinesIndex());
+				var newLines		= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+
+				//
+				//	Replace index -> nextEolIndex with our newly rendered line objects
+				//
+
+
+				//
+				//	Replace existing entries in textLines up to nextEolIndex, then
+				//	insert any additional required lines
+				//
+				var i = 0;
+				var j;
+				for(j = index; j < nextEolIndex; ++j) {
+					self.textLines[j].text = newLines[i++];
+				}
+
+				//	:TODO: this part isn't working yet:
+				while(i < newLines.length) {
+					self.textLines.splice(j, 0, { text : newLines[i] } );
+					if(newLines.length == i) {
+						self.textLines[j].eof = true;
+					}
+					++i;
+					++j;
+				}
+
+				//console.log(newLines)
+				console.log(self.textLines)
+			} else {
+				//
+				//	We must only redraw from col -> end of current visible line
+				//
+				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				self.client.term.write(
+					ansi.hideCursor() + 
+					self.getRenderText(index).slice(self.cursorPos.col - 1) +
+					ansi.goto(absPos.row, absPos.col) +
+					ansi.showCursor()
+					);
+			}
 		}
 
 	};
@@ -379,6 +498,11 @@ function MultiLineEditTextView2(options) {
 
 	};
 
+	this.keyPressInsert = function() {
+		//	:TODO: emit event
+		self.overtypeMode = !self.overtypeMode;
+	};
+
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col > eolColumn) {
@@ -406,6 +530,10 @@ function MultiLineEditTextView2(options) {
 			//	tabstop in that direction.
 			//
 			if('right' === direction) {
+				//	:TODO: This is not working correctly... 
+				//	A few observations:
+				//	1) Right/left should probably allow to land on a tab
+				//		and only jump once another arrow is hit -- this lets the user edit @ that position
 				var move = self.getRemainingTabWidth() - 1;
 				self.cursorPos.col += move;
 				self.client.term.write(ansi.right(move));
@@ -446,12 +574,17 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.cursorEndOfPreviousLine = function() {
-		if(self.topVisibleIndex > 0) {
-			if(self.cursorPos.row > 0) {
-				self.cursorPos.row--;
-			} else {
-				self.scrollDocumentDown();
-			}
+		//	e.g. when scrolling left past start of line
+		var moveToEnd;
+		if(self.cursorPos.row > 0) {
+			self.cursorPos.row--;
+			moveToEnd = true;
+		} else if(self.topVisibleIndex > 0) {
+			self.scrollDocumentDown();
+			moveToEnd = true;
+		}
+
+		if(moveToEnd) {
 			self.keyPressEnd();	//	same as pressing 'end'
 		}
 	};
@@ -490,12 +623,15 @@ MultiLineEditTextView2.prototype.redraw = function() {
 };
 
 MultiLineEditTextView2.prototype.setText = function(text) {
-	this.textLines = [];
-	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\tH\tI\tJ\tK\tL\tM\tN\tO\tP\nA reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
+	this.textLines = [ ];
+	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 
-	this.overtypeMode = true;	//	:TODO: remove... testing
+	console.log(this.textLines)
+
 };
 
 var HANDLED_SPECIAL_KEYS = [
@@ -503,6 +639,7 @@ var HANDLED_SPECIAL_KEYS = [
 	'home', 'end',
 	'pageUp', 'pageDown',
 	'lineFeed',
+	'insert',
 ];
 
 MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {

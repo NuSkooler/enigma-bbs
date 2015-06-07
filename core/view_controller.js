@@ -161,6 +161,35 @@ function ViewController(options) {
 
 		function setViewProp(propName, setter) {
 			if(conf[propName]) {
+				var propValue;
+				var propAsset = asset.getViewPropertyAsset(conf[propName]);
+				if(propAsset) {
+					switch(propAsset.type) {
+						case 'config' :
+							propValue = asset.resolveConfigAsset(config[propName]); 
+							break;
+
+							//	:TODO: handle @art (e.g. text : @art ...)
+
+						default : 
+							propValue = propValue = conf[propName];
+							break;
+
+						
+					}
+				} else {
+					propValue = conf[propName];
+				}
+
+				if(propValue) {
+					if(setter) {
+						setter(propValue);
+					} else {
+						view[propName] = propValue;
+					}
+				}
+
+				/*
 				var propValue = asset.resolveConfigAsset(conf[propName]);
 				if(propValue) {
 					if(setter) {
@@ -169,6 +198,7 @@ function ViewController(options) {
 						view[propName] = propValue;
 					}
 				}
+				*/
 			}
 		}
 
