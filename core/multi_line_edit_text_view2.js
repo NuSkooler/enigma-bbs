@@ -119,23 +119,20 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getNextEndOfLineIndex = function(startIndex) {
-		for(var i = startIndex; i < self.textLines.length; ++i) {
+		for(var i = startIndex; i < self.textLines.length; i++) {
 			if(self.textLines[i].eol) {
-				return i + 1;
+				return i;
 			}
 		}
-		return i + 1;
+		return self.textLines.length;
 	};
 
 	this.redrawRows = function(startRow, endRow) {
-		self.client.term.write(self.getSGR());
-		self.client.term.write(ansi.hideCursor());
+		self.client.term.write(self.getSGR() + ansi.hideCursor());
 
 		var startIndex	= self.getTextLinesIndex(startRow);
 		var endIndex	= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
-		console.log(self.position)
 		var absPos		= self.getAbsolutePosition(startRow, 0);
-		console.log(absPos)
 
 		for(var i = startIndex; i < endIndex; ++i) {
 			self.client.term.write(ansi.goto(absPos.row++, absPos.col));
@@ -147,23 +144,7 @@ function MultiLineEditTextView2(options) {
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex <= self.textLines.length);
-
 		self.redrawRows(0, self.dimens.height);
-			//Math.min(self.topVisibleIndex + self.dimens.height, self.textLines.length));
-		/*
-
-		self.client.term.write(self.getSGR());
-		self.client.term.write(ansi.hideCursor());
-
-		var bottomIndex = Math.min(self.topVisibleIndex + self.dimens.height, self.textLines.length);
-		var row			= self.position.row;
-		for(var i = self.topVisibleIndex; i < bottomIndex; i++) {
-			self.client.term.write(ansi.goto(row, this.position.col));
-			self.client.term.write(self.getRenderText(i));
-			++row;
-		}
-		self.client.term.write(ansi.showCursor());
-		*/
 	};
 
 	this.getVisibleText = function(index) {
@@ -209,7 +190,7 @@ function MultiLineEditTextView2(options) {
 		var re = new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
 		for(var i = 0; i < lines.length; ++i) {
 			text += lines[i].text.replace(re, '\t');
-			if(lines[i].eof) {
+			if(lines[i].eol) {
 				text += '\n';
 			}
 		}
@@ -255,7 +236,6 @@ function MultiLineEditTextView2(options) {
 		//
 		//	RegExp below is JavaScript '\s' minus the '\t'
 		//
-		console.log(s)
 		var re = new RegExp(
 			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​' + 
 			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
@@ -267,7 +247,7 @@ function MultiLineEditTextView2(options) {
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + self.dimens.width + '}', 'g')).forEach(function wrd(w) {
-				if(wrapped[i].length + w.length > self.dimens.width) {
+				if(wrapped[i].length + w.length >= self.dimens.width) {
 					wrapped[++i] = w;
 				} else {
 					wrapped[i] += w;
@@ -391,31 +371,51 @@ function MultiLineEditTextView2(options) {
 			self.insertCharacterInText(c, index, self.cursorPos.col);
 			self.cursorPos.col++;
 
-			if(self.getText(index).length > self.dimens.width) {
+			if(self.getText(index).length >= self.dimens.width) {
 				//
 				//	Past available space -- word wrap from current point
 				//	to the next EOL. Update textLines with the newly
 				//	formatted array.
 				//
-				var nextEolIndex	= self.getNextEndOfLineIndex(self.getTextLinesIndex());
+				var nextEolIndex	= self.getNextEndOfLineIndex(index);
 				var newLines		= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+
+				console.log(self.getOutputText(index, nextEolIndex))
 
 				for(var i = 0; i < newLines.length; ++i) {
 					newLines[i] = { text : newLines[i] };
 				}
-				newLines[newLines.length - 1].eof = true;
+				newLines[newLines.length - 1].eol = true;
 
-				Array.prototype.splice.apply(self.textLines, [index, nextEolIndex - index].concat(newLines));				
+				console.log('--------------Newlines')
+				console.log(newLines)
+				console.log('--------------Textlines')
+				console.log(self.textLines)
+
+				console.log('nextEolIndex='+ nextEolIndex + ' / index=' + index + '/ newLines.length=' + newLines.length)
+
+				//console.log(self.textLines)
+
+				Array.prototype.splice.apply(
+					self.textLines, 
+					[ index, Math.max(1, nextEolIndex - index) ].concat(newLines));
+
+				console.log('----')
+				console.log(self.textLines)
+
+				//console.log(self.textLines)
 
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-				self.redrawRows(self.cursorPos.row, self.cursorPos.row + self.getRemainingLinesBelowRow());
+
+				//	redraw from current row to end of visible area
+				self.redrawRows(self.cursorPos.row, self.dimens.height);
 				self.client.term.write(ansi.goto(absPos.row, absPos.col));
 			} else {
-				
-
+				//console.log('redraw col+\n' + self.getRenderText(index).slice(self.cursorPos.col - 1) )
 				//
 				//	We must only redraw from col -> end of current visible line
 				//
+
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(
 					ansi.hideCursor() + 
@@ -425,10 +425,9 @@ function MultiLineEditTextView2(options) {
 					);
 			}
 
-			if(self.cursorPos.col > self.dimens.width) {
-				self.cursorPos.col = 0;
-				self.cursorPos.row++;
-				self.moveClientCusorToCursorPos();
+			if(self.cursorPos.col >= self.dimens.width) {
+				console.log('next line')
+				self.cursorBeginOfNextLine();
 			}
 		}
 
@@ -644,7 +643,7 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 
-	console.log(this.textLines)
+//	console.log(this.textLines)
 
 };
 
