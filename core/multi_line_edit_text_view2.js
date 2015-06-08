@@ -179,7 +179,7 @@ function MultiLineEditTextView2(options) {
 		if(startIndex === endIndex) {
 			lines = [ self.textLines[startIndex] ];
 		} else {
-			lines = self.textLines.slice(startIndex, endIndex);
+			lines = self.textLines.slice(startIndex, endIndex + 1);	//	"slice extracts up to but not including end."
 		}
 
 		//
@@ -352,7 +352,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressCharacter = function(c) {
-		var index = self.getTextLinesIndex();
+		var index		= self.getTextLinesIndex();
 
 		//
 		//	:TODO: stuff that needs to happen
@@ -361,6 +361,8 @@ function MultiLineEditTextView2(options) {
 		//	* A lot of this can be used for backspacing also
 		//	* See how Sublime treats tabs in *non* overtype mode... just overwrite them?
 		//
+		//	* 	If the cursor is part of a word that wraps (beg/end/mid), then the cursor
+		//		should be restored at the same position in teh wrapped line
 
 		if(self.overtypeMode) {
 			//	:TODO: special handing for insert over eol mark?
@@ -372,6 +374,12 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.col++;
 
 			if(self.getText(index).length >= self.dimens.width) {
+				//
+				//	Scan back and find the start of the last word, then discover
+				//	if the cursor is a part of that word (begin/end/mid) and if
+				//	so, it's position relative to such.
+				//
+
 				//
 				//	Past available space -- word wrap from current point
 				//	to the next EOL. Update textLines with the newly
@@ -387,22 +395,19 @@ function MultiLineEditTextView2(options) {
 				}
 				newLines[newLines.length - 1].eol = true;
 
-				console.log('--------------Newlines')
+				/*console.log('--------------Newlines')
 				console.log(newLines)
 				console.log('--------------Textlines')
 				console.log(self.textLines)
 
 				console.log('nextEolIndex='+ nextEolIndex + ' / index=' + index + '/ newLines.length=' + newLines.length)
-
-				//console.log(self.textLines)
+				*/
 
 				Array.prototype.splice.apply(
 					self.textLines, 
-					[ index, Math.max(1, nextEolIndex - index) ].concat(newLines));
+					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
-				console.log('----')
-				console.log(self.textLines)
-
+				//console.log('----')
 				//console.log(self.textLines)
 
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
