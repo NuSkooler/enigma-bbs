@@ -373,12 +373,27 @@ function MultiLineEditTextView2(options) {
 			self.insertCharacterInText(c, index, self.cursorPos.col);
 			self.cursorPos.col++;
 
+			var text = self.getText(index);
+			var cursorOffset = 0;
+
 			if(self.getText(index).length >= self.dimens.width) {
 				//
 				//	Scan back and find the start of the last word, then discover
 				//	if the cursor is a part of that word (begin/end/mid) and if
 				//	so, it's position relative to such.
 				//
+				for(var i = text.length; 0 !== i; i--) {
+					if(/\s/.test(text[i])) {
+						console.log(i);
+						if(self.cursorPos.col >= i && self.cursorPos.col <= text.length) {
+							i = self.cursorPos.col - i;
+							cursorOffset = i - 1;
+							console.log(i)
+						}
+						
+						break;
+					}
+				}
 
 				//
 				//	Past available space -- word wrap from current point
@@ -433,6 +448,7 @@ function MultiLineEditTextView2(options) {
 			if(self.cursorPos.col >= self.dimens.width) {
 				console.log('next line')
 				self.cursorBeginOfNextLine();
+				//self.client.term.write(ansi.right(cursorOffset))
 			}
 		}
 
