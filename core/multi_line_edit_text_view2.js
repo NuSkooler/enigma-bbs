@@ -102,6 +102,12 @@ function MultiLineEditTextView2(options) {
 	//
 	this.cursorPos			= { col : 0, row : 0 };
 
+	this.getSGRFor = function(sgrFor) {
+		return {
+			text : self.getSGR(),
+		}[sgrFor] || self.getSGR();
+	};
+
 	//	:TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
 	this.getTextLinesIndex = function(row) {
 		if(!_.isNumber(row)) {
@@ -128,7 +134,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.redrawRows = function(startRow, endRow) {
-		self.client.term.write(self.getSGR() + ansi.hideCursor());
+		self.client.term.write(self.getSGRFor('text') + ansi.hideCursor());
 
 		var startIndex	= self.getTextLinesIndex(startRow);
 		var endIndex	= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
@@ -384,6 +390,7 @@ function MultiLineEditTextView2(options) {
 				//
 				for(var i = text.length; 0 !== i; i--) {
 					if(/\s/.test(text[i])) {
+						i++;	//	advance to actual character, if any
 						console.log(i);
 						if(self.cursorPos.col >= i && self.cursorPos.col <= text.length) {
 							i = self.cursorPos.col - i;
@@ -439,6 +446,7 @@ function MultiLineEditTextView2(options) {
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(
 					ansi.hideCursor() + 
+					self.getSGRFor('text') +  
 					self.getRenderText(index).slice(self.cursorPos.col - 1) +
 					ansi.goto(absPos.row, absPos.col) +
 					ansi.showCursor()
@@ -656,10 +664,16 @@ MultiLineEditTextView2.prototype.redraw = function() {
 	this.redrawVisibleArea();
 };
 
+MultiLineEditTextView2.prototype.setFocus = function(focused) {
+	this.client.term.write(this.getSGRFor('text'));
+
+	MultiLineEditTextView2.super_.prototype.setFocus.call(this, focused);
+};
+
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
