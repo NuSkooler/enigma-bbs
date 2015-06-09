@@ -180,7 +180,7 @@ function MultiLineEditTextView2(options) {
 		return text;
 	};
 
-	this.getOutputText = function(startIndex, endIndex) {
+	this.getOutputText = function(startIndex, endIndex, includeEol) {
 		var lines;
 		if(startIndex === endIndex) {
 			lines = [ self.textLines[startIndex] ];
@@ -196,7 +196,7 @@ function MultiLineEditTextView2(options) {
 		var re = new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
 		for(var i = 0; i < lines.length; ++i) {
 			text += lines[i].text.replace(re, '\t');
-			if(lines[i].eol) {
+			if(includeEol && lines[i].eol) {
 				text += '\n';
 			}
 		}
@@ -380,7 +380,7 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.col++;
 
 			var text = self.getText(index);
-			var cursorOffset = 0;
+			var cursorOffset;
 
 			if(self.getText(index).length >= self.dimens.width) {
 				//
@@ -391,11 +391,10 @@ function MultiLineEditTextView2(options) {
 				for(var i = text.length; 0 !== i; i--) {
 					if(/\s/.test(text[i])) {
 						i++;	//	advance to actual character, if any
-						console.log(i);
 						if(self.cursorPos.col >= i && self.cursorPos.col <= text.length) {
 							i = self.cursorPos.col - i;
-							cursorOffset = i - 1;
-							console.log(i)
+							cursorOffset = i;
+							console.log('cursorOffset=' + i)
 						}
 						
 						break;
@@ -410,7 +409,7 @@ function MultiLineEditTextView2(options) {
 				var nextEolIndex	= self.getNextEndOfLineIndex(index);
 				var newLines		= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
 
-				console.log(self.getOutputText(index, nextEolIndex))
+				console.log('"' + self.getOutputText(index, nextEolIndex) + '"')
 
 				for(var i = 0; i < newLines.length; ++i) {
 					newLines[i] = { text : newLines[i] };
@@ -429,14 +428,21 @@ function MultiLineEditTextView2(options) {
 					self.textLines, 
 					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
-				//console.log('----')
-				//console.log(self.textLines)
+				console.log('----')
+				console.log(self.textLines)
 
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 
 				//	redraw from current row to end of visible area
 				self.redrawRows(self.cursorPos.row, self.dimens.height);
-				self.client.term.write(ansi.goto(absPos.row, absPos.col));
+
+				if(!_.isUndefined(cursorOffset)) {
+					self.cursorBeginOfNextLine();
+					self.cursorPos.col += cursorOffset;
+					self.client.term.write(ansi.right(cursorOffset));
+				} else {
+					self.client.term.write(ansi.goto(absPos.row, absPos.col));
+				}
 			} else {
 				//console.log('redraw col+\n' + self.getRenderText(index).slice(self.cursorPos.col - 1) )
 				//
@@ -519,7 +525,7 @@ function MultiLineEditTextView2(options) {
 		} else {
 			self.cursorPos.col = 0;
 		}
-		console.log(self.getVisibleText())
+		console.log('"' + self.getVisibleText() + '"')
 		self.moveClientCusorToCursorPos();
 	};
 
@@ -673,7 +679,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();

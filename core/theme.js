@@ -117,6 +117,9 @@ function getThemeArt(name, themeID, options, cb) {
 	}
 
 	//	set/override some options
+
+	//	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
+	//	:TODO: Some of these options should only be set if not provided!
 	options.asAnsi		= true;
 	options.readSauce	= true;	//	encoding/fonts/etc.
 	options.random		= miscUtil.valueWithDefault(options.random, true);
