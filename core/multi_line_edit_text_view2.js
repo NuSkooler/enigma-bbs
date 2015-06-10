@@ -250,10 +250,14 @@ function MultiLineEditTextView2(options) {
 		var wrapped = [ '' ];
 		var i = 0;
 		var word;
+		var firstWordWrapWordRange;
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + self.dimens.width + '}', 'g')).forEach(function wrd(w) {
 				if(wrapped[i].length + w.length >= self.dimens.width) {
+					if(0 === i) {
+						firstWordWrapWordRange = { start : wordStart, end : wordStart + w.length };
+					}
 					wrapped[++i] = w;
 				} else {
 					wrapped[i] += w;
@@ -293,7 +297,7 @@ function MultiLineEditTextView2(options) {
 		word = s.substring(wordStart);
 		addWord();
 
-		return wrapped;
+		return { wrapped : wrapped, firstWordWrapWordRange : firstWordWrapWordRange };
 	};
 
 	//	:TODO: Change this to (text, row, col) & make proper adjustments
@@ -336,7 +340,7 @@ function MultiLineEditTextView2(options) {
 		var wrapped;
 		
 		for(var i = 0; i < text.length; ++i) {
-			wrapped = self.wordWrapSingleLine(text[i], self.dimens.width);
+			wrapped = self.wordWrapSingleLine(text[i], self.dimens.width).wrapped;
 
 			for(var j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
@@ -381,35 +385,31 @@ function MultiLineEditTextView2(options) {
 
 			var text = self.getText(index);
 			var cursorOffset;
+			var absPos;
 
 			if(self.getText(index).length >= self.dimens.width) {
-				//
-				//	Scan back and find the start of the last word, then discover
-				//	if the cursor is a part of that word (begin/end/mid) and if
-				//	so, it's position relative to such.
-				//
-				for(var i = text.length; 0 !== i; i--) {
-					if(/\s/.test(text[i])) {
-						i++;	//	advance to actual character, if any
-						if(self.cursorPos.col >= i && self.cursorPos.col <= text.length) {
-							i = self.cursorPos.col - i;
-							cursorOffset = i;
-							console.log('cursorOffset=' + i)
-						}
-						
-						break;
-					}
-				}
-
 				//
 				//	Past available space -- word wrap from current point
 				//	to the next EOL. Update textLines with the newly
 				//	formatted array.
 				//
 				var nextEolIndex	= self.getNextEndOfLineIndex(index);
-				var newLines		= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+				var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+				var newLines		= wrapped.wrapped;
 
-				console.log('"' + self.getOutputText(index, nextEolIndex) + '"')
+				//
+				//	If our cursor was within the bounds of the last wrapped word
+				//	we'll want to adjust the cursor to the same relative position
+				//	on the next line.
+				//
+				var lastCol = self.cursorPos.col - 1;
+				console.log('lastCol=' + lastCol + ' / firstWordWrapWordRange=' + JSON.stringify(wrapped.firstWordWrapWordRange))
+				if(lastCol >= wrapped.firstWordWrapWordRange.start && lastCol <= wrapped.firstWordWrapWordRange.end) {
+					cursorOffset = self.cursorPos.col - wrapped.firstWordWrapWordRange.start;
+					console.log('cursorOffset=' + cursorOffset)
+				}
+
+				console.log('getOutputText="' + self.getOutputText(index, nextEolIndex) + '"')
 
 				for(var i = 0; i < newLines.length; ++i) {
 					newLines[i] = { text : newLines[i] };
@@ -428,10 +428,11 @@ function MultiLineEditTextView2(options) {
 					self.textLines, 
 					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
-				console.log('----')
+				console.log('----textLines:')
 				console.log(self.textLines)
+				console.log('--------------')
 
-				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 
 				//	redraw from current row to end of visible area
 				self.redrawRows(self.cursorPos.row, self.dimens.height);
@@ -449,7 +450,7 @@ function MultiLineEditTextView2(options) {
 				//	We must only redraw from col -> end of current visible line
 				//
 
-				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(
 					ansi.hideCursor() + 
 					self.getSGRFor('text') +  
@@ -679,7 +680,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
