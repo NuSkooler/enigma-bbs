@@ -244,60 +244,57 @@ function MultiLineEditTextView2(options) {
 		//
 		var re = new RegExp(
 			'\t|[ \f\n\r\v​\u00a0\u1680​\u180e\u2000​\u2001\u2002​\u2003\u2004\u2005\u2006​' + 
-			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]+', 'g');
+			'\u2007\u2008​\u2009\u200a​\u2028\u2029​\u202f\u205f​\u3000]', 'g');
 		var m;
-		var wordStart;
-		var wrapped = [ '' ];
+		var wordStart = 0;
+		var results = { wrapped : [ '' ] };
 		var i = 0;
 		var word;
-		var firstWordWrapWordRange;
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + self.dimens.width + '}', 'g')).forEach(function wrd(w) {
-				if(wrapped[i].length + w.length >= self.dimens.width) {
+				if(results.wrapped[i].length + w.length >= self.dimens.width) {
 					if(0 === i) {
-						firstWordWrapWordRange = { start : wordStart, end : wordStart + w.length };
+						results.firstWrapRange = { start : wordStart, end : wordStart + w.length };
 					}
-					wrapped[++i] = w;
+					results.wrapped[++i] = w;
 				} else {
-					wrapped[i] += w;
+					results.wrapped[i] += w;
 				}
 			});
 		}
 
-		do {
-			wordStart	= re.lastIndex + (_.isObject(m) ? m[0].length - 1 : 0);
-			m			= re.exec(s);
+		while((m = re.exec(s)) !== null) {
+			word	= s.substring(wordStart, re.lastIndex - 1);
 
-			if(null !== m) {
-				word = s.substring(wordStart, re.lastIndex - 1);
+			switch(m[0].charAt(0)) {
+				case ' ' :
+					word += m[0];
+				break;
 
-				switch(m[0].charAt(0)) {
-					case ' ' :
-						word += m[0];
-					break;
-
-					case '\t' :
-						//
-						//	Expand tab given position
-						//
-						//	Nice info here: http://c-for-dummies.com/blog/?p=424
-						//
-						word += self.expandTab(wrapped[i].length + word.length, '\t');
-					break;
-				}
-
-				addWord();
+				case '\t' :
+					//
+					//	Expand tab given position
+					//
+					//	Nice info here: http://c-for-dummies.com/blog/?p=424
+					//
+					word += self.expandTab(results.wrapped[i].length + word.length, '\t');
+				break;
 			}
-		} while(0 !== re.lastIndex);
+
+			addWord();
+
+			wordStart = re.lastIndex + m[0].length - 1;
+		}
 
 		//
 		//	Remainder
 		//
+		console.log(wordStart + ' / ' + s.length)
 		word = s.substring(wordStart);
 		addWord();
 
-		return { wrapped : wrapped, firstWordWrapWordRange : firstWordWrapWordRange };
+		return results;
 	};
 
 	//	:TODO: Change this to (text, row, col) & make proper adjustments
@@ -403,9 +400,9 @@ function MultiLineEditTextView2(options) {
 				//	on the next line.
 				//
 				var lastCol = self.cursorPos.col - 1;
-				console.log('lastCol=' + lastCol + ' / firstWordWrapWordRange=' + JSON.stringify(wrapped.firstWordWrapWordRange))
-				if(lastCol >= wrapped.firstWordWrapWordRange.start && lastCol <= wrapped.firstWordWrapWordRange.end) {
-					cursorOffset = self.cursorPos.col - wrapped.firstWordWrapWordRange.start;
+				console.log('lastCol=' + lastCol + ' / firstWrapRange=' + JSON.stringify(wrapped.firstWrapRange))
+				if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
+					cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
 					console.log('cursorOffset=' + cursorOffset)
 				}
 
@@ -680,7 +677,8 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	//text = 'An excerpt from A Clockwork                                                 Orange:'
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
