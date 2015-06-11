@@ -368,8 +368,7 @@ function MultiLineEditTextView2(options) {
 		//	* A lot of this can be used for backspacing also
 		//	* See how Sublime treats tabs in *non* overtype mode... just overwrite them?
 		//
-		//	* 	If the cursor is part of a word that wraps (beg/end/mid), then the cursor
-		//		should be restored at the same position in teh wrapped line
+		//	*	Wrapping/etc. breaks with tabs!!!
 
 		if(self.overtypeMode) {
 			//	:TODO: special handing for insert over eol mark?
@@ -394,6 +393,9 @@ function MultiLineEditTextView2(options) {
 				var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
 				var newLines		= wrapped.wrapped;
 
+				console.log('--------------Newlines')
+				console.log(newLines)
+
 				//
 				//	If our cursor was within the bounds of the last wrapped word
 				//	we'll want to adjust the cursor to the same relative position
@@ -412,15 +414,7 @@ function MultiLineEditTextView2(options) {
 					newLines[i] = { text : newLines[i] };
 				}
 				newLines[newLines.length - 1].eol = true;
-
-				/*console.log('--------------Newlines')
-				console.log(newLines)
-				console.log('--------------Textlines')
-				console.log(self.textLines)
-
-				console.log('nextEolIndex='+ nextEolIndex + ' / index=' + index + '/ newLines.length=' + newLines.length)
-				*/
-
+				
 				Array.prototype.splice.apply(
 					self.textLines, 
 					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
@@ -677,7 +671,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 	//text = 'An excerpt from A Clockwork                                                 Orange:'
 
 	this.insertText(text);//, 0, 0);
