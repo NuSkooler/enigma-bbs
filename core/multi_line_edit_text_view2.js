@@ -172,7 +172,7 @@ function MultiLineEditTextView2(options) {
 			col = self.cursorPos.col;
 		}
 		return self.getText(index).charAt(col);
-	}
+	};
 
 	this.getTextEndOfLineColumn = function(index) {
 		return Math.max(0, self.getText(index).length);
@@ -230,6 +230,22 @@ function MultiLineEditTextView2(options) {
 		return self.tabWidth - (col % self.tabWidth);
 	};
 
+	this.calculateTabStops = function() {
+		//
+		//	:TODO: A system like this may be better for tabs:
+		//	1) Calculate tab stops
+		//	2) On movement/etc.: find next/prev or closest for up/down
+		//
+		//	http://stackoverflow.com/questions/8584902/get-closest-number-out-of-array
+		self.tabStops = [];
+		var col = 0;
+		while(col < self.dimens.width) {
+			col += self.getRemainingTabWidth(col);
+			self.tabStops.push(col);
+		}
+		console.log(self.tabStops)
+	};
+
 	this.expandTab = function(col, expandChar) {
 		expandChar = expandChar || ' ';
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
@@ -285,7 +301,7 @@ function MultiLineEditTextView2(options) {
 					//
 					//	Nice info here: http://c-for-dummies.com/blog/?p=424
 					//
-					word += self.expandTab(results.wrapped[i].length + word.length, '\t') + '\t'
+					word += self.expandTab(results.wrapped[i].length + word.length, '\t') + '\t';
 				break;
 			}
 
@@ -575,9 +591,20 @@ function MultiLineEditTextView2(options) {
 			//	When pressing right or left, jump to the next
 			//	tabstop in that direction.
 			//
+			var move;
 			switch(direction) {
 				case 'right' :
-					var move = self.getRemainingTabWidth();
+					/*
+					var i;
+					for(i = 0; i < self.tabStops.length; ++i) {
+						if(self.tabStops[i] >= self.cursorPos.col) {
+							break;
+						}
+					}
+					i = Math.min(self.tabStops.length, i + 1);
+					move = self.tabStops[i] - self.cursorPos.col;
+					*/
+					move = self.getRemainingTabWidth();
 					self.cursorPos.col += move;
 					self.client.term.write(ansi.right(move));
 					break;
@@ -588,9 +615,12 @@ function MultiLineEditTextView2(options) {
 					//
 					//	return self.tabWidth - (col % self.tabWidth);
 					//var move	= self.tabWidth - 1;
+					var test = self.tabWidth - self.getRemainingTabWidth();
+
 					var text	= self.getText();
 					var col		= self.cursorPos.col;
-					var move 	= 0;
+					move 		= 0;
+
 					while(move < self.tabWidth - 2) {
 						if('\t' !== text.charAt(col--)) {
 							break;
@@ -607,7 +637,7 @@ function MultiLineEditTextView2(options) {
 					console.log('curCol=' + self.cursorPos.col + ' / col=' + col)
 					move = (self.cursorPos.col - col) - 1;
 	*/
-					console.log(move)
+					console.log('test=' + test + ' / move=' + move)
 
 
 					self.cursorPos.col -= move;
@@ -707,10 +737,12 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
+	console.log(this.textLines)
+	console.log(this.calculateTabStops())
 };
 
 var HANDLED_SPECIAL_KEYS = [
