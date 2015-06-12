@@ -167,6 +167,13 @@ function MultiLineEditTextView2(options) {
 		return self.textLines[index].text;
 	};
 
+	this.getCharacter = function(index, col) {
+		if(!_.isNumber(col)) {
+			col = self.cursorPos.col;
+		}
+		return self.getText(index).charAt(col);
+	}
+
 	this.getTextEndOfLineColumn = function(index) {
 		return Math.max(0, self.getText(index).length);
 	};
@@ -480,9 +487,14 @@ function MultiLineEditTextView2(options) {
 
 	this.keyPressLeft = function() {
 		if(self.cursorPos.col > 0) {
+			var prevChar = self.getCharacter();
+
 			self.cursorPos.col--;
 			self.client.term.write(ansi.left());
-			//	:TODO: handle landing on a tab
+
+			if('\t' === prevChar) {
+				self.adjustCursorToNextTab('left');
+			}
 		} else {
 			self.cursorEndOfPreviousLine();
 		}
@@ -491,10 +503,14 @@ function MultiLineEditTextView2(options) {
 	this.keyPressRight = function() {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col < eolColumn) {
+			var prevChar = self.getCharacter();
+
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
 
-			self.adjustCursorToNextTab('right');
+			if('\t' === prevChar) {
+				self.adjustCursorToNextTab('right');
+			}
 		} else {
 			self.cursorBeginOfNextLine();
 		}
@@ -554,19 +570,49 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.adjustCursorToNextTab = function(direction) {
-		if('\t' === self.getText()[self.cursorPos.col]) {
+		if('\t' === self.getCharacter()) {	//	:TODO: should probably just be an assert
 			//
 			//	When pressing right or left, jump to the next
 			//	tabstop in that direction.
 			//
-			if('right' === direction) {
-				//	:TODO: This is not working correctly... 
-				//	A few observations:
-				//	1) Right/left should probably allow to land on a tab
-				//		and only jump once another arrow is hit -- this lets the user edit @ that position
-				var move = self.getRemainingTabWidth();
-				self.cursorPos.col += move;
-				self.client.term.write(ansi.right(move));
+			switch(direction) {
+				case 'right' :
+					var move = self.getRemainingTabWidth();
+					self.cursorPos.col += move;
+					self.client.term.write(ansi.right(move));
+					break;
+
+				case 'left' :
+					//
+					//	We'll move up to tabWidth spaces left
+					//
+					//	return self.tabWidth - (col % self.tabWidth);
+					//var move	= self.tabWidth - 1;
+					var text	= self.getText();
+					var col		= self.cursorPos.col;
+					var move 	= 0;
+					while(move < self.tabWidth - 2) {
+						if('\t' !== text.charAt(col--)) {
+							break;
+						}
+						move++;
+					}
+/*
+					var move	= self.tabWidth - 1;
+					for(; col > 0 && move > 0; --col, --move) {
+						if('\t' !== text.charAt(col)) {
+							break;
+						}
+					}
+					console.log('curCol=' + self.cursorPos.col + ' / col=' + col)
+					move = (self.cursorPos.col - col) - 1;
+	*/
+					console.log(move)
+
+
+					self.cursorPos.col -= move;
+					self.client.term.write(ansi.left(move));
+					break;
 			}
 		}
 	};
