@@ -278,19 +278,17 @@ function MultiLineEditTextView2(options) {
 					//
 					//	Nice info here: http://c-for-dummies.com/blog/?p=424
 					//
-					word += self.expandTab(results.wrapped[i].length + word.length, '\t');
+					word += self.expandTab(results.wrapped[i].length + word.length, '\t') + '\t'
 				break;
 			}
 
 			addWord();
-
 			wordStart = re.lastIndex + m[0].length - 1;
 		}
 
 		//
 		//	Remainder
 		//
-		console.log(wordStart + ' / ' + s.length)
 		word = s.substring(wordStart);
 		addWord();
 
@@ -368,7 +366,7 @@ function MultiLineEditTextView2(options) {
 		//	* A lot of this can be used for backspacing also
 		//	* See how Sublime treats tabs in *non* overtype mode... just overwrite them?
 		//
-		//	*	Wrapping/etc. breaks with tabs!!!
+		//
 
 		if(self.overtypeMode) {
 			//	:TODO: special handing for insert over eol mark?
@@ -379,7 +377,6 @@ function MultiLineEditTextView2(options) {
 			self.insertCharacterInText(c, index, self.cursorPos.col);
 			self.cursorPos.col++;
 
-			var text = self.getText(index);
 			var cursorOffset;
 			var absPos;
 
@@ -393,8 +390,10 @@ function MultiLineEditTextView2(options) {
 				var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
 				var newLines		= wrapped.wrapped;
 
-				console.log('--------------Newlines')
+				/*console.log('--------------Newlines')
 				console.log(newLines)
+				console.log('--------------getText')
+				console.log( [ self.getText(index) ] )*/
 
 				//
 				//	If our cursor was within the bounds of the last wrapped word
@@ -402,13 +401,9 @@ function MultiLineEditTextView2(options) {
 				//	on the next line.
 				//
 				var lastCol = self.cursorPos.col - 1;
-				console.log('lastCol=' + lastCol + ' / firstWrapRange=' + JSON.stringify(wrapped.firstWrapRange))
 				if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
 					cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
-					console.log('cursorOffset=' + cursorOffset)
 				}
-
-				console.log('getOutputText="' + self.getOutputText(index, nextEolIndex) + '"')
 
 				for(var i = 0; i < newLines.length; ++i) {
 					newLines[i] = { text : newLines[i] };
@@ -419,9 +414,6 @@ function MultiLineEditTextView2(options) {
 					self.textLines, 
 					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
-				console.log('----textLines:')
-				console.log(self.textLines)
-				console.log('--------------')
 
 				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 
@@ -436,11 +428,9 @@ function MultiLineEditTextView2(options) {
 					self.client.term.write(ansi.goto(absPos.row, absPos.col));
 				}
 			} else {
-				//console.log('redraw col+\n' + self.getRenderText(index).slice(self.cursorPos.col - 1) )
 				//
 				//	We must only redraw from col -> end of current visible line
 				//
-
 				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(
 					ansi.hideCursor() + 
@@ -451,11 +441,11 @@ function MultiLineEditTextView2(options) {
 					);
 			}
 
-			if(self.cursorPos.col >= self.dimens.width) {
+			/*if(self.cursorPos.col >= self.dimens.width) {
 				console.log('next line')
 				self.cursorBeginOfNextLine();
 				//self.client.term.write(ansi.right(cursorOffset))
-			}
+			}*/
 		}
 
 	};
@@ -574,7 +564,7 @@ function MultiLineEditTextView2(options) {
 				//	A few observations:
 				//	1) Right/left should probably allow to land on a tab
 				//		and only jump once another arrow is hit -- this lets the user edit @ that position
-				var move = self.getRemainingTabWidth() - 1;
+				var move = self.getRemainingTabWidth();
 				self.cursorPos.col += move;
 				self.client.term.write(ansi.right(move));
 			}
@@ -671,14 +661,10 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
-	//text = 'An excerpt from A Clockwork                                                 Orange:'
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
-
-//	console.log(this.textLines)
-
 };
 
 var HANDLED_SPECIAL_KEYS = [
