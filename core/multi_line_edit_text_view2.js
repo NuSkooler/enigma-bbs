@@ -52,7 +52,7 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	exit		: [ 'esc' ],
 	backspace	: [ 'backspace' ],
 	del			: [ 'del' ],
-	tabs		: [ 'tab' ],
+	tab			: [ 'tab' ],
 	up			: [ 'up arrow' ],
 	down		: [ 'down arrow' ],
 	end			: [ 'end' ],
@@ -221,6 +221,65 @@ function MultiLineEditTextView2(options) {
 				c, 
 				self.textLines[index].text.slice(col)				
 			].join('');
+
+		self.cursorPos.col++;
+
+		var cursorOffset;
+		var absPos;
+
+		if(self.getText(index).length >= self.dimens.width) {
+			//
+			//	Past available space -- word wrap from current point
+			//	to the next EOL. Update textLines with the newly
+			//	formatted array.
+			//
+			var nextEolIndex	= self.getNextEndOfLineIndex(index);
+			var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+			var newLines		= wrapped.wrapped;
+
+			//
+			//	If our cursor was within the bounds of the last wrapped word
+			//	we'll want to adjust the cursor to the same relative position
+			//	on the next line.
+			//
+			var lastCol = self.cursorPos.col - 1;
+			if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
+				cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
+			}
+
+			for(var i = 0; i < newLines.length; ++i) {
+				newLines[i] = { text : newLines[i] };
+			}
+			newLines[newLines.length - 1].eol = true;
+			
+			Array.prototype.splice.apply(
+				self.textLines, 
+				[ index, (nextEolIndex - index) + 1 ].concat(newLines));
+
+			//	redraw from current row to end of visible area
+			self.redrawRows(self.cursorPos.row, self.dimens.height);
+
+			if(!_.isUndefined(cursorOffset)) {
+				self.cursorBeginOfNextLine();
+				self.cursorPos.col += cursorOffset;
+				self.client.term.write(ansi.right(cursorOffset));
+			} else {
+				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				self.client.term.write(ansi.goto(absPos.row, absPos.col));
+			}
+		} else {
+			//
+			//	We must only redraw from col -> end of current visible line
+			//
+			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+			self.client.term.write(
+				ansi.hideCursor() + 
+				self.getSGRFor('text') +  
+				self.getRenderText(index).slice(self.cursorPos.col - 1) +
+				ansi.goto(absPos.row, absPos.col) +
+				ansi.showCursor()
+				);
+		}			
 	};
 
 	this.getRemainingTabWidth = function(col) {
@@ -237,13 +296,25 @@ function MultiLineEditTextView2(options) {
 		//	2) On movement/etc.: find next/prev or closest for up/down
 		//
 		//	http://stackoverflow.com/questions/8584902/get-closest-number-out-of-array
-		self.tabStops = [];
+		self.tabStops = [ 0 ];
 		var col = 0;
 		while(col < self.dimens.width) {
 			col += self.getRemainingTabWidth(col);
 			self.tabStops.push(col);
 		}
 		console.log(self.tabStops)
+	};
+
+	this.getNextTabStop = function(col) {
+		var i = self.tabStops.length;
+		while(self.tabStops[--i] > col);
+		return self.tabStops[++i];
+	};
+
+	this.getPrevTabStop = function(col) {
+		var i = self.tabStops.length;
+		while(self.tabStops[--i] >= col);
+		return self.tabStops[i];
 	};
 
 	this.expandTab = function(col, expandChar) {
@@ -379,6 +450,7 @@ function MultiLineEditTextView2(options) {
 		self.client.term.write(ansi.goto(absPos.row, absPos.col));
 	};
 
+
 	this.keyPressCharacter = function(c) {
 		var index		= self.getTextLinesIndex();
 
@@ -398,71 +470,6 @@ function MultiLineEditTextView2(options) {
 			self.client.term.write(c);
 		} else {
 			self.insertCharacterInText(c, index, self.cursorPos.col);
-			self.cursorPos.col++;
-
-			var cursorOffset;
-			var absPos;
-
-			if(self.getText(index).length >= self.dimens.width) {
-				//
-				//	Past available space -- word wrap from current point
-				//	to the next EOL. Update textLines with the newly
-				//	formatted array.
-				//
-				var nextEolIndex	= self.getNextEndOfLineIndex(index);
-				var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
-				var newLines		= wrapped.wrapped;
-
-				/*console.log('--------------Newlines')
-				console.log(newLines)
-				console.log('--------------getText')
-				console.log( [ self.getText(index) ] )*/
-
-				//
-				//	If our cursor was within the bounds of the last wrapped word
-				//	we'll want to adjust the cursor to the same relative position
-				//	on the next line.
-				//
-				var lastCol = self.cursorPos.col - 1;
-				if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
-					cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
-				}
-
-				for(var i = 0; i < newLines.length; ++i) {
-					newLines[i] = { text : newLines[i] };
-				}
-				newLines[newLines.length - 1].eol = true;
-				
-				Array.prototype.splice.apply(
-					self.textLines, 
-					[ index, (nextEolIndex - index) + 1 ].concat(newLines));
-
-
-				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-
-				//	redraw from current row to end of visible area
-				self.redrawRows(self.cursorPos.row, self.dimens.height);
-
-				if(!_.isUndefined(cursorOffset)) {
-					self.cursorBeginOfNextLine();
-					self.cursorPos.col += cursorOffset;
-					self.client.term.write(ansi.right(cursorOffset));
-				} else {
-					self.client.term.write(ansi.goto(absPos.row, absPos.col));
-				}
-			} else {
-				//
-				//	We must only redraw from col -> end of current visible line
-				//
-				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-				self.client.term.write(
-					ansi.hideCursor() + 
-					self.getSGRFor('text') +  
-					self.getRenderText(index).slice(self.cursorPos.col - 1) +
-					ansi.goto(absPos.row, absPos.col) +
-					ansi.showCursor()
-					);
-			}
 
 			/*if(self.cursorPos.col >= self.dimens.width) {
 				console.log('next line')
@@ -478,8 +485,9 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.row--;
 			self.client.term.write(ansi.up());
 
-			//	:TODO: self.makeTabAdjustment('up')
-			self.adjustCursorIfPastEndOfLine(false);
+			if(!self.adjustCursorToNextTab('up')) {
+				self.adjustCursorIfPastEndOfLine(false);
+			}
 		} else {
 			self.scrollDocumentDown();
 			self.adjustCursorIfPastEndOfLine(true);
@@ -492,9 +500,9 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.row++;
 			self.client.term.write(ansi.down());
 
-			//	:TODO: make tab adjustment if needed
-
-			self.adjustCursorIfPastEndOfLine(false);
+			if(!self.adjustCursorToNextTab('down')) {
+				self.adjustCursorIfPastEndOfLine(false);
+			}
 		} else {
 			self.scrollDocumentUp();
 			self.adjustCursorIfPastEndOfLine(true);
@@ -557,12 +565,46 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressLineFeed = function() {
+		//
+		//	Break up text from cursor position, redraw, and update cursor
+		//	position to start of next line
+		//
+		var index			= self.getTextLinesIndex();
+		var nextEolIndex	= self.getNextEndOfLineIndex(index);
+		var text			= self.getOutputText(index, nextEolIndex);
+		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col + 1)).wrapped;
+		
+		newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
+		for(var i = 1; i < newLines.length; ++i) {
+			newLines[i] = { text : newLines[i] };
+		}
+		newLines[newLines.length - 1].eol = true;
 
+		Array.prototype.splice.apply(
+			self.textLines, 
+			[ index, (nextEolIndex - index) + 1 ].concat(newLines));
+
+		//	redraw from current row to end of visible area
+		self.redrawRows(self.cursorPos.row, self.dimens.height);
+		self.cursorBeginOfNextLine();
 	};
 
 	this.keyPressInsert = function() {
 		//	:TODO: emit event
 		self.overtypeMode = !self.overtypeMode;
+	};
+
+	this.keyPressTab = function() {
+		var index = self.getTextLinesIndex();
+		self.insertCharacterInText(self.expandTab(self.cursorPos.col, '\t'), index, self.cursorPos.col);
+	};
+
+	this.keyPressBackspace = function() {
+
+	};
+
+	this.keyPressDel = function() {
+
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -577,16 +619,8 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
-	this.adjustCursorToNearestTab = function() {
-		//
-		//	When pressing up or down and landing on a tab, jump
-		//	to the nearest tabstop -- right or left.
-		//
-
-	};
-
 	this.adjustCursorToNextTab = function(direction) {
-		if('\t' === self.getCharacter()) {	//	:TODO: should probably just be an assert
+		if('\t' === self.getCharacter()) {
 			//
 			//	When pressing right or left, jump to the next
 			//	tabstop in that direction.
@@ -594,57 +628,42 @@ function MultiLineEditTextView2(options) {
 			var move;
 			switch(direction) {
 				case 'right' :
-					/*
-					var i;
-					for(i = 0; i < self.tabStops.length; ++i) {
-						if(self.tabStops[i] >= self.cursorPos.col) {
-							break;
-						}
-					}
-					i = Math.min(self.tabStops.length, i + 1);
-					move = self.tabStops[i] - self.cursorPos.col;
-					*/
-					move = self.getRemainingTabWidth();
+					move = self.getNextTabStop(self.cursorPos.col) - self.cursorPos.col;
 					self.cursorPos.col += move;
 					self.client.term.write(ansi.right(move));
 					break;
 
 				case 'left' :
-					//
-					//	We'll move up to tabWidth spaces left
-					//
-					//	return self.tabWidth - (col % self.tabWidth);
-					//var move	= self.tabWidth - 1;
-					var test = self.tabWidth - self.getRemainingTabWidth();
-
-					var text	= self.getText();
-					var col		= self.cursorPos.col;
-					move 		= 0;
-
-					while(move < self.tabWidth - 2) {
-						if('\t' !== text.charAt(col--)) {
-							break;
-						}
-						move++;
-					}
-/*
-					var move	= self.tabWidth - 1;
-					for(; col > 0 && move > 0; --col, --move) {
-						if('\t' !== text.charAt(col)) {
-							break;
-						}
-					}
-					console.log('curCol=' + self.cursorPos.col + ' / col=' + col)
-					move = (self.cursorPos.col - col) - 1;
-	*/
-					console.log('test=' + test + ' / move=' + move)
-
-
+					move = self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col);
 					self.cursorPos.col -= move;
 					self.client.term.write(ansi.left(move));
 					break;
+
+				case 'up' : 
+				case 'down' :
+					//	
+					//	To nearest tabstop
+					//
+					var newCol = self.tabStops.reduce(function r(prev, curr) {
+						return (Math.abs(curr - self.cursorPos.col) < Math.abs(prev - self.cursorPos.col) ? curr : prev);
+					});
+					console.log('newCol=' + newCol)
+
+					if(newCol > self.cursorPos.col) {
+						move = newCol - self.cursorPos.col;
+						self.cursorPos.col += move;
+						self.client.term.write(ansi.right(move));
+					} else if(newCol < self.cursorPos.col) {
+						move = self.cursorPos.col - newCol;
+						self.cursorPos.col -= move;
+						self.client.term.write(ansi.left(move));
+					}
+					break;
 			}
+
+			return true;
 		}
+		return false;	//	did not fall on a tab
 	};
 
 	this.cursorStartOfDocument = function() {
@@ -695,6 +714,22 @@ function MultiLineEditTextView2(options) {
 		}
 	};
 
+	/*
+	this.cusorEndOfNextLine = function() {
+		var linesBelow = self.getRemainingLinesBelowRow();
+
+		if(linesBelow > 0) {
+			var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
+			if(self.cursorPos.row < lastVisibleRow) {
+				self.cursorPos.row++;
+			} else {
+				self.scrollDocumentUp();
+			}
+			self.keyPressEnd();	//	same as pressing 'end'
+		}
+	};
+	*/
+
 	this.scrollDocumentUp = function() {
 		//
 		//	Note: We scroll *up* when the cursor goes *down* beyond
@@ -737,7 +772,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertText(text);//, 0, 0);
 	this.cursorEndOfDocument();
@@ -751,6 +786,8 @@ var HANDLED_SPECIAL_KEYS = [
 	'pageUp', 'pageDown',
 	'lineFeed',
 	'insert',
+	'tab',
+	'backspace', 'del',
 ];
 
 MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
