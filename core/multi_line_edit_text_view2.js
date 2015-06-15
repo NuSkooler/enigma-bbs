@@ -232,6 +232,7 @@ function MultiLineEditTextView2(options) {
 			self.textLines[index].text, col, c);
 	};
 
+	/*
 	this.editTextAtPosition = function(editAction, text, index, col) {
 		switch(editAction) {
 			case 'insert' : 
@@ -247,6 +248,13 @@ function MultiLineEditTextView2(options) {
 			case 'replace' :
 				break;
 		}
+	};
+	*/
+
+	this.removeCharactersInText = function(count, index, col) {
+		self.textLines[index].text = 
+			self.textLines[index].text.slice(col, count) +
+			self.textLines[index].text.slice(col + count);
 	};
 
 	this.insertCharactersInText = function(c, index, col) {
@@ -269,7 +277,7 @@ function MultiLineEditTextView2(options) {
 			//	formatted array.
 			//
 			var nextEolIndex	= self.getNextEndOfLineIndex(index);
-			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact')
+			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
 			var newLines		= wrapped.wrapped;
 
 			/*
