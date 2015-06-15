@@ -617,11 +617,10 @@ function MultiLineEditTextView2(options) {
 		//	Break up text from cursor position, redraw, and update cursor
 		//	position to start of next line
 		//
-		//	:TODO: this needs converted to use the getContigousText() and such
 		var index			= self.getTextLinesIndex();
 		var nextEolIndex	= self.getNextEndOfLineIndex(index);
-		var text			= self.getOutputText(index, nextEolIndex);
-		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col)).wrapped;
+		var text			= self.getContiguousText(index, nextEolIndex);
+		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
 		
 		newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
 		for(var i = 1; i < newLines.length; ++i) {
@@ -644,8 +643,6 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressTab = function() {
-		//	:TODO: Seems tabs are counted as words when wrapping... they should probably break @ nearest
-		//	full tab if possible? Look into how Sublime handles this.
 		var index = self.getTextLinesIndex();
 		self.insertCharactersInText(self.expandTab(self.cursorPos.col, '\t') + '\t', index, self.cursorPos.col);
 	};
