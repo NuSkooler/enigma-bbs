@@ -4,10 +4,11 @@
 var miscUtil	= require('./misc_util.js');
 
 
-exports.stylizeString	= stylizeString;
-exports.pad				= pad;
-exports.replaceAt		= replaceAt;
-exports.isPrintable		= isPrintable;
+exports.stylizeString		= stylizeString;
+exports.pad					= pad;
+exports.replaceAt			= replaceAt;
+exports.isPrintable			= isPrintable;
+exports.debugEscapedString	= debugEscapedString;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -168,4 +169,8 @@ function isPrintable(s) {
 function stringLength(s) {
 	//	:TODO: See https://mathiasbynens.be/notes/javascript-unicode
 	return s.length;
+}
+
+function debugEscapedString(s) {
+	return JSON.stringify(s).slice(1, -1);
 }

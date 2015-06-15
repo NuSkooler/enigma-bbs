@@ -187,24 +187,41 @@ function MultiLineEditTextView2(options) {
 		return text;
 	};
 
-	this.getOutputText = function(startIndex, endIndex, includeEol) {
-		var lines;
+ 	this.getTextLines = function(startIndex, endIndex) {
+ 		var lines;
 		if(startIndex === endIndex) {
 			lines = [ self.textLines[startIndex] ];
 		} else {
 			lines = self.textLines.slice(startIndex, endIndex + 1);	//	"slice extracts up to but not including end."
 		}
+		return lines;
+ 	}
+
+	this.getOutputText = function(startIndex, endIndex, includeEol) {
+		var lines = self.getTextLines(startIndex, endIndex);
 
 		//
 		//	Convert lines to contiguous string -- all expanded
 		//	tabs put back to single '\t' characters.
 		//
 		var text = '';
-		var re = new RegExp('\\t{' + (self.tabWidth - 1) + '}', 'g');
+		var re = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
 		for(var i = 0; i < lines.length; ++i) {
 			text += lines[i].text.replace(re, '\t');
 			if(includeEol && lines[i].eol) {
 				text += '\n';
+			}
+		}
+		return text;
+	};
+
+	this.getContiguousText = function(startIndex, endIndex, includeEol) {
+		var lines = self.getTextLines(startIndex, endIndex);
+		var text = '';
+		for(var i = 0; i < lines.length; ++i) {
+			text += lines[i].text;
+			if(includeEol && lines[i].eol) {
+				text += '\n'
 			}
 		}
 		return text;
@@ -215,14 +232,32 @@ function MultiLineEditTextView2(options) {
 			self.textLines[index].text, col, c);
 	};
 
-	this.insertCharacterInText = function(c, index, col) {
+	this.editTextAtPosition = function(editAction, text, index, col) {
+		switch(editAction) {
+			case 'insert' : 
+				self.insertCharactersInText(text, index, col);
+				break;
+
+			case 'deleteForward' :
+				break;
+
+			case 'deleteBack' :
+				break;
+
+			case 'replace' :
+				break;
+		}
+	};
+
+	this.insertCharactersInText = function(c, index, col) {
 		self.textLines[index].text = [
 				self.textLines[index].text.slice(0, col), 
 				c, 
 				self.textLines[index].text.slice(col)				
 			].join('');
 
-		self.cursorPos.col++;
+		//self.cursorPos.col++;
+		self.cursorPos.col += c.length;
 
 		var cursorOffset;
 		var absPos;
@@ -234,15 +269,24 @@ function MultiLineEditTextView2(options) {
 			//	formatted array.
 			//
 			var nextEolIndex	= self.getNextEndOfLineIndex(index);
-			var wrapped			= self.wordWrapSingleLine(self.getOutputText(index, nextEolIndex));
+			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact')
 			var newLines		= wrapped.wrapped;
+
+			/*
+			console.log(strUtil.debugEscapedString(self.getText(index)) + ' / ' + self.getText(index).length)
+			console.log(strUtil.debugEscapedString(self.getOutputText(index, nextEolIndex)))
+			console.log(newLines)
+			console.log(newLines[0].length)
+			console.log(strUtil.debugEscapedString(self.getContiguousText(index, nextEolIndex)))
+			*/
 
 			//
 			//	If our cursor was within the bounds of the last wrapped word
 			//	we'll want to adjust the cursor to the same relative position
 			//	on the next line.
 			//
-			var lastCol = self.cursorPos.col - 1;
+			//var lastCol = self.cursorPos.col - 1;
+			var lastCol = self.cursorPos.col - c.length;
 			if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
 				cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
 			}
@@ -251,7 +295,7 @@ function MultiLineEditTextView2(options) {
 				newLines[i] = { text : newLines[i] };
 			}
 			newLines[newLines.length - 1].eol = true;
-			
+
 			Array.prototype.splice.apply(
 				self.textLines, 
 				[ index, (nextEolIndex - index) + 1 ].concat(newLines));
@@ -260,11 +304,13 @@ function MultiLineEditTextView2(options) {
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
 			if(!_.isUndefined(cursorOffset)) {
+				console.log('cursorOffset=' + cursorOffset)
 				self.cursorBeginOfNextLine();
 				self.cursorPos.col += cursorOffset;
 				self.client.term.write(ansi.right(cursorOffset));
 			} else {
 				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				console.log('absPos=' + JSON.stringify(absPos))
 				self.client.term.write(ansi.goto(absPos.row, absPos.col));
 			}
 		} else {
@@ -275,7 +321,7 @@ function MultiLineEditTextView2(options) {
 			self.client.term.write(
 				ansi.hideCursor() + 
 				self.getSGRFor('text') +  
-				self.getRenderText(index).slice(self.cursorPos.col - 1) +
+				self.getRenderText(index).slice(self.cursorPos.col - c.length) +
 				ansi.goto(absPos.row, absPos.col) +
 				ansi.showCursor()
 				);
@@ -290,19 +336,12 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.calculateTabStops = function() {
-		//
-		//	:TODO: A system like this may be better for tabs:
-		//	1) Calculate tab stops
-		//	2) On movement/etc.: find next/prev or closest for up/down
-		//
-		//	http://stackoverflow.com/questions/8584902/get-closest-number-out-of-array
 		self.tabStops = [ 0 ];
 		var col = 0;
 		while(col < self.dimens.width) {
 			col += self.getRemainingTabWidth(col);
 			self.tabStops.push(col);
 		}
-		console.log(self.tabStops)
 	};
 
 	this.getNextTabStop = function(col) {
@@ -322,7 +361,12 @@ function MultiLineEditTextView2(options) {
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
-	this.wordWrapSingleLine = function(s, width) {
+	this.wordWrapSingleLine = function(s, tabHandling, width) {
+		tabHandling = tabHandling || 'expandTabs';
+		if(!_.isNumber(width)) {
+			width = self.dimens.width;
+		}
+
 		//
 		//	Notes
 		//	*	Sublime Text 3 for example considers spaces after a word
@@ -346,8 +390,8 @@ function MultiLineEditTextView2(options) {
 		var word;
 
 		function addWord() {
-			word.match(new RegExp('.{0,' + self.dimens.width + '}', 'g')).forEach(function wrd(w) {
-				if(results.wrapped[i].length + w.length >= self.dimens.width) {
+			word.match(new RegExp('.{0,' + width + '}', 'g')).forEach(function wrd(w) {
+				if(results.wrapped[i].length + w.length >= width) {
 					if(0 === i) {
 						results.firstWrapRange = { start : wordStart, end : wordStart + w.length };
 					}
@@ -372,7 +416,11 @@ function MultiLineEditTextView2(options) {
 					//
 					//	Nice info here: http://c-for-dummies.com/blog/?p=424
 					//
-					word += self.expandTab(results.wrapped[i].length + word.length, '\t') + '\t';
+					if('expandTabs' === tabHandling) {
+						word += self.expandTab(results.wrapped[i].length + word.length, '\t') + '\t';
+					} else {
+						word += m[0];
+					}
 				break;
 			}
 
@@ -389,8 +437,8 @@ function MultiLineEditTextView2(options) {
 		return results;
 	};
 
-	//	:TODO: Change this to (text, row, col) & make proper adjustments
-	this.insertText = function(text, index, col) {
+	//	:TODO: rename to insertRawText()
+	this.insertRawText = function(text, index, col) {
 		//
 		//	Perform the following on |text|:
 		//	*	Normalize various line feed formats -> \n
@@ -429,7 +477,7 @@ function MultiLineEditTextView2(options) {
 		var wrapped;
 		
 		for(var i = 0; i < text.length; ++i) {
-			wrapped = self.wordWrapSingleLine(text[i], self.dimens.width).wrapped;
+			wrapped = self.wordWrapSingleLine(text[i], 'expandTabs', self.dimens.width).wrapped;
 
 			for(var j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
@@ -469,7 +517,7 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.col++;
 			self.client.term.write(c);
 		} else {
-			self.insertCharacterInText(c, index, self.cursorPos.col);
+			self.insertCharactersInText(c, index, self.cursorPos.col);
 
 			/*if(self.cursorPos.col >= self.dimens.width) {
 				console.log('next line')
@@ -569,10 +617,11 @@ function MultiLineEditTextView2(options) {
 		//	Break up text from cursor position, redraw, and update cursor
 		//	position to start of next line
 		//
+		//	:TODO: this needs converted to use the getContigousText() and such
 		var index			= self.getTextLinesIndex();
 		var nextEolIndex	= self.getNextEndOfLineIndex(index);
 		var text			= self.getOutputText(index, nextEolIndex);
-		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col + 1)).wrapped;
+		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col)).wrapped;
 		
 		newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
 		for(var i = 1; i < newLines.length; ++i) {
@@ -595,8 +644,10 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressTab = function() {
+		//	:TODO: Seems tabs are counted as words when wrapping... they should probably break @ nearest
+		//	full tab if possible? Look into how Sublime handles this.
 		var index = self.getTextLinesIndex();
-		self.insertCharacterInText(self.expandTab(self.cursorPos.col, '\t'), index, self.cursorPos.col);
+		self.insertCharactersInText(self.expandTab(self.cursorPos.col, '\t') + '\t', index, self.cursorPos.col);
 	};
 
 	this.keyPressBackspace = function() {
@@ -647,7 +698,6 @@ function MultiLineEditTextView2(options) {
 					var newCol = self.tabStops.reduce(function r(prev, curr) {
 						return (Math.abs(curr - self.cursorPos.col) < Math.abs(prev - self.cursorPos.col) ? curr : prev);
 					});
-					console.log('newCol=' + newCol)
 
 					if(newCol > self.cursorPos.col) {
 						move = newCol - self.cursorPos.col;
@@ -757,6 +807,12 @@ function MultiLineEditTextView2(options) {
 
 require('util').inherits(MultiLineEditTextView2, View);
 
+MultiLineEditTextView2.prototype.setWidth = function(width) {
+	MultiLineEditTextView2.super_.prototype.setWidth.call(this, width);
+
+	this.calculateTabStops();
+};
+
 MultiLineEditTextView2.prototype.redraw = function() {
 	MultiLineEditTextView2.super_.prototype.redraw.call(this);
 
@@ -774,10 +830,11 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
 	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
-	this.insertText(text);//, 0, 0);
+	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 	console.log(this.textLines)
-	console.log(this.calculateTabStops())
+
+
 };
 
 var HANDLED_SPECIAL_KEYS = [
