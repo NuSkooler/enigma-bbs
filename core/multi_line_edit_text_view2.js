@@ -275,6 +275,10 @@ function MultiLineEditTextView2(options) {
 
 			//	recalc to next eol
 
+			var nextEolIndex	= self.getNextEndOfLineIndex(index);
+			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
+			var newLines		= wrapped.wrapped;
+
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
 			if(0 === self.cursorPos.col) {
