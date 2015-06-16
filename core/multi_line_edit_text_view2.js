@@ -195,7 +195,7 @@ function MultiLineEditTextView2(options) {
 			lines = self.textLines.slice(startIndex, endIndex + 1);	//	"slice extracts up to but not including end."
 		}
 		return lines;
- 	}
+ 	};
 
 	this.getOutputText = function(startIndex, endIndex, includeEol) {
 		var lines = self.getTextLines(startIndex, endIndex);
@@ -221,7 +221,7 @@ function MultiLineEditTextView2(options) {
 		for(var i = 0; i < lines.length; ++i) {
 			text += lines[i].text;
 			if(includeEol && lines[i].eol) {
-				text += '\n'
+				text += '\n';
 			}
 		}
 		return text;
@@ -710,6 +710,11 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressBackspace = function() {
+		var count;
+		if('\t' === self.getCharacter(self.cursorPos.col)) {
+			//	:TODO: Need to remove tabs...
+		}
+
 		self.removeCharactersFromText(
 			self.getTextLinesIndex(),
 			self.cursorPos.col,
