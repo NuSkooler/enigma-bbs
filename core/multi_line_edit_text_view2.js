@@ -296,8 +296,8 @@ function MultiLineEditTextView2(options) {
 
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			if(0 === self.cursorPos.col) {
-
+			if(self.cursorPos.col < 0) {
+				
 			} else {
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(ansi.goto(absPos.row, absPos.col));
@@ -352,6 +352,10 @@ function MultiLineEditTextView2(options) {
 				[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 			*/
 
+			//
+			//	Update word wrapping and |cursorOffset| if the cursor
+			//	was within the bounds of the wrapped text
+			//
 			var lastCol			= self.cursorPos.col - c.length;
 			var firstWrapRange	= self.updateTextWordWrap(index);
 			if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
