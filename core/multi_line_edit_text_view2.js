@@ -251,7 +251,24 @@ function MultiLineEditTextView2(options) {
 	};
 	*/
 
-	this.removeCharactersFromText = function(startIndex, col, direction, count) {
+	this.updateTextWordWrap = function(index) {
+		var nextEolIndex	= self.getNextEndOfLineIndex(index);
+		var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
+		var newLines		= wrapped.wrapped;
+
+		for(var i = 0; i < newLines.length; ++i) {
+			newLines[i] = { text : newLines[i] };
+		}
+		newLines[newLines.length - 1].eol = true;
+
+		Array.prototype.splice.apply(
+			self.textLines, 
+			[ index, (nextEolIndex - index) + 1 ].concat(newLines));
+
+		return wrapped.firstWrapRange;
+	};
+
+	this.removeCharactersFromText = function(index, col, direction, count) {
 		var text = self.getText();
 
 		if('right' === direction) {
@@ -267,17 +284,15 @@ function MultiLineEditTextView2(options) {
 				self.redrawRows(self.cursorPos.row, self.dimens.height);
 			}
 		} else if ('left' === direction) {
-			self.textLines[startIndex].text =
-				self.textLines[startIndex].text.slice(0, col - count) + 
-				self.textLines[startIndex].text.slice(col + 1);
+			self.textLines[index].text =
+				self.textLines[index].text.slice(0, col - count) + 
+				self.textLines[index].text.slice(col + 1);
 
 			self.cursorPos.col -= count;
 
 			//	recalc to next eol
 
-			var nextEolIndex	= self.getNextEndOfLineIndex(index);
-			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
-			var newLines		= wrapped.wrapped;
+			self.updateTextWordWrap(index);
 
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
@@ -311,17 +326,10 @@ function MultiLineEditTextView2(options) {
 			//	to the next EOL. Update textLines with the newly
 			//	formatted array.
 			//
+			/*
 			var nextEolIndex	= self.getNextEndOfLineIndex(index);
 			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
 			var newLines		= wrapped.wrapped;
-
-			/*
-			console.log(strUtil.debugEscapedString(self.getText(index)) + ' / ' + self.getText(index).length)
-			console.log(strUtil.debugEscapedString(self.getOutputText(index, nextEolIndex)))
-			console.log(newLines)
-			console.log(newLines[0].length)
-			console.log(strUtil.debugEscapedString(self.getContiguousText(index, nextEolIndex)))
-			*/
 
 			//
 			//	If our cursor was within the bounds of the last wrapped word
@@ -342,6 +350,13 @@ function MultiLineEditTextView2(options) {
 			Array.prototype.splice.apply(
 				self.textLines, 
 				[ index, (nextEolIndex - index) + 1 ].concat(newLines));
+			*/
+
+			var lastCol			= self.cursorPos.col - c.length;
+			var firstWrapRange	= self.updateTextWordWrap(index);
+			if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
+				cursorOffset = self.cursorPos.col - firstWrapRange.start;
+			}
 
 			//	redraw from current row to end of visible area
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
