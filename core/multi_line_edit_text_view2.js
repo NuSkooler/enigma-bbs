@@ -251,10 +251,41 @@ function MultiLineEditTextView2(options) {
 	};
 	*/
 
-	this.removeCharactersInText = function(count, index, col) {
-		self.textLines[index].text = 
-			self.textLines[index].text.slice(col, count) +
-			self.textLines[index].text.slice(col + count);
+	this.removeCharactersFromText = function(startIndex, col, direction, count) {
+		var text = self.getText();
+
+		if('right' === direction) {
+			/*self.textLines[startIndex].text = 
+				self.textLines[startIndex].text.slice(col, count) +
+				self.textLines[startIndex].text.slice(col + count);
+			*/
+			text = text.slice(col, count) + text.slice(col + count);
+
+			if(0 === text.length) {
+
+			} else {
+				self.redrawRows(self.cursorPos.row, self.dimens.height);
+			}
+		} else if ('left' === direction) {
+			self.textLines[startIndex].text =
+				self.textLines[startIndex].text.slice(0, col - count) + 
+				self.textLines[startIndex].text.slice(col + 1);
+
+			self.cursorPos.col -= count;
+
+			//	recalc to next eol
+
+			self.redrawRows(self.cursorPos.row, self.dimens.height);
+
+			if(0 === self.cursorPos.col) {
+
+			} else {
+				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				self.client.term.write(ansi.goto(absPos.row, absPos.col));
+			}
+
+			
+		}
 	};
 
 	this.insertCharactersInText = function(c, index, col) {
@@ -656,11 +687,19 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressBackspace = function() {
-
+		self.removeCharactersFromText(
+			self.getTextLinesIndex(),
+			self.cursorPos.col,
+			'left',
+			1);
 	};
 
 	this.keyPressDel = function() {
-
+		self.removeCharactersFromText(
+			self.getTextLinesIndex(),
+			self.cursorPos.col,
+			'right',
+			1);
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -677,18 +716,20 @@ function MultiLineEditTextView2(options) {
 
 	this.adjustCursorToNextTab = function(direction) {
 		if('\t' === self.getCharacter()) {
-			//
-			//	When pressing right or left, jump to the next
-			//	tabstop in that direction.
-			//
 			var move;
 			switch(direction) {
+				//
+				//	Next tabstop to the right
+				//
 				case 'right' :
 					move = self.getNextTabStop(self.cursorPos.col) - self.cursorPos.col;
 					self.cursorPos.col += move;
 					self.client.term.write(ansi.right(move));
 					break;
 
+				//
+				//	Next tabstop to the left
+				//
 				case 'left' :
 					move = self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col);
 					self.cursorPos.col -= move;
@@ -698,7 +739,7 @@ function MultiLineEditTextView2(options) {
 				case 'up' : 
 				case 'down' :
 					//	
-					//	To nearest tabstop
+					//	Jump to the tabstop nearest the cursor
 					//
 					var newCol = self.tabStops.reduce(function r(prev, curr) {
 						return (Math.abs(curr - self.cursorPos.col) < Math.abs(prev - self.cursorPos.col) ? curr : prev);
