@@ -290,14 +290,12 @@ function MultiLineEditTextView2(options) {
 
 			self.cursorPos.col -= count;
 
-			//	recalc to next eol
-
 			self.updateTextWordWrap(index);
 
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			if(self.cursorPos.col < 0) {
-				
+			if(0 === self.cursorPos.col) {
+
 			} else {
 				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				self.client.term.write(ansi.goto(absPos.row, absPos.col));
@@ -710,16 +708,29 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressBackspace = function() {
-		var count;
-		if('\t' === self.getCharacter(self.cursorPos.col)) {
-			//	:TODO: Need to remove tabs...
-		}
+		if(self.cursorPos.col > 1) {
+			//
+			//	Don't want to delete character at cursor, but rather the character
+			//	to the left of the cursor!
+			//
+			self.cursorPos.col -= 1;
 
-		self.removeCharactersFromText(
-			self.getTextLinesIndex(),
-			self.cursorPos.col,
-			'left',
-			1);
+			var index = self.getTextLinesIndex();
+			var count;
+
+			if('\t' === self.getCharacter(index, self.cursorPos.col)) {
+				//	:TODO: This isn't right... need to find how many up to count to actually remove
+				count = (self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col));
+			} else {
+				count = 1;
+			}
+
+			self.removeCharactersFromText(
+				index,
+				self.cursorPos.col,
+				'left',
+				count);
+		}
 	};
 
 	this.keyPressDel = function() {
