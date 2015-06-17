@@ -42,10 +42,10 @@ var _				= require('lodash');
 //
 //	To-Do
 //	
-//	* Word wrap from pos to next { eol : true } when inserting text
 //	* Page up/down just divide by and set top index
 //	* Index pos % for emit scroll events
-//	* 
+//	* Fix cursor when loading text
+//	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
 
 var SPECIAL_KEY_MAP_DEFAULT = {
 	lineFeed	: [ 'return' ],
@@ -285,10 +285,10 @@ function MultiLineEditTextView2(options) {
 			}
 		} else if ('left' === direction) {
 			self.textLines[index].text =
-				self.textLines[index].text.slice(0, col - count) + 
+				self.textLines[index].text.slice(0, col - (count - 1)) + 
 				self.textLines[index].text.slice(col + 1);
 
-			self.cursorPos.col -= count;
+			self.cursorPos.col -= (count - 1);
 
 			self.updateTextWordWrap(index);
 
@@ -719,8 +719,24 @@ function MultiLineEditTextView2(options) {
 			var count;
 
 			if('\t' === self.getCharacter(index, self.cursorPos.col)) {
+				console.log('backspace tab')
 				//	:TODO: This isn't right... need to find how many up to count to actually remove
-				count = (self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col));
+				//	up to prev backspace position, but stop on any non '\t'
+
+				var col = self.cursorPos.col;
+				var prevTabStop = self.getPrevTabStop(self.cursorPos.col);
+				while(col >= prevTabStop) {
+					if('\t' !== self.getCharacter(index, col)) {
+						break;
+					}
+					--col;
+				}
+
+				count = (self.cursorPos.col - col);
+
+				console.log('count=' + count)
+				
+				//count = (self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col));
 			} else {
 				count = 1;
 			}
@@ -913,7 +929,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
