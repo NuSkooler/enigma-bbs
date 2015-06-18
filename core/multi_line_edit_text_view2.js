@@ -164,7 +164,7 @@ function MultiLineEditTextView2(options) {
 		if(!_.isNumber(index)) {
 			index = self.getTextLinesIndex();
 		}
-		return self.textLines[index].text;
+		return self.textLines.length > index ? self.textLines[index].text : ''
 	};
 
 	this.getCharacter = function(index, col) {
@@ -268,22 +268,23 @@ function MultiLineEditTextView2(options) {
 		return wrapped.firstWrapRange;
 	};
 
-	this.removeCharactersFromText = function(index, col, direction, count) {
-		var text = self.getText();
+	this.removeCharactersFromText = function(index, col, operation, count) {
+		if('right' === operation) {
+			self.textLines[index].text = 
+				self.textLines[index].text.slice(col, count) +
+				self.textLines[index].text.slice(col + count);
 
-		if('right' === direction) {
-			/*self.textLines[startIndex].text = 
-				self.textLines[startIndex].text.slice(col, count) +
-				self.textLines[startIndex].text.slice(col + count);
-			*/
-			text = text.slice(col, count) + text.slice(col + count);
+			self.cursorPos.col -= count;
 
-			if(0 === text.length) {
+			self.updateTextWordWrap(index);
+			self.redrawRows(self.cursorPos.row, self.dimens.height);
+
+			if(0 === self.textLines[index].text) {
 
 			} else {
 				self.redrawRows(self.cursorPos.row, self.dimens.height);
 			}
-		} else if ('left' === direction) {
+		} else if ('back' === operation) {
 			self.textLines[index].text =
 				self.textLines[index].text.slice(0, col - (count - 1)) + 
 				self.textLines[index].text.slice(col + 1);
@@ -297,11 +298,52 @@ function MultiLineEditTextView2(options) {
 			if(0 === self.cursorPos.col) {
 
 			} else {
-				var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-				self.client.term.write(ansi.goto(absPos.row, absPos.col));
+				self.moveClientCusorToCursorPos();
 			}
 
 			
+		} else if('line' === operation) {
+			//
+			//	We want to delete an entire line. That is, from start -> eol. Note that
+			//	the cursor could be in the middle, so we need to establish the entire
+			//	range first.
+			//
+			//	:TODO: deleteLineAtIndex(index)
+			var startIndex = index;
+			while(startIndex > 0 && !self.textLines[startIndex].eol) {
+				startIndex--;
+			}
+			var endIndex = index;
+			while(endIndex < self.textLines.length && !self.textLines[endIndex].eol) {
+				++endIndex;
+			}
+			console.log('range=' + startIndex + ' -> ' + endIndex)
+
+			var remove = (endIndex - startIndex) + 1;
+			console.log('remove=' + remove)
+
+			self.textLines.splice(startIndex, remove);
+			console.log(self.textLines)
+
+			self.cursorPos.col = 0;
+
+			if(startIndex < index) {
+				console.log('stuffjk')
+
+				if(startIndex < self.topVisibleIndex) {
+					self.topVisibleIndex	= Math.max(0, startIndex - 1);
+					self.cursorPos.row		= 0;
+				} else {
+					self.cursorPos.row 		-= remove;
+				}
+
+				self.redrawVisibleArea();
+			} else {
+
+			}
+
+			self.redrawVisibleArea();
+			self.moveClientCusorToCursorPos();
 		}
 	};
 
@@ -744,7 +786,7 @@ function MultiLineEditTextView2(options) {
 			self.removeCharactersFromText(
 				index,
 				self.cursorPos.col,
-				'left',
+				'back',
 				count);
 		}
 	};
@@ -755,6 +797,14 @@ function MultiLineEditTextView2(options) {
 			self.cursorPos.col,
 			'right',
 			1);
+	};
+
+	this.keyPressClearLine = function() {
+		self.removeCharactersFromText(
+			self.getTextLinesIndex(),
+			0,
+			'line',
+			self.getText().length);
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -929,7 +979,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
@@ -946,6 +996,7 @@ var HANDLED_SPECIAL_KEYS = [
 	'insert',
 	'tab',
 	'backspace', 'del',
+	'clearLine',
 ];
 
 MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
