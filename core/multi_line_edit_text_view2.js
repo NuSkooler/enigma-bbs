@@ -334,15 +334,16 @@ function MultiLineEditTextView2(options) {
 					self.topVisibleIndex	= Math.max(0, startIndex - 1);
 					self.cursorPos.row		= 0;
 				} else {
-					self.cursorPos.row 		-= remove;
+
+					self.cursorPos.row 		-= (index - startIndex);
 				}
 
 				self.redrawVisibleArea();
 			} else {
-
+				self.redrawVisibleArea();	//	:TODO: really, only index+++
 			}
 
-			self.redrawVisibleArea();
+			
 			self.moveClientCusorToCursorPos();
 		}
 	};
@@ -803,8 +804,7 @@ function MultiLineEditTextView2(options) {
 		self.removeCharactersFromText(
 			self.getTextLinesIndex(),
 			0,
-			'line',
-			self.getText().length);
+			'line');
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -979,7 +979,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
