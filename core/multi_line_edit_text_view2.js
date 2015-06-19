@@ -146,11 +146,42 @@ function MultiLineEditTextView2(options) {
 		}
 
 		self.client.term.write(ansi.showCursor());
+
+		return absPos.row - self.position.row;	//	row we ended on
+	};
+
+	this.eraseRows = function(startRow, endRow) {
+		self.client.term.write(self.getSGRFor('text') + ansi.hideCursor());
+	
+		var absPos		= self.getAbsolutePosition(startRow, 0);
+		var absPosEnd	= self.getAbsolutePosition(endRow, 0);
+		var eraseFiller	= new Array(self.dimens.width).join(' ');
+
+		while(absPos.row < absPosEnd.row) {
+			self.client.term.write(ansi.goto(absPos.row++, absPos.col));
+			self.client.term.write(eraseFiller);
+		}
+
+		self.client.term.write(ansi.showCursor());
 	};
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex <= self.textLines.length);
-		self.redrawRows(0, self.dimens.height);
+		var lastRow = self.redrawRows(0, self.dimens.height);
+
+		self.eraseRows(lastRow, self.dimens.height);
+		/*
+
+		//	:TOOD: create eraseRows(startRow, endRow)
+		if(lastRow < self.dimens.height) {
+			var absPos	= self.getAbsolutePosition(lastRow, 0);
+			var empty	= new Array(self.dimens.width).join(' ');
+			while(lastRow++ < self.dimens.height) {
+				self.client.term.write(ansi.goto(absPos.row++, absPos.col));
+				self.client.term.write(empty);
+			}
+		}
+		*/
 	};
 
 	this.getVisibleText = function(index) {
@@ -164,7 +195,7 @@ function MultiLineEditTextView2(options) {
 		if(!_.isNumber(index)) {
 			index = self.getTextLinesIndex();
 		}
-		return self.textLines.length > index ? self.textLines[index].text : ''
+		return self.textLines.length > index ? self.textLines[index].text : '';
 	};
 
 	this.getCharacter = function(index, col) {
@@ -322,8 +353,10 @@ function MultiLineEditTextView2(options) {
 			var remove = (endIndex - startIndex) + 1;
 			console.log('remove=' + remove)
 
+			console.log('lenBefore=' + self.textLines.length)
 			self.textLines.splice(startIndex, remove);
 			console.log(self.textLines)
+			console.log('lenAfter=' + self.textLines.length)
 
 			self.cursorPos.col = 0;
 
@@ -336,6 +369,7 @@ function MultiLineEditTextView2(options) {
 				} else {
 
 					self.cursorPos.row 		-= (index - startIndex);
+					console.log('self.cursorPos.row=' + self.cursorPos.row)
 				}
 
 				self.redrawVisibleArea();
@@ -979,7 +1013,7 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 MultiLineEditTextView2.prototype.setText = function(text) {
 	this.textLines = [ ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();

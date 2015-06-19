@@ -143,7 +143,7 @@ var OPTIONS = {
 	//PRAGMA_HEARTBEAT		: 140
 
 	EXTENDED_OPTIONS_LIST	: 255,	//	RFC 861 (STD 32)
-}
+};
 
 //	Commands used within NEW_ENVIRONMENT[_DEP]
 var NEW_ENVIRONMENT_COMMANDS = {
@@ -171,7 +171,7 @@ var COMMAND_IMPLS = {};
 			return MORE_DATA_REQUIRED;
 		}
 		return parseOption(bufs, i, event);
-	}
+	};
 });
 
 //	:TODO: See TooTallNate's telnet.js: Handle COMMAND_IMPL for IAC in binary mode
@@ -342,7 +342,9 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 	 	//	:TODO: Currently not supporting ESCaped values (ESC + <type>). Probably not really in the wild, but we should be compliant
 	 	var params = [];
 	 	var p = 0;
-	 	for(var j = 0, l = buf.length; j < l; ++j) {
+	 	var j;
+	 	var l;
+	 	for(j = 0, l = buf.length; j < l; ++j) {
 	 		if(NEW_ENVIRONMENT_DELIMITERS.indexOf(buf[j]) === -1) {
 	 			continue;
 	 		}
@@ -359,7 +361,7 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 	 	var varName;
 	 	event.envVars = {};
 	 	//	:TODO: handle cases where a variable was present in a previous exchange, but missing here...e.g removed
-	 	for(var j = 0; j < params.length; ++j) {
+	 	for(j = 0; j < params.length; ++j) {
 	 		if(params[j].length < 2) {
 	 			continue;	 			
 	 		}
@@ -383,7 +385,7 @@ var MORE_DATA_REQUIRED	= 0xfeedface;
 
 function parseBufs(bufs) {
 	assert(bufs.length >= 2);
-	assert(bufs.get(0) === COMMANDS.IAC)
+	assert(bufs.get(0) === COMMANDS.IAC);
 	return parseCommand(bufs, 1, {});
 }
 

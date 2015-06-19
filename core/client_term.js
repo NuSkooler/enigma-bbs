@@ -6,6 +6,7 @@ var Log			= require('./logger.js').log;
 
 var iconv		= require('iconv-lite');
 var assert		= require('assert');
+var _			= require('lodash');
 
 iconv.extendNodeEncodings();
 
@@ -56,12 +57,25 @@ function ClientTerminal(output) {
 			//
 			//	ANSI terminals should be encoded to CP437
 			//
-			if('ansi' == termType) {
+			//	Some terminal types provided by Mercyful Fate / Enthral:
+			//	ANSI-BBS
+			//	PC-ANSI
+			//	QANSI
+			//	SCOANSI
+			//	VT100
+			//	XTERM
+			//	LINUX
+			//	QNX
+			//	SCREEN
+			//
+			if(this.isANSI()) {
 				this.outputEncoding = 'cp437';
 			} else {
 				//	:TODO: See how x84 does this -- only set if local/remote are binary
 				this.outputEncoding = 'utf8';
 			}
+
+			Log.debug( { encoding : this.outputEncoding }, 'Set output encoding due to terminal type change');
 		}
 	});
 
@@ -89,12 +103,13 @@ function ClientTerminal(output) {
 }
 
 ClientTerminal.prototype.isANSI = function() {
-	return 'ansi' === this.termType;
+	//	:TODO: Others??
+	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi' ].indexOf(this.termType) > -1;
 };
 
 ClientTerminal.prototype.write = function(s, convertLineFeeds) {
-	convertLineFeeds = typeof convertLineFeeds === 'undefined' ? this.convertLF : convertLineFeeds;
-	if(convertLineFeeds && typeof s === 'string') {
+	convertLineFeeds = _.isUndefined(convertLineFeeds) ? this.convertLF : convertLineFeeds;
+	if(convertLineFeeds && _.isString(s)) {
 		s = s.replace(/\n/g, '\r\n');
 	}
 	this.output.write(iconv.encode(s, this.outputEncoding));
