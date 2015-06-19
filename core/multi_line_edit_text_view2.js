@@ -198,6 +198,13 @@ function MultiLineEditTextView2(options) {
 		return self.textLines.length > index ? self.textLines[index].text : '';
 	};
 
+	this.getTextLength = function(index) {
+		if(!_.isNumber(index)) {
+			index = self.getTextLinesIndex();
+		}
+		return self.textLines.length > index ? self.textLines[index].text.length : 0;
+	};
+
 	this.getCharacter = function(index, col) {
 		if(!_.isNumber(col)) {
 			col = self.cursorPos.col;
@@ -206,7 +213,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.getTextEndOfLineColumn = function(index) {
-		return Math.max(0, self.getText(index).length);
+		return Math.max(0, self.getTextLength(index));
 	};
 
 	this.getRenderText = function(index) {
@@ -335,48 +342,29 @@ function MultiLineEditTextView2(options) {
 			
 		} else if('line' === operation) {
 			//
-			//	We want to delete an entire line. That is, from start -> eol. Note that
-			//	the cursor could be in the middle, so we need to establish the entire
-			//	range first.
+			//	Delete a visible line. Note that this is *not* the "physical" line, or
+			//	1:n entries up to eol! This is to keep consistency with home/end, and
+			//	some other text editors such as nano. Sublime for example want to
+			//	treat all of these things using the physical approach, but this seems
+			//	a bit odd in this context.
 			//
-			//	:TODO: deleteLineAtIndex(index)
-			var startIndex = index;
-			while(startIndex > 0 && !self.textLines[startIndex].eol) {
-				startIndex--;
+			var hadEol = self.textLines[index].eol;
+			self.textLines.splice(index, 1);
+			if(hadEol && self.textLines.length > index && !self.textLines[index].eol) {
+				self.textLines[index].eol = true;
 			}
-			var endIndex = index;
-			while(endIndex < self.textLines.length && !self.textLines[endIndex].eol) {
-				++endIndex;
+
+			//
+			//	Create a empty edit buffer if necessary
+			//	:TODO: Make this a method
+			if(self.textLines.length < 1) {
+				self.textLines = [ { text : '', eol : true } ];
 			}
-			console.log('range=' + startIndex + ' -> ' + endIndex)
-
-			var remove = (endIndex - startIndex) + 1;
-			console.log('remove=' + remove)
-
-			console.log('lenBefore=' + self.textLines.length)
-			self.textLines.splice(startIndex, remove);
-			console.log(self.textLines)
-			console.log('lenAfter=' + self.textLines.length)
 
 			self.cursorPos.col = 0;
 
-			if(startIndex < index) {
-				console.log('stuffjk')
-
-				if(startIndex < self.topVisibleIndex) {
-					self.topVisibleIndex	= Math.max(0, startIndex - 1);
-					self.cursorPos.row		= 0;
-				} else {
-
-					self.cursorPos.row 		-= (index - startIndex);
-					console.log('self.cursorPos.row=' + self.cursorPos.row)
-				}
-
-				self.redrawVisibleArea();
-			} else {
-				self.redrawVisibleArea();	//	:TODO: really, only index+++
-			}
-
+			var lastRow = self.redrawRows(self.cursorPos.row, self.dimens.height);
+			self.eraseRows(lastRow, self.dimens.height);
 			
 			self.moveClientCusorToCursorPos();
 		}
@@ -835,10 +823,12 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressClearLine = function() {
-		self.removeCharactersFromText(
-			self.getTextLinesIndex(),
-			0,
-			'line');
+		if(self.textLines.length > 0) {
+			self.removeCharactersFromText(
+				self.getTextLinesIndex(),
+				0,
+				'line');
+		}
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -1011,11 +1001,11 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView2.prototype.setText = function(text) {
-	this.textLines = [ ];
+	this.textLines = [ { text : '', eol : true } ];
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
-	this.insertRawText(text);//, 0, 0);
+	//this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 	console.log(this.textLines)
 
