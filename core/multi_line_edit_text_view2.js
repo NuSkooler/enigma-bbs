@@ -46,6 +46,8 @@ var _				= require('lodash');
 //	* Index pos % for emit scroll events
 //	* Fix cursor when loading text
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
+//	* Word wrapping is a bit broke: cannot fill entire self.dimens.width (off by 1-2)
+//	* Contigous words will break word wrapping... is not breaking mid word properly
 
 var SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
@@ -224,7 +226,7 @@ function MultiLineEditTextView2(options) {
 		var text = self.getVisibleText(index);
 		var remain	= self.dimens.width - text.length;
 		if(remain > 0) {
-			text += new Array(remain).join(' ');
+			text += new Array(remain + 1).join(' ');
 		}
 		return text;
 	};
@@ -381,38 +383,9 @@ function MultiLineEditTextView2(options) {
 		var cursorOffset;
 		var absPos;
 
-		if(self.getText(index).length >= self.dimens.width) {
-			//
-			//	Past available space -- word wrap from current point
-			//	to the next EOL. Update textLines with the newly
-			//	formatted array.
-			//
-			/*
-			var nextEolIndex	= self.getNextEndOfLineIndex(index);
-			var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
-			var newLines		= wrapped.wrapped;
-
-			//
-			//	If our cursor was within the bounds of the last wrapped word
-			//	we'll want to adjust the cursor to the same relative position
-			//	on the next line.
-			//
-			//var lastCol = self.cursorPos.col - 1;
-			var lastCol = self.cursorPos.col - c.length;
-			if(lastCol >= wrapped.firstWrapRange.start && lastCol <= wrapped.firstWrapRange.end) {
-				cursorOffset = self.cursorPos.col - wrapped.firstWrapRange.start;
-			}
-
-			for(var i = 0; i < newLines.length; ++i) {
-				newLines[i] = { text : newLines[i] };
-			}
-			newLines[newLines.length - 1].eol = true;
-
-			Array.prototype.splice.apply(
-				self.textLines, 
-				[ index, (nextEolIndex - index) + 1 ].concat(newLines));
-			*/
-
+		if(self.getTextLength(index) > self.dimens.width) {
+			console.log('textLen=' + self.getTextLength(index) + ' / ' + self.dimens.width + ' / ' +
+				JSON.stringify(self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col)))
 			//
 			//	Update word wrapping and |cursorOffset| if the cursor
 			//	was within the bounds of the wrapped text
@@ -432,6 +405,8 @@ function MultiLineEditTextView2(options) {
 				self.cursorPos.col += cursorOffset;
 				self.client.term.write(ansi.right(cursorOffset));
 			} else {
+				self.cursorPos.row++;
+				self.cursorPos.col = 1;	//	we just added 1 char
 				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				console.log('absPos=' + JSON.stringify(absPos))
 				self.client.term.write(ansi.goto(absPos.row, absPos.col));
@@ -440,6 +415,7 @@ function MultiLineEditTextView2(options) {
 			//
 			//	We must only redraw from col -> end of current visible line
 			//
+			console.log('textLen=' + self.getTextLength(index))
 			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 			self.client.term.write(
 				ansi.hideCursor() + 
@@ -514,7 +490,9 @@ function MultiLineEditTextView2(options) {
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + width + '}', 'g')).forEach(function wrd(w) {
-				if(results.wrapped[i].length + w.length >= width) {
+				//console.log(word.match(new RegExp('.{0,' + (width - 1) + '}', 'g')))
+				//if(results.wrapped[i].length + w.length >= width) {
+				if(results.wrapped[i].length + w.length > width) {
 					if(0 === i) {
 						results.firstWrapRange = { start : wordStart, end : wordStart + w.length };
 					}
@@ -526,7 +504,7 @@ function MultiLineEditTextView2(options) {
 		}
 
 		while((m = re.exec(s)) !== null) {
-			word	= s.substring(wordStart, re.lastIndex - 1);
+			word = s.substring(wordStart, re.lastIndex - 1);
 
 			switch(m[0].charAt(0)) {
 				case ' ' :
@@ -683,14 +661,12 @@ function MultiLineEditTextView2(options) {
 	this.keyPressLeft = function() {
 		console.log(self.cursorPos.col)
 		if(self.cursorPos.col > 0) {
-			var isTab = self.isTab();
-			//var prevChar = self.getCharacter();
+			var prevCharIsTab = self.isTab();
 
 			self.cursorPos.col--;
 			self.client.term.write(ansi.left());
 
-			//if('\t' === prevChar) {
-			if(isTab) {
+			if(prevCharIsTab) {
 				self.adjustCursorToNextTab('left');
 			}
 		} else {
@@ -701,12 +677,12 @@ function MultiLineEditTextView2(options) {
 	this.keyPressRight = function() {
 		var eolColumn = self.getTextEndOfLineColumn();
 		if(self.cursorPos.col < eolColumn) {
-			var prevChar = self.getCharacter();
+			var prevCharIsTab = self.isTab();
 
 			self.cursorPos.col++;
 			self.client.term.write(ansi.right());
 
-			if('\t' === prevChar) {
+			if(prevCharIsTab) {
 				self.adjustCursorToNextTab('right');
 			}
 		} else {
@@ -731,11 +707,29 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressPageUp = function() {
-
+		if(self.topVisibleIndex > 0) {
+			self.topVisibleIndex = Math.max(0, self.topVisibleIndex - self.dimens.height);
+			self.redraw();
+			self.adjustCursorIfPastEndOfLine(true);
+		} else {
+			self.cursorPos.row = 0;
+			self.moveClientCusorToCursorPos();	//	:TODO: ajust if eol, etc.
+		}
 	};
 
 	this.keyPressPageDown = function() {
-
+		/*
+		var linesBelow = self.getRemainingLinesBelowRow();
+		if(linesBelow > 0) {
+			self.topVisibleIndex++;
+			self.redraw();
+		}*/
+		var linesBelow = self.getRemainingLinesBelowRow();
+		if(linesBelow > 0) {
+			self.topVisibleIndex += Math.min(linesBelow, self.dimens.height);
+			self.redraw();
+			self.adjustCursorIfPastEndOfLine(true);
+		}
 	};
 
 	this.keyPressLineFeed = function() {
@@ -788,7 +782,7 @@ function MultiLineEditTextView2(options) {
 				var col = self.cursorPos.col;
 				var prevTabStop = self.getPrevTabStop(self.cursorPos.col);
 				while(col >= prevTabStop) {
-					if('\t' !== self.getCharacter(index, col)) {
+					if(!self.isTab(index, col)) {
 						break;
 					}
 					--col;
@@ -805,6 +799,7 @@ function MultiLineEditTextView2(options) {
 				'backspace',
 				count);
 		} else {
+			//	:TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
 			self.keyPressLeft();	//	same as hitting left - jump to previous line
 		}
 	};
@@ -840,7 +835,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.adjustCursorToNextTab = function(direction) {
-		if('\t' === self.getCharacter()) {
+		if(self.isTab()) {
 			var move;
 			switch(direction) {
 				//
@@ -998,11 +993,11 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 
 MultiLineEditTextView2.prototype.setText = function(text) {
 	//this.textLines = [ { text : '' } ];
-	this.insertRawText('');
+	//this.insertRawText('');
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	//text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
-	//this.insertRawText(text);//, 0, 0);
+	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
 	console.log(this.textLines)
 
