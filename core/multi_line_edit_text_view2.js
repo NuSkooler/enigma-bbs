@@ -48,21 +48,21 @@ var _				= require('lodash');
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
 
 var SPECIAL_KEY_MAP_DEFAULT = {
-	lineFeed	: [ 'return' ],
-	exit		: [ 'esc' ],
-	backspace	: [ 'backspace' ],
-	del			: [ 'del' ],
-	tab			: [ 'tab' ],
-	up			: [ 'up arrow' ],
-	down		: [ 'down arrow' ],
-	end			: [ 'end' ],
-	home		: [ 'home' ],
-	left		: [ 'left arrow' ],
-	right		: [ 'right arrow' ],
-	clearLine	: [ 'ctrl + y' ],
-	pageUp		: [ 'page up' ],
-	pageDown	: [ 'page down' ],
-	insert		: [ 'insert', 'ctrl + v' ],
+	'line feed'		: [ 'return' ],
+	exit			: [ 'esc' ],
+	backspace		: [ 'backspace' ],
+	'delete'		: [ 'del' ],
+	tab				: [ 'tab' ],
+	up				: [ 'up arrow' ],
+	down			: [ 'down arrow' ],
+	end				: [ 'end' ],
+	home			: [ 'home' ],
+	left			: [ 'left arrow' ],
+	right			: [ 'right arrow' ],
+	'delete line'	: [ 'ctrl + y' ],
+	'page up'		: [ 'page up' ],
+	'page down'		: [ 'page down' ],
+	insert			: [ 'insert', 'ctrl + v' ],
 };
 
 exports.MultiLineEditTextView2	= MultiLineEditTextView2;
@@ -212,6 +212,10 @@ function MultiLineEditTextView2(options) {
 		return self.getText(index).charAt(col);
 	};
 
+	this.isTab = function(index, col) {
+		return '\t' === self.getCharacter(index, col);
+	};
+
 	this.getTextEndOfLineColumn = function(index) {
 		return Math.max(0, self.getTextLength(index));
 	};
@@ -322,25 +326,19 @@ function MultiLineEditTextView2(options) {
 			} else {
 				self.redrawRows(self.cursorPos.row, self.dimens.height);
 			}
-		} else if ('back' === operation) {
+		} else if ('backspace' === operation) {
+			//	:TODO: method for splicing text
 			self.textLines[index].text =
 				self.textLines[index].text.slice(0, col - (count - 1)) + 
 				self.textLines[index].text.slice(col + 1);
 
 			self.cursorPos.col -= (count - 1);
-
+			
 			self.updateTextWordWrap(index);
-
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			if(0 === self.cursorPos.col) {
-
-			} else {
-				self.moveClientCusorToCursorPos();
-			}
-
-			
-		} else if('line' === operation) {
+			self.moveClientCusorToCursorPos();
+		} else if('delete line' === operation) {
 			//
 			//	Delete a visible line. Note that this is *not* the "physical" line, or
 			//	1:n entries up to eol! This is to keep consistency with home/end, and
@@ -683,13 +681,16 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressLeft = function() {
+		console.log(self.cursorPos.col)
 		if(self.cursorPos.col > 0) {
-			var prevChar = self.getCharacter();
+			var isTab = self.isTab();
+			//var prevChar = self.getCharacter();
 
 			self.cursorPos.col--;
 			self.client.term.write(ansi.left());
 
-			if('\t' === prevChar) {
+			//if('\t' === prevChar) {
+			if(isTab) {
 				self.adjustCursorToNextTab('left');
 			}
 		} else {
@@ -773,7 +774,7 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressBackspace = function() {
-		if(self.cursorPos.col > 1) {
+		if(self.cursorPos.col >= 1) {
 			//
 			//	Don't want to delete character at cursor, but rather the character
 			//	to the left of the cursor!
@@ -783,11 +784,7 @@ function MultiLineEditTextView2(options) {
 			var index = self.getTextLinesIndex();
 			var count;
 
-			if('\t' === self.getCharacter(index, self.cursorPos.col)) {
-				console.log('backspace tab')
-				//	:TODO: This isn't right... need to find how many up to count to actually remove
-				//	up to prev backspace position, but stop on any non '\t'
-
+			if(self.isTab()) {
 				var col = self.cursorPos.col;
 				var prevTabStop = self.getPrevTabStop(self.cursorPos.col);
 				while(col >= prevTabStop) {
@@ -798,10 +795,6 @@ function MultiLineEditTextView2(options) {
 				}
 
 				count = (self.cursorPos.col - col);
-
-				console.log('count=' + count)
-				
-				//count = (self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col));
 			} else {
 				count = 1;
 			}
@@ -809,12 +802,14 @@ function MultiLineEditTextView2(options) {
 			self.removeCharactersFromText(
 				index,
 				self.cursorPos.col,
-				'back',
+				'backspace',
 				count);
+		} else {
+			self.keyPressLeft();	//	same as hitting left - jump to previous line
 		}
 	};
 
-	this.keyPressDel = function() {
+	this.keyPressDelete = function() {
 		self.removeCharactersFromText(
 			self.getTextLinesIndex(),
 			self.cursorPos.col,
@@ -822,12 +817,13 @@ function MultiLineEditTextView2(options) {
 			1);
 	};
 
-	this.keyPressClearLine = function() {
+	//this.keyPressClearLine = function() {
+	this.keyPressDeleteLine = function() {
 		if(self.textLines.length > 0) {
 			self.removeCharactersFromText(
 				self.getTextLinesIndex(),
 				0,
-				'line');
+				'delete line');
 		}
 	};
 
@@ -1001,9 +997,10 @@ MultiLineEditTextView2.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView2.prototype.setText = function(text) {
-	this.textLines = [ { text : '', eol : true } ];
+	//this.textLines = [ { text : '' } ];
+	this.insertRawText('');
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	//text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	//this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();
@@ -1015,12 +1012,12 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 var HANDLED_SPECIAL_KEYS = [
 	'up', 'down', 'left', 'right', 
 	'home', 'end',
-	'pageUp', 'pageDown',
-	'lineFeed',
+	'page up', 'page down',
+	'line feed',
 	'insert',
 	'tab',
 	'backspace', 'del',
-	'clearLine',
+	'delete line',
 ];
 
 MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
