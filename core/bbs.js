@@ -183,6 +183,10 @@ function startListening() {
 			});
 		});
 
+		server.on('error', function serverErr(err) {
+			logger.log.info(err);	//	'close' should be handled after
+		});
+
 		server.listen(port);
 		logger.log.info({ server : module.moduleInfo.name, port : port }, 'Listening for connections');
 	});

@@ -537,11 +537,11 @@ TelnetClient.prototype.handleDontCommand = function(evt) {
 };
 
 TelnetClient.prototype.setTermType = function(ttype) {
-	this.term.env['TERM']	= ttype;
+	this.term.env.TERM		= ttype;
 	this.term.termType		= ttype;
 
 	Log.debug( { termType : ttype }, 'Set terminal type');
-}
+};
 
 TelnetClient.prototype.handleSbCommand = function(evt) {
 	var self = this;
