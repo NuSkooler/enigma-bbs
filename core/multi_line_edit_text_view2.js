@@ -644,7 +644,10 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressDown = function() {
-		var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
+		var lastVisibleRow = Math.min(
+			self.dimens.height, 
+			(self.textLines.length - self.topVisibleIndex)) - 1;
+
 		if(self.cursorPos.row < lastVisibleRow) {
 			self.cursorPos.row++;
 			self.client.term.write(ansi.down());
@@ -659,7 +662,6 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressLeft = function() {
-		console.log(self.cursorPos.col)
 		if(self.cursorPos.col > 0) {
 			var prevCharIsTab = self.isTab();
 
@@ -718,12 +720,6 @@ function MultiLineEditTextView2(options) {
 	};
 
 	this.keyPressPageDown = function() {
-		/*
-		var linesBelow = self.getRemainingLinesBelowRow();
-		if(linesBelow > 0) {
-			self.topVisibleIndex++;
-			self.redraw();
-		}*/
 		var linesBelow = self.getRemainingLinesBelowRow();
 		if(linesBelow > 0) {
 			self.topVisibleIndex += Math.min(linesBelow, self.dimens.height);
@@ -799,6 +795,11 @@ function MultiLineEditTextView2(options) {
 				'backspace',
 				count);
 		} else {
+			//
+			//	Delete character at end of line previous.
+			//	* This may be a eol marker
+			//	* Word wrapping will need re-applied
+			//
 			//	:TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
 			self.keyPressLeft();	//	same as hitting left - jump to previous line
 		}

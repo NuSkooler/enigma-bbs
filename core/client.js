@@ -263,6 +263,8 @@ function Client(input, output) {
 			//	SyncTERM / EtherTerm
 			'[K'	: { name : 'end' },
 			'[@'	: { name : 'insert' },
+			'[V'	: { name : 'page up' },
+			'[U'	: { name : 'page down' },
 
 			//	other
 			'[Z'	: { name : 'tab', shift : true },
