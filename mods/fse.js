@@ -7,22 +7,21 @@ var async			= require('async');
 var assert			= require('assert');
 var _				= require('lodash');
 
-//	:TODO: rename to fse.js & FullScreenEditor
-
-exports.getModule	= MessageEditorModule;
+exports.getModule	= FullScreenEditorModule;
 
 exports.moduleInfo = {
-	name	: 'Message Editor',
-	desc	: 'A module for editing messages',
+	name	: 'Full Screen Editor (FSE)',
+	desc	: 'A full screen editor/viewer',
 	author	: 'NuSkooler',
 };
 
-function MessageEditorModule(options) {
+function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
 
 	var self = this;
 	var args = options.menuConfig.args;
 
+	/*
 	this.initSequence = function() {
 		async.waterfall(
 			[
@@ -48,11 +47,12 @@ function MessageEditorModule(options) {
 			]
 		);	
 	};
+	*/
 }
 
-require('util').inherits(MessageEditorModule, MenuModule);
+require('util').inherits(FullScreenEditorModule, MenuModule);
 
-MessageEditorModule.prototype.enter = function(client) {	
-	MessageEditorModule.super_.prototype.enter.call(this, client);
+FullScreenEditorModule.prototype.enter = function(client) {	
+	FullScreenEditorModule.super_.prototype.enter.call(this, client);
 };
 

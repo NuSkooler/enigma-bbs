@@ -215,7 +215,7 @@
 									"Vertical Menu Views",
 									"Horizontal Menu Views",
 									"Art Display",
-									"Message Editor",
+									"Full Screen Editor",
 									"Some More Stuff",
 									"Other"
 								],
@@ -249,7 +249,7 @@
 								},
 								{
 									"value" : { "1" : 7 },
-									"action" : "@menu:demoMessageEditor"
+									"action" : "@menu:demoFullScreenEditor"
 								}
 							]
 						}
@@ -430,8 +430,9 @@
 			"art" : "WE-CIZB.ANS",
 			"options" : { "cls" : true }
 		},
-		"demoMessageEditor" : {
-			"module"	: "message_editor",
+		"demoFullScreenEditor" : {
+			"module"	: "fse",
+			"art"		: "demo_fse.ans",
 			"options"	: { "cls" : true },
 			"args"		: {
 				"art" : {
