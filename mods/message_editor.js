@@ -7,6 +7,8 @@ var async			= require('async');
 var assert			= require('assert');
 var _				= require('lodash');
 
+//	:TODO: rename to fse.js & FullScreenEditor
+
 exports.getModule	= MessageEditorModule;
 
 exports.moduleInfo = {
@@ -34,6 +36,14 @@ function MessageEditorModule(options) {
 
 						});
 					}
+
+					callback(null);
+				},
+				function displayBody(callback) {
+
+				},
+				function displayFooter(callback) {
+					
 				}
 			]
 		);	
