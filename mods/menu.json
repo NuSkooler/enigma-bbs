@@ -432,7 +432,14 @@
 		},
 		"demoMessageEditor" : {
 			"module"	: "message_editor",
-			"options"	: { "cls" : true }
+			"options"	: { "cls" : true },
+			"args"		: {
+				"art" : {
+					"header"	: "MSGHDR",
+					"body"		: "MSGBODY",
+					"footer"	: "MSGFTR"
+				}
+			}
 		}
 		
 		/*
