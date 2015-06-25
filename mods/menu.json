@@ -215,6 +215,7 @@
 									"Vertical Menu Views",
 									"Horizontal Menu Views",
 									"Art Display",
+									"Message Editor",
 									"Some More Stuff",
 									"Other"
 								],
@@ -245,6 +246,10 @@
 								{
 									"value" : { "1" : 6 },
 									"action" : "@menu:demoArtDisplay"
+								},
+								{
+									"value" : { "1" : 7 },
+									"action" : "@menu:demoMessageEditor"
 								}
 							]
 						}
@@ -424,6 +429,10 @@
 		"demoDefaultsDosAnsi" : {
 			"art" : "WE-CIZB.ANS",
 			"options" : { "cls" : true }
+		},
+		"demoMessageEditor" : {
+			"module"	: "message_editor",
+			"options"	: { "cls" : true }
 		}
 		
 		/*

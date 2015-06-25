@@ -79,7 +79,7 @@ function getDefaultConfig() {
 
 		users : {
 			usernameMin			: 2,
-			usernameMax			: 16,
+			usernameMax			: 16,	//	Note that FidoNet wants 36 max
 			usernamePattern		: '^[A-Za-z0-9~!@#$%^&*()\\-\\_+]+$',
 			passwordMin			: 6,
 			passwordMax			: 128,

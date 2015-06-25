@@ -802,6 +802,7 @@ function MultiLineEditTextView2(options) {
 			//
 			//	:TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
 			self.keyPressLeft();	//	same as hitting left - jump to previous line
+			self.keyPressBackspace();
 		}
 	};
 
