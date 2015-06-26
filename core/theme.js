@@ -158,8 +158,8 @@ function displayThemeArt(options, cb) {
 				font		: options.font,
 			};
 
-			art.display(dispOptions, function displayed(err, mciMap) {
-				cb(err, mciMap, artInfo);
+			art.display(dispOptions, function displayed(err, mciMap, extraInfo) {
+				cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
 			});
 		}
 	});

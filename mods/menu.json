@@ -432,14 +432,10 @@
 		},
 		"demoFullScreenEditor" : {
 			"module"	: "fse",
-			"art"		: "demo_fse.ans",
+			"art"		: "demo_fse_local_user.ans",
 			"options"	: { "cls" : true },
-			"args"		: {
-				"art" : {
-					"header"	: "MSGHDR",
-					"body"		: "MSGBODY",
-					"footer"	: "MSGFTR"
-				}
+			"config"	: {
+				"editorType"	: "netMail"
 			}
 		}
 		

@@ -380,7 +380,6 @@ function defaultEofFromExtension(ext) {
 //	:TODO: change to display(art, options, cb)
 //	cb(err, mci)
 
-//	:TODO: display({ art : art, client : client, ...}, cb)
 function display(options, cb) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.client));
@@ -445,7 +444,11 @@ function display(options, cb) {
 		//	options.client.term.write(ansi.blinkNormal());
 		}
 
-		cb(null, mciMap);
+		var extraInfo = {
+			height : parser.row - 1
+		};
+
+		cb(null, mciMap, extraInfo);
 	}
 
 	options.client.on('cursor position report', cprListener);
@@ -453,6 +456,7 @@ function display(options, cb) {
 	options.pause = 'termHeight';	//	:TODO: remove!!
 	var nextPauseTermHeight = options.client.term.termHeight;
 	var continous = false;
+
 
 	/*
 	parser.on('row update', function rowUpdate(row) {

@@ -42,8 +42,8 @@ function MenuModule(options) {
 
 		switch(artAsset.type) {
 			case 'art' :
-				theme.displayThemeArt(dispOptions, function displayed(err, mciMap) {
-					cb(err, mciMap);
+				theme.displayThemeArt(dispOptions, function displayed(err, themeArtData) {
+					cb(err, { mciMap : themeArtData.mciMap, height : themeArtData.extraInfo.height } );
 				});
 				break;
 
@@ -76,8 +76,8 @@ function MenuModule(options) {
 				},
 				function displayMenuArt(callback) {
 					if(_.isString(self.menuConfig.art)) {
-						self.displayArtAsset(self.menuConfig.art, function displayed(err, mciMap) {
-							mciData.menu = mciMap;
+						self.displayArtAsset(self.menuConfig.art, function displayed(err, artData) {
+							mciData.menu = artData.mciMap;
 							callback(err);
 						});
 					} else {						
@@ -165,13 +165,10 @@ MenuModule.prototype.standardMCIReadyHandler = function(mciData) {
 	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
 	//
 	var self				= this;
-	self.viewControllers	= {};
-
-	//var vcOpts				= { client : self.client };
 
 	_.forEach(mciData, function entry(mciMap, name) {
 		assert('menu' === name || 'prompt' === name);
-		self.viewControllers[name] = new ViewController( { client : self.client } );
+		self.addViewController(name, new ViewController( { client : self.client } ));
 	});
 	
 	var viewsReady = function(err) {

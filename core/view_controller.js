@@ -39,7 +39,8 @@ function ViewController(options) {
 		//
 		//	Process key presses treating form submit mapped
 		//	keys special. Everything else is forwarded on to
-		//	the focused View, if any.		//
+		//	the focused View, if any.
+		//
 		if(key) {
 			var submitViewId = self.submitKeyMap[key.name];
 			if(submitViewId) {
@@ -412,6 +413,19 @@ ViewController.prototype.setViewOrder = function(order) {
 	}
 };
 
+ViewController.prototype.redrawAll = function(initialFocusId) {
+	this.client.term.write(ansi.hideCursor());
+	
+	for(var id in this.views) {
+		if(initialFocusId === id) {
+			continue;	//	will draw @ focus
+		}
+		this.views[id].redraw();
+	}
+
+	this.client.term.write(ansi.showCursor());
+};
+
 ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.mciMap));
@@ -459,14 +473,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
-				self.client.term.write(ansi.hideCursor());
-				
-				for(var id in self.views) {
-					if(initialFocusId === id) {
-						continue;	//	will draw @ focus
-					}
-					self.views[id].redraw();
-				}
+				self.redrawAll(initialFocusId);
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
@@ -609,14 +616,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
-				self.client.term.write(ansi.hideCursor());
-
-				for(var id in self.views) {
-					if(initialFocusId === id) {
-						continue;	//	will draw @ focus
-					}
-					self.views[id].redraw();
-				}
+				self.redrawAll(initialFocusId);
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
