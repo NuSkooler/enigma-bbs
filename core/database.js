@@ -18,11 +18,16 @@ function getDatabasePath(name) {
 
 function initializeDatabases() {
 	//	:TODO: this will need to change if more DB's are added
-	dbs.user = new sqlite3.Database(getDatabasePath('user'));
+	dbs.user	= new sqlite3.Database(getDatabasePath('user'));
+	dbs.message	= new sqlite3.Database(getDatabasePath('message'));
 
 	dbs.user.serialize(function serialized() {
 		createUserTables();
 		createInitialValues();
+	});
+
+	dbs.message.serialize(function serialized() {
+		createMessageBaseTables();
 	});
 }
 
@@ -63,6 +68,30 @@ function createUserTables() {
 		'	FOREIGN KEY(group_id) REFERENCES user_group(group_id) ON DELETE CASCADE' +
 		');'
 		);
+}
+
+function createMessageBaseTables() {
+	dbs.message.run(
+		'CREATE TABLE IF NOT EXISTS message (' +
+		'	message_id		INTEGER PRIMARY KEY,' + 
+		'	area_id			INTEGER NOT NULL,' +
+		'	message_uuid	VARCHAR(36) NOT NULL,' + 
+		'	reply_to_id		INTEGER,' +
+		'	to_user_name	VARCHAR NOT NULL,' +
+		'	from_user_name	VARCHAR NOT NULL,' +
+		'	subject,' +	//	FTS
+		'	message,' + //	FTS
+		'	modified_timestamp	DATETIME' +
+		');'
+	);
+
+	dbs.message.run(
+		'CREATE VIRTUAL TABLE message_fts USING fts4 (' +
+		'	content="message",' +
+		'	subject,' +
+		'	message' +
+		');'
+	);
 }
 
 function createInitialValues() {
