@@ -54,59 +54,22 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.mciReadyHandlerNetMail = function(mciData) {
-		var vc = self.addViewController('main', new ViewController( { client : self.client } ));
+		var mainVc = self.addViewController('main', new ViewController( { client : self.client } ));
 
-		//	:TODO: This can probably come from the normal mci configuration...
-		//	additional mci stuff could be in config{} block. This should all be easily user-defined
-		var mciConfig = {
-			ET1 : {
-				width : 20,
-				text : 'Hello, World'
-			},
-			ET2 : {
-				width : 10,
-				text : 'This is a longer string',
-			},
-			MT3 : {
-				width : 79,
-				height : 17,
-				focus : true,
-				text : 'Ermergerd!\nHuzzah!'
-			}
-
+		var menuLoadOpts = {
+			callingMenu	: self,
+			mciMap		: mciData.main.mciMap,
+			formId		: 0,
 		};
+		
+		mainVc.loadFromMenuConfig(menuLoadOpts, function viewsReady(err) {
+		});
+	};
 
-		var initialFocusedId = 3;	//	editor
+	this.menuMethods = {
+		editorEscPressed : function(formData, extraArgs) {
 
-		async.waterfall(
-			[
-				function createViews(callback) {
-					vc.createViewsFromMCI(mciData.main.mciMap, function viewsCreated(err) {
-						callback(err);
-					});
-				},
-				function applyThemeCustomization(callback) {
-					console.log('applyThemeCustomization...')
-					//	:TODO: menuUtil.applyThemeCustomization() ...
-					//	this should update local hard coded mci stuff for example to change colors, widths, blah blah
-					callback(null);
-				},
-				function applyViewConfiguration(callback) {
-					console.log('applyViewConfiguration...')
-					
-					vc.applyViewConfig( { mci : mciConfig }, function configApplied(err, info) {
-						callback(err);
-					});
-				},
-				function drawAllViews(callback) {
-					vc.redrawAll(initialFocusedId);
-					callback(null);
-				},
-				function setInitialFocus(callback) {
-					vc.switchFocus(initialFocusedId);	//	editor
-				}
-			]
-		);
+		}
 	};
 }
 

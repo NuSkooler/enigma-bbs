@@ -161,7 +161,7 @@ function ViewController(options) {
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
 
 		function setViewProp(propName, setter) {
-			if(conf[propName]) {
+			if(!_.isUndefined(conf[propName])) {
 				var propValue;
 				var propAsset = asset.getViewPropertyAsset(conf[propName]);
 				if(propAsset) {
@@ -182,7 +182,7 @@ function ViewController(options) {
 					propValue = conf[propName];
 				}
 
-				if(propValue) {
+				if(!_.isUndefined(propValue)) {
 					if(setter) {
 						setter(propValue);
 					} else {
@@ -323,7 +323,6 @@ ViewController.prototype.attachClientEvents = function() {
 	}
 
 	this.client.on('key press', this.clientKeyPressHandler);
-	//this.client.on('special key', this.clientSpecialKeyHandler);
 
 	this.attached = true;
 };
@@ -334,7 +333,6 @@ ViewController.prototype.detachClientEvents = function() {
 	}
 	
 	this.client.removeListener('key press', this.clientKeyPressHandler);
-	//this.client.removeListener('special key', this.clientSpecialKeyHandler);
 
 	for(var id in this.views) {
 		this.views[id].removeAllListeners();
@@ -584,6 +582,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				}
 
 				self.on('submit', function formSubmit(formData) {
+
 					Log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Form submit');
 
 					//

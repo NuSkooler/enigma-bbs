@@ -1006,6 +1006,10 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 
 };
 
+MultiLineEditTextView2.prototype.getData = function() {
+	return this.getOutputText(0, this.textLines.length, true);
+};
+
 var HANDLED_SPECIAL_KEYS = [
 	'up', 'down', 'left', 'right', 
 	'home', 'end',

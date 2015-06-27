@@ -436,6 +436,38 @@
 			"options"	: { "cls" : true },
 			"config"	: {
 				"editorType"	: "netMail"
+			},
+			"form" : {
+				"0" : {
+					"ET1ET2MT3" : {
+						"mci" : {
+							"ET1" : {
+								"width" : 20,
+								"text" : "FIXME: to"
+							},
+							"ET2" : {
+								"width" : 20,
+								"text" 	: "FIXME: from"
+							},
+							"MT3" : {
+								"width"		: 79,
+								"height" 	: 17,
+								"focus"		: true,
+								"text"		: "",
+								"submit"	: [ "escape" ]
+							}
+						},
+						"submit" : {
+							//	:TODO: It may be nice to have a way to submit without data - e.g. we just care about the key press. 
+							"3" : [
+								{
+									"value" 	: 3,
+									"action"	: "@method:editorEscPressed"
+								}
+							]
+						}
+					}
+				}
 			}
 		}
 		
