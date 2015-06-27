@@ -86,10 +86,27 @@ function createMessageBaseTables() {
 	);
 
 	dbs.message.run(
-		'CREATE VIRTUAL TABLE message_fts USING fts4 (' +
+		'CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (' +
 		'	content="message",' +
 		'	subject,' +
 		'	message' +
+		');'
+	);
+
+	dbs.message.run(
+		'CREATE TABLE IF NOT EXISTS message_meta (' +
+		'	message_id	INTEGER NOT NULL,'	+
+		'	meta_name	VARCHAR NOT NULL,'	+
+		'	meta_value	VARCHAR NOT NULL,'	+
+		'	UNIQUE(message_id, meta_name),' 	+
+		'	FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE' +
+		');'
+	);
+
+	dbs.message.run(
+		'CREATE TABLE IF NOT EXISTS message_hash_tag (' +
+		'	hash_tag	VARCHAR NOT NULL,' +
+		'	message_id	INTEGER NOT NULL' +
 		');'
 	);
 }

@@ -68,7 +68,7 @@ function FullScreenEditorModule(options) {
 				text : 'This is a longer string',
 			},
 			MT3 : {
-				width : 80,
+				width : 79,
 				height : 17,
 				focus : true,
 				text : 'Ermergerd!\nHuzzah!'
