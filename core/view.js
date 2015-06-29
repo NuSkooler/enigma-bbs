@@ -146,11 +146,17 @@ View.prototype.setDimension = function(dimens) {
 };
 
 View.prototype.setHeight = function(height) {
+	assert(_.isNumber(height));
+	//	:TODO: assert height is within this.client.term.termHeight
+
 	this.dimens.height		= height;
 	this.autoScale.height	= false;
 };
 
 View.prototype.setWidth = function(width) {
+	assert(_.isNumber(width));
+	//	:TODO: assert width is appropriate for this.client.term.termWidth
+
 	this.dimens.width		= width;
 	this.autoScale.width	= false;
 };
@@ -166,6 +172,21 @@ View.prototype.getStyleSGR = function(n) {
 
 View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
+};
+
+View.prototype.setProperty = function(propName, value) {
+	switch(propName) {
+		case 'height'	: this.setHeight(value); break;
+		case 'width'	: this.setWidth(value); break;
+		case 'focus'	: this.setFocus(value); break;
+	}
+
+	//	:TODO: setStyleSGRx()
+	/*
+	if(/styleSGR[0-9]+/.test(propName)) {
+		this.styleSGR
+	}
+	*/
 };
 
 View.prototype.redraw = function() {
