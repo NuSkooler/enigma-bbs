@@ -14,7 +14,7 @@ exports.VerticalMenuView		= VerticalMenuView;
 
 function VerticalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
-	options.justify = options.justify || 'right';
+	options.justify = options.justify || 'right';	//	:TODO: default to center
 
 	MenuView.call(this, options);
 

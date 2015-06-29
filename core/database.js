@@ -72,16 +72,18 @@ function createUserTables() {
 
 function createMessageBaseTables() {
 	dbs.message.run(
-		'CREATE TABLE IF NOT EXISTS message (' +
-		'	message_id		INTEGER PRIMARY KEY,' + 
-		'	area_id			INTEGER NOT NULL,' +
-		'	message_uuid	VARCHAR(36) NOT NULL,' + 
-		'	reply_to_id		INTEGER,' +
-		'	to_user_name	VARCHAR NOT NULL,' +
-		'	from_user_name	VARCHAR NOT NULL,' +
-		'	subject,' +	//	FTS
-		'	message,' + //	FTS
-		'	modified_timestamp	DATETIME' +
+		'CREATE TABLE IF NOT EXISTS message ('		+
+		'	message_id		INTEGER PRIMARY KEY,'	+ 
+		'	area_id			INTEGER NOT NULL,'		+
+		'	message_uuid	VARCHAR(36) NOT NULL,'	+ 
+		'	reply_to_id		INTEGER,'				+
+		'	to_user_name	VARCHAR NOT NULL,'		+
+		'	from_user_name	VARCHAR NOT NULL,'		+
+		'	subject,'								+	//	FTS @ message_fts
+		'	message,'								+ 	//	FTS @ message_fts
+		'	modified_timestamp	DATETIME NOT NULL,'	+
+		'	UNIQUE(message_id, area_id),'			+
+		'	UNIQUE(message_uuid)'					+ 
 		');'
 	);
 

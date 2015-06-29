@@ -115,6 +115,7 @@ function stylizeString(s, style) {
 }
 
 //	Based on http://www.webtoolkit.info/
+//	:TODO: Look into lodash padLeft, padRight, etc.
 function pad(s, len, padChar, dir, stringSGR, padSGR) {
 	len			= miscUtil.valueWithDefault(len, 0);
 	padChar		= miscUtil.valueWithDefault(padChar, ' ');

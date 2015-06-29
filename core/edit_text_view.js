@@ -39,8 +39,8 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 				if(this.text.length >= this.dimens.width) {
 					this.redraw();
 				} else {
-					this.cursorPos.row -= 1;
-					if(this.cursorPos.row >= 0) {
+					this.cursorPos.col -= 1;
+					if(this.cursorPos.col >= 0) {
 						this.clientBackspace();
 					}
 				}
@@ -49,7 +49,7 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 			return;
 		} else if(this.isSpecialKeyMapped('clearLine', key.name)) {
 			this.text			= '';
-			this.cursorPos.row	= 0;
+			this.cursorPos.col	= 0;
 			this.setFocus(true);	//	resetting focus will redraw & adjust cursor
 
 			return;
@@ -66,7 +66,7 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 				//	no shortcuts - redraw the view
 				this.redraw();
 			} else {
-				this.cursorPos.row += 1;
+				this.cursorPos.col += 1;
 
 				if(this.textMaskChar) {
 					this.client.term.write(this.textMaskChar);
@@ -80,57 +80,10 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 	EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
-/*
-EditTextView.prototype.onKeyPress = function(key, isSpecial) {	
-	if(isSpecial) {
-		return;
-	}
+EditTextView.prototype.setText = function(text) {
+	//	draw & set |text|
+	EditTextView.super_.prototype.setText.call(this, text);
 
-	assert(1 === key.length);
-
-	if(this.text.length < this.maxLength) {
-		key = strUtil.stylizeString(key, this.textStyle);
-
-		this.text += key;
-
-		if(this.text.length > this.dimens.width) {
-			//	no shortcuts - redraw the view
-			this.redraw();
-		} else {
-			this.cursorPos.row += 1;
-
-			if(this.textMaskChar) {
-				this.client.term.write(this.textMaskChar);
-			} else {
-				this.client.term.write(key);
-			}
-		}
-	}
-
-	EditTextView.super_.prototype.onKeyPress.call(this, key, isSpecial);
+	//	adjust local cursor tracking
+	this.cursorPos = { row : 0, col : text.length };
 };
-
-EditTextView.prototype.onSpecialKeyPress = function(keyName) {
-	if(this.isSpecialKeyMapped('backspace', keyName)) {
-		if(this.text.length > 0) {
-			this.text = this.text.substr(0, this.text.length - 1);
-
-			if(this.text.length >= this.dimens.width) {
-				this.redraw();
-			} else {
-				this.cursorPos.row -= 1;
-				if(this.cursorPos.row >= 0) {
-					this.clientBackspace();
-				}
-			}
-		}
-	} else if(this.isSpecialKeyMapped('clearLine', keyName)) {
-		this.text			= '';
-		this.cursorPos.row	= 0;
-		this.setFocus(true);	//	resetting focus will redraw & adjust cursor
-	}
-
-
-	EditTextView.super_.prototype.onSpecialKeyPress.call(this, keyName);
-};
-*/

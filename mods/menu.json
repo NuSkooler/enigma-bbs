@@ -442,17 +442,16 @@
 					"ET1ET2MT3" : {
 						"mci" : {
 							"ET1" : {
-								"width" : 20,
-								"text" : "FIXME: to"
+								"width"			: 20,
+								"placeholder"	: "TODO support this",
+								"focus"			: true
 							},
 							"ET2" : {
-								"width" : 20,
-								"text" 	: "FIXME: from"
+								"width" : 20
 							},
 							"MT3" : {
 								"width"		: 79,
 								"height" 	: 17,
-								"focus"		: true,
 								"text"		: "",
 								"submit"	: [ "escape" ]
 							}

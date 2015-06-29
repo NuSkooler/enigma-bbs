@@ -24,7 +24,7 @@ function TextView(options) {
 	if(options.maxLength) {
 		this.maxLength = options.maxLength;
 	} else {
-		this.maxLength = this.client.term.termWidth - this.position.row;
+		this.maxLength = this.client.term.termWidth - this.position.col;
 	}
 
 	this.fillChar			= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);

@@ -68,7 +68,7 @@ function FullScreenEditorModule(options) {
 
 	this.menuMethods = {
 		editorEscPressed : function(formData, extraArgs) {
-
+			
 		}
 	};
 }
