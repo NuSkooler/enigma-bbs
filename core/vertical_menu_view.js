@@ -23,7 +23,7 @@ function VerticalMenuView(options) {
 	this.performAutoScale = function() {
 		if(this.autoScale.height) {
 			this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
-			this.dimens.height = Math.min(this.dimens.height, self.client.term.termHeight - self.position.row);
+			this.dimens.height = Math.min(self.dimens.height, self.client.term.termHeight - self.position.row);
 		}
 
 		if(this.autoScale.width) {
@@ -38,6 +38,15 @@ function VerticalMenuView(options) {
 	};
 
 	this.performAutoScale();
+
+	this.updateViewVisibleItems = function() {
+		self.maxVisibleItems = Math.ceil(self.dimens.height / (self.itemSpacing + 1));
+
+		self.viewWindow = {
+			top		: self.focusedItemIndex,
+			bottom	: Math.min(self.focusedItemIndex + self.maxVisibleItems, self.items.length) - 1
+		};
+	};
 
 	this.drawItem = function(index) {
 		var item = self.items[index];
@@ -60,6 +69,13 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
+	if(this.positionCacheExpired) {
+		this.performAutoScale();
+		this.updateViewVisibleItems();
+
+		this.positionCacheExpired = false;
+	}
+
 	var row = this.position.row;
 	for(var i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
 		this.items[i].row = row;
@@ -67,6 +83,12 @@ VerticalMenuView.prototype.redraw = function() {
 		this.items[i].focused = this.focusedItemIndex === i;
 		this.drawItem(i);
 	}
+};
+
+VerticalMenuView.prototype.setHeight = function(height) {
+	VerticalMenuView.super_.prototype.setHeight.call(this, height);
+
+	this.positionCacheExpired = true;
 };
 
 VerticalMenuView.prototype.setPosition = function(pos) {
@@ -135,12 +157,11 @@ VerticalMenuView.prototype.getData = function() {
 VerticalMenuView.prototype.setItems = function(items) {
 	VerticalMenuView.super_.prototype.setItems.call(this, items);
 
-	this.performAutoScale();
+	this.positionCacheExpired = true;
+};
 
-	this.maxVisibleItems = Math.ceil(this.dimens.height / (this.itemSpacing + 1));
+VerticalMenuView.prototype.setItemSpacing = function(itemSpacing) {
+	VerticalMenuView.super_.prototype.setItemSpacing.call(this, itemSpacing);
 
-	this.viewWindow = {
-		top		: this.focusedItemIndex,
-		bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
-	};
+	this.positionCacheExpired = true;
 };

@@ -146,6 +146,7 @@ View.prototype.setDimension = function(dimens) {
 };
 
 View.prototype.setHeight = function(height) {
+	height = parseInt(height, 10);
 	assert(_.isNumber(height));
 	//	:TODO: assert height is within this.client.term.termHeight
 
@@ -154,6 +155,7 @@ View.prototype.setHeight = function(height) {
 };
 
 View.prototype.setWidth = function(width) {
+	width = parseInt(width);
 	assert(_.isNumber(width));
 	//	:TODO: assert width is appropriate for this.client.term.termWidth
 
@@ -174,19 +176,50 @@ View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
 };
 
-View.prototype.setProperty = function(propName, value) {
+View.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
 		case 'height'	: this.setHeight(value); break;
 		case 'width'	: this.setWidth(value); break;
 		case 'focus'	: this.setFocus(value); break;
+		
+		case 'text'		: 
+			if('setText' in this) {
+				this.setText(value);
+			}
+			break;
+
+		case 'textStyle'		: this.textStyle = value; break;
+		case 'focusTextStyle'	: this.focusTextStyle = value; break;
+
+		case 'justify'	: this.justify = value; break;
+
+		case 'fillChar' :
+			if('fillChar' in this) {
+				if(_.isNumber(value)) {
+					this.fillChar = String.fromCharCode(value);
+				} else if(_.isString(value)) {
+					this.fillChar = value.substr(0, 1);
+				}
+			}
+
+		case 'submit' :
+			if(_.isBoolean(value)) {
+				this.submit = value;
+			} else {
+				this.submit = _.isArray(value) && value.length > 0;
+			}
+			break;
+
+		case 'submitArgName' : this.submitArgName = value; break;
 	}
 
-	//	:TODO: setStyleSGRx()
-	/*
-	if(/styleSGR[0-9]+/.test(propName)) {
-		this.styleSGR
+	if(/styleSGR[0-9]{1,2}/.test(propName)) {
+		if(_.isObject(value)) {
+			this[propName] = ansi.getSGRFromGraphicRendition(value, true);
+		} else if(_.isString(value)) {
+			this[propName] = ansi.fromPipeCode(value);
+		}
 	}
-	*/
 };
 
 View.prototype.redraw = function() {

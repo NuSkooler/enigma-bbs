@@ -159,6 +159,64 @@ function ViewController(options) {
 
 	//	:TODO: move this elsewhere
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
+		//	:TODO: This broke at least VerticalMenuView due to order of setting properties... really,
+		//	shouldn't matter what the order is, so that should be fixed.
+
+		for(var propName in conf) {			
+			var propValue;
+			var propAsset = asset.getViewPropertyAsset(conf[propName]);
+			if(propAsset) {
+				switch(propAsset.type) {
+					case 'config' :
+						propValue = asset.resolveConfigAsset(config[propName]); 
+						break;
+
+						//	:TODO: handle @art (e.g. text : @art ...)
+
+					default : 
+						propValue = propValue = conf[propName];
+						break;
+
+					
+				}
+			} else {
+				propValue = conf[propName];
+			}
+
+			if(!_.isUndefined(propValue)) {
+				view.setPropertyValue(propName, propValue);
+			}
+		}
+
+		//	:TODO: Experimental....
+		/*
+		function setViewProperty2(propName) {
+			if(!_.isUndefined(conf[propName])) {
+				var propValue;
+				var propAsset = asset.getViewPropertyAsset(conf[propName]);
+				if(propAsset) {
+					switch(propAsset.type) {
+						case 'config' :
+							propValue = asset.resolveConfigAsset(config[propName]); 
+							break;
+
+							//	:TODO: handle @art (e.g. text : @art ...)
+
+						default : 
+							propValue = propValue = conf[propName];
+							break;
+
+						
+					}
+				} else {
+					propValue = conf[propName];
+				}
+
+				if(!_.isUndefined(propValue)) {
+					view.setPropertyValue(propName, propValue);
+				}
+			}
+		}
 
 		function setViewProp(propName, setter) {
 			if(!_.isUndefined(conf[propName])) {
@@ -189,37 +247,43 @@ function ViewController(options) {
 						view[propName] = propValue;
 					}
 				}
-
-				/*
-				var propValue = asset.resolveConfigAsset(conf[propName]);
-				if(propValue) {
-					if(setter) {
-						setter(propValue);
-					} else {
-						view[propName] = propValue;
-					}
-				}
-				*/
 			}
 		}
+		*/
 
-		setViewProp('width', function(v) { view.setWidth(parseInt(v, 10)); });
-		setViewProp('height', function(v) { view.setHeight(parseInt(v, 10)); });
-		
-		setViewProp('itemSpacing', function(v) { view.setItemSpacing(v); });
-		setViewProp('items', function(v) { view.setItems(v); });
-		
-		setViewProp('text', function(v) { view.setText(v); });
-		setViewProp('textStyle');
-		setViewProp('focusTextStyle');
-		setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
-		setViewProp('justify');
-		setViewProp('textOverflow');
+		//setViewProp('width', function(v) { view.setWidth(parseInt(v, 10)); });
+		//setViewProp('height', function(v) { view.setHeight(parseInt(v, 10)); });
+		//setViewProp('itemSpacing', function(v) { view.setItemSpacing(v); });
+		//setViewProp('items', function(v) { view.setItems(v); });		
+		//setViewProp('text', function(v) { view.setText(v); });
+		//setViewProp('textStyle');
+		//setViewProp('focusTextStyle');
+		//setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
+		//setViewProp('justify');
+		//setViewProp('textOverflow');
+		//setViewProp('maskPattern', function(v) { view.setMaskPattern(v); });
+		//setViewProp('maxLength');
+		//setViewProp('hotKeys', function(v) { view.setHotKeys(v); });
+		//setViewProp('argName', function(v) { view.submitArgName = v; });
 
-		setViewProp('maskPattern', function(v) { view.setMaskPattern(v); });
-		
-		setViewProp('maxLength');
+		//	:TODO: better yet, just loop through properties directly from the JSON and
+		//	call setPropertyValue(). View should be responsible for any conversions, e.g.
+		//	boolean vs maskchar for 'password', etc.
 
+		/*
+		[ 
+			'width', 'height', 
+			'itemSpacing', 'items', 
+			'text', 'textStyle', 'focusTextStyle', 'textMaskChar',
+			'justify', 'textOverflow',
+			'maskPattern',
+			'maxLength',
+			'fillChar',
+			'password',
+		].forEach(function pn(thePropName) {
+			setViewProperty2(thePropName);
+		});	
+			
 		//
 		//	styleSGRx: 1..25
 		//
@@ -248,9 +312,6 @@ function ViewController(options) {
 			}
 		});
 
-		
-		setViewProp('hotKeys', function(v) { view.setHotKeys(v); });
-
 		setViewProp('submit', function(v) {
 			if(_.isBoolean(v)) {
 				view.submit = v;
@@ -258,8 +319,8 @@ function ViewController(options) {
 				view.submit = _.isArray(v) && v.length > 0;
 			}
 		});
-
-		setViewProp('argName', function(v) { view.submitArgName = v; });
+	*/
+		
 	};
 
 	this.applyViewConfig = function(config, cb) {

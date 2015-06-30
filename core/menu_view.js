@@ -105,10 +105,21 @@ MenuView.prototype.setItems = function(items) {
 };
 
 MenuView.prototype.setItemSpacing = function(itemSpacing) {
+	itemSpacing = parseInt(itemSpacing);
 	assert(_.isNumber(itemSpacing));
 
 	this.itemSpacing			= itemSpacing;
 	this.positionCacheExpired	= true;
+};
+
+MenuView.prototype.setPropertyValue = function(propName, value) {
+	switch(propName) {
+		case 'itemSpacing' 	: this.setItemSpacing(value); break;
+		case 'items'		: this.setItems(value); break;
+		case 'hotKeys'		: this.setHotKeys(value); break;
+	}
+
+	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 
 MenuView.prototype.setHotKeys = function(hotKeys) {

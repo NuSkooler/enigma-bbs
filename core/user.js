@@ -46,7 +46,7 @@ function User() {
 
 	this.isGroupMember = function(groupIdOrName) {
 		return _.isString(self.groups[groupIdOrName]);
-	}
+	};
 
 }
 

@@ -161,3 +161,11 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 
 	MaskEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 };
+
+MaskEditTextView.prototype.setPropertyValue = function(propName, value) {
+	switch(propName) {
+		case 'maskPattern'	: this.setMaskPattern(value); break;
+	}
+
+	MaskEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
+};
