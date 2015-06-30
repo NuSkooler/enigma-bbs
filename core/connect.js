@@ -2,11 +2,13 @@
 'use strict';
 
 var ansi		= require('./ansi_term.js');
-//var artwork		= require('./art.js');
+var colorCodes	= require('./color_codes.js');
 var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
 var Log			= require('./logger.js').log;
 var Config		= require('./config.js').config;
+
+
 var packageJson = require('../package.json');
 
 var assert		= require('assert');
@@ -77,7 +79,8 @@ function prepareTerminal(term) {
 
 function displayBanner(term) {
 	//	:TODO: add URL(s) to banner
-	term.write(ansi.fromPipeCode(util.format('' + 
+	//term.write(ansi.fromPipeCode(util.format('' + 
+	term.write(colorCodes.pipeToAnsi(util.format(
 		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
 		'|00|33Copyright (c) 2014-2015 Bryan Ashby\n' + 
 		'|00', packageJson.version)));
