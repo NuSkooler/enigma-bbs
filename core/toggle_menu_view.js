@@ -18,9 +18,11 @@ function ToggleMenuView (options) {
 
 	var self = this;
 
+	/*
 	this.cachePositions = function() {
 		self.positionCacheExpired = false;
 	};
+	*/
 
 	this.updateSelection = function() {
 		assert(!self.positionCacheExpired);
@@ -35,7 +37,7 @@ util.inherits(ToggleMenuView, MenuView);
 ToggleMenuView.prototype.redraw = function() {
 	ToggleMenuView.super_.prototype.redraw.call(this);
 
-	this.cachePositions();
+	//this.cachePositions();
 
 	this.client.term.write(this.hasFocus ? this.getFocusSGR() : this.getSGR());
 

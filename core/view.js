@@ -5,6 +5,7 @@ var events		= require('events');
 var util		= require('util');
 var assert		= require('assert');
 var ansi		= require('./ansi_term.js');
+var colorCodes	= require('./color_codes.js');
 
 var _			= require('lodash');
 
@@ -217,7 +218,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 		if(_.isObject(value)) {
 			this[propName] = ansi.getSGRFromGraphicRendition(value, true);
 		} else if(_.isString(value)) {
-			this[propName] = ansi.fromPipeCode(value);
+			this[propName] = colorCodes.pipeToAnsi(value);
 		}
 	}
 };

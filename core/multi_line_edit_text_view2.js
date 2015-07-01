@@ -989,6 +989,7 @@ MultiLineEditTextView2.prototype.redraw = function() {
 
 MultiLineEditTextView2.prototype.setFocus = function(focused) {
 	this.client.term.write(this.getSGRFor('text'));
+	this.moveClientCusorToCursorPos();
 
 	MultiLineEditTextView2.super_.prototype.setFocus.call(this, focused);
 };

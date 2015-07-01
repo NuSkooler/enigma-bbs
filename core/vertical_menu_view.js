@@ -69,6 +69,7 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
 	VerticalMenuView.super_.prototype.redraw.call(this);
 
+	//	:TODO: rename positionCacheExpired to something that makese sense; combine methods for such
 	if(this.positionCacheExpired) {
 		this.performAutoScale();
 		this.updateViewVisibleItems();

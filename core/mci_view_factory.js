@@ -5,6 +5,7 @@ var TextView				= require('./text_view.js').TextView;
 var EditTextView			= require('./edit_text_view.js').EditTextView;
 var ButtonView				= require('./button_view.js').ButtonView;
 var VerticalMenuView		= require('./vertical_menu_view.js').VerticalMenuView;
+var HorizontalMenuView		= require('./horizontal_menu_view.js').HorizontalMenuView;
 var SpinnerMenuView			= require('./spinner_menu_view.js').SpinnerMenuView;
 var ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
 var MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
@@ -172,6 +173,16 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new VerticalMenuView(options);
+			break;
+
+		//	Horizontal Menu
+		case 'HM' : 
+			setOption(0,		'itemSpacing');
+			setOption(1,		'textStyle');
+
+			setFocusOption(0,	'focusTextStyle');
+
+			view = new HorizontalMenuView(options);
 			break;
 
 		case 'SM' :

@@ -19,9 +19,11 @@ function SpinnerMenuView(options) {
 	
 	var self = this;
 
+	/*
 	this.cachePositions = function() {
 		self.positionCacheExpired = false;
 	};
+	*/
 
 	this.updateSelection = function() {
 		assert(!self.positionCacheExpired);
@@ -52,7 +54,7 @@ util.inherits(SpinnerMenuView, MenuView);
 SpinnerMenuView.prototype.redraw = function() {
 	SpinnerMenuView.super_.prototype.redraw.call(this);
 
-	this.cachePositions();
+	//this.cachePositions();
 	this.drawItem(this.focusedItemIndex);
 };
 

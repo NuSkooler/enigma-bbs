@@ -244,6 +244,10 @@
 									"action" : "@menu:demoMultiLineEditTextView"
 								},
 								{
+									"value"		: { "1" : 5 },
+									"action"	: "@menu:demoHorizontalMenuView"
+								},
+								{
 									"value" : { "1" : 6 },
 									"action" : "@menu:demoArtDisplay"
 								},
@@ -392,6 +396,25 @@
 									"action" : "@menu:demoMain"
 								}
 							]
+						}
+					}
+				}
+			}
+		},
+		"demoHorizontalMenuView" : {
+			"art" : "demo_horizontal_menu_view1.ans",
+			"options" : { "cls" : true },
+			"form" : {
+				"0" : {
+					"BT5HM1" : {
+						"mci" : {
+							"HM1" : {
+								"items" : [ "A Clockwork Orange", "Pulp Fiction", "Goonies" ]
+							},
+							"BT5" : {
+								"text" : "< Back",
+								"submit" : [ "escape" ]
+							}
 						}
 					}
 				}

@@ -40,57 +40,9 @@ function MenuView(options) {
 
 	this.fillChar		= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
 	this.justify		= options.justify || 'none';
-	/*
-	this.moveSelection = function(fromIndex, toIndex) {
-		assert(!self.positionCacheExpired);
-		assert(fromIndex >= 0 && fromIndex <= self.items.length);
-		assert(toIndex >= 0 && toIndex <= self.items.length);
-
-		self.items[fromIndex].focused	= false;
-		self.drawItem(fromIndex);
-
-		self.items[toIndex].focused 	= true;
-		self.focusedItemIndex			= toIndex;
-		self.drawItem(toIndex);
-	};
-	*/
-
-	/*
-	this.cachePositions = function() {
-		//	:TODO: implement me!
-	};
-
-	this.drawItem = function(index) {
-		//	:TODO: implement me!
-	};*/
 }
 
 util.inherits(MenuView, View);
-
-MenuView.prototype.redrawAllItems = function() {
-	MenuView.super_.prototype.redraw.call(this);
-
-	this.cachePositions();
-
-	var count = this.items.length;
-	for(var i = 0; i < count; ++i) {
-		this.items[i].focused = this.focusedItemIndex === i;
-		this.drawItem(i);
-	}
-};
-/*
-
-MenuView.prototype.redraw = function() {
-	MenuView.super_.prototype.redraw.call(this);
-
-	this.cachePositions();
-
-	var count = this.items.length;
-	for(var i = 0; i < count; ++i) {
-		this.items[i].focused = this.focusedItemIndex === i;
-		this.drawItem(i);
-	}
-};*/
 
 MenuView.prototype.setItems = function(items) {
 	var self = this;
