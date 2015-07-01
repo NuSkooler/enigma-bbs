@@ -6,11 +6,16 @@ var ansi			= require('./ansi_term.js');
 var strUtil			= require('./string_util.js');
 
 var assert			= require('assert');
+var _				= require('lodash');
 
 exports.HorizontalMenuView		= HorizontalMenuView;
 
 function HorizontalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
+
+	if(!_.isNumber(options.itemSpacing)) {
+		options.itemSpacing = 1;
+	}
 
 	MenuView.call(this, options);
 
@@ -19,7 +24,7 @@ function HorizontalMenuView(options) {
 	var self = this;
 
 	this.getSpacer = function() {
-		return new Array(self.itemSpacing).join(' ');
+		return new Array(self.itemSpacing + 1).join(' ');
 	}
 
 	this.performAutoScale = function() {
@@ -56,14 +61,20 @@ function HorizontalMenuView(options) {
 			return;
 		}
 
-		self.client.term.write(ansi.goto(item.row, self.itemColumns[index]));
+		//self.client.term.write(ansi.goto(item.row, self.itemColumns[index]));
 		self.client.term.write(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 
 		var extraPad = self.getSpacer().length * 2;
+		var spacer = self.getSpacer();
+
 		self.client.term.write(
-			strUtil.pad(text, text.length + extraPad, this.fillChar, 'center'));
+			ansi.goto(self.position.row, self.itemColumns[index]) +
+			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
+			strUtil.pad(text, text.length + extraPad, self.fillChar, 'center')
+			//spacer + text + spacer
+			);
 	};
 }
 
