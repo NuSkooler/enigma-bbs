@@ -43,9 +43,8 @@ function HorizontalMenuView(options) {
 			var col		= self.position.col;
 			var spacer	= self.getSpacer();
 
-			self.itemColumns = [];
 			for(var i = 0; i < self.items.length; ++i) {
-				self.itemColumns[i] = col;
+				self.items[i].col = col;
 				col += spacer.length + self.items[i].length + spacer.length;
 			}
 		}
@@ -54,26 +53,21 @@ function HorizontalMenuView(options) {
 	};
 
 	this.drawItem = function(index) {
-		assert(self.itemColumns.length === self.items.length);
+		assert(!this.positionCacheExpired);
 
 		var item = self.items[index];
 		if(!item) {
 			return;
 		}
 
-		//self.client.term.write(ansi.goto(item.row, self.itemColumns[index]));
-		self.client.term.write(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
-
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 
 		var extraPad = self.getSpacer().length * 2;
-		var spacer = self.getSpacer();
 
 		self.client.term.write(
-			ansi.goto(self.position.row, self.itemColumns[index]) +
+			ansi.goto(self.position.row, self.items[index].col) +
 			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
 			strUtil.pad(text, text.length + extraPad, self.fillChar, 'center')
-			//spacer + text + spacer
 			);
 	};
 }
