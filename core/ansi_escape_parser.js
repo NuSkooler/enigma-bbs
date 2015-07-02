@@ -135,7 +135,7 @@ function ANSIEscapeParser(options) {
 
 	function parseMCI(buffer) {
 		//	:TODO: move this to "constants" seciton @ top
-		var mciRe = /\%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Z,]+)\))*/g;
+		var mciRe = /\%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Za-z,]+)\))*/g;
 		var pos = 0;
 		var match;
 		var mciCode;

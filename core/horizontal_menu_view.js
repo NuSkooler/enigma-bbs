@@ -47,7 +47,7 @@ function HorizontalMenuView(options) {
 
 			for(var i = 0; i < self.items.length; ++i) {
 				self.items[i].col = col;
-				col += spacer.length + self.items[i].length + spacer.length;
+				col += spacer.length + self.items[i].text.length + spacer.length;
 			}
 		}
 
@@ -62,14 +62,16 @@ function HorizontalMenuView(options) {
 			return;
 		}
 
-		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
+		var text = strUtil.stylizeString(
+			item.text, 
+			this.hasFocus && item.focused ? self.focusTextStyle : self.textStyle);
 
-		var extraPad = self.getSpacer().length * 2;
+		var drawWidth = text.length + self.getSpacer().length * 2;	//	* 2 = sides
 
 		self.client.term.write(
-			ansi.goto(self.position.row, self.items[index].col) +
+			ansi.goto(self.position.row, item.col) +
 			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
-			strUtil.pad(text, text.length + extraPad, self.fillChar, 'center')
+			strUtil.pad(text, drawWidth, self.fillChar, 'center')
 			);
 	};
 }
