@@ -25,7 +25,7 @@ function renegadeToAnsi(s) {
 	}
 
 	var result	= '';
-	var re		= /\|(\d{2,3}|\|)/g;
+	var re		= /\|(\d{2}|\|)/g;
 	var m;
     var lastIndex = 0;
 	while((m = re.exec(s))) {
@@ -42,7 +42,7 @@ function renegadeToAnsi(s) {
 			val = 0;
 		}
 
-		assert(val >= 0 && val <= 256);
+		assert(val >= 0 && val <= 256);	//	:TODO: should be <= 23 I believe
 
 		var attr = '';
 		if(7 == val) {
@@ -63,6 +63,6 @@ function renegadeToAnsi(s) {
 }
 
 function stripRenegadeCodes(s) {
-    return s.replace(/\|[\d]{2,3}/g, '');
+    return s.replace(/\|[\d]{2}/g, '');
 }
 
