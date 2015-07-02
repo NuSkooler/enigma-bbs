@@ -80,7 +80,7 @@ function View(options) {
 		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
 	}
 
-	this.isSpecialKeyMapped = function(keySet, keyName) {
+	this.isKeyMapped = function(keySet, keyName) {
 		return _.has(this.specialKeyMap, keySet) && this.specialKeyMap[keySet].indexOf(keyName) > -1;
 	};
 
@@ -241,9 +241,9 @@ View.prototype.onKeyPress = function(ch, key) {
 	if(key) {
 		assert(this.specialKeyMap, 'No special key map defined');
 
-		if(this.isSpecialKeyMapped('accept', key.name)) {
+		if(this.isKeyMapped('accept', key.name)) {
 			this.emit('action', 'accept');
-		} else if(this.isSpecialKeyMapped('next', key.name)) {
+		} else if(this.isKeyMapped('next', key.name)) {
 			this.emit('action', 'next');
 		}
 	}

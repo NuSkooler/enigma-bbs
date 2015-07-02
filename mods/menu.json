@@ -406,15 +406,28 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT5HM1" : {
+					"BT5HM1HM2" : {
 						"mci" : {
 							"HM1" : {
-								"items" : [ "One", "Two", "Three" ]
+								"items" : [ "One", "Two", "Three" ],
+								"hotKeys" : { "1" : 0, "2" : 1, "3" : 2 }
+							},
+							"HM2" : {
+								"items" : [ "Uno", "Dos", "Tres" ],
+								"hotKeys" : { "U" : 0, "D" : 1, "T" : 2 }
 							},
 							"BT5" : {
 								"text" : "< Back",
 								"submit" : [ "escape" ]
 							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" : 5,
+									"action" : "@menu:demoMain"
+								}
+							]
 						}
 					}
 				}

@@ -499,13 +499,13 @@ MultiLineEditTextView.prototype.onKeyPress = function(key, isSpecial) {
 };
 
 MultiLineEditTextView.prototype.onSpecialKeyPress = function(keyName) {
-	if(this.isSpecialKeyMapped('up', keyName)) {
+	if(this.isKeyMapped('up', keyName)) {
 		this.cursorUp();
-	} else if(this.isSpecialKeyMapped('down', keyName)) {
+	} else if(this.isKeyMapped('down', keyName)) {
 		this.cursorDown();
-	} else if(this.isSpecialKeyMapped('left', keyName)) {
+	} else if(this.isKeyMapped('left', keyName)) {
 		this.cursorLeft();
-	} else if(this.isSpecialKeyMapped('right', keyName)) {
+	} else if(this.isKeyMapped('right', keyName)) {
 		this.cursorRight();
 	}
 

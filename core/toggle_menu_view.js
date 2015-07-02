@@ -25,7 +25,7 @@ function ToggleMenuView (options) {
 	*/
 
 	this.updateSelection = function() {
-		assert(!self.positionCacheExpired);
+		//assert(!self.positionCacheExpired);
 		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
 
 		self.redraw();
@@ -71,14 +71,14 @@ ToggleMenuView.prototype.setFocus = function(focused) {
 ToggleMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
 		var needsUpdate;
-		if(this.isSpecialKeyMapped('right', key.name) || this.isSpecialKeyMapped('down', key.name)) {
+		if(this.isKeyMapped('right', key.name) || this.isKeyMapped('down', key.name)) {
 			if(this.items.length - 1 === this.focusedItemIndex) {
 				this.focusedItemIndex = 0;
 			} else {
 				this.focusedItemIndex++;
 			}
 			needsUpdate = true;
-		} else if(this.isSpecialKeyMapped('left', key.name) || this.isSpecialKeyMapped('up', key.name)) {
+		} else if(this.isKeyMapped('left', key.name) || this.isKeyMapped('up', key.name)) {
 			if(0 === this.focusedItemIndex) {
 				this.focusedItemIndex = this.items.length - 1;
 			} else {
@@ -95,7 +95,7 @@ ToggleMenuView.prototype.onKeyPress = function(ch, key) {
 
 	if(ch && this.hotKeys) {
 		var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
-		if(!_.isUndefined(keyIndex)) {
+		if(_.isNumber(keyIndex)) {
 			this.focusedItemIndex = keyIndex;
 			this.updateSelection();
 		}

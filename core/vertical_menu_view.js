@@ -109,7 +109,7 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
 		var prevFocusedItemIndex = this.focusedItemIndex;
 
-		if(this.isSpecialKeyMapped('up', key.name)) {		
+		if(this.isKeyMapped('up', key.name)) {		
 			if(0 === this.focusedItemIndex) {
 				this.focusedItemIndex = this.items.length - 1;
 				
@@ -125,7 +125,7 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 					this.viewWindow.bottom--;
 				}
 			}
-		} else if(this.isSpecialKeyMapped('down', key.name)) {
+		} else if(this.isKeyMapped('down', key.name)) {
 			if(this.items.length - 1 === this.focusedItemIndex) {
 				this.focusedItemIndex = 0;
 				
@@ -144,6 +144,7 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 		}
 
 		if(prevFocusedItemIndex !== this.focusedItemIndex) {
+			//	:TODO: Optimize this for cases where no scrolling occured & only two items need updated
 			this.redraw();
 		}
 	}

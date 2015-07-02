@@ -1036,7 +1036,7 @@ MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
 
 	if(key) {		
 		HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
-			if(self.isSpecialKeyMapped(specialKey, key.name)) {
+			if(self.isKeyMapped(specialKey, key.name)) {
 				self[_.camelCase('keyPress ' + specialKey)]();
 				handled = true;
 			}

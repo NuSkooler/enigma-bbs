@@ -32,7 +32,7 @@ require('util').inherits(EditTextView, TextView);
 
 EditTextView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
-		if(this.isSpecialKeyMapped('backspace', key.name)) {
+		if(this.isKeyMapped('backspace', key.name)) {
 			if(this.text.length > 0) {
 				this.text = this.text.substr(0, this.text.length - 1);
 
@@ -47,7 +47,7 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 			}
 			
 			return;
-		} else if(this.isSpecialKeyMapped('clearLine', key.name)) {
+		} else if(this.isKeyMapped('clearLine', key.name)) {
 			this.text			= '';
 			this.cursorPos.col	= 0;
 			this.setFocus(true);	//	resetting focus will redraw & adjust cursor

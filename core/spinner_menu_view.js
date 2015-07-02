@@ -26,7 +26,7 @@ function SpinnerMenuView(options) {
 	*/
 
 	this.updateSelection = function() {
-		assert(!self.positionCacheExpired);
+		//assert(!self.positionCacheExpired);
 
 		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
 		
@@ -66,7 +66,7 @@ SpinnerMenuView.prototype.setFocus = function(focused) {
 
 SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
-		if(this.isSpecialKeyMapped('up', key.name)) {		
+		if(this.isKeyMapped('up', key.name)) {		
 			if(0 === this.focusedItemIndex) {
 				this.focusedItemIndex = this.items.length - 1;
 			} else {
@@ -75,7 +75,7 @@ SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 			
 			this.updateSelection();
 			return;
-		} else if(this.isSpecialKeyMapped('down', key.name)) {
+		} else if(this.isKeyMapped('down', key.name)) {
 			if(this.items.length - 1 === this.focusedItemIndex) {
 				this.focusedItemIndex = 0;
 			} else {

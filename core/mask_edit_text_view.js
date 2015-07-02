@@ -106,7 +106,7 @@ MaskEditTextView.prototype.setMaskPattern = function(pattern) {
 
 MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
-		if(this.isSpecialKeyMapped('backspace', key.name)) {
+		if(this.isKeyMapped('backspace', key.name)) {
 			if(this.text.length > 0) {
 				this.patternArrayPos--;
 				assert(this.patternArrayPos >= 0);
@@ -128,7 +128,7 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 			}
 
 			return;
-		} else if(this.isSpecialKeyMapped('clearLine', key.name)) {
+		} else if(this.isKeyMapped('clearLine', key.name)) {
 			this.text				= '';
 			this.patternArrayPos	= 0;
 			this.setFocus(true);	//	redraw + adjust cursor

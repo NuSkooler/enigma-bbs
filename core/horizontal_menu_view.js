@@ -10,6 +10,8 @@ var _				= require('lodash');
 
 exports.HorizontalMenuView		= HorizontalMenuView;
 
+//	:TODO: Update this to allow scrolling if number of items cannot fit in width (similar to VerticalMenuView)
+
 function HorizontalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
 
@@ -107,4 +109,46 @@ HorizontalMenuView.prototype.setItems = function(items) {
 	HorizontalMenuView.super_.prototype.setItems.call(this, items);
 
 	this.positionCacheExpired = true;
+};
+
+HorizontalMenuView.prototype.onKeyPress = function(ch, key) {
+	if(key) {
+		var prevFocusedItemIndex = this.focusedItemIndex;
+
+		if(this.isKeyMapped('left', key.name)) {
+			if(0 === this.focusedItemIndex) {
+				this.focusedItemIndex = this.items.length - 1;
+			} else {
+				this.focusedItemIndex--;
+			}
+
+		} else if(this.isKeyMapped('right', key.name)) {
+			if(this.items.length - 1 === this.focusedItemIndex) {
+				this.focusedItemIndex = 0;
+			} else {
+				this.focusedItemIndex++;
+			}
+		}
+
+		if(prevFocusedItemIndex !== this.focusedItemIndex) {
+			//	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+			//	if this is changed to allow scrolling
+			this.redraw();
+			return;
+		}
+	}
+
+	if(ch && this.hotKeys) {
+		var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
+		if(_.isNumber(keyIndex)) {
+			this.focusedItemIndex = keyIndex;
+			this.redraw();
+		}
+	}
+
+	HorizontalMenuView.super_.prototype.onKeyPress.call(this, ch, key);
+};
+
+HorizontalMenuView.prototype.getData = function() {
+	return this.focusedItemIndex;
 };
