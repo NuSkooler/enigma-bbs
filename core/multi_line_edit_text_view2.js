@@ -39,6 +39,15 @@ var _				= require('lodash');
 //	* 	http://www.jbox.dk/downloads/edit.c
 //
 
+//	Misc notes
+//	* See https://github.com/dominictarr/hipster/issues/15 about insert/delete lines
+//
+//	Blessed
+//		insertLine: CSR(top, bottom) + CUP(y, 0) + IL(1) + CSR(0, height)
+//		deleteLine: CSR(top, bottom) + CUP(y, 0) + DL(1) + CSR(0, height)
+//	Quick Ansi -- update only what was changed:
+//	https://github.com/dominictarr/quickansi
+
 //
 //	To-Do
 //	
@@ -48,6 +57,8 @@ var _				= require('lodash');
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
 //	* Word wrapping is a bit broke: cannot fill entire self.dimens.width (off by 1-2)
 //	* Contigous words will break word wrapping... is not breaking mid word properly
+//	* Fix backspace when col=0 (e.g. bs to prev line)
+
 
 var SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
@@ -67,9 +78,9 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	insert			: [ 'insert', 'ctrl + v' ],
 };
 
-exports.MultiLineEditTextView2	= MultiLineEditTextView2;
+exports.MultiLineEditTextView	= MultiLineEditTextView;
 
-function MultiLineEditTextView2(options) {
+function MultiLineEditTextView(options) {
 	if(!_.isBoolean(options.acceptsFocus)) {
 		options.acceptsFocus = true;
 	}
@@ -802,7 +813,7 @@ function MultiLineEditTextView2(options) {
 			//
 			//	:TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
 			self.keyPressLeft();	//	same as hitting left - jump to previous line
-			self.keyPressBackspace();
+			//self.keyPressBackspace();
 		}
 	};
 
@@ -973,28 +984,28 @@ function MultiLineEditTextView2(options) {
 
 }
 
-require('util').inherits(MultiLineEditTextView2, View);
+require('util').inherits(MultiLineEditTextView, View);
 
-MultiLineEditTextView2.prototype.setWidth = function(width) {
-	MultiLineEditTextView2.super_.prototype.setWidth.call(this, width);
+MultiLineEditTextView.prototype.setWidth = function(width) {
+	MultiLineEditTextView.super_.prototype.setWidth.call(this, width);
 
 	this.calculateTabStops();
 };
 
-MultiLineEditTextView2.prototype.redraw = function() {
-	MultiLineEditTextView2.super_.prototype.redraw.call(this);
+MultiLineEditTextView.prototype.redraw = function() {
+	MultiLineEditTextView.super_.prototype.redraw.call(this);
 
 	this.redrawVisibleArea();
 };
 
-MultiLineEditTextView2.prototype.setFocus = function(focused) {
+MultiLineEditTextView.prototype.setFocus = function(focused) {
 	this.client.term.write(this.getSGRFor('text'));
 	this.moveClientCusorToCursorPos();
 
-	MultiLineEditTextView2.super_.prototype.setFocus.call(this, focused);
+	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 };
 
-MultiLineEditTextView2.prototype.setText = function(text) {
+MultiLineEditTextView.prototype.setText = function(text) {
 	//this.textLines = [ { text : '' } ];
 	//this.insertRawText('');
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
@@ -1007,16 +1018,16 @@ MultiLineEditTextView2.prototype.setText = function(text) {
 
 };
 
-MultiLineEditTextView2.prototype.getData = function() {
+MultiLineEditTextView.prototype.getData = function() {
 	return this.getOutputText(0, this.textLines.length, true);
 };
 
-MultiLineEditTextView2.prototype.setPropertyValue = function(propName, value) {
+MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 /*	switch(propName) {
 		case 'text' : this.setText(value); break;
 	}
 */
-	MultiLineEditTextView2.super_.prototype.setPropertyValue.call(this, propName, value);
+	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 
 var HANDLED_SPECIAL_KEYS = [
@@ -1030,7 +1041,7 @@ var HANDLED_SPECIAL_KEYS = [
 	'delete line',
 ];
 
-MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
+MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 	var self = this;
 	var handled;
 
@@ -1048,6 +1059,6 @@ MultiLineEditTextView2.prototype.onKeyPress = function(ch, key) {
 	}
 
 	if(!handled) {
-		MultiLineEditTextView2.super_.prototype.onKeyPress.call(this, ch, key);
+		MultiLineEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 	}
 };
