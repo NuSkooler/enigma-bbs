@@ -153,7 +153,7 @@ function startListening() {
 			//	Start tracking the client. We'll assign it an ID which is
 			//	just the index in our connections array.
 			//
-			if(typeof client.runtime === 'undefined') {
+			if(_.isUndefined(client.runtime)) {
 				client.runtime = {};
 			}
 
@@ -194,6 +194,11 @@ function startListening() {
 
 function addNewClient(client) {
 	var id = client.runtime.id = clientConnections.push(client) - 1;
+
+	//	Create a client specific logger 
+	client.log = logger.log.child( { clientId : id } );
+
+	//	:TODO: if client.log concept is kept, clean this up to use it:
 
 	var connInfo = {
 		connectionCount : clientConnections.length, 

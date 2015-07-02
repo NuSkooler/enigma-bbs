@@ -44,62 +44,12 @@ var _			= require('lodash');
 
 exports.Client	= Client;
 
-//var ANSI_CONTROL_REGEX	= /(?:(?:\u001b\[)|\u009b)(?:(?:[0-9]{1,3})?(?:(?:;[0-9]{0,3})*)?[A-M|f-m])|\u001b[A-M]/g;
-
 //	:TODO: Move all of the key stuff to it's own module
 
 //
 //	Resources & Standards:
 //	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
 //
-var ANSI_KEY_NAME_MAP = {
-	0x08	: 'backspace',		//	BS
-	0x09	: 'tab',			//	
-	0x7f	: 'del',
-	0x1b	: 'esc',
-	0x0d	: 'enter',
-	0x19	: 'end of medium',	//	EM / CTRL-Y
-};
-
-var ANSI_KEY_CSI_NAME_MAP = {
-	0x40	: 'insert',			//	@
-	0x41	: 'up arrow',		//	A
-	0x42	: 'down arrow',		//	B
-	0x43	: 'right arrow',	//	C
-	0x44	: 'left arrow',		//	D
-
-	0x48	: 'home',			//	H
-	0x4b	: 'end',			//	K
-
-	0x56	: 'page up',		//	V
-	0x55	: 'page down',		//	U
-};
-
-var ANSI_F_KEY_NAME_MAP_1 = {
-	0x50	: 'F1',
-	0x51	: 'F2',
-	0x52	: 'F3',
-	0x53	: 'F4',
-	0x74	: 'F5',
-};
-
-var ANSI_F_KEY_NAME_MAP_2 = {
-	//	rxvt
-	11		: 'F1',
-	12		: 'F2',
-	13		: 'F3',
-	14		: 'F4',	
-	15		: 'F5',
-
-	//	SyncTERM
-	17		: 'F6',
-	18		: 'F7',
-	19		: 'F8',
-	20		: 'F9',
-	21		: 'F10',
-	23		: 'F11',
-	24		: 'F12',
-};
 
 //	:TODO: put this in a common area!!!!
 function getIntArgArray(array) {
@@ -148,7 +98,7 @@ function Client(input, output) {
 	this.output				= output;
 	this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
-	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
+	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };	
 
 	//
 	//	Peek at incoming |data| and emit events for any special
@@ -380,7 +330,8 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
-				Log.trace( { key : key, ch : ch }, 'User keyboard input');
+				//Log.trace( { key : key, ch : ch }, 'User keyboard input');
+				self.log.trace( { key : key, ch : ch }, 'User keyboard input');
 
 				self.emit('key press', ch, key);
 			}
