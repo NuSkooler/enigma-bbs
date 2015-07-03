@@ -152,6 +152,10 @@ MenuModule.prototype.beforeArt = function() {
 	if(this.menuConfig.options.cls) {
 		this.client.term.write(ansi.resetScreen());
 	}
+
+	if(_.isNumber(this.menuConfig.options.baudRate)) {
+		this.client.term.write(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
+	}
 };
 
 MenuModule.prototype.mciReady = function(mciData) {

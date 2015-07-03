@@ -29,6 +29,7 @@ exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
 exports.setCursorStyle				= setCursorStyle;
+exports.setEmulatedBaudRate			= setEmulatedBaudRate;
 
 
 //
@@ -124,7 +125,6 @@ function getFGColorValue(name) {
 function getBGColorValue(name) {
 	return SGRValues[name + 'BG'];
 }
-
 
 
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
@@ -393,3 +393,24 @@ function goHome() {
 function disableVT100LineWrapping() {
 	return ESC_CSI + '7l';
 }
+
+function setEmulatedBaudRate(rate) {
+	var speed = {
+		unlimited	: 0,
+		off			: 0,
+		0			: 0,
+		300			: 1,
+		600			: 2,
+		1200		: 3,
+		2400		: 4,
+		4800		: 5,
+		9600		: 6,
+		19200		: 7,
+		38400		: 8,
+		57600		: 9,
+		76800		: 10,
+		115200		: 11,
+	}[rate] || 0;
+	return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
+};
+

@@ -202,6 +202,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 					this.fillChar = value.substr(0, 1);
 				}
 			}
+			break;
 
 		case 'submit' :
 			if(_.isBoolean(value)) {

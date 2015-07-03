@@ -330,7 +330,6 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
-				//Log.trace( { key : key, ch : ch }, 'User keyboard input');
 				self.log.trace( { key : key, ch : ch }, 'User keyboard input');
 
 				self.emit('key press', ch, key);
@@ -392,7 +391,7 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 		if(err) {
 			cb(err);
 		} else {
-			Log.debug( { menuName : options.name }, 'Goto menu module');
+			self.log.debug( { menuName : options.name }, 'Goto menu module');
 
 			modInst.enter(self);
 
@@ -414,7 +413,7 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 	var self = this;
 
 	function handler(err) {
-		Log.error(err);
+		self.log.error(err);
 
 		self.term.write(ansi.resetScreen());
 		self.term.write('An unrecoverable error has been encountered!\n');

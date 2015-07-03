@@ -5,7 +5,6 @@ var View			= require('./view.js').View;
 var miscUtil		= require('./misc_util.js');
 var strUtil			= require('./string_util.js');
 var ansi			= require('./ansi_term.js');
-//var TextBuffer		= require('./text_buffer.js').TextBuffer;
 
 var assert			= require('assert');
 var _				= require('lodash');
@@ -51,12 +50,8 @@ var _				= require('lodash');
 //
 //	To-Do
 //	
-//	* Page up/down just divide by and set top index
 //	* Index pos % for emit scroll events
-//	* Fix cursor when loading text
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
-//	* Word wrapping is a bit broke: cannot fill entire self.dimens.width (off by 1-2)
-//	* Contigous words will break word wrapping... is not breaking mid word properly
 //	* Fix backspace when col=0 (e.g. bs to prev line)
 
 
