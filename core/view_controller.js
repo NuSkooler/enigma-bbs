@@ -4,7 +4,7 @@
 //	ENiGMA½
 var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
-var Log				= require('./logger.js').log;
+//var Log				= require('./logger.js').log;
 var Config			= require('./config.js').config;
 var asset			= require('./asset.js');
 var ansi			= require('./ansi_term.js');
@@ -159,7 +159,7 @@ function ViewController(options) {
 			var view		= self.getView(viewId);
 			
 			if(!view) {
-				Log.warn( { viewId : viewId }, 'Cannot find view');
+				self.client.log.warn( { viewId : viewId }, 'Cannot find view');
 				nextItem(null);
 				return;
 			}
@@ -356,7 +356,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 			function prepareFormSubmission(callback) {
 
 				self.on('submit', function promptSubmit(formData) {
-					Log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
+					self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
 					menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
 				});
@@ -421,7 +421,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			}
 		}
 
-		Log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
+		self.client.log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
 		return true;
 	};
 
@@ -433,7 +433,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 
 					if(err) {
 						//	non-fatal
-						Log.trace(
+						self.client.log.trace(
 							{ error : err, mci : Object.keys(options.mciMap), formId : formIdKey },
 							'Unable to find matching form configuration');
 					}
@@ -476,7 +476,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 
 				self.on('submit', function formSubmit(formData) {
 
-					Log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Form submit');
+					self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Form submit');
 
 					//
 					//	Locate configuration for this form ID
@@ -488,7 +488,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 						confForFormId = formConfig.submit['*'];
 					} else {
 						//	no configuration for this submitId
-						Log.debug( { formId : formData.submitId }, 'No configuration for form ID');
+						delf.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
 						return;
 					}
 
@@ -576,7 +576,7 @@ ViewController.prototype.getFormData = function() {
 				}
 			}
 		} catch(e) {
-			Log.error(e);	//	:TODO: Log better ;)
+			self.client.log.error(e);	//	:TODO: Log better ;)
 		}
 	}
 

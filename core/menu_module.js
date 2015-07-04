@@ -178,7 +178,7 @@ MenuModule.prototype.standardMCIReadyHandler = function(mciData) {
 	var viewsReady = function(err) {
 		//	:TODO: what should really happen here?
 		if(err) {
-			Log.warn(err);
+			self.client.log.warn(err);
 		}
 	};
 
