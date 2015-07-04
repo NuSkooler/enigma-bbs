@@ -471,8 +471,66 @@
 			"art"		: "demo_fse_local_user.ans",
 			"options"	: { "cls" : true },
 			"config"	: {
-				"editorType"	: "netMail"
+				"editorType"	: "netMail",
+				"art"			: {
+					"header"			: "demo_fse_netmail_header.ans",
+					"body"				: "demo_fse_netmail_body.ans",
+					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
+					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+					"footerView"		: "demo_fse_netmail_footer_view.ans"
+				}
 			},
+			"form" : {
+				"0" : {
+					"ET1ET2ET3" : {
+						"mci" : {
+							"ET1" : {
+								//	:TODO: from/to may be set by args
+								//	:TODO: focus may change dep on view vs edit
+								"width"		: 36,
+								"focus"		: true
+							},
+							"ET2" : {
+								"width"		: 36
+							},
+							"ET3" : {
+								"width"		: 65,
+								"maxLength"	: 72,
+								"submit"	: [ "enter" ]
+							}
+						},
+						"submit" : {
+							"3" : [
+								{
+									"value"	: { "3" : null },
+									"action" : "@method:headerSubmit"
+								}
+							]
+						}
+					}
+				},
+				"1" : {
+					"MT1" : {
+						"mci" : {
+							"MT1" : {
+								"width"		: 79,
+								"height"	: 16,
+								"text"		: "",	//	:TODO: should not be req.
+								"submit"	: [ "escape" ]
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: 1,
+									"action"	: "@method:editorEscPressed"
+								}
+							]
+						}
+					}
+				}
+			}
+			/*
 			"form" : {
 				"0" : {
 					"ET1ET2MT3" : {
@@ -504,6 +562,7 @@
 					}
 				}
 			}
+			*/
 		}
 		
 		/*

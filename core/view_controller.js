@@ -74,46 +74,7 @@ function ViewController(options) {
 	};
 
 	this.submitForm = function() {
-		/*
-			Generate a form resonse. Example:
-
-			{
-				id : 0,
-				submitId : 1,
-				value : {
-					"1" : "hurp",
-					"2" : [ 'a', 'b', ... ],
-					"3" 2,
-					"pants" : "no way"
-				}
-
-			}
-		*/
-		var formData = {
-			id			: self.formId,
-			submitId	: self.focusedView.id,
-			value		: {},
-		};
-
-		var viewData;
-		var view;
-		for(var id in self.views) {
-			try {
-				view = self.views[id];
-				viewData = view.getData();
-				if(!_.isUndefined(viewData)) {
-					if(_.isString(view.submitArgName)) {
-						formData.value[view.submitArgName] = viewData;
-					} else {
-						formData.value[id] = viewData;
-					}
-				}
-			} catch(e) {
-				Log.error(e);	//	:TODO: Log better ;)
-			}
-		}
-
-		self.emit('submit', formData);
+		self.emit('submit', this.getFormData());
 	};
 
 	this.getLogFriendlyFormData = function(formData) {
@@ -159,9 +120,6 @@ function ViewController(options) {
 
 	//	:TODO: move this elsewhere
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
-		//	:TODO: This broke at least VerticalMenuView due to order of setting properties... really,
-		//	shouldn't matter what the order is, so that should be fixed.
-
 		for(var propName in conf) {			
 			var propValue;
 			var propAsset = asset.getViewPropertyAsset(conf[propName]);
@@ -176,8 +134,6 @@ function ViewController(options) {
 					default : 
 						propValue = propValue = conf[propName];
 						break;
-
-					
 				}
 			} else {
 				propValue = conf[propName];
@@ -186,141 +142,7 @@ function ViewController(options) {
 			if(!_.isUndefined(propValue)) {
 				view.setPropertyValue(propName, propValue);
 			}
-		}
-
-		//	:TODO: Experimental....
-		/*
-		function setViewProperty2(propName) {
-			if(!_.isUndefined(conf[propName])) {
-				var propValue;
-				var propAsset = asset.getViewPropertyAsset(conf[propName]);
-				if(propAsset) {
-					switch(propAsset.type) {
-						case 'config' :
-							propValue = asset.resolveConfigAsset(config[propName]); 
-							break;
-
-							//	:TODO: handle @art (e.g. text : @art ...)
-
-						default : 
-							propValue = propValue = conf[propName];
-							break;
-
-						
-					}
-				} else {
-					propValue = conf[propName];
-				}
-
-				if(!_.isUndefined(propValue)) {
-					view.setPropertyValue(propName, propValue);
-				}
-			}
-		}
-
-		function setViewProp(propName, setter) {
-			if(!_.isUndefined(conf[propName])) {
-				var propValue;
-				var propAsset = asset.getViewPropertyAsset(conf[propName]);
-				if(propAsset) {
-					switch(propAsset.type) {
-						case 'config' :
-							propValue = asset.resolveConfigAsset(config[propName]); 
-							break;
-
-							//	:TODO: handle @art (e.g. text : @art ...)
-
-						default : 
-							propValue = propValue = conf[propName];
-							break;
-
-						
-					}
-				} else {
-					propValue = conf[propName];
-				}
-
-				if(!_.isUndefined(propValue)) {
-					if(setter) {
-						setter(propValue);
-					} else {
-						view[propName] = propValue;
-					}
-				}
-			}
-		}
-		*/
-
-		//setViewProp('width', function(v) { view.setWidth(parseInt(v, 10)); });
-		//setViewProp('height', function(v) { view.setHeight(parseInt(v, 10)); });
-		//setViewProp('itemSpacing', function(v) { view.setItemSpacing(v); });
-		//setViewProp('items', function(v) { view.setItems(v); });		
-		//setViewProp('text', function(v) { view.setText(v); });
-		//setViewProp('textStyle');
-		//setViewProp('focusTextStyle');
-		//setViewProp('textMaskChar', function(v) { view.textMaskChar = v.substr(0, 1); });
-		//setViewProp('justify');
-		//setViewProp('textOverflow');
-		//setViewProp('maskPattern', function(v) { view.setMaskPattern(v); });
-		//setViewProp('maxLength');
-		//setViewProp('hotKeys', function(v) { view.setHotKeys(v); });
-		//setViewProp('argName', function(v) { view.submitArgName = v; });
-
-		//	:TODO: better yet, just loop through properties directly from the JSON and
-		//	call setPropertyValue(). View should be responsible for any conversions, e.g.
-		//	boolean vs maskchar for 'password', etc.
-
-		/*
-		[ 
-			'width', 'height', 
-			'itemSpacing', 'items', 
-			'text', 'textStyle', 'focusTextStyle', 'textMaskChar',
-			'justify', 'textOverflow',
-			'maskPattern',
-			'maxLength',
-			'fillChar',
-			'password',
-		].forEach(function pn(thePropName) {
-			setViewProperty2(thePropName);
-		});	
-			
-		//
-		//	styleSGRx: 1..25
-		//
-		for(var i = 1; i <= 25; i++) {
-			//	:TODO: fix function in loop
-			setViewProp('styleSGR' + i, function(v) {
-				if(_.isObject(v)) {
-					view['styleSGR' + i] = ansi.getSGRFromGraphicRendition(v, true);
-				} else if(_.isString(v)) {
-					view['styleSGR' + i] = ansi.fromPipeCode(v);
-				}
-			});
-		}
-
-		setViewProp('fillChar', function(v) {
-			if(_.isNumber(v)) {
-				view.fillChar = String.fromCharCode(v);
-			} else if(_.isString(v)) {
-				view.fillChar = v.substr(0, 1);
-			}
-		});
-
-		setViewProp('password', function(v) {
-			if(true === v) {
-				view.textMaskChar = self.client.currentTheme.helpers.getPasswordChar();
-			}
-		});
-
-		setViewProp('submit', function(v) {
-			if(_.isBoolean(v)) {
-				view.submit = v;
-			} else {
-				view.submit = _.isArray(v) && v.length > 0;
-			}
-		});
-	*/
-		
+		}		
 	};
 
 	this.applyViewConfig = function(config, cb) {
@@ -373,7 +195,9 @@ function ViewController(options) {
 		});
 	};
 
-	this.attachClientEvents();
+	if(!options.detached) {
+		this.attachClientEvents();
+	}
 }
 
 util.inherits(ViewController, events.EventEmitter);
@@ -418,6 +242,14 @@ ViewController.prototype.getView = function(id) {
 
 ViewController.prototype.getFocusedView = function() {
 	return this.focusedView;
+};
+
+ViewController.prototype.removeFocus = function() {
+	var v = this.getFocusedView();
+	if(v) {
+		v.setFocus(false);
+		this.focusedView = null;
+	}
 };
 
 ViewController.prototype.switchFocus = function(id) {
@@ -708,6 +540,48 @@ ViewController.prototype.formatMCIString = function(format) {
 		return view.getData();
 	});
 };
+
+ViewController.prototype.getFormData = function() {
+	/*
+		Example form data:
+		{
+			id : 0,
+			submitId : 1,
+			value : {
+				"1" : "hurp",
+				"2" : [ 'a', 'b', ... ],
+				"3" 2,
+				"pants" : "no way"
+			}
+
+		}
+	*/
+	var formData = {
+		id			: this.formId,
+		submitId	: this.focusedView.id,
+		value		: {},
+	};
+
+	var viewData;
+	var view;
+	for(var id in this.views) {
+		try {
+			view = this.views[id];
+			viewData = view.getData();
+			if(!_.isUndefined(viewData)) {
+				if(_.isString(view.submitArgName)) {
+					formData.value[view.submitArgName] = viewData;
+				} else {
+					formData.value[id] = viewData;
+				}
+			}
+		} catch(e) {
+			Log.error(e);	//	:TODO: Log better ;)
+		}
+	}
+
+	return formData;
+}
 
 /*
 ViewController.prototype.formatMenuArgs = function(args) {

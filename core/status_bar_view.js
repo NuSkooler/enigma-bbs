@@ -40,5 +40,25 @@ StatusBarView.prototype.setPanels = function(panels) {
 	|---------------------------------------------|
 	  | stuff |
 */
+	assert(_.isArray(panels));
+
+	this.panels = [];
+
+	var tvOpts = {
+		cursor		: 'hide',
+		position	: { row : this.position.row, col : 0 },
+	};
+
+	panels.forEach(function panel(p) {
+		assert(_.isObject(p));
+		assert(_.has(p, 'width'));
+
+		if(p.text) {
+			this.panels.push( new TextView( { }))
+		} else {
+			this.panels.push( { width : p.width } );
+		}
+	});
+
 };
 
