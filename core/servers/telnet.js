@@ -586,6 +586,8 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 						'Environment variable already exists');
 				} else {
 					self.term.env[name] = evt.envVars[name];
+					Log.debug(
+						{ varName : name, value : evt.envVars[name] }, 'New environment variable');
 				}
 			}
 		});
@@ -599,11 +601,11 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 		self.term.termHeight	= evt.height;
 		
 		if(evt.width > 0) {
-			self.term.env['COLUMNS'] = evt.height;
+			self.term.env.COLUMNS = evt.height;
 		}
 
 		if(evt.height > 0) {
-			self.term.env['ROWS'] = evt.height;
+			self.term.env.ROWS = evt.height;
 		}
 
 		Log.debug({ termWidth : evt.width , termHeight : evt.height, source : 'NAWS' }, 'Window size updated');
@@ -640,21 +642,17 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 };
 
 TelnetClient.prototype.requestTerminalType = function() {
-	var buf = Buffer([ COMMANDS.IAC, COMMANDS.SB, OPTIONS.TERMINAL_TYPE, SB_COMMANDS.SEND, COMMANDS.IAC, COMMANDS.SE ]);
-	/*
-	var buf = Buffer(6);
-	buf[0]	= COMMANDS.IAC;
-	buf[1]	= COMMANDS.SB;
-	buf[2]	= OPTIONS.TERMINAL_TYPE;
-	buf[3]	= SB_COMMANDS.SEND;
-	buf[4]	= COMMANDS.IAC;
-	buf[5]	= COMMANDS.SE;
-	*/
-
+	var buf = new Buffer( [
+		COMMANDS.IAC, 
+		COMMANDS.SB, 
+		OPTIONS.TERMINAL_TYPE, 
+		SB_COMMANDS.SEND, 
+		COMMANDS.IAC, 
+		COMMANDS.SE ]);
 	return this.output.write(buf);
 };
 
-var WANTED_ENVIRONMENT_VARIABLES = [ 'LINES', 'COLUMNS', 'TERM' ];
+var WANTED_ENVIRONMENT_VARIABLES = [ 'LINES', 'COLUMNS', 'TERM', 'TERM_PROGRAM' ];
 
 TelnetClient.prototype.requestEnvironmentVariables = function() {
 	var bufs = buffers();
@@ -662,7 +660,8 @@ TelnetClient.prototype.requestEnvironmentVariables = function() {
 	bufs.push(new Buffer([ COMMANDS.IAC, COMMANDS.SB, OPTIONS.NEW_ENVIRONMENT, SB_COMMANDS.SEND ]));
 
 	for(var i = 0; i < WANTED_ENVIRONMENT_VARIABLES.length; ++i) {
-		bufs.push(new Buffer( [ ENVIRONMENT_VARIABLES_COMMANDS.VAR ]));
+		//bufs.push(new Buffer( [ ENVIRONMENT_VARIABLES_COMMANDS.VAR ]));
+		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ));
 		bufs.push(new Buffer(WANTED_ENVIRONMENT_VARIABLES[i]));	//	:TODO: encoding here?! UTF-8 will work, but shoudl be more explicit
 	}
 
@@ -688,19 +687,19 @@ TelnetClient.prototype.banner = function() {
 
 	this.do.window_size();
 	this.do.new_environment();
-}
+};
 
 function Command(command, client) {
 	this.command	= COMMANDS[command.toUpperCase()];
 	this.client		= client;	
-};
+}
 
 //	Create Command objects with echo, transmit_binary, ...
 Object.keys(OPTIONS).forEach(function(name) {
 	var code = OPTIONS[name];
 
 	Command.prototype[name.toLowerCase()] = function() {
-		var buf = Buffer(3);
+		var buf = new Buffer(3);
 		buf[0]	= COMMANDS.IAC;
 		buf[1]	= this.command;
 		buf[2]	= code;

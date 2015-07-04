@@ -330,7 +330,7 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
-				self.log.trace( { key : key, ch : ch }, 'User keyboard input');
+				self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');
 
 				self.emit('key press', ch, key);
 			}

@@ -5,7 +5,7 @@ var ansi		= require('./ansi_term.js');
 var colorCodes	= require('./color_codes.js');
 var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
-var Log			= require('./logger.js').log;
+//var Log			= require('./logger.js').log;
 var Config		= require('./config.js').config;
 
 
@@ -40,7 +40,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		//	values that seem obviously bad.
 		//
 		if(h < 10 || w < 10) {
-			Log.warn(
+			client.log.warn(
 				{ height : h, width : w }, 
 				'Ignoring ANSI CPR screen size query response due to very small values');
 			cb(false);
@@ -50,7 +50,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		client.term.termHeight	= h;
 		client.term.termWidth	= w;
 
-		Log.debug(
+		client.log.debug(
 			{ 
 				termWidth	: client.term.termWidth, 
 				termHeight	: client.term.termHeight, 
@@ -58,6 +58,8 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			}, 
 			'Window size updated'
 			);
+
+		cb(true);
 	};
 
 	client.once('cursor position report', cprListener);
@@ -65,7 +67,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 	//	give up after 2s
 	setTimeout(function onTimeout() {
 		client.removeListener('cursor position report', cprListener);
-		cb(true);
+		cb(false);
 	}, 2000);
 
 	client.term.write(ansi.queryScreenSize());
@@ -79,7 +81,6 @@ function prepareTerminal(term) {
 
 function displayBanner(term) {
 	//	:TODO: add URL(s) to banner
-	//term.write(ansi.fromPipeCode(util.format('' + 
 	term.write(colorCodes.pipeToAnsi(util.format(
 		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n' +
 		'|00|33Copyright (c) 2014-2015 Bryan Ashby\n' + 
@@ -101,7 +102,7 @@ function connectEntry(client) {
 			//	Default to DOS size 80x25. 
 			//
 			//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
-			Log.warn('Failed to negotiate term size; Defaulting to 80x25!');
+			client.log.warn('Failed to negotiate term size; Defaulting to 80x25!');
 			
 			term.termHeight	= 25;
 			term.termWidth	= 80;
