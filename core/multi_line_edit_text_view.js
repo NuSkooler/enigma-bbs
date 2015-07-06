@@ -780,8 +780,7 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.keyPressInsert = function() {
-		//	:TODO: emit event
-		self.overtypeMode = !self.overtypeMode;
+		self.toggleTextEditMode();
 	};
 
 	this.keyPressTab = function() {
@@ -1006,11 +1005,13 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.emitPosition = function() {
-		self.emit(
-			'cursor position', 
-			{ row : self.getTextLinesIndex(self.cursorPos.row), col : self.cursorPos.col });
+		self.emit('cursor position', 	self.getEditPosition());
 	};
 
+	this.toggleTextEditMode = function() {
+		self.overtypeMode = !self.overtypeMode;
+		self.emit('text edit mode', self.getTextEditMode());
+	};
 }
 
 require('util').inherits(MultiLineEditTextView, View);
@@ -1091,3 +1092,12 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 		MultiLineEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 	}
 };
+
+MultiLineEditTextView.prototype.getTextEditMode = function() {
+	return this.overtypeMode ? 'overtype' : 'insert';
+};
+
+MultiLineEditTextView.prototype.getEditPosition = function() {
+	return { row : this.getTextLinesIndex(this.cursorPos.row), col : this.cursorPos.col }
+};
+

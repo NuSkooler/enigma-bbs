@@ -432,8 +432,15 @@ function TelnetClient(input, output) {
 
 		var i;
 		while((i = bufs.indexOf(IAC_BUF)) >= 0) {
+			/*
+			if(bufs.length < (i + 1)) {
+				i = MORE_DATA_REQUIRED;
+				break;
+			}
+			*/
 			//	:TODO: Android client Irssi ConnectBot asserts here:
-			assert(bufs.length > (i + 1), 'bufs.length=' + bufs.length + ' i=' + i + ' bufs=' + bufs);
+			assert(bufs.length > (i + 1), 
+				'bufs.length=' + bufs.length + ' i=' + i + ' bufs=' + require('../string_util.js').debugEscapedString(bufs.toBuffer()))
 			
 			if(i > 0) {
 				self.emit('data', bufs.splice(0, i).toBuffer());

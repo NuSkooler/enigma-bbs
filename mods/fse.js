@@ -133,6 +133,10 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
+				var bodyView = self.getBodyView();
+				self.updateTextEditMode(bodyView.getTextEditMode());
+				self.updateEditModePosition(bodyView.getEditPosition());
+
 				self.viewControllers.body.removeFocus();	//	:TODO: Change vc to allow *not* setting focus @ create	
 				self.viewControllers.header.switchFocus(1);
 			}
@@ -147,8 +151,20 @@ function FullScreenEditorModule(options) {
 		if('edit' === this.editorMode) {
 			var posView = self.viewControllers[self.getFooterName(false)].getView(1);
 			if(posView) {
-				posView.setText(pos.row + ',' + pos.col);
-				self.getBodyView().setFocus(true);
+				self.client.term.rawWrite(ansi.savePos());
+				posView.setText(_.padLeft(String(pos.row + 1), 2, '0') + ',' + _.padLeft(String(pos.col + 1), 2, '0'));
+				self.client.term.rawWrite(ansi.restorePos());
+			}
+		}
+	};
+
+	this.updateTextEditMode = function(mode) {
+		if('edit' === this.editorMode) {
+			var modeView = self.viewControllers[self.getFooterName(false)].getView(2);
+			if(modeView) {
+				self.client.term.rawWrite(ansi.savePos());
+				modeView.setText('insert' === mode ? 'INS' : 'OVR');
+				self.client.term.rawWrite(ansi.restorePos());	
 			}
 		}
 	};
@@ -162,6 +178,10 @@ function FullScreenEditorModule(options) {
 
 			self.getBodyView().on('cursor position', function cursorPosUpdate(pos) {
 				self.updateEditModePosition(pos);
+			});
+
+			self.getBodyView().on('text edit mode', function textEditMode(mode) {
+				self.updateTextEditMode(mode);
 			});
 		},
 		editorEscPressed : function(formData, extraArgs) {

@@ -159,8 +159,6 @@ function startListening() {
 
 			addNewClient(client);
 
-			//logger.log.info({ clientId : client.runtime.id, from : client.address(), server : module.moduleInfo.name }, 'Client connected');
-
 			client.on('ready', function onClientReady() {
 				//	Go to module -- use default error handler
 				prepareClient(client, function onPrepared() {
@@ -198,20 +196,14 @@ function addNewClient(client) {
 	//	Create a client specific logger 
 	client.log = logger.log.child( { clientId : id } );
 
-	//	:TODO: if client.log concept is kept, clean this up to use it:
+	var connInfo = { ip : client.input.remoteAddress };
 
-	var connInfo = {
-		connectionCount : clientConnections.length, 
-		clientId		: client.runtime.id,
-	};
-
-	if(logger.log.debug()) {
-		connInfo.address = client.address();
-	} else {
-		connInfo.ip = client.address().address;
+	if(client.log.debug()) {
+		connInfo.port		= client.input.localPort;
+		connInfo.family		= client.input.localFamily;
 	}
-	
-	logger.log.info(connInfo, 'Client connected');
+
+	client.log.info(connInfo, 'Client connected');
 
 	return id;
 }
