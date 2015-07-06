@@ -98,7 +98,7 @@ function createMessageBaseTables() {
 		'	subject,'										+	//	FTS @ message_fts
 		'	message,'										+ 	//	FTS @ message_fts
 		'	modified_timestamp	DATETIME NOT NULL,'			+
-		'	UNIQUE(message_uuid)'							+ 
+		'	UNIQUE(message_uuid),'							+ 
 		'	FOREIGN KEY(area_id) REFERENCES message_area(area_id)'	+
 		');'
 	);
@@ -109,6 +109,22 @@ function createMessageBaseTables() {
 		'	subject,' +
 		'	message' +
 		');'
+	);
+
+	dbs.message.run(
+		'CREATE TRIGGER message_before_update BEFORE UPDATE ON message BEGIN'	+
+  		'	DELETE FROM message_fts WHERE docid=old.rowid;'						+
+		'END;'																	+
+		'CREATE TRIGGER message_before_delete BEFORE DELETE ON message BEGIN'	+
+  		'	DELETE FROM message_fts WHERE docid=old.rowid;'						+
+		'END;'																	+
+		''																		+
+		'CREATE TRIGGER message_after_update AFTER UPDATE ON message BEGIN'		+
+		'	INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);'	+
+		'END;'																	+
+		'CREATE TRIGGER message_after_insert AFTER INSERT ON message BEGIN'		+
+		'	INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);'	+
+		'END;'
 	);
 
 	dbs.message.run(
