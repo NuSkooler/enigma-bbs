@@ -77,11 +77,6 @@ var CONTROL = {
 	//	apparently some terms can report screen size and text area via 18t and 19t
 };
 
-/*
-	DECTERM stuff. Probably never need
-	hide			: '?25l',
-	show			: '?25h',*/
-
 //
 //	Select Graphics Rendition
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt

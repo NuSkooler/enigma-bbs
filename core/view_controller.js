@@ -305,7 +305,7 @@ ViewController.prototype.setViewOrder = function(order) {
 };
 
 ViewController.prototype.redrawAll = function(initialFocusId) {
-	this.client.term.write(ansi.hideCursor());
+	this.client.term.rawWrite(ansi.hideCursor());
 	
 	for(var id in this.views) {
 		if(initialFocusId === id) {
@@ -314,7 +314,7 @@ ViewController.prototype.redrawAll = function(initialFocusId) {
 		this.views[id].redraw();
 	}
 
-	this.client.term.write(ansi.showCursor());
+	this.client.term.rawWrite(ansi.showCursor());
 };
 
 ViewController.prototype.loadFromPromptConfig = function(options, cb) {

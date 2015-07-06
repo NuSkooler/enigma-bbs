@@ -5,7 +5,6 @@ var ansi		= require('./ansi_term.js');
 var colorCodes	= require('./color_codes.js');
 var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
-//var Log			= require('./logger.js').log;
 var Config		= require('./config.js').config;
 
 

@@ -117,6 +117,7 @@ function MenuModule(options) {
 			],
 			function complete(err) {
 				if(err) {
+					console.log(err)
 					//	:TODO: what to do exactly?????
 				}
 

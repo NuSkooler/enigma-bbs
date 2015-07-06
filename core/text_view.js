@@ -81,7 +81,7 @@ function TextView(options) {
 			this.justify,
 			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
 			this.getStyleSGR(1) || this.getSGR()
-			));
+			), false);
 	};
 
 	this.getEndOfTextColumn = function() {

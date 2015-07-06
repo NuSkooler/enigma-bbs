@@ -107,10 +107,28 @@ ClientTerminal.prototype.isANSI = function() {
 	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi' ].indexOf(this.termType) > -1;
 };
 
+/*
 ClientTerminal.prototype.write = function(s, convertLineFeeds) {
 	convertLineFeeds = _.isUndefined(convertLineFeeds) ? this.convertLF : convertLineFeeds;
 	if(convertLineFeeds && _.isString(s)) {
 		s = s.replace(/\n/g, '\r\n');
 	}
-	this.output.write(iconv.encode(s, this.outputEncoding));
+	this.output.write(this.iconv.encode(s, this.outputEncoding));
 };
+*/
+ClientTerminal.prototype.write = function(s, convertLineFeeds) {
+	this.output.write(this.encode(s, convertLineFeeds));
+};
+
+ClientTerminal.prototype.rawWrite = function(s) {
+	this.output.write(s);
+};
+
+ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
+	convertLineFeeds = _.isUndefined(convertLineFeeds) ? this.convertLF : convertLineFeeds;
+	if(convertLineFeeds && _.isString(s)) {
+		s = s.replace(/\n/g, '\r\n');
+	}
+	return iconv.encode(s, this.outputEncoding);
+};
+

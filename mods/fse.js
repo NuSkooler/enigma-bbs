@@ -3,6 +3,7 @@
 
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var ViewController		= require('../core/view_controller.js').ViewController;
+var ansi				= require('../core/ansi_term.js');
 
 var async				= require('async');
 var assert				= require('assert');
@@ -25,30 +26,25 @@ function FullScreenEditorModule(options) {
 	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
 	this.editorMode	= 'edit';	//	:TODO: This needs to be passed in via args
 
+	this.getFooterName = function(menu) {
+		return true === menu ? 
+			'footerEditMenu' : {
+				edit : 'footerEdit',
+				view : 'footerView',
+			}[self.editorMode];
+	};
+
 	this.initSequence = function() {
 		var mciData = { };
 		var art		= self.menuConfig.config.art;
 		assert(_.isObject(art));
 
-		//	:TODO: async.series here?
-		async.waterfall(
+		async.series(
 			[
 				function beforeDisplayArt(callback) {
 					self.beforeArt();
 					callback(null);
 				},
-				/*
-				function displayMainArt(callback) {
-					if(_.isString(self.menuConfig.art)) {
-						self.displayArtAsset(self.menuConfig.art, function frameDisplayed(err, artData) {
-							mciData.main = artData;
-							callback(err);
-						});
-					} else {
-						callback(null);	//	:TODO: should probably throw error... can't do much without this
-					}
-				},
-				*/
 				function displayArtHeaderAndBody(callback) {
 					assert(_.isString(art.header));
 					assert(_.isString(art.body));
@@ -62,8 +58,26 @@ function FullScreenEditorModule(options) {
 						callback(err);
 					});
 				},
-				function displayArtFooter(callback) {
+				function moveToFooterPosition(callback) {
+					//
+					//	Calculate footer staring position
+					//
+					//	row = (header height + body height)
+					//
+					//	Header: mciData.body.height
+					//	Body  : We must find this in the config / theme
+					//
+					//	:TODO: don't hard code this -- allow footer to be themed/etc.
+					self.client.term.rawWrite(ansi.goto(23, 1));
 					callback(null);
+				},
+				function displayArtFooter(callback) {
+					var footerName = self.getFooterName(false);
+
+					self.displayArtAsset(art[footerName], function artDisplayed(err, artData) {
+						mciData[footerName] = artData;
+						callback(err);
+					});
 				},
 				function afterArtDisplayed(callback) {
 					self.mciReady(mciData);
@@ -88,7 +102,7 @@ function FullScreenEditorModule(options) {
 
 					self.addViewController(
 						'header', 
-						new ViewController( { client : self.client } )
+						new ViewController( { client : self.client, formId : 0 } )
 					).loadFromMenuConfig(menuLoadOpts, function headerReady(err) {
 						callback(err);
 					});
@@ -99,8 +113,21 @@ function FullScreenEditorModule(options) {
 
 					self.addViewController(
 						'body',
-						new ViewController( { client : self.client } )
+						new ViewController( { client : self.client, formId : 1 } )
 					).loadFromMenuConfig(menuLoadOpts, function bodyReady(err) {
+						callback(err);
+					});
+				},
+				function footer(callback) {
+					var footerName = self.getFooterName(false);
+
+					menuLoadOpts.formId = 2;
+					menuLoadOpts.mciMap = mciData[footerName].mciMap;
+
+					self.addViewController(
+						footerName,
+						new ViewController( { client : self.client, formId : 2 } )
+					).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
 						callback(err);
 					});
 				}
@@ -112,25 +139,30 @@ function FullScreenEditorModule(options) {
 		);		
 	};
 
-	/*
-	this.mciReadyHandlerNetMail = function(mciData) {
-		var mainVc = self.addViewController('main', new ViewController( { client : self.client } ));
-
-		var menuLoadOpts = {
-			callingMenu	: self,
-			mciMap		: mciData.main.mciMap,
-			formId		: 0,
-		};
-		
-		mainVc.loadFromMenuConfig(menuLoadOpts, function viewsReady(err) {
-		});
+	this.getBodyView = function() {
+		return self.viewControllers.body.getView(1);
 	};
-	*/
+
+	this.updateEditModePosition = function(pos) {
+		if('edit' === this.editorMode) {
+			var posView = self.viewControllers[self.getFooterName(false)].getView(1);
+			if(posView) {
+				posView.setText(pos.row + ',' + pos.col);
+				self.getBodyView().setFocus(true);
+			}
+		}
+	};
+
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
-			console.log('submit header:\n' + JSON.stringify(self.viewControllers.header.getFormData()))
+//			console.log('submit header:\n' + JSON.stringify(self.viewControllers.header.getFormData()))
+			self.viewControllers.header.removeFocus();
 			self.viewControllers.body.switchFocus(1);
+
+			self.getBodyView().on('cursor position', function cursorPosUpdate(pos) {
+				self.updateEditModePosition(pos);
+			});
 		},
 		editorEscPressed : function(formData, extraArgs) {
 			

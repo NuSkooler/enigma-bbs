@@ -54,13 +54,12 @@ function VerticalMenuView(options) {
 			return;
 		}
 
-		self.client.term.write(ansi.goto(item.row, self.position.col));
-		self.client.term.write(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
-
 		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
-
 		self.client.term.write(
-			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify));
+			ansi.goto(item.row, self.position.col) +
+			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
+			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
+			);
 	};
 }
 

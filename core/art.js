@@ -426,6 +426,7 @@ function display(options, cb) {
 	var generatedId		= 100;
 
 	var cprListener = function(pos) {
+		console.log(pos)
 		if(mciPosQueue.length > 0) {
 			var forMapItem = mciPosQueue.shift();
 			mciMap[forMapItem].position = pos;
@@ -437,6 +438,7 @@ function display(options, cb) {
 	};
 
 	function completed() {
+		console.log('completed')
 		options.client.removeListener('cursor position report', cprListener);
 		parser.removeAllListeners();	//	:TODO: Necessary???
 
@@ -507,7 +509,8 @@ function display(options, cb) {
 
 			mciPosQueue.push(mapKey);
 
-			options.client.term.write(ansi.queryPos(), false);	//	:TODO: don't convert LF's
+			console.log('querying pos...')
+			options.client.term.rawWrite(ansi.queryPos());
 		}
 	});
 
@@ -542,12 +545,12 @@ function display(options, cb) {
 	}
 
 	if(ansiFont.length > 1) {
-		options.client.term.write(ansiFont);
+		options.client.term.rawWrite(ansiFont);
 	}
 
 
 	if(iceColors) {
-		options.client.term.write(ansi.blinkToBrightIntensity());
+		options.client.term.rawWrite(ansi.blinkToBrightIntensity());
 	}
 
 	parser.reset(options.art);

@@ -514,7 +514,7 @@
 						"mci" : {
 							"MT1" : {
 								"width"		: 79,
-								"height"	: 16,
+								"height"	: 17,
 								"text"		: "",	//	:TODO: should not be req.
 								"submit"	: [ "escape" ]
 							}
@@ -526,6 +526,18 @@
 									"action"	: "@method:editorEscPressed"
 								}
 							]
+						}
+					}
+				},
+				"2" : {
+					"TL1TL2" :  {
+						"mci" : {
+							"TL1" : {
+								"width"	: 5
+							},
+							"TL2" : {
+								"width" : 4
+							}
 						}
 					}
 				}

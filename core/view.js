@@ -93,12 +93,12 @@ function View(options) {
 	};
 
 	this.hideCusor = function() {
-		self.client.term.write(ansi.hideCursor());
+		self.client.term.rawWrite(ansi.hideCursor());
 	};
 
 	this.restoreCursor = function() {
 		//this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
-		this.client.term.write('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
+		this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
 	};
 }
 
