@@ -92,6 +92,13 @@ function connectEntry(client) {
 	//	:TODO: Enthral for example queries cursor position & checks if it worked. This might be good
 	//	:TODO: How to detect e.g. if show/hide cursor can work? Probably can if CPR is avail
 
+	//
+	//	Some terminal clients can be detected using a nonstandard ANSI DSR
+	//
+	term.rawWrite(ansi.queryDeviceAttributes(0));
+
+	//	:TODO: PuTTY will apparently respond with "PuTTY" if a CTRL-E is sent to it
+
 	//	
 	//	If we don't yet know the client term width/height,
 	//	try with a nonstandard ANSI DSR type request.

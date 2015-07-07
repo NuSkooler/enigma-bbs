@@ -30,6 +30,7 @@ function ClientTerminal(output) {
 	var termType		= 'unknown';
 	var termHeight		= 0;
 	var termWidth		= 0;
+	var termClient		= 'unknown';
 
 	//	Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
 	this.env			= {};
@@ -64,9 +65,11 @@ function ClientTerminal(output) {
 			//	SCOANSI
 			//	VT100
 			//	XTERM
+			//		* PuTTY
 			//	LINUX
 			//	QNX
 			//	SCREEN
+			//		* ConnectBot
 			//
 			if(this.isANSI()) {
 				this.outputEncoding = 'cp437';
@@ -74,6 +77,10 @@ function ClientTerminal(output) {
 				//	:TODO: See how x84 does this -- only set if local/remote are binary
 				this.outputEncoding = 'utf8';
 			}
+
+			//	:TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
+			//	Windows telnet will send "VTNT". If so, set termClient='windows'
+			//	there are some others on the page as well
 
 			Log.debug( { encoding : this.outputEncoding }, 'Set output encoding due to terminal type change');
 		}
@@ -98,6 +105,17 @@ function ClientTerminal(output) {
 			if(height > 0) {
 				termHeight = height;
 			}
+		}
+	});
+
+	Object.defineProperty(this, 'termClient', {
+		get : function() {
+			return termClient;
+		},
+		set : function(tc) {
+			termClient = tc;
+
+			Log.debug( { termClient : this.termClient }, 'Set known terminal client');
 		}
 	});
 }

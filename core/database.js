@@ -112,17 +112,17 @@ function createMessageBaseTables() {
 	);
 
 	dbs.message.run(
-		'CREATE TRIGGER message_before_update BEFORE UPDATE ON message BEGIN'	+
+		'CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN'	+
   		'	DELETE FROM message_fts WHERE docid=old.rowid;'						+
 		'END;'																	+
-		'CREATE TRIGGER message_before_delete BEFORE DELETE ON message BEGIN'	+
+		'CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN'	+
   		'	DELETE FROM message_fts WHERE docid=old.rowid;'						+
 		'END;'																	+
 		''																		+
-		'CREATE TRIGGER message_after_update AFTER UPDATE ON message BEGIN'		+
+		'CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN'		+
 		'	INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);'	+
 		'END;'																	+
-		'CREATE TRIGGER message_after_insert AFTER INSERT ON message BEGIN'		+
+		'CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN'		+
 		'	INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);'	+
 		'END;'
 	);

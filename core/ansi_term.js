@@ -73,6 +73,8 @@ var CONTROL = {
 	hideCursor		: '?25l',	//	Nonstandard - cterm.txt
 	showCursor		: '?25h',	//	Nonstandard - cterm.txt
 
+	queryDeviceAttributes	: 'c',	//	Nonstandard - cterm.txt
+
 	//	:TODO: see https://code.google.com/p/conemu-maximus5/wiki/AnsiEscapeCodes
 	//	apparently some terms can report screen size and text area via 18t and 19t
 };

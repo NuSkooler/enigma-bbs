@@ -477,6 +477,11 @@ function TelnetClient(input, output) {
 	this.input.on('end', function() {
 		self.emit('end');
 	});
+
+	this.input.on('error', function sockError(err) {
+		Log.debug(err);	//	:TODO: probably something better...
+		self.emit('end');
+	});
 }
 
 util.inherits(TelnetClient, baseClient.Client);

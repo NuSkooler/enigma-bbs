@@ -392,8 +392,9 @@ function MultiLineEditTextView(options) {
 		var absPos;
 
 		if(self.getTextLength(index) > self.dimens.width) {
-			console.log('textLen=' + self.getTextLength(index) + ' / ' + self.dimens.width + ' / ' +
-				JSON.stringify(self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col)))
+			//console.log('textLen=' + self.getTextLength(index) + ' / ' + self.dimens.width + ' / ' +
+			//	JSON.stringify(self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col)))
+
 			//
 			//	Update word wrapping and |cursorOffset| if the cursor
 			//	was within the bounds of the wrapped text
@@ -408,22 +409,27 @@ function MultiLineEditTextView(options) {
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
 			if(!_.isUndefined(cursorOffset)) {
-				console.log('cursorOffset=' + cursorOffset)
+				//console.log('cursorOffset=' + cursorOffset)
 				self.cursorBeginOfNextLine();
 				self.cursorPos.col += cursorOffset;
 				self.client.term.rawWrite(ansi.right(cursorOffset));
 			} else {
+				//console.log('this path')
+				self.moveClientCusorToCursorPos();
+				/*
+				
 				self.cursorPos.row++;
 				self.cursorPos.col = 1;	//	we just added 1 char
 				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 				console.log('absPos=' + JSON.stringify(absPos))
 				self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
+				*/
 			}
 		} else {
 			//
 			//	We must only redraw from col -> end of current visible line
 			//
-			console.log('textLen=' + self.getTextLength(index))
+			//console.log('textLen=' + self.getTextLength(index))
 			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 			self.client.term.write(
 				ansi.hideCursor() + 

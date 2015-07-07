@@ -60,7 +60,8 @@ function getIntArgArray(array) {
 	return array;
 }
 
-var RE_DSR_RESPONSE_ANYWHERE		= /(?:\u001b\[)([0-9\;]+)([R])/;
+var RE_DSR_RESPONSE_ANYWHERE		= /(?:\u001b\[)([0-9\;]+)(R)/;
+var RE_DEV_ATTR_RESPONSE_ANYWHERE	= /(?:\u001b\[)[\=\?]([0-9a-zA-Z\;]+)(c)/;
 var RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
 var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
@@ -74,6 +75,7 @@ var RE_ESC_CODE_ANYWHERE			= new RegExp( [
 		RE_FUNCTION_KEYCODE_ANYWHERE.source, 
 		RE_META_KEYCODE_ANYWHERE.source, 
 		RE_DSR_RESPONSE_ANYWHERE.source,
+		RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
 		/\u001b./.source
 	].join('|'));
 
@@ -98,7 +100,7 @@ function Client(input, output) {
 	this.output				= output;
 	this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
-	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };	
+	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 
 	//
 	//	Peek at incoming |data| and emit events for any special
@@ -110,6 +112,32 @@ function Client(input, output) {
 	//	*	http://www.ansi-bbs.org/ansi-bbs-core-server.html
 	//	*	Christopher Jeffrey's Blessed library @ https://github.com/chjj/blessed/
 	//
+	this.getTermClient = function(deviceAttr) {
+		var termClient = {
+			//
+			//	See http://www.fbl.cz/arctel/download/techman.pdf
+			//
+			//	Known clients:
+			//	* Irssi ConnectBot (Android)
+			//
+			'63;1;2'		: 'arctel',
+		}[deviceAttr];
+
+		if(!termClient) {
+			if(_.startsWith(deviceAttr, '67;84;101;114;109')) {
+				//	
+				//	See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+				//	
+				//	Known clients:
+				//	* SyncTERM
+				//
+				termClient = 'cterm';
+			}
+		}
+
+		return termClient;
+	};
+
 	this.isMouseInput = function(data) {
 		return /\x1b\[M/.test(data) ||
 		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) || 
@@ -256,12 +284,18 @@ function Client(input, output) {
 			var parts;
 
 			if((parts = RE_DSR_RESPONSE_ANYWHERE.exec(s))) {
-				if('R' === parts[2]) {
+				if('R' === parts[2]) {	//	:TODO: this should be a assert -- currently only looking for R, unless we start to handle 'n', or others
 					var cprArgs = getIntArgArray(parts[1].split(';'));
 					if(2 === cprArgs.length) {
 						self.emit('cursor position report', cprArgs);
 					}
 				}
+			} else if((parts = RE_DEV_ATTR_RESPONSE_ANYWHERE.exec(s))) {
+				assert('c' === parts[2]);
+				var termClient = self.getTermClient(parts[1]);
+				if(termClient) {
+					self.term.termClient = termClient;
+				}				
 			} else if('\r' === s) {
 				key.name = 'return';
 			} else if('\n' === s) {
