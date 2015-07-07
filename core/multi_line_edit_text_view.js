@@ -356,7 +356,9 @@ function MultiLineEditTextView(options) {
 			//	treat all of these things using the physical approach, but this seems
 			//	a bit odd in this context.
 			//
-			var hadEol = self.textLines[index].eol;
+			var isLastLine	= (index === self.textLines.length - 1);
+			var hadEol		= self.textLines[index].eol;
+
 			self.textLines.splice(index, 1);
 			if(hadEol && self.textLines.length > index && !self.textLines[index].eol) {
 				self.textLines[index].eol = true;
@@ -367,14 +369,22 @@ function MultiLineEditTextView(options) {
 			//	:TODO: Make this a method
 			if(self.textLines.length < 1) {
 				self.textLines = [ { text : '', eol : true } ];
+				isLastLine = false;	//	resetting
 			}
 
 			self.cursorPos.col = 0;
 
 			var lastRow = self.redrawRows(self.cursorPos.row, self.dimens.height);
 			self.eraseRows(lastRow, self.dimens.height);
-			
-			self.moveClientCusorToCursorPos();
+
+			//
+			//	If we just deleted the last line in the buffer, move up
+			//
+			if(isLastLine) {
+				self.cursorEndOfPreviousLine();
+			} else {
+				self.moveClientCusorToCursorPos();
+			}
 		}
 	};
 
