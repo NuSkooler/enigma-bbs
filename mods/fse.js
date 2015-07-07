@@ -176,7 +176,7 @@ function FullScreenEditorModule(options) {
 			self.viewControllers.header.removeFocus();
 			self.viewControllers.body.switchFocus(1);
 
-			self.getBodyView().on('cursor position', function cursorPosUpdate(pos) {
+			self.getBodyView().on('edit position', function cursorPosUpdate(pos) {
 				self.updateEditModePosition(pos);
 			});
 

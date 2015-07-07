@@ -625,7 +625,7 @@ function MultiLineEditTextView(options) {
 
 
 	this.keyPressCharacter = function(c) {
-		var index		= self.getTextLinesIndex();
+		var index = self.getTextLinesIndex();
 
 		//
 		//	:TODO: stuff that needs to happen
@@ -643,15 +643,9 @@ function MultiLineEditTextView(options) {
 			self.client.term.write(c);
 		} else {
 			self.insertCharactersInText(c, index, self.cursorPos.col);
-
-			/*if(self.cursorPos.col >= self.dimens.width) {
-				console.log('next line')
-				self.cursorBeginOfNextLine();
-				//self.client.term.write(ansi.right(cursorOffset))
-			}*/
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressUp = function() {
@@ -667,7 +661,7 @@ function MultiLineEditTextView(options) {
 			self.adjustCursorIfPastEndOfLine(true);
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressDown = function() {
@@ -687,7 +681,7 @@ function MultiLineEditTextView(options) {
 			self.adjustCursorIfPastEndOfLine(true);
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressLeft = function() {
@@ -704,7 +698,7 @@ function MultiLineEditTextView(options) {
 			self.cursorEndOfPreviousLine();
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressRight = function() {
@@ -722,7 +716,7 @@ function MultiLineEditTextView(options) {
 			self.cursorBeginOfNextLine();
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressHome = function() {
@@ -735,13 +729,13 @@ function MultiLineEditTextView(options) {
 		console.log('"' + self.getVisibleText() + '"')
 		self.moveClientCusorToCursorPos();
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressEnd = function() {
 		self.cursorPos.col = self.getTextEndOfLineColumn();
 		self.moveClientCusorToCursorPos();
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressPageUp = function() {
@@ -754,7 +748,7 @@ function MultiLineEditTextView(options) {
 			self.moveClientCusorToCursorPos();	//	:TODO: ajust if eol, etc.
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressPageDown = function() {
@@ -765,7 +759,7 @@ function MultiLineEditTextView(options) {
 			self.adjustCursorIfPastEndOfLine(true);
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressLineFeed = function() {
@@ -792,7 +786,7 @@ function MultiLineEditTextView(options) {
 		self.redrawRows(self.cursorPos.row, self.dimens.height);
 		self.cursorBeginOfNextLine();
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressInsert = function() {
@@ -803,7 +797,7 @@ function MultiLineEditTextView(options) {
 		var index = self.getTextLinesIndex();
 		self.insertCharactersInText(self.expandTab(self.cursorPos.col, '\t') + '\t', index, self.cursorPos.col);
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressBackspace = function() {
@@ -848,7 +842,7 @@ function MultiLineEditTextView(options) {
 			//self.keyPressBackspace();
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.keyPressDelete = function() {
@@ -858,7 +852,7 @@ function MultiLineEditTextView(options) {
 			'right',
 			1);
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	//this.keyPressClearLine = function() {
@@ -870,7 +864,7 @@ function MultiLineEditTextView(options) {
 				'delete line');
 		}
 
-		self.emitPosition();
+		self.emitEditPosition();
 	};
 
 	this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
@@ -1020,8 +1014,8 @@ function MultiLineEditTextView(options) {
 		}
 	};
 
-	this.emitPosition = function() {
-		self.emit('cursor position', 	self.getEditPosition());
+	this.emitEditPosition = function() {
+		self.emit('edit position', 	self.getEditPosition());
 	};
 
 	this.toggleTextEditMode = function() {
