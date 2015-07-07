@@ -432,15 +432,16 @@ function TelnetClient(input, output) {
 
 		var i;
 		while((i = bufs.indexOf(IAC_BUF)) >= 0) {
-			/*
-			if(bufs.length < (i + 1)) {
+
+			//
+			//	Some clients will send even IAC separate from data
+			//
+			if(bufs.length <= (i + 1)) {
 				i = MORE_DATA_REQUIRED;
 				break;
 			}
-			*/
-			//	:TODO: Android client Irssi ConnectBot asserts here:
-			assert(bufs.length > (i + 1), 
-				'bufs.length=' + bufs.length + ' i=' + i + ' bufs=' + require('../string_util.js').debugEscapedString(bufs.toBuffer()))
+
+			assert(bufs.length > (i + 1));
 			
 			if(i > 0) {
 				self.emit('data', bufs.splice(0, i).toBuffer());
@@ -451,9 +452,6 @@ function TelnetClient(input, output) {
 			if(MORE_DATA_REQUIRED === i) {
 				break;				
 			} else {
-				//self.emit('event', i);		//	generic event
-				//self.emit(i.command, i);	//	"will", "wont", ...
-
 				if(i.option) {
 					self.emit(i.option, i);	//	"transmit binary", "echo", ...
 				}
