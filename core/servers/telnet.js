@@ -296,12 +296,16 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 	if(event.commandCode !== COMMANDS.SB) {
 		OPTION_IMPLS.NO_ARGS(bufs, i, event);
 	} else {
-		//	We need 4 bytes header + payload + IAC SE
-		if(bufs.length < 7) {
+		//
+		//	We need 4 bytes header + <optional payload> + IAC SE
+		//	Many terminals send a empty list:
+		//		IAC SB NEW-ENVIRON IS IAC SE
+		//
+		if(bufs.length < 6) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		var end = bufs.indexOf(IAC_SE_BUF, 5);	//	look past header bytes
+		var end = bufs.indexOf(IAC_SE_BUF, 4);	//	look past header bytes
 		if(-1 === end) {
 			return MORE_DATA_REQUIRED;
 		}
@@ -340,6 +344,7 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 	 	//	as prefixes we can use for processing.
 	 	//
 	 	//	:TODO: Currently not supporting ESCaped values (ESC + <type>). Probably not really in the wild, but we should be compliant
+	 	//	:TODO: Could probably just convert this to use a regex & handle delims + escaped values... in any case, this is sloppy...
 	 	var params = [];
 	 	var p = 0;
 	 	var j;
@@ -427,8 +432,11 @@ function TelnetClient(input, output) {
 	this.negotiationsComplete	= false;	//	are we in the 'negotiation' phase?
 	this.didReady				= false;	//	have we emit the 'ready' event?
 
+	this.subNegotiationState = {
+		newEnvironRequested	: false,
+	};
+
 	this.input.on('data', function onData(b) {
-		console.log(b)
 		bufs.push(b);
 
 		var i;
@@ -513,10 +521,10 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 		//
 		//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
 		//
-		this.requestEnvironmentVariables();
+		this.requestNewEnvironment();
 	} else {
 		//	:TODO: temporary:
-		console.log('will ' + JSON.stringify(evt));
+		console.log('unhandled will ' + JSON.stringify(evt));
 	}
 };
 
@@ -663,7 +671,6 @@ TelnetClient.prototype.requestTerminalType = function() {
 	this.output.write(buf);
 };
 
-//var WANTED_ENVIRONMENT_VARIABLES = [ 'LINES', 'COLUMNS', 'TERM', 'TERM_PROGRAM' ];
 var WANTED_ENVIRONMENT_VAR_BUFS = [
 	new Buffer( 'LINES' ),
 	new Buffer( 'COLUMNS' ),
@@ -671,13 +678,15 @@ var WANTED_ENVIRONMENT_VAR_BUFS = [
 	new Buffer( 'TERM_PROGRAM' )
 ];
 
-TelnetClient.prototype.requestEnvironmentVariables = function() {
-	return;
-	//	:TODO: This is broken. I think we just need to wait for supress go-ahead/etc. before doing this?
+TelnetClient.prototype.requestNewEnvironment = function() {
+
+	if(this.subNegotiationState.newEnvironRequested) {
+		Log.debug('New environment already requested');
+		return;
+	}
 
 	var self = this;	
 
-	console.log('requesting environment...')
 	var bufs = buffers();
 	bufs.push(new Buffer( [
 		COMMANDS.IAC, 
@@ -690,15 +699,11 @@ TelnetClient.prototype.requestEnvironmentVariables = function() {
 		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
 	}
 
-	bufs.push(new Buffer([ COMMANDS.IAC, COMMANDS.SE ]));
-
-	var out = bufs.toBuffer();
-	console.log('out=')
-	console.log(out)
-	console.log('---')
+	bufs.push(new Buffer([ NEW_ENVIRONMENT_COMMANDS.USERVAR, COMMANDS.IAC, COMMANDS.SE ]));
 
 	self.output.write(bufs.toBuffer());
 
+	this.subNegotiationState.newEnvironRequested = true;
 };
 
 TelnetClient.prototype.banner = function() {
