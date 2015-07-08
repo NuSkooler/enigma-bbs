@@ -103,6 +103,7 @@ function MultiLineEditTextView(options) {
 
 	this.textLines			= [];
 	this.topVisibleIndex	= 0;
+	this.mode				= options.mode || 'edit';	//	edit | preview
 
 	//
 	//	cursorPos represents zero-based row, col positions

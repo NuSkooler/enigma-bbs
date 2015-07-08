@@ -428,6 +428,7 @@ function TelnetClient(input, output) {
 	this.didReady				= false;	//	have we emit the 'ready' event?
 
 	this.input.on('data', function onData(b) {
+		console.log(b)
 		bufs.push(b);
 
 		var i;
@@ -508,7 +509,7 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 		//	See RFC 1091 @ http://www.faqs.org/rfcs/rfc1091.html
 		//
 		this.requestTerminalType();	
-	} else if('environment variables' === evt.option) {
+	} else if('new environment' === evt.option) {
 		//
 		//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
 		//
@@ -659,25 +660,45 @@ TelnetClient.prototype.requestTerminalType = function() {
 		SB_COMMANDS.SEND, 
 		COMMANDS.IAC, 
 		COMMANDS.SE ]);
-	return this.output.write(buf);
+	this.output.write(buf);
 };
 
-var WANTED_ENVIRONMENT_VARIABLES = [ 'LINES', 'COLUMNS', 'TERM', 'TERM_PROGRAM' ];
+//var WANTED_ENVIRONMENT_VARIABLES = [ 'LINES', 'COLUMNS', 'TERM', 'TERM_PROGRAM' ];
+var WANTED_ENVIRONMENT_VAR_BUFS = [
+	new Buffer( 'LINES' ),
+	new Buffer( 'COLUMNS' ),
+	new Buffer( 'TERM' ),
+	new Buffer( 'TERM_PROGRAM' )
+];
 
 TelnetClient.prototype.requestEnvironmentVariables = function() {
-	var bufs = buffers();
-	
-	bufs.push(new Buffer([ COMMANDS.IAC, COMMANDS.SB, OPTIONS.NEW_ENVIRONMENT, SB_COMMANDS.SEND ]));
+	return;
+	//	:TODO: This is broken. I think we just need to wait for supress go-ahead/etc. before doing this?
 
-	for(var i = 0; i < WANTED_ENVIRONMENT_VARIABLES.length; ++i) {
-		//bufs.push(new Buffer( [ ENVIRONMENT_VARIABLES_COMMANDS.VAR ]));
-		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ));
-		bufs.push(new Buffer(WANTED_ENVIRONMENT_VARIABLES[i]));	//	:TODO: encoding here?! UTF-8 will work, but shoudl be more explicit
+	var self = this;	
+
+	console.log('requesting environment...')
+	var bufs = buffers();
+	bufs.push(new Buffer( [
+		COMMANDS.IAC, 
+		COMMANDS.SB, 
+		OPTIONS.NEW_ENVIRONMENT, 
+		SB_COMMANDS.SEND ]
+		));
+
+	for(var i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
+		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
 	}
 
 	bufs.push(new Buffer([ COMMANDS.IAC, COMMANDS.SE ]));
 
-	return this.output.write(bufs.toBuffer());
+	var out = bufs.toBuffer();
+	console.log('out=')
+	console.log(out)
+	console.log('---')
+
+	self.output.write(bufs.toBuffer());
+
 };
 
 TelnetClient.prototype.banner = function() {
@@ -714,19 +735,19 @@ Object.keys(OPTIONS).forEach(function(name) {
 		buf[1]	= this.command;
 		buf[2]	= code;
 		return this.client.output.write(buf);
-	}
+	};
 });
 
 //	Create do, dont, etc. methods on Client
 ['do', 'dont', 'will', 'wont'].forEach(function(command) {
-	function get() {
+	var get = function() {
 		return new Command(command, this);
-	}
+	};
 
 	Object.defineProperty(TelnetClient.prototype, command, {
-		get : get,
-		enumerable : true,
-		configurable : true
+		get				: get,
+		enumerable		: true,
+		configurable	: true
 	});
 });
 

@@ -555,5 +555,4 @@ function display(options, cb) {
 
 	parser.reset(options.art);
 	parser.parse();
-	//parser.parse(options.art);
 }
