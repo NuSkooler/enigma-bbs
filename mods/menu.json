@@ -552,8 +552,8 @@
 						"submit" : {
 							"*" : [
 								{
-									"value"		: { "1" : 1 },
-									"action"	: "@method:editModeMenu1"
+									"value"		: { "1" : 0 },
+									"action"	: "@method:editModeMenu"
 								},
 								{
 									"value"		: 1,

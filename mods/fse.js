@@ -281,7 +281,7 @@ function FullScreenEditorModule(options) {
 				}
 			});
 		},
-		editModeMenu1 : function(formData, extraArgs) {
+		editModeMenu : function(formData, extraArgs) {
 			console.log('menu 1')
 		}
 	};
