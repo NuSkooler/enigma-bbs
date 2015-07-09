@@ -231,19 +231,25 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
+	this.observeEditEvents = function() {
+		var bodyView = self.getBodyView();
+
+		bodyView.on('edit position', function cursorPosUpdate(pos) {
+			self.updateEditModePosition(pos);
+		});
+
+		bodyView.on('text edit mode', function textEditMode(mode) {
+			self.updateTextEditMode(mode);
+		});
+	};
+
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
 			self.viewControllers.header.setFocus(false);
 			self.viewControllers.body.switchFocus(1);
 
-			self.getBodyView().on('edit position', function cursorPosUpdate(pos) {
-				self.updateEditModePosition(pos);
-			});
-
-			self.getBodyView().on('text edit mode', function textEditMode(mode) {
-				self.updateTextEditMode(mode);
-			});
+			self.observeEditEvents();
 		},
 		editModeEscPressed : function(formData, extraArgs) {
 			console.log('editorModeBefore=' + self.editorMode)
@@ -261,6 +267,7 @@ function FullScreenEditorModule(options) {
 								self.viewControllers.footerEditMenu.setFocus(false);
 							}
 							self.viewControllers.body.switchFocus(1);
+							self.observeEditEvents();
 							break;
 
 						case 'editMenu' :
