@@ -24,40 +24,28 @@ function FullScreenEditorModule(options) {
 	this.menuConfig	= options.menuConfig;
 	this.editorType	= this.menuConfig.config.editorType;
 	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
-	this.editorMode	= 'edit';	//	:TODO: This needs to be passed in via args
+	
+	//	:TODO: This needs to be passed in via args:
+	this.editorMode	= 'edit';	//	view | edit | editMenu | 
 
-	this.getFooterName = function(menu) {
-		return true === menu ? 
-			'footerEditMenu' : {
-				edit : 'footerEdit',
-				view : 'footerView',
-			}[self.editorMode];
+	this.getFooterName = function(editorMode) {
+		editorMode = editorMode || this.editorMode;
+		return 'footer' + _.capitalize(editorMode);	//	e.g.. 'footerEditMenu'
 	};
 
-	this.initSequence = function() {
-		var mciData = { };
-		var art		= self.menuConfig.config.art;
-		assert(_.isObject(art));
+	this.getFormId = function(whatFor) {
+		return {
+			header			: 0,
+			body			: 1,
+			footerEdit		: 2,
+			footerEditMenu	: 3,
+			fotoerView		: 4,
+		}[whatFor];
+	};
 
-		async.series(
+	this.redrawFooter = function(options, cb) {
+		async.waterfall(
 			[
-				function beforeDisplayArt(callback) {
-					self.beforeArt();
-					callback(null);
-				},
-				function displayArtHeaderAndBody(callback) {
-					assert(_.isString(art.header));
-					assert(_.isString(art.body));
-
-					async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
-						self.displayArtAsset(art[n], function artDisplayed(err, artData) {
-							mciData[n] = artData;
-							next(err);
-						});
-					}, function complete(err) {
-						callback(err);
-					});
-				},
 				function moveToFooterPosition(callback) {
 					//
 					//	Calculate footer staring position
@@ -71,10 +59,84 @@ function FullScreenEditorModule(options) {
 					self.client.term.rawWrite(ansi.goto(23, 1));
 					callback(null);
 				},
-				function displayArtFooter(callback) {
-					var footerName = self.getFooterName(false);
+				function clearFooterArea(callback) {
+					if(options.clear) {
+						self.client.term.rawWrite(ansi.deleteLine(3));
+					}
+					callback(null);
+				},
+				function displayFooterArt(callback) {
+					var footerArt = self.menuConfig.config.art[options.footerName];
 
-					self.displayArtAsset(art[footerName], function artDisplayed(err, artData) {
+					self.displayArtAsset(footerArt, function artDisplayed(err, artData) {
+						callback(err, artData);
+					});
+				}
+			],
+			function complete(err, artData) {
+				cb(err, artData);
+			}
+		);
+	};
+
+	this.switchFooter = function(cb) {
+		var footerName = self.getFooterName();
+	
+		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
+			if(err) {
+				cb(err);
+				return;
+			}
+
+			var formId = self.getFormId(footerName);
+
+			if(_.isUndefined(self.viewControllers[footerName])) {
+				var menuLoadOpts = {
+					callingMenu	: self,
+					formId		: formId,
+					mciMap		: artData.mciMap
+				};
+
+				self.addViewController(
+					footerName,
+					new ViewController( { client : self.client, formId : formId } )
+				).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
+					cb(err);
+				});
+			} else {
+				self.viewControllers[footerName].redrawAll();
+				cb(null);
+			}
+		});
+	};
+
+	this.initSequence = function() {
+		var mciData = { };
+		var art		= self.menuConfig.config.art;
+		assert(_.isObject(art));
+
+		async.series(
+			[
+				function beforeDisplayArt(callback) {
+					self.beforeArt();
+					callback(null);
+				},
+				function displayHeaderAndBodyArt(callback) {
+					assert(_.isString(art.header));
+					assert(_.isString(art.body));
+
+					async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
+						self.displayArtAsset(art[n], function artDisplayed(err, artData) {
+							mciData[n] = artData;
+							next(err);
+						});
+					}, function complete(err) {
+						callback(err);
+					});
+				},
+				function displayFooter(callback) {
+					var footerName = self.getFooterName();
+					self.redrawFooter( { footerName : footerName }, function artDisplayed(err, artData) {
 						mciData[footerName] = artData;
 						callback(err);
 					});
@@ -97,36 +159,36 @@ function FullScreenEditorModule(options) {
 		async.series(
 			[
 				function header(callback) {
-					menuLoadOpts.formId = 0;
+					menuLoadOpts.formId = self.getFormId('header');
 					menuLoadOpts.mciMap	= mciData.header.mciMap;
 
 					self.addViewController(
 						'header', 
-						new ViewController( { client : self.client, formId : 0 } )
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
 					).loadFromMenuConfig(menuLoadOpts, function headerReady(err) {
 						callback(err);
 					});
 				},
 				function body(callback) {
-					menuLoadOpts.formId	= 1;
+					menuLoadOpts.formId	= self.getFormId('body');
 					menuLoadOpts.mciMap	= mciData.body.mciMap;
 
 					self.addViewController(
 						'body',
-						new ViewController( { client : self.client, formId : 1 } )
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
 					).loadFromMenuConfig(menuLoadOpts, function bodyReady(err) {
 						callback(err);
 					});
 				},
 				function footer(callback) {
-					var footerName = self.getFooterName(false);
+					var footerName = self.getFooterName();
 
-					menuLoadOpts.formId = 2;
+					menuLoadOpts.formId = self.getFormId(footerName);
 					menuLoadOpts.mciMap = mciData[footerName].mciMap;
 
 					self.addViewController(
 						footerName,
-						new ViewController( { client : self.client, formId : 2 } )
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
 					).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
 						callback(err);
 					});
@@ -149,7 +211,7 @@ function FullScreenEditorModule(options) {
 
 	this.updateEditModePosition = function(pos) {
 		if('edit' === this.editorMode) {
-			var posView = self.viewControllers[self.getFooterName(false)].getView(1);
+			var posView = self.viewControllers.footerEdit.getView(1);
 			if(posView) {
 				self.client.term.rawWrite(ansi.savePos());
 				posView.setText(_.padLeft(String(pos.row + 1), 2, '0') + ',' + _.padLeft(String(pos.col + 1), 2, '0'));
@@ -160,7 +222,7 @@ function FullScreenEditorModule(options) {
 
 	this.updateTextEditMode = function(mode) {
 		if('edit' === this.editorMode) {
-			var modeView = self.viewControllers[self.getFooterName(false)].getView(2);
+			var modeView = self.viewControllers.footerEdit.getView(2);
 			if(modeView) {
 				self.client.term.rawWrite(ansi.savePos());
 				modeView.setText('insert' === mode ? 'INS' : 'OVR');
@@ -172,7 +234,6 @@ function FullScreenEditorModule(options) {
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
-//			console.log('submit header:\n' + JSON.stringify(self.viewControllers.header.getFormData()))
 			self.viewControllers.header.removeFocus();
 			self.viewControllers.body.switchFocus(1);
 
@@ -185,7 +246,17 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editorEscPressed : function(formData, extraArgs) {
-			
+			//this.editorMode = 'edit' === this.editorMode ? 'editMenu' : 'edit';
+			self.editorMode = 'editMenu';
+			self.switchFooter(function next(err) {
+				if(err) {
+					//	:TODO:... what now?
+					console.log(err)
+				} else {
+					self.viewControllers.body.removeFocus();
+					self.viewControllers.footerEditMenu.switchFocus(1);
+				}
+			});
 		}
 	};
 }

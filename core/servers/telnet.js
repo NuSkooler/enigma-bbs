@@ -587,7 +587,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 		//	* Map ROWS -> 'termHeight' and only update if ours is 0
 		//	* Add any new variables, ignore any existing
 		//
-		Object.keys(evt.envVars).forEach(function onEnv(name) {
+		Object.keys(evt.envVars || {} ).forEach(function onEnv(name) {
 			if('TERM' === name && 'unknown' === self.term.termType) {
 				self.setTermType(evt.envVars[name]);
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {

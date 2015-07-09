@@ -53,6 +53,8 @@ var _				= require('lodash');
 //	* Index pos % for emit scroll events
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
 //	* Fix backspace when col=0 (e.g. bs to prev line)
+//	* Add back word delete
+//	* 
 
 
 var SPECIAL_KEY_MAP_DEFAULT = {
