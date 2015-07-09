@@ -523,7 +523,7 @@
 							"*" : [
 								{
 									"value"		: 1,
-									"action"	: "@method:editorEscPressed"
+									"action"	: "@method:editModeEscPressed"
 								}
 							]
 						}
@@ -545,8 +545,21 @@
 					"HM1" : {
 						"mci" : {
 							"HM1" : {
-								"items" : [ "Menu 1", "Menu 2", "Menu 3", "Menu 4" ]
+								"items" : [ "Menu 1", "Menu 2", "Menu 3", "Menu 4" ],
+								"submit" : [ "escape" ]
 							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: { "1" : 1 },
+									"action"	: "@method:editModeMenu1"
+								},
+								{
+									"value"		: 1,
+									"action"	: "@method:editModeEscPressed"
+								}
+							]
 						}
 					}
 				}

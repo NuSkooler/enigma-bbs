@@ -245,18 +245,37 @@ function FullScreenEditorModule(options) {
 				self.updateTextEditMode(mode);
 			});
 		},
-		editorEscPressed : function(formData, extraArgs) {
-			//this.editorMode = 'edit' === this.editorMode ? 'editMenu' : 'edit';
-			self.editorMode = 'editMenu';
+		editModeEscPressed : function(formData, extraArgs) {
+			console.log('editorModeBefore=' + self.editorMode)
+			self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
+			console.log('editorModeAfter=' + self.editorMode)
+			//self.editorMode = 'editMenu';
 			self.switchFooter(function next(err) {
 				if(err) {
 					//	:TODO:... what now?
 					console.log(err)
 				} else {
-					self.viewControllers.body.setFocus(false);
-					self.viewControllers.footerEditMenu.switchFocus(1);
+					switch(self.editorMode) {
+						case 'edit' :
+							if(!_.isUndefined(self.viewControllers.footerEditMenu)) {
+								self.viewControllers.footerEditMenu.setFocus(false);
+							}
+							self.viewControllers.body.switchFocus(1);
+							break;
+
+						case 'editMenu' :
+							self.viewControllers.body.setFocus(false);
+							self.viewControllers.footerEditMenu.switchFocus(1);
+							break;
+
+						default : throw new Error('Unexpected mode');
+					}
+					
 				}
 			});
+		},
+		editModeMenu1 : function(formData, extraArgs) {
+			console.log('menu 1')
 		}
 	};
 }
