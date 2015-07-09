@@ -426,7 +426,6 @@ function display(options, cb) {
 	var generatedId		= 100;
 
 	var cprListener = function(pos) {
-		console.log(pos)
 		if(mciPosQueue.length > 0) {
 			var forMapItem = mciPosQueue.shift();
 			mciMap[forMapItem].position = pos;
@@ -438,7 +437,6 @@ function display(options, cb) {
 	};
 
 	function completed() {
-		console.log('completed')
 		options.client.removeListener('cursor position report', cprListener);
 		parser.removeAllListeners();	//	:TODO: Necessary???
 
@@ -509,7 +507,6 @@ function display(options, cb) {
 
 			mciPosQueue.push(mapKey);
 
-			console.log('querying pos...')
 			options.client.term.rawWrite(ansi.queryPos());
 		}
 	});

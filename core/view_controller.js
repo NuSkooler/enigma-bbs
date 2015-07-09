@@ -37,9 +37,8 @@ function ViewController(options) {
 
 	this.clientKeyPressHandler = function(ch, key) {
 		//
-		//	Process key presses treating form submit mapped
-		//	keys special. Everything else is forwarded on to
-		//	the focused View, if any.
+		//	Process key presses treating form submit mapped	keys special. 
+		//	Everything else is forwarded on to the focused View, if any.
 		//
 		if(key) {
 			var submitViewId = self.submitKeyMap[key.name];
@@ -244,15 +243,17 @@ ViewController.prototype.getFocusedView = function() {
 	return this.focusedView;
 };
 
-ViewController.prototype.removeFocus = function() {
-	var v = this.getFocusedView();
-	if(v) {
-		v.setFocus(false);
-		this.focusedView = null;
+ViewController.prototype.setFocus = function(focused) {
+	if(focused) {
+		this.attachClientEvents();
+	} else {
+		this.detachClientEvents();
 	}
 };
 
 ViewController.prototype.switchFocus = function(id) {
+	this.setFocus(true);	//	ensure events are attached
+
 	if(this.focusedView && this.focusedView.acceptsFocus) {
 		this.switchFocusEvent('leave', this.focusedView);
 		this.focusedView.setFocus(false);
@@ -488,7 +489,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 						confForFormId = formConfig.submit['*'];
 					} else {
 						//	no configuration for this submitId
-						delf.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
+						self.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
 						return;
 					}
 

@@ -199,7 +199,7 @@ function FullScreenEditorModule(options) {
 				self.updateTextEditMode(bodyView.getTextEditMode());
 				self.updateEditModePosition(bodyView.getEditPosition());
 
-				self.viewControllers.body.removeFocus();	//	:TODO: Change vc to allow *not* setting focus @ create	
+				self.viewControllers.body.setFocus(false);
 				self.viewControllers.header.switchFocus(1);
 			}
 		);		
@@ -234,7 +234,7 @@ function FullScreenEditorModule(options) {
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
-			self.viewControllers.header.removeFocus();
+			self.viewControllers.header.setFocus(false);
 			self.viewControllers.body.switchFocus(1);
 
 			self.getBodyView().on('edit position', function cursorPosUpdate(pos) {
@@ -253,7 +253,7 @@ function FullScreenEditorModule(options) {
 					//	:TODO:... what now?
 					console.log(err)
 				} else {
-					self.viewControllers.body.removeFocus();
+					self.viewControllers.body.setFocus(false);
 					self.viewControllers.footerEditMenu.switchFocus(1);
 				}
 			});
