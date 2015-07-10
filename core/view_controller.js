@@ -84,7 +84,6 @@ function ViewController(options) {
 				break;
 
 			case 'accept' :	//	:TODO: consider naming this 'done'
-				//	:TODO: check if id is submit, etc.
 				if(self.focusedView && self.focusedView.submit) {
 					self.submitForm();
 				} else {
@@ -177,6 +176,10 @@ function ViewController(options) {
 			var viewId		= parseInt(mciMatch[2]);
 			assert(!isNaN(viewId));
 
+			if(viewId > highestId) {
+				highestId = viewId;
+			}
+
 			var view		= self.getView(viewId);
 			
 			if(!view) {
@@ -207,8 +210,7 @@ function ViewController(options) {
 
 			nextItem(null);
 		},
-		function complete(err) {
-			
+		function complete(err) {		
 			//	default to highest ID if no 'submit' entry present
 			if(!submitId) {
 				self.getView(highestId).submit = true;

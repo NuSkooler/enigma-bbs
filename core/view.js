@@ -207,9 +207,10 @@ View.prototype.setPropertyValue = function(propName, value) {
 		case 'submit' :
 			if(_.isBoolean(value)) {
 				this.submit = value;
-			} else {
+			}/* else {
 				this.submit = _.isArray(value) && value.length > 0;
 			}
+			*/
 			break;
 
 		case 'submitArgName' : this.submitArgName = value; break;
@@ -236,8 +237,8 @@ View.prototype.setFocus = function(focused) {
 };
 
 View.prototype.onKeyPress = function(ch, key) {
-	assert(this.hasFocus, 'View does not have focus');
-	assert(this.acceptsInput, 'View does not accept input');
+	assert(this.hasFocus,		'View does not have focus');
+	assert(this.acceptsInput,	'View does not accept input');
 
 	if(key) {
 		assert(this.specialKeyMap, 'No special key map defined');
