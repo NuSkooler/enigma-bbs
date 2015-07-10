@@ -55,13 +55,13 @@ function FullScreenEditorModule(options) {
 					//	Header: mciData.body.height
 					//	Body  : We must find this in the config / theme
 					//
-					//	:TODO: don't hard code this -- allow footer to be themed/etc.
+					//	:TODO: don't hard code this -- allow footer height to be part of theme/etc.
 					self.client.term.rawWrite(ansi.goto(23, 1));
 					callback(null);
 				},
 				function clearFooterArea(callback) {
 					if(options.clear) {
-						self.client.term.rawWrite(ansi.deleteLine(3));
+						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 					}
 					callback(null);
 				},

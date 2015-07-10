@@ -575,7 +575,7 @@
 					"HM1" : {
 						"mci" : {
 							"HM1" : {
-								"items" : [ "Menu 1", "Menu 2", "Menu 3", "Menu 4" ]
+								"items" : [ "Save", "Discard", "Menu 3", "Help" ]
 							}
 						},
 						"submit" : {
@@ -602,16 +602,19 @@
 								}
 							]
 						},
-						//
-						//	:TODO: concept to replace "submit" per view
-						//	existing submit would remain only as boolean
-						//	...need general way to override keys for a view -- submit, next, etc.
 						"actionKeys" : [	//	:TODO: Need better name
 							{
 								"keys"		: [ "escape" ],
 								"action"	: "@method:editModeEscPressed"
 							}
 						]
+						//	:TODO: something like the following for overriding keymap
+						//	this should only override specified entries. others will default
+						/*
+						"keyMap" : {
+							"accept" : [ "return" ]
+						}
+						*/
 					}
 				}
 			}
