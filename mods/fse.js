@@ -33,14 +33,14 @@ function FullScreenEditorModule(options) {
 		return 'footer' + _.capitalize(editorMode);	//	e.g.. 'footerEditMenu'
 	};
 
-	this.getFormId = function(whatFor) {
+	this.getFormId = function(name) {
 		return {
 			header			: 0,
 			body			: 1,
 			footerEdit		: 2,
 			footerEditMenu	: 3,
 			fotoerView		: 4,
-		}[whatFor];
+		}[name];
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -252,10 +252,8 @@ function FullScreenEditorModule(options) {
 			self.observeEditEvents();
 		},
 		editModeEscPressed : function(formData, extraArgs) {
-			console.log('editorModeBefore=' + self.editorMode)
 			self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
-			console.log('editorModeAfter=' + self.editorMode)
-			//self.editorMode = 'editMenu';
+
 			self.switchFooter(function next(err) {
 				if(err) {
 					//	:TODO:... what now?
@@ -282,7 +280,7 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editModeMenu : function(formData, extraArgs) {
-			console.log('menu 1')
+			console.log('menu ' + formData.value['1'])
 		}
 	};
 }

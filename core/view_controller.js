@@ -33,7 +33,9 @@ function ViewController(options) {
 	this.views			= {};	//	map of ID -> view
 	this.formId			= options.formId || 0;
 	this.mciViewFactory	= new MCIViewFactory(this.client);
-	this.submitKeyMap	= {};
+	//this.submitKeyMap	= {};
+
+	this.actionKeyMap	= {};
 
 	this.clientKeyPressHandler = function(ch, key) {
 		//
@@ -41,12 +43,32 @@ function ViewController(options) {
 		//	Everything else is forwarded on to the focused View, if any.
 		//
 		if(key) {
+			var actionForKey = self.actionKeyMap[key.name];
+			if(actionForKey) {
+				if(_.isNumber(actionForKey)) {
+					//
+					//	Key works on behalf of a view -- switch focus & submit
+					//
+					self.switchFocus(actionForKey);
+					self.submitForm();
+				} else if(_.isString(actionForKey)) {
+					//	:TODO: Populate formData here?
+					//	:TODO: Populate actionBlock here -- that is, the actionKey entry... or
+					//	really we just need |extraArgs| to be present, if any
+					menuUtil.handleAction(self.client, { }, { action : actionForKey } );
+				}
+
+				return;
+			}
+
+			/*
 			var submitViewId = self.submitKeyMap[key.name];
 			if(submitViewId) {
 				self.switchFocus(submitViewId);
 				self.submitForm();
 				return;
 			}
+			*/
 		}
 
 		if(self.focusedView && self.focusedView.acceptsInput) {
@@ -171,6 +193,7 @@ function ViewController(options) {
 				initialFocusId = viewId;
 			}
 
+			/*
 			if(view.submit) {
 				submitId = viewId;
 
@@ -180,6 +203,7 @@ function ViewController(options) {
 					}
 				}
 			}
+			*/
 
 			nextItem(null);
 		},
@@ -451,7 +475,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				if(_.isObject(formConfig)) {
 					menuUtil.applyThemeCustomization({
 						name		: self.client.currentMenuModule.menuName,
-						type		: "menus",
+						type		: 'menus',
 						client		: self.client,
 						configMci	: formConfig.mci,
 					});
@@ -504,6 +528,43 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 							break;	//	there an only be one...
 						}
 					}
+				});
+
+				callback(null);
+			},
+			function loadActionKeys(callback) {
+				if(!_.isObject(formConfig) || !_.isArray(formConfig.actionKeys)) {
+					callback(null);
+					return;
+				}
+
+				var actionKeyEntry;
+				formConfig.actionKeys.forEach(function akEntry(ak) {
+					//
+					//	*	'keys' must be present and be an array of key names
+					//	*	If 'viewId' is present, key(s) will focus & submit on behalf
+					//		of the specified view. 
+					//	*	If 'action' is present, that action will be procesed when
+					//		triggered by key(s)
+					//
+					//	Ultimately, we'll create a map of key -> { viewId | action }
+					//
+					//	:TODO: allow for args to be passed along with action as well...
+					if(!_.isArray(ak.keys)) {
+						return;
+					}
+
+					if(_.isNumber(ak.viewId)) {
+						actionKeyEntry = ak.viewId;
+					} else if(_.isString(ak.action)) {
+						actionKeyEntry = ak.action;
+					} else {
+						return;
+					}
+
+					ak.keys.forEach(function actionKeyName(kn) {
+						self.actionKeyMap[kn] = actionKeyEntry;
+					});
 				});
 
 				callback(null);
