@@ -67,6 +67,7 @@ function ClientTerminal(output) {
 			//	XTERM
 			//		* PuTTY
 			//	LINUX
+			//		* JuiceSSH - also via TERM=
 			//	QNX
 			//	SCREEN
 			//		* ConnectBot
@@ -134,6 +135,9 @@ ClientTerminal.prototype.write = function(s, convertLineFeeds) {
 	this.output.write(this.iconv.encode(s, this.outputEncoding));
 };
 */
+
+//	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
+
 ClientTerminal.prototype.write = function(s, convertLineFeeds) {
 	this.output.write(this.encode(s, convertLineFeeds));
 };

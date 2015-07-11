@@ -100,12 +100,13 @@ function MultiLineEditTextView(options) {
 	//	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
 	//
 	//	This seems overkill though, so let's default to 4 :)
+	//	:TODO: what shoudl this really be? Maybe 8 is OK
 	//
-	this.tabWidth	= _.isNumber(options.tabWidth) ? options.tabWidth : 4;
+	this.tabWidth			= _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
 	this.textLines			= [];
 	this.topVisibleIndex	= 0;
-	this.mode				= options.mode || 'edit';	//	edit | preview
+	this.mode				= options.mode || 'edit';	//	edit | preview | read-only
 
 	//
 	//	cursorPos represents zero-based row, col positions
@@ -1052,7 +1053,7 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	//this.textLines = [ { text : '' } ];
 	//this.insertRawText('');
 	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);//, 0, 0);
 	this.cursorEndOfDocument();

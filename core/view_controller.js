@@ -32,8 +32,7 @@ function ViewController(options) {
 	this.client			= options.client;
 	this.views			= {};	//	map of ID -> view
 	this.formId			= options.formId || 0;
-	this.mciViewFactory	= new MCIViewFactory(this.client);
-	//this.submitKeyMap	= {};
+	this.mciViewFactory	= new MCIViewFactory(this.client);	//	:TODO: can this not be a singleton?
 
 	this.actionKeyMap	= {};
 
@@ -60,15 +59,6 @@ function ViewController(options) {
 
 				return;
 			}
-
-			/*
-			var submitViewId = self.submitKeyMap[key.name];
-			if(submitViewId) {
-				self.switchFocus(submitViewId);
-				self.submitForm();
-				return;
-			}
-			*/
 		}
 
 		if(self.focusedView && self.focusedView.acceptsInput) {
@@ -83,7 +73,7 @@ function ViewController(options) {
 				self.nextFocus();
 				break;
 
-			case 'accept' :	//	:TODO: consider naming this 'done'
+			case 'accept' :
 				if(self.focusedView && self.focusedView.submit) {
 					self.submitForm();
 				} else {
@@ -146,7 +136,7 @@ function ViewController(options) {
 			if(propAsset) {
 				switch(propAsset.type) {
 					case 'config' :
-						propValue = asset.resolveConfigAsset(config[propName]); 
+						propValue = asset.resolveConfigAsset(conf[propName]); 
 						break;
 
 						//	:TODO: handle @art (e.g. text : @art ...)
@@ -195,18 +185,6 @@ function ViewController(options) {
 			if(mciConf.focus) {
 				initialFocusId = viewId;
 			}
-
-			/*
-			if(view.submit) {
-				submitId = viewId;
-
-				if(_.isArray(mciConf.submit)) {
-					for(var i = 0; i < mciConf.submit.length; i++) {
-						self.submitKeyMap[mciConf.submit[i]] = viewId;
-					}
-				}
-			}
-			*/
 
 			nextItem(null);
 		},

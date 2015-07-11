@@ -70,6 +70,7 @@ function View(options) {
 		this.dimens = { width : 0, height : 0 };
 	}
 
+	//	:TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
 	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
 

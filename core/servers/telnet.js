@@ -598,7 +598,9 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				Log.debug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
-					assert(evt.type === SB_COMMANDS.INFO);
+					assert(
+						SB_COMMANDS.INFO === evt.type || SB_COMMANDS.IS === evt.type, 
+						'Unexpected type: ' + evt.type);
 
 					Log.warn(
 						{ varName : name, value : evt.envVars[name], existingValue : self.term.env[name] }, 

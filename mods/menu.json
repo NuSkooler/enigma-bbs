@@ -502,7 +502,8 @@
 					"body"				: "demo_fse_netmail_body.ans",
 					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
 					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
-					"footerView"		: "demo_fse_netmail_footer_view.ans"
+					"footerView"		: "demo_fse_netmail_footer_view.ans",
+					"help"				: "demo_fse_netmail_help.ans"
 				}
 			},
 			"form" : {
@@ -615,6 +616,17 @@
 							"accept" : [ "return" ]
 						}
 						*/
+					}
+				},
+				"5" : {
+					"ML1" : {
+						"mci" : {
+							"ML1" : {
+								"width"		: 79,
+								"height"	: 17,
+								"text"		: ""	//	:TODO: fixme
+							}
+						}
 					}
 				}
 			}

@@ -1,13 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var ViewController		= require('../core/view_controller.js').ViewController;
-var ansi				= require('../core/ansi_term.js');
+var MenuModule				= require('../core/menu_module.js').MenuModule;
+var ViewController			= require('../core/view_controller.js').ViewController;
+var ansi					= require('../core/ansi_term.js');
+var theme					= require('../core/theme.js');
+var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+var async					= require('async');
+var assert					= require('assert');
+var _						= require('lodash');
 
 exports.getModule	= FullScreenEditorModule;
 
@@ -39,7 +41,9 @@ function FullScreenEditorModule(options) {
 			body			: 1,
 			footerEdit		: 2,
 			footerEditMenu	: 3,
-			fotoerView		: 4,
+			footerView		: 4,
+
+			help			: 50,
 		}[name];
 	};
 
@@ -78,6 +82,44 @@ function FullScreenEditorModule(options) {
 			}
 		);
 	};
+
+	this.redrawScreen = function(options, cb) {
+		var comps	= [ 'header', 'body' ];
+		var art		= self.menuConfig.config.art;
+
+		self.client.term.rawWrite(ansi.resetScreen());
+
+		async.series(
+			[
+				function displayHeaderAndBody(callback) {
+					async.eachSeries( comps, function dispArt(n, next) {
+						self.displayArtAsset(art[n], function artDisplayed(err, artData) {
+							next(err);
+						});
+					}, function complete(err) {
+						callback(err);
+					});
+				},
+				function displayFooter(callback) {
+					//	we have to treat the footer special
+					self.redrawFooter( { clear : false, footerName : self.getFooterName() }, function footerDisplayed(err) {
+						callback(err);
+					});
+				},
+				function refreshViews(callback) {
+					comps.push(self.getFooterName());
+
+					comps.forEach(function artComp(n) {
+						self.viewControllers[n].redrawAll();
+					});
+				}
+			],
+			function complete(err) {
+				cb(err);
+			}
+		);	
+	};
+
 
 	this.switchFooter = function(cb) {
 		var footerName = self.getFooterName();
@@ -231,6 +273,52 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
+	this.displayHelp = function() {
+		//
+		//	Replace body area with a temporary read-only MultiLineEditText
+		//	with help contents. ESC or 'Q' closes back to previous state.
+		//
+		var formId = self.getFormId('help');
+
+		if(_.isUndefined(self.viewControllers.help)) {
+			self.addViewController('help', new ViewController( { client : self.client, formId : formId } ));
+
+			var helpViewOpts = {
+				position		: self.getBodyView().position,
+				//dimens			: self.getBodyView().dimens,
+				acceptsFocus	: true,
+				acceptsInput	: true,
+				id				: 1,
+				client			: self.client,
+				ansiSGR			: ansi.sgr( [ 'normal', 'reset' ] ),	//	:TODO: use a styleSGRx here; default to white on black
+			};
+
+			var helpView = new MultiLineEditTextView(helpViewOpts);
+			//	:TODO: this is to work around a bug... dimens in ctor should be enough!
+			helpView.setWidth(self.getBodyView().dimens.width);
+			helpView.setHeight(self.getBodyView().dimens.height);
+			helpView.setText('Some help text...')
+
+			self.viewControllers.help.addView(helpView);
+			self.viewControllers.help.switchFocus(1);
+		}
+
+		self.viewControllers.help.redrawAll();
+	};
+
+	this.displayHelp2 = function() {
+		self.client.term.rawWrite(ansi.resetScreen());
+
+		theme.displayThemeArt( { name : self.menuConfig.config.art.help, client	: self.client },
+			function artDisplayed(err, artData) {
+				self.client.waitForKeyPress(function keyPress(ch, key) {
+					self.redrawScreen();
+					self.viewControllers.footerEditMenu.setFocus(true);
+				});
+			}
+		);
+	};
+
 	this.observeEditEvents = function() {
 		var bodyView = self.getBodyView();
 
@@ -281,6 +369,12 @@ function FullScreenEditorModule(options) {
 		},
 		editModeMenu : function(formData, extraArgs) {
 			console.log('menu ' + formData.value['1'])
+
+			if(3 == formData.value['1']) {
+				console.log('Display help...')
+				self.viewControllers.footerEditMenu.setFocus(false);
+				self.displayHelp2();
+			}
 		}
 	};
 }
