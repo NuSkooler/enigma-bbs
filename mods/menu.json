@@ -576,14 +576,15 @@
 					"HM1" : {
 						"mci" : {
 							"HM1" : {
-								"items" : [ "Save", "Discard", "Menu 3", "Help" ]
+								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
+								"items" : [ "Save", "Discard", "Quote", "Help" ]
 							}
 						},
 						"submit" : {
 							"*" : [
 								{
 									"value"		: { "1" : 0 },
-									"action"	: "@method:editModeMenu"
+									"action"	: "@method:editModeMenuSave"
 								},
 								{
 									"value"		: { "1" : 1 },
@@ -591,7 +592,7 @@
 								},
 								{
 									"value"		: { "1" : 2 },
-									"action"	: "@method:editModeMenu"
+									"action"	: "@method:editModeMenuQuote"
 								},
 								{
 									"value"		: { "1" : 3 },

@@ -13,7 +13,8 @@
 		"sqlite3" : "3.0.x",
 		"ssh2" : "0.4.x",
 		"strip-json-comments" : "1.0.x",
-		"gapbuffer" : "0.0.2"
+		"gapbuffer" : "0.0.2",
+		"node-uuid"	: "1.4.x"
 	},
 	"engine" : "node >= 0.12.2"
 }

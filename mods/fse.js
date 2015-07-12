@@ -368,14 +368,12 @@ function FullScreenEditorModule(options) {
 		editModeMenuSave : function(formData, extraArgs) {
 
 		},
+		editModeMenuQuote : function(formData, extraArgs) {
+
+		},
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditMenu.setFocus(false);
 			self.displayHelp();
-		},
-		editModeMenu : function(formData, extraArgs) {
-			console.log('menu ' + formData.value['1'])
-
-			
 		}
 	};
 }
