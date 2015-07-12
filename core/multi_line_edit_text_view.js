@@ -406,9 +406,6 @@ function MultiLineEditTextView(options) {
 		var absPos;
 
 		if(self.getTextLength(index) > self.dimens.width) {
-			//console.log('textLen=' + self.getTextLength(index) + ' / ' + self.dimens.width + ' / ' +
-			//	JSON.stringify(self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col)))
-
 			//
 			//	Update word wrapping and |cursorOffset| if the cursor
 			//	was within the bounds of the wrapped text
@@ -423,27 +420,16 @@ function MultiLineEditTextView(options) {
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
 			if(!_.isUndefined(cursorOffset)) {
-				//console.log('cursorOffset=' + cursorOffset)
 				self.cursorBeginOfNextLine();
 				self.cursorPos.col += cursorOffset;
 				self.client.term.rawWrite(ansi.right(cursorOffset));
 			} else {
-				//console.log('this path')
 				self.moveClientCusorToCursorPos();
-				/*
-				
-				self.cursorPos.row++;
-				self.cursorPos.col = 1;	//	we just added 1 char
-				absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-				console.log('absPos=' + JSON.stringify(absPos))
-				self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
-				*/
 			}
 		} else {
 			//
 			//	We must only redraw from col -> end of current visible line
 			//
-			//console.log('textLen=' + self.getTextLength(index))
 			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 			self.client.term.write(
 				ansi.hideCursor() + 
@@ -518,8 +504,6 @@ function MultiLineEditTextView(options) {
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + width + '}', 'g')).forEach(function wrd(w) {
-				//console.log(word.match(new RegExp('.{0,' + (width - 1) + '}', 'g')))
-				//if(results.wrapped[i].length + w.length >= width) {
 				if(results.wrapped[i].length + w.length > width) {
 					if(0 === i) {
 						results.firstWrapRange = { start : wordStart, end : wordStart + w.length };
@@ -730,7 +714,6 @@ function MultiLineEditTextView(options) {
 		} else {
 			self.cursorPos.col = 0;
 		}
-		console.log('"' + self.getVisibleText() + '"')
 		self.moveClientCusorToCursorPos();
 
 		self.emitEditPosition();
@@ -1050,16 +1033,10 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	//this.textLines = [ { text : '' } ];
-	//this.insertRawText('');
-	//text = "Tab:\r\n\tA\tB\tC\tD\tE\tF\tG\r\n reeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeally long word!!!";
 	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
-	this.insertRawText(text);//, 0, 0);
+	this.insertRawText(text);
 	this.cursorEndOfDocument();
-	console.log(this.textLines)
-
-
 };
 
 MultiLineEditTextView.prototype.getData = function() {

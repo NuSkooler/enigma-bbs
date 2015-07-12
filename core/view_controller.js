@@ -210,7 +210,15 @@ ViewController.prototype.attachClientEvents = function() {
 		return;
 	}
 
+	var self = this;
+
 	this.client.on('key press', this.clientKeyPressHandler);
+
+	Object.keys(this.views).forEach(function vid(i) {
+		//	remove, then add to ensure we only have one listener
+		self.views[i].removeListener('action', self.viewActionListener);
+		self.views[i].on('action', self.viewActionListener);
+	});
 
 	this.attached = true;
 };

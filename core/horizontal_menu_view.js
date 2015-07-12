@@ -27,7 +27,7 @@ function HorizontalMenuView(options) {
 
 	this.getSpacer = function() {
 		return new Array(self.itemSpacing + 1).join(' ');
-	}
+	};
 
 	this.performAutoScale = function() {
 		if(self.autoScale.width) {

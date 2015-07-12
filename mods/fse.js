@@ -237,7 +237,7 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
-				var bodyView = self.getBodyView();
+				var bodyView = self.viewControllers.body.getView(1);
 				self.updateTextEditMode(bodyView.getTextEditMode());
 				self.updateEditModePosition(bodyView.getEditPosition());
 
@@ -245,10 +245,6 @@ function FullScreenEditorModule(options) {
 				self.viewControllers.header.switchFocus(1);
 			}
 		);		
-	};
-
-	this.getBodyView = function() {
-		return self.viewControllers.body.getView(1);
 	};
 
 	this.updateEditModePosition = function(pos) {
@@ -273,6 +269,7 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
+	/*
 	this.displayHelp = function() {
 		//
 		//	Replace body area with a temporary read-only MultiLineEditText
@@ -305,12 +302,13 @@ function FullScreenEditorModule(options) {
 
 		self.viewControllers.help.redrawAll();
 	};
+	*/
 
-	this.displayHelp2 = function() {
+	this.displayHelp = function() {
 		self.client.term.rawWrite(ansi.resetScreen());
 
 		theme.displayThemeArt( { name : self.menuConfig.config.art.help, client	: self.client },
-			function artDisplayed(err, artData) {
+			function helpDisplayed(err, artData) {
 				self.client.waitForKeyPress(function keyPress(ch, key) {
 					self.redrawScreen();
 					self.viewControllers.footerEditMenu.setFocus(true);
@@ -320,7 +318,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.observeEditEvents = function() {
-		var bodyView = self.getBodyView();
+		var bodyView = self.viewControllers.body.getView(1);
 
 		bodyView.on('edit position', function cursorPosUpdate(pos) {
 			self.updateEditModePosition(pos);
@@ -367,14 +365,17 @@ function FullScreenEditorModule(options) {
 				}
 			});
 		},
+		editModeMenuSave : function(formData, extraArgs) {
+
+		},
+		editModeMenuHelp : function(formData, extraArgs) {
+			self.viewControllers.footerEditMenu.setFocus(false);
+			self.displayHelp();
+		},
 		editModeMenu : function(formData, extraArgs) {
 			console.log('menu ' + formData.value['1'])
 
-			if(3 == formData.value['1']) {
-				console.log('Display help...')
-				self.viewControllers.footerEditMenu.setFocus(false);
-				self.displayHelp2();
-			}
+			
 		}
 	};
 }

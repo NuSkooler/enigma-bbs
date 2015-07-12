@@ -587,7 +587,7 @@
 								},
 								{
 									"value"		: { "1" : 1 },
-									"action"	: "@method:editModeMenu"
+									"action"	: "@menu:demoMain"
 								},
 								{
 									"value"		: { "1" : 2 },
@@ -595,7 +595,7 @@
 								},
 								{
 									"value"		: { "1" : 3 },
-									"action"	: "@method:editModeMenu"
+									"action"	: "@method:editModeMenuHelp"
 								},
 								{
 									"value"		: 1,
@@ -616,17 +616,6 @@
 							"accept" : [ "return" ]
 						}
 						*/
-					}
-				},
-				"5" : {
-					"ML1" : {
-						"mci" : {
-							"ML1" : {
-								"width"		: 79,
-								"height"	: 17,
-								"text"		: ""	//	:TODO: fixme
-							}
-						}
 					}
 				}
 			}
