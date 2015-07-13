@@ -23,11 +23,12 @@ function initializeDatabases() {
 
 	dbs.user.serialize(function serialized() {
 		createUserTables();
-		createInitialValues();
+		createInitialUserValues();
 	});
 
 	dbs.message.serialize(function serialized() {
 		createMessageBaseTables();
+		createInitialMessageValues();
 	});
 }
 
@@ -88,17 +89,18 @@ function createMessageBaseTables() {
 	);
 
 	dbs.message.run(
-		'CREATE TABLE IF NOT EXISTS message ('				+
-		'	message_id				INTEGER PRIMARY KEY,'	+ 
-		'	area_id					INTEGER NOT NULL,'		+
-		'	message_uuid			VARCHAR(36) NOT NULL,'	+ 
-		'	reply_to_message_id		INTEGER,'				+
-		'	to_user_name			VARCHAR NOT NULL,'		+
-		'	from_user_name			VARCHAR NOT NULL,'		+
-		'	subject,'										+	//	FTS @ message_fts
-		'	message,'										+ 	//	FTS @ message_fts
-		'	modified_timestamp	DATETIME NOT NULL,'			+
-		'	UNIQUE(message_uuid),'							+ 
+		'CREATE TABLE IF NOT EXISTS message ('						+
+		'	message_id				INTEGER PRIMARY KEY,'			+ 
+		'	area_id					INTEGER NOT NULL,'				+
+		'	message_uuid			VARCHAR(36) NOT NULL,'			+ 
+		'	reply_to_message_id		INTEGER,'						+
+		'	to_user_name			VARCHAR NOT NULL,'				+
+		'	from_user_name			VARCHAR NOT NULL,'				+
+		'	subject,'												+	//	FTS @ message_fts
+		'	message,'												+ 	//	FTS @ message_fts
+		'	modified_timestamp	DATETIME NOT NULL,'					+
+		'	view_count				INTEGER NOT NULL DEFAULT 0,'	+
+		'	UNIQUE(message_uuid),'									+ 
 		'	FOREIGN KEY(area_id) REFERENCES message_area(area_id)'	+
 		');'
 	);
@@ -153,7 +155,17 @@ function createMessageBaseTables() {
 	);
 }
 
-function createInitialValues() {
+function createInitialMessageValues() {
+	//
+	//	Area ID 1: Private / Local
+	//
+	dbs.message.run(
+		'INSERT OR IGNORE INTO message_area ' +
+		'VALUES(1, "Local Private Messages");'
+		);
+}
+
+function createInitialUserValues() {
 	dbs.user.run(
 		'INSERT OR IGNORE INTO user_group ' + 
 		'VALUES(1, "users");'

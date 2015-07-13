@@ -6,6 +6,7 @@ var ViewController			= require('../core/view_controller.js').ViewController;
 var ansi					= require('../core/ansi_term.js');
 var theme					= require('../core/theme.js');
 var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+var Message					= require('../core/message.js').Message;
 
 var async					= require('async');
 var assert					= require('assert');
@@ -45,6 +46,27 @@ function FullScreenEditorModule(options) {
 
 			help			: 50,
 		}[name];
+	};
+
+	this.getMessage = function() {
+		var headerForm = self.viewControllers.header.getFormData();
+		console.log(headerForm)
+
+		var messageOpts = {
+			areaId			: Message.WellKnownAreaIds.Private,
+			toUserName		: headerForm.to,
+			fromUserName	: headerForm.from,
+			subject			: headerForm.subject,
+			message			: 'This is the message',
+		};
+
+		console.log(messageOpts);
+
+		/*var msg = new Message(messageOpts);
+		msg.persist(function persisted(err, msgId) {
+
+		});
+*/
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -366,7 +388,7 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editModeMenuSave : function(formData, extraArgs) {
-
+			self.getMessage();
 		},
 		editModeMenuQuote : function(formData, extraArgs) {
 

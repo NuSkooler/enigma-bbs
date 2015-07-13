@@ -514,15 +514,18 @@
 								//	:TODO: from/to may be set by args
 								//	:TODO: focus may change dep on view vs edit
 								"width"		: 36,
-								"focus"		: true
+								"focus"		: true,
+								"argName"	: "to"
 							},
 							"ET2" : {
-								"width"		: 36
+								"width"		: 36,
+								"argName"	: "from"
 							},
 							"ET3" : {
 								"width"		: 65,
 								"maxLength"	: 72,
-								"submit"	: [ "enter" ]
+								"submit"	: [ "enter" ],
+								"argName"	: "subject"
 							}
 						},
 						"submit" : {
@@ -541,7 +544,8 @@
 							"MT1" : {
 								"width"		: 79,
 								"height"	: 17,
-								"text"		: ""	//	:TODO: should not be req.
+								"text"		: "",	//	:TODO: should not be req.
+								"argName"	: "message"
 							}
 						},
 						"submit" : {
