@@ -32,14 +32,18 @@ var _				= require('lodash');
 //
 //	Editors - BBS
 //	*	https://github.com/M-griffin/Enthral/blob/master/src/msg_fse.cpp
+//	
 //
 //	Editors - Other
 //	*	http://joe-editor.sourceforge.net/
 //	* 	http://www.jbox.dk/downloads/edit.c
+//	*	https://github.com/dominictarr/hipster
 //
-
+//	Implementations - Word Wrap
+//	*	https://github.com/protomouse/synchronet/blob/93b01c55b3102ebc3c4f4793c3a45b8c13d0dc2a/src/sbbs3/wordwrap.c
+//
 //	Misc notes
-//	* See https://github.com/dominictarr/hipster/issues/15 about insert/delete lines
+//	* https://github.com/dominictarr/hipster/issues/15 (Deleting lines/etc.)
 //
 //	Blessed
 //		insertLine: CSR(top, bottom) + CUP(y, 0) + IL(1) + CSR(0, height)
@@ -1033,7 +1037,7 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
+	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);
 	this.cursorEndOfDocument();
@@ -1044,10 +1048,6 @@ MultiLineEditTextView.prototype.getData = function() {
 };
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
-/*	switch(propName) {
-		case 'text' : this.setText(value); break;
-	}
-*/
 	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 

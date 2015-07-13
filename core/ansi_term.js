@@ -9,6 +9,7 @@
 //	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
 //	* http://en.wikipedia.org/wiki/ANSI_escape_code
 //	* https://github.com/chjj/term.js/blob/master/src/term.js
+//	* http://www.inwap.com/pdp10/ansicode.txt
 //
 
 var assert		= require('assert');

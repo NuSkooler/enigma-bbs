@@ -411,12 +411,14 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 		//
 		//	*	actionValue is a Object:
 		//		a)	All key/values must exactly match
-		//		b)	value is null; The key (view ID) must be present
+		//		b)	value is null; The key (view ID or "argName") must be present
 		//			in formValue. This is a wildcard/any match.
 		//	*	actionValue is a Number: This represents a view ID that
 		//		must be present in formValue.
+		//	* 	actionValue is a string: This represents a view with
+		//		"argName" set that must be present in formValue.
 		//
-		if(_.isNumber(actionValue)) {
+		if(_.isNumber(actionValue) || _.isString(actionValue)) {
 			if(_.isUndefined(formValue[actionValue])) {
 				return false;
 			}

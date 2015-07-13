@@ -531,7 +531,7 @@
 						"submit" : {
 							"3" : [
 								{
-									"value"	: { "3" : null },
+									"value"	: { "subject" : null },
 									"action" : "@method:headerSubmit"
 								}
 							]
@@ -551,7 +551,7 @@
 						"submit" : {
 							"*" : [
 								{
-									"value"		: 1,
+									"value"		: "message",
 									"action"	: "@method:editModeEscPressed"
 								}
 							]
