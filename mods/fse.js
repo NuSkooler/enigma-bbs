@@ -25,11 +25,18 @@ function FullScreenEditorModule(options) {
 
 	var self		= this;
 	this.menuConfig	= options.menuConfig;
+
+	//
+	//	Editor Type ('editorType'):
+	//	*	netMail	: User to user, optionally remote
+	//	*	
 	this.editorType	= this.menuConfig.config.editorType;
+
 	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
 	
 	//	:TODO: This needs to be passed in via args:
-	this.editorMode	= 'edit';	//	view | edit | editMenu | 
+	this.editorMode		= 'edit';	//	view | edit | editMenu | 
+	this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
 
 	this.getFooterName = function(editorMode) {
 		editorMode = editorMode || this.editorMode;
@@ -48,16 +55,15 @@ function FullScreenEditorModule(options) {
 		}[name];
 	};
 
-	this.getMessage = function() {
-		var headerForm = self.viewControllers.header.getFormData();
-		console.log(headerForm)
+	this.getMessageData = function() {
+		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var messageOpts = {
-			areaId			: Message.WellKnownAreaIds.Private,
-			toUserName		: headerForm.to,
-			fromUserName	: headerForm.from,
-			subject			: headerForm.subject,
-			message			: 'This is the message',
+			areaId			: self.messageAreaId,
+			toUserName		: headerValues.to,
+			fromUserName	: headerValues.from,
+			subject			: headerValues.subject,
+			message			: self.viewControllers.body.getFormData().value.message,
 		};
 
 		console.log(messageOpts);
@@ -388,7 +394,7 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editModeMenuSave : function(formData, extraArgs) {
-			self.getMessage();
+			self.getMessageData();
 		},
 		editModeMenuQuote : function(formData, extraArgs) {
 
