@@ -13,6 +13,8 @@ var util			= require('util');
 exports.stringFromFTN			= stringFromFTN;
 exports.getFormattedFTNAddress	= getFormattedFTNAddress;
 
+//	See list here: https://github.com/Mithgol/node-fidonet-jam
+
 
 function stringFromFTN(buf, encoding) {
 	var nullPos = buf.length;
@@ -67,13 +69,28 @@ function getFormattedFTNAddress(address, dimensions) {
 	return addr;
 }
 
-function getFTNMessageSerialNumber(messageId) {
+function getFtnMessageSerialNumber(messageId) {
     return ((Math.floor((Date.now() - Date.UTC(2015, 1, 1)) / 1000) + messageId)).toString(16);
 }
 
 function getFTNMessageID(messageId, areaId) {
     return messageId + '.' + areaId + '@' + getFTNAddress() + ' ' + getFTNMessageSerialNumber(messageId)
 }
+
+
+//
+//	Specs:
+//	* http://ftsc.org/docs/fts-0009.001
+//	* 
+//	
+function getFtnMsgIdKludgeLine(origAddress, messageId) {
+	if(_.isObject(origAddress)) {
+		origAddress = getFormattedFTNAddress(origAddress, '5D');
+	}
+
+	return '\x01MSGID: ' + origAddress + ' ' + getFtnMessageSerialNumber(messageId);
+}
+
 
 function getFTNOriginLine() {
 	//
