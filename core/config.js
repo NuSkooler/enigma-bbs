@@ -123,5 +123,19 @@ function getDefaultConfig() {
 				dsaPrivateKey	: paths.join(__dirname, './../misc/default_key.dsa'),
 			}
 		},
+
+		networks : {
+			/*
+			networkName : {	//	e.g. fidoNet
+				address : {
+					zone	: 0,
+					net		: 0,
+					node	: 0,
+					point 	: 0,
+					domain	: 'l33t.codes'
+				}
+			}
+			*/
+		},
 	};
 }
