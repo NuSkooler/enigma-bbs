@@ -15,7 +15,6 @@ var async			= require('async');
 //	References
 //	https://github.com/M-griffin/PyPacketMail/blob/master/PyPacketMail.py
 //
-
 function FTNMailPacket(options) {
 
 	//
@@ -27,6 +26,8 @@ function FTNMailPacket(options) {
 	
 	var self			= this;
 	this.nodeAddresses	= options.nodeAddresses || {};
+
+	self.KLUDGE_PREFIX	= '\x01';
 
 	/*
 	this.loadNodeAddresses = function() {
@@ -119,7 +120,61 @@ function FTNMailPacket(options) {
 	};
 
 	this.parseFtnMessageBody = function(msgBodyBuffer, cb) {
+		//	:TODO: Look at spec about line endings/etc. Prob \r\n|[\r\n]|<someOlderAndAmigaStuff>
 
+		var msgLines	= msgBodyBuffer.toString().split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+
+		var msgBody = {
+			message		: [],
+			seenBy		: [],
+			kludgeLines	: {},	//	upper(kludge) -> [ value, ... ]
+		};
+
+		var preOrigin	= true;
+
+		function addKludgeLine(kl) {
+			var kludgeParts = kl.split(':');
+			kludgeParts[0]	= kludgeParts[0].toUpperCase();
+			kludgeParts[1]	= kludgeParts[1].trim();
+
+			if(!(kludgeParts[0] in msgBody.kludgeLines)) {
+				msgBody.kludgeLines[kludgeParts[0]] = [ kludgeParts[1] ];
+			} else {
+				msgBody.kludgeLines[kludgeParts[0]].push(kludgeParts[1]);
+			}
+		};
+
+		msgLines.forEach(function nextLine(line) {
+			if(0 === line.length) {
+				msgBody.message.push('');
+				return;
+			}
+
+			if(preOrigin) {
+				if(_.startsWith(line, 'AREA:')) {
+					msgBody.area = line.substring(line.indexOf(':') + 1).trim();
+				} else if(_.startsWith(line, '--- ')) {
+					//	Tag lines are tracked allowing for specialized display/etc.
+					msgBody.tagLine = line;
+				} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is "  * Origin: ..."
+					msgBody.originLine = line;
+					preOrigin		= false;
+				} else if(self.KLUDGE_PREFIX === line.charAt(0)) {
+					addKludgeLine(line.slice(1));
+				} else {
+					msgBody.message.push(line);
+				}
+				//	:TODO: SAUCE/etc. can be present?
+			} else {
+				if(_.startsWith(line, 'SEEN-BY:')) {
+					msgBody.seenBy.push(line.substring(line.indexOf(':') + 1).trim());
+				} else if(self.KLUDGE_PREFIX === line.charAt(0)) {
+					addKludgeLine(line.slice(1));
+				} 
+			}
+		});
+
+		cb(null, msgBody);
 	};
 
 	this.parseFtnMessages = function(buffer, cb) {
@@ -154,61 +209,13 @@ function FTNMailPacket(options) {
 						msgData[f] = msgData[f].toString();
 					});
 
-
-
-					fidoMessages.push(_.clone(msgData));
+					self.parseFtnMessageBody(msgData.message, function msgBodyParsed(err, msgBody) {
+						msgData.message = msgBody;
+						fidoMessages.push(_.clone(msgData));
+					});		
 				});
 		});	
 	};
-
-	/*
-	this.loadMessageHeader = function(msgHeaderBuffer, cb) {
-		assert(Buffer.isBuffer(msgHeaderBuffer));
-
-		if(msgHeaderBuffer.length < 14) {
-			cb(new Error('Buffer too small'));
-			return;
-		}
-
-		binary.parse(msgHeaderBuffer)
-			.word16lu('messageType')
-			.word16lu('originNode')
-			.word16lu('destNode')
-			.word16lu('originNet')
-			.word16lu('destNet')
-			.word8('attrFlags1')
-			.word8('attrFlags2')
-			.word16lu('cost')
-			.tap(function tapped(msgHeader) {
-				console.log(msgHeader)
-
-				var nullTermBuf = new Buffer( [ 0 ] );
-				var offset = 14;
-				binary.parse(msgHeaderBuffer.slice(offset))
-					.scan('modDateTime', nullTermBuf)
-					.scan('toUserName', nullTermBuf)
-					.tap(function tapped(varMsgHeader) {
-						console.log(varMsgHeader.modDateTime.toString())
-						console.log(varMsgHeader.toUserName.toString())
-					});
-
-				cb(null, msgHeader);
-			});
-	};
-
-	this.loadMessage = function(buf, cb) {
-		var bufPosition = 0;
-		async.waterfall(
-			[
-				function loadHdr(callback) {
-					self.loadMessageHeader(buf.slice(bufPosition), function headerLoaded(err, msgHeader) {
-						callback(err, msgHeader);
-					});
-				}
-			]
-		);
-	};
-	*/
 
 	this.loadMessagesFromPacketBuffer = function(packetBuffer, cb) {
 		async.waterfall(
@@ -221,6 +228,7 @@ function FTNMailPacket(options) {
 				},
 				function validateDesinationAddress(callback) {
 					self.localNetworkName = self.getNetworkNameForAddress(self.getPacketHeaderAddress());
+					self.localNetworkName = 'AllowAnyNetworkForDebugging';
 					callback(self.localNetworkName ? null : new Error('Packet not addressed do this system'));
 				},
 				function parseMessages(callback) {
@@ -230,7 +238,7 @@ function FTNMailPacket(options) {
 				},
 				function createMessageObjects(fidoMessages, callback) {
 					fidoMessages.forEach(function msg(fmsg) {
-						console.log(fmsg.subject);
+						console.log(fmsg);
 					});
 				}
 			],
@@ -279,6 +287,6 @@ var mailPacket = new FTNMailPacket(
 	}
 );
 
-mailPacket.parse('/home/bashby/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/27000425.pkt', function parsed(err, messages) {
-
+mailPacket.parse('/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007', function parsed(err, messages) {
+	console.log(err)
 });
