@@ -13,7 +13,11 @@ var async			= require('async');
 
 //
 //	References
-//	https://github.com/M-griffin/PyPacketMail/blob/master/PyPacketMail.py
+//	* http://ftsc.org/docs/fts-0001.016
+//	* http://ftsc.org/docs/fsc-0048.002
+//
+//	Other implementations:
+//	* https://github.com/M-griffin/PyPacketMail/blob/master/PyPacketMail.py
 //
 function FTNMailPacket(options) {
 
@@ -94,7 +98,7 @@ function FTNMailPacket(options) {
 			.buffer('password', 8)	//	null terminated C style string
 			.word16lu('origZone')
 			.word16lu('destZone')
-			//	:TODO: Document the various specs/fields more
+			//	Additions in FSC-0048.002 follow...
 			.word16lu('auxNet')
 			.word16lu('capWordA')
 			.word8('prodCodeHi')
@@ -143,6 +147,8 @@ function FTNMailPacket(options) {
 				msgBody.kludgeLines[kludgeParts[0]].push(kludgeParts[1]);
 			}
 		};
+
+		//	:TODO: should 0x8d "soft line feeds" be removed?
 
 		msgLines.forEach(function nextLine(line) {
 			if(0 === line.length) {
