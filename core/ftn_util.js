@@ -12,10 +12,11 @@ var util			= require('util');
 
 exports.stringFromFTN			= stringFromFTN;
 exports.getFormattedFTNAddress	= getFormattedFTNAddress;
+exports.getDateFromFtnDateTime	= getDateFromFtnDateTime;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
-
+//	:TODO: proably move this elsewhere as a general method
 function stringFromFTN(buf, encoding) {
 	var nullPos = buf.length;
 	for(var i = 0; i < buf.length; ++i) {
@@ -26,6 +27,20 @@ function stringFromFTN(buf, encoding) {
 	}
 
 	return buf.slice(0, nullPos).toString(encoding || 'utf-8');
+}
+
+
+//
+//	Convert a FTN style DateTime string to a Date object
+//	
+function getDateFromFtnDateTime(dateTime) {
+	//
+	//	Examples seen in the wild (Working):
+	//		"12 Sep 88 18:17:59"
+	//		"Tue 01 Jan 80 00:00"
+	//		"27 Feb 15  00:00:03"
+	//
+	return (new Date(Date.parse(dateTime))).toISOString();
 }
 
 function getFormattedFTNAddress3D(zone, net, node) {

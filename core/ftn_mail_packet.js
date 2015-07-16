@@ -1,8 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-var Config			= require('./config.js').config;
+var MailPacket		= require('./mail_packet.js');
 var ftn				= require('./ftn_util.js');
+var Message			= require('./message.js');
 
 var _				= require('lodash');
 var assert			= require('assert');
@@ -21,16 +22,9 @@ var async			= require('async');
 //
 function FTNMailPacket(options) {
 
-	//
-	//	Map of networkName -> { zone, net, node, point, ... }
-	//
-	//
-	//	:TODO: ...
-	//	options.nodeAddresses
+	MailPacket.call(this, options);
 	
 	var self			= this;
-	this.nodeAddresses	= options.nodeAddresses || {};
-
 	self.KLUDGE_PREFIX	= '\x01';
 
 	/*
@@ -123,9 +117,16 @@ function FTNMailPacket(options) {
 			});
 	};
 
+	self.getMessageMeta = function(msgData) {
+		return {};	//	:TODO: convert msgData kludges/etc. -> Message meta
+	};
+
 	this.parseFtnMessageBody = function(msgBodyBuffer, cb) {
 		//	:TODO: Look at spec about line endings/etc. Prob \r\n|[\r\n]|<someOlderAndAmigaStuff>
 
+		//	:TODO: Use the proper encoding here. There appear to be multiple specs and/or
+		//	stuff people do with this... some specs kludge lines, which is kinda durpy since
+		//	to get to that point, one must read the file (and decode) to find said kludge...
 		var msgLines	= msgBodyBuffer.toString().split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
 		var msgBody = {
@@ -183,6 +184,56 @@ function FTNMailPacket(options) {
 		cb(null, msgBody);
 	};
 
+	this.extractMessages = function(buffer, cb) {
+		var nullTermBuf		= new Buffer( [ 0 ] );
+
+		binary.stream(buffer).loop(function looper(end, vars) {
+			this
+				.word16lu('messageType')
+				.word16lu('originNode')
+				.word16lu('destNode')
+				.word16lu('originNet')
+				.word16lu('destNet')
+				.word8('attrFlags1')
+				.word8('attrFlags2')
+				.word16lu('cost')
+				.scan('modDateTime', nullTermBuf)
+				.scan('toUserName', nullTermBuf)
+				.scan('fromUserName', nullTermBuf)
+				.scan('subject', nullTermBuf)
+				.scan('message', nullTermBuf)
+				.tap(function tapped(msgData) {
+					if(!msgData.originNode) {
+						end();
+						cb(null);
+						return;
+					}
+
+					//	buffer to string conversion
+					//	:TODO: What is the real encoding here?
+					[ 'modDateTime', 'toUserName', 'fromUserName', 'subject', ].forEach(function field(f) {
+						msgData[f] = msgData[f].toString();
+					});
+
+					self.parseFtnMessageBody(msgData.message, function msgBodyParsed(err, msgBody) {
+						//
+						//	Now, create a Message object
+						//
+						var msg = new Message( {
+							toUserName			: msgData.toUserName,
+							fromUserName		: msgData.fromUserName,
+							subject				: msgData.subject,
+							message				: msgBody.message.join('\n'),	//	:TODO: \r\n is better?
+							modTimestamp		: ftn.getDateFromFtnDateTime(msgData.modDateTime),
+							meta				: self.getMessageMeta(msgData),
+						});
+
+						self.emit('message', msg);	//	:TODO: Placeholder
+					});		
+				});
+		});
+	};
+
 	this.parseFtnMessages = function(buffer, cb) {
 		var nullTermBuf		= new Buffer( [ 0 ] );
 		var fidoMessages	= [];
@@ -223,6 +274,33 @@ function FTNMailPacket(options) {
 		});	
 	};
 
+	this.extractMesssagesFromPacketBuffer = function(packetBuffer, cb) {
+		async.waterfall(
+			[
+				function parseHeader(callback) {
+					self.parseFtnPacketHeader(packetBuffer, function headerParsed(err, packetHeader) {
+						self.packetHeader = packetHeader;
+						callback(err);
+					});
+				},
+				function validateDesinationAddress(callback) {
+					self.localNetworkName = self.getNetworkNameForAddress(self.getPacketHeaderAddress());
+					self.localNetworkName = 'AllowAnyNetworkForDebugging';
+					callback(self.localNetworkName ? null : new Error('Packet not addressed do this system'));
+				},
+				function extractEmbeddedMessages(callback) {
+					//	note: packet header is 58 bytes in length
+					self.extractMessages(packetBuffer.slice(58), function extracted(err) {
+						callback(err);
+					});
+				}
+			],
+			function complete(err) {
+				cb(err);
+			}
+		);
+	};
+
 	this.loadMessagesFromPacketBuffer = function(packetBuffer, cb) {
 		async.waterfall(
 			[
@@ -253,8 +331,9 @@ function FTNMailPacket(options) {
 			}
 		);
 	};
-
 }
+
+require('util').inherits(FTNMailPacket, MailPacket);
 
 FTNMailPacket.prototype.parse = function(path, cb) {
 	var self = this;
@@ -278,6 +357,40 @@ FTNMailPacket.prototype.parse = function(path, cb) {
 	);
 };
 
+FTNMailPacket.prototype.read = function(options) {
+	FTNMailPacket.super_.prototype.read.call(this, options);
+
+	var self = this;
+
+	if(_.isString(options.packetPath)) {
+		async.waterfall(
+			[
+				function readPacketFile(callback) {
+					fs.readFile(options.packetPath, function packetData(err, data) {
+						callback(err, data);
+					});
+				},
+				function extractMessages(data, callback) {
+					self.extractMesssagesFromPacketBuffer(data, function extracted(err) {
+						callback(err);
+					});
+				}
+			],
+			function complete(err) {
+				if(err) {
+					self.emit('error', err);
+				}
+			}
+		);		
+	} else if(Buffer.isBuffer(options.packetBuffer)) {
+
+	}
+};
+
+FTNMailPacket.prototype.write = function(options) {
+	FTNMailPacket.super_.prototype.write.call(this, options);
+};
+
 
 var mailPacket = new FTNMailPacket(
 	{
@@ -293,6 +406,14 @@ var mailPacket = new FTNMailPacket(
 	}
 );
 
+mailPacket.on('message', function msgParsed(msg) {
+	console.log(msg);
+});
+
+mailPacket.read( { packetPath : '/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007' } );
+
+/*
 mailPacket.parse('/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007', function parsed(err, messages) {
 	console.log(err)
 });
+*/

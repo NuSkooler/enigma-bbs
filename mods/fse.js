@@ -6,7 +6,7 @@ var ViewController			= require('../core/view_controller.js').ViewController;
 var ansi					= require('../core/ansi_term.js');
 var theme					= require('../core/theme.js');
 var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-var Message					= require('../core/message.js').Message;
+var Message					= require('../core/message.js');
 
 var async					= require('async');
 var assert					= require('assert');
@@ -36,6 +36,8 @@ function FullScreenEditorModule(options) {
 	
 	//	:TODO: This needs to be passed in via args:
 	this.editorMode		= 'edit';	//	view | edit | editMenu | 
+
+	//	netMail/crashMail | echoMail
 	this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
 
 	this.getFooterName = function(editorMode) {

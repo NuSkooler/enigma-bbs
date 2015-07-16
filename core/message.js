@@ -8,10 +8,10 @@ var async			= require('async');
 var _				= require('lodash');
 var assert			= require('assert');
 
-exports.Message		= Message;
+module.exports = Message;
 
 function Message(options) {
-	
+
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
 	this.areaId			= options.areaId || Message.WellKnownAreaIds.Invalid;		//	0 = invalid; 1 = private; Everything else is user defined
 	this.uuid			= uuid.v1();
