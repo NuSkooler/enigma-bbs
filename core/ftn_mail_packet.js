@@ -118,6 +118,10 @@ function FTNMailPacket(options) {
 	};
 
 	self.getMessageMeta = function(msgData) {
+		Object.keys(msgData.kludgeLines).forEach(function kludgeName(kn) {
+			
+		});
+		
 		return {};	//	:TODO: convert msgData kludges/etc. -> Message meta
 	};
 
@@ -210,7 +214,8 @@ function FTNMailPacket(options) {
 					}
 
 					//	buffer to string conversion
-					//	:TODO: What is the real encoding here?
+					//	:TODO: What is the real encoding here? ... like messages, may need to look at various
+					//	specs for encoding but default to ASCII?
 					[ 'modDateTime', 'toUserName', 'fromUserName', 'subject', ].forEach(function field(f) {
 						msgData[f] = msgData[f].toString();
 					});
@@ -220,6 +225,7 @@ function FTNMailPacket(options) {
 						//	Now, create a Message object
 						//
 						var msg = new Message( {
+							//	:TODO: areaId needs to be looked up via AREA line - may need a 1:n alias -> area ID lookup
 							toUserName			: msgData.toUserName,
 							fromUserName		: msgData.fromUserName,
 							subject				: msgData.subject,
