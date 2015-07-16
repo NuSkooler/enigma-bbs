@@ -11,6 +11,7 @@ var binary			= require('binary');
 var fs				= require('fs');
 var util			= require('util');
 var async			= require('async');
+var iconv			= require('iconv-lite');
 
 //
 //	References
@@ -117,21 +118,66 @@ function FTNMailPacket(options) {
 			});
 	};
 
-	self.getMessageMeta = function(msgData) {
-		Object.keys(msgData.kludgeLines).forEach(function kludgeName(kn) {
-			
+	self.getKludgeLineMessageMeta = function(msgBody) {
+		//
+		//	For all well known |msgBody.kludgeLines|, create metadata entries.
+		//	
+		//	Example: 'MSGID' = [ ... ] -> 'fidonet_msg_id' = [ ... ]
+		//		
+		var kludgeMeta = {};
+
+		var mapName;
+		//	:TODO: there is probably a nicer way:
+		Object.keys(msgBody.kludgeLines).forEach(function kludgeName(kn) {
+			mapName = Message.FidoNetMetaNameMap[kn];
+			if(mapName) {
+				kludgeMeta[mapName] = msgBody.kludgeLines[kn];
+			}
 		});
+
+		return kludgeMeta;
+	};
+
+	self.getMessageMeta = function(msgBody) {
 		
-		return {};	//	:TODO: convert msgData kludges/etc. -> Message meta
+		var meta = self.getKludgeLineMessageMeta(msgBody);
+
+		if(msgBody.seenBy) {
+			meta[Message.MetaNames.FidoNetSeenBy] = msgBody.seenBy;
+		}
+		
+		return meta;
 	};
 
 	this.parseFtnMessageBody = function(msgBodyBuffer, cb) {
-		//	:TODO: Look at spec about line endings/etc. Prob \r\n|[\r\n]|<someOlderAndAmigaStuff>
+		//
+		//	From FTS-0001.16:
+		//	"Message text is unbounded and null terminated (note exception below).
+		//
+		//	A 'hard' carriage return, 0DH,  marks the end of a paragraph, and must
+		//	be preserved.
+		//
+		//	So   called  'soft'  carriage  returns,  8DH,  may  mark  a   previous
+		//	processor's  automatic line wrap, and should be ignored.  Beware  that
+		//	they may be followed by linefeeds, or may not.
+		//
+		//	All  linefeeds, 0AH, should be ignored.  Systems which display message
+		//	text should wrap long lines to suit their application."
+		//
+		//	This is a bit tricky. Decoding the buffer to CP437 converts all 0x8d -> 0xec, so we'll
+		//	have to replace those characters if the buffer is left as CP437. 
+		//	After decoding, we'll need to peek at the buffer for the various kludge lines
+		//	for charsets & possibly re-decode. Uggh!
+		//
 
 		//	:TODO: Use the proper encoding here. There appear to be multiple specs and/or
 		//	stuff people do with this... some specs kludge lines, which is kinda durpy since
 		//	to get to that point, one must read the file (and decode) to find said kludge...
-		var msgLines	= msgBodyBuffer.toString().split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+
+
+		//var msgLines	= msgBodyBuffer.toString().split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+
+		var msgLines = iconv.decode(msgBodyBuffer, 'CP437').replace(/\xec/g, '').split(/\r\n|[\r\n]/g);
 
 		var msgBody = {
 			message		: [],
@@ -151,9 +197,7 @@ function FTNMailPacket(options) {
 			} else {
 				msgBody.kludgeLines[kludgeParts[0]].push(kludgeParts[1]);
 			}
-		};
-
-		//	:TODO: should 0x8d "soft line feeds" be removed?
+		}
 
 		msgLines.forEach(function nextLine(line) {
 			if(0 === line.length) {
@@ -214,10 +258,8 @@ function FTNMailPacket(options) {
 					}
 
 					//	buffer to string conversion
-					//	:TODO: What is the real encoding here? ... like messages, may need to look at various
-					//	specs for encoding but default to ASCII?
 					[ 'modDateTime', 'toUserName', 'fromUserName', 'subject', ].forEach(function field(f) {
-						msgData[f] = msgData[f].toString();
+						msgData[f] = iconv.decode(msgData[f], 'CP437');
 					});
 
 					self.parseFtnMessageBody(msgData.message, function msgBodyParsed(err, msgBody) {
@@ -231,7 +273,7 @@ function FTNMailPacket(options) {
 							subject				: msgData.subject,
 							message				: msgBody.message.join('\n'),	//	:TODO: \r\n is better?
 							modTimestamp		: ftn.getDateFromFtnDateTime(msgData.modDateTime),
-							meta				: self.getMessageMeta(msgData),
+							meta				: self.getMessageMeta(msgBody),
 						});
 
 						self.emit('message', msg);	//	:TODO: Placeholder
@@ -416,7 +458,7 @@ mailPacket.on('message', function msgParsed(msg) {
 	console.log(msg);
 });
 
-mailPacket.read( { packetPath : '/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007' } );
+mailPacket.read( { packetPath : '/home/bashby/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007' } );
 
 /*
 mailPacket.parse('/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007', function parsed(err, messages) {

@@ -134,7 +134,7 @@ function createMessageBaseTables() {
 		'	message_id	INTEGER NOT NULL,'							+
 		'	meta_name	VARCHAR NOT NULL,'							+
 		'	meta_value	VARCHAR NOT NULL,'							+
-		'	UNIQUE(message_id, meta_name),'							+
+		'	UNIQUE(message_id, meta_name, meta_value),'				+
 		'	FOREIGN KEY(message_id) REFERENCES message(message_id)'	+
 		');'
 	);

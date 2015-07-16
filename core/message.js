@@ -20,7 +20,14 @@ function Message(options) {
 	this.fromUserName	= options.fromUserName || '';
 	this.subject		= options.subject || '';
 	this.message		= options.message || '';
-	this.modTimestamp	= options.modTimestamp || '';	//	blank = set @ persist
+	
+	if(_.isDate(options.modTimestamp)) {
+		this.modTimestamp = options.modTimestamp;
+	} else if(_.isString(options.modTimestamp)) {
+		this.modTimestamp = new Date(options.modTimestamp);
+	}
+
+	//this.modTimestamp	= options.modTimestamp || '';	//	blank = set @ persist
 	this.viewCount		= options.viewCount || 0;
 	this.meta			= options.meta || {};
 	this.hashTags		= options.hashTags || [];
@@ -32,8 +39,9 @@ function Message(options) {
 		return true;
 	};
 
-	this.createMessageTimestamp = function() {
-		return new Date().toISOString();
+	this.getMessageTimestampString = function(ts) {
+		ts = ts || new Date();
+		return ts.toISOString();
 	};
 
 	/*
@@ -61,6 +69,9 @@ Message.WellKnownAreaIds = {
 Message.MetaNames = {
 	//
 	//	FidoNet: http://ftsc.org/docs/fts-0001.016
+	//
+	//	Note that we do not store even kludge line identifiers as-is
+	//	here for a) consistency, b) in case of implementation conflicts, etc.
 	//
 	FidoNetCost				: 'fidonet_cost',
 	FidoNetOrigNode			: 'fidonet_orig_node',
@@ -93,6 +104,15 @@ Message.MetaNames = {
 
 };
 
+Message.FidoNetMetaNameMap = {
+	'PID'			: Message.MetaNames.FidoNetProgramID,
+	'MSGID'			: Message.MetaNames.FidoNetMsgID,
+	'MESSAGE-ID'	: Message.MetaNames.FidoNetMessageID,
+	'IN-REPLY-TO'	: Message.MetaNames.FidoNetInReplyTo,
+	'SEEN-BY'		: Message.MetaNames.FidoNetSeenBy,
+	'PATH'			: Message.MetaNames.FidoNetPath,
+};
+
 Message.prototype.setLocalToUserId = function(userId) {
 	this.meta.LocalToUserID = userId;
 };
@@ -118,11 +138,9 @@ Message.prototype.persist = function(cb) {
 				});
 			},
 			function storeMessage(callback) {
-				var modTs = self.modTimestamp || self.createMessageTimestamp();
-
 				msgDb.run(
 					'INSERT INTO message (area_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
-					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaId, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, modTs ],
+					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaId, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
 					function msgInsert(err) {
 						if(!err) {
 							self.messageId = this.lastID;
