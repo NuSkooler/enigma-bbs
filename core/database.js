@@ -132,7 +132,7 @@ function createMessageBaseTables() {
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message_meta ('						+
 		'	message_id		INTEGER NOT NULL,'							+
-		'	meta_category	VARCHAR NOT NULL,'							+
+		'	meta_category	INTEGER NOT NULL,'							+
 		'	meta_name		VARCHAR NOT NULL,'							+
 		'	meta_value		VARCHAR NOT NULL,'							+
 		'	UNIQUE(message_id, meta_category, meta_name, meta_value),'	+

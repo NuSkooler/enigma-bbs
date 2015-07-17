@@ -75,10 +75,9 @@ Message.WellKnownAreaIds = {
 };
 
 Message.MetaCategories = {
-	System				: 'system',
-	FtnProperty			: 'ftn_prop',	//	
-	FtnKludge			: 'ftn_kludge',	//	PATH, MSGID, ...
-	FtnControl			: 'ftn_control'	//	ftn_area, ftn_origin, ...
+	System				: 1,			//	ENiGMA1/2 stuff
+	FtnProperty			: 2,			//	Various FTN network properties, ftn_cost, ftn_origin, ...
+	FtnKludge			: 3,			//	FTN kludges -- PATH, MSGID, ...
 };
 
 Message.SystemMetaNames = {
@@ -97,18 +96,14 @@ Message.FtnPropertyNames = {
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
 	FtnAttribute		: 'ftn_attribute',
-};
 
-//	Note: kludges are stored with their names as-is
-
-Message.FtnControlNames = {
 	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
 	FtnOrigin			: 'ftn_origin',			//	http://ftsc.org/docs/fts-0004.001
 	FtnArea				: 'ftn_area',			//	http://ftsc.org/docs/fts-0004.001
 	FtnSeenBy			: 'ftn_seen_by',		//	http://ftsc.org/docs/fts-0004.001
 };
 
-//	meta: { 'categoryName' : { name : value, name : value, ... } }
+//	Note: kludges are stored with their names as-is
 
 Message.prototype.setLocalToUserId = function(userId) {
 	this.meta.system.local_to_user_id = userId;
@@ -158,7 +153,7 @@ Message.prototype.persist = function(cb) {
 
 					for(var metaCategroy in self.meta) {
 						async.each(Object.keys(self.meta[metaCategroy]), function meta(metaName, next) {
-							metaStmt.run(self.messageId, metaCategroy, metaName, self.meta[metaCategroy][metaName], function inserted(err) {
+							metaStmt.run(self.messageId, Message.MetaCategories[metaCategroy], metaName, self.meta[metaCategroy][metaName], function inserted(err) {
 								next(err);
 							});
 						}, function complete(err) {

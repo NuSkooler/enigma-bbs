@@ -121,21 +121,21 @@ function FTNMailPacket(options) {
 
 	self.getMessageMeta = function(msgBody) {
 		var meta = {
-			ftn_kludge	: msgBody.kludgeLines,
-			ftn_control	: {},
+			FtnKludge	: msgBody.kludgeLines,
+			FtnProperty	: {},
 		};
 
 		if(msgBody.tearLine) {
-			meta.ftn_control.ftn_tear_line = [ msgBody.tearLine ];
+			meta.FtnProperty.ftn_tear_line = [ msgBody.tearLine ];
 		}
 		if(msgBody.seenBy.length > 0) {
-			meta.ftn_control.ftn_seen_by = msgBody.seenBy;
+			meta.FtnProperty.ftn_seen_by = msgBody.seenBy;
 		}
 		if(msgBody.area) {
-			meta.ftn_control.ftn_area = [ msgBody.area ];
+			meta.FtnProperty.ftn_area = [ msgBody.area ];
 		}
 		if(msgBody.originLine) {
-			meta.ftn_control.ftn_origin = [ msgBody.originLine ];
+			meta.FtnProperty.ftn_origin = [ msgBody.originLine ];
 		}
 		
 		return meta;
@@ -169,7 +169,8 @@ function FTNMailPacket(options) {
 
 		//var msgLines	= msgBodyBuffer.toString().split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
-		var msgLines = iconv.decode(msgBodyBuffer, 'CP437').replace(/\xec/g, '').split(/\r\n|[\r\n]/g);
+		//var msgLines = iconv.decode(msgBodyBuffer, 'CP437').replace(/\xec/g, '').split(/\r\n|[\r\n]/g);
+		var msgLines = iconv.decode(msgBodyBuffer, 'CP437').replace(/[\xec\n]/g, '').split(/\r/g);
 
 		var msgBody = {
 			message		: [],
