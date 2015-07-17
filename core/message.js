@@ -27,8 +27,16 @@ function Message(options) {
 		this.modTimestamp = new Date(options.modTimestamp);
 	}
 
-	//this.modTimestamp	= options.modTimestamp || '';	//	blank = set @ persist
 	this.viewCount		= options.viewCount || 0;
+
+	this.meta			= {
+		system	: {},	//	we'll always have this one
+	};
+
+	if(_.isObject(options.meta)) {
+		_.defaultsDeep(this.meta, options.meta);
+	}
+
 	this.meta			= options.meta || {};
 	this.hashTags		= options.hashTags || [];
 
@@ -66,59 +74,48 @@ Message.WellKnownAreaIds = {
 	Private	: 1,
 };
 
-Message.MetaNames = {
-	//
-	//	FidoNet: http://ftsc.org/docs/fts-0001.016
-	//
-	//	Note that we do not store even kludge line identifiers as-is
-	//	here for a) consistency, b) in case of implementation conflicts, etc.
-	//
-	FidoNetCost				: 'fidonet_cost',
-	FidoNetOrigNode			: 'fidonet_orig_node',
-	FidoNetDestNode			: 'fidonet_dest_node',
-	FidoNetOrigNetwork		: 'fidonet_orig_network',
-	FidoNetDestNetwork		: 'fidonet_dest_network',
-	FidoNetOrigZone			: 'fidonet_orig_zone',
-	FidoNetDestZone			: 'fidonet_dest_zone',
-	FidoNetOrigPoint		: 'fidonet_orig_point',
-	FidoNetDestPoint		: 'fidonet_dest_point',
-	FidoNetAttribute		: 'fidonet_attribute',
+Message.MetaCategories = {
+	System				: 'system',
+	FtnProperty			: 'ftn_prop',	//	
+	FtnKludge			: 'ftn_kludge',	//	PATH, MSGID, ...
+	FtnControl			: 'ftn_control'	//	ftn_area, ftn_origin, ...
+};
 
-	FidoNetProgramID		: 'fidonet_program_id',			//	"PID"					http://ftsc.org/docs/fsc-0046.005
-
-	FidoNetMsgID			: 'fidonet_msg_id',				//	"MSGID"					http://ftsc.org/docs/fsc-0070.002
-
-	FidoNetMessageID		: 'fidonet_message_id',			//	"MESSAGE-ID"			http://ftsc.org/docs/fsc-0030.001
-	FidoNetInReplyTo		: 'fidonet_in_reply_to',		//	"IN-REPLY-TO"			http://ftsc.org/docs/fsc-0030.001
-
-	FidoNetTearLineBanner	: 'fidonet_tear_line_banner',	//	FTN style tear line		http://ftsc.org/docs/fts-0004.001
-	FidoNetOrigin			: 'fidonet_origin',				//	FTN style "* Origin..."	http://ftsc.org/docs/fts-0004.001
-	FidoNetSeenBy			: 'fidonet_seen_by',			//	FTN style "SEEN-BY"		http://ftsc.org/docs/fts-0004.001
-	FidoNetPath				: 'fidonet_path',				//	FTN style "PATH"		http://ftsc.org/docs/fts-0004.001
-
+Message.SystemMetaNames = {
 	LocalToUserID			: 'local_to_user_id',
 	LocalFromUserID			: 'local_from_user_id',
-
-	//	:TODO: Search further:
-	//	https://www.npmjs.com/package/fidonet-jam
-
 };
 
-Message.FidoNetMetaNameMap = {
-	'PID'			: Message.MetaNames.FidoNetProgramID,
-	'MSGID'			: Message.MetaNames.FidoNetMsgID,
-	'MESSAGE-ID'	: Message.MetaNames.FidoNetMessageID,
-	'IN-REPLY-TO'	: Message.MetaNames.FidoNetInReplyTo,
-	'SEEN-BY'		: Message.MetaNames.FidoNetSeenBy,
-	'PATH'			: Message.MetaNames.FidoNetPath,
+Message.FtnPropertyNames = {
+	FtnCost				: 'ftn_cost',
+	FtnOrigNode			: 'ftn_orig_node',
+	FtnDestNode			: 'ftn_dest_node',
+	FtnOrigNetwork		: 'ftn_orig_network',
+	FtnDestNetwork		: 'ftn_dest_network',
+	FtnOrigZone			: 'ftn_orig_zone',
+	FtnDestZone			: 'ftn_dest_zone',
+	FtnOrigPoint		: 'ftn_orig_point',
+	FtnDestPoint		: 'ftn_dest_point',
+	FtnAttribute		: 'ftn_attribute',
 };
+
+//	Note: kludges are stored with their names as-is
+
+Message.FtnControlNames = {
+	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
+	FtnOrigin			: 'ftn_origin',			//	http://ftsc.org/docs/fts-0004.001
+	FtnArea				: 'ftn_area',			//	http://ftsc.org/docs/fts-0004.001
+	FtnSeenBy			: 'ftn_seen_by',		//	http://ftsc.org/docs/fts-0004.001
+};
+
+//	meta: { 'categoryName' : { name : value, name : value, ... } }
 
 Message.prototype.setLocalToUserId = function(userId) {
-	this.meta.LocalToUserID = userId;
+	this.meta.system.local_to_user_id = userId;
 };
 
 Message.prototype.setLocalFromUserId = function(userId) {
-	this.meta.LocalFromUserID = userId;
+	this.meta.system.local_from_user_id = userId;
 };
 
 Message.prototype.persist = function(cb) {
@@ -156,22 +153,24 @@ Message.prototype.persist = function(cb) {
 				} else {
 					//	:TODO: this should be it's own method such that meta can be updated
 					var metaStmt = msgDb.prepare(
-						'INSERT INTO message_meta (message_id, meta_name, meta_value) ' + 
-						'VALUES (?, ?, ?);');
+						'INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) ' + 
+						'VALUES (?, ?, ?, ?);');
 
-					async.each(Object.keys(self.meta), function meta(metaName, next) {
-						metaStmt.run(self.messageId, metaName, self.meta[metaName], function inserted(err) {
-							next(err);
-						});
-					}, function complete(err) {
-						if(!err) {
-							metaStmt.finalize(function finalized() {
-								callback(null);
+					for(var metaCategroy in self.meta) {
+						async.each(Object.keys(self.meta[metaCategroy]), function meta(metaName, next) {
+							metaStmt.run(self.messageId, metaCategroy, metaName, self.meta[metaCategroy][metaName], function inserted(err) {
+								next(err);
 							});
-						} else {
-							callback(err);
-						}
-					});
+						}, function complete(err) {
+							if(!err) {
+								metaStmt.finalize(function finalized() {
+									callback(null);
+								});
+							} else {
+								callback(err);
+							}
+						});
+					}
 				}
 			},
 			function storeHashTags(callback) {

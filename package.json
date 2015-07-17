@@ -9,7 +9,7 @@
 		"buffers" : "0.1.x",
 		"bunyan" : "1.3.x",
 		"iconv-lite" : "0.4.x",
-		"lodash" : "3.7.x",
+		"lodash" : "3.10.x",
 		"sqlite3" : "3.0.x",
 		"ssh2" : "0.4.x",
 		"strip-json-comments" : "1.0.x",

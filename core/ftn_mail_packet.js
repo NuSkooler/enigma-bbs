@@ -118,32 +118,24 @@ function FTNMailPacket(options) {
 			});
 	};
 
-	self.getKludgeLineMessageMeta = function(msgBody) {
-		//
-		//	For all well known |msgBody.kludgeLines|, create metadata entries.
-		//	
-		//	Example: 'MSGID' = [ ... ] -> 'fidonet_msg_id' = [ ... ]
-		//		
-		var kludgeMeta = {};
-
-		var mapName;
-		//	:TODO: there is probably a nicer way:
-		Object.keys(msgBody.kludgeLines).forEach(function kludgeName(kn) {
-			mapName = Message.FidoNetMetaNameMap[kn];
-			if(mapName) {
-				kludgeMeta[mapName] = msgBody.kludgeLines[kn];
-			}
-		});
-
-		return kludgeMeta;
-	};
 
 	self.getMessageMeta = function(msgBody) {
-		
-		var meta = self.getKludgeLineMessageMeta(msgBody);
+		var meta = {
+			ftn_kludge	: msgBody.kludgeLines,
+			ftn_control	: {},
+		};
 
-		if(msgBody.seenBy) {
-			meta[Message.MetaNames.FidoNetSeenBy] = msgBody.seenBy;
+		if(msgBody.tearLine) {
+			meta.ftn_control.ftn_tear_line = [ msgBody.tearLine ];
+		}
+		if(msgBody.seenBy.length > 0) {
+			meta.ftn_control.ftn_seen_by = msgBody.seenBy;
+		}
+		if(msgBody.area) {
+			meta.ftn_control.ftn_area = [ msgBody.area ];
+		}
+		if(msgBody.originLine) {
+			meta.ftn_control.ftn_origin = [ msgBody.originLine ];
 		}
 		
 		return meta;
@@ -181,8 +173,8 @@ function FTNMailPacket(options) {
 
 		var msgBody = {
 			message		: [],
+			kludgeLines	: {},	//	<KLUDGE> -> [ value1, value2, ... ]
 			seenBy		: [],
-			kludgeLines	: {},	//	upper(kludge) -> [ value, ... ]
 		};
 
 		var preOrigin	= true;
@@ -192,11 +184,7 @@ function FTNMailPacket(options) {
 			kludgeParts[0]	= kludgeParts[0].toUpperCase();
 			kludgeParts[1]	= kludgeParts[1].trim();
 
-			if(!(kludgeParts[0] in msgBody.kludgeLines)) {
-				msgBody.kludgeLines[kludgeParts[0]] = [ kludgeParts[1] ];
-			} else {
-				msgBody.kludgeLines[kludgeParts[0]].push(kludgeParts[1]);
-			}
+			(msgBody.kludgeLines[kludgeParts[0]] = msgBody.kludgeLines[kludgeParts[0]] || []).push(kludgeParts[1]);
 		}
 
 		msgLines.forEach(function nextLine(line) {
@@ -210,7 +198,7 @@ function FTNMailPacket(options) {
 					msgBody.area = line.substring(line.indexOf(':') + 1).trim();
 				} else if(_.startsWith(line, '--- ')) {
 					//	Tag lines are tracked allowing for specialized display/etc.
-					msgBody.tagLine = line;
+					msgBody.tearLine = line;
 				} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is "  * Origin: ..."
 					msgBody.originLine = line;
 					preOrigin		= false;
@@ -458,7 +446,7 @@ mailPacket.on('message', function msgParsed(msg) {
 	console.log(msg);
 });
 
-mailPacket.read( { packetPath : '/home/bashby/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007' } );
+mailPacket.read( { packetPath : '/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007' } );
 
 /*
 mailPacket.parse('/home/nuskooler/ownCloud/Projects/ENiGMA½ BBS/FTNPackets/BAD_BNDL.007', function parsed(err, messages) {
