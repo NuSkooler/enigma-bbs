@@ -19,6 +19,7 @@ exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
 
+//	:TODO: use JSONCache here... may need to fancy it up a bit in order to have events for after re-cache, e.g. to update helpers below:
 function loadTheme(themeID, cb) {
 	var path = paths.join(Config.paths.themes, themeID, 'theme.json');
 

@@ -468,6 +468,8 @@
 							"VM1" : {
 								"items" : [
 									"Defaults - DOS ANSI",
+									"bw_mindgames.ans - DOS",
+									"test.ans - DOS",
 									"Defaults - Amiga",
 									"Pause at Term Height"
 								],
@@ -480,7 +482,15 @@
 								{
 									"value" : { "1" : 0 },
 									"action" : "@menu:demoDefaultsDosAnsi"
-								}							
+								},
+								{
+									"value" : { "1" : 1 },
+									"action" : "@menu:demoDefaultsDosAnsi_bw_mindgames"
+								},
+								{
+									"value" : { "1" : 2 },
+									"action" : "@menu:demoDefaultsDosAnsi_test"
+								}
 							]
 						}
 					}
@@ -488,7 +498,15 @@
 			}
 		},
 		"demoDefaultsDosAnsi" : {
-			"art" : "WE-CIZB.ANS",
+			"art" : "DM-ENIG2.ANS",
+			"options" : { "cls" : true }
+		},
+		"demoDefaultsDosAnsi_bw_mindgames" : {
+			"art" : "bw_mindgames.ans",
+			"options" : { "cls" : true }
+		},
+		"demoDefaultsDosAnsi_test" : {
+			"art" : "test.ans",
 			"options" : { "cls" : true }
 		},
 		"demoFullScreenEditor" : {

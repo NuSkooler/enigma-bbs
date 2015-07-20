@@ -124,6 +124,11 @@ function connectEntry(client) {
 		//
 		displayBanner(term);
 
+		/*
+		theme.displayThemeArt({client : client, name : 'DM-ENIG2.ANS'}, function onArt() {
+
+		});*/
+
 		setTimeout(function onTimeout() {
 			client.gotoMenuModule( { name : Config.firstMenu });
 		}, 500);

@@ -458,7 +458,6 @@ function display(options, cb) {
 	var continous = false;
 
 
-	/*
 	parser.on('row update', function rowUpdate(row) {
 		if(row >= nextPauseTermHeight) {
 			if(!continous && 'termHeight' === options.pause) {
@@ -475,7 +474,6 @@ function display(options, cb) {
 			nextPauseTermHeight += options.client.term.termHeight;
 		}
 	});
-	*/
 
 	parser.on('mci', function mciEncountered(mciInfo) {
 
@@ -507,7 +505,7 @@ function display(options, cb) {
 
 			mciPosQueue.push(mapKey);
 
-			options.client.term.rawWrite(ansi.queryPos());
+			options.client.term.write(ansi.queryPos(), false);
 		}
 	});
 
@@ -542,12 +540,12 @@ function display(options, cb) {
 	}
 
 	if(ansiFont.length > 1) {
-		options.client.term.rawWrite(ansiFont);
+		options.client.term.write(ansiFont, false);
 	}
 
 
 	if(iceColors) {
-		options.client.term.rawWrite(ansi.blinkToBrightIntensity());
+		options.client.term.write(ansi.blinkToBrightIntensity(), false);
 	}
 
 	parser.reset(options.art);

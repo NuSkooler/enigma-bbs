@@ -43,18 +43,6 @@ function getDateFromFtnDateTime(dateTime) {
 	return (new Date(Date.parse(dateTime))).toISOString();
 }
 
-function getFormattedFTNAddress3D(zone, net, node) {
-	return util.format('%d:%d/%d', zone, net, node);
-}
-
-function getFormattedFTNAddress4D(zone, net, node, point) {
-	return util.format('%d:%d/%d.%d', zone, net, node, point);
-}
-
-function getFormattedFTNAddress5D(zone, net, node, point, domain) {
-	//	:TODO:
-}
-
 function getFormattedFTNAddress(address, dimensions) {
 	var addr = util.format('%d:%d', address.zone, address.net);
 	switch(dimensions) {

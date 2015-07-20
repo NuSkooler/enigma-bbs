@@ -8,6 +8,7 @@ var conf				= require('./config.js');	//	:TODO: remove me!
 var Config				= require('./config.js').config;
 var asset				= require('./asset.js');
 var theme				= require('./theme.js');
+var jsonCache			= require('./json_cache.js');
 
 var fs					= require('fs');
 var paths				= require('path');
@@ -22,28 +23,13 @@ exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
 exports.handleAction					= handleAction;
 exports.applyThemeCustomization			= applyThemeCustomization;
 
-
-function loadModJSON(fileName, cb) {
-	//	:TODO: really need to cache menu.json and prompt.json only reloading if they change - see chokidar & gaze npms
-	var filePath = paths.join(Config.paths.mods, fileName);
-
-	fs.readFile(filePath, { encoding : 'utf8' }, function jsonData(err, data) {
-		try {
-			var json = JSON.parse(stripJsonComments(data));
-			cb(null, json);
-		} catch(e) {
-			cb(e);
-		}
-	});
-}
-
 function getMenuConfig(name, cb) {
 	var menuConfig;
 
 	async.waterfall(
 		[
 			function loadMenuJSON(callback) {
-				loadModJSON('menu.json', function loaded(err, menuJson) {
+				jsonCache.getJSON('menu.json', function loaded(err, menuJson) {
 					callback(err, menuJson);
 				});
 			},
@@ -57,7 +43,7 @@ function getMenuConfig(name, cb) {
 			},
 			function loadPromptJSON(callback) {
 				if(_.isString(menuConfig.prompt)) {
-					loadModJSON('prompt.json', function loaded(err, promptJson) {
+					jsonCache.getJSON('prompt.json', function loaded(err, promptJson) {
 						callback(err, promptJson);
 					});
 				} else {

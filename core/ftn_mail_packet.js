@@ -28,22 +28,6 @@ function FTNMailPacket(options) {
 	var self			= this;
 	self.KLUDGE_PREFIX	= '\x01';
 
-	/*
-	this.loadNodeAddresses = function() {
-		if(Config.networks) {
-			for(var name in Config.networks) {
-				if(!Config.networks[name].address) {
-					continue;
-				}
-
-				this.nodeAddresses[name] = Config.networks[name].address;
-			}
-		}
-	};
-
-	this.loadNodeAddresses();
-	*/
-
 	this.getPacketHeaderAddress = function() {
 		return {
 			zone	: self.packetHeader.destZone,
