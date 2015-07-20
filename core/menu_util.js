@@ -181,6 +181,8 @@ function handleAction(client, formData, conf) {
 				callModuleMenuMethod(paths.join(Config.paths.mods, actionAsset.location));
 			} else {
 				if('systemMethod' === actionAsset.type) {
+					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
+					//	:TODO: Probably better as system_method.js
 					callModuleMenuMethod(paths.join(__dirname, 'system_menu_method.js'));
 				} else {
 					//	local to current module
