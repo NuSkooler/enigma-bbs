@@ -124,11 +124,14 @@ function connectEntry(client) {
 		//
 		displayBanner(term);
 
-		/*
-		theme.displayThemeArt({client : client, name : 'DM-ENIG2.ANS'}, function onArt() {
+/*		var art1 = require('fs').readFileSync('/home/nuskooler/dev/enigma-bbs/mods/themes/NU-MAYA/APPLY1.ANS');
+		term.rawWrite(art1);
 
-		});*/
+		term.write(ansi.resetScreen());
+		theme.displayThemeArt({client : client, name : 'APPLY1.ANS'}, function onArt() {
 
+		});
+	*/
 		setTimeout(function onTimeout() {
 			client.gotoMenuModule( { name : Config.firstMenu });
 		}, 500);

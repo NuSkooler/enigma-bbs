@@ -47,9 +47,9 @@ module.exports	= {
 				{
 					type	: 'rotating-file',
 					path	: logFile,
-					period	: '1d',
+					period	: Config.logging.period || '1d',
 					count	: 3,
-					level	: 'trace'
+					level	: Config.logging.level || 'debug',
 				}
 				/*,
 				{

@@ -74,14 +74,14 @@ function submitApplication(callingMenu, formData, extraArgs) {
 			menuViewController.switchFocus(viewIds[0]);
 		} else {
 			//	Seems legit!
-			//	:TODO: All of this should be a system API, not a mod
+			//	:TODO: All of this should be a system API, not a mod, e.g. createNewUser(...)
 			var newUser = new user.User();
 
 			newUser.username = formData.value.username;
 
 			newUser.properties = {
 				real_name		: formData.value.realName,
-				age				: formData.value.age,
+				birthday		: formData.value.birthday,
 				sex				: formData.value.sex,
 				location		: formData.value.location,
 				affiliation		: formData.value.affils,

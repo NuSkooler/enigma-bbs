@@ -137,5 +137,9 @@ function getDefaultConfig() {
 			}
 			*/
 		},
+
+		logging : {
+			level	: 'debug'
+		}
 	};
 }

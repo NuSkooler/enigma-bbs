@@ -50,7 +50,6 @@ function JSONCache() {
 JSONCache.prototype.getJSON = function(fileName, cb) {
 	var self		= this;
 	var filePath	= paths.join(Config.paths.mods, fileName);
-	console.log(filePath)
 
 	if(filePath in this.cache) {
 		cb(null, this.cache[filePath]);

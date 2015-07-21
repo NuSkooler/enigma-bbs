@@ -110,7 +110,7 @@
 			"next"		: "newUserActive",
 			"form"		: {
 				"0" : {
-					"BT12BT13ET1ET10ET2ET3ET4ET5ET6ET7ET8ET9TL11" : {
+					"BT12BT13ET1ET10ET2ET4ET5ET6ET7ET8ET9ME3TL11" : {
 						"mci" : {
 							"ET1" : {
 								"focus"		: true,
@@ -121,14 +121,14 @@
 								"argName"	: "realName",
 								"maxLength"	: 32
 							},
-							"ET3" : {
-								"argName"	: "age",
-								"width"		: 3,
-								"maxLength"	: 3
+							"ME3" : {
+								"argName"		: "birthday",
+								//"width"			: 8,
+								"maskPattern" 	: "####/##/##"
 							},
 							"ET4" : {
 								"argName"	: "sex",
-								"width"		: 1,
+								//"width"		: 1,
 								"maxLength"	: 1
 							},
 							"ET5" : {
