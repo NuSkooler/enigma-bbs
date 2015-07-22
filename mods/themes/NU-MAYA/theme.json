@@ -29,7 +29,8 @@
 				//"ET3" : { "width" : 21 },
 				"ME3" : {
 					"styleSGR1"		: "|00|30|01",
-					"styleSGR2"		: "|00|37"
+					"styleSGR2"		: "|00|37",
+					"fillChar"		: "#"
 				},
 				"ET4" : { "width" : 1 },
 				"ET5" : { "width" : 21 },

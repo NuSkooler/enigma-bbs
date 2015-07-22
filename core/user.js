@@ -319,6 +319,33 @@ User.prototype.persistProperties = function(cb) {
 	});
 };
 
+//	:TODO: A general purpose date/time formatting class or lib would be better here....
+User.prototype.getFormattedBirthDate = function(style) {
+	style = style || 'medium';
+
+	switch(style) {
+
+		case 'medium' : 
+			return _.has(this.properties, 'birthdate') ? 
+				new Date(Date.parse(this.properties.birthdate)).toJSON().slice(0, 10) :
+				null;
+	}
+};
+
+User.prototype.getAge = function() {
+	var birthDate = new Date(Date.parse(this.properties.birthdate));
+	if(!isNaN(birthDate)) {
+		var today	= new Date();
+		var age		= today.getFullYear() - birthDate.getFullYear();
+		var m		= today.getMonth() - birthDate.getMonth();
+		if(m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+			age--;
+		}
+
+		return age;
+	}
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //	Exported methods
 ///////////////////////////////////////////////////////////////////////////////

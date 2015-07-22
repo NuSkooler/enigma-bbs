@@ -28,7 +28,6 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
-
 	return {
 		BN	: Config.general.boardName,
 		VL	: 'ENiGMA½ v' + packageJson.version,
@@ -39,7 +38,8 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 		UG	: _.values(this.client.user.groups).join(', '),
 		UR	: this.client.user.properties.real_name,
 		LO	: this.client.user.properties.location,
-		UA	: this.client.user.properties.age,
+		UA	: this.client.user.getAge().toString(),
+		UB  : this.client.user.getFormattedBirthDate('medium'),
 		US	: this.client.user.properties.sex,
 		UE	: this.client.user.properties.email_address,
 		UW	: this.client.user.properties.web_address,

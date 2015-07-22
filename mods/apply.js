@@ -31,6 +31,11 @@ function validateApplicationData(formData, cb) {
 		return;
 	}
 
+	if(isNaN(Date.parse(formData.value.birthdate))) {
+		cb('Invalid birthdate!');
+		return;
+	}
+
 	if(formData.value.password.length < Config.users.passwordMin) {
 		cb('Password too short!', [ 9, 10 ]);
 		return;
@@ -81,7 +86,7 @@ function submitApplication(callingMenu, formData, extraArgs) {
 
 			newUser.properties = {
 				real_name		: formData.value.realName,
-				birthday		: formData.value.birthday,
+				birthdate		: new Date(Date.parse(formData.value.birthdate)).toISOString(),
 				sex				: formData.value.sex,
 				location		: formData.value.location,
 				affiliation		: formData.value.affils,

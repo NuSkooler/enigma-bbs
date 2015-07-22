@@ -102,8 +102,8 @@ function MenuModule(options) {
 						//	Prompts *must* have art. If it's missing it's an error
 						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
 						var promptConfig = self.menuConfig.promptConfig;
-						self.displayArtAsset(promptConfig.art, function displayed(err, mciMap) {
-							mciData.prompt = mciMap;
+						self.displayArtAsset(promptConfig.art, function displayed(err, artData) {
+							mciData.prompt = artData.mciMap;
 							callback(err);
 						});
 					} else {						

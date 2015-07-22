@@ -628,7 +628,7 @@ ViewController.prototype.getFormData = function() {
 				}
 			}
 		} catch(e) {
-			self.client.log.error(e);	//	:TODO: Log better ;)
+			this.client.log.error(e);	//	:TODO: Log better ;)
 		}
 	}
 

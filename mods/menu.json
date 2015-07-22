@@ -46,7 +46,7 @@
 			"art"		: "matrix",
 			"form"		: {
 				"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
-					"VM1" : {
+					"VM" : {
 						"mci" : {
 							"VM1" :  {
 								"submit"	: true,
@@ -110,7 +110,7 @@
 			"next"		: "newUserActive",
 			"form"		: {
 				"0" : {
-					"BT12BT13ET1ET10ET2ET4ET5ET6ET7ET8ET9ME3TL11" : {
+					"BTBTETETETETETETETETETMETL" : {
 						"mci" : {
 							"ET1" : {
 								"focus"		: true,
@@ -122,7 +122,7 @@
 								"maxLength"	: 32
 							},
 							"ME3" : {
-								"argName"		: "birthday",
+								"argName"		: "birthdate",
 								//"width"			: 8,
 								"maskPattern" 	: "####/##/##"
 							},
@@ -204,7 +204,7 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"VM1" : {
+					"VM" : {
 						"mci" : {
 							"VM1" : {
 								"items" : [
@@ -266,7 +266,7 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT5ET1ET2ET3ET4" : {
+					"BTETETETET" : {
 						"mci" : {
 							"ET1" : {
 								"width"		: 20,
@@ -316,7 +316,7 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT8SM1SM2TM3" : {
+					"BTSMSMTM" : {
 						"mci" : {
 							"SM1" : {
 								"items" : [ "Henry Morgan", "François l'Ollonais", "Roche Braziliano", "Black Bart", "Blackbeard" ]
@@ -356,12 +356,14 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT5ME1ME2" : {
+					"BTMEME" : {
 						"mci" : {
 							"ME1" : {
 								"maskPattern"	: "##/##/##",
 								"styleSGR1"		: "|00|30|01",
-								"styleSGR2"		: "|00|45|01"
+								//"styleSGR2"		: "|00|45|01",
+								"styleSGR3"		: "|00|30|35",
+								"fillChar"		: "#"
 							},
 							"BT5" : {
 								"text" : "< Back"
@@ -390,13 +392,14 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT5MT1" : {
+					"BTMT" : {
 						"mci" : { 
 							"MT1" : {
 								"width"		: 70,
 								"height"	: 17,
-								"text"		: "@art:demo_multi_line_edit_text_view_text.txt",
-								//"text"		: "Hints:\n  * Press CTRL-Y to clear a line\n  * Arrow keys to move around\n\nTry editing the text below:\nThis\tis\ttabbbed!\nLet me be sick... I want to get up. Get me something to be sick in... Stop the film... Please stop it... I can't stand it any more. Stop it please... please.\n\nWell, that was a very promising start. By my calculations, you should be starting to feel alright again. Yes? Dr. Brodsky's pleased with you. Now \ttomorrow \tthere'll \tbe \ttwo \tsessions, \tof\t course, morning and afternoon.\n\nYou mean, I have to viddy two sessions in one day?\n\nI imagine you'll be feeling a little bit limp by the end of the day. But we have to be hard on you. You have to be cured.\n",
+								//"text"		: "@art:demo_multi_line_edit_text_view_text.txt",
+								// "text" : "@systemMethod:textFromFile"
+								"text"		: "Hints:\n\t* Insert / CTRL-V toggles overtype mode\n\t* CTRL-Y deletes the current line\n\t* Try Page Up / Page Down\n\t* Home goes to the start of line text\n\t* End goes to the end of a line\n\n\nTab handling:\n-------------------------------------------------\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\nA0\tBB\t1\tCCC\t2\tDDD\t3EEEE\nW\t\tX\t\tY\t\tZ\n\nAn excerpt from A Clockwork Orange:\n\"What sloochatted then, of course, was that my cellmates woke up and started joining in, tolchocking a bit wild in the near-dark, and the shoom seemed to wake up the whole tier, so that you could slooshy a lot of creeching and banging about with tin mugs on the wall, as though all the plennies in all the cells thought a big break was about to commence, O my brothers.\n",
 								"focus"		: true
 							},
 							"BT5" : {
@@ -426,7 +429,7 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"BT5HM1HM2" : {
+					"BTHMHM" : {
 						"mci" : {
 							"HM1" : {
 								"items" : [ "One", "Two", "Three" ],
@@ -463,7 +466,7 @@
 			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
-					"VM1" : {
+					"VM" : {
 						"mci" : {
 							"VM1" : {
 								"items" : [
@@ -526,7 +529,7 @@
 			},
 			"form" : {
 				"0" : {
-					"ET1ET2ET3" : {
+					"ETETET" : {
 						"mci" : {
 							"ET1" : {
 								//	:TODO: from/to may be set by args
@@ -557,7 +560,7 @@
 					}
 				},
 				"1" : {
-					"MT1" : {
+					"MT" : {
 						"mci" : {
 							"MT1" : {
 								"width"		: 79,
@@ -583,7 +586,7 @@
 					}
 				},
 				"2" : {
-					"TL1TL2" :  {
+					"TLTL" :  {
 						"mci" : {
 							"TL1" : {
 								"width"	: 5
@@ -595,7 +598,7 @@
 					}
 				},
 				"3" : {
-					"HM1" : {
+					"HM" : {
 						"mci" : {
 							"HM1" : {
 								//	:TODO: Continue, Save, Discard, Clear, Quote, Help

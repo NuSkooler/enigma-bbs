@@ -21,6 +21,12 @@ exports.MaskEditTextView	= MaskEditTextView;
 //	styleSGR2: Literals (focused)
 //	styleSGR3: fillChar
 
+//
+//	:TODO:
+//	* Hint, e.g. YYYY/MM/DD
+//	* Return values with literals in place
+//	
+
 function MaskEditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
@@ -168,4 +174,22 @@ MaskEditTextView.prototype.setPropertyValue = function(propName, value) {
 	}
 
 	MaskEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
+};
+
+MaskEditTextView.prototype.getData = function() {
+	var rawData = MaskEditTextView.super_.prototype.getData.call(this);
+	var data	= '';
+
+	assert(rawData.length <= this.patternArray.length);
+
+	var p = 0;
+	for(var i = 0; i < this.patternArray.length; ++i) {
+		if(_.isRegExp(this.patternArray[i])) {
+			data += rawData[p++];
+		} else {
+			data += this.patternArray[i];
+		}
+	}
+
+	return data;
 };

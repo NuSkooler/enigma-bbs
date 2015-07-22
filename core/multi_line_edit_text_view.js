@@ -1037,7 +1037,7 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	text = require('fs').readFileSync('/home/bashby/Downloads/test_text.txt', { encoding : 'utf-8'});
+	//text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.insertRawText(text);
 	this.cursorEndOfDocument();

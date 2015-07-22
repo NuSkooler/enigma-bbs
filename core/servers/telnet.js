@@ -404,7 +404,7 @@ function parseCommand(bufs, i, event) {
 		//return COMMAND_IMPLS[command](bufs, i + 1, event);
 		return handler(bufs, i + 1, event);
 	} else {
-		assert(2 == bufs.length); //	IAC + COMMAND
+		assert(2 == bufs.length, 'Expected bufs length of 2, got ' + bufs.length); //	IAC + COMMAND
 		event.buf = bufs.splice(0, 2).toBuffer();
 		return event;		
 	}

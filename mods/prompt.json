@@ -1,7 +1,7 @@
 {
 	"prompts" : {
-		"art" : "usercred",
 		"userCredentials" : {
+			"art" : "usercred",
 			"mci" : {
 				"ET1" : {
 					"argName"	: "username",

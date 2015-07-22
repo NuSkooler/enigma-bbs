@@ -53,7 +53,7 @@ function getMenuConfig(name, cb) {
 			function locatePromptConfig(promptJson, callback) {
 				if(promptJson) {
 					if(_.has(promptJson, [ 'prompts', menuConfig.prompt ])) {
-						menuConfig.promptConfig = promptJson[menuConfig.prompt];
+						menuConfig.promptConfig = promptJson.prompts[menuConfig.prompt];
 					} else {
 						callback(new Error('No prompt entry for \'' + menuConfig.prompt + '\''));
 						return;
@@ -138,9 +138,10 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	}
 
 	var formForId = menuConfig.form[formId];
+	var mciReqKey = _.pluck(_.sortBy(mciMap, 'code'), 'code').join('');
 
-	var mciReqKey = _.sortBy(Object.keys(mciMap), String).join('');
 	Log.trace( { mciKey : mciReqKey }, 'Looking for MCI configuration key');
+
 	if(_.isObject(formForId[mciReqKey])) {
 		cb(null, formForId[mciReqKey]);
 		return;
@@ -151,7 +152,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 		return;
 	}
 
-	cb(new Error('No matching form configuration found'));
+	cb(new Error('No matching form configuration found for key \'' + mciReqKey + '\''));
 }
 
 function handleAction(client, formData, conf) {
