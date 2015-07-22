@@ -20,6 +20,7 @@ var packageJson 			= require('../package.json');
 var assert					= require('assert');
 var os						= require('os');
 var _						= require('lodash');
+var moment					= require('moment');
 
 exports.MCIViewFactory		= MCIViewFactory;
 
@@ -39,7 +40,8 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 		UR	: this.client.user.properties.real_name,
 		LO	: this.client.user.properties.location,
 		UA	: this.client.user.getAge().toString(),
-		UB  : this.client.user.getFormattedBirthDate('medium'),
+		UB	: moment(this.client.user.properties.birthdate).format('MM/DD/YYYY'),
+		//UB  : this.client.user.getFormattedBirthDate('medium'),
 		US	: this.client.user.properties.sex,
 		UE	: this.client.user.properties.email_address,
 		UW	: this.client.user.properties.web_address,

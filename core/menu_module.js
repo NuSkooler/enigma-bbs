@@ -43,7 +43,7 @@ function MenuModule(options) {
 		switch(artAsset.type) {
 			case 'art' :
 				theme.displayThemeArt(dispOptions, function displayed(err, themeArtData) {
-					cb(err, { mciMap : themeArtData.mciMap, height : themeArtData.extraInfo.height } );
+					cb(err, err ? null : { mciMap : themeArtData.mciMap, height : themeArtData.extraInfo.height } );
 				});
 				break;
 
@@ -77,7 +77,9 @@ function MenuModule(options) {
 				function displayMenuArt(callback) {
 					if(_.isString(self.menuConfig.art)) {
 						self.displayArtAsset(self.menuConfig.art, function displayed(err, artData) {
-							mciData.menu = artData.mciMap;
+							if(!err) {
+								mciData.menu = artData.mciMap;
+							}
 							callback(err);
 						});
 					} else {						
@@ -103,7 +105,9 @@ function MenuModule(options) {
 						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
 						var promptConfig = self.menuConfig.promptConfig;
 						self.displayArtAsset(promptConfig.art, function displayed(err, artData) {
-							mciData.prompt = artData.mciMap;
+							if(!err) {
+								mciData.prompt = artData.mciMap;
+							}
 							callback(err);
 						});
 					} else {						

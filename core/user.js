@@ -9,6 +9,7 @@ var crypto			= require('crypto');
 var assert			= require('assert');
 var async			= require('async');
 var _				= require('lodash');
+var moment			= require('moment');
 
 exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
@@ -333,7 +334,10 @@ User.prototype.getFormattedBirthDate = function(style) {
 };
 
 User.prototype.getAge = function() {
-	var birthDate = new Date(Date.parse(this.properties.birthdate));
+	if(_.has(this.properties, 'birthdate')) {
+		return moment().diff(this.properties.birthdate, 'years');
+	}
+	/*
 	if(!isNaN(birthDate)) {
 		var today	= new Date();
 		var age		= today.getFullYear() - birthDate.getFullYear();
@@ -344,6 +348,7 @@ User.prototype.getAge = function() {
 
 		return age;
 	}
+	*/
 };
 
 ///////////////////////////////////////////////////////////////////////////////
