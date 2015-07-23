@@ -21,12 +21,18 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		return;
 	}
 
+	var done = function(res) {
+		client.removeListener('cursor position report', cprListener);
+		clearTimeout(giveUpTimer);
+		cb(res);
+	};
+
 	var cprListener = function(pos) {
 		//
 		//	If we've already found out, disregard
 		//
 		if(client.term.termHeight > 0 || client.term.termWidth > 0) {
-			cb(true);
+			done(true);
 			return;
 		}
 
@@ -42,7 +48,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			client.log.warn(
 				{ height : h, width : w }, 
 				'Ignoring ANSI CPR screen size query response due to very small values');
-			cb(false);
+			done(false);
 			return;
 		}
 
@@ -58,17 +64,17 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			'Window size updated'
 			);
 
-		cb(true);
+		done(true);
 	};
 
 	client.once('cursor position report', cprListener);
 
 	//	give up after 2s
-	setTimeout(function onTimeout() {
-		client.removeListener('cursor position report', cprListener);
-		cb(false);
+	var giveUpTimer = setTimeout(function onTimeout() {
+		done(false);
 	}, 2000);
 
+	//	This causes 
 	client.term.write(ansi.queryScreenSize());
 }
 
