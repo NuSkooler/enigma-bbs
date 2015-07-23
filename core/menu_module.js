@@ -218,11 +218,21 @@ MenuModule.prototype.finishedLoading = function() {
 			self.client.gotoMenuModule( { name : self.menuConfig.next } );
 		}, this.menuConfig.options.nextTimeout);
 	} else {
-		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-			_.isString(self.menuConfig.action))
-		{
-			menuUtil.handleAction(self.client, null, self.menuConfig);
-		}
+		var nextAction = function() {
+			if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
+				_.isString(self.menuConfig.action))
+			{
+				menuUtil.handleAction(self.client, null, self.menuConfig);
+			}
+		};
 
+		if('end' === self.menuConfig.pause) {
+			//	:TODO: really need a client.term.pause() that uses the correct art/etc.
+			self.client.waitForKeyPress(function kp(ch, key) {
+				nextAction();
+			});
+		} else {
+			nextAction();
+		}
 	}
 };

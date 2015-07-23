@@ -192,6 +192,12 @@
 			}
 		},
 		"newUserActive" : {
+			"art"		: "SO-CC1.ANS",
+			"options"	: { "cls" : true },
+			"action"	: "@menu:currentUserStats",
+			"pause"		: "end"
+		},
+		"currentUserStats" : {
 			"art" : "userstats",
 			//"prompt" : "pause",
 			"options" : {

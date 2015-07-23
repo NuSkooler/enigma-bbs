@@ -39,8 +39,10 @@
 			*/
 		},
 		"standard" : {
+			//	any menu 'pause' will display this, pause for a key, then erase and move on
 			"pause" : {
 				"art" : "pause"
+				//	:TODO: support mci mappings
 			}
 		},
 		"custom" : {
