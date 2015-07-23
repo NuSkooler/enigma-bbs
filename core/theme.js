@@ -52,8 +52,18 @@ function loadTheme(themeID, cb) {
 							}
 						}
 						return pwChar;
+					},
+					getDateFormat : function(style) {
+						style = style || 'short';
+
+						var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY';
+						
+						if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
+							return theme.customization.defaults.dateTimeFormat[style] || format;
+						}
+						return format;
 					}
-				}
+				};
 
 				cb(null, theme);
 			} catch(e) {

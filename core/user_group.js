@@ -38,8 +38,7 @@ function getGroupsForUser(userId, cb) {
 			cb(err);
 			return;
 		} else {
-			console.log(row);
-			//groups[row.group_id]
+			groups[row.group_id] = row.group_name;
 		}
 	},
 	function complete() {

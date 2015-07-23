@@ -35,18 +35,19 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 		VN	: packageJson.version,
 
 		UN	: this.client.user.username,
-		UI	: this.client.user.userId,
+		UI	: this.client.user.userId.toString(),
 		UG	: _.values(this.client.user.groups).join(', '),
 		UR	: this.client.user.properties.real_name,
 		LO	: this.client.user.properties.location,
 		UA	: this.client.user.getAge().toString(),
-		UB	: moment(this.client.user.properties.birthdate).format('MM/DD/YYYY'),
-		//UB  : this.client.user.getFormattedBirthDate('medium'),
+		UB	: moment(this.client.user.properties.birthdate).format(this.client.currentTheme.helpers.getDateFormat()),
 		US	: this.client.user.properties.sex,
 		UE	: this.client.user.properties.email_address,
 		UW	: this.client.user.properties.web_address,
 		UF	: this.client.user.properties.affiliation,
 		UT	: this.client.user.properties.theme_id,
+
+		ND	: this.client.runtime.id.toString(),
 
 		OS	: {
 			linux	: 'Linux',
@@ -212,6 +213,11 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		default :
 			options.text = this.getPredefinedViewLabel(mci.code);
 			if(_.isString(options.text)) {
+				setWidth(0);
+
+				setOption(1,	'textStyle');
+				setOption(2,	'justify');
+
 				view = new TextView(options);
 			}
 			break;

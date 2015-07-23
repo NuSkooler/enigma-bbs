@@ -8,6 +8,9 @@
 			"general" : {
 				"passwordChar" : "φ"
 			},
+			"dateTimeFormat" : {
+				"short" : "YYYY-MMM-DD"
+			},
 			"mci" : {
 				"TM" : {
 					"styleSGR1" : "|00|30|01"

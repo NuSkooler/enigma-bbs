@@ -91,6 +91,9 @@ function getDefaultConfig() {
 		defaults : {
 			theme			: 'NU-MAYA',	//	:TODO: allow "*" here
 			passwordChar	: '*',		//	TODO: move to user ?
+			dateTimeFormat	: {
+				short	: 'MM/DD/YYYY',
+			}
 		},
 
 		/*
