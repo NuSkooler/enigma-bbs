@@ -226,7 +226,7 @@ MenuModule.prototype.finishedLoading = function() {
 			}
 		};
 
-		if('end' === self.menuConfig.pause) {
+		if('end' === self.menuConfig.pause || true === self.menuConfig.pause) {
 			//	:TODO: really need a client.term.pause() that uses the correct art/etc.
 			self.client.waitForKeyPress(function kp(ch, key) {
 				nextAction();
