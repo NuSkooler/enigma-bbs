@@ -43,7 +43,7 @@ function getMenuConfig(name, cb) {
 			},
 			function loadPromptJSON(callback) {
 				if(_.isString(menuConfig.prompt)) {
-					jsonCache.getJSON('prompt.json', function loaded(err, promptJson) {
+					jsonCache.getJSON('prompt.json', function loaded(err, promptJson, reCached) {
 						callback(err, promptJson);
 					});
 				} else {

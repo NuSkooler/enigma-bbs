@@ -95,6 +95,22 @@ function displayBanner(term) {
 function connectEntry(client) {
 	var term = client.term;
 
+	/*
+	theme.displayThemeArt({client : client, name : 'DM-ENIG.ANS'}, function onArt() {
+		return;
+	});
+*/
+	/*
+	var iconv = require('iconv-lite');
+	var art1 = require('fs').readFileSync('/home/nuskooler/dev/enigma-bbs/mods/art/DM-ENIG.ANS');
+	console.log(typeof art1);
+	art1 = iconv.decode(art1, 'cp437');
+	console.log(typeof art1)
+	term.output.write(art1);
+	//term.output.write(require('iconv-lite').encode(art1, 'CP437'));
+	return;
+	*/
+
 	//	:TODO: Enthral for example queries cursor position & checks if it worked. This might be good
 	//	:TODO: How to detect e.g. if show/hide cursor can work? Probably can if CPR is avail
 
@@ -129,14 +145,6 @@ function connectEntry(client) {
 		//	Always show a ENiGMA½ banner
 		//
 		displayBanner(term);
-
-		/*
-		var art1 = require('fs').readFileSync('/home/nuskooler/dev/enigma-bbs/mods/themes/NU-MAYA/APPLY1.ANS');
-		term.rawWrite(art1);
-		theme.displayThemeArt({client : client, name : 'APPLY1.ANS'}, function onArt() {
-
-		});
-*/
 
 		setTimeout(function onTimeout() {
 			client.gotoMenuModule( { name : Config.firstMenu });

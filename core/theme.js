@@ -3,8 +3,10 @@
 
 var Config				= require('./config.js').config;
 var art					= require('./art.js');
+var ansi				= require('./ansi_term.js');
 var miscUtil			= require('./misc_util.js');
 var Log					= require('./logger.js').log;
+var jsonCache			= require('./json_cache.js');
 
 var fs					= require('fs');
 var paths				= require('path');
@@ -18,6 +20,7 @@ exports.getThemeArt				= getThemeArt;
 exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
+exports.displayThemePause		= displayThemePause;
 
 //	:TODO: use JSONCache here... may need to fancy it up a bit in order to have events for after re-cache, e.g. to update helpers below:
 function loadTheme(themeID, cb) {
@@ -56,10 +59,20 @@ function loadTheme(themeID, cb) {
 					getDateFormat : function(style) {
 						style = style || 'short';
 
-						var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY';
-						
-						if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
-							return theme.customization.defaults.dateTimeFormat[style] || format;
+						var format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
+
+						if(_.has(theme, 'customization.defaults.dateFormat')) {
+							return theme.customization.defaults.dateFormat[style] || format;
+						}
+						return format;
+					},
+					getTimeFormat : function(style) {
+						style = style || 'short';
+
+						var format = Config.defaults.timeFormat[style] || 'h:mm tt';
+
+						if(_.has(theme, 'customization.defaults.timeFormat')) {
+							return theme.customization.defaults.timeFormat[style] || format;
 						}
 						return format;
 					}
@@ -174,4 +187,71 @@ function displayThemeArt(options, cb) {
 			});
 		}
 	});
+}
+
+function displayThemePause(options, cb) {
+	//
+	//	options.client
+	//	options clearPrompt
+	//
+	assert(_.isObject(options.client));
+
+	if(!_.isBoolean(options.clearPrompt)) {
+		options.clearPrompt = true;
+	}
+
+	//	:TODO: Support animated pause prompts. Probably via MCI with AnimatedView
+	//	:TODO: support prompts with a height > 1
+	//	:TODO: Prompt should support MCI codes in general
+	//	...this will be more complex due to cursor movement. Will need to track where teh cusor
+	//	was before the prompt + filling MCI, then move back and erase correct # of lines
+
+	async.waterfall(
+		[
+			function loadPromptJSON(callback) {
+				jsonCache.getJSON('prompt.json', function loaded(err, promptJson) {
+					if(err) {
+						callback(err);
+					} else {
+						if(_.has(promptJson, [ 'prompts', 'pause' ] )) {
+							callback(null, promptJson.prompts.pause);
+						} else {
+							callback(new Error('Missing standard \'pause\' prompt'))
+						}
+					}					
+				});				
+			},
+			function displayPausePrompt(pausePrompt, callback) {
+				displayThemeArt( { client : options.client, name : pausePrompt.art }, function pauseDisplayed(err, mciMap, extraInfo) {
+					if(extraInfo) {
+						pauseHeight = extraInfo.height;
+					}
+					callback(null);
+				});
+			},
+			function pauseForUserInput(callback) {
+				options.client.waitForKeyPress(function keyPressed() {
+					callback(null);
+				});
+			},
+			function clearPauseArt(callback) {
+				if(options.clearPrompt) {
+					options.client.term.write(ansi.up(1) + ansi.deleteLine());
+				}
+				callback(null);
+			}
+			, function debugPause(callback) {
+				setTimeout(function to() {
+					callback(null);
+				}, 4000);
+			}
+
+		],
+		function complete(err) {
+			if(err) {
+				Log.error(err);
+			}
+			cb();
+		}
+	);
 }

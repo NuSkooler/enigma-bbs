@@ -52,13 +52,13 @@ JSONCache.prototype.getJSON = function(fileName, cb) {
 	var filePath	= paths.join(Config.paths.mods, fileName);
 
 	if(filePath in this.cache) {
-		cb(null, this.cache[filePath]);
+		cb(null, this.cache[filePath], false);
 	} else {
 		this.reCacheJSONFromFile(filePath, function fileCached(err, json) {
 			if(!err) {
 				self.gaze.add(filePath);
 			}
-			cb(err, json);
+			cb(err, json, true);
 		});
 	}
-}
+};

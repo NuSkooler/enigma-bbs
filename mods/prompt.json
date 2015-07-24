@@ -16,6 +16,9 @@
 			}
 		},
 		"pause" : {
+			//
+			//	Any menu 'pause' will use this prompt
+			//
 			"art" : "pause"
 			/*
 			"mci" : {
@@ -37,7 +40,7 @@
 				* echoKey : false
 
 			*/
-		},
+		}/*,
 		"standard" : {
 			//	any menu 'pause' will display this, pause for a key, then erase and move on
 			"pause" : {
@@ -47,7 +50,7 @@
 		},
 		"custom" : {
 
-		}
+		}*/
 		/*
 		see notes in menu_module.js also
 		...how to allow for this to come from the theme first???

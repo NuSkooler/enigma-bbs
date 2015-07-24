@@ -445,7 +445,7 @@ function display(options, cb) {
 		}
 
 		var extraInfo = {
-			height : parser.row - 1
+			height : parser.row - 1,
 		};
 
 		cb(null, mciMap, extraInfo);

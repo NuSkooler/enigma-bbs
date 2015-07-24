@@ -8,7 +8,7 @@
 			"general" : {
 				"passwordChar" : "φ"
 			},
-			"dateTimeFormat" : {
+			"dateFormat" : {
 				"short" : "YYYY-MMM-DD"
 			},
 			"mci" : {
