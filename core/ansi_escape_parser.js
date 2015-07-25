@@ -36,11 +36,13 @@ function ANSIEscapeParser(options) {
 		mciReplaceChar		: '',
 		termHeight			: 25,
 		termWidth			: 80,
+		omitTrailingLF		: false,
 	});
 
 	this.mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, '');
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
+	this.omitTrailingLF		= miscUtil.valueWithDefault(options.omitTrailingLF, false);
 
 	
 	function getArgArray(array) {
@@ -243,7 +245,11 @@ function ANSIEscapeParser(options) {
 		} while(0 !== re.lastIndex);
 
 		if(pos < buffer.length) {
-			parseMCI(buffer.slice(pos));
+			var lastBit = buffer.slice(pos);
+			if(self.omitTrailingLF && '\r\n' === lastBit.slice(-2).toString()) {
+				lastBit = lastBit.slice(pos, -2);	//	trim off last CRLF
+			}
+			parseMCI(lastBit)
 		}
 
 		self.emit('complete');

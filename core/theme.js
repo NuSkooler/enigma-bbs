@@ -7,6 +7,8 @@ var ansi				= require('./ansi_term.js');
 var miscUtil			= require('./misc_util.js');
 var Log					= require('./logger.js').log;
 var jsonCache			= require('./json_cache.js');
+var asset				= require('./asset.js');
+var ViewController		= require('./view_controller.js').ViewController;
 
 var fs					= require('fs');
 var paths				= require('path');
@@ -20,7 +22,8 @@ exports.getThemeArt				= getThemeArt;
 exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
-exports.displayThemePause		= displayThemePause;
+exports.displayThemedPause		= displayThemedPause;
+exports.displayThemedAsset		= displayThemedAsset;
 
 //	:TODO: use JSONCache here... may need to fancy it up a bit in order to have events for after re-cache, e.g. to update helpers below:
 function loadTheme(themeID, cb) {
@@ -69,7 +72,7 @@ function loadTheme(themeID, cb) {
 					getTimeFormat : function(style) {
 						style = style || 'short';
 
-						var format = Config.defaults.timeFormat[style] || 'h:mm tt';
+						var format = Config.defaults.timeFormat[style] || 'h:mm a';
 
 						if(_.has(theme, 'customization.defaults.timeFormat')) {
 							return theme.customization.defaults.timeFormat[style] || format;
@@ -176,10 +179,11 @@ function displayThemeArt(options, cb) {
 			cb(err);
 		} else {
 			var dispOptions = {
-				art			: artInfo.data,
-				sauce		: artInfo.sauce,
-				client		: options.client,
-				font		: options.font,
+				art				: artInfo.data,
+				sauce			: artInfo.sauce,
+				client			: options.client,
+				font			: options.font,
+				omitTrailingLF	: options.omitTrailingLF,
 			};
 
 			art.display(dispOptions, function displayed(err, mciMap, extraInfo) {
@@ -192,7 +196,7 @@ function displayThemeArt(options, cb) {
 //
 //	Pause prompts are a special prompt by the name 'pause'.
 //	
-function displayThemePause(options, cb) {
+function displayThemedPause(options, cb) {
 	//
 	//	options.client
 	//	options clearPrompt
@@ -208,8 +212,10 @@ function displayThemePause(options, cb) {
 	//	:TODO: Prompt should support MCI codes in general
 
 	var artInfo;
+	var vc;
+	var promptConfig;
 
-	async.waterfall(
+	async.series(
 		[
 			function loadPromptJSON(callback) {
 				jsonCache.getJSON('prompt.json', function loaded(err, promptJson) {
@@ -217,28 +223,38 @@ function displayThemePause(options, cb) {
 						callback(err);
 					} else {
 						if(_.has(promptJson, [ 'prompts', 'pause' ] )) {
-							callback(null, promptJson.prompts.pause);
+							promptConfig = promptJson.prompts.pause;
+							callback(_.isObject(promptConfig) ? null : new Error('Invalid prompt config block!'));
 						} else {
 							callback(new Error('Missing standard \'pause\' prompt'))
 						}
 					}					
 				});				
 			},
-			function displayPausePrompt(pausePrompt, callback) {
-				//	:TODO: use displayArtAsset()
-				displayThemeArt( { client : options.client, name : pausePrompt.art }, function pauseDisplayed(err, artData) {
-					artInfo = artData;
-					callback(err);
-				});
+			function displayPausePrompt(callback) {
+				displayThemedAsset(
+					promptConfig.art, 
+					options.client,
+					{ font : promptConfig.font, omitTrailingLF : true },
+					function displayed(err, artData) {
+						artInfo = artData;
+						callback(err);
+					}
+				);
 			},
 			function discoverCursorPosition(callback) {
 				options.client.once('cursor position report', function cpr(pos) {
-					artInfo.startRow = pos[0] - artInfo.extraInfo.height;
+					artInfo.startRow = pos[0] - artInfo.height;
 					callback(null);
 				});
 				options.client.term.rawWrite(ansi.queryPos());
 			},
-			//	:TODO: use view Controller loadFromPromptConfig() with 'noInput' option or such
+			function createMCIViews(callback) {
+				vc = new ViewController( { client : options.client, noInput : true } );
+				vc.loadFromPromptConfig( { promptName : 'pause', mciMap : artInfo.mciMap, config : promptConfig }, function loaded(err) {
+					callback(null);
+				});
+			},
 			function pauseForUserInput(callback) {
 				options.client.waitForKeyPress(function keyPressed() {
 					callback(null);
@@ -248,7 +264,7 @@ function displayThemePause(options, cb) {
 				if(options.clearPrompt) {
 					if(artInfo.startRow) {
 						options.client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-						options.client.term.rawWrite(ansi.deleteLine(artInfo.extraInfo.height));
+						options.client.term.rawWrite(ansi.deleteLine(artInfo.height));
 					} else {
 						options.client.term.rawWrite(ansi.up(1) + ansi.deleteLine());
 					}
@@ -261,13 +277,63 @@ function displayThemePause(options, cb) {
 					callback(null);
 				}, 4000);
 			}
-*/
+			*/
 		],
 		function complete(err) {
 			if(err) {
 				Log.error(err);
 			}
+
+			if(vc) {
+				vc.detachClientEvents();
+			}
+
 			cb();
 		}
 	);
+}
+
+function displayThemedAsset(assetSpec, client, options, cb) {
+	assert(_.isObject(client));
+
+	//	options are... optional
+	if(3 === arguments.length) {
+		cb = options;
+		options = {};
+	}
+
+	var artAsset = asset.getArtAsset(assetSpec);
+	if(!artAsset) {
+		cb(new Error('Asset not found: ' + assetSpec));
+		return;
+	}
+
+	var dispOpts = {
+		name			: artAsset.asset,
+		client			: client,
+		font			: options.font,
+		omitTrailingLF	: options.omitTrailingLF,
+	};
+
+	switch(artAsset.type) {
+		case 'art' :
+			displayThemeArt(dispOpts, function displayed(err, artData) {
+				cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
+			});
+			break;
+
+		case 'method' : 
+			//	:TODO: fetch & render via method
+			break;
+
+		case 'inline ' :
+			//	:TODO: think about this more in relation to themes, etc. How can this come
+			//	from a theme (with override from menu.json) ???
+			//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
+			break;
+
+		default :
+			cb(new Error('Unsupported art asset type: ' + artAsset.type));
+			break;
+	}
 }

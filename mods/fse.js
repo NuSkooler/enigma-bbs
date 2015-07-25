@@ -7,7 +7,6 @@ var ansi					= require('../core/ansi_term.js');
 var theme					= require('../core/theme.js');
 var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 var Message					= require('../core/message.js');
-var asset					= require('../core/asset.js');
 
 var async					= require('async');
 var assert					= require('assert');
@@ -103,19 +102,14 @@ function FullScreenEditorModule(options) {
 				function displayFooterArt(callback) {
 					var footerArt = self.menuConfig.config.art[options.footerName];
 
-					asset.displayArtAsset(
+					theme.displayThemedAsset(
 						footerArt,
 						self.client,
-						function displayed(err, artData)
-						{
+						{ font : self.menuConfig.font },
+						function displayed(err, artData) {
 							callback(err, artData);
-						});
-
-					/*
-					self.displayArtAsset(footerArt, function artDisplayed(err, artData) {
-						callback(err, artData);
-					});
-*/
+						}
+					);
 				}
 			],
 			function complete(err, artData) {
@@ -134,18 +128,14 @@ function FullScreenEditorModule(options) {
 			[
 				function displayHeaderAndBody(callback) {
 					async.eachSeries( comps, function dispArt(n, next) {
-						asset.displayArtAsset(
+						theme.displayThemedAsset(
 							art[n],
 							self.client,
+							{ font : self.menuConfig.font },
 							function displayed(err, artData) {
 								next(err);
-							});
-
-						/*
-						self.displayArtAsset(art[n], function artDisplayed(err, artData) {
-							next(err);
-						});
-						*/
+							}
+						);
 					}, function complete(err) {
 						callback(err);
 					});
@@ -218,20 +208,15 @@ function FullScreenEditorModule(options) {
 					assert(_.isString(art.body));
 
 					async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
-						asset.displayArtAsset(
+						theme.displayThemedAsset1(
 							art[n],
 							self.client,
+							{ font : self.menuConfig.font },
 							function displayed(err, artData) {
 								mciData[n] = artData;
 								next(err);
-							});
-
-						/*
-						self.displayArtAsset(art[n], function artDisplayed(err, artData) {
-							mciData[n] = artData;
-							next(err);
-						});
-						*/
+							}
+						);
 					}, function complete(err) {
 						callback(err);
 					});

@@ -417,6 +417,7 @@ function display(options, cb) {
 		mciReplaceChar	: mciReplaceChar,
 		termHeight		: options.client.term.termHeight,
 		termWidth		: options.client.term.termWidth,
+		omitTrailingLF	: options.omitTrailingLF,
 	});
 
 	var mciMap			= {};

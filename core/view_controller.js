@@ -33,6 +33,7 @@ function ViewController(options) {
 	this.views			= {};	//	map of ID -> view
 	this.formId			= options.formId || 0;
 	this.mciViewFactory	= new MCIViewFactory(this.client);	//	:TODO: can this not be a singleton?
+	this.noInput		= _.isBoolean(options.noInput) ? options.noInput : false;
 
 	this.actionKeyMap	= {};
 
@@ -114,7 +115,7 @@ function ViewController(options) {
 			var mci		= mciMap[name];
 			var view	= self.mciViewFactory.createFromMCI(mci);
 
-			if(view) {
+			if(view && false === self.noInput) {
 				view.on('action', self.viewActionListener);
 
 				self.addView(view);
@@ -335,7 +336,8 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options.mciMap));
 	
 	var self			= this;
-	var promptConfig	= self.client.currentMenuModule.menuConfig.promptConfig;
+	var promptName		= _.isString(options.promptName) ? options.promptName : self.client.currentMenuModule.menuConfig.prompt;
+	var promptConfig	= _.isObject(options.config) ? options.config : self.client.currentMenuModule.menuConfig.promptConfig;
 	var initialFocusId	= 1;	//	default to first
 
 	async.waterfall(
@@ -348,7 +350,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 			function applyThemeCustomization(callback) {
 				if(_.isObject(promptConfig)) {
 					menuUtil.applyThemeCustomization({
-						name		: self.client.currentMenuModule.menuConfig.prompt,
+						name		: promptName,//self.client.currentMenuModule.menuConfig.prompt,
 						type		: "prompts",
 						client		: self.client,
 						configMci	: promptConfig.mci,
@@ -367,12 +369,13 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				}
 			},
 			function prepareFormSubmission(callback) {
+				if(false === self.noInput) {
+					self.on('submit', function promptSubmit(formData) {
+						self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
-				self.on('submit', function promptSubmit(formData) {
-					self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
-
-					menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
-				});
+						menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
+					});
+				}
 
 				callback(null);
 			},

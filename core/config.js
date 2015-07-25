@@ -95,7 +95,7 @@ function getDefaultConfig() {
 				short	: 'MM/DD/YYYY',
 			},
 			timeFormat : {
-				short	: 'h:mm tt',
+				short	: 'h:mm a',
 			}
 		},
 

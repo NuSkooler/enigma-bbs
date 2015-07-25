@@ -11,6 +11,9 @@
 			"dateFormat" : {
 				"short" : "YYYY-MMM-DD"
 			},
+			"timeFormat" : {
+				"short" : "h:mm:ss a"
+			},
 			"mci" : {
 				"TM" : {
 					"styleSGR1" : "|00|30|01"
@@ -26,7 +29,7 @@
 					"focusTextStyle"	: "l33t"
 				}
 			},
-			"apply" : {
+		"apply" : {
 				"ET1" : { "width" : 21 },
 				"ET2" : { "width" : 21 },
 				//"ET3" : { "width" : 21 },

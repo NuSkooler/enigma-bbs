@@ -26,48 +26,6 @@ function MenuModule(options) {
 	this.menuMethods		= {};	//	methods called from @method's
 	this.viewControllers	= {};	//	name->vc
 
-	//	:TODO: Move this elsewhere
-	/*
-	this.displayArtAsset = function(assetSpec, cb) {
-		var artAsset = asset.getArtAsset(assetSpec);
-
-		if(!artAsset) {
-			cb(new Error('Asset not found: ' + assetSpec));
-			return;
-		}
-
-		var dispOptions = {
-			name	: artAsset.asset,
-			client	: self.client,
-			font	: self.menuConfig.font,
-		};
-
-		switch(artAsset.type) {
-			case 'art' :
-				theme.displayThemeArt(dispOptions, function displayed(err, themeArtData) {
-					cb(err, err ? null : { mciMap : themeArtData.mciMap, height : themeArtData.extraInfo.height } );
-				});
-				break;
-
-			case 'method' :
-				//	:TODO: fetch and render via method/generator
-				break;
-
-			case 'inline' :
-				if(_.isString(assetSpec.asset)) {
-					//	:TODO: think about this more in relation to themes, etc. How can this come
-					//	from a theme (with override from menu.json) ???
-					//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
-				}
-				break;
-
-			default :
-				cb(new Error('Unsupported art asset type'));
-				break;
-		}
-	};
-	*/
-
 	this.initSequence = function() {
 		var mciData = { };
 
@@ -79,7 +37,7 @@ function MenuModule(options) {
 				},
 				function displayMenuArt(callback) {
 					if(_.isString(self.menuConfig.art)) {
-						asset.displayArtAsset(
+						theme.displayThemedAsset(
 							self.menuConfig.art, 
 							self.client, 
 							{ font : self.menuConfig.font },
@@ -90,12 +48,6 @@ function MenuModule(options) {
 								}
 								callback(err);
 							});
-						/*self.displayArtAsset(self.menuConfig.art, function displayed(err, artData) {
-							if(!err) {
-								mciData.menu = artData.mciMap;
-							}
-							callback(err);
-						});*/
 					} else {						
 						callback(null);
 					}
@@ -118,7 +70,7 @@ function MenuModule(options) {
 						//	Prompts *must* have art. If it's missing it's an error
 						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
 						var promptConfig = self.menuConfig.promptConfig;
-						asset.displayArtAsset(
+						theme.displayThemedAsset(
 							promptConfig.art, 
 							self.client, 
 							{ font : self.menuConfig.font },
@@ -246,7 +198,7 @@ MenuModule.prototype.finishedLoading = function() {
 
 		if('end' === self.menuConfig.pause || true === self.menuConfig.pause) {
 			//	:TODO: really need a client.term.pause() that uses the correct art/etc.
-			theme.displayThemePause( { client : self.client }, function keyPressed() {
+			theme.displayThemedPause( { client : self.client }, function keyPressed() {
 				nextAction();
 			});
 		} else {
