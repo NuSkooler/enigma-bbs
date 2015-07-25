@@ -2,6 +2,7 @@
 'use strict';
 
 var Config		= require('./config.js').config;
+var theme		= require('./theme.js');
 
 var _			= require('lodash');
 var assert		= require('assert');
@@ -10,6 +11,7 @@ exports.parseAsset				= parseAsset;
 exports.getArtAsset				= getArtAsset;
 exports.resolveConfigAsset		= resolveConfigAsset;
 exports.getViewPropertyAsset	= getViewPropertyAsset;
+exports.displayArtAsset			= displayArtAsset;
 
 var ALL_ASSETS = [
 	'art',
@@ -83,3 +85,47 @@ function getViewPropertyAsset(src) {
 
 	return parseAsset(src);
 };
+
+function displayArtAsset(assetSpec, client, options, cb) {
+	assert(_.isObject(client));
+
+	//	options are... optional
+	if(3 === arguments.length) {
+		cb = options;
+		options = {};
+	}
+
+	var artAsset = getArtAsset(assetSpec);
+	if(!artAsset) {
+		cb(new Error('Asset not found: ' + assetSpec));
+		return;
+	}
+
+	var dispOpts = {
+		name	: artAsset.asset,
+		client	: client,
+		font	: options.font,
+	};
+
+	switch(artAsset.type) {
+		case 'art' :
+			theme.displayThemeArt(dispOpts, function displayed(err, artData) {
+				cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
+			});
+			break;
+
+		case 'method' : 
+			//	:TODO: fetch & render via method
+			break;
+
+		case 'inline ' :
+			//	:TODO: think about this more in relation to themes, etc. How can this come
+			//	from a theme (with override from menu.json) ???
+			//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
+			break;
+
+		default :
+			cb(new Error('Unsupported art asset type: ' + artAsset.type));
+			break;
+	}
+}

@@ -26,6 +26,8 @@ function MenuModule(options) {
 	this.menuMethods		= {};	//	methods called from @method's
 	this.viewControllers	= {};	//	name->vc
 
+	//	:TODO: Move this elsewhere
+	/*
 	this.displayArtAsset = function(assetSpec, cb) {
 		var artAsset = asset.getArtAsset(assetSpec);
 
@@ -64,6 +66,7 @@ function MenuModule(options) {
 				break;
 		}
 	};
+	*/
 
 	this.initSequence = function() {
 		var mciData = { };
@@ -76,12 +79,23 @@ function MenuModule(options) {
 				},
 				function displayMenuArt(callback) {
 					if(_.isString(self.menuConfig.art)) {
-						self.displayArtAsset(self.menuConfig.art, function displayed(err, artData) {
+						asset.displayArtAsset(
+							self.menuConfig.art, 
+							self.client, 
+							{ font : self.menuConfig.font },
+							function displayed(err, artData)
+							{
+								if(!err) {
+									mciData.menu = artData.mciMap;
+								}
+								callback(err);
+							});
+						/*self.displayArtAsset(self.menuConfig.art, function displayed(err, artData) {
 							if(!err) {
 								mciData.menu = artData.mciMap;
 							}
 							callback(err);
-						});
+						});*/
 					} else {						
 						callback(null);
 					}
@@ -104,12 +118,16 @@ function MenuModule(options) {
 						//	Prompts *must* have art. If it's missing it's an error
 						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
 						var promptConfig = self.menuConfig.promptConfig;
-						self.displayArtAsset(promptConfig.art, function displayed(err, artData) {
-							if(!err) {
-								mciData.prompt = artData.mciMap;
-							}
-							callback(err);
-						});
+						asset.displayArtAsset(
+							promptConfig.art, 
+							self.client, 
+							{ font : self.menuConfig.font },
+							function displayed(err, artData) {
+								if(!err) {
+									mciData.prompt = artData.mciMap;
+								}
+								callback(err);
+							});
 					} else {						
 						callback(null);
 					}

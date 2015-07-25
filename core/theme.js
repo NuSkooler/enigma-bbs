@@ -189,6 +189,9 @@ function displayThemeArt(options, cb) {
 	});
 }
 
+//
+//	Pause prompts are a special prompt by the name 'pause'.
+//	
 function displayThemePause(options, cb) {
 	//
 	//	options.client
@@ -203,8 +206,8 @@ function displayThemePause(options, cb) {
 	//	:TODO: Support animated pause prompts. Probably via MCI with AnimatedView
 	//	:TODO: support prompts with a height > 1
 	//	:TODO: Prompt should support MCI codes in general
-	//	...this will be more complex due to cursor movement. Will need to track where teh cusor
-	//	was before the prompt + filling MCI, then move back and erase correct # of lines
+
+	var artInfo;
 
 	async.waterfall(
 		[
@@ -222,13 +225,20 @@ function displayThemePause(options, cb) {
 				});				
 			},
 			function displayPausePrompt(pausePrompt, callback) {
-				displayThemeArt( { client : options.client, name : pausePrompt.art }, function pauseDisplayed(err, mciMap, extraInfo) {
-					if(extraInfo) {
-						pauseHeight = extraInfo.height;
-					}
-					callback(null);
+				//	:TODO: use displayArtAsset()
+				displayThemeArt( { client : options.client, name : pausePrompt.art }, function pauseDisplayed(err, artData) {
+					artInfo = artData;
+					callback(err);
 				});
 			},
+			function discoverCursorPosition(callback) {
+				options.client.once('cursor position report', function cpr(pos) {
+					artInfo.startRow = pos[0] - artInfo.extraInfo.height;
+					callback(null);
+				});
+				options.client.term.rawWrite(ansi.queryPos());
+			},
+			//	:TODO: use view Controller loadFromPromptConfig() with 'noInput' option or such
 			function pauseForUserInput(callback) {
 				options.client.waitForKeyPress(function keyPressed() {
 					callback(null);
@@ -236,16 +246,22 @@ function displayThemePause(options, cb) {
 			},
 			function clearPauseArt(callback) {
 				if(options.clearPrompt) {
-					options.client.term.write(ansi.up(1) + ansi.deleteLine());
+					if(artInfo.startRow) {
+						options.client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
+						options.client.term.rawWrite(ansi.deleteLine(artInfo.extraInfo.height));
+					} else {
+						options.client.term.rawWrite(ansi.up(1) + ansi.deleteLine());
+					}
 				}
 				callback(null);
 			}
+			/*
 			, function debugPause(callback) {
 				setTimeout(function to() {
 					callback(null);
 				}, 4000);
 			}
-
+*/
 		],
 		function complete(err) {
 			if(err) {
