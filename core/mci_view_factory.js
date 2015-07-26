@@ -29,49 +29,52 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
-	return {
-		BN	: Config.general.boardName,
-		VL	: 'ENiGMA½ v' + packageJson.version,
-		VN	: packageJson.version,
+	try {
+		return {
+			BN	: Config.general.boardName,
+			VL	: 'ENiGMA½ v' + packageJson.version,
+			VN	: packageJson.version,
 
-		UN	: this.client.user.username,
-		UI	: this.client.user.userId.toString(),
-		UG	: _.values(this.client.user.groups).join(', '),
-		UR	: this.client.user.properties.real_name,
-		LO	: this.client.user.properties.location,
-		UA	: this.client.user.getAge().toString(),
-		UB	: moment(this.client.user.properties.birthdate).format(this.client.currentTheme.helpers.getDateFormat()),
-		US	: this.client.user.properties.sex,
-		UE	: this.client.user.properties.email_address,
-		UW	: this.client.user.properties.web_address,
-		UF	: this.client.user.properties.affiliation,
-		UT	: this.client.user.properties.theme_id,
-		MS	: moment(this.client.user.properties.timestamp).format(this.client.currentTheme.helpers.getDateFormat()),
-
-
-		SH	: this.client.term.termHeight.toString(),
-		SW	: this.client.term.termWidth.toString(),
-
-		ND	: this.client.runtime.id.toString(),
-
-		//	:TODO: change to CD for 'Current Date'
-		DT	: moment().format(this.client.currentTheme.helpers.getDateFormat()),
-		CT	: moment().format(this.client.currentTheme.helpers.getTimeFormat()),
+			UN	: this.client.user.username,
+			UI	: this.client.user.userId.toString(),
+			UG	: _.values(this.client.user.groups).join(', '),
+			UR	: this.client.user.properties.real_name,
+			LO	: this.client.user.properties.location,
+			UA	: this.client.user.getAge().toString(),
+			UB	: moment(this.client.user.properties.birthdate).format(this.client.currentTheme.helpers.getDateFormat()),
+			US	: this.client.user.properties.sex,
+			UE	: this.client.user.properties.email_address,
+			UW	: this.client.user.properties.web_address,
+			UF	: this.client.user.properties.affiliation,
+			UT	: this.client.user.properties.theme_id,
+			MS	: moment(this.client.user.properties.timestamp).format(this.client.currentTheme.helpers.getDateFormat()),
 
 
-		OS	: {
-			linux	: 'Linux',
-			darwin	: 'Mac OS X',
-			win32	: 'Windows',
-			sunos	: 'SunOS',
-			freebsd	: 'FreeBSD',
-		}[os.platform()] || os.type(),
+			SH	: this.client.term.termHeight.toString(),
+			SW	: this.client.term.termWidth.toString(),
 
-		OA	: os.arch(),
-		SC	: os.cpus()[0].model,
+			ND	: this.client.runtime.id.toString(),
 
-		IP	: this.client.address().address,
-	}[code];
+			//	:TODO: change to CD for 'Current Date'
+			DT	: moment().format(this.client.currentTheme.helpers.getDateFormat()),
+			CT	: moment().format(this.client.currentTheme.helpers.getTimeFormat()),
+
+
+			OS	: {
+				linux	: 'Linux',
+				darwin	: 'Mac OS X',
+				win32	: 'Windows',
+				sunos	: 'SunOS',
+				freebsd	: 'FreeBSD',
+			}[os.platform()] || os.type(),
+
+			OA	: os.arch(),
+			SC	: os.cpus()[0].model,
+
+			IP	: this.client.address().address,
+		}[code];
+	} catch(e) {
+	}
 };
 
 MCIViewFactory.prototype.createFromMCI = function(mci) {

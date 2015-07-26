@@ -2,7 +2,7 @@
 'use strict';
 
 var theme			= require('../core/theme.js');
-var Log				= require('../core/logger.js').log;
+//var Log				= require('../core/logger.js').log;
 var ansi			= require('../core/ansi_term.js');
 
 var async			= require('async');
@@ -15,12 +15,12 @@ function login(callingMenu, formData, extraArgs) {
 
 	client.user.authenticate(formData.value.username, formData.value.password, function authenticated(err) {
 		if(err) {
-			Log.info( { username : formData.value.username }, 'Failed login attempt %s', err);
+			client.log.info( { username : formData.value.username }, 'Failed login attempt %s', err);
 
 			client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
 		} else {
 			//	use client.user so we can get correct case
-			Log.info( { username : callingMenu.client.user.username }, 'Successful login');
+			client.log.info( { username : callingMenu.client.user.username }, 'Successful login');
 
 			async.parallel(
 				[
@@ -29,9 +29,18 @@ function login(callingMenu, formData, extraArgs) {
 							client.currentTheme = theme;
 							callback(null);	//	always non-fatal
 						});
+					},
+					function recordLogin(callback) {
+						client.user.persistProperty('last_login_timestamp', new Date().toISOString(), function persisted(err) {
+							callback(err);
+						});
 					}
 				],
 				function complete(err, results) {
+					if(err) {
+						client.log.error(err);
+						//	:TODO: drop the connection?
+					}
 					client.gotoMenuModule( { name : callingMenu.menuConfig.next } );
 				}
 			);

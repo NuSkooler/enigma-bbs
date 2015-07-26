@@ -203,7 +203,14 @@
 			"options" : {
 				//	:TODO: implement MCI codes for this
 				"cls" : true
-			}
+			},
+			"pause"		: true,
+			"action"	: "@menu:lastCallers"
+		},
+		"lastCallers" :{
+			"module"	: "last_callers",
+			"art"		: "LASTCALL.ANS",
+			"options"	: { "cls" : true }
 		},
 		"demoMain" : {
 			"art" : "demo_selection_vm.ans",

@@ -208,8 +208,6 @@ function displayThemedPause(options, cb) {
 	}
 
 	//	:TODO: Support animated pause prompts. Probably via MCI with AnimatedView
-	//	:TODO: support prompts with a height > 1
-	//	:TODO: Prompt should support MCI codes in general
 
 	var artInfo;
 	var vc;

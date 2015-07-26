@@ -296,6 +296,18 @@ User.prototype.persist = function(useTransaction, cb) {
 	);
 };
 
+User.prototype.persistProperty = function(propName, propValue, cb) {
+	//	update live props
+	this.properties[propName] = propValue;
+
+	userDb.run(
+		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
+		'VALUES (?, ?, ?);', [ this.userId, propName, propValue ], function ran(err) {
+			cb(err);
+		}
+	);
+}
+
 User.prototype.persistProperties = function(cb) {
 	assert(this.userId > 0);
 
