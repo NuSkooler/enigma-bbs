@@ -210,7 +210,44 @@
 		"lastCallers" :{
 			"module"	: "last_callers",
 			"art"		: "LASTCALL.ANS",
-			"options"	: { "cls" : true }
+			"options"	: { "cls" : true },
+			"config"	: {
+				"dateTimeFormat" : "ddd MMM Do H:mm a",
+				"fields" : [
+					{
+						"name" : "who",
+						"width"	: 17
+					},
+					{
+						"name" : "location",
+						"width"	: 20
+					},
+					{
+						"name" : "affiliation",
+						"width" : 20
+					},
+					{
+						"name" : "when",
+						"width"	: 20
+					}
+				]
+
+			},
+			"form" : {
+				"0" : {
+					"TLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTL" : {
+						"mci" : {
+							"TL1" : {
+								//"text" : "@method:getLastCaller"
+							},
+							"TL2" :  {
+								//"text" : "@method:getLastCaller"
+							}
+						}
+					}
+				}
+			}
+
 		},
 		"demoMain" : {
 			"art" : "demo_selection_vm.ans",

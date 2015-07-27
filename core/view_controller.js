@@ -131,9 +131,26 @@ function ViewController(options) {
 
 	//	:TODO: move this elsewhere
 	this.setViewPropertiesFromMCIConf = function(view, conf) {
+
+		var propAsset;
+		var propValue;
+
+		function callModuleMethod(path) {
+			if('' === paths.extname(path)) {
+				path += '.js';
+			}
+
+			try {
+				var methodMod = require(path);
+				//	:TODO: fix formData & extraArgs
+				return methodMod[propAsset.asset](self.client.currentMenuModule, {}, {} );
+			} catch(e) {
+				self.client.log.error( { error : e.toString(), methodName : propAsset.asset }, 'Failed to execute asset method');
+			}
+		}
+
 		for(var propName in conf) {			
-			var propValue;
-			var propAsset = asset.getViewPropertyAsset(conf[propName]);
+			propAsset = asset.getViewPropertyAsset(conf[propName]);
 			if(propAsset) {
 				switch(propAsset.type) {
 					case 'config' :
@@ -141,6 +158,42 @@ function ViewController(options) {
 						break;
 
 						//	:TODO: handle @art (e.g. text : @art ...)
+
+					case 'method' : 
+					case 'systemMethod' :
+						if(_.isString(propAsset.location)) {
+
+						} else {
+							if('systemMethod' === propAsset.type) {
+								//	:TODO:
+							} else {
+								//	local to current module
+								var currentModule = self.client.currentMenuModule;
+								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+									//	:TODO: Fix formData & extraArgs... this all needs general processing
+									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+								}
+							}
+						}
+						break;
+					/*case 'method' :
+		case 'systemMethod' : 
+			if(_.isString(actionAsset.location)) {
+				callModuleMenuMethod(paths.join(Config.paths.mods, actionAsset.location));
+			} else {
+				if('systemMethod' === actionAsset.type) {
+					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
+					//	:TODO: Probably better as system_method.js
+					callModuleMenuMethod(paths.join(__dirname, 'system_menu_method.js'));
+				} else {
+					//	local to current module
+					var currentModule = client.currentMenuModule;
+					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+						currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
+					}
+				}
+			}*/
+						break;
 
 					default : 
 						propValue = propValue = conf[propName];

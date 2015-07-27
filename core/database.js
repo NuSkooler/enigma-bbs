@@ -69,6 +69,14 @@ function createUserTables() {
 		'	FOREIGN KEY(group_id) REFERENCES user_group(group_id) ON DELETE CASCADE' +
 		');'
 		);
+
+	dbs.user.run(
+		'CREATE TABLE IF NOT EXISTS user_login_history ('	+
+		'	user_id		INTEGER NOT NULL,'					+
+		'	user_name	VARCHAR NOT NULL,'					+
+		'	timestamp	DATETIME NOT NULL'					+
+		');'
+	);
 }
 
 function createMessageBaseTables() {

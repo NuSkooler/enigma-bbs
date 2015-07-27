@@ -162,6 +162,7 @@ function handleAction(client, formData, conf) {
 	var actionAsset = asset.parseAsset(conf.action);
 	assert(_.isObject(actionAsset));
 
+	//	:TODO: Most of this should be moved elsewhere .... DRY...
 	function callModuleMenuMethod(path) {
 		if('' === paths.extname(path)) {
 			path += '.js';

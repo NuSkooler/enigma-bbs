@@ -4,6 +4,7 @@
 var theme			= require('../core/theme.js');
 //var Log				= require('../core/logger.js').log;
 var ansi			= require('../core/ansi_term.js');
+var userDb			= require('./database.js').dbs.user;
 
 var async			= require('async');
 
@@ -19,21 +20,49 @@ function login(callingMenu, formData, extraArgs) {
 
 			client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
 		} else {
+			var now		= new Date();
+			var user	= callingMenu.client.user;
+
 			//	use client.user so we can get correct case
-			client.log.info( { username : callingMenu.client.user.username }, 'Successful login');
+			client.log.info( { username : user.username }, 'Successful login');
 
 			async.parallel(
 				[
 					function loadThemeConfig(callback) {
-						theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
+						theme.loadTheme(user.properties.theme_id, function themeLoaded(err, theme) {
 							client.currentTheme = theme;
 							callback(null);	//	always non-fatal
 						});
 					},
-					function recordLogin(callback) {
-						client.user.persistProperty('last_login_timestamp', new Date().toISOString(), function persisted(err) {
+					function recordLastLogin(callback) {
+						user.persistProperty('last_login_timestamp', now.toISOString(), function persisted(err) {
 							callback(err);
 						});
+					},
+					function recordLoginHistory(callback) {
+						userDb.run(
+							'INSERT INTO user_login_history (user_id, user_name, timestamp) ' +
+							'VALUES(?, ?, ?);', [ user.userId, user.username, now.toISOString() ], function inserted(err) {
+								callback(err);
+							});
+
+
+						/*
+						userDb.run(
+							'DELETE FROM last_caller ' +
+							'WHERE id NOT IN (' +
+							'	SELECT id '					+ 
+							'	FROM last_caller ' +
+							'	ORDER BY timestamp DESC ' +
+							'	LIMIT 100);');
+
+						userDb.run(
+							'DELETE FROM last_caller ' +
+							'WHERE user_id IN (' +
+							'	SELECT user_id ' +
+							'	ORDER BY timestamp DESC ' +
+							'LIMIT 1;')
+						*/
 					}
 				],
 				function complete(err, results) {

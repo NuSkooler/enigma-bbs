@@ -5,6 +5,12 @@ var MenuModule		= require('../core/menu_module.js').MenuModule;
 var userDb			= require('../core/database.js').dbs.user;
 var ViewController	= require('../core/view_controller.js').ViewController;
 
+var util			= require('util');
+var moment			= require('moment');
+var async			= require('async');
+var assert			= require('assert');
+var _				= require('lodash');
+
 exports.moduleInfo = {
 	name	: 'Last Callers',
 	desc	: 'Last 10 callers to the system',
@@ -13,12 +19,199 @@ exports.moduleInfo = {
 
 exports.getModule	= LastCallersModule;
 
-function LastCallersModule(menuConfig) {
-	MenuModule.call(this, menuConfig);
+//	:TODO:
+//	* Order should be menu/theme defined
+//	* Text needs overflow defined (optional), e.g. "..."
+//	* Date/time format should default to theme short date + short time
+//	* 
+
+function LastCallersModule(options) {
+	MenuModule.call(this, options);
+
+	var self		= this;
+	this.menuConfig	= options.menuConfig;
+
+	this.menuMethods = {
+		getLastCaller : function(formData, extraArgs) {
+			//console.log(self.lastCallers[self.lastCallerIndex])
+			var lc = self.lastCallers[self.lastCallerIndex++];
+			var when	= moment(lc.timestamp).format(self.menuConfig.config.dateTimeFormat);
+			return util.format('%s         %s         %s       %s', lc.name, lc.location, lc.affiliation, when);
+		}
+	};
 }
 
-require('util').inherits(LastCallersModule, MenuModule);
+util.inherits(LastCallersModule, MenuModule);
 
+/*
+LastCallersModule.prototype.enter = function(client) {
+	LastCallersModule.super_.prototype.enter.call(this, client);
+
+	var self				= this;
+	self.lastCallers		= [];
+	self.lastCallerIndex	= 0;
+
+	var userInfoStmt = userDb.prepare(
+		'SELECT prop_name, prop_value '	+ 
+		'FROM user_property '			+
+		'WHERE user_id=? AND (prop_name=? OR prop_name=?);');
+
+	var caller;
+
+	userDb.each(
+		'SELECT user_id, user_name, timestamp '		+
+		'FROM user_login_history '		+
+		'ORDER BY timestamp DESC '	+
+		'LIMIT 10;',
+		function userRows(err, userEntry) {
+			caller = { 
+				who		: userEntry.user_name,
+				when	: userEntry.timestamp,
+			};
+
+			userInfoStmt.each( [ userEntry.user_id, 'location', 'affiliation' ], function propRow(err, propEntry) {
+				if(!err) {
+					caller[propEntry.prop_name] = propEntry.prop_value;
+				}
+			}, function complete(err) {
+				if(!err) {
+					self.lastCallers.push(caller);
+				}
+			});
+		}
+	);
+};
+*/
+
+/*
+LastCallersModule.prototype.mciReady = function(mciData) {
+	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
+
+	//	 we do this so other modules can be both customized and still perform standard tasks
+	LastCallersModule.super_.prototype.standardMCIReadyHandler.call(this, mciData);
+};
+*/
+
+LastCallersModule.prototype.mciReady = function(mciData) {
+	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
+
+	var self	= this;
+	var vc		= self.viewControllers.lastCallers = new ViewController( { client : self.client } );
+	var lc		= [];
+	var count	= _.size(mciData.menu) / 4;
+
+	if(count < 1) {
+		//	:TODO: Log me!
+		return;
+	}
+
+	async.series(
+		[
+			function loadFromConfig(callback) {
+				var loadOpts = {
+					callingMenu	: self,
+					mciMap		: mciData.menu,
+					noInput		: true,
+				};
+
+				vc.loadFromMenuConfig(loadOpts, function startingViewReady(err) {
+					callback(err);
+				});
+			},
+			function fetchHistory(callback) {
+				userDb.each(
+					'SELECT user_id, user_name, timestamp '	+
+					'FROM user_login_history '				+
+					'ORDER BY timestamp DESC '				+
+					'LIMIT ' + count + ';',
+					function historyRow(err, histEntry) {
+						lc.push( {
+							userId	: histEntry.user_id,
+							who		: histEntry.user_name,
+							when	: histEntry.timestamp,
+						} );
+					},
+					function complete(err, recCount) {
+						count = recCount;	//	adjust to retrieved
+						callback(err);
+					}
+				);
+			},
+			function fetchUserProperties(callback) {
+				async.each(lc, function callEntry(c, next) {
+					userDb.each(
+						'SELECT prop_name, prop_value '	+ 
+						'FROM user_property '			+
+						'WHERE user_id=? AND (prop_name="location" OR prop_name="affiliation");',
+						[ c.userId ],
+						function propRow(err, propEntry) {
+							c[propEntry.prop_name] = propEntry.prop_value;
+						},
+						function complete(err) {
+							next();
+						}
+					);
+				}, function complete(err) {
+					callback(err);
+				});
+			},
+			function createAndPopulateViews(callback) {
+				assert(lc.length === count);
+
+				var rowsPerColumn = count / 4;
+
+				//
+				//	TL1...count				= who
+				//	TL<count>...<count*2>	= location
+				//
+				var i;
+				var v;
+				for(i = 0; i < rowsPerColumn; ++i) {
+					v = vc.getView(i + 1);
+					v.setText(lc[i].who);
+				}
+
+				for( ; i < rowsPerColumn * 2; ++i) {
+					v = vc.getView(i + 1);
+					v.setText(lc[i].location);
+				}
+
+				//
+
+				//	1..count/4 = who
+				//	count/10
+
+				/*
+				var viewOpts = {
+					client		: self.client,					
+				};
+
+				var rowViewId = 1;
+				var v;
+				lc.forEach(function lcEntry(caller) {
+					v = vc.getView(rowViewId++);
+
+					self.menuConfig.config.fields.forEach(function field(f) {
+						switch(f.name) {
+							case 'who' :
+
+						}
+					});
+
+					v.setText(caller.who)
+				});
+				*/
+
+			}
+		],
+		function complete(err) {
+			console.log(lc)
+		}
+	);
+};
+
+
+/*
 LastCallersModule.prototype.mciReady = function(mciData) {
 	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
 
@@ -35,12 +228,10 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 	var caller;
 
 	userDb.each(
-		'SELECT u.id, u.user_name, up.prop_value '						+
-		'FROM user u '													+
-		'INNER JOIN user_property up '									+
-		'ON u.id=up.user_id AND up.prop_name="last_login_timestamp" '	+
-		'ORDER BY up.prop_value DESC'										+
-		'LIMIT 10;', 
+		'SELECT id, user_name, timestamp '		+
+		'FROM user_last_login '		+
+		'ORDER BY timestamp DESC '	+
+		'LIMIT 10;',
 		function userRows(err, userEntry) {
 			caller = { name : userEntry.user_name };
 
@@ -85,3 +276,4 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 		}
 	);
 };
+*/

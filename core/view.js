@@ -185,7 +185,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 		case 'focus'	: this.setFocus(value); break;
 		
 		case 'text'		: 
-			if('setText' in this) {
+			if('setText' in this) {				
 				this.setText(value);
 			}
 			break;
