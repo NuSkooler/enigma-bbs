@@ -91,6 +91,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		position		: { row : mci.position[0], col : mci.position[1] },
 	};
 
+	//	:TODO: These should use setPropertyValue()!
 	function setOption(pos, name) {
 		if(mci.args.length > pos && mci.args[pos].length > 0) {
 			options[name] = mci.args[pos];

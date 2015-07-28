@@ -67,7 +67,10 @@ function View(options) {
 		this.setDimension(options.dimens);
 		this.autoScale = { height : false, width : false };
 	} else {
-		this.dimens = { width : 0, height : 0 };
+		this.dimens = {
+			width	: options.width || 0,
+			height	: 0 
+		};
 	}
 
 	//	:TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
@@ -212,6 +215,12 @@ View.prototype.setPropertyValue = function(propName, value) {
 				this.submit = _.isArray(value) && value.length > 0;
 			}
 			*/
+			break;
+
+		case 'resizable' :
+			if(_.isBoolean(value)) {
+				this.resizable = value;
+			}
 			break;
 
 		case 'argName' : this.submitArgName = value; break;

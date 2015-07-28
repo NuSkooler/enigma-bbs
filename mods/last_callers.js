@@ -4,6 +4,7 @@
 var MenuModule		= require('../core/menu_module.js').MenuModule;
 var userDb			= require('../core/database.js').dbs.user;
 var ViewController	= require('../core/view_controller.js').ViewController;
+var TextView		= require('../core/text_view.js').TextView;
 
 var util			= require('util');
 var moment			= require('moment');
@@ -12,18 +13,16 @@ var assert			= require('assert');
 var _				= require('lodash');
 
 exports.moduleInfo = {
-	name	: 'Last Callers',
-	desc	: 'Last 10 callers to the system',
-	author	: 'NuSkooler',
+	name		: 'Last Callers',
+	desc		: 'Last callers to the system',
+	author		: 'NuSkooler',
+	packageName	: 'codes.l33t.enigma.lastcallers'
 };
 
 exports.getModule	= LastCallersModule;
 
 //	:TODO:
-//	* Order should be menu/theme defined
-//	* Text needs overflow defined (optional), e.g. "..."
-//	* Date/time format should default to theme short date + short time
-//	* 
+//	*	config.evenRowSGR (optional)
 
 function LastCallersModule(options) {
 	MenuModule.call(this, options);
@@ -31,66 +30,29 @@ function LastCallersModule(options) {
 	var self		= this;
 	this.menuConfig	= options.menuConfig;
 
-	this.menuMethods = {
-		getLastCaller : function(formData, extraArgs) {
-			//console.log(self.lastCallers[self.lastCallerIndex])
-			var lc = self.lastCallers[self.lastCallerIndex++];
-			var when	= moment(lc.timestamp).format(self.menuConfig.config.dateTimeFormat);
-			return util.format('%s         %s         %s       %s', lc.name, lc.location, lc.affiliation, when);
+	this.rows			= 10;
+	
+	if(this.menuConfig.config) {
+		if(_.isNumber(this.menuConfig.config.rows)) {
+			this.rows = Math.max(1, this.menuConfig.config.rows);
 		}
-	};
+		if(_.isString(this.menuConfig.config.dateTimeFormat)) {
+			this.dateTimeFormat = this.menuConfig.config.dateTimeFormat;
+		}
+	}
 }
 
 util.inherits(LastCallersModule, MenuModule);
 
-/*
 LastCallersModule.prototype.enter = function(client) {
 	LastCallersModule.super_.prototype.enter.call(this, client);
 
-	var self				= this;
-	self.lastCallers		= [];
-	self.lastCallerIndex	= 0;
-
-	var userInfoStmt = userDb.prepare(
-		'SELECT prop_name, prop_value '	+ 
-		'FROM user_property '			+
-		'WHERE user_id=? AND (prop_name=? OR prop_name=?);');
-
-	var caller;
-
-	userDb.each(
-		'SELECT user_id, user_name, timestamp '		+
-		'FROM user_login_history '		+
-		'ORDER BY timestamp DESC '	+
-		'LIMIT 10;',
-		function userRows(err, userEntry) {
-			caller = { 
-				who		: userEntry.user_name,
-				when	: userEntry.timestamp,
-			};
-
-			userInfoStmt.each( [ userEntry.user_id, 'location', 'affiliation' ], function propRow(err, propEntry) {
-				if(!err) {
-					caller[propEntry.prop_name] = propEntry.prop_value;
-				}
-			}, function complete(err) {
-				if(!err) {
-					self.lastCallers.push(caller);
-				}
-			});
-		}
-	);
+	//	we need the client to init this for theming
+	if(!_.isString(this.dateTimeFormat)) {
+		this.dateTimeFormat = this.client.currentTheme.helpers.getDateFormat('short') +
+			this.client.currentTheme.helpers.getTimeFormat('short');
+	}
 };
-*/
-
-/*
-LastCallersModule.prototype.mciReady = function(mciData) {
-	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
-
-	//	 we do this so other modules can be both customized and still perform standard tasks
-	LastCallersModule.super_.prototype.standardMCIReadyHandler.call(this, mciData);
-};
-*/
 
 LastCallersModule.prototype.mciReady = function(mciData) {
 	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
@@ -98,12 +60,7 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 	var self	= this;
 	var vc		= self.viewControllers.lastCallers = new ViewController( { client : self.client } );
 	var lc		= [];
-	var count	= _.size(mciData.menu) / 4;
-
-	if(count < 1) {
-		//	:TODO: Log me!
-		return;
-	}
+	var rows	= self.rows;
 
 	async.series(
 		[
@@ -118,12 +75,13 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 					callback(err);
 				});
 			},
+			//	:TODO: a public method of getLastCallers(count) would be better
 			function fetchHistory(callback) {
 				userDb.each(
 					'SELECT user_id, user_name, timestamp '	+
 					'FROM user_login_history '				+
 					'ORDER BY timestamp DESC '				+
-					'LIMIT ' + count + ';',
+					'LIMIT ' + rows + ';',
 					function historyRow(err, histEntry) {
 						lc.push( {
 							userId	: histEntry.user_id,
@@ -132,7 +90,7 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 						} );
 					},
 					function complete(err, recCount) {
-						count = recCount;	//	adjust to retrieved
+						rows = recCount;	//	adjust to retrieved
 						callback(err);
 					}
 				);
@@ -156,124 +114,65 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 				});
 			},
 			function createAndPopulateViews(callback) {
-				assert(lc.length === count);
-
-				var rowsPerColumn = count / 4;
-
 				//
-				//	TL1...count				= who
-				//	TL<count>...<count*2>	= location
+				//	TL1 = who
+				//	TL2 = location
+				//	TL3 = affiliation
+				//	TL4 = when
 				//
-				var i;
-				var v;
-				for(i = 0; i < rowsPerColumn; ++i) {
-					v = vc.getView(i + 1);
-					v.setText(lc[i].who);
-				}
-
-				for( ; i < rowsPerColumn * 2; ++i) {
-					v = vc.getView(i + 1);
-					v.setText(lc[i].location);
-				}
-
+				//	These form the order/layout for a row. Additional rows
+				//	will use them as a template.
 				//
-
-				//	1..count/4 = who
-				//	count/10
-
-				/*
-				var viewOpts = {
-					client		: self.client,					
+				var views = {
+					who			: vc.getView(1),
+					location	: vc.getView(2),
+					affils		: vc.getView(3),
+					when		: vc.getView(4),
 				};
 
-				var rowViewId = 1;
-				var v;
-				lc.forEach(function lcEntry(caller) {
-					v = vc.getView(rowViewId++);
+				var row = views.who.position.row;
 
-					self.menuConfig.config.fields.forEach(function field(f) {
-						switch(f.name) {
-							case 'who' :
+				var nextId = 5;
 
-						}
-					});
+				function addView(templateView, text) {
+					//	:TODO: Is there a better way to clone this when dealing with instances?
+					var v = new TextView( {
+						client			: self.client,
+						id				: nextId++,
+						position		: { row : row, col : templateView.position.col },
+						ansiSGR			: templateView.ansiSGR,
+						textStyle		: templateView.textStyle,
+						textOverflow	: templateView.textOverflow,
+						dimens			: templateView.dimens,
+						resizable		: templateView.resizable,
+					} );
 
-					v.setText(caller.who)
+					v.id			= nextId++;
+					v.position.row	= row;
+
+					v.setPropertyValue('text', text);
+					vc.addView(v);
+				};
+
+				lc.forEach(function lastCaller(c) {
+					if(row === views.who.position.row) {
+						views.who.setText(c.who);
+						views.location.setText(c.location);
+						views.affils.setText(c.affiliation);
+						views.when.setText(moment(c.when).format(self.dateTimeFormat));
+					} else {
+						addView(views.who, c.who);
+						addView(views.location, c.location);
+						addView(views.affils, c.affiliation);
+						addView(views.when, moment(c.when).format(self.dateTimeFormat));
+					}
+
+					row++;
 				});
-				*/
-
 			}
 		],
 		function complete(err) {
-			console.log(lc)
+			self.client.log.error(err);
 		}
 	);
 };
-
-
-/*
-LastCallersModule.prototype.mciReady = function(mciData) {
-	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
-
-	var lastCallers = [];
-	var self		= this;
-
-	//	:TODO: durp... need a table just for this so dupes are possible
-	
-	var userInfoStmt = userDb.prepare(
-		'SELECT prop_name, prop_value '	+ 
-		'FROM user_property '			+
-		'WHERE user_id=? AND (prop_name=? OR prop_name=?);');
-
-	var caller;
-
-	userDb.each(
-		'SELECT id, user_name, timestamp '		+
-		'FROM user_last_login '		+
-		'ORDER BY timestamp DESC '	+
-		'LIMIT 10;',
-		function userRows(err, userEntry) {
-			caller = { name : userEntry.user_name };
-
-			userInfoStmt.each(userEntry.id, 'location', 'affiliation', function propRow(err, propEntry) {
-				console.log(propEntry)
-				if(!err) {
-					caller[propEntry.prop_name] = propEntry.prop_value;
-				}
-			}, function complete(err) {
-				lastCallers.push(caller);
-			});
-		},
-		function complete(err) {
-			//
-			//	TL1=name, TL2=location, TL3=affils
-			//	TL4=name, TL5=location,	...
-			//  ...
-			//	TL28=name, TL29=location, TL30=affils
-			//
-			var lc = self.viewControllers.lastCallers = new ViewController( { client : self.client });
-
-			var loadOpts = {
-				callingMenu	: self,
-				mciMap		: mciData.menu,
-				noInput		: true,
-			};
-
-			self.viewControllers.lastCallers.loadFromMenuConfig(loadOpts, function viewsReady(err) {
-							console.log(lastCallers);
-				var callerIndex = 0;
-				for(var i = 1; i < 30; i += 3) {
-					if(lastCallers.length > callerIndex) {
-						lc.getView(i).setText(lastCallers[callerIndex].name);
-						lc.getView(i + 1).setText(lastCallers[callerIndex].location);
-						lc.getView(i + 2).setText(lastCallers[callerIndex].affiliation);
-						++callerIndex;
-					} else {
-
-					}
-				}
-			});
-		}
-	);
-};
-*/

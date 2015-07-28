@@ -114,7 +114,6 @@ TextView.prototype.getData = function() {
 };
 
 TextView.prototype.setText = function(text) {
-
 	var widthDelta = 0;
 	if(this.text && this.text !== text) {
 		widthDelta = Math.abs(this.text.length - text.length);

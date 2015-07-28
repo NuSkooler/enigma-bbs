@@ -40,29 +40,21 @@ function login(callingMenu, formData, extraArgs) {
 						});
 					},
 					function recordLoginHistory(callback) {
-						userDb.run(
-							'INSERT INTO user_login_history (user_id, user_name, timestamp) ' +
-							'VALUES(?, ?, ?);', [ user.userId, user.username, now.toISOString() ], function inserted(err) {
-								callback(err);
-							});
 
+						userDb.serialize(function serialized() {
+							userDb.run(
+								'INSERT INTO user_login_history (user_id, user_name, timestamp) ' +
+								'VALUES(?, ?, ?);', [ user.userId, user.username, now.toISOString() ]
+							);
 
-						/*
-						userDb.run(
-							'DELETE FROM last_caller ' +
-							'WHERE id NOT IN (' +
-							'	SELECT id '					+ 
-							'	FROM last_caller ' +
-							'	ORDER BY timestamp DESC ' +
-							'	LIMIT 100);');
+							//	keep 30 days of records
+							userDb.run(
+								'DELETE FROM user_login_history '	+
+								'WHERE timestamp <= DATETIME("now", "-30 day");'
+								);
+						});
 
-						userDb.run(
-							'DELETE FROM last_caller ' +
-							'WHERE user_id IN (' +
-							'	SELECT user_id ' +
-							'	ORDER BY timestamp DESC ' +
-							'LIMIT 1;')
-						*/
+						callback(null);
 					}
 				],
 				function complete(err, results) {

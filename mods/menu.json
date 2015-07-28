@@ -123,12 +123,10 @@
 							},
 							"ME3" : {
 								"argName"		: "birthdate",
-								//"width"			: 8,
 								"maskPattern" 	: "####/##/##"
 							},
 							"ET4" : {
 								"argName"	: "sex",
-								//"width"		: 1,
 								"maxLength"	: 1
 							},
 							"ET5" : {
@@ -212,37 +210,26 @@
 			"art"		: "LASTCALL.ANS",
 			"options"	: { "cls" : true },
 			"config"	: {
-				"dateTimeFormat" : "ddd MMM Do H:mm a",
-				"fields" : [
-					{
-						"name" : "who",
-						"width"	: 17
-					},
-					{
-						"name" : "location",
-						"width"	: 20
-					},
-					{
-						"name" : "affiliation",
-						"width" : 20
-					},
-					{
-						"name" : "when",
-						"width"	: 20
-					}
-				]
-
+				"dateTimeFormat" : "ddd MMM Do H:mm a"
 			},
 			"form" : {
 				"0" : {
-					"TLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTLTL" : {
+					"TLTLTLTL" : {
 						"mci" : {
-							"TL1" : {
-								//"text" : "@method:getLastCaller"
+							//	:TODO: Bug: Without any keys here, theme customization does not apply!!!!
+							"TL1" :  {
+								"styleSGR1" : "|00|24"
 							},
 							"TL2" :  {
-								//"text" : "@method:getLastCaller"
+								"styleSGR1" : "|00|24"
+							},
+							"TL3" :  {
+								"styleSGR1" : "|00|24"
+							},
+							"TL4" :  {
+								"styleSGR1" : "|00|24"
 							}
+
 						}
 					}
 				}

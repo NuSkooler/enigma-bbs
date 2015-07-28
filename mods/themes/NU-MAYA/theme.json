@@ -29,7 +29,7 @@
 					"focusTextStyle"	: "l33t"
 				}
 			},
-		"apply" : {
+			"apply" : {
 				"ET1" : { "width" : 21 },
 				"ET2" : { "width" : 21 },
 				//"ET3" : { "width" : 21 },
@@ -45,7 +45,24 @@
 				"ET8" : { "width" : 21 },
 				"ET9" : { "width" : 21 },
 				"ET10" : { "width" : 21 }
-			}			
+			},
+			"lastCallers" : {
+				"TL1" : {
+					"resizable"		: false,
+					"width"			: 16,
+					"textOverflow"	: "..."
+				},
+				"TL2" : {
+					"resizable"		: false,
+					"width"			: 19,
+					"textOverflow"	: "..."
+				},
+				"TL3" : {
+					"resizable"		: false,
+					"width"			: 17,
+					"textOverflow"	: "..."
+				}
+			}
 		},
 		"prompts" : {
 			"userCredentials" : {
