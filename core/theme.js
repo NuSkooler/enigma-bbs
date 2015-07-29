@@ -152,7 +152,7 @@ function getThemeArt(name, themeID, options, cb) {
 	options.random		= miscUtil.valueWithDefault(options.random, true);
 	options.basePath	= paths.join(Config.paths.themes, themeID);
 
-	art.getArt(name, options, function onThemeArt(err, artInfo) {
+	art.getArt(name, options, function onThemeArt(err, artInfo) {		
 		if(err) {
 			//	try fallback of art directory
 			options.basePath = Config.paths.art;
@@ -227,7 +227,7 @@ function displayThemedPause(options, cb) {
 							callback(new Error('Missing standard \'pause\' prompt'))
 						}
 					}					
-				});				
+				});
 			},
 			function displayPausePrompt(callback) {
 				displayThemedAsset(

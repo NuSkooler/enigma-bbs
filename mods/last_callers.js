@@ -1,22 +1,23 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule		= require('../core/menu_module.js').MenuModule;
-var userDb			= require('../core/database.js').dbs.user;
-var ViewController	= require('../core/view_controller.js').ViewController;
-var TextView		= require('../core/text_view.js').TextView;
+var MenuModule			= require('../core/menu_module.js').MenuModule;
+var userDb				= require('../core/database.js').dbs.user;
+var ViewController		= require('../core/view_controller.js').ViewController;
+var TextView			= require('../core/text_view.js').TextView;
+var getUserLoginHistory	= require('../core/stats.js').getUserLoginHistory;
 
-var util			= require('util');
-var moment			= require('moment');
-var async			= require('async');
-var assert			= require('assert');
-var _				= require('lodash');
+var util				= require('util');
+var moment				= require('moment');
+var async				= require('async');
+var assert				= require('assert');
+var _					= require('lodash');
 
 exports.moduleInfo = {
 	name		: 'Last Callers',
 	desc		: 'Last callers to the system',
 	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.lastcallers'
+	packageName	: 'codes.l33t.enigma.lastcallers'	//	:TODO: concept idea for mods
 };
 
 exports.getModule	= LastCallersModule;
@@ -59,8 +60,7 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 
 	var self	= this;
 	var vc		= self.viewControllers.lastCallers = new ViewController( { client : self.client } );
-	var lc		= [];
-	var rows	= self.rows;
+	var loginHistory;
 
 	async.series(
 		[
@@ -75,35 +75,21 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 					callback(err);
 				});
 			},
-			//	:TODO: a public method of getLastCallers(count) would be better
 			function fetchHistory(callback) {
-				userDb.each(
-					'SELECT user_id, user_name, timestamp '	+
-					'FROM user_login_history '				+
-					'ORDER BY timestamp DESC '				+
-					'LIMIT ' + rows + ';',
-					function historyRow(err, histEntry) {
-						lc.push( {
-							userId	: histEntry.user_id,
-							who		: histEntry.user_name,
-							when	: histEntry.timestamp,
-						} );
-					},
-					function complete(err, recCount) {
-						rows = recCount;	//	adjust to retrieved
-						callback(err);
-					}
-				);
+				getUserLoginHistory(self.rows, function historyRetrieved(err, lh) {
+					loginHistory = lh;
+					callback(err);
+				});
 			},
 			function fetchUserProperties(callback) {
-				async.each(lc, function callEntry(c, next) {
+				async.each(loginHistory, function entry(histEntry, next) {
 					userDb.each(
 						'SELECT prop_name, prop_value '	+ 
 						'FROM user_property '			+
 						'WHERE user_id=? AND (prop_name="location" OR prop_name="affiliation");',
-						[ c.userId ],
+						[ histEntry.userId ],
 						function propRow(err, propEntry) {
-							c[propEntry.prop_name] = propEntry.prop_value;
+							histEntry[propEntry.prop_name] = propEntry.prop_value;
 						},
 						function complete(err) {
 							next();
@@ -154,17 +140,17 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 					vc.addView(v);
 				};
 
-				lc.forEach(function lastCaller(c) {
+				loginHistory.forEach(function entry(histEntry) {
 					if(row === views.who.position.row) {
-						views.who.setText(c.who);
-						views.location.setText(c.location);
-						views.affils.setText(c.affiliation);
-						views.when.setText(moment(c.when).format(self.dateTimeFormat));
+						views.who.setText(histEntry.userName);
+						views.location.setText(histEntry.location);
+						views.affils.setText(histEntry.affiliation);
+						views.when.setText(moment(histEntry.timestamp).format(self.dateTimeFormat));
 					} else {
-						addView(views.who, c.who);
-						addView(views.location, c.location);
-						addView(views.affils, c.affiliation);
-						addView(views.when, moment(c.when).format(self.dateTimeFormat));
+						addView(views.who, histEntry.userName);
+						addView(views.location, histEntry.location);
+						addView(views.affils, histEntry.affiliation);
+						addView(views.when, moment(histEntry.timestamp).format(self.dateTimeFormat));
 					}
 
 					row++;

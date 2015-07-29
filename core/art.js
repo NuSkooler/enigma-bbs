@@ -244,7 +244,7 @@ function getArtFromPath(path, options, cb) {
 			}
 
 			return result;
-		}
+		}	
 
 		if(options.readSauce === true) {
 			readSAUCE(data, function onSauce(err, sauce) {
