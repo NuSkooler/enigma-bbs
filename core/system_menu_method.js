@@ -39,6 +39,17 @@ function login(callingMenu, formData, extraArgs) {
 							callback(err);
 						});
 					},
+					function updateUserLoginCount(callback) {
+						if(!user.properties.login_count) {
+							user.properties.login_count = 1;
+						} else {
+							user.properties.login_count++;
+						}
+						
+						user.persistProperty('login_count', user.properties.login_count, function persisted(err) {
+							callback(err);
+						});
+					},
 					function recordLoginHistory(callback) {
 
 						userDb.serialize(function serialized() {
