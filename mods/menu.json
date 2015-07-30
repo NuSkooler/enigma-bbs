@@ -34,8 +34,8 @@
 			}
 	*/
 	"menus" : {
-		"art" 		: "CONNECT",
 		"connected" : {
+			"art"		: "CONNECT",
 			"next"		: "matrix",
 			"options"	: {
 				"cls"	: true,
@@ -191,24 +191,18 @@
 		},
 		"newUserActive" : {
 			"art"		: "SO-CC1.ANS",
-			"options"	: { "cls" : true },
-			"action"	: "@menu:currentUserStats",
-			"pause"		: "end"
+			"options"	: { "cls" : true, "pause" : true },
+			"action"	: "@menu:currentUserStats"
 		},
 		"currentUserStats" : {
 			"art" : "userstats",
-			//"prompt" : "pause",
-			"options" : {
-				//	:TODO: implement MCI codes for this
-				"cls" : true
-			},
-			"pause"		: true,
+			"options" : { "cls" : true, "pause" : true },
 			"action"	: "@menu:lastCallers"
 		},
 		"lastCallers" :{
 			"module"	: "last_callers",
 			"art"		: "LASTCALL.ANS",
-			"options"	: { "cls" : true },
+			"options"	: { "cls" : true, "pause" : true },
 			"config"	: {
 				"dateTimeFormat" : "ddd MMM Do H:mm a"
 			},

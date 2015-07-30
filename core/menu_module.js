@@ -97,8 +97,19 @@ function MenuModule(options) {
 					}
 				},
 				function afterArtDisplayed(callback) {
-					self.mciReady(mciData);
-					callback(null);
+					self.mciReady(mciData, callback);
+				},
+				function displayPauseIfRequested(callback) {
+					if(self.shouldPause()) {
+						self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
+
+						//	:TODO: really need a client.term.pause() that uses the correct art/etc.
+						theme.displayThemedPause( { client : self.client }, function keyPressed() {
+							callback(null);
+						});
+					} else {
+						callback(null);
+					}
 				}
 			],
 			function complete(err) {
@@ -108,30 +119,18 @@ function MenuModule(options) {
 				}
 
 				self.finishedLoading();
+				self.nextAction();
 			}
 		);
 	};
 
 	this.shouldPause = function() {
-		return 'end' === self.menuConfig.pause || true === self.menuConfig.pause;
-	};
-
-	this.allViewsReady = function() {
-		if(self.shouldPause()) {
-			self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
-
-			//	:TODO: really need a client.term.pause() that uses the correct art/etc.
-			theme.displayThemedPause( { client : self.client }, function keyPressed() {
-				self.nextAction();
-			});
-		} else {
-			self.nextAction();
-		}
+		return 'end' === self.menuConfig.options.pause || true === self.menuConfig.options.pause;
 	};
 
 	this.nextAction = function() {
 		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-				_.isString(self.menuConfig.action))
+			_.isString(self.menuConfig.action))
 		{
 			menuUtil.handleAction(self.client, null, self.menuConfig);
 		}
@@ -170,58 +169,63 @@ MenuModule.prototype.beforeArt = function() {
 	}
 };
 
-MenuModule.prototype.mciReady = function(mciData) {
+MenuModule.prototype.mciReady = function(mciData, cb) {
+	//	Reserved for sub classes
+	cb(null);
 };
 
-MenuModule.prototype.standardMCIReadyHandler = function(mciData) {
+MenuModule.prototype.standardMCIReadyHandler = function(mciData, cb) {
 	//
 	//	A quick rundown:
 	//	*	We may have mciData.menu, mciData.prompt, or both.
 	//	*	Prompt form is favored over menu form if both are present.
 	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
 	//
-	var self				= this;
-	var vcCount				= 0;
-	var vcReady				= 0;
+	var self = this;
 
-	_.forEach(mciData, function entry(mciMap, name) {
-		assert('menu' === name || 'prompt' === name);
-		++vcCount;
-		self.addViewController(name, new ViewController( { client : self.client } ));
-	});
+	async.series(
+		[
+			function addViewControllers(callback) {
+				_.forEach(mciData, function entry(mciMap, name) {
+					assert('menu' === name || 'prompt' === name);
+					self.addViewController(name, new ViewController( { client : self.client } ));
+				});
+				callback(null);
+			},
+			function createMenu(callback) {
+				if(self.viewControllers.menu) {
+					var menuLoadOpts = {
+						mciMap		: mciData.menu,
+						callingMenu	: self,
+						withoutForm	: _.isObject(mciData.prompt),
+					};
 
-	var viewsReady = function(err) {
-		//	:TODO: what should really happen here?
-		if(err) {
-			self.client.log.warn(err);
+					self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, function menuLoaded(err) {
+						callback(err);
+					});
+				} else {
+					callback(null);
+				}
+			},
+			function createPrompt(callback) {
+				if(self.viewControllers.prompt) {
+					var promptLoadOpts = {
+						callingMenu		: self,
+						mciMap			: mciData.prompt,
+					};
+
+					self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, function promptLoaded(err) {
+						callback(err);
+					});
+				} else {
+					callback(null);
+				}
+			}
+		],
+		function complete(err) {
+			cb(err);
 		}
-
-		++vcReady;
-		if(vcReady === vcCount) {
-			self.allViewsReady();
-		}	
-
-	};
-
-
-	if(self.viewControllers.menu) {
-		var menuLoadOpts = {
-			mciMap		: mciData.menu,
-			callingMenu	: self,
-			withoutForm	: _.isObject(mciData.prompt),
-		};
-
-		self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, viewsReady);
-	}
-
-	if(self.viewControllers.prompt) {
-		var promptLoadOpts = {
-			callingMenu		: self,
-			mciMap			: mciData.prompt,
-		};
-
-		self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, viewsReady);
-	}
+	);
 };
 
 MenuModule.prototype.finishedLoading = function() {
@@ -234,26 +238,5 @@ MenuModule.prototype.finishedLoading = function() {
 		setTimeout(function nextTimeout() {
 			self.client.gotoMenuModule( { name : self.menuConfig.next } );
 		}, this.menuConfig.options.nextTimeout);
-	} else {
-		/*
-		var nextAction = function() {
-			if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-				_.isString(self.menuConfig.action))
-			{
-				menuUtil.handleAction(self.client, null, self.menuConfig);
-			}
-		};
-
-		if(self.shouldPause()) {
-			self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
-
-			//	:TODO: really need a client.term.pause() that uses the correct art/etc.
-			theme.displayThemedPause( { client : self.client }, function keyPressed() {
-				nextAction();
-			});
-		} else {
-			nextAction();
-		}
-		*/
 	}
 };

@@ -26,9 +26,15 @@ StandardMenuModule.prototype.beforeArt = function() {
 	StandardMenuModule.super_.prototype.beforeArt.call(this);
 };
 
-StandardMenuModule.prototype.mciReady = function(mciData) {
-	StandardMenuModule.super_.prototype.mciReady.call(this, mciData);
-
-	//	 we do this so other modules can be both customized and still perform standard tasks
-	StandardMenuModule.super_.prototype.standardMCIReadyHandler.call(this, mciData);
+StandardMenuModule.prototype.mciReady = function(mciData, cb) {
+	var self = this;
+	
+	StandardMenuModule.super_.prototype.mciReady.call(this, mciData, function mciReadyComplete(err) {
+		if(err) {
+			cb(err);
+		} else {
+			//	 we do this so other modules can be both customized and still perform standard tasks
+			StandardMenuModule.super_.prototype.standardMCIReadyHandler.call(self, mciData, cb);
+		}
+	});
 };

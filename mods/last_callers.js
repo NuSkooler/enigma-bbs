@@ -55,15 +55,18 @@ LastCallersModule.prototype.enter = function(client) {
 	}
 };
 
-LastCallersModule.prototype.mciReady = function(mciData) {
-	LastCallersModule.super_.prototype.mciReady.call(this, mciData);
-
+LastCallersModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
 	var vc		= self.viewControllers.lastCallers = new ViewController( { client : self.client } );
 	var loginHistory;
 
 	async.series(
 		[
+			function callParentMciReady(callback) {
+				LastCallersModule.super_.prototype.mciReady.call(this, mciData, function parentMciReady(err) {
+					callback(err);
+				});
+			},
 			function loadFromConfig(callback) {
 				var loadOpts = {
 					callingMenu	: self,
@@ -155,10 +158,15 @@ LastCallersModule.prototype.mciReady = function(mciData) {
 
 					row++;
 				});
+
+				callback(null);
 			}
 		],
 		function complete(err) {
-			self.client.log.error(err);
+			if(err) {
+				self.client.log.error(err);
+			}
+			cb(err);
 		}
 	);
 };
