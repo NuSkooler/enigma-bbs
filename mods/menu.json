@@ -82,7 +82,7 @@
 			//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
 			"prompt"	: "userCredentials",
 			"fallback"	: "matrix",
-			"next"		: "newUserActive",
+			"next"		: "fullLoginSequenceLoginArt",
 			"action"	: "@systemMethod:login",
 
 			//	:TODO: support alt submit method for prompts
@@ -101,7 +101,6 @@
 		},
 		"logoff" : {
 			"art"		: "LOGOFF",
-			//"module"	: "logoff",
 			"action"	: "@systemMethod:logoff",
 			"options" : { "cls" : true }
 		},
@@ -189,6 +188,22 @@
 				"cls" : true
 			}
 		},
+		"fullLoginSequenceLoginArt" : {
+			"art"		: "LOGIN",
+			"options"	: { "cls" : true, "pause" : true },
+			"action"	: "@menu:fullLoginSequenceLastCallers"
+		},
+		"fullLoginSequenceLastCallers": {
+			"module"	: "last_callers",
+			"art"		: "LASTCALL",
+			"options"	: { "cls" : true, "pause" : true },
+			"action"	: "@menu:fullLoginSequenceUserStats"
+		},
+		"fullLoginSequenceUserStats" : {
+			"art"		: "userstats",
+			"options"	: { "cls" : true, "pause" : true },
+			"action"	: "@menu:mainMenu"
+		},
 		"newUserActive" : {
 			"art"		: "SO-CC1.ANS",
 			"options"	: { "cls" : true, "pause" : true },
@@ -199,6 +214,40 @@
 			"options" : { "cls" : true, "pause" : true },
 			"action"	: "@menu:lastCallers"
 		},
+		"mainMenu" : {
+			"art"		: "MAINMENU",
+			"options"	: { "cls" : true },
+			"form"		: {
+				"0" : {
+					"ET" : {
+						"mci" : {
+							"ET1" : {
+								"focus"		: true,
+								"submit"	: true,
+								"textStyle"	: "lower",
+								"width"		: 20,
+								"maxLength"	: 20
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value" 	: { "1" : "g" },
+									"action"	: "@menu:logoff"
+								},
+								{
+									"value"		: 1,
+									"action"	: "@menu:mainMenu"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		////////////////////////////////////////////////////////////////////////
+		//	Mods
+		////////////////////////////////////////////////////////////////////////
 		"lastCallers" :{
 			"module"	: "last_callers",
 			"art"		: "LASTCALL.ANS",
@@ -230,6 +279,9 @@
 			}
 
 		},
+		////////////////////////////////////////////////////////////////////////
+		//	Demo Section
+		////////////////////////////////////////////////////////////////////////
 		"demoMain" : {
 			"art" : "demo_selection_vm.ans",
 			"options" : { "cls" : true },
