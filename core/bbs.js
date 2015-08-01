@@ -176,7 +176,7 @@ function startListening() {
 
 			client.on('close', function onClientClose(hadError) {
 				var l = hadError ? logger.log.info : logger.log.debug;
-				l({ clientId : client.runtime.id }, 'Connection closed');
+				l( { clientId : client.runtime.id }, 'Connection closed');
 				removeClient(client);
 			});
 		});

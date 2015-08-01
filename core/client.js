@@ -102,6 +102,12 @@ function Client(input, output) {
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 
+	Object.defineProperty(this, 'node', {
+		get : function() {
+			return self.runtime.id + 1;
+		}
+	});
+
 	//
 	//	Peek at incoming |data| and emit events for any special
 	//	handling that may include:

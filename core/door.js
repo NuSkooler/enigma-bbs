@@ -25,8 +25,6 @@ function DropFile(options) {
 	this.exeParams		= options.exeParams || [];
 
 
-
-
 	Object.defineProperty(this, 'fileName', {
 		get : function() {
 			return {

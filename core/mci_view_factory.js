@@ -53,7 +53,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			SH	: this.client.term.termHeight.toString(),
 			SW	: this.client.term.termWidth.toString(),
 
-			ND	: this.client.runtime.id.toString(),
+			ND	: this.client.node.toString(),
 
 			//	:TODO: change to CD for 'Current Date'
 			DT	: moment().format(this.client.currentTheme.helpers.getDateFormat()),
