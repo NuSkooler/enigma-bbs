@@ -16,7 +16,8 @@
 		"gapbuffer" : "0.0.2",
 		"node-uuid"	: "1.4.x",
 		"moment" : "2.10.x",
-		"gaze" : "0.5.x"
+		"gaze" : "0.5.x",
+		"mkdirp" : "0.5.x"
 	},
 	"engine" : "node >= 0.12.2"
 }

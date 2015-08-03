@@ -70,7 +70,7 @@ function getDefaultPath() {
 function getDefaultConfig() {
 	return {
 		general : {
-			boardName	: 'Another Fine ENiGMA½ BBS',
+			boardName		: 'Another Fine ENiGMA½ BBS',
 		},
 
 		firstMenu	: 'connected',
@@ -115,6 +115,7 @@ function getDefaultConfig() {
 			themes				: paths.join(__dirname, './../mods/themes/'),
 			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
 			db					: paths.join(__dirname, './../db/'),
+			dropFiles			: paths.join(__dirname, './../dropfiles/'),	//	+ "/node<x>/
 		},
 		
 		servers : {

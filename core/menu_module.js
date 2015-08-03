@@ -29,6 +29,7 @@ function MenuModule(options) {
 	this.initSequence = function() {
 		var mciData = { };
 
+		//	:TODO: This could be .series() currently
 		async.waterfall(
 			[
 				function beforeDisplayArt(callback) {

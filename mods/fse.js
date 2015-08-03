@@ -24,7 +24,7 @@ function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
 
 	var self		= this;
-	this.menuConfig	= options.menuConfig;
+	this.menuConfig	= options.menuConfig;	//	:TODO: MenuModule does this...
 
 	//
 	//	Editor Type ('editorType'):
@@ -208,7 +208,7 @@ function FullScreenEditorModule(options) {
 					assert(_.isString(art.body));
 
 					async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
-						theme.displayThemedAsset1(
+						theme.displayThemedAsset(
 							art[n],
 							self.client,
 							{ font : self.menuConfig.font },

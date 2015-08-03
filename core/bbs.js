@@ -112,6 +112,38 @@ function initialize(cb) {
 					logger.log.info({ themeCount : themeCount }, 'Themes initialized');
 					callback(err);
 				});
+			},
+			function loadSysOpInformation(callback) {
+				//
+				//	If user 1 has been created, we have a SysOp. Cache some information
+				//	into Config.
+				//
+				var user = require('./user.js');	//	must late load
+
+				user.getUserName(1, function unLoaded(err, sysOpUsername) {
+					if(err) {
+						callback(null);	//	non-fatal here
+					} else {
+						//
+						//	Load some select properties to cache
+						//
+						var propLoadOpts = {
+							userId	: 1,
+							names	: [ 'real_name', 'sex', 'email_address' ],
+						}
+						user.loadProperties(propLoadOpts, function propsLoaded(err, props) {
+							if(!err) {
+								conf.config.general.sysOp = {
+									username	: sysOpUsername,
+									properties	: props,
+								};
+
+								logger.log.info( { sysOp : conf.config.general.sysOp }, 'System Operator information cached');
+							}
+							callback(null);	//	any error is again, non-fatal here
+						});
+					}
+				});
 			}
 		],
 		function onComplete(err) {

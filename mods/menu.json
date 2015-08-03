@@ -236,6 +236,10 @@
 									"action"	: "@menu:logoff"
 								},
 								{
+									"value"		: { "1" : "d" },
+									"action"	: "@menu:doorPimpWars"
+								},
+								{
 									"value"		: 1,
 									"action"	: "@menu:mainMenu"
 								}
@@ -243,6 +247,14 @@
 						}
 					}
 				}
+			}
+		},
+		"doorPimpWars" : {
+			"module"	: "abracadabra",
+			"config"	: {
+				"name"	: "PimpWars",
+				"cmd"	: "/usr/bin/dosemu",
+				"args"	: [ "-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}" ]//, "X:\\PW\\PIMPWARS.EXE", "X:\\DROP\\{dropfile}", "{node}" ]
 			}
 		},
 		////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,8 @@ var moment			= require('moment');
 
 exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
+exports.getUserName					= getUserName;
+exports.loadProperties				= loadProperties;
 
 function User() {
 	var self = this;
@@ -65,6 +67,10 @@ User.AccountStatus = {
 	disabled	: -1,
 	inactive	: 0,
 	active		: 1,
+};
+
+User.prototype.load = function(userId, cb) {
+
 };
 
 User.prototype.authenticate = function(username, password, cb) {
@@ -355,6 +361,25 @@ function getUserIdAndName(username, cb) {
 					cb(null, row.id, row.user_name);
 				} else {
 					cb(new Error('No matching username'));
+				}
+			}
+		}
+	);
+}
+
+function getUserName(userId, cb) {
+	userDb.get(
+		'SELECT user_name ' +
+		'FROM user '		+
+		'WHERE id=?;', [ userId ],
+		function got(err, row) {
+			if(err) {
+				cb(err);
+			} else {
+				if(row) {
+					cb(null, row.user_name);
+				} else {
+					cb(new Error('No matching user ID'));
 				}
 			}
 		}
