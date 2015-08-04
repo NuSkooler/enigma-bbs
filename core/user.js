@@ -51,6 +51,10 @@ function User() {
 		return _.isString(self.groups[groupIdOrName]);
 	};
 
+	this.getLegacySecurityLevel = function() {
+		return self.isRoot() ? 100 : 30;
+	};
+
 }
 
 User.PBKDF2 = {

@@ -197,6 +197,9 @@
 			"module"	: "last_callers",
 			"art"		: "LASTCALL",
 			"options"	: { "cls" : true, "pause" : true },
+			"config" 	: {
+				"dateTimeFormat" : "ddd MMM Do h:mm a"
+			},
 			"action"	: "@menu:fullLoginSequenceUserStats"
 		},
 		"fullLoginSequenceUserStats" : {
@@ -211,8 +214,8 @@
 		},
 		"currentUserStats" : {
 			"art" : "userstats",
-			"options" : { "cls" : true, "pause" : true },
-			"action"	: "@menu:lastCallers"
+			"options" : { "cls" : true, "pause" : true }
+			//"action"	: "@menu:lastCallers"
 		},
 		"mainMenu" : {
 			"art"		: "MAINMENU",
@@ -240,6 +243,10 @@
 									"action"	: "@menu:doorPimpWars"
 								},
 								{
+									"value"		: { "1" : "l" },
+									"action"	: "@menu:doorLORD"
+								},
+								{
 									"value"		: 1,
 									"action"	: "@menu:mainMenu"
 								}
@@ -251,10 +258,27 @@
 		},
 		"doorPimpWars" : {
 			"module"	: "abracadabra",
+			"fallback"	: "mainMenu",
 			"config"	: {
-				"name"	: "PimpWars",
-				"cmd"	: "/usr/bin/dosemu",
-				"args"	: [ "-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}" ]//, "X:\\PW\\PIMPWARS.EXE", "X:\\DROP\\{dropfile}", "{node}" ]
+				"name"			: "PimpWars",
+				"dropFileType"	: "DORINFO",
+				"cmd"			: "/usr/bin/dosemu",
+				"args"			: [ 
+					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
+				],
+				"nodeMax" : 1
+			}
+		},
+		"doorLORD" : {
+			"module"	: "abracadabra",
+			"fallback"	: "mainMenu",
+			"config" 	: {
+				"name"			: "LORD",
+				"dropFileType"	: "DOOR",
+				"cmd"			: "/usr/bin/dosemu",
+				"args"			: [
+					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\LORD\\START.BAT {node}"
+				]
 			}
 		},
 		////////////////////////////////////////////////////////////////////////

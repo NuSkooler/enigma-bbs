@@ -7,6 +7,7 @@ var fs				= require('fs');
 var paths			= require('path');
 var _				= require('lodash');
 var async			= require('async');
+var moment			= require('moment');
 
 exports.DropFile	= DropFile;
 
@@ -55,7 +56,9 @@ function DropFile(client, fileType) {
 	Object.defineProperty(this, 'dropFileContents', {
 		get : function() {
 			return {
-				DORINFO			: self.getDoorInfoBuffer(),
+				DOOR			: self.getDoorSysBuffer(),
+
+				DORINFO			: self.getDoorInfoDefBuffer(),
 			}[self.fileType];
 		}
 	});
@@ -73,7 +76,76 @@ function DropFile(client, fileType) {
 		return 'DORINFO' + x + '.DEF';
 	};
 
-	this.getDoorInfoBuffer = function() {
+	this.getDoorSysBuffer = function() {
+		var up			= self.client.user.properties;
+		var now			= moment();
+		var secLevel	= self.client.user.getLegacySecurityLevel().toString();
+
+		//	:TODO: fix time remaining
+		//	:TODO: fix default protocol -- user prop: transfer_protocol
+
+		return new Buffer( [
+			'COM1:',											//	"Comm Port - COM0: = LOCAL MODE"
+			'57600',											//	"Baud Rate - 300 to 38400" (Note: set as 57600 instead!)
+			'8',												//	"Parity - 7 or 8"
+			self.client.node.toString(),						//	"Node Number - 1 to 99"
+			'57600',											//	"DTE Rate. Actual BPS rate to use. (kg)"
+			'Y',												//	"Screen Display - Y=On  N=Off             (Default to Y)"
+			'Y',												//	"Printer Toggle - Y=On  N=Off             (Default to Y)"
+			'Y',												//	"Page Bell      - Y=On  N=Off             (Default to Y)"
+			'Y',												//	"Caller Alarm   - Y=On  N=Off             (Default to Y)"
+			up.realName || self.client.user.username,			//	"User Full Name"
+			up.location || 'Anywhere',							//	"Calling From"
+			'123-456-7890',										//	"Home Phone"
+			'123-456-7890',										//	"Work/Data Phone"
+			'NOPE',												//	"Password" (Note: this is never given out or even stored plaintext)
+			secLevel,											//	"Security Level"
+			up.login_count.toString(),							//	"Total Times On"
+			now.format('MM/DD/YY'),								//	"Last Date Called"
+			'15360',											//	"Seconds Remaining THIS call (for those that particular)"
+			'256',												//	"Minutes Remaining THIS call"
+			'GR',												//	"Graphics Mode - GR=Graph, NG=Non-Graph, 7E=7,E Caller"
+			self.client.term.termHeight.toString(),				//	"Page Length"
+			'N',												//	"User Mode - Y = Expert, N = Novice"
+			'1,2,3,4,5,6,7',									//	"Conferences/Forums Registered In  (ABCDEFG)"
+			'1',												//	"Conference Exited To DOOR From    (G)"
+			'01/01/99',											//	"User Expiration Date              (mm/dd/yy)"
+			self.client.user.userId.toString(),					//	"User File's Record Number"
+			'Z',												//	"Default Protocol - X, C, Y, G, I, N, Etc."
+			//	:TODO: fix up, down, etc. form user properties
+			'0',												//	"Total Uploads"
+			'0',												//	"Total Downloads"
+			'0',												//	"Daily Download "K" Total"
+			'999999',											//	"Daily Download Max. "K" Limit"
+			moment(up.birthdate).format('MM/DD/YY'),			//	"Caller's Birthdate"
+			'X:\\MAIN\\',										//	"Path to the MAIN directory (where User File is)"
+			'X:\\GEN\\',										//	"Path to the GEN directory"
+			Config.general.sysOp.username,						//	"Sysop's Name (name BBS refers to Sysop as)"
+			self.client.user.username,							//	"Alias name"
+			'00:05',											//	"Event time                        (hh:mm)" (note: wat?)
+			'Y',												//	"If its an error correcting connection (Y/N)"
+			'Y',												//	"ANSI supported & caller using NG mode (Y/N)"
+			'Y',												//	"Use Record Locking                    (Y/N)"
+			'7',												//	"BBS Default Color (Standard IBM color code, ie, 1-15)"
+			//	:TODO: fix minutes here also:
+			'256',												//	"Time Credits In Minutes (positive/negative)"
+			'07/07/90',											//	"Last New Files Scan Date          (mm/dd/yy)"
+			//	:TODO: fix last vs now times:
+			now.format('hh:mm'),								//	"Time of This Call"
+			now.format('hh:mm'),								//	"Time of Last Call                 (hh:mm)"
+			'9999',												//	"Maximum daily files available"
+			//	:TODO: fix these stats:
+			'0',												//	"Files d/led so far today"
+			'0',												//	"Total "K" Bytes Uploaded"
+			'0',												//	"Total "K" Bytes Downloaded"
+			up.user_comment || 'None',							//	"User Comment"
+			'0',												//	"Total Doors Opened"
+			'0',												//	"Total Messages Left"
+
+			].join('\r\n') + '\r\n', 'cp437');
+	};
+
+	this.getDoorInfoDefBuffer = function() {
 		//	:TODO: fix time remaining
 
 		//
@@ -82,22 +154,24 @@ function DropFile(client, fileType) {
 		//
 		//	Note that usernames are just used for first/last names here
 		//
-		var opUn	= /[^\s]*/.exec(Config.general.sysOp.username)[0];
-		var un		= /[^\s]*/.exec(self.client.user.username)[0];
-		return new Buffer([
-			Config.general.boardName,						//	"The name of the system."
-			opUn,											//	"The sysop's name up to the first space."
-			opUn,											//	"The sysop's name following the first space."
-			'COM1',											//	"The serial port the modem is connected to, or 0 if logged in on console."
-			'57600',										//	"The current port (DTE) rate."
-			'0',											//	"The number "0""
-			un,												//	"The current user's name, up to the first space."
-			un,												//	"The current user's name, following the first space."
-			self.client.user.properties.location || '',		//	"Where the user lives, or a blank line if unknown."
-			'1',											//	"The number "0" if TTY, or "1" if ANSI."
-			self.client.user.isSysOp() ? '100' : '30',		//	"The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
-			'546',											//	"The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
-			'-1'											//	"The number "-1" if using an external serial driver or "0" if using internal serial routines."
+		var opUn		= /[^\s]*/.exec(Config.general.sysOp.username)[0];
+		var un			= /[^\s]*/.exec(self.client.user.username)[0];
+		var secLevel	= self.client.user.getLegacySecurityLevel().toString();
+
+		return new Buffer( [
+			Config.general.boardName,							//	"The name of the system."
+			opUn,												//	"The sysop's name up to the first space."
+			opUn,												//	"The sysop's name following the first space."
+			'COM1',												//	"The serial port the modem is connected to, or 0 if logged in on console."
+			'57600',											//	"The current port (DTE) rate."
+			'0',												//	"The number "0""
+			un,													//	"The current user's name, up to the first space."
+			un,													//	"The current user's name, following the first space."
+			self.client.user.properties.location || '',			//	"Where the user lives, or a blank line if unknown."
+			'1',												//	"The number "0" if TTY, or "1" if ANSI."
+			secLevel,											//	"The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
+			'546',												//	"The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
+			'-1'												//	"The number "-1" if using an external serial driver or "0" if using internal serial routines."
 		].join('\r\n') + '\r\n', 'cp437');
 	};
 

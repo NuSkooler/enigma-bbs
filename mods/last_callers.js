@@ -50,7 +50,7 @@ LastCallersModule.prototype.enter = function(client) {
 
 	//	we need the client to init this for theming
 	if(!_.isString(this.dateTimeFormat)) {
-		this.dateTimeFormat = this.client.currentTheme.helpers.getDateFormat('short') +
+		this.dateTimeFormat = this.client.currentTheme.helpers.getDateFormat('short') + ' ' +
 			this.client.currentTheme.helpers.getTimeFormat('short');
 	}
 };

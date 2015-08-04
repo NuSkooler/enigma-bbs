@@ -4,15 +4,20 @@
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var DropFile			= require('../core/dropfile.js').DropFile;
 var door				= require('../core/door.js');
+var theme				= require('../core/theme.js');
+var ansi				= require('../core/ansi_term.js');
 
 var async				= require('async');
 var assert				= require('assert');
 var mkdirp 				= require('mkdirp');
 var paths				= require('path');
+var _					= require('lodash');
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
 
 exports.getModule		= AbracadabraModule;
+
+var activeDoorNodeInstances = {};
 
 exports.moduleInfo = {
 	name	: 'Abracadabra',
@@ -20,37 +25,76 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
+/*
+	Example configuration for LORD under DOSEMU:
+
+	{
+		"config" : {
+			"name"			: "LORD",
+			"dropFileType"	: "DOOR",
+			"cmd"			: "/usr/bin/dosemu",
+			"args"			: [ "-quiet", "-f", "/etc/dosemu/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}" ] ],
+			"nodeMax"		: 32,
+			"tooManyArt"	: "toomany-lord.ans"
+		}
+	}
+*/
 function AbracadabraModule(options) {
 	MenuModule.call(this, options);
 
 	var self = this;
-	this.config	= options.menuConfig.config || {
-		dropFileType	: 'DORINFO',
-	};
 
-	this.config.args = this.config.args || [];
+	this.config = options.menuConfig.config;
+
+	assert(_.isString(this.config.name, 		'Config \'name\' is required'));
+	assert(_.isString(this.config.dropFileType,	'Config \'dropFileType\' is required'));
+	assert(_.isString(this.config.cmd,			'Config \'cmd\' is required'));
+
+	this.config.nodeMax		= this.config.nodeMax || 0;
+	this.config.args		= this.config.args || [];
 
 	/*
-		{
-			"config" : {
-				"name" : "LORD",
-				"cmd" : "...",
-				"args" : [ ... ],
-				"dropFileType" : "dorinfo",				
-				"maxNodes" : 32, default=unlimited
-				"tooManyArt" : "..." (optional); default = "Too many active" message
-				...
-				"dropFilePath" : "/.../LORD/", || Config.paths.dropFiles
-			}
-		}
+		:TODO:
+		* disconnecting wile door is open leaves dosemu
+
 	*/
 
 	this.initSequence = function() {
 		async.series(
 			[
 				function validateNodeCount(callback) {
-					//	:TODO: Check that node count for this door has not been reached
-					callback(null);
+					if(self.config.nodeMax > 0 &&
+						_.isNumber(activeDoorNodeInstances[self.config.name]) && 
+						activeDoorNodeInstances[self.config.name] + 1 > self.config.nodeMax)
+					{
+						self.client.log.info( 
+							{ 
+								name		: self.config.name,
+								activeCount : activeDoorNodeInstances[self.config.name]
+							},
+							'Too many active instances');
+
+						if(_.isString(self.config.tooManyArt)) {
+							theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
+								callback(new Error('Too many active instances'));
+							});
+						} else {
+							self.client.term.write('\nToo many active instances. Try again later.\n');
+
+							setTimeout(function timeout() {
+								callback(new Error('Too many active instances'));
+							}, 1000);							
+						}			 		
+					} else {
+						//	:TODO: JS elegant way to do this?
+						if(activeDoorNodeInstances[self.config.name]) {
+							activeDoorNodeInstances[self.config.name] += 1;
+						} else {
+							activeDoorNodeInstances[self.config.name] = 1;
+						}
+						
+						callback(null);
+					}
 				},
 				function generateDropfile(callback) {					
 					self.dropFile	= new DropFile(self.client, self.config.dropFileType);
@@ -68,14 +112,46 @@ function AbracadabraModule(options) {
 				}
 			],
 			function complete(err) {
-				self.finishedLoading();
+				if(err) {
+					self.fallbackModule();
+				} else {
+					self.finishedLoading();
+				}
 			}
 		);
 	};
 
-	this.runDOSEmuDoor = function() {
+	this.runDosEmuDoor = function() {
 
 	};
+
+	this.runDoor = function() {
+
+		var exeInfo = {
+			cmd		: this.config.cmd,
+			args	: this.config.args,
+		};
+
+		//	:TODO: this system should probably be generic
+		for(var i = 0; i < exeInfo.args.length; ++i) {
+			exeInfo.args[i] = exeInfo.args[i].replace(/\{dropfile\}/g,	self.dropFile.fileName);
+			exeInfo.args[i] = exeInfo.args[i].replace(/\{node\}/g,		self.client.node.toString());
+		}
+
+		var doorInstance = new door.Door(this.client, exeInfo);
+
+		doorInstance.on('finished', function doorFinished() {
+			self.fallbackModule();
+		});
+
+		self.client.term.write(ansi.resetScreen());
+
+		doorInstance.run();
+	}
+
+	this.fallbackModule = function() {
+		self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+	}
 }
 
 require('util').inherits(AbracadabraModule, MenuModule);
@@ -86,24 +162,12 @@ AbracadabraModule.prototype.enter = function(client) {
 };
 
 AbracadabraModule.prototype.leave = function() {
-	Abracadabra.super_.prototype.leave.call(this);
+	AbracadabraModule.super_.prototype.leave.call(this);
 
+	activeDoorNodeInstances[this.config.name] -= 1;
 };
 
 AbracadabraModule.prototype.finishedLoading = function() {
-	var self = this;
-
-	var exeInfo = {
-		cmd		: this.config.cmd,
-		args	: this.config.args,
-	};
-
-	//	:TODO: this system should probably be generic
-	for(var i = 0; i < exeInfo.args.length; ++i) {
-		exeInfo.args[i] = exeInfo.args[i].replace(/\{dropfile\}/g,	self.dropFile.fileName);
-		exeInfo.args[i] = exeInfo.args[i].replace(/\{node\}/g,		self.client.node.toString());
-	}
-
-	var doorInstance = new door.Door(this.client, exeInfo);
-	doorInstance.run();
+	
+	this.runDoor();
 };
