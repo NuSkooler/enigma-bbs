@@ -266,7 +266,8 @@
 				"args"			: [ 
 					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
 				],
-				"nodeMax" : 1
+				"nodeMax" : 1,
+				"tooManyArt"	: "doortoomany.ans"
 			}
 		},
 		"doorLORD" : {

@@ -76,15 +76,17 @@ function AbracadabraModule(options) {
 
 						if(_.isString(self.config.tooManyArt)) {
 							theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
-								callback(new Error('Too many active instances'));
+								theme.displayThemedPause( { client : self.client }, function keyPressed() {
+									callback(new Error('Too many active instances'));
+								});
 							});
 						} else {
 							self.client.term.write('\nToo many active instances. Try again later.\n');
 
-							setTimeout(function timeout() {
+							theme.displayThemedPause( { client : self.client }, function keyPressed() {
 								callback(new Error('Too many active instances'));
-							}, 1000);							
-						}			 		
+							});
+						}
 					} else {
 						//	:TODO: JS elegant way to do this?
 						if(activeDoorNodeInstances[self.config.name]) {
@@ -113,6 +115,7 @@ function AbracadabraModule(options) {
 			],
 			function complete(err) {
 				if(err) {
+					self.lastError = err;
 					self.fallbackModule();
 				} else {
 					self.finishedLoading();
@@ -164,7 +167,9 @@ AbracadabraModule.prototype.enter = function(client) {
 AbracadabraModule.prototype.leave = function() {
 	AbracadabraModule.super_.prototype.leave.call(this);
 
-	activeDoorNodeInstances[this.config.name] -= 1;
+	if(!this.lastError) {
+		activeDoorNodeInstances[this.config.name] -= 1;
+	}
 };
 
 AbracadabraModule.prototype.finishedLoading = function() {
