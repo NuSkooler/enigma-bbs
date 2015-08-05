@@ -6,6 +6,7 @@ var conf		= require('./config.js');
 var logger		= require('./logger.js');
 var miscUtil	= require('./misc_util.js');
 var database	= require('./database.js');
+var clientConns	= require('./client_connections.js');
 
 var iconv		= require('iconv-lite');
 var paths		= require('path');
@@ -152,8 +153,6 @@ function initialize(cb) {
 	);
 }
 
-var clientConnections  = [];
-
 function startListening() {
 	if(!conf.config.servers) {
 		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
@@ -189,7 +188,7 @@ function startListening() {
 				client.runtime = {};
 			}
 
-			addNewClient(client);
+			clientConns.addNewClient(client);
 
 			client.on('ready', function onClientReady() {
 				//	Go to module -- use default error handler
@@ -199,7 +198,7 @@ function startListening() {
 			});
 
 			client.on('end', function onClientEnd() {
-				removeClient(client);
+				clientConns.removeClient(client);
 			});
 
 			client.on('error', function onClientError(err) {
@@ -209,7 +208,20 @@ function startListening() {
 			client.on('close', function onClientClose(hadError) {
 				var l = hadError ? logger.log.info : logger.log.debug;
 				l( { clientId : client.runtime.id }, 'Connection closed');
-				removeClient(client);
+				
+				clientConns.removeClient(client);
+			});
+
+			client.on('idle timeout', function idleTimeout() {
+				client.log.info('User idle timeout expired');
+
+				client.gotoMenuModule( { name : 'idleLogoff' }, function goMenuRes(err) {
+					if(err) {
+						//	likely just doesn't exist
+						client.term.write('\nIdle timeout expired. Goodbye!\n');
+						client.end();
+					}			
+				});
 			});
 		});
 
@@ -220,39 +232,6 @@ function startListening() {
 		server.listen(port);
 		logger.log.info({ server : module.moduleInfo.name, port : port }, 'Listening for connections');
 	});
-}
-
-function addNewClient(client) {
-	var id = client.runtime.id = clientConnections.push(client) - 1;
-
-	//	Create a client specific logger 
-	client.log = logger.log.child( { clientId : id } );
-
-	var connInfo = { ip : client.input.remoteAddress };
-
-	if(client.log.debug()) {
-		connInfo.port		= client.input.localPort;
-		connInfo.family		= client.input.localFamily;
-	}
-
-	client.log.info(connInfo, 'Client connected');
-
-	return id;
-}
-
-function removeClient(client) {
-	var i = clientConnections.indexOf(client);
-	if(i > -1) {
-		clientConnections.splice(i, 1);
-		
-		logger.log.info(
-			{ 
-				connectionCount	: clientConnections.length,
-				clientId		: client.runtime.id 
-			}, 
-			'Client disconnected'
-			);
-	}
 }
 
 function prepareClient(client, cb) {

@@ -37,6 +37,7 @@ var Log			= require('./logger.js').log;
 var user		= require('./user.js');
 var moduleUtil	= require('./module_util.js');
 var menuUtil	= require('./menu_util.js');
+var Config		= require('./config.js').config;
 
 var stream		= require('stream');
 var assert		= require('assert');
@@ -101,6 +102,18 @@ function Client(input, output) {
 	this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
+	this.lastKeyPressMs		= Date.now();
+
+	//
+	//	Every 1m, check for idle.
+	//
+	this.idleCheck = setInterval(function checkForIdle() {
+		var nowMs	= Date.now();
+
+		if(nowMs - self.lastKeyPressMs >= (Config.misc.idleLogoutSeconds * 1000)) {
+			self.emit('idle timeout');
+		}
+	}, 1000 * 60);
 
 	Object.defineProperty(this, 'node', {
 		get : function() {
@@ -372,6 +385,8 @@ function Client(input, output) {
 			if(key || ch) {
 				self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');
 
+				self.lastKeyPressMs = Date.now();
+
 				self.emit('key press', ch, key);
 			}
 		});
@@ -389,6 +404,8 @@ require('util').inherits(Client, stream);
 
 Client.prototype.end = function () {
 	this.detachCurrentMenuModule();
+
+	clearInterval(this.idleCheck);
 	
 	return this.output.end.apply(this.output, arguments);
 };
@@ -417,6 +434,8 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 	assert(options.name);
 	
 	//	Assign a default missing module handler callback if none was provided
+	var callbackOnErrorOnly = !_.isFunction(cb);
+
 	cb = miscUtil.valueWithDefault(cb, self.defaultHandlerMissingMod());
 
 	self.detachCurrentMenuModule();
@@ -436,6 +455,10 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 			modInst.enter(self);
 
 			self.currentMenuModule = modInst;
+
+			if(!callbackOnErrorOnly) {
+				cb(null);
+			}
 		}
 	});
 };

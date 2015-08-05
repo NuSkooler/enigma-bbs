@@ -92,7 +92,7 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				affiliation		: formData.value.affils,
 				email_address	: formData.value.email,
 				web_address		: formData.value.web,
-				timestamp		: new Date().toISOString(),
+				account_created	: new Date().toISOString(),
 				
 				//	:TODO: This is set in User.create() -- proabbly don't need it here:
 				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,

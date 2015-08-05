@@ -19,6 +19,8 @@ exports.getModule		= AbracadabraModule;
 
 var activeDoorNodeInstances = {};
 
+var doorInstances = {};	//	name -> { count : <instCount>, { <nodeNum> : <inst> } }
+
 exports.moduleInfo = {
 	name	: 'Abracadabra',
 	desc	: 'External BBS Door Module',
@@ -56,7 +58,8 @@ function AbracadabraModule(options) {
 	/*
 		:TODO:
 		* disconnecting wile door is open leaves dosemu
-
+		* http://bbslink.net/sysop.php support
+		* Font support ala all other menus... or does this just work?
 	*/
 
 	this.initSequence = function() {

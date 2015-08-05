@@ -1,15 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var theme			= require('../core/theme.js');
-//var Log				= require('../core/logger.js').log;
-var ansi			= require('../core/ansi_term.js');
-var userDb			= require('./database.js').dbs.user;
+var theme				= require('./theme.js');
+var clientConnections	= require('./client_connections.js').clientConnections;
+var ansi				= require('./ansi_term.js');
+var userDb				= require('./database.js').dbs.user;
 
-var async			= require('async');
+var async				= require('async');
 
-exports.login		= login;
-exports.logoff		= logoff;
+exports.login			= login;
+exports.logoff			= logoff;
 
 function login(callingMenu, formData, extraArgs) {
 	var client = callingMenu.client;
@@ -18,10 +18,40 @@ function login(callingMenu, formData, extraArgs) {
 		if(err) {
 			client.log.info( { username : formData.value.username }, 'Failed login attempt %s', err);
 
+			//	:TODO: if username exists, record failed login attempt to properties
+			//	:TODO: check Config max failed logon attempts/etc.
+
 			client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
 		} else {
 			var now		= new Date();
 			var user	= callingMenu.client.user;
+
+			//
+			//	Ensure this user is not already logged in.
+			//	Loop through active connections -- which includes the current --
+			//	and check for matching user ID. If the count is > 1, disallow.
+			//
+			var existingClientConnection;
+			clientConnections.forEach(function connEntry(cc) {
+				if(cc.user !== user && cc.user.userId === user.userId) {
+					existingClientConnection = cc;
+				}
+			});
+
+			if(existingClientConnection) {
+				client.log.info( {
+					existingClientId	: existingClientConnection.runtime.id, 
+					username			: user.username, 
+					userId				: user.userId },
+					'Already logged in'
+				);
+
+				//	:TODO: display message/art/etc.
+
+				client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
+				return;
+			}
+
 
 			//	use client.user so we can get correct case
 			client.log.info( { username : user.username }, 'Successful login');
@@ -81,12 +111,14 @@ function login(callingMenu, formData, extraArgs) {
 }
 
 function logoff(callingMenu, formData, extraArgs) {
+	//
+	//	Simple logoff. Note that recording of @ logoff properties/stats
+	//	occurs elsewhere!
+	//
 	var client = callingMenu.client;
 
-	//	:TODO: record this.
-
 	setTimeout(function timeout() {
-		client.term.write(ansi.normal() + '\nATH0\n');
+		client.term.write(ansi.normal() + '\n+++ATH0\n');
 		client.end();
 	}, 500);
 }

@@ -145,6 +145,10 @@ function getDefaultConfig() {
 			*/
 		},
 
+		misc : {
+			idleLogoutSeconds	: 60 * 3,	//	3m
+		},
+
 		logging : {
 			level	: 'debug'
 		}

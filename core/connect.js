@@ -147,7 +147,7 @@ function connectEntry(client) {
 		displayBanner(term);
 
 		setTimeout(function onTimeout() {
-			client.gotoMenuModule( { name : Config.firstMenu });
+			client.gotoMenuModule( { name : Config.firstMenu } );
 		}, 500);
 	});	
 }

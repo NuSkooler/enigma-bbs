@@ -52,7 +52,13 @@ function User() {
 	};
 
 	this.getLegacySecurityLevel = function() {
-		return self.isRoot() ? 100 : 30;
+		if(self.isRoot() || self.isGroupMember('sysops')) {
+			return 100;
+		} else if(self.isGroupMember('users')) {
+			return 30;
+		} else {
+			return 10;	//	:TODO: Is this what we want?	
+		}
 	};
 
 }
