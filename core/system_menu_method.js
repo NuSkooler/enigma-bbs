@@ -46,9 +46,14 @@ function login(callingMenu, formData, extraArgs) {
 					'Already logged in'
 				);
 
-				//	:TODO: display message/art/etc.
+				//	:TODO: display custom message if present
+				
+				client.term.write('\nA user by that name is already logged in.\n');
 
-				client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
+				setTimeout(function timeout() {
+					client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );					
+				}, 500);
+
 				return;
 			}
 
