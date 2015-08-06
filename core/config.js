@@ -13,24 +13,6 @@ exports.init				= init;
 exports.getDefaultPath		= getDefaultPath;
 
 function init(configPath, cb) {
-
-	//	Probably many better ways of doing this:
-	//	:TODO: See http://jsfiddle.net/jlowery2663/z8at6knn/4/
-	var recursiveMerge = function(target, source) {
-		for(var p in source) {
-			try {
-				if(_.isObject(source)) {
-					target[p] = recursiveMerge(target[p], source[p]);
-				} else {
-					target[p] = source[p];
-				}
-			} catch(e) {
-				target[p] = source[p];
-			}
-		}
-		return target;
-	};
-
 	async.waterfall(
 		[
 			function loadUserConfig(callback) {
@@ -48,8 +30,8 @@ function init(configPath, cb) {
 					}
 				});
 			},
-			function mergeWithDefaultConfig(menuConfig, callback) {
-				var mergedConfig = recursiveMerge(menuConfig, getDefaultConfig());
+			function mergeWithDefaultConfig(configJson, callback) {
+				var mergedConfig = _.defaultsDeep(configJson, getDefaultConfig());
 				callback(null, mergedConfig);
 			}
 		],

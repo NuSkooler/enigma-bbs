@@ -34,8 +34,14 @@ function FullScreenEditorModule(options) {
 
 	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
 	
-	//	:TODO: This needs to be passed in via args:
+	//	:TODO: The following needs to be passed in via args:
 	this.editorMode		= 'edit';	//	view | edit | editMenu | 
+	this.isLocal		= true;
+
+	this.toUserId		= options.toUserId || 0;
+	this.fromUserId		= options.fromUserId || 0;
+
+
 
 	//	netMail/crashMail | echoMail
 	this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
@@ -66,15 +72,23 @@ function FullScreenEditorModule(options) {
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
 			message			: self.viewControllers.body.getFormData().value.message,
+
+
 		};
 
 		console.log(messageOpts);
 
-		/*var msg = new Message(messageOpts);
-		msg.persist(function persisted(err, msgId) {
+		var msg = new Message(messageOpts);
 
-		});
-*/
+		if(self.isLocal) {
+			msg.meta.System.local_to_user_id	= self.toUserId;
+			msg.meta.System.local_from_user_id	= self.fromUserId;
+		}
+
+		/*msg.persist(function persisted(err, msgId) {
+
+		});*/
+
 	};
 
 	this.redrawFooter = function(options, cb) {
