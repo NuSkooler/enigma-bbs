@@ -107,7 +107,6 @@ function Client(input, output) {
 	//
 	//	Every 1m, check for idle.
 	//
-	console.log('idleLogoutSeconds=' + Config.misc.idleLogoutSeconds)
 	this.idleCheck = setInterval(function checkForIdle() {
 		var nowMs	= Date.now();
 

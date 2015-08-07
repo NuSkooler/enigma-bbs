@@ -15,6 +15,22 @@
 				}
 			}
 		},
+		"menuCommand" : {
+			"art" : "menu_prompt.ans",
+			"mci" :  {
+				"ET2" : {
+					"argName" 	: "command",
+					"width"		: 20,
+					"maxLength"	: 20,
+					"submit"	: true,
+					"textStyle"	: "U",
+					"focus"		: true
+				}
+			}
+		},
+		///////////////////////////////////////////////////////////////////////
+		//	Standard / Required
+		///////////////////////////////////////////////////////////////////////
 		"pause" : {
 			//
 			//	Any menu 'pause' will use this prompt
@@ -40,7 +56,8 @@
 				* echoKey : false
 
 			*/
-		}/*,
+		}
+		/*,
 		"standard" : {
 			//	any menu 'pause' will display this, pause for a key, then erase and move on
 			"pause" : {

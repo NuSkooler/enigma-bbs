@@ -252,6 +252,42 @@ function ViewController(options) {
 		});
 	};
 
+	//	method for comparing submitted form data to configuration entries
+	this.actionBlockValueComparator = function(formValue, actionValue) {
+		//
+		//	For a match to occur, one of the following must be true:
+		//
+		//	*	actionValue is a Object:
+		//		a)	All key/values must exactly match
+		//		b)	value is null; The key (view ID or "argName") must be present
+		//			in formValue. This is a wildcard/any match.
+		//	*	actionValue is a Number: This represents a view ID that
+		//		must be present in formValue.
+		//	* 	actionValue is a string: This represents a view with
+		//		"argName" set that must be present in formValue.
+		//
+		if(_.isNumber(actionValue) || _.isString(actionValue)) {
+			if(_.isUndefined(formValue[actionValue])) {
+				return false;
+			}
+		} else {
+			var actionValueKeys = Object.keys(actionValue);
+			for(var i = 0; i < actionValueKeys.length; ++i) {
+				var viewId = actionValueKeys[i];
+				if(!_.has(formValue, viewId)) {
+					return false;
+				}
+
+				if(null !== actionValue[viewId] && actionValue[viewId] !== formValue[viewId]) {
+					return false;
+				}
+			}
+		}
+
+		self.client.log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
+		return true;
+	};
+
 	if(!options.detached) {
 		this.attachClientEvents();
 	}
@@ -334,7 +370,7 @@ ViewController.prototype.switchFocus = function(id) {
 	}
 };
 
-ViewController.prototype.nextFocus = function() {
+ViewController.prototype.nextFocus = function() {	
 	if(!this.focusedView) {
 		this.switchFocus(this.views[this.firstId].id);
 	} else {
@@ -421,12 +457,41 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 					callback(null);
 				}
 			},
-			function prepareFormSubmission(callback) {
+			function prepareFormSubmission(callback) {				
 				if(false === self.noInput) {
 					self.on('submit', function promptSubmit(formData) {
 						self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
-						menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
+						if(_.isString(self.client.currentMenuModule.menuConfig.action)) {
+							menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
+						} else {
+							//
+							//	Menus that reference prompts can have a sepcial "submit" block without the
+							//	hassle of by-form-id configurations, etc.
+							//
+							//	"submit" : [
+							//		{ ... }
+							//	]
+							//
+							var menuSubmit = self.client.currentMenuModule.menuConfig.submit;
+							if(!_.isArray(menuSubmit)) {
+								self.client.log.debug('No configuration to handle submit');
+								return;
+							}
+
+							//
+							//	Locate matching action block
+							//
+							//	:TODO: this is bacially the same as for menus -- DRY it up!
+							for(var c = 0; c < menuSubmit.length; ++c) {
+								var actionBlock = menuSubmit[c];
+
+								if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
+									menuUtil.handleAction(self.client, formData, actionBlock);
+									break;	//	there an only be one...
+								}
+							}
+						}
 					});
 				}
 
@@ -461,6 +526,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	//	:TODO: honor options.withoutForm
 
 	//	method for comparing submitted form data to configuration entries
+	/*
 	var actionBlockValueComparator = function(formValue, actionValue) {
 		//
 		//	For a match to occur, one of the following must be true:
@@ -495,6 +561,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 		self.client.log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
 		return true;
 	};
+	*/
 
 	async.waterfall(
 		[
@@ -569,7 +636,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					for(var c = 0; c < confForFormId.length; ++c) {
 						var actionBlock = confForFormId[c];
 
-						if(_.isEqual(formData.value, actionBlock.value, actionBlockValueComparator)) {
+						if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
 							menuUtil.handleAction(self.client, formData, actionBlock);
 							break;	//	there an only be one...
 						}

@@ -220,6 +220,7 @@
 		"mainMenu" : {
 			"art"		: "MAINMENU",
 			"options"	: { "cls" : true },
+			/*
 			"form"		: {
 				"0" : {
 					"ET" : {
@@ -254,7 +255,26 @@
 						}
 					}
 				}
-			}
+			},*/
+			"prompt" : "menuCommand",
+			"submit" : [
+				{
+					"value" 	: { "command" : "G" },
+					"action"	: "@menu:logoff"
+				},
+				{
+					"value"		: { "command" : "D" },
+					"action"	: "@menu:doorPimpWars"
+				},
+				{
+					"value"		: { "command" : "L" },
+					"action"	: "@menu:doorLORD"
+				},
+				{
+					"value"		: 1,
+					"action"	: "@menu:mainMenu"
+				}
+			]
 		},
 		"doorPimpWars" : {
 			"module"	: "abracadabra",

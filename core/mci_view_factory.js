@@ -47,7 +47,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			UW	: this.client.user.properties.web_address,
 			UF	: this.client.user.properties.affiliation,
 			UT	: this.client.user.properties.theme_id,
-			MS	: moment(this.client.user.properties.timestamp).format(this.client.currentTheme.helpers.getDateFormat()),
+			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
 
 
 			SH	: this.client.term.termHeight.toString(),
