@@ -9,6 +9,7 @@ var assert		= require('assert');
 
 exports.parseAsset				= parseAsset;
 exports.getArtAsset				= getArtAsset;
+exports.getModuleAsset			= getModuleAsset;
 exports.resolveConfigAsset		= resolveConfigAsset;
 exports.getViewPropertyAsset	= getViewPropertyAsset;
 
@@ -17,6 +18,7 @@ var ALL_ASSETS = [
 	'menu',
 	'method',
 	'systemMethod',
+	'systemModule',
 	'prompt',
 	'config',
 ];
@@ -55,6 +57,24 @@ function getArtAsset(art) {
 			type	: 'art',
 			asset	: art,
 		};
+	}
+}
+
+function getModuleAsset(module) {
+	if(!_.isString(module)) {
+		return null;
+	}
+
+	if('@' === module[0]) {
+		var modAsset = parseAsset(module);
+		assert('module' === modAsset.type || 'systemModule' === modAsset.type);
+
+		return modAsset;
+	} else {
+		return {
+			type	: 'module',
+			asset	: module,
+		}
 	}
 }
 

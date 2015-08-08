@@ -661,8 +661,8 @@
 			"options" : { "cls" : true }
 		},
 		"demoFullScreenEditor" : {
-			"module"	: "fse",
-			"art"		: "demo_fse_local_user.ans",
+			"module"	: "@systemModule:fse",
+			//"art"		: "demo_fse_local_user.ans",
 			"options"	: { "cls" : true },
 			"config"	: {
 				"editorType"	: "netMail",

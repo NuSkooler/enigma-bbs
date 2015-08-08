@@ -81,13 +81,13 @@ function loadMenu(options, cb) {
 				});
 			},
 			function loadMenuModule(menuConfig, callback) {
-
-				var modSupplied = _.isString(menuConfig.module);
+				var modAsset	= asset.getModuleAsset(menuConfig.module);
+				var modSupplied	= null !== modAsset;
 
 				var modLoadOpts = {
-					name		: modSupplied ? menuConfig.module : 'standard_menu',
-					path		: modSupplied ? Config.paths.mods : __dirname,
-					category	: modSupplied ? 'mods' : null,
+					name		: modSupplied ? modAsset.asset : 'standard_menu',
+					path		: (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config.paths.mods,
+					category	: (!modSupplied || 'systemModule' === modAsset.type) ? null : 'mods',
 				};
 
 				moduleUtil.loadModuleEx(modLoadOpts, function moduleLoaded(err, mod) {
@@ -99,7 +99,7 @@ function loadMenu(options, cb) {
 
 					callback(err, modData);
 				});
-			},			
+			},		
 			function createModuleInstance(modData, callback) {
 				Log.debug(
 					{ moduleName : modData.name, args : options.args, config : modData.config, info : modData.mod.modInfo },
