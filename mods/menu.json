@@ -220,42 +220,6 @@
 		"mainMenu" : {
 			"art"		: "MAINMENU",
 			"options"	: { "cls" : true },
-			/*
-			"form"		: {
-				"0" : {
-					"ET" : {
-						"mci" : {
-							"ET1" : {
-								"focus"		: true,
-								"submit"	: true,
-								"textStyle"	: "lower",
-								"width"		: 20,
-								"maxLength"	: 20
-							}
-						},
-						"submit" : {
-							"*" : [
-								{
-									"value" 	: { "1" : "g" },
-									"action"	: "@menu:logoff"
-								},
-								{
-									"value"		: { "1" : "d" },
-									"action"	: "@menu:doorPimpWars"
-								},
-								{
-									"value"		: { "1" : "l" },
-									"action"	: "@menu:doorLORD"
-								},
-								{
-									"value"		: 1,
-									"action"	: "@menu:mainMenu"
-								}
-							]
-						}
-					}
-				}
-			},*/
 			"prompt" : "menuCommand",
 			"submit" : [
 				{
@@ -271,11 +235,77 @@
 					"action"	: "@menu:doorLORD"
 				},
 				{
+					"value"		: { "command" : "M" },
+					"action"	: "@menu:messageAreaMenu"
+				},
+				{
 					"value"		: 1,
 					"action"	: "@menu:mainMenu"
 				}
 			]
 		},
+		///////////////////////////////////////////////////////////////////////
+		//	Message Area Related
+		///////////////////////////////////////////////////////////////////////
+		"messageAreaMenu" : {
+			"module"	: "message_area",
+			"art"		: "MSGAREA",
+			"options"	: { "cls" : true },
+			"prompt"	: "menuCommand",
+			"config"	: {
+				"fseArt" : {
+						"header"			: "demo_fse_netmail_header.ans",
+						"body"				: "demo_fse_netmail_body.ans",
+						"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
+						"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+						"footerView"		: "demo_fse_netmail_footer_view.ans",
+						"help"				: "demo_fse_netmail_help.ans"
+				}
+			},
+			"submit"	: [
+				{
+					"value"		: { "command" : "R" },
+					"action"	: "@method:readMessages"
+				},
+				{
+					"value"		: { "command" : "P" },
+					"action"	: "@method:postMessage"
+				}
+			]
+		},
+		"messageAreaNewFSE" :  {
+			"module"		: "fse",
+			"options"		: { "cls" : true },
+			"config"		: {
+				"editorType"	: "area",
+				"art"			: {
+					"header"			: "fse_area_header",
+					"body"				: "fse_area_body",
+					"footerEdit"		: "fse_footer_edit",
+					"footerEditMenu"	: "fse_footer_edit_menu",
+					"help"				: "fse_help"
+				}
+			}
+		}
+		/*"messageAreaEmailFSE" : {
+			"module"		: "fse",
+			"options"		: { "cls" : true },
+			"config"		: {
+				"editorType"	: "email",
+				"art"			: {
+					"header"			: "fse_email_header",
+					"body"				: "fse_email_body",
+					"footerEdit"		: "fse_email_footer_edit",
+					"footerEditMenu"	: "fse_email_footer_edit_menu",
+					"footerView"		: "fse_email_footer_view",
+					"help"				: "fse_help"
+				}
+			}
+		},
+		*/
+		///////////////////////////////////////////////////////////////////////
+		//	Doors
+		///////////////////////////////////////////////////////////////////////
 		"doorPimpWars" : {
 			"module"	: "abracadabra",
 			"fallback"	: "mainMenu",
@@ -662,7 +692,6 @@
 		},
 		"demoFullScreenEditor" : {
 			"module"	: "@systemModule:fse",
-			//"art"		: "demo_fse_local_user.ans",
 			"options"	: { "cls" : true },
 			"config"	: {
 				"editorType"	: "netMail",

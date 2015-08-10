@@ -24,18 +24,23 @@ function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
 
 	var self		= this;
-	this.menuConfig	= options.menuConfig;	//	:TODO: MenuModule does this...
+	//this.menuConfig	= options.menuConfig;	//	:TODO: MenuModule does this...
 
 	//
-	//	Editor Type ('editorType'):
-	//	*	netMail	: User to user, optionally remote
-	//	*	
+	//	menuConfig.config:
+	//		editorType				: email | area
+	//
 	this.editorType	= this.menuConfig.config.editorType;
 
 	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
 	
 	//	:TODO: The following needs to be passed in via args:
-	this.editorMode		= 'edit';	//	view | edit | editMenu | 
+
+	//
+	//	options.extraArgs:
+	//		editorMode		: edit | view
+
+	this.editorMode		= 'edit';	//	view | edit | editMenu | quote
 	this.isLocal		= true;
 
 	this.toUserId		= options.toUserId || 0;
@@ -63,7 +68,7 @@ function FullScreenEditorModule(options) {
 		}[name];
 	};
 
-	this.getMessageData = function() {
+	this.getMessage = function() {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var messageOpts = {
@@ -72,23 +77,9 @@ function FullScreenEditorModule(options) {
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
 			message			: self.viewControllers.body.getFormData().value.message,
-
-
 		};
 
-		console.log(messageOpts);
-
-		var msg = new Message(messageOpts);
-
-		if(self.isLocal) {
-			msg.meta.System.local_to_user_id	= self.toUserId;
-			msg.meta.System.local_from_user_id	= self.fromUserId;
-		}
-
-		/*msg.persist(function persisted(err, msgId) {
-
-		});*/
-
+		return new Message(messageOpts);
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -425,7 +416,8 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editModeMenuSave : function(formData, extraArgs) {
-			self.getMessageData();
+			var msg = self.getMessage();
+			console.log(msg);
 		},
 		editModeMenuQuote : function(formData, extraArgs) {
 

@@ -42,13 +42,15 @@ function MenuModule(options) {
 							self.menuConfig.art, 
 							self.client, 
 							{ font : self.menuConfig.font },
-							function displayed(err, artData)
-							{
-								if(!err) {
+							function displayed(err, artData) {
+								if(err) {
+									self.client.log.debug( { art : self.menuConfig.arg, err : err }, 'Could not display art');
+								} else {
 									mciData.menu = artData.mciMap;
 								}
-								callback(err);
-							});
+								callback(null);	//	non-fatal
+							}
+						);
 					} else {						
 						callback(null);
 					}
