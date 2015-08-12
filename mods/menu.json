@@ -2,6 +2,10 @@
 	/*
 		Menu Configuration
 
+		Tip: demjson's jsonlint is an excellent tool for linting JSON files
+		that contains comments:
+			jsonlint -S menu.json
+
 		Some concept/ideas:
 			"mci" : {
 				"BT1" : {
@@ -236,7 +240,7 @@
 				},
 				{
 					"value"		: { "command" : "M" },
-					"action"	: "@menu:messageAreaMenu"
+					"action"	: "@menu:messageArea"
 				},
 				{
 					"value"		: 1,
@@ -247,6 +251,32 @@
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
 		///////////////////////////////////////////////////////////////////////
+		"messageArea" : {
+			"module"	: "msg_area",
+			"art"		: "MSGAREA",
+			"options"	: { "cls" : true },
+			"prompt"	: "menuCommand",
+			"submit"	: [
+				{
+					"value"		: { "command" : "N" },
+					"action"	: "@menu:messageAreaNewPost"
+				}
+			]
+		},
+		"messageAreaNewPost" : {
+			"module"	: "msg_area_post",
+			"options"	: { "cls" : true },
+			"config"	: {
+				"fseArt" : {
+					"header"			: "demo_fse_netmail_header.ans",
+					"body"				: "demo_fse_netmail_body.ans",
+					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
+					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+					"footerView"		: "demo_fse_netmail_footer_view.ans",
+					"help"				: "demo_fse_netmail_help.ans"
+				}
+			}
+		},
 		"messageAreaMenu" : {
 			"module"	: "message_area",
 			"art"		: "MSGAREA",
@@ -273,36 +303,6 @@
 				}
 			]
 		},
-		"messageAreaNewFSE" :  {
-			"module"		: "fse",
-			"options"		: { "cls" : true },
-			"config"		: {
-				"editorType"	: "area",
-				"art"			: {
-					"header"			: "fse_area_header",
-					"body"				: "fse_area_body",
-					"footerEdit"		: "fse_footer_edit",
-					"footerEditMenu"	: "fse_footer_edit_menu",
-					"help"				: "fse_help"
-				}
-			}
-		}
-		/*"messageAreaEmailFSE" : {
-			"module"		: "fse",
-			"options"		: { "cls" : true },
-			"config"		: {
-				"editorType"	: "email",
-				"art"			: {
-					"header"			: "fse_email_header",
-					"body"				: "fse_email_body",
-					"footerEdit"		: "fse_email_footer_edit",
-					"footerEditMenu"	: "fse_email_footer_edit_menu",
-					"footerView"		: "fse_email_footer_view",
-					"help"				: "fse_help"
-				}
-			}
-		},
-		*/
 		///////////////////////////////////////////////////////////////////////
 		//	Doors
 		///////////////////////////////////////////////////////////////////////
