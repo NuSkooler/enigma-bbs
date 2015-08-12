@@ -203,6 +203,10 @@ function FullScreenEditor(options) {
 		);
 	};
 
+	this.createViewsForArea = function() {
+		console.log('views would be created and stuff')
+	};
+
 }
 
 require('util').inherits(FullScreenEditor, events.EventEmitter);
