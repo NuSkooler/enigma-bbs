@@ -40,6 +40,14 @@ function FullScreenEditor(options) {
 
 	this.editorMode		= 'edit';	//	view | edit | editMenu | 
 
+	//	:TODO: viewControllers management should be a mixin that can be thrown in here, menu_module.js, etc.
+	this.viewControllers	= {};
+	this.addViewController = function(name, vc) {
+		assert(!self.viewControllers[name]);
+		self.viewControllers[name] = vc;
+		return vc;
+	}
+
 	this.getFooterName = function(editorMode) {
 		editorMode = editorMode || this.editorMode;
 		return 'footer' + _.capitalize(editorMode);	//	e.g.. 'footerEditMenu'
@@ -149,6 +157,7 @@ function FullScreenEditor(options) {
 		);	
 	};
 
+	/*
 	this.createViewsForEmail = function() {
 		var menuLoadOpts = { callingMenu : self	};
 
@@ -202,11 +211,63 @@ function FullScreenEditor(options) {
 			}
 		);
 	};
+	*/
 
-	this.createViewsForArea = function() {
-		console.log('views would be created and stuff')
+	this.createInitialViews = function(cb) {
+		
+		var menuLoadOpts = { callingMenu : self	};
+
+		async.series(
+			[
+				function header(callback) {
+					menuLoadOpts.formId = self.getFormId('header');
+					menuLoadOpts.mciMap	= self.mciData.header.mciMap;
+
+					self.addViewController(
+						'header', 
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
+					).loadFromMenuConfig(menuLoadOpts, function headerReady(err) {
+						callback(err);
+					});
+				},
+				function body(callback) {
+					menuLoadOpts.formId	= self.getFormId('body');
+					menuLoadOpts.mciMap	= self.mciData.body.mciMap;
+
+					self.addViewController(
+						'body',
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
+					).loadFromMenuConfig(menuLoadOpts, function bodyReady(err) {
+						callback(err);
+					});
+				},
+				function footer(callback) {
+					var footerName = self.getFooterName();
+
+					menuLoadOpts.formId = self.getFormId(footerName);
+					menuLoadOpts.mciMap = self.mciData[footerName].mciMap;
+
+					self.addViewController(
+						footerName,
+						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
+					).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
+						callback(err);
+					});
+				},
+				function prepare(callback) {
+					var header = self.viewControllers.header;
+					var from = header.getView(1);
+					from.acceptsFocus = false;
+					from.setText(self.client.user.username);
+
+					callback(null);
+				}
+			],
+			function complete(err) {
+				cb(err);
+			}
+		);
 	};
-
 }
 
 require('util').inherits(FullScreenEditor, events.EventEmitter);
@@ -223,8 +284,7 @@ FullScreenEditor.prototype.enter = function() {
 				});
 			},
 			function createViews(callback) {
-				var createViewsFor = 'createViewsFor' + _.capitalize(self.editorType);	//	e.g. 'createViewsForEmail'
-				self[createViewsFor](function viewsCreated(err) {
+				self.createInitialViews(function viewsCreated(err) {
 					callback(err);
 				});
 			}

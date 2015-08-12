@@ -268,7 +268,7 @@
 			"options"	: { "cls" : true },
 			"config"	: {
 				"fseArt" : {
-					"header"			: "demo_fse_netmail_header.ans",
+					"header"			: "msg_area_post_header",
 					"body"				: "demo_fse_netmail_body.ans",
 					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
 					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
