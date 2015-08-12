@@ -40,13 +40,7 @@ function FullScreenEditor(options) {
 
 	this.editorMode		= 'edit';	//	view | edit | editMenu | 
 
-	//	:TODO: viewControllers management should be a mixin that can be thrown in here, menu_module.js, etc.
-	this.viewControllers	= {};
-	this.addViewController = function(name, vc) {
-		assert(!self.viewControllers[name]);
-		self.viewControllers[name] = vc;
-		return vc;
-	}
+	this.initViewControllers();
 
 	this.getFooterName = function(editorMode) {
 		editorMode = editorMode || this.editorMode;
@@ -133,8 +127,9 @@ function FullScreenEditor(options) {
 				},
 				function displayFooter(callback) {
 					//	we have to treat the footer special
-					self.redrawFooter( { clear : false, footerName : self.getFooterName() }, function footerDisplayed(err) {
-						if(self.initMci) {
+					var footerName = self.getFooterName();
+					self.redrawFooter( { clear : false, footerName : footerName }, function footerDisplayed(err, artData) {
+						if(options.initMci) {
 							self.mciData[footerName] = artData;
 						}
 						callback(err);
@@ -271,6 +266,7 @@ function FullScreenEditor(options) {
 }
 
 require('util').inherits(FullScreenEditor, events.EventEmitter);
+require('./mod_mixins.js').ViewControllerManagement.call(FullScreenEditor.prototype);
 
 FullScreenEditor.prototype.enter = function() {
 

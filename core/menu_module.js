@@ -24,7 +24,8 @@ function MenuModule(options) {
 	this.menuConfig			= options.menuConfig;
 	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};	//	methods called from @method's
-	this.viewControllers	= {};	//	name->vc
+	
+	this.initViewControllers();
 
 	this.initSequence = function() {
 		var mciData = { };
@@ -142,6 +143,8 @@ function MenuModule(options) {
 
 require('util').inherits(MenuModule, PluginModule);
 
+require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
+
 MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(_.isObject(client));
@@ -150,16 +153,7 @@ MenuModule.prototype.enter = function(client) {
 };
 
 MenuModule.prototype.leave = function() {
-	var self = this;
-	Object.keys(this.viewControllers).forEach(function entry(name) {
-		self.viewControllers[name].detachClientEvents();
-	});
-};
-
-MenuModule.prototype.addViewController = function(name, vc) {
-	assert(!this.viewControllers[name]);
-	this.viewControllers[name] = vc;
-	return vc;
+	this.detachViewControllers();
 };
 
 MenuModule.prototype.beforeArt = function() {	
