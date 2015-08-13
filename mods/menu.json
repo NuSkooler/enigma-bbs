@@ -275,6 +275,41 @@
 					"footerView"		: "demo_fse_netmail_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
 				}
+			},
+			"form" : {
+				"0" : {
+					"ETETTLTL" : {
+						"mci" : {
+							"TL1" : {
+								"width"		: 36,
+								"argName"	: "from"
+							},
+							"ET2" : {
+								"width"		: 36,
+								"argName"	: "to",
+								"focus"		: true
+							},
+							"ET3" : {
+								"width"		: 65,
+								"argName"	: "subject",
+								"maxLength"	: 72,
+								"submit"	: true
+							},
+							"TL4" :  {
+								"width"			: 19,
+								"textOverflow"	: "..."
+							}
+						}/*
+						"submit" : {
+							"3" : [
+								{
+									"value"		: { "subject" : null },
+									"action"	: "@method:fseSubmitProxy"
+								}
+							]
+						}*/
+					}
+				}
 			}
 		},
 		/*

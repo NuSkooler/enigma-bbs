@@ -256,12 +256,26 @@ function FullScreenEditor(options) {
 					from.setText(self.client.user.username);
 
 					callback(null);
+				},
+				function setInitialFocus(callback) {
+					self.viewControllers.body.setFocus(false);
+					self.viewControllers.header.switchFocus(2);
+					callback(null);
 				}
 			],
 			function complete(err) {
 				cb(err);
 			}
 		);
+	};
+
+	this.initObservers = function() {
+		this.viewControllers.header.on('submit', function headerSubmit(formData, extraArgs) {
+			if(formData.id === self.getFormId('header')) {
+				self.viewControllers.header.setFocus(false);
+				self.viewControllers.body.switchFocus(1);
+			}
+		});
 	};
 }
 
@@ -283,6 +297,10 @@ FullScreenEditor.prototype.enter = function() {
 				self.createInitialViews(function viewsCreated(err) {
 					callback(err);
 				});
+			},
+			function prepObservers(callback) {
+				self.initObservers();
+				callback(null);
 			}
 		],
 		function complete(err) {
@@ -294,3 +312,5 @@ FullScreenEditor.prototype.enter = function() {
 FullScreenEditor.prototype.leave = function() {
 
 };
+
+

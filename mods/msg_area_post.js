@@ -38,6 +38,12 @@ function MessageAreaPostModule(options) {
 
 		fse.enter();
 	};
+
+	this.menuMethods = {
+		fseSubmitProxy : function(formData, extraArgs) {
+			console.log(formData)
+		}
+	};
 }
 
 require('util').inherits(MessageAreaPostModule, MenuModule);
