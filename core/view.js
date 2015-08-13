@@ -254,9 +254,9 @@ View.prototype.onKeyPress = function(ch, key) {
 		assert(this.specialKeyMap, 'No special key map defined');
 
 		if(this.isKeyMapped('accept', key.name)) {
-			this.emit('action', 'accept');
+			this.emit('action', 'accept', key);
 		} else if(this.isKeyMapped('next', key.name)) {
-			this.emit('action', 'next');
+			this.emit('action', 'next', key);
 		}
 	}
 

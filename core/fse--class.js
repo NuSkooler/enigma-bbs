@@ -270,10 +270,18 @@ function FullScreenEditor(options) {
 	};
 
 	this.initObservers = function() {
+		//	:TODO: Should probably still allow key mapping/etc. to come from module for this stuff
+		
 		this.viewControllers.header.on('submit', function headerSubmit(formData, extraArgs) {
-			if(formData.id === self.getFormId('header')) {
-				self.viewControllers.header.setFocus(false);
-				self.viewControllers.body.switchFocus(1);
+			//	:TODO: we need to validate the "to" here
+			self.viewControllers.header.setFocus(false);
+			self.viewControllers.body.switchFocus(1);
+		});
+
+		this.viewControllers.body.on('submit', function bodySubmit(formData, extraArgs) {
+
+			if(formData.key && 'escape' === formData.key.name) {
+				console.log('toggle menu depending on mode...')
 			}
 		});
 	};

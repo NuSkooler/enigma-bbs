@@ -309,6 +309,33 @@
 							]
 						}*/
 					}
+				},
+				"1" : {
+					"MT" : {
+						"mci" : {
+							"MT1" : {
+								"width"		: 79,
+								"height"	: 17,
+								//"text"		: "",	//	:TODO: should not be req.
+								"argName"	: "message"
+							}
+						},/*,
+						"submit" : {
+							"*" : [
+								{
+									"value"		: "message",
+									"action"	: "@method:editModeEscPressed"
+								}
+							]
+						},
+						*/
+						"actionKeys" : [
+							{
+								"keys"		: [ "escape" ],
+								"viewId"	: 1
+							}
+						]
+					}
 				}
 			}
 		},

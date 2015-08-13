@@ -50,7 +50,7 @@ function ViewController(options) {
 					//	Key works on behalf of a view -- switch focus & submit
 					//
 					self.switchFocus(actionForKey);
-					self.submitForm();
+					self.submitForm(key);
 				} else if(_.isString(actionForKey)) {
 					//	:TODO: Populate formData here?
 					//	:TODO: Populate actionBlock here -- that is, the actionKey entry... or
@@ -67,16 +67,16 @@ function ViewController(options) {
 		}		
 	};
 
-	this.viewActionListener = function(action) {
+	this.viewActionListener = function(action, key) {
 		switch(action) {
 			case 'next' :
-				self.emit('action', { view : this, action : action });
+				self.emit('action', { view : this, action : action, key : key } );
 				self.nextFocus();
 				break;
 
 			case 'accept' :
 				if(self.focusedView && self.focusedView.submit) {
-					self.submitForm();
+					self.submitForm(key);
 				} else {
 					self.nextFocus();
 				}
@@ -84,8 +84,8 @@ function ViewController(options) {
 		}
 	};
 
-	this.submitForm = function() {
-		self.emit('submit', this.getFormData());
+	this.submitForm = function(key) {
+		self.emit('submit', this.getFormData(key));
 	};
 
 	this.getLogFriendlyFormData = function(formData) {
@@ -716,12 +716,13 @@ ViewController.prototype.formatMCIString = function(format) {
 	});
 };
 
-ViewController.prototype.getFormData = function() {
+ViewController.prototype.getFormData = function(key) {
 	/*
 		Example form data:
 		{
 			id : 0,
 			submitId : 1,
+			key : { ... },	//	optional key that triggered submit
 			value : {
 				"1" : "hurp",
 				"2" : [ 'a', 'b', ... ],
@@ -736,6 +737,10 @@ ViewController.prototype.getFormData = function() {
 		submitId	: this.focusedView.id,
 		value		: {},
 	};
+
+	if(_.isObject(key)) {
+		formData.key = key;
+	}
 
 	var viewData;
 	var view;
@@ -756,7 +761,7 @@ ViewController.prototype.getFormData = function() {
 	}
 
 	return formData;
-}
+};
 
 /*
 ViewController.prototype.formatMenuArgs = function(args) {

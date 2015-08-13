@@ -108,7 +108,7 @@ function MultiLineEditTextView(options) {
 	//
 	this.tabWidth			= _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
-	this.textLines			= [];
+	this.textLines			= [ ];
 	this.topVisibleIndex	= 0;
 	this.mode				= options.mode || 'edit';	//	edit | preview | read-only
 
@@ -1013,6 +1013,8 @@ function MultiLineEditTextView(options) {
 		self.overtypeMode = !self.overtypeMode;
 		self.emit('text edit mode', self.getTextEditMode());
 	};
+
+	this.insertRawText('');	//	init to blank/empty
 }
 
 require('util').inherits(MultiLineEditTextView, View);
