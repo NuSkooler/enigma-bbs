@@ -12,6 +12,10 @@ var async					= require('async');
 var assert					= require('assert');
 var _						= require('lodash');
 
+exports.FullScreenEditorModule	= FullScreenEditorModule;
+
+//	:TODO: clean this up:
+
 exports.getModule	= FullScreenEditorModule;
 
 exports.moduleInfo = {
@@ -24,32 +28,25 @@ function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
 
 	var self		= this;
-	//this.menuConfig	= options.menuConfig;	//	:TODO: MenuModule does this...
+	var config		= this.menuConfig.config;
 
 	//
 	//	menuConfig.config:
 	//		editorType				: email | area
+	//		editorMode				: view | edit | quote (private: editMenu | ... )
 	//
-	this.editorType	= this.menuConfig.config.editorType;
-
-	this.artNames	= [ 'header', 'body', 'footerEdit', 'footerEditMenu', 'footerView' ];
-	
-	//	:TODO: The following needs to be passed in via args:
-
+	//	extraArgs:
+	//		messageAreaId
+	//		messageNumber / messageTotal
 	//
-	//	options.extraArgs:
-	//		editorMode		: edit | view
+	//
+	this.editorType	= config.editorType;
+	this.editorMode	= config.editorMode;
 
-	this.editorMode		= 'edit';	//	view | edit | editMenu | quote
-	this.isLocal		= true;
-
-	this.toUserId		= options.toUserId || 0;
-	this.fromUserId		= options.fromUserId || 0;
-
-
+	this.mciData	= {};
 
 	//	netMail/crashMail | echoMail
-	this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
+	//this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
 
 	this.getFooterName = function(editorMode) {
 		editorMode = editorMode || this.editorMode;
@@ -72,7 +69,7 @@ function FullScreenEditorModule(options) {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var messageOpts = {
-			areaId			: self.messageAreaId,
+	//		areaId			: self.messageAreaId,
 			toUserName		: headerValues.to,
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
@@ -239,14 +236,16 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
-
+				console.log(err)
 			}
 		);	
 	};
 
-	this.mciReadyHandlerNetMail = function(mciData) {
+	this.mciReadyHandler = function(mciData) {
 
 		var menuLoadOpts = { callingMenu : self	};
+
+		console.log('mciReadyHandler...')
 
 		async.series(
 			[
@@ -287,6 +286,7 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
+				console.log(err)
 				var bodyView = self.viewControllers.body.getView(1);
 				self.updateTextEditMode(bodyView.getTextEditMode());
 				self.updateEditModePosition(bodyView.getEditPosition());
@@ -436,6 +436,7 @@ FullScreenEditorModule.prototype.enter = function(client) {
 };
 
 FullScreenEditorModule.prototype.mciReady = function(mciData) {
-	this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
+	this.mciReadyHandler(mciData);
+	//this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
 };
 
