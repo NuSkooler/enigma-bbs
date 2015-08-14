@@ -55,7 +55,7 @@ function ViewController(options) {
 					//	:TODO: Populate formData here?
 					//	:TODO: Populate actionBlock here -- that is, the actionKey entry... or
 					//	really we just need |extraArgs| to be present, if any
-					menuUtil.handleAction(self.client, { }, { action : actionForKey } );
+					menuUtil.handleAction(self.client, { key : key }, { action : actionForKey } );
 				}
 
 				return;
@@ -70,7 +70,7 @@ function ViewController(options) {
 	this.viewActionListener = function(action, key) {
 		switch(action) {
 			case 'next' :
-				self.emit('action', { view : this, action : action, key : key } );
+				self.emit('action', { view : this, action : action, key : key });
 				self.nextFocus();
 				break;
 
@@ -722,7 +722,6 @@ ViewController.prototype.getFormData = function(key) {
 		{
 			id : 0,
 			submitId : 1,
-			key : { ... },	//	optional key that triggered submit
 			value : {
 				"1" : "hurp",
 				"2" : [ 'a', 'b', ... ],
@@ -738,7 +737,7 @@ ViewController.prototype.getFormData = function(key) {
 		value		: {},
 	};
 
-	if(_.isObject(key)) {
+	if(key) {
 		formData.key = key;
 	}
 
@@ -761,7 +760,7 @@ ViewController.prototype.getFormData = function(key) {
 	}
 
 	return formData;
-};
+}
 
 /*
 ViewController.prototype.formatMenuArgs = function(args) {

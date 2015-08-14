@@ -24,24 +24,27 @@ function MessageAreaPostModule(options) {
 
 
 	this.initSequence = function() {
-		var fse = new FullScreenEditor( {
+		self.fse = new FullScreenEditor( {
+			callingMenu	: this,
 			client		: this.client,
+			//	:TODO: should pass in full config? want access to keymap/etc. as well
 			art			: this.menuConfig.config.fseArt,
 			font		: this.menuConfig.font,
 			editorType	: 'area',
 			editorMode	: 'edit',
 		});
 
-		fse.on('error', function fseError(err) {
-
+		self.fse.on('error', function fseError(err) {
+			console.log('fse error: ' + err)
 		});
 
-		fse.enter();
+		self.fse.enter();
 	};
 
 	this.menuMethods = {
+		//	:TODO: is there a cleaner way to achieve this?
 		fseSubmitProxy : function(formData, extraArgs) {
-			console.log(formData)
+			self.fse.submitHandler(formData, extraArgs);
 		}
 	};
 }

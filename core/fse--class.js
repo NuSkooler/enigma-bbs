@@ -24,13 +24,14 @@ function FullScreenEditor(options) {
 	var self = this;
 
 	//
+	//	options.callingMenu		: menu that created us
 	//	options.client
 	//	options.art{}			: name -> artAsset
 	//	options.font			: optional
 	//	options.editorMode	(view|edit|quote) | (editMenu|)
 	//	
 	//	options.editorType		: email | area
-
+	this.callingMenu	= options.callingMenu;
 	this.client			= options.client;
 	this.art			= options.art;
 	this.font			= options.font;
@@ -57,6 +58,10 @@ function FullScreenEditor(options) {
 
 			help			: 50,
 		}[name];
+	};
+
+	this.isViewMode = function() {
+		return 'view' === this.editorMode;
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -152,65 +157,9 @@ function FullScreenEditor(options) {
 		);	
 	};
 
-	/*
-	this.createViewsForEmail = function() {
-		var menuLoadOpts = { callingMenu : self	};
-
-		async.series(
-			[
-				function header(callback) {
-					menuLoadOpts.formId = self.getFormId('header');
-					menuLoadOpts.mciMap	= self.mciData.header.mciMap;
-
-					self.addViewController(
-						'header', 
-						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
-					).loadFromMenuConfig(menuLoadOpts, function headerReady(err) {
-						callback(err);
-					});
-				},
-				function body(callback) {
-					menuLoadOpts.formId	= self.getFormId('body');
-					menuLoadOpts.mciMap	= self.mciData.body.mciMap;
-
-					self.addViewController(
-						'body',
-						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
-					).loadFromMenuConfig(menuLoadOpts, function bodyReady(err) {
-						callback(err);
-					});
-				},
-				function footer(callback) {
-					var footerName = self.getFooterName();
-
-					menuLoadOpts.formId = self.getFormId(footerName);
-					menuLoadOpts.mciMap = self.mciData[footerName].mciMap;
-
-					self.addViewController(
-						footerName,
-						new ViewController( { client : self.client, formId : menuLoadOpts.formId } )
-					).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
-						callback(err);
-					});
-				}
-			],
-			function complete(err) {
-				var bodyView = self.viewControllers.body.getView(1);
-				//self.updateTextEditMode(bodyView.getTextEditMode());
-				//self.updateEditModePosition(bodyView.getEditPosition());
-
-				//self.viewControllers.body.setFocus(false);
-				//self.viewControllers.header.switchFocus(1);
-
-				cb(err);
-			}
-		);
-	};
-	*/
-
 	this.createInitialViews = function(cb) {
 		
-		var menuLoadOpts = { callingMenu : self	};
+		var menuLoadOpts = { callingMenu : self.callingMenu	};
 
 		async.series(
 			[
@@ -269,19 +218,34 @@ function FullScreenEditor(options) {
 		);
 	};
 
-	this.initObservers = function() {
-		//	:TODO: Should probably still allow key mapping/etc. to come from module for this stuff
-		
-		this.viewControllers.header.on('submit', function headerSubmit(formData, extraArgs) {
-			//	:TODO: we need to validate the "to" here
-			self.viewControllers.header.setFocus(false);
-			self.viewControllers.body.switchFocus(1);
-		});
+	this.switchFooter = function(cb) {
+		var footerName = self.getFooterName();
+	
+		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
+			if(err) {
+				cb(err);
+				return;
+			}
 
-		this.viewControllers.body.on('submit', function bodySubmit(formData, extraArgs) {
+			var formId = self.getFormId(footerName);
 
-			if(formData.key && 'escape' === formData.key.name) {
-				console.log('toggle menu depending on mode...')
+			if(_.isUndefined(self.viewControllers[footerName])) {
+				console.log(artData)
+				var menuLoadOpts = {
+					callingMenu	: self.callingMenu,
+					formId		: formId,
+					mciMap		: artData.mciMap
+				};
+
+				self.addViewController(
+					footerName,
+					new ViewController( { client : self.client, formId : formId } )
+				).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
+					cb(err);
+				});
+			} else {
+				self.viewControllers[footerName].redrawAll();
+				cb(null);
 			}
 		});
 	};
@@ -306,13 +270,11 @@ FullScreenEditor.prototype.enter = function() {
 					callback(err);
 				});
 			},
-			function prepObservers(callback) {
-				self.initObservers();
-				callback(null);
-			}
 		],
 		function complete(err) {
-			self.emit('error', err);
+			if(err) {
+				self.emit('error', err);
+			}
 		}
 	);
 };
@@ -321,4 +283,43 @@ FullScreenEditor.prototype.leave = function() {
 
 };
 
+FullScreenEditor.prototype.submitHandler = function(formData, extraArgs) {
+	var self = this;
 
+	//	:TODO: Use key map from config for this stuff
+
+	if(formData.id === self.getFormId('header')) {
+		//	:TODO: we need to validate the "to" here
+		self.viewControllers.header.setFocus(false);
+		self.viewControllers.body.switchFocus(1);		
+	} else if(formData.id === self.getFormId('body') && formData.key && 'escape' === formData.key.name) {
+		if(!self.isViewMode()) {
+			self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
+
+			self.switchFooter(function next(err) {
+				if(err) {
+					//	:TODO:... what now?
+					console.log(err)
+				} else {
+					switch(self.editorMode) {
+						case 'edit' :
+							if(!_.isUndefined(self.viewControllers.footerEditMenu)) {
+								self.viewControllers.footerEditMenu.setFocus(false);
+							}
+							self.viewControllers.body.switchFocus(1);
+							self.observeEditEvents();
+							break;
+
+						case 'editMenu' :
+							self.viewControllers.body.setFocus(false);
+							self.viewControllers.footerEditMenu.switchFocus(1);
+							break;
+
+						default : throw new Error('Unexpected mode');
+					}
+					
+				}
+			});
+		}
+	}
+};
