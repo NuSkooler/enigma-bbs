@@ -259,7 +259,12 @@
 			"submit"	: [
 				{
 					"value"		: { "command" : "N" },
-					"action"	: "@menu:messageAreaNewPost"
+					"action"	: "@menu:messageAreaNewPost",
+					"extraArgs" : { "messageAreaId" : 123 }
+				},
+				{
+					"value"		: { "command" : "Q" },
+					"action"	: "@menu:mainMenu"
 				}
 			]
 		},
@@ -304,7 +309,7 @@
 							"3" : [
 								{
 									"value"		: { "subject" : null },
-									"action"	: "@method:fseSubmitProxy"
+									"action"	: "@method:headerSubmit"
 								}
 							]
 						}
@@ -323,7 +328,7 @@
 							"*" : [
 								{
 									"value"		: "message",
-									"action"	: "@method:fseSubmitProxy"
+									"action"	: "@method:editModeEscPressed"
 								}
 							]
 						},
@@ -359,7 +364,7 @@
 							"*" : [
 								{
 									"value"		: { "1" : 0 },
-									"action"	: "@method:fseSubmitProxy"
+									"action"	: "@method:editModeMenuSave"
 								},
 								{
 									"value"		: { "1" : 1 },
@@ -371,18 +376,18 @@
 								},
 								{
 									"value"		: { "1" : 3 },
-									"action"	: "@method:fseSubmitProxy"
-								},
+									"action"	: "@method:editModeMenuHelp"
+								}/*,
 								{
 									"value"		: 1,
-									"action"	: "@method:fseSubmitProxy"
-								}
+									"action"	: "@method:editModeEscPressed"
+								}*/
 							]
 						},
 						"actionKeys" : [	//	:TODO: Need better name
 							{
 								"keys"		: [ "escape" ],
-								"action"	: "@method:fseSubmitProxy"
+								"action"	: "@method:editModeEscPressed"
 							}
 						]
 						//	:TODO: something like the following for overriding keymap

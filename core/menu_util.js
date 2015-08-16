@@ -102,7 +102,7 @@ function loadMenu(options, cb) {
 			},		
 			function createModuleInstance(modData, callback) {
 				Log.debug(
-					{ moduleName : modData.name, args : options.args, config : modData.config, info : modData.mod.modInfo },
+					{ moduleName : modData.name, extraArgs : options.extraArgs, config : modData.config, info : modData.mod.modInfo },
 					'Creating menu module instance');
 
 				try {
@@ -110,7 +110,7 @@ function loadMenu(options, cb) {
 						{
 							menuName	: options.name,
 							menuConfig	: modData.config, 
-							args		: options.args,
+							extraArgs	: options.extraArgs,
 						});
 					callback(null, moduleInstance);
 				} catch(e) {

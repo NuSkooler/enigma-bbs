@@ -441,9 +441,9 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 	self.detachCurrentMenuModule();
 
 	var loadOptions = {
-		name	: options.name, 
-		client	: self, 
-		args	: options.args
+		name		: options.name, 
+		client		: self, 
+		extraArgs	: options.extraArgs,
 	};
 
 	menuUtil.loadMenu(loadOptions, function onMenuModuleLoaded(err, modInst) {

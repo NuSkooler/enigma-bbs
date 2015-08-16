@@ -43,7 +43,9 @@ function FullScreenEditorModule(options) {
 	this.editorType	= config.editorType;
 	this.editorMode	= config.editorMode;
 
-	this.mciData	= {};
+	if(_.isObject(options.extraArgs)) {
+		this.messageAreaId = options.extraArgs.messageAreaId || Message.WellKnownAreaIds.Private;
+	}
 
 	//	netMail/crashMail | echoMail
 	//this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
@@ -69,7 +71,7 @@ function FullScreenEditorModule(options) {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var messageOpts = {
-	//		areaId			: self.messageAreaId,
+			areaId			: self.messageAreaId,
 			toUserName		: headerValues.to,
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
@@ -241,11 +243,9 @@ function FullScreenEditorModule(options) {
 		);	
 	};
 
-	this.mciReadyHandler = function(mciData) {
-
-		var menuLoadOpts = { callingMenu : self	};
-
-		console.log('mciReadyHandler...')
+	this.createInitialViews = function(mciData, cb) {
+		
+		var menuLoadOpts = { callingMenu : self };
 
 		async.series(
 			[
@@ -283,18 +283,37 @@ function FullScreenEditorModule(options) {
 					).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
 						callback(err);
 					});
+				},
+				function prepareViewStates(callback) {
+					var header = self.viewControllers.header;
+					var from = header.getView(1);
+					from.acceptsFocus = false;
+					from.setText(self.client.user.username);
+
+					var body = self.viewControllers.body.getView(1);
+					self.updateTextEditMode(body.getTextEditMode());
+					self.updateEditModePosition(body.getEditPosition());
+
+					callback(null);
+				},
+				function setInitialFocus(callback) {
+					self.viewControllers.body.setFocus(false);
+					self.viewControllers.header.switchFocus(2);	//	to
+
+					callback(null);
 				}
 			],
 			function complete(err) {
-				console.log(err)
-				var bodyView = self.viewControllers.body.getView(1);
-				self.updateTextEditMode(bodyView.getTextEditMode());
-				self.updateEditModePosition(bodyView.getEditPosition());
-
-				self.viewControllers.body.setFocus(false);
-				self.viewControllers.header.switchFocus(1);
+				cb(err);
 			}
-		);		
+		);
+	};
+
+	this.mciReadyHandler = function(mciData) {
+
+		self.createInitialViews(mciData, function viewsCreated(err) {
+
+		});
 	};
 
 	this.updateEditModePosition = function(pos) {
@@ -415,10 +434,11 @@ function FullScreenEditorModule(options) {
 				}
 			});
 		},
+		/*
 		editModeMenuSave : function(formData, extraArgs) {
 			var msg = self.getMessage();
 			console.log(msg);
-		},
+		},*/
 		editModeMenuQuote : function(formData, extraArgs) {
 
 		},
