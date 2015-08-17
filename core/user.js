@@ -280,7 +280,7 @@ User.prototype.persist = function(useTransaction, cb) {
 				}
 			},
 			function saveProps(callback) {
-				self.persistProperties(function persisted(err) {
+				self.persistAllProperties(function persisted(err) {
 					callback(err);
 				});
 			},
@@ -324,9 +324,36 @@ User.prototype.persistProperty = function(propName, propValue, cb) {
 	);
 }
 
-User.prototype.persistProperties = function(cb) {
+User.prototype.persistProperties = function(properties, cb) {
+	var self = this;
+
+	//	:TODO: should probably add/update live properties
+
+	var stmt = userDb.prepare(
+		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
+		'VALUES (?, ?, ?);');
+
+	async.each(Object.keys(properties), function property(propName, callback) {
+		stmt.run(self.userId, propName, properties[propName], function onRun(err) {
+			callback(err);
+		});
+	}, function complete(err) {
+		if(err) {
+			cb(err);
+		} else {
+			stmt.finalize(function finalized() {
+				cb(null);
+			});
+		}
+	});
+};
+
+User.prototype.persistAllProperties = function(cb) {
 	assert(this.userId > 0);
 
+	this.persistProperties(this.properties, cb);
+
+	/*
 	var self = this;
 
 	var stmt = userDb.prepare(
@@ -346,6 +373,7 @@ User.prototype.persistProperties = function(cb) {
 			});
 		}
 	});
+*/
 };
 
 User.prototype.getAge = function() {
