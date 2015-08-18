@@ -22,14 +22,6 @@ function AreaPostFSEModule(options) {
 	//	we're posting, so always start with 'edit' mode
 	this.editorMode = 'edit';
 
-	//
-	//	If messageAreaId is passed in extraArgs, use it. Otherwise, look
-	//	to the client user for current area ID
-	//
-	if(_.isNumber(client.user.properties.message_area_id)) {
-		this.messageAreaId = client.user.properties.message_area_id;	
-	}
-
 	this.menuMethods.editModeMenuSave = function(formData, extraArgs) {
 		var msg = self.getMessage();
 		console.log(msg);
@@ -38,3 +30,14 @@ function AreaPostFSEModule(options) {
 
 require('util').inherits(AreaPostFSEModule, FullScreenEditorModule);
 
+AreaPostFSEModule.prototype.enter = function(client) {	
+	//
+	//	If messageAreaId is passed in extraArgs, use it. Otherwise, look
+	//	to the client user for current area ID
+	//
+	if(_.isNumber(client.user.properties.message_area_id)) {
+		this.messageAreaId = client.user.properties.message_area_id;	
+	}
+
+	AreaPostFSEModule.super_.prototype.enter.call(this, client);
+};

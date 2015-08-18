@@ -318,8 +318,12 @@ User.prototype.persistProperty = function(propName, propValue, cb) {
 
 	userDb.run(
 		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
-		'VALUES (?, ?, ?);', [ this.userId, propName, propValue ], function ran(err) {
-			cb(err);
+		'VALUES (?, ?, ?);', 
+		[ this.userId, propName, propValue ], 
+		function ran(err) {
+			if(cb) {
+				cb(err);
+			}
 		}
 	);
 }

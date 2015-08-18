@@ -259,8 +259,12 @@
 			"submit"	: [
 				{
 					"value"		: { "command" : "N" },
-					"action"	: "@menu:messageAreaNewPost",
-					"extraArgs" : { "messageAreaId" : 123 }
+					"action"	: "@menu:messageAreaNewPost"//,
+					//"extraArgs" : { "messageAreaId" : 123 }
+				},
+				{
+					"value"		: { "command" : "A" },
+					"action"	: "@method:changeArea"
 				},
 				{
 					"value"		: { "command" : "Q" },
@@ -268,6 +272,7 @@
 				}
 			]
 		},
+		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		"messageAreaNewPost" : {
 			"module"	: "msg_area_post_fse",
 			"options"	: { "cls" : true },
