@@ -33,7 +33,7 @@ function LastCallersModule(options) {
 
 	this.rows			= 10;
 	
-	if(this.menuConfig.config) {
+	if(_.isObject(this.menuConfig.config)) {
 		if(_.isNumber(this.menuConfig.config.rows)) {
 			this.rows = Math.max(1, this.menuConfig.config.rows);
 		}

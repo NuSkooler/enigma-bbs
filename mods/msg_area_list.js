@@ -4,6 +4,7 @@
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var ViewController		= require('../core/view_controller.js').ViewController;
 var messageArea			= require('../core/message_area.js');
+var strUtil				= require('../core/string_util.js');
 //var msgDb				= require('./database.js').dbs.message;
 
 var async				= require('async');
@@ -22,6 +23,20 @@ function MessageAreaListModule(options) {
 	MenuModule.call(this, options);
 
 	var self = this;
+
+	if(_.isObject(this.menuConfig.config)) {
+		if(_.isString(this.menuConfig.config.entryFormat)) {
+			this.entryFormat = this.menuConfig.config.entryFormat;
+		}
+	}
+
+	this.entryFormat = this.entryFormat || '( {areaId} ) - {name}';
+
+	this.menuMethods = {
+		changeArea : function(formData, extraArgs) {
+			console.log(formData)
+		}
+	};
 
 }
 
@@ -62,8 +77,7 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 
 				var areaList = [];
 				messageAreas.forEach(function entry(msgArea) {
-					//	:TODO: make this formattable/themable
-					areaList.push(msgArea.areaId + ' - ' + msgArea.name);
+					areaList.push(strUtil.format(self.entryFormat, msgArea));
 				});
 
 				console.log(areaList)

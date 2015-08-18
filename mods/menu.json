@@ -287,8 +287,17 @@
 						"mci" : {
 							"LV1" : {
 								"widht"		: 30,
-								"height"	: 10
+								"height"	: 10,
+								"focus"		: true
 							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: null,
+									"action"	: "@method:changeArea"
+								}
+							]
 						}
 					}
 				}

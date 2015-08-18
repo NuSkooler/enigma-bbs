@@ -9,6 +9,7 @@ exports.pad					= pad;
 exports.replaceAt			= replaceAt;
 exports.isPrintable			= isPrintable;
 exports.debugEscapedString	= debugEscapedString;
+exports.format				= format;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -174,4 +175,19 @@ function stringLength(s) {
 
 function debugEscapedString(s) {
 	return JSON.stringify(s).slice(1, -1);
+}
+
+function format(fmt) {
+    if (!arguments.length) {
+        return fmt;
+    }
+    
+    var args = typeof arguments[1];
+    args = (("string" === args || "number" === args) ? arguments : arguments[1]);
+    
+    for(var arg in args) {
+        fmt = fmt.replace(RegExp("\\{" + arg + "\\}", "gi"), args[arg]);
+    }
+    
+    return fmt;
 }
