@@ -263,14 +263,36 @@
 					//"extraArgs" : { "messageAreaId" : 123 }
 				},
 				{
+					"value"		: { "command" : "C" },
+					"action"	: "@menu:messageAreaChangeCurrentArea"
+				},
+				/*{
 					"value"		: { "command" : "A" },
 					"action"	: "@method:changeArea"
 				},
+				*/
 				{
 					"value"		: { "command" : "Q" },
 					"action"	: "@menu:mainMenu"
 				}
 			]
+		},
+		"messageAreaChangeCurrentArea" : {
+			"art"		: "msg_area_list.ans",
+			"module"	: "msg_area_list",
+			"options"	: { "cls" : true },
+			"form"		: {
+				"0" : {
+					"LVTL" : {
+						"mci" : {
+							"LV1" : {
+								"widht"		: 30,
+								"height"	: 10
+							}
+						}
+					}
+				}
+			}
 		},
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		"messageAreaNewPost" : {

@@ -245,6 +245,7 @@ function ViewController(options) {
 		function complete(err) {		
 			//	default to highest ID if no 'submit' entry present
 			if(!submitId) {
+				//	:TODO: fix bug here: If errornous MCI code sare used, we'll reference invalid views -- these should jsut be ignored
 				self.getView(highestId).submit = true;
 			}
 
