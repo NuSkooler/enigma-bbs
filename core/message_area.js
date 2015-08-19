@@ -8,6 +8,7 @@ var _				= require('lodash');
 var assert			= require('assert');
 
 exports.getAvailableMessageAreas			= getAvailableMessageAreas;
+exports.changeCurrentArea					= changeCurrentArea;
 
 function getAvailableMessageAreas(cb) {
 	var areas = [];	//	{ areaId, name, groupIds[] }
@@ -58,4 +59,23 @@ function getAvailableMessageAreas(cb) {
 		}
 	);
 
+}
+
+function changeCurrentArea(client, areaId, cb) {
+	async.series(
+		[
+			function validateAccess(callback) {
+				//	:TODO: validate user has access to areaId -- must belong to group(s) specified
+				callback(null);
+			},
+			function changeArea(callback) {
+				client.user.persistProperty('message_area_id', areaId, function persisted(err) {
+					callback(err);
+				});
+			}
+		],
+		function complete(err) {
+			cb(err);
+		}
+	);
 }

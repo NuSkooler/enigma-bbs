@@ -281,20 +281,23 @@
 			"art"		: "msg_area_list.ans",
 			"module"	: "msg_area_list",
 			"options"	: { "cls" : true },
+			"fallback"	: "messageArea",
 			"form"		: {
 				"0" : {
-					"LVTL" : {
+					"TLVM" : {
 						"mci" : {
-							"LV1" : {
+							"VM1" : {
 								"widht"		: 30,
 								"height"	: 10,
-								"focus"		: true
+								"focus"		: true,
+								"submit"	: true,
+								"argName"	: "area"
 							}
 						},
 						"submit" : {
 							"*" : [
 								{
-									"value"		: null,
+									"value"		: { "area" : null },
 									"action"	: "@method:changeArea"
 								}
 							]

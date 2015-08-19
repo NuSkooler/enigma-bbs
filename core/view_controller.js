@@ -267,6 +267,10 @@ function ViewController(options) {
 		//	* 	actionValue is a string: This represents a view with
 		//		"argName" set that must be present in formValue.
 		//
+		if(_.isUndefined(actionValue)) {
+			return false;
+		}
+		
 		if(_.isNumber(actionValue) || _.isString(actionValue)) {
 			if(_.isUndefined(formValue[actionValue])) {
 				return false;
@@ -440,7 +444,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 			function applyThemeCustomization(callback) {
 				if(_.isObject(promptConfig)) {
 					menuUtil.applyThemeCustomization({
-						name		: promptName,//self.client.currentMenuModule.menuConfig.prompt,
+						name		: promptName,
 						type		: "prompts",
 						client		: self.client,
 						configMci	: promptConfig.mci,
@@ -525,44 +529,6 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	var formConfig;
 
 	//	:TODO: honor options.withoutForm
-
-	//	method for comparing submitted form data to configuration entries
-	/*
-	var actionBlockValueComparator = function(formValue, actionValue) {
-		//
-		//	For a match to occur, one of the following must be true:
-		//
-		//	*	actionValue is a Object:
-		//		a)	All key/values must exactly match
-		//		b)	value is null; The key (view ID or "argName") must be present
-		//			in formValue. This is a wildcard/any match.
-		//	*	actionValue is a Number: This represents a view ID that
-		//		must be present in formValue.
-		//	* 	actionValue is a string: This represents a view with
-		//		"argName" set that must be present in formValue.
-		//
-		if(_.isNumber(actionValue) || _.isString(actionValue)) {
-			if(_.isUndefined(formValue[actionValue])) {
-				return false;
-			}
-		} else {
-			var actionValueKeys = Object.keys(actionValue);
-			for(var i = 0; i < actionValueKeys.length; ++i) {
-				var viewId = actionValueKeys[i];
-				if(!_.has(formValue, viewId)) {
-					return false;
-				}
-
-				if(null !== actionValue[viewId] && actionValue[viewId] !== formValue[viewId]) {
-					return false;
-				}
-			}
-		}
-
-		self.client.log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
-		return true;
-	};
-	*/
 
 	async.waterfall(
 		[

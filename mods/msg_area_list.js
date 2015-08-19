@@ -34,7 +34,12 @@ function MessageAreaListModule(options) {
 
 	this.menuMethods = {
 		changeArea : function(formData, extraArgs) {
-			console.log(formData)
+			if(1 === formData.submitId) {
+				var areaId = self.messageAreas[formData.value.area].areaId;
+				messageArea.changeCurrentArea(self.client, areaId, function areaChanged(err) {
+					self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+				});
+			}
 		}
 	};
 
@@ -42,11 +47,21 @@ function MessageAreaListModule(options) {
 
 require('util').inherits(MessageAreaListModule, MenuModule);
 
+MessageAreaListModule.prototype.enter = function(client) {
+	var self = this;
+
+	messageArea.getAvailableMessageAreas(function fetched(err, areas) {
+		self.messageAreas = areas;
+		
+		MessageAreaListModule.super_.prototype.enter.call(self, client);
+	});
+};
+
 MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
 	var vc		= self.viewControllers.areaList = new ViewController( { client : self.client } );
 
-	var messageAreas = [];
+	//var messageAreas = [];
 
 	async.series(
 		[
@@ -59,24 +74,28 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 				var loadOpts = {
 					callingMenu	: self,
 					mciMap		: mciData.menu,
-					noInput		: true,
+					formId		: 0,
 				};
 
 				vc.loadFromMenuConfig(loadOpts, function startingViewReady(err) {
 					callback(err);
 				});
 			},
+			/*
 			function fetchAreaData(callback) {
 				messageArea.getAvailableMessageAreas(function fetched(err, areas) {
 					messageAreas = areas;
 					callback(err);
 				});
 			},
+			*/
 			function populateAreaListView(callback) {
 				var areaListView = vc.getView(1);
 
 				var areaList = [];
-				messageAreas.forEach(function entry(msgArea) {
+				self.messageAreas.forEach(function entry(msgArea) {
+					//	:TODO: depending on options, filter out private, local user to user, etc. area IDs
+					//	:TODO: dep. on options, filter out areas that current user does not have access to
 					areaList.push(strUtil.format(self.entryFormat, msgArea));
 				});
 

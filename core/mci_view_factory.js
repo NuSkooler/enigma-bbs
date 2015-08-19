@@ -74,6 +74,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			IP	: this.client.address().address,
 		}[code];
 	} catch(e) {
+		this.client.log.warn( { code : code, exception : e.message }, 'Exception caught attempting to construct predefined label');
 	}
 };
 
