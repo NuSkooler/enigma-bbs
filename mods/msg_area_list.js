@@ -37,7 +37,15 @@ function MessageAreaListModule(options) {
 			if(1 === formData.submitId) {
 				var areaId = self.messageAreas[formData.value.area].areaId;
 				messageArea.changeCurrentArea(self.client, areaId, function areaChanged(err) {
-					self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+					if(err) {
+						self.client.term.write('\nCannot change area: ' + err.message + '\n');
+
+						setTimeout(function timeout() {
+							self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+						}, 1000);
+					} else {
+						self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+					}
 				});
 			}
 		}
@@ -61,8 +69,6 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
 	var vc		= self.viewControllers.areaList = new ViewController( { client : self.client } );
 
-	//var messageAreas = [];
-
 	async.series(
 		[
 			function callParentMciReady(callback) {
@@ -81,14 +87,6 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 					callback(err);
 				});
 			},
-			/*
-			function fetchAreaData(callback) {
-				messageArea.getAvailableMessageAreas(function fetched(err, areas) {
-					messageAreas = areas;
-					callback(err);
-				});
-			},
-			*/
 			function populateAreaListView(callback) {
 				var areaListView = vc.getView(1);
 
@@ -98,8 +96,6 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 					//	:TODO: dep. on options, filter out areas that current user does not have access to
 					areaList.push(strUtil.format(self.entryFormat, msgArea));
 				});
-
-				console.log(areaList)
 
 				areaListView.setItems(areaList);
 				areaListView.redraw();

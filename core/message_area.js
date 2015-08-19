@@ -75,6 +75,12 @@ function changeCurrentArea(client, areaId, cb) {
 			}
 		],
 		function complete(err) {
+			if(!err) {
+				client.log.info( { areaId : areaId }, 'Current message area changed');
+			} else {
+				client.log.warn( { areaId : areaId, error : err.message }, 'Could not change message area');
+			}
+			
 			cb(err);
 		}
 	);

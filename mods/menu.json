@@ -301,7 +301,13 @@
 									"action"	: "@method:changeArea"
 								}
 							]
-						}
+						},
+						"actionKeys" : [	//	:TODO: Need better name
+							{
+								"keys"		: [ "escape" ],
+								"action"	: "@menu:messageArea"
+							}
+						]
 					}
 				}
 			}

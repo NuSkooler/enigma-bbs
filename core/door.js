@@ -5,7 +5,7 @@ var spawn			= require('child_process').spawn;
 var events			= require('events');
 
 var _				= require('lodash');
-var pty				= require('pty');
+var pty				= require('pty.js');
 
 exports.Door		= Door;
 
