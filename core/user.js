@@ -326,7 +326,7 @@ User.prototype.persistProperty = function(propName, propValue, cb) {
 			}
 		}
 	);
-}
+};
 
 User.prototype.persistProperties = function(properties, cb) {
 	var self = this;

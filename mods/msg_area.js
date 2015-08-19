@@ -23,10 +23,7 @@ function MessageAreaModule(options) {
 
 	this.menuMethods = {
 		changeArea : function(formData, extraArgs) {
-			//	:TODO: really, we just need to go to a menu with a list of areas to select from and call a @systemMethod:setMessageArea() call with fallback to here
-			self.client.user.persistProperty('message_area_id', 2, function persisted(err) {
-				
-			});	//	:TODO: just for testing
+			//	:TODO: clean this code up
 		}
 	};
 }

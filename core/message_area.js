@@ -73,6 +73,25 @@ function changeCurrentArea(client, areaId, cb) {
 				client.user.persistProperty('message_area_id', areaId, function persisted(err) {
 					callback(err);
 				});
+			},
+			function cacheAreaName(callback) {
+				msgDb.get(
+					'SELECT area_name '		+
+					'FROM message_area '	+
+					'WHERE area_id=? '		+
+					'LIMIT 1;',
+					[ areaId ],
+					function got(err, row) {
+						//	note: failures here are non-fatal
+						if(err) {
+							callback(null);
+						} else {
+							client.user.persistProperty('message_area_name', row.area_name, function persisted(err) {
+								callback(null);
+							});
+						}
+					}
+				);
 			}
 		],
 		function complete(err) {
