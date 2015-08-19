@@ -10,6 +10,7 @@ var assert			= require('assert');
 exports.getAvailableMessageAreas			= getAvailableMessageAreas;
 exports.changeCurrentArea					= changeCurrentArea;
 
+//	:TODO: need total / new + other stats
 function getAvailableMessageAreas(cb) {
 	var areas = [];	//	{ areaId, name, groupIds[] }
 	
@@ -80,7 +81,7 @@ function changeCurrentArea(client, areaId, cb) {
 			} else {
 				client.log.warn( { areaId : areaId, error : err.message }, 'Could not change message area');
 			}
-			
+
 			cb(err);
 		}
 	);
