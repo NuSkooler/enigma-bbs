@@ -80,6 +80,27 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 	}
 };
 
+/*
+MCIViewFactory.getUserViewClass = function(code) {
+	return {
+		TL	: TextView,
+		ET	: EditTextView,
+		ME	: MaskEditTextView,
+		MT	: MultiLineEditTextView,
+		PL	: TextView,
+		BT	: ButtonView,
+		VM	: VerticalMenuView,
+		HM	: HorizontalMenuView,
+		SM	: SpinnerMenuView,
+		TM	: ToggleMenuView,
+	}[code];
+};
+*/
+
+MCIViewFactory.UserViewCodes = [
+	'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'SM', 'TM'
+];
+
 MCIViewFactory.prototype.createFromMCI = function(mci) {
 	assert(mci.code);
 	assert(mci.id > 0);
@@ -121,6 +142,9 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		return false;
 	}
 
+	//
+	//	Note: Keep this in sync with UserViewCodes above!
+	//
 	switch(mci.code) {
 		//	Text Label (Text View)
 		case 'TL' : 
@@ -236,6 +260,8 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 				setOption(2,	'justify');
 
 				view = new TextView(options);
+			} else {
+				//	:TODO: log this
 			}
 			break;
 	}

@@ -9,6 +9,7 @@ var Config				= require('./config.js').config;
 var asset				= require('./asset.js');
 var theme				= require('./theme.js');
 var jsonCache			= require('./json_cache.js');
+var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
 
 var fs					= require('fs');
 var paths				= require('path');
@@ -138,7 +139,9 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	}
 
 	var formForId = menuConfig.form[formId];
-	var mciReqKey = _.pluck(_.sortBy(mciMap, 'code'), 'code').join('');
+	var mciReqKey = _.filter(_.pluck(_.sortBy(mciMap, 'code'), 'code'), function(mci) {
+		return MCIViewFactory.UserViewCodes.indexOf(mci) > -1;
+	}).join('');
 
 	Log.trace( { mciKey : mciReqKey }, 'Looking for MCI configuration key');
 
