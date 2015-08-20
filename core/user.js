@@ -331,7 +331,8 @@ User.prototype.persistProperty = function(propName, propValue, cb) {
 User.prototype.persistProperties = function(properties, cb) {
 	var self = this;
 
-	//	:TODO: should probably add/update live properties
+	//	update live props
+	_.merge(this.properties, properties);
 
 	var stmt = userDb.prepare(
 		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 

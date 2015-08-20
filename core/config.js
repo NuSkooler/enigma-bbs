@@ -31,7 +31,15 @@ function init(configPath, cb) {
 				});
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				var mergedConfig = _.defaultsDeep(configJson, getDefaultConfig());
+				//var mergedConfig = _.defaultsDeep(configJson, getDefaultConfig());
+				var mergedConfig = _.merge(getDefaultConfig(), configJson, function mergeCustomizer(conf1, conf2) {
+					//	Arrays should always concat
+					if(_.isArray(conf1)) {
+						//	:TODO: look for collisions & override dupes
+						return conf1.concat(conf2);
+					}
+				});
+
 				callback(null, mergedConfig);
 			}
 		],
@@ -67,6 +75,7 @@ function getDefaultConfig() {
 			passwordMax			: 128,
 			requireActivation	: true,	//	require SysOp activation?
 			invalidUsernames	: [],
+		
 			defaultGroups		: [ 'users' ]
 		},
 
@@ -111,6 +120,12 @@ function getDefaultConfig() {
 				rsaPrivateKey	: paths.join(__dirname, './../misc/default_key.rsa'),
 				dsaPrivateKey	: paths.join(__dirname, './../misc/default_key.dsa'),
 			}
+		},
+
+		messages : {
+			areas : [
+				{ name : "private_mail", desc : "Private Email", groups : [ "users" ] }
+			]
 		},
 
 		networks : {
