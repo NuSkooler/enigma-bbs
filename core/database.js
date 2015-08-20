@@ -80,24 +80,6 @@ function createUserTables() {
 }
 
 function createMessageBaseTables() {
-
-	/*
-	dbs.message.run(
-		'CREATE TABLE IF NOT EXISTS message_area ('	+
-		'	area_id		INTEGER PRIMARY KEY,'		+
-		'	area_name	VARCHAR NOT NULL,'			+
-		'	UNIQUE(area_name)'						+
-		');'
-	);
-
-	dbs.message.run(
-		'CREATE TABLE IF NOT EXISTS message_area_group ('	+
-		'	area_id		INTEGER NOT NULL,'					+
-		'	group_id	INTEGER NOT NULL'					+	//	FK @ user.sqlite::user_group::group_id
-		');'
-	);
-*/
-
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message ('						+
 		'	message_id				INTEGER PRIMARY KEY,'			+ 
@@ -110,7 +92,7 @@ function createMessageBaseTables() {
 		'	message,'												+ 	//	FTS @ message_fts
 		'	modified_timestamp	DATETIME NOT NULL,'					+
 		'	view_count				INTEGER NOT NULL DEFAULT 0,'	+
-		'	UNIQUE(message_uuid),'									+ 
+		'	UNIQUE(message_uuid)'									+ 
 		');'
 	);
 

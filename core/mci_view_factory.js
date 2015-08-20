@@ -49,7 +49,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			UT	: this.client.user.properties.theme_id,
 			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
 
-			MA	: this.client.user.properties.message_area_name,
+			MA	: this.client.user.properties.message_area_desc,
 
 
 			SH	: this.client.term.termHeight.toString(),

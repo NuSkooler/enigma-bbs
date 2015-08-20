@@ -36,7 +36,7 @@ function FullScreenEditorModule(options) {
 	//		editorMode				: view | edit | quote (private: editMenu | ... )
 	//
 	//	extraArgs:
-	//		messageAreaId
+	//		messageAreaName
 	//		messageNumber / messageTotal
 	//
 	//
@@ -44,11 +44,11 @@ function FullScreenEditorModule(options) {
 	this.editorMode	= config.editorMode;
 
 	if(_.isObject(options.extraArgs)) {
-		this.messageAreaId = options.extraArgs.messageAreaId || Message.WellKnownAreaIds.Private;
+		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaIds.Private;
 	}
 
 	this.isLocalEmail = function() {
-		return 'email' === this.editorType && Message.WellKnownAreaIds.Private === this.messageAreaId;
+		return 'email' === this.editorType && Message.WellKnownAreaIds.Private === this.messageAreaName;
 	};
 
 	this.getFooterName = function(editorMode) {
@@ -72,7 +72,7 @@ function FullScreenEditorModule(options) {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var messageOpts = {
-			areaId			: self.messageAreaId,
+			areaName		: self.messageAreaName,
 			toUserName		: headerValues.to,
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
