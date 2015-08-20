@@ -2,7 +2,6 @@
 'use strict';
 
 var ansi		= require('./ansi_term.js');
-var colorCodes	= require('./color_codes.js');
 var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
 var Config		= require('./config.js').config;
@@ -75,21 +74,21 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 	}, 2000);
 
 	//	This causes 
-	client.term.write(ansi.queryScreenSize());
+	client.term.rawWrite(ansi.queryScreenSize());
 }
 
 function prepareTerminal(term) {
-	term.write(ansi.normal());
-	term.write(ansi.disableVT100LineWrapping());
+	term.rawWrite(ansi.normal());
+	term.rawWrite(ansi.disableVT100LineWrapping());
 	//	:TODO: set xterm stuff -- see x84/others
 }
 
 function displayBanner(term) {
 	//	:TODO: add URL(s) to banner
-	term.write(colorCodes.pipeToAnsi(util.format(
+	term.pipeWrite(util.format(
 		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n'	+
 		'|00|33Copyright (c) 2014-2015 Bryan Ashby |33|01- |31|01http://l33t.codes/\n'	+ 
-		'|00', packageJson.version)));
+		'|00', packageJson.version));
 }
 
 function connectEntry(client) {

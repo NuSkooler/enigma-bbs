@@ -36,9 +36,10 @@ function MessageAreaListModule(options) {
 		changeArea : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
 				var areaId = self.messageAreas[formData.value.area].areaId;
+
 				messageArea.changeCurrentArea(self.client, areaId, function areaChanged(err) {
 					if(err) {
-						self.client.term.write('\nCannot change area: ' + err.message + '\n');
+						self.client.term.pipeWrite('\n|00Cannot change area: ' + err.message + '\n');
 
 						setTimeout(function timeout() {
 							self.client.gotoMenuModule( { name : self.menuConfig.fallback } );

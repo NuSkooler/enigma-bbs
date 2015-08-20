@@ -47,8 +47,9 @@ function FullScreenEditorModule(options) {
 		this.messageAreaId = options.extraArgs.messageAreaId || Message.WellKnownAreaIds.Private;
 	}
 
-	//	netMail/crashMail | echoMail
-	//this.messageAreaId	= 'netMail' === this.editorType ? Message.WellKnownAreaIds.Private : options.messageAreaId;
+	this.isLocalEmail = function() {
+		return 'email' === this.editorType && Message.WellKnownAreaIds.Private === this.messageAreaId;
+	};
 
 	this.getFooterName = function(editorMode) {
 		editorMode = editorMode || this.editorMode;
@@ -312,7 +313,18 @@ function FullScreenEditorModule(options) {
 	this.mciReadyHandler = function(mciData) {
 
 		self.createInitialViews(mciData, function viewsCreated(err) {
+			self.viewControllers.header.on('leave', function headerViewLeave(view) {
 
+				if(2 === view.id) {	//	"to" field
+					self.validateToUserName(view.getData(), function result(err) {
+						if(err) {
+							//	:TODO: display a error in a %TL area or such
+							view.clearText();
+							self.viewControllers.headers.switchFocus(2);
+						}
+					});				
+				}
+			});
 		});
 	};
 
@@ -458,5 +470,9 @@ FullScreenEditorModule.prototype.enter = function(client) {
 FullScreenEditorModule.prototype.mciReady = function(mciData) {
 	this.mciReadyHandler(mciData);
 	//this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
+};
+
+FullScreenEditorModule.prototype.validateToUserName = function(un, cb) {
+	cb(null);	//	note: to be implemented by sub classes
 };
 

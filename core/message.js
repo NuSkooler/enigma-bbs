@@ -37,7 +37,11 @@ function Message(options) {
 		_.defaultsDeep(this.meta, options.meta);
 	}
 
-	this.meta			= options.meta || {};
+	if(options.meta) {
+		this.meta = options.meta;
+	}
+
+//	this.meta			= options.meta || {};
 	this.hashTags		= options.hashTags || [];
 
 	var self			= this;

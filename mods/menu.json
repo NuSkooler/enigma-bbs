@@ -316,6 +316,7 @@
 		"messageAreaNewPost" : {
 			"module"	: "msg_area_post_fse",
 			"options"	: { "cls" : true },
+			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			"config"	: {
 				"art" : {
 					"header"			: "msg_area_post_header",
@@ -324,11 +325,12 @@
 					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
 					"footerView"		: "demo_fse_netmail_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
-				}
+				},
+				"editorType"	: "area"
 			},
 			"form" : {
 				"0" : {
-					"ETETTLTL" : {
+					"ETETTL" : {
 						"mci" : {
 							"TL1" : {
 								"width"		: 36,
@@ -345,10 +347,15 @@
 								"maxLength"	: 72,
 								"submit"	: true
 							},
-							"TL4" :  {
+							"MA5" : {
 								"width"			: 19,
 								"textOverflow"	: "..."
 							}
+							/*,
+							"TL4" :  {
+								"width"			: 19,
+								"textOverflow"	: "..."
+							}*/
 						},
 						"submit" : {
 							"3" : [

@@ -3,8 +3,10 @@
 
 var FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
 var Message						= require('../core/message.js').Message;
+var user						= require('../core/user.js');
 
 var _							= require('lodash');
+var async					 	= require('async');
 
 exports.getModule				= AreaPostFSEModule;
 
@@ -24,7 +26,33 @@ function AreaPostFSEModule(options) {
 
 	this.menuMethods.editModeMenuSave = function(formData, extraArgs) {
 		var msg = self.getMessage();
-		console.log(msg);
+
+		async.series(
+			[
+				function prepareMessage(callback) {
+					if(self.isLocalEmail()) {
+						msg.setLocalFromUserId(self.client.user.userId);
+						msg.setLocalToUserId(self.toUserId);
+					}
+
+					callback(null);
+				},
+				function saveMessage(callback) {
+					msg.persist(function persisted(err) {
+						callback(err);
+					});
+				}
+			],
+			function complete(err) {
+				if(err) {
+					//	:TODO:... sooooo now what?
+				} else {
+					console.log(msg);
+				}
+
+				self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+			}
+		);
 	};
 }
 
@@ -40,4 +68,22 @@ AreaPostFSEModule.prototype.enter = function(client) {
 	}
 
 	AreaPostFSEModule.super_.prototype.enter.call(this, client);
+};
+
+AreaPostFSEModule.prototype.validateToUserName = function(un, cb) {
+
+	console.log('bazinga')
+
+
+	var self = this;
+
+	if(!self.isLocalEmail()) {
+		cb(null);
+		return;
+	}
+
+	user.getUserIdAndName(un, function uidAndName(err, userId, userName) {
+		self.toUserId = userId;
+		cb(err);
+	});
 };

@@ -2,11 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-var Log			= require('./logger.js').log;
+var Log				= require('./logger.js').log;
+var enigmaToAnsi	= require('./color_codes.js').enigmaToAnsi;
 
-var iconv		= require('iconv-lite');
-var assert		= require('assert');
-var _			= require('lodash');
+var iconv			= require('iconv-lite');
+var assert			= require('assert');
+var _				= require('lodash');
 
 iconv.extendNodeEncodings();
 
@@ -126,16 +127,6 @@ ClientTerminal.prototype.isANSI = function() {
 	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi' ].indexOf(this.termType) > -1;
 };
 
-/*
-ClientTerminal.prototype.write = function(s, convertLineFeeds) {
-	convertLineFeeds = _.isUndefined(convertLineFeeds) ? this.convertLF : convertLineFeeds;
-	if(convertLineFeeds && _.isString(s)) {
-		s = s.replace(/\n/g, '\r\n');
-	}
-	this.output.write(this.iconv.encode(s, this.outputEncoding));
-};
-*/
-
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
 
 ClientTerminal.prototype.write = function(s, convertLineFeeds) {
@@ -144,6 +135,10 @@ ClientTerminal.prototype.write = function(s, convertLineFeeds) {
 
 ClientTerminal.prototype.rawWrite = function(s) {
 	this.output.write(s);
+};
+
+ClientTerminal.prototype.pipeWrite = function(s) {
+	this.write(enigmaToAnsi(s));
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
