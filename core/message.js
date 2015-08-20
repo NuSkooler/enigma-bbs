@@ -13,7 +13,7 @@ module.exports = Message;
 function Message(options) {
 
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
-	this.areaId			= options.areaId || Message.WellKnownAreaIds.Invalid;		//	0 = invalid; 1 = private; Everything else is user defined
+	this.areaName		= options.areaName || Message.WellKnownAreaNames.Invalid;
 	this.uuid			= uuid.v1();
 	this.replyToMsgId	= options.replyToMsgId || 0;
 	this.toUserName		= options.toUserName || '';
@@ -73,9 +73,9 @@ function Message(options) {
 	*/
 }
 
-Message.WellKnownAreaIds = {
-	Invalid	: 0,
-	Private	: 1,
+Message.WellKnownAreaNames = {
+	Invalid	: '',
+	Private	: 'private_mail'
 };
 
 Message.MetaCategories = {
@@ -135,8 +135,8 @@ Message.prototype.persist = function(cb) {
 			},
 			function storeMessage(callback) {
 				msgDb.run(
-					'INSERT INTO message (area_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
-					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaId, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
+					'INSERT INTO message (area_name, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
+					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaName, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
 					function msgInsert(err) {
 						if(!err) {
 							self.messageId = this.lastID;

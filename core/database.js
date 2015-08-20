@@ -81,6 +81,7 @@ function createUserTables() {
 
 function createMessageBaseTables() {
 
+	/*
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message_area ('	+
 		'	area_id		INTEGER PRIMARY KEY,'		+
@@ -95,11 +96,12 @@ function createMessageBaseTables() {
 		'	group_id	INTEGER NOT NULL'					+	//	FK @ user.sqlite::user_group::group_id
 		');'
 	);
+*/
 
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message ('						+
 		'	message_id				INTEGER PRIMARY KEY,'			+ 
-		'	area_id					INTEGER NOT NULL,'				+
+		'	area_name				VARCHAR NOT NULL,'				+
 		'	message_uuid			VARCHAR(36) NOT NULL,'			+ 
 		'	reply_to_message_id		INTEGER,'						+
 		'	to_user_name			VARCHAR NOT NULL,'				+
@@ -109,7 +111,6 @@ function createMessageBaseTables() {
 		'	modified_timestamp	DATETIME NOT NULL,'					+
 		'	view_count				INTEGER NOT NULL DEFAULT 0,'	+
 		'	UNIQUE(message_uuid),'									+ 
-		'	FOREIGN KEY(area_id) REFERENCES message_area(area_id)'	+
 		');'
 	);
 
@@ -165,13 +166,6 @@ function createMessageBaseTables() {
 }
 
 function createInitialMessageValues() {
-	//
-	//	Area ID 1: Private / Local
-	//
-	dbs.message.run(
-		'INSERT OR IGNORE INTO message_area ' +
-		'VALUES(1, "Local Private Messages");'
-		);
 }
 
 function createInitialUserValues() {

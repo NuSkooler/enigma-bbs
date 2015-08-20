@@ -59,14 +59,11 @@ function AreaPostFSEModule(options) {
 require('util').inherits(AreaPostFSEModule, FullScreenEditorModule);
 
 AreaPostFSEModule.prototype.enter = function(client) {	
-	//
-	//	If messageAreaId is passed in extraArgs, use it. Otherwise, look
-	//	to the client user for current area ID
-	//
-	if(_.isNumber(client.user.properties.message_area_id)) {
-		this.messageAreaId = client.user.properties.message_area_id;	
-	}
 
+	if(_.isString(client.user.properties.message_area_name)) {
+		this.messageAreaName = client.user.properties.message_area_name;
+	}
+	
 	AreaPostFSEModule.super_.prototype.enter.call(this, client);
 };
 

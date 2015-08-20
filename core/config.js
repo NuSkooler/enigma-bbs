@@ -124,7 +124,7 @@ function getDefaultConfig() {
 
 		messages : {
 			areas : [
-				{ name : "private_mail", desc : "Private Email", groups : [ "users" ] }
+				{ name : 'private_mail', desc : 'Private Email', groups : [ 'users' ] }
 			]
 		},
 
