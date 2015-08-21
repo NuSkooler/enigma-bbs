@@ -131,7 +131,8 @@ function initialize(cb) {
 						var propLoadOpts = {
 							userId	: 1,
 							names	: [ 'real_name', 'sex', 'email_address' ],
-						}
+						};
+						
 						user.loadProperties(propLoadOpts, function propsLoaded(err, props) {
 							if(!err) {
 								conf.config.general.sysOp = {

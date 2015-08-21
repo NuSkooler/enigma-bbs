@@ -123,7 +123,14 @@ function logoff(callingMenu, formData, extraArgs) {
 	var client = callingMenu.client;
 
 	setTimeout(function timeout() {
-		client.term.write(ansi.normal() + '\n+++ATH0\n');
+		//
+		//	For giggles...
+		//
+		client.term.write(
+			ansi.normal() +	'\n' +
+			require('crypto').randomBytes(Math.floor(Math.random() * 25) + 5).toString() + 
+			'NO CARRIER');
+
 		client.end();
 	}, 500);
 }
