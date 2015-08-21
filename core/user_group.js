@@ -8,37 +8,24 @@ var async			= require('async');
 var _				= require('lodash');
 
 exports.getGroupsForUser	 	= getGroupsForUser;
-exports.getGroupsByName			= getGroupsByName;
 exports.addUserToGroup			= addUserToGroup;
 exports.addUserToGroups			= addUserToGroups;
 exports.removeUserFromGroup		= removeUserFromGroup;
 
-
-//
-//	user_group
-//	group_id	| group_name
-//
-//
-//	user_group_member
-//	group_id	| user_id
-//	
-//	
-
-
 function getGroupsForUser(userId, cb) {
 	var sql =
-		'SELECT g.group_id, g.group_name ' +
-		'FROM user_group g, user_group_member gm ' +
-		'WHERE g.group_id = gm.group_id AND gm.user_id = ?;';
+		'SELECT group_name '		+
+		'FROM user_group_member '	+
+		'WHERE user_id=?;';
 
-	var groups = {};	//	id:name
+	var groups = [];
 
-	userDb.each(sql, [ userId ], function dbRow(err, row) {
+	userDb.each(sql, [ userId ], function rowData(err, row) {
 		if(err) {
 			cb(err);
 			return;
 		} else {
-			groups[row.group_id] = row.group_name;
+			groups.push(row.group_name);
 		}
 	},
 	function complete() {
@@ -46,31 +33,11 @@ function getGroupsForUser(userId, cb) {
 	});
 }
 
-function getGroupsByName(groupNames, cb) {
-	var sql =
-		'SELECT group_id, group_name ' +
-		'FROM user_group ' +
-		'WHERE group_name IN ("' + groupNames.join('","') + '");';
-
-	userDb.all(sql, function allRows(err, rows) {
-		if(err) {
-			cb(err);
-			return;
-		} else {
-			var groups = {};
-			rows.forEach(function row(r) {
-				groups[r.group_id] = r.group_name;
-			});
-			cb(null, groups);
-		}
-	});
-}
-
-function addUserToGroup(userId, groupId, cb) {
+function addUserToGroup(userId, groupName, cb) {
 	userDb.run(
-		'REPLACE INTO user_group_member (group_id, user_id) ' +
+		'REPLACE INTO user_group_member (group_name, user_id) ' +
 		'VALUES(?, ?);',
-		[ groupId, userId ],
+		[ groupName, userId ],
 		function complete(err) {
 			cb(err);
 		}
@@ -78,20 +45,19 @@ function addUserToGroup(userId, groupId, cb) {
 }
 
 function addUserToGroups(userId, groups, cb) {
-	async.each(Object.keys(groups), function item(groupId, nextItem) {
-		addUserToGroup(userId, groupId, function added(err) {
-			nextItem(err);
-		});
+
+	async.each(groups, function item(groupName, next) {
+		addUserToGroup(userId, groupName, next);
 	}, function complete(err) {
 		cb(err);
 	});
 }
 
-function removeUserFromGroup(userId, groupId, cb) {
+function removeUserFromGroup(userId, groupName, cb) {
 	userDb.run(
 		'DELETE FROM user_group_member ' +
-		'WHERE group_id = ? AND user_id = ?;', 
-		[ groupId, userId ],
+		'WHERE group_name=? AND user_id=?;', 
+		[ groupName, userId ],
 		function complete(err) {
 			cb(err);
 		}

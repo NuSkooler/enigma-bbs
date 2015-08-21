@@ -54,19 +54,10 @@ function createUserTables() {
 		);
 
 	dbs.user.run(
-		'CREATE TABLE IF NOT EXISTS user_group ('	+ 
-		'	group_id		INTEGER PRIMARY KEY,'	+ 
-		'	group_name		VARCHAR NOT NULL,'		+ 
-		'	UNIQUE(group_name)'						+ 
-		');'
-		);
-
-	dbs.user.run(
 		'CREATE TABLE IF NOT EXISTS user_group_member (' + 
-		'	group_id	INTEGER NOT NULL,' + 
+		'	group_name	VARCHAR NOT NULL,' + 
 		'	user_id		INTEGER NOT NULL,' +
-		'	UNIQUE(group_id, user_id),' +
-		'	FOREIGN KEY(group_id) REFERENCES user_group(group_id) ON DELETE CASCADE' +
+		'	UNIQUE(group_name, user_id)' +
 		');'
 		);
 
@@ -151,13 +142,4 @@ function createInitialMessageValues() {
 }
 
 function createInitialUserValues() {
-	dbs.user.run(
-		'INSERT OR IGNORE INTO user_group ' + 
-		'VALUES(1, "users");'
-		);
-
-	dbs.user.run(
-		'INSERT OR IGNORE INTO user_group ' +
-		'VALUES(2, "sysops");'
-		);
 }

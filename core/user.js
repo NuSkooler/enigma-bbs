@@ -22,7 +22,7 @@ function User() {
 	this.userId		= 0;
 	this.username	= '';
 	this.properties	= {};	//	name:value
-	this.groups		= {};	//	id:name
+	this.groups		= [];	//	group membership(s)
 
 	this.isValid = function() {
 		if(self.userId <= 0 || self.username.length < Config.users.usernameMin) {
@@ -47,8 +47,8 @@ function User() {
 
 	this.isSysOp = this.isRoot;	//	alias
 
-	this.isGroupMember = function(groupIdOrName) {
-		return _.isString(self.groups[groupIdOrName]);
+	this.isGroupMember = function(groupName) {
+		return self.groups.indexOf(groupName) > -1;
 	};
 
 	this.getLegacySecurityLevel = function() {
@@ -217,29 +217,13 @@ User.prototype.create = function(options, cb) {
 				});
 			},
 			function setInitialGroupMembership(callback) {
-				userGroup.getGroupsByName(Config.users.defaultGroups, function defaultGroups(err, groups) {
-					if(err) {
-						callback(err);
-					} else {
-						self.groups = groups;
-						callback(null);
-					}
-				});
-			},
-			function setInitialSysOpGroupMembership(callback) {
-				if(1 !== self.userId) {
-					callback(null);
-					return;
+				self.groups = Config.users.defaultGroups;
+
+				if(1 === self.userId) {	//	root/SysOp?
+					self.groups.push('sysops');
 				}
 
-				userGroup.getGroupsByName( [ 'sysops' ], function sysopGroups(err, groups) {
-					if(err) {
-						callback(err);
-					} else {
-						_.assign(self.groups, self.groups, groups);
-						callback(null);
-					}
-				});
+				callback(null);
 			},
 			function saveAll(callback) {
 				self.persist(false, function persisted(err) {
