@@ -11,6 +11,7 @@ var ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
 var MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
 var StatusBarView			= require('./status_bar_view.js').StatusBarView;
 var MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
+var getMessageAreaByName	= require('./message_area.js').getMessageAreaByName;
 
 var Config					= require('./config.js').config;
 var ansi					= require('./ansi_term.js');
@@ -29,6 +30,14 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
+
+	var self = this;
+	
+	function getMessageAreaDescription() {
+		var area = getMessageAreaByName(self.client.user.properties.message_area_name);
+		return area ? area.desc : '';
+	}
+
 	try {
 		return {
 			BN	: Config.general.boardName,
@@ -49,7 +58,7 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			UT	: this.client.user.properties.theme_id,
 			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
 
-			MA	: this.client.user.properties.message_area_desc,
+			MA	: getMessageAreaDescription(),
 
 
 			SH	: this.client.term.termHeight.toString(),

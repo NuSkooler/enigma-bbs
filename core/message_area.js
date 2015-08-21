@@ -9,10 +9,24 @@ var _				= require('lodash');
 var assert			= require('assert');
 
 exports.getAvailableMessageAreas			= getAvailableMessageAreas;
+exports.getMessageAreaByName				= getMessageAreaByName;
 exports.changeMessageArea					= changeMessageArea;
 
 function getAvailableMessageAreas() {
 	return Config.messages.areas;
+}
+
+function getMessageAreaByName(areaName) {
+	areaName = areaName.toLowerCase();
+
+	var availAreas	= getAvailableMessageAreas();
+	var index		= _.findIndex(availAreas, function pred(an) {
+		return an.name == areaName;
+	});
+
+	if(index > -1) {
+		return availAreas[index];
+	}
 }
 
 function changeMessageArea(client, areaName, cb) {
@@ -20,6 +34,7 @@ function changeMessageArea(client, areaName, cb) {
 	async.waterfall(
 		[
 			function getArea(callback) {
+				/*
 				var availAreas = getAvailableMessageAreas();
 
 				areaName	= areaName.toLowerCase();	//	always lookup lowercase
@@ -32,13 +47,21 @@ function changeMessageArea(client, areaName, cb) {
 				} else {
 					callback(new Error('Invalid message area'));
 				}
+				*/
+
+				var area = getMessageAreaByName(areaName);
+				if(area) {
+					callback(null, area);
+				} else {
+					callback(new Error('Invalid message area'));
+				}
 			},
 			function validateAccess(area, callback) {
 				//	:TODO: validate user has access to |area| -- must belong to group(s) specified
 				callback(null, area);
 			},
 			function changeArea(area, callback) {
-				client.user.persistProperties( { message_area_name : area.name, message_area_desc : area.desc }, function persisted(err) {
+				client.user.persistProperty('message_area_name', area.name, function persisted(err) {
 					callback(err, area);
 				});
 			}

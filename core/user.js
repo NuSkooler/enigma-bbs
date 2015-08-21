@@ -197,9 +197,7 @@ User.prototype.create = function(options, cb) {
 							if(1 === self.userId) {
 								self.properties.account_status = User.AccountStatus.active;
 							}
-
-
-
+							
 							callback(null);
 						}
 					}
