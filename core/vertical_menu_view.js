@@ -5,6 +5,7 @@ var MenuView		= require('./menu_view.js').MenuView;
 var ansi			= require('./ansi_term.js');
 var strUtil			= require('./string_util.js');
 var miscUtil		= require('./misc_util.js');
+var colorCodes		= require('./color_codes.js');
 
 var util			= require('util');
 var assert			= require('assert');
@@ -48,6 +49,7 @@ function VerticalMenuView(options) {
 		};
 	};
 
+	/*
 	this.drawItem = function(index) {
 		var item = self.items[index];
 		if(!item) {
@@ -60,6 +62,47 @@ function VerticalMenuView(options) {
 			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
 			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
 			);
+	};
+	*/
+
+	this.drawItem = function(index) {
+		var item = self.items[index];
+		
+		if(!item) {
+			return;
+		}
+
+		var focusItem;
+		var text;
+
+		if(self.hasFocusItems()) {
+			focusItem = self.focusItems[index];
+		}	
+
+		if(focusItem) {
+			if(item.focused) {
+				text = strUtil.stylizeString(focusItem.text, self.focusTextStyle);
+			} else {
+				text = strUtil.stylizeString(item.text, self.textStyle);
+			}
+
+			//	:TODO: Need to support pad()
+			//	:TODO: shoudl we detect if pipe codes are used?
+			self.client.term.write(
+				ansi.goto(item.row, self.position.col) +
+				colorCodes.enigmaToAnsi(text)
+				);
+
+		} else {
+			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
+			
+			self.client.term.write(
+				ansi.goto(item.row, self.position.col) +
+				(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
+				strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
+				);
+		}
+
 	};
 }
 
@@ -160,6 +203,12 @@ VerticalMenuView.prototype.setItems = function(items) {
 
 	this.positionCacheExpired = true;
 };
+
+VerticalMenuView.prototype.setFocusItems = function(items) {
+	VerticalMenuView.super_.prototype.setFocusItems.call(this, items);
+
+	this.positionCacheExpired = true;
+}
 
 VerticalMenuView.prototype.setItemSpacing = function(itemSpacing) {
 	VerticalMenuView.super_.prototype.setItemSpacing.call(this, itemSpacing);

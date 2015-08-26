@@ -23,7 +23,7 @@ function Door(client, exeInfo) {
 	//	exeInfo.cwd
 	//	exeInfo.encoding
 
-};
+}
 
 require('util').inherits(Door, events.EventEmitter);
 

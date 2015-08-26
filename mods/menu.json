@@ -571,9 +571,7 @@
 									"Vertical Menu Views",
 									"Horizontal Menu Views",
 									"Art Display",
-									"Full Screen Editor",
-									"Some More Stuff",
-									"Other"
+									"Full Screen Editor"
 								],
 								"height" : 10,
 								"itemSpacing" : 1,
@@ -598,6 +596,10 @@
 								{
 									"value" : { "1" : 3 },
 									"action" : "@menu:demoMultiLineEditTextView"
+								},
+								{
+									"value"	: { "1" : 4 },
+									"action"	: "@menu:demoVerticalMenuView"
 								},
 								{
 									"value"		: { "1" : 5 },
@@ -816,6 +818,53 @@
 					}
 				}
 			}
+		},
+		"demoVerticalMenuView" : {
+			"art"		: "demo_vertical_menu_view1.ans",
+			"options"	: { "cls" : true },
+			"form"		: {
+				"0"	: {
+					"BTVM" : {
+						"mci" : {
+							"VM1" : {
+								"items" : [
+									"|33Oblivion/2",
+									"|33iNiQUiTY",
+									"|33ViSiON/X"
+								],
+								"focusItems" : [
+									"|33Oblivion|01/|00|332",
+									"|01|33i|00|33N|01i|00|33QU|01i|00|33TY",
+									"|33ViSiON/X"
+								]
+								//
+								//	:TODO: how to do the following:
+								//	1) Supply a view a string for a standard vs focused item
+								//		"items" : [...], "focusItems" : [ ... ] ?
+								//		"draw" : "@method:drawItemX", then items: [...]
+							},
+							"BT5" : {
+								"text" : "< Back"
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: 5,
+									"action"	: "@menu:demoMain"
+								}
+							]
+						},
+						"actionKeys" : [
+							{
+								"keys"		: [ "escape" ],
+								"viewId"	: 5
+							}
+						]
+					}
+				}
+			}
+
 		},
 		"demoArtDisplay" : {
 			"art" : "demo_selection_vm.ans",

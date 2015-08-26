@@ -40,6 +40,10 @@ function MenuView(options) {
 
 	this.fillChar		= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
 	this.justify		= options.justify || 'none';
+
+	this.hasFocusItems = function() {
+		return !_.isUndefined(self.focusItems);
+	};
 }
 
 util.inherits(MenuView, View);
@@ -48,13 +52,22 @@ MenuView.prototype.setItems = function(items) {
 	var self = this;
 	if(items) {	
 		this.items = [];	//	:TODO: better way?
-		items.forEach(function onItem(itemText) {
-			self.items.push({
-				text		: itemText
-			});
+		items.forEach(function item(itemText) {
+			self.items.push( { text : itemText } );
 		});
 	}
 };
+
+MenuView.prototype.setFocusItems = function(items) {
+	var self = this;
+
+	if(items) {
+		this.focusItems = [];
+		items.forEach(function item(itemText) {
+			self.focusItems.push( { text : itemText } );
+		});
+	}
+}
 
 MenuView.prototype.setItemSpacing = function(itemSpacing) {
 	itemSpacing = parseInt(itemSpacing);
@@ -68,6 +81,7 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
 		case 'itemSpacing' 	: this.setItemSpacing(value); break;
 		case 'items'		: this.setItems(value); break;
+		case 'focusItems'	: this.setFocusItems(value); break;
 		case 'hotKeys'		: this.setHotKeys(value); break;
 	}
 

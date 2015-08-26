@@ -153,11 +153,11 @@ function AbracadabraModule(options) {
 		self.client.term.write(ansi.resetScreen());
 
 		doorInstance.run();
-	}
+	};
 
 	this.fallbackModule = function() {
 		self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
-	}
+	};
 }
 
 require('util').inherits(AbracadabraModule, MenuModule);

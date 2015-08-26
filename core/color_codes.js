@@ -7,6 +7,7 @@ var assert		= require('assert');
 
 exports.pipeToAnsi		= exports.enigmaToAnsi			= enigmaToAnsi;
 exports.stripPipeCodes	= exports.stripEnigmaCodes		= stripEnigmaCodes;
+exports.pipeStrLen		= exports.enigmaStrLen			= enigmaStrLen;
 exports.renegadeToAnsi	= renegadeToAnsi;
 
 //	:TODO: Not really happy with the module name of "color_codes". Would like something better
@@ -61,6 +62,14 @@ function enigmaToAnsi(s) {
     result = (0 === result.length ? s : result + s.substr(lastIndex));
     
     return result;
+}
+
+function stripEnigmaCodes(s) {
+    return s.replace(/\|[\d]{2}/g, '');
+}
+
+function enigmaStrLen(s) {
+	return stripEnigmaCodes(s).length;
 }
 
 function renegadeToAnsi(s) {
@@ -124,8 +133,3 @@ if(-1 == s.indexOf('|')) {
     
     return result;	
 }
-
-function stripEnigmaCodes(s) {
-    return s.replace(/\|[\d]{2}/g, '');
-}
-

@@ -68,10 +68,6 @@ AreaPostFSEModule.prototype.enter = function(client) {
 };
 
 AreaPostFSEModule.prototype.validateToUserName = function(un, cb) {
-
-	console.log('bazinga')
-
-
 	var self = this;
 
 	if(!self.isLocalEmail()) {
