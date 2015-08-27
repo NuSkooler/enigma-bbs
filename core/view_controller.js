@@ -521,7 +521,11 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 
 ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 	assert(_.isObject(options));
-	assert(_.isObject(options.mciMap));
+
+	if(!_.isObject(options.mciMap)) {
+		cb(new Error('Missing option: mciMap'));
+		return;
+	}
 
 	var self			= this;
 	var formIdKey		= options.formId ? options.formId.toString() : '0';

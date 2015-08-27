@@ -128,7 +128,7 @@ function logoff(callingMenu, formData, extraArgs) {
 		//
 		client.term.write(
 			ansi.normal() +	'\n' +
-			require('crypto').randomBytes(Math.floor(Math.random() * 35) + 10).toString(client.term.outputEncoding) + 
+			require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20).toString(client.term.outputEncoding) + 
 			'NO CARRIER');
 
 		client.end();

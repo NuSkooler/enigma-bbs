@@ -19,6 +19,20 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
+/*
+	:TODO:
+
+	Obv/2 has the following:
+	CHANGE .ANS - Message base changing ansi
+          |SN      Current base name
+          |SS      Current base sponsor
+          |NM      Number of messages in current base
+          |UP      Number of posts current user made (total)
+          |LR      Last read message by current user
+          |DT      Current date
+          |TI      Current time
+*/
+
 function MessageAreaListModule(options) {
 	MenuModule.call(this, options);
 

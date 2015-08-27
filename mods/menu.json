@@ -266,6 +266,10 @@
 					"value"		: { "command" : "C" },
 					"action"	: "@menu:messageAreaChangeCurrentArea"
 				},
+				{
+					"value"		: { "command" : "L" },
+					"action"	: "@menu:messageAreaMessageList"
+				},
 				/*{
 					"value"		: { "command" : "A" },
 					"action"	: "@method:changeArea"
@@ -308,6 +312,26 @@
 								"action"	: "@menu:messageArea"
 							}
 						]
+					}
+				}
+			}
+		},
+		"messageAreaMessageList" : {
+			"module"	: "msg_list",
+			"art"		: "msg_list",
+			"options"	: { "cls" : true },
+			"fallback"	: "messageArea",
+			"config" 	: {
+
+			},
+			"form"		: {
+				"0" : {
+					"VM" : {
+						"mci" :  {
+							"VM1" : {
+								"height"	: 10
+							}
+						}
 					}
 				}
 			}
