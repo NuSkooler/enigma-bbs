@@ -64,6 +64,9 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				};
 
 				vc.loadFromMenuConfig(loadOpts, callback);
+			},
+			function fetchMessagesInArea(callback) {
+				
 			}
 		],
 		function complete(err) {

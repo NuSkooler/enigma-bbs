@@ -34,22 +34,8 @@ function changeMessageArea(client, areaName, cb) {
 	async.waterfall(
 		[
 			function getArea(callback) {
-				/*
-				var availAreas = getAvailableMessageAreas();
-
-				areaName	= areaName.toLowerCase();	//	always lookup lowercase
-				var index	= _.findIndex(availAreas, function pred(a) {
-					return a.name === areaName;
-				});
-
-				if(index > -1) {
-					callback(null, availAreas[index]);
-				} else {
-					callback(new Error('Invalid message area'));
-				}
-				*/
-
 				var area = getMessageAreaByName(areaName);
+
 				if(area) {
 					callback(null, area);
 				} else {
@@ -75,5 +61,49 @@ function changeMessageArea(client, areaName, cb) {
 
 			cb(err);
 		}
+	);
+}
+
+function getMessageListForArea(options, areaName, cb) {
+	//
+	//	options.client (required)
+	//
+
+	assert(_.isObject(options.client));
+
+	/*
+		[
+			{ 
+				messageId, messageUuid, replyToId, toUserName, fromUserName, subject, modTimestamp,
+				status(new|old),
+				viewCount
+			}
+		]
+	*/
+
+	var msgList = [];
+
+	async.series(
+		[
+			function fetchMessages(callback) {
+				msgDb.each(
+					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count '
+					'FROM message '
+					'WHERE area_name=? '
+					'ORDER BY message_id;',
+					[ areaName.toLowerCase() ],
+					function msgRow(err, row) {
+						if(!err) {
+							msgList.push( { 
+								id			: row.message_id,
+								uuid		: row.message_uuid,
+								replyToId	: row.reply_to_message_id,
+							} );
+						}
+					},
+					callback
+				);
+			}
+		]
 	);
 }
