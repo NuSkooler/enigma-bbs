@@ -13,12 +13,12 @@
 		"sqlite3" : "3.0.x",
 		"ssh2" : "0.4.x",
 		"strip-json-comments" : "1.0.x",
-		"gapbuffer" : "0.0.2",
 		"node-uuid"	: "1.4.x",
 		"moment" : "2.10.x",
 		"gaze" : "0.5.x",
 		"mkdirp" : "0.5.x",
-		"pty.js"	: "0.2.x"
+		"pty.js"	: "0.2.x",
+		"string-format"	: "0.5.x"
 	},
 	"engine" : "node >= 0.12.2"
 }

@@ -8,7 +8,6 @@ var miscUtil	= require('./misc_util.js');
 var database	= require('./database.js');
 var clientConns	= require('./client_connections.js');
 
-var iconv		= require('iconv-lite');
 var paths		= require('path');
 var async		= require('async');
 var util		= require('util');
@@ -98,7 +97,9 @@ function initialize(cb) {
 					process.exit();
 				});
 
-				iconv.extendNodeEncodings();
+				//	Init some extensions
+				require('iconv-lite').extendNodeEncodings();
+				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 
 				callback(null);
 			},
@@ -132,7 +133,7 @@ function initialize(cb) {
 							userId	: 1,
 							names	: [ 'real_name', 'sex', 'email_address' ],
 						};
-						
+
 						user.loadProperties(propLoadOpts, function propsLoaded(err, props) {
 							if(!err) {
 								conf.config.general.sysOp = {
@@ -192,6 +193,7 @@ function startListening() {
 			clientConns.addNewClient(client);
 
 			client.on('ready', function onClientReady() {
+
 				//	Go to module -- use default error handler
 				prepareClient(client, function onPrepared() {
 					require('./connect.js').connectEntry(client);

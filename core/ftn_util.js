@@ -44,7 +44,8 @@ function getDateFromFtnDateTime(dateTime) {
 }
 
 function getFormattedFTNAddress(address, dimensions) {
-	var addr = util.format('%d:%d', address.zone, address.net);
+	//var addr = util.format('%d:%d', address.zone, address.net);
+	var addr = '{0}:{1}'.format(address.zone, address.net);
 	switch(dimensions) {
 		case 2 :
 		case '2D' :
@@ -53,18 +54,18 @@ function getFormattedFTNAddress(address, dimensions) {
 
 		case 3 :
 		case '3D' :
-			addr += util.format('/%d', address.node);
+			addr += '/{0}'.format(address.node);
 			break;
 
 		case 4 :
 		case '4D':
-			addr += util.format('.%d', address.point || 0);	//	missing and 0 are equiv for point
+			addr += '.{0}'.format(address.point || 0);		//	missing and 0 are equiv for point
 			break;
 
 		case 5 :
 		case '5D' :
 			if(address.domain) {
-				addr += util.format('@%s', address.domain);
+				addr += '@{0}'.format(address.domain);
 			}
 			break;
 	}

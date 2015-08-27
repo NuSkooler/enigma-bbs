@@ -87,9 +87,9 @@ function getMessageListForArea(options, areaName, cb) {
 		[
 			function fetchMessages(callback) {
 				msgDb.each(
-					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count '
-					'FROM message '
-					'WHERE area_name=? '
+					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count '	+
+					'FROM message '																													+
+					'WHERE area_name=? '																											+
 					'ORDER BY message_id;',
 					[ areaName.toLowerCase() ],
 					function msgRow(err, row) {

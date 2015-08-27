@@ -104,9 +104,8 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 			function populateAreaListView(callback) {
 				var areaListItems = [];
 				for(var i = 0; i < self.messageAreas.length; ++i) {
-					areaListItems.push(strUtil.format(
-						self.entryFormat, 
-						{ index : i, name : self.messageAreas[i].name, desc : self.messageAreas[i].desc	})
+					areaListItems.push(self.entryFormat.format(
+						{ index : i, name : self.messageAreas[i].name, desc : self.messageAreas[i].desc	} )
 					);
 				}
 

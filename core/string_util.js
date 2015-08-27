@@ -177,17 +177,40 @@ function debugEscapedString(s) {
 	return JSON.stringify(s).slice(1, -1);
 }
 
-function format(fmt) {
-    if (!arguments.length) {
-        return fmt;
-    }
-    
-    var args = typeof arguments[1];
-    args = (("string" === args || "number" === args) ? arguments : arguments[1]);
-    
-    for(var arg in args) {
-        fmt = fmt.replace(RegExp("\\{" + arg + "\\}", "gi"), args[arg]);
-    }
-    
-    return fmt;
-}
+//
+//	Extend String.format's object syntax with some modifiers
+//	e.g.: '{username!styleL33t}'.format( { username : 'Leet User' } ) -> "L33t U53r"
+//
+var stringFormatExtensions = {
+	styleUpper : function(s) {
+		return stylizeString(s, 'upper');
+	},
+	styleLower : function(s) {
+		return stylizeString(s, 'lower');
+	},
+	styleTitle : function(s) {
+		return stylizeString(s, 'title');
+	},
+	styleFirstLower : function(s) {
+		return stylizeString(s, 'first lower');
+	},
+	styleSmallVowels : function(s) {
+		return stylizeString(s, 'small vowels');
+	},
+	styleBigVowels : function(s) {
+		return stylizeString(s, 'big vowels');
+	},
+	styleSmallI : function(s) {
+		return stylizeString(s, 'small i');
+	},
+	styleMixed : function(s) {
+		return stylizeString(s, 'mixed');
+	},
+	styleL33t : function(s) {
+		return stylizeString(s, 'l33t');
+	}
+
+	//	:TODO: Add padding/etc. modifiers.
+};
+
+exports.stringFormatExtensions = stringFormatExtensions;

@@ -85,10 +85,10 @@ function prepareTerminal(term) {
 
 function displayBanner(term) {
 	//	:TODO: add URL(s) to banner
-	term.pipeWrite(util.format(
-		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 %s\n'	+
+	term.pipeWrite(
+		('|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 {0}\n'	+
 		'|00|33Copyright (c) 2014-2015 Bryan Ashby |33|01- |31|01http://l33t.codes/\n'	+ 
-		'|00', packageJson.version));
+		'|00').format(packageJson.version));
 }
 
 function connectEntry(client) {
