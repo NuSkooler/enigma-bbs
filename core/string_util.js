@@ -9,7 +9,6 @@ exports.pad					= pad;
 exports.replaceAt			= replaceAt;
 exports.isPrintable			= isPrintable;
 exports.debugEscapedString	= debugEscapedString;
-exports.format				= format;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];

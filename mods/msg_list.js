@@ -3,6 +3,7 @@
 
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var ViewController		= require('../core/view_controller.js').ViewController;
+var messageArea			= require('../core/message_area.js');
 
 //var moment				= require('moment');
 var async				= require('async');
@@ -32,7 +33,7 @@ exports.moduleInfo = {
 //		
 //	Ideas
 //	* Module config can define custom formats for items & focused items (inc. Pipe Codes)
-//	* Single list view with advanced formatting (would need textOverflow stuff)
+//	* Single list view with advanced formatting (would need textOverflow stuff), advanced formatting...
 //	* Multiple LV's in sync with keyboard input
 //	* New Table LV (TV)
 //	* 
@@ -52,7 +53,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 
 	var vc		= self.viewControllers.msgList = new ViewController( { client : self.client } );
 
-	async.series(
+	async.waterfall(
 		[
 			function callParentMciReady(callback) {
 				MessageListModule.super_.prototype.mciReady.call(this, mciData, callback);
@@ -66,10 +67,31 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				vc.loadFromMenuConfig(loadOpts, callback);
 			},
 			function fetchMessagesInArea(callback) {
-				
+				messageArea.getMessageListForArea( { client : self.client }, self.client.user.properties.message_area_name, function msgs(err, msgList) {
+					callback(err, msgList);
+				});
+			},
+			function populateList(msgList, callback) {
+				var msgListView = vc.getView(1);
+
+				//	:TODO: {name!over5}, ...over6, over7... -> "text..." for format()
+
+				var msgNum = 1;
+				msgListView.setItems(_.map(msgList, function formatMsgListEntry(mle) {
+					return '{msgNum} - {subj}         {to}'.format( { 
+						msgNum	: msgNum++, 
+						subj	: mle.subject,
+						to		: mle.to
+					} );
+				}));
+
+				msgListView.redraw();
 			}
 		],
 		function complete(err) {
+			if(err) {
+				console.log(err)
+			}
 			cb(err);
 		}
 	);

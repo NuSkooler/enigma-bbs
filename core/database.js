@@ -136,6 +136,16 @@ function createMessageBaseTables() {
 		'	message_id	INTEGER NOT NULL'				+
 		');'
 	);
+
+	dbs.message.run(
+		'CREATE TABLE IF NOT EXISTS user_message_status ('	+
+		'	user_id		INTEGER NOT NULL,'					+
+		'	message_id	INTEGER NOT NULL,'					+
+		'	status		INTEGER NOT NULL,'					+
+		'	UNIQUE(user_id, message_id, status),'			+
+		'	FOREIGN KEY(user_id) REFERENCES user(id)'		+
+		');'
+	);
 }
 
 function createInitialMessageValues() {

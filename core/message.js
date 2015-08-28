@@ -78,6 +78,11 @@ Message.WellKnownAreaNames = {
 	Private	: 'private_mail'
 };
 
+Message.Status = {
+	New		: 0,
+	Read	: 1,
+};
+
 Message.MetaCategories = {
 	System				: 1,			//	ENiGMA1/2 stuff
 	FtnProperty			: 2,			//	Various FTN network properties, ftn_cost, ftn_origin, ...
