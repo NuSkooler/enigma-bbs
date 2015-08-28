@@ -81,7 +81,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					return '{msgNum} - {subj}         {to}'.format( { 
 						msgNum	: msgNum++, 
 						subj	: mle.subject,
-						to		: mle.to
+						to		: mle.toUsername
 					} );
 				}));
 
