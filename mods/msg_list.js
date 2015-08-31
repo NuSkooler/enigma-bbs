@@ -44,6 +44,17 @@ function MessageListModule(options) {
 	MenuModule.call(this, options);
 
 	var self = this;
+
+	this.messageList = [];
+
+	this.menuMethods = {
+		selectMessage : function(formData, extraArgs) {
+			if(1 === formData.submitId) {
+				var selectedMessage = self.messageList[formData.value.message];
+				console.log(selectedMessage)
+			}
+		}
+	};
 }
 
 require('util').inherits(MessageListModule, MenuModule);
@@ -53,7 +64,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 
 	var vc		= self.viewControllers.msgList = new ViewController( { client : self.client } );
 
-	async.waterfall(
+	async.series(
 		[
 			function callParentMciReady(callback) {
 				MessageListModule.super_.prototype.mciReady.call(this, mciData, callback);
@@ -68,16 +79,17 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 			},
 			function fetchMessagesInArea(callback) {
 				messageArea.getMessageListForArea( { client : self.client }, self.client.user.properties.message_area_name, function msgs(err, msgList) {
-					callback(err, msgList);
+					self.messageList = msgList;
+					callback(err);
 				});
 			},
-			function populateList(msgList, callback) {
+			function populateList(callback) {
 				var msgListView = vc.getView(1);
 
 				//	:TODO: {name!over5}, ...over6, over7... -> "text..." for format()
 
 				var msgNum = 1;
-				msgListView.setItems(_.map(msgList, function formatMsgListEntry(mle) {
+				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
 					return '{msgNum} - {subj}         {to}'.format( { 
 						msgNum	: msgNum++, 
 						subj	: mle.subject,

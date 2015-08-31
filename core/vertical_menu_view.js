@@ -156,9 +156,11 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 				this.focusedItemIndex = this.items.length - 1;
 				
 				this.viewWindow = {
-					top		: this.items.length - this.maxVisibleItems,
+					//top		: this.items.length - this.maxVisibleItems,
+					top		: Math.max(this.items.length - this.maxVisibleItems, 0),
 					bottom	: this.items.length - 1
 				};
+
 			} else {
 				this.focusedItemIndex--;
 

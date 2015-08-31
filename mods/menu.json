@@ -86,7 +86,8 @@
 			//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
 			"prompt"	: "userCredentials",
 			"fallback"	: "matrix",
-			"next"		: "fullLoginSequenceLoginArt",
+			//"next"		: "fullLoginSequenceLoginArt",
+			"next" : "messageArea",
 			"action"	: "@systemMethod:login",
 
 			//	:TODO: support alt submit method for prompts
@@ -329,9 +330,26 @@
 					"VM" : {
 						"mci" :  {
 							"VM1" : {
-								"height"	: 10
+								"height"	: 10,
+								"focus"		: true,
+								"submit"	: true,
+								"argName"	: "message"
 							}
-						}
+						},
+						"submit" : {
+							"*": [
+								{
+									"value"		: { "message" : null },
+									"action"	: "@method:selectMessage"
+								}
+							]
+						},
+						"actionKeys" : [
+							{
+								"keys"		: [ "escape" ],
+								"action"	: "@menu:messageArea"
+							}
+						]
 					}
 				}
 			}
