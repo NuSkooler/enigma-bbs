@@ -12,7 +12,7 @@ exports.getModule				= AreaPostFSEModule;
 
 exports.moduleInfo = {
 	name	: 'Message Area Post',
-	desc	: 'Module posting a new message to an area',
+	desc	: 'Module for posting a new message to an area',
 	author	: 'NuSkooler',
 };
 

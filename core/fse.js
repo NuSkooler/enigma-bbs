@@ -44,11 +44,11 @@ function FullScreenEditorModule(options) {
 	this.editorMode	= config.editorMode;
 
 	if(_.isObject(options.extraArgs)) {
-		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaIds.Private;
+		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
 	}
 
 	this.isLocalEmail = function() {
-		return 'email' === this.editorType && Message.WellKnownAreaIds.Private === this.messageAreaName;
+		return 'email' === this.editorType && Message.WellKnownAreaNames.Private === this.messageAreaName;
 	};
 
 	this.getFooterName = function(editorMode) {
@@ -68,10 +68,10 @@ function FullScreenEditorModule(options) {
 		}[name];
 	};
 
-	this.getMessage = function() {
+	this.buildMessage = function() {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
-		var messageOpts = {
+		var msgOpts = {
 			areaName		: self.messageAreaName,
 			toUserName		: headerValues.to,
 			fromUserName	: headerValues.from,
@@ -79,7 +79,21 @@ function FullScreenEditorModule(options) {
 			message			: self.viewControllers.body.getFormData().value.message,
 		};
 
-		return new Message(messageOpts);
+		self.message = new Message(msgOpts);
+	};
+
+	this.setMessage = function(message) {
+		console.log('setting message....')
+		console.log(message)
+		self.message = message;
+	};
+
+	this.getMessage = function() {
+		if('edit' === this.editMode) {
+			self.buildMessage();
+		}
+
+		return self.message;
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -239,7 +253,9 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
-				console.log(err)
+				if(err) {					
+					console.log(err)
+				}
 			}
 		);	
 	};
@@ -297,9 +313,22 @@ function FullScreenEditorModule(options) {
 
 					callback(null);
 				},
+				function loadSuppliedMessage(callback) {
+					if(self.message) {
+						self.initHeaderFromMessage();
+					}
+					callback(null);
+				},
 				function setInitialFocus(callback) {
-					self.viewControllers.body.setFocus(false);
-					self.viewControllers.header.switchFocus(2);	//	to
+					switch(self.editorMode) {
+						case 'edit' :
+							self.switchToHeader();
+							break;
+
+						case 'view' :
+							self.switchToBody();
+							break;
+					}
 
 					callback(null);
 				}
@@ -350,40 +379,18 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
-	/*
-	this.displayHelp = function() {
-		//
-		//	Replace body area with a temporary read-only MultiLineEditText
-		//	with help contents. ESC or 'Q' closes back to previous state.
-		//
-		var formId = self.getFormId('help');
+	this.initHeaderFromMessage = function() {
+		assert(_.isObject(this.message));
 
-		if(_.isUndefined(self.viewControllers.help)) {
-			self.addViewController('help', new ViewController( { client : self.client, formId : formId } ));
+		var fromView	= this.viewControllers.header.getView(1);	//	TL
+		var toView		= this.viewControllers.header.getView(2);	//	ET
+		var subjView	= this.viewControllers.header.getView(3);	//	ET
 
-			var helpViewOpts = {
-				position		: self.getBodyView().position,
-				//dimens			: self.getBodyView().dimens,
-				acceptsFocus	: true,
-				acceptsInput	: true,
-				id				: 1,
-				client			: self.client,
-				ansiSGR			: ansi.sgr( [ 'normal', 'reset' ] ),	//	:TODO: use a styleSGRx here; default to white on black
-			};
-
-			var helpView = new MultiLineEditTextView(helpViewOpts);
-			//	:TODO: this is to work around a bug... dimens in ctor should be enough!
-			helpView.setWidth(self.getBodyView().dimens.width);
-			helpView.setHeight(self.getBodyView().dimens.height);
-			helpView.setText('Some help text...')
-
-			self.viewControllers.help.addView(helpView);
-			self.viewControllers.help.switchFocus(1);
-		}
-
-		self.viewControllers.help.redrawAll();
+		fromView.setText(this.message.fromUserName);
+		toView.setText(this.message.toUserName);
+		subjView.setText(this.message.subject);
+		
 	};
-	*/
 
 	this.displayHelp = function() {
 		self.client.term.rawWrite(ansi.resetScreen());
@@ -398,7 +405,7 @@ function FullScreenEditorModule(options) {
 		);
 	};
 
-	this.observeEditEvents = function() {
+	this.observeEditorEvents = function() {
 		var bodyView = self.viewControllers.body.getView(1);
 
 		bodyView.on('edit position', function cursorPosUpdate(pos) {
@@ -410,13 +417,22 @@ function FullScreenEditorModule(options) {
 		});
 	};
 
+	this.switchToHeader = function() {
+		self.viewControllers.body.setFocus(false);
+		self.viewControllers.header.switchFocus(2);	//	to
+	};
+
+	this.switchToBody = function() {
+		self.viewControllers.header.setFocus(false);
+		self.viewControllers.body.switchFocus(1);
+
+		self.observeEditorEvents();
+	};
+
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
-			self.viewControllers.header.setFocus(false);
-			self.viewControllers.body.switchFocus(1);
-
-			self.observeEditEvents();
+			self.switchToBody();
 		},
 		editModeEscPressed : function(formData, extraArgs) {
 			self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
@@ -432,7 +448,7 @@ function FullScreenEditorModule(options) {
 								self.viewControllers.footerEditMenu.setFocus(false);
 							}
 							self.viewControllers.body.switchFocus(1);
-							self.observeEditEvents();
+							self.observeEditorEvents();
 							break;
 
 						case 'editMenu' :
@@ -459,6 +475,10 @@ function FullScreenEditorModule(options) {
 			self.displayHelp();
 		}
 	};
+
+	if(_.isObject(options.extraArgs.message)) {
+		this.setMessage(options.extraArgs.message);
+	}
 }
 
 require('util').inherits(FullScreenEditorModule, MenuModule);

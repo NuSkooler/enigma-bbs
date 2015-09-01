@@ -96,13 +96,13 @@ function getMessageListForArea(options, areaName, cb) {
 					function msgRow(err, row) {
 						if(!err) {
 							msgList.push( { 
-								id				: row.message_id,
-								uuid			: row.message_uuid,
-								replyToId		: row.reply_to_message_id,
-								toUsername		: row.to_user_name,
-								fromUsername	: row.from_user_name,
+								messageId		: row.message_id,
+								messageUuid		: row.message_uuid,
+								replyToMsgId	: row.reply_to_message_id,
+								toUserName		: row.to_user_name,
+								fromUserName	: row.from_user_name,
 								subject			: row.subject,
-								timestamp		: row.modified_timestamp,
+								modTimestamp	: row.modified_timestamp,
 								viewCount		: row.view_count,
 							} );
 						}

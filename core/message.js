@@ -11,6 +11,7 @@ var assert			= require('assert');
 module.exports = Message;
 
 function Message(options) {
+	options = options || {};
 
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
 	this.areaName		= options.areaName || Message.WellKnownAreaNames.Invalid;
@@ -120,6 +121,58 @@ Message.prototype.setLocalToUserId = function(userId) {
 
 Message.prototype.setLocalFromUserId = function(userId) {
 	this.meta.system.local_from_user_id = userId;
+};
+
+Message.prototype.load = function(options, cb) {
+	assert(_.isString(options.uuid));
+
+	var self = this;
+
+	async.series(
+		[
+			function loadMessage(callback) {
+				msgDb.get(
+					'SELECT message_id, area_name, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, '	+
+					'message, modified_timestamp, view_count '																	+
+					'FROM message '																								+
+					'WHERE message_uuid=? '																						+
+					'LIMIT 1;',
+					[ options.uuid ],
+					function row(err, msgRow) {
+						self.messageId		= msgRow.message_id;
+						self.areaName		= msgRow.area_name;
+						self.messageUuid	= msgRow.message_uuid;
+						self.replyToMsgId	= msgRow.reply_to_message_id;
+						self.toUserName		= msgRow.to_user_name;
+						self.fromUserName	= msgRow.from_user_name;
+						self.subject		= msgRow.subject;
+						self.message		= msgRow.message;
+						self.modTimestamp	= msgRow.modified_timestamp;
+						self.viewCount		= msgRow.view_count;
+
+						callback(err);
+					}
+				);
+			},
+			function loadMessageMeta(callback) {
+				//	:TODO:
+				callback(null);
+			},
+			function loadHashTags(callback) {
+				//	:TODO:
+				callback(null);
+			},
+			function loadMessageStatus(callback) {
+				if(options.user) {
+					//	:TODO: Load from user_message_status
+				}
+				callback(null);
+			}
+		],
+		function complete(err) {
+			cb(err);
+		}
+	);
 };
 
 Message.prototype.persist = function(cb) {

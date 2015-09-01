@@ -354,6 +354,108 @@
 				}
 			}
 		},
+		"messageAreaViewPost" :  {
+			"module" 	: "msg_area_view_fse",
+			"options"	: { "cls" : true },
+			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
+			"config"	: {
+				"art" : {
+					"header"			: "msg_area_post_header",	//	:TODO: FIXME!
+					"body"				: "demo_fse_netmail_body.ans",
+					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
+					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+					"footerView"		: "msg_area_footer_view.ans",
+					"help"				: "demo_fse_netmail_help.ans"
+				},
+				"editorType"	: "area"
+			},
+			"form" : {
+				"0" : {
+					"ETETTL" : {
+						"mci" : {
+							"TL1" : {
+								"width"		: 36
+							},
+							"ET2" : {
+								"width"		: 36
+							},
+							"ET3" : {
+								"width"		: 65
+							},
+							"MA5" : {
+								"width"			: 19,
+								"textOverflow"	: "..."
+							}
+							/*,
+							"TL4" :  {
+								"width"			: 19,
+								"textOverflow"	: "..."
+							}*/
+						}
+					}
+				},
+				"1" : {
+					"MT" : {
+						"mci" : {
+							"MT1" : {
+								"width"		: 79,
+								"height"	: 17
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: "message",
+									"action"	: "@method:editModeEscPressed"
+								}
+							]
+						},
+						"actionKeys" : [
+							{
+								"keys"		: [ "escape" ],
+								"viewId"	: 1
+							}
+						]
+					}
+				},
+				"2" : {
+					"TLTL" :  {
+						"mci" : {
+							"TL1" : {
+								"width"	: 5
+							},
+							"TL2" : {
+								"width" : 4
+							}
+						}
+					}
+				},
+				"3" : {
+					"HM" : {
+						"mci" : {
+							"HM1" : {
+								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
+								"items" : [ "Save", "Discard", "Quote", "Help" ]
+							}
+						}/*,
+						"submit" : {
+							"*" : [
+								{
+									"value"		: { "1" : 0 },
+									"action"	: "@method:editModeMenuSave"
+								}
+							]
+						}*/,
+						"actionKeys" : [	//	:TODO: Need better name
+							{
+								"keys"		: [ "escape" ],
+								"action"	: "@method:editModeEscPressed"
+							}
+						]
+					}
+				}
+			}
+		},
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		"messageAreaNewPost" : {
 			"module"	: "msg_area_post_fse",

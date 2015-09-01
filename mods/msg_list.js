@@ -4,6 +4,7 @@
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var ViewController		= require('../core/view_controller.js').ViewController;
 var messageArea			= require('../core/message_area.js');
+var Message				= require('../core/message.js');
 
 //var moment				= require('moment');
 var async				= require('async');
@@ -50,8 +51,28 @@ function MessageListModule(options) {
 	this.menuMethods = {
 		selectMessage : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
-				var selectedMessage = self.messageList[formData.value.message];
-				console.log(selectedMessage)
+				var selected = self.messageList[formData.value.message];
+				console.log(selected);
+				
+				//						
+				//	Load full Message object
+				//
+				var msg = new Message();
+				msg.load( { uuid : selected.messageUuid, user : self.client.user }, function loaded(err) {
+
+					if(err) {
+						//	:TODO: Now what?!
+						console.log(err)
+					} else {
+						var modOpts = {				
+							//	:TODO: get this name from config
+							name		: 'messageAreaViewPost',
+							extraArgs	: { message : msg },
+						};
+
+						self.client.gotoMenuModule(modOpts);
+					}
+				});
 			}
 		}
 	};
@@ -98,6 +119,8 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				}));
 
 				msgListView.redraw();
+
+				callback(null);
 			}
 		],
 		function complete(err) {
