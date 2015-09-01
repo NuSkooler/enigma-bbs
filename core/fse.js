@@ -305,7 +305,7 @@ function FullScreenEditorModule(options) {
 					var header = self.viewControllers.header;
 					var from = header.getView(1);
 					from.acceptsFocus = false;
-					from.setText(self.client.user.username);
+					//from.setText(self.client.user.username);
 
 					var body = self.viewControllers.body.getView(1);
 					self.updateTextEditMode(body.getTextEditMode());
@@ -313,10 +313,19 @@ function FullScreenEditorModule(options) {
 
 					callback(null);
 				},
-				function loadSuppliedMessage(callback) {
-					if(self.message) {
-						self.initHeaderFromMessage();
+				function setInitialData(callback) {
+					switch(self.editorMode) {
+						case 'view' :
+							if(self.message) {
+								self.initHeaderFromMessage();
+							}
+							break;
+							
+						case 'edit' :
+							self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
+							break;
 					}
+
 					callback(null);
 				},
 				function setInitialFocus(callback) {
