@@ -78,6 +78,17 @@ function loadTheme(themeID, cb) {
 							return theme.customization.defaults.timeFormat[style] || format;
 						}
 						return format;
+					},
+					getDateTimeFormat : function(style) {
+						style = style || 'short';
+
+						var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+
+						if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
+							return theme.customization.defaults.dateTimeFormat[style] || format;
+						}
+
+						return format;
 					}
 				};
 

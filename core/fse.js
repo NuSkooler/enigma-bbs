@@ -438,8 +438,7 @@ function FullScreenEditorModule(options) {
 		toView.setText(self.message.toUserName);
 		subjView.setText(self.message.subject);
 
-		//	:TODO: set full date/time -- need a defaults dateTimeFormat
-		tsView.setText(moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateFormat()));
+		tsView.setText(moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
 
 		
 	};
