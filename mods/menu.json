@@ -360,27 +360,31 @@
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			"config"	: {
 				"art" : {
-					"header"			: "msg_area_post_header",	//	:TODO: FIXME!
+					"header"			: "msg_area_view_header",
 					"body"				: "demo_fse_netmail_body.ans",
 					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
 					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
 					"footerView"		: "msg_area_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
 				},
+				"editorMode"	: "view",
 				"editorType"	: "area"
 			},
 			"form" : {
 				"0" : {
-					"ETETTL" : {
+					"TLTLTLTL" : {
 						"mci" : {
 							"TL1" : {
 								"width"		: 36
 							},
-							"ET2" : {
+							"TL2" : {
 								"width"		: 36
 							},
-							"ET3" : {
+							"TL3" : {
 								"width"		: 65
+							},
+							"TL5" :  {
+								"width"		: 19
 							},
 							"MA5" : {
 								"width"			: 19,

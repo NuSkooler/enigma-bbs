@@ -11,6 +11,7 @@ var Message					= require('../core/message.js');
 var async					= require('async');
 var assert					= require('assert');
 var _						= require('lodash');
+var moment					= require('moment');
 
 exports.FullScreenEditorModule	= FullScreenEditorModule;
 
@@ -23,6 +24,25 @@ exports.moduleInfo = {
 	desc	: 'A full screen editor/viewer',
 	author	: 'NuSkooler',
 };
+
+/*
+	MCI Codes - General
+		MA - Message Area Desc
+
+	MCI Codes - View Mode
+		Header
+			TL1 - From
+			TL2 - To
+			TL3 - Subject
+			
+			TL5 - Date/Time (TODO: format)
+			TL6 - Message  number/total
+			TL7 - View Count
+			TL8 - Hash tags
+			TL9 - Message ID
+			TL10 - Reply to message ID
+			
+*/
 
 function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
@@ -46,13 +66,21 @@ function FullScreenEditorModule(options) {
 	if(_.isObject(options.extraArgs)) {
 		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
 	}
+	
+	this.isEditMode = function() {
+		return 'edit' === self.editorMode;
+	};
+	
+	this.isViewMode = function() {
+		return 'view' === self.editorMode;
+	};
 
 	this.isLocalEmail = function() {
-		return 'email' === this.editorType && Message.WellKnownAreaNames.Private === this.messageAreaName;
+		return 'email' === self.editorType && Message.WellKnownAreaNames.Private === self.messageAreaName;
 	};
 
 	this.getFooterName = function(editorMode) {
-		editorMode = editorMode || this.editorMode;
+		editorMode = editorMode || self.editorMode;
 		return 'footer' + _.capitalize(editorMode);	//	e.g.. 'footerEditMenu'
 	};
 
@@ -83,13 +111,13 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.setMessage = function(message) {
-		console.log('setting message....')
 		console.log(message)
+		
 		self.message = message;
 	};
 
 	this.getMessage = function() {
-		if('edit' === this.editMode) {
+		if(self.isEditMode()) {
 			self.buildMessage();
 		}
 
@@ -307,17 +335,26 @@ function FullScreenEditorModule(options) {
 					from.acceptsFocus = false;
 					//from.setText(self.client.user.username);
 
+					//	:TODO: make this a method
 					var body = self.viewControllers.body.getView(1);
 					self.updateTextEditMode(body.getTextEditMode());
 					self.updateEditModePosition(body.getEditPosition());
 
+					//	:TODO: If view mode, set body to read only... which needs an impl...
+
 					callback(null);
 				},
 				function setInitialData(callback) {
+					
 					switch(self.editorMode) {
 						case 'view' :
 							if(self.message) {
 								self.initHeaderFromMessage();
+
+								var bodyMessageView = self.viewControllers.body.getView(1);
+								if(bodyMessageView && _.has(self, 'message.message')) {
+									bodyMessageView.setText(self.message.message);
+								}
 							}
 							break;
 							
@@ -329,6 +366,7 @@ function FullScreenEditorModule(options) {
 					callback(null);
 				},
 				function setInitialFocus(callback) {
+					
 					switch(self.editorMode) {
 						case 'edit' :
 							self.switchToHeader();
@@ -389,15 +427,20 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.initHeaderFromMessage = function() {
-		assert(_.isObject(this.message));
+		assert(_.isObject(self.message));
 
-		var fromView	= this.viewControllers.header.getView(1);	//	TL
-		var toView		= this.viewControllers.header.getView(2);	//	ET
-		var subjView	= this.viewControllers.header.getView(3);	//	ET
+		var fromView	= self.viewControllers.header.getView(1);	//	TL
+		var toView		= self.viewControllers.header.getView(2);	//	TL
+		var subjView	= self.viewControllers.header.getView(3);	//	TL
+		var tsView		= self.viewControllers.header.getView(5);	//	TL
 
-		fromView.setText(this.message.fromUserName);
-		toView.setText(this.message.toUserName);
-		subjView.setText(this.message.subject);
+		fromView.setText(self.message.fromUserName);
+		toView.setText(self.message.toUserName);
+		subjView.setText(self.message.subject);
+
+		//	:TODO: set full date/time -- need a defaults dateTimeFormat
+		tsView.setText(moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateFormat()));
+
 		
 	};
 
