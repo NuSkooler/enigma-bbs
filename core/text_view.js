@@ -127,7 +127,12 @@ TextView.prototype.setText = function(text) {
 
 	this.text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
 
+	/*
 	if(this.resizable) {
+		this.dimens.width = this.text.length + widthDelta;
+	}
+	*/
+	if(this.autoScale.width) {
 		this.dimens.width = this.text.length + widthDelta;
 	}
 

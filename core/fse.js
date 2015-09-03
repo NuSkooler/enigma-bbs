@@ -346,10 +346,10 @@ function FullScreenEditorModule(options) {
 				},
 				function setInitialData(callback) {
 					
-					switch(self.editorMode) {
+					switch(self.editorMode) {						
 						case 'view' :
 							if(self.message) {
-								self.initHeaderFromMessage();
+								self.initHeaderViewMode();
 
 								var bodyMessageView = self.viewControllers.body.getView(1);
 								if(bodyMessageView && _.has(self, 'message.message')) {
@@ -426,21 +426,38 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
-	this.initHeaderFromMessage = function() {
+	this.initHeaderViewMode = function() {
 		assert(_.isObject(self.message));
 
-		var fromView	= self.viewControllers.header.getView(1);	//	TL
-		var toView		= self.viewControllers.header.getView(2);	//	TL
-		var subjView	= self.viewControllers.header.getView(3);	//	TL
-		var tsView		= self.viewControllers.header.getView(5);	//	TL
+		function setHeaderText(id, text) {
+			var v = self.viewControllers.header.getView(id);
+			if(v) {
+				v.setText(text);
+			}
+		}
+		/*	TL1 - From
+			TL2 - To
+			TL3 - Subject
+			
+			TL5 - Date/Time (TODO: format)
+			TL6 - Message number
+			TL7 - Mesage total (in area)
+			TL8 - View Count
+			TL9 - Hash tags
+			TL10 - Message ID
+			TL11 - Reply to message ID*/
 
-		fromView.setText(self.message.fromUserName);
-		toView.setText(self.message.toUserName);
-		subjView.setText(self.message.subject);
-
-		tsView.setText(moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-
+		setHeaderText(1, self.message.fromUserName);
+		setHeaderText(2, self.message.toUserName);
+		setHeaderText(3, self.message.subject);
 		
+		setHeaderText(5, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
+		setHeaderText(6, '1');	//	:TODO: Message number
+		setHeaderText(7, '100');	//	:TODO: Message total
+		setHeaderText(8, self.message.viewCount);
+		setHeaderText(9, 'TODO hash tags');
+		setHeaderText(10, self.message.messageId);
+		setHeaderText(11, self.message.replyToMessageId);
 	};
 
 	this.displayHelp = function() {

@@ -145,12 +145,20 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 
 	Log.trace( { mciKey : mciReqKey }, 'Looking for MCI configuration key');
 
+	//
+	//	Exact, explicit match?
+	//
 	if(_.isObject(formForId[mciReqKey])) {
+		Log.trace( { mciKey : mciReqKey }, 'Using exact configuration key match');
 		cb(null, formForId[mciReqKey]);
 		return;
 	} 
 
+	//
+	//	Generic match
+	//
 	if(_.has(formForId, 'mci') || _.has(formForId, 'submit')) {
+		Log.trace('Using generic configuration');
 		cb(null, formForId);
 		return;
 	}

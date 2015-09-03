@@ -232,7 +232,7 @@ function ViewController(options) {
 				return;
 			}
 
-			var mciConf		= config.mci[mci];
+			var mciConf	= config.mci[mci];
 
 			self.setViewPropertiesFromMCIConf(view, mciConf);
 

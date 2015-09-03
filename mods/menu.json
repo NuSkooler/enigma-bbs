@@ -372,29 +372,23 @@
 			},
 			"form" : {
 				"0" : {
-					"TLTLTLTL" : {
-						"mci" : {
-							"TL1" : {
-								"width"		: 36
-							},
-							"TL2" : {
-								"width"		: 36
-							},
-							"TL3" : {
-								"width"		: 65
-							},
-							"TL5" :  {
-								"width"		: 19
-							},
-							"MA5" : {
-								"width"			: 19,
-								"textOverflow"	: "..."
-							}
-							/*,
-							"TL4" :  {
-								"width"			: 19,
-								"textOverflow"	: "..."
-							}*/
+					"mci" : {
+						"TL1" : {
+							"width"		: 36
+						},
+						"TL2" : {
+							"width"		: 36
+						},
+						"TL3" : {
+							"width"			: 39,
+							"textOverflow"	: "..."
+						},
+						"TL5" :  {
+							"width"		: 19
+						},
+						"MA5" : {
+							"width"			: 19,
+							"textOverflow"	: "..."
 						}
 					}
 				},
@@ -403,7 +397,8 @@
 						"mci" : {
 							"MT1" : {
 								"width"		: 79,
-								"height"	: 17
+								"height"	: 17,
+								"mode"		: "preview"
 							}
 						},
 						"submit" : {

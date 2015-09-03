@@ -124,6 +124,14 @@ function MultiLineEditTextView(options) {
 		}[sgrFor] || self.getSGR();
 	};
 
+	this.isEditMode = function() {
+		return 'edit' === self.mode;
+	};
+
+	this.isPreviewMode = function() {
+		return 'preview' === self.mode;
+	};
+
 	//	:TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
 	this.getTextLinesIndex = function(row) {
 		if(!_.isNumber(row)) {
@@ -1050,6 +1058,10 @@ MultiLineEditTextView.prototype.getData = function() {
 };
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
+	switch(propName) {
+		case 'mode'		: this.mode = value; break;
+	}
+
 	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 
@@ -1064,6 +1076,16 @@ var HANDLED_SPECIAL_KEYS = [
 	'delete line',
 ];
 
+/*
+var EDIT_MODE_KEYS = [
+	'line feed', 'insert', 'tab', 'backspace', 'del', 'delete line'
+];
+*/
+
+var PREVIEW_MODE_KEYS = [
+	'up', 'down', 'page up', 'page down'
+];
+
 MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 	var self = this;
 	var handled;
@@ -1071,13 +1093,18 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 	if(key) {		
 		HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
 			if(self.isKeyMapped(specialKey, key.name)) {
+
+				if(self.isPreviewMode() && -1 === PREVIEW_MODE_KEYS.indexOf(specialKey)) {
+					return;
+				}
+
 				self[_.camelCase('keyPress ' + specialKey)]();
 				handled = true;
 			}
 		});
 	}
 
-	if(ch && strUtil.isPrintable(ch)) {
+	if(self.isEditMode() && ch && strUtil.isPrintable(ch)) {
 		this.keyPressCharacter(ch);
 	}
 
