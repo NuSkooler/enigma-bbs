@@ -36,20 +36,27 @@ exports.moduleInfo = {
 			TL3 - Subject
 			
 			TL5 - Date/Time (TODO: format)
-			TL6 - Message  number/total
-			TL7 - View Count
-			TL8 - Hash tags
-			TL9 - Message ID
-			TL10 - Reply to message ID
+			TL6 - Message number
+			TL7 - Mesage total (in area)
+			TL8 - View Count
+			TL9 - Hash tags
+			TL10 - Message ID
+			TL11 - Reply to message ID
 			
 */
-
-
 var MCICodeIds = {
 	Header : {
-		From		: 1,
-		To			: 2,
-		Subject		: 3,
+		From			: 1,
+		To				: 2,
+		Subject			: 3,
+
+		DateTime		: 5,
+		MsgNum			: 6,
+		MsgTotal		: 7,
+		ViewCount		: 8,
+		HashTags		: 9,
+		MessageID		: 10,
+		ReplyToMsgID	: 11
 	}
 };
 
@@ -467,15 +474,14 @@ function FullScreenEditorModule(options) {
 
 		setHeaderText(MCICodeIds.Header.From, self.message.fromUserName);
 		setHeaderText(MCICodeIds.Header.To, self.message.toUserName);
-		setHeaderText(MCICodeIds.Subject, self.message.subject);
-		
-		setHeaderText(5, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		setHeaderText(6, '1');	//	:TODO: Message number
-		setHeaderText(7, '100');	//	:TODO: Message total
-		setHeaderText(8, self.message.viewCount);
-		setHeaderText(9, 'TODO hash tags');
-		setHeaderText(10, self.message.messageId);
-		setHeaderText(11, self.message.replyToMessageId);
+		setHeaderText(MCICodeIds.Header.Subject, self.message.subject);
+		setHeaderText(MCICodeIds.Header.DateTime, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
+		setHeaderText(MCICodeIds.Header.MsgNum, '1');	//	:TODO: Message number
+		setHeaderText(MCICodeIds.Header.MsgTotal, '100');	//	:TODO: Message total
+		setHeaderText(MCICodeIds.Header.ViewCount, self.message.viewCount);
+		setHeaderText(MCICodeIds.Header.HashTags, 'TODO hash tags');
+		setHeaderText(MCICodeIds.Header.MessageID, self.message.messageId);
+		setHeaderText(MCICodeIds.Header.ReplyToMsgID, self.message.replyToMessageId);
 	};
 
 	this.displayHelp = function() {
@@ -522,7 +528,6 @@ function FullScreenEditorModule(options) {
 		},
 		editModeEscPressed : function(formData, extraArgs) {
 			self.footerMode = 'editor' === self.footerMode ? 'editorMenu' : 'editor';
-			//self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
 
 			self.switchFooter(function next(err) {
 				if(err) {

@@ -56,6 +56,7 @@ function changeMessageArea(client, areaName, cb) {
 		],
 		function complete(err, area) {
 			if(!err) {
+				console.log(JSON.stringify(area))
 				client.log.info( area, 'Current message area changed');
 			} else {
 				client.log.warn( { area : area, error : err.message }, 'Could not change message area');
@@ -70,6 +71,8 @@ function getMessageListForArea(options, areaName, cb) {
 	//
 	//	options.client (required)
 	//
+
+	options.client.log.debug( { areaName : areaName }, 'Fetching available messages');
 
 	assert(_.isObject(options.client));
 

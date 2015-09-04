@@ -323,7 +323,7 @@
 			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",
 			"config" 	: {
-				"listType"	: "private"
+				"listType"	: "public"
 			},
 			"form"		: {
 				"0" : {
