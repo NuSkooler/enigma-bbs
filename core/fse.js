@@ -80,7 +80,9 @@ function FullScreenEditorModule(options) {
 	this.editorMode	= config.editorMode;
 
 	if(_.isObject(options.extraArgs)) {
-		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
+		this.messageAreaName	= options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
+		this.messageNumber		= options.extraArgs.messageNumber || 0;
+		this.messageTotal		= options.extraArgs.messageTotal || 0;
 	}
 	
 	this.isEditMode = function() {
@@ -460,24 +462,12 @@ function FullScreenEditorModule(options) {
 			}
 		}
 
-		/*	TL1 - From
-			TL2 - To
-			TL3 - Subject
-			
-			TL5 - Date/Time (TODO: format)
-			TL6 - Message number
-			TL7 - Mesage total (in area)
-			TL8 - View Count
-			TL9 - Hash tags
-			TL10 - Message ID
-			TL11 - Reply to message ID*/
-
 		setHeaderText(MCICodeIds.Header.From, self.message.fromUserName);
 		setHeaderText(MCICodeIds.Header.To, self.message.toUserName);
 		setHeaderText(MCICodeIds.Header.Subject, self.message.subject);
 		setHeaderText(MCICodeIds.Header.DateTime, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		setHeaderText(MCICodeIds.Header.MsgNum, '1');	//	:TODO: Message number
-		setHeaderText(MCICodeIds.Header.MsgTotal, '100');	//	:TODO: Message total
+		setHeaderText(MCICodeIds.Header.MsgNum, self.messageNumber.toString());
+		setHeaderText(MCICodeIds.Header.MsgTotal, self.messageTotal.toString());
 		setHeaderText(MCICodeIds.Header.ViewCount, self.message.viewCount);
 		setHeaderText(MCICodeIds.Header.HashTags, 'TODO hash tags');
 		setHeaderText(MCICodeIds.Header.MessageID, self.message.messageId);

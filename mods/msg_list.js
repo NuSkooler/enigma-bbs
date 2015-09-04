@@ -72,7 +72,12 @@ function MessageListModule(options) {
 						var modOpts = {				
 							//	:TODO: get this name from config
 							name		: 'messageAreaViewPost',
-							extraArgs	: { message : msg },
+							extraArgs	: { 
+								message 		: msg,
+								messageAreaName	: self.messageAreaName,
+								messageNumber	: formData.value.message + 1,
+								messageTotal	: self.messageList.length,
+							},
 						};
 
 						self.client.gotoMenuModule(modOpts);
