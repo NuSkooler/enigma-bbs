@@ -464,8 +464,8 @@
 				"art" : {
 					"header"			: "msg_area_post_header",
 					"body"				: "demo_fse_netmail_body.ans",
-					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
-					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+					"footerEditor"		: "demo_fse_netmail_footer_edit.ans",
+					"footerEditorMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
 					"footerView"		: "demo_fse_netmail_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
 				},
@@ -1069,8 +1069,8 @@
 				"art"			: {
 					"header"			: "demo_fse_netmail_header.ans",
 					"body"				: "demo_fse_netmail_body.ans",
-					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
-					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
+					"footerEditor"		: "demo_fse_netmail_footer_edit.ans",
+					"footerEditorMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
 					"footerView"		: "demo_fse_netmail_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
 				}

@@ -62,7 +62,7 @@ function FullScreenEditorModule(options) {
 	//
 	//	menuConfig.config:
 	//		editorType				: email | area
-	//		editorMode				: view | edit | quote (private: editMenu | ... )
+	//		editorMode				: view | edit | quote
 	//
 	//	extraArgs:
 	//		messageAreaName
@@ -72,15 +72,11 @@ function FullScreenEditorModule(options) {
 	this.editorType	= config.editorType;
 	this.editorMode	= config.editorMode;
 
-	console.log('editorMode=' + this.editorMode)
-
-
 	if(_.isObject(options.extraArgs)) {
 		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
 	}
 	
 	this.isEditMode = function() {
-		console.log(self.editorMode)
 		return 'edit' === self.editorMode;
 	};
 	
@@ -92,21 +88,27 @@ function FullScreenEditorModule(options) {
 		return 'email' === self.editorType && Message.WellKnownAreaNames.Private === self.messageAreaName;
 	};
 
-	this.getFooterName = function(editorMode) {
-		editorMode = editorMode || self.editorMode;
-		return 'footer' + _.capitalize(editorMode);	//	e.g.. 'footerEditMenu'
+	this.getFooterName = function() {
+		return 'footer' + _.capitalize(self.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
 	};
 
 	this.getFormId = function(name) {
 		return {
-			header			: 0,
-			body			: 1,
-			footerEdit		: 2,
-			footerEditMenu	: 3,
-			footerView		: 4,
+			header				: 0,
+			body				: 1,
+			footerEditor		: 2,
+			footerEditorMenu	: 3,
+			footerView			: 4,
 
-			help			: 50,
+			help				: 50,
 		}[name];
+	};
+
+	this.setInitialFooterMode = function() {
+		switch(self.editorMode) {
+			case 'edit' : self.footerMode = 'editor'; break;
+			case 'view' : self.footerMode = 'view'; break;
+		}
 	};
 
 	this.buildMessage = function() {
@@ -120,7 +122,6 @@ function FullScreenEditorModule(options) {
 			message			: self.viewControllers.body.getFormData().value.message,
 		};
 
-		console.log(msgOpts)
 		self.message = new Message(msgOpts);
 	};
 
@@ -131,9 +132,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.getMessage = function() {
-		console.log('getMessage')
 		if(self.isEditMode()) {
-			console.log('want build msg')
 			self.buildMessage();
 		}
 
@@ -226,8 +225,6 @@ function FullScreenEditorModule(options) {
 
 	this.switchFooter = function(cb) {
 		var footerName = self.getFooterName();
-
-		console.log('footerName=' + footerName)
 	
 		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
 			if(err) {
@@ -287,6 +284,8 @@ function FullScreenEditorModule(options) {
 					});
 				},
 				function displayFooter(callback) {
+					self.setInitialFooterMode();
+
 					var footerName = self.getFooterName();
 					self.redrawFooter( { footerName : footerName }, function artDisplayed(err, artData) {
 						mciData[footerName] = artData;
@@ -386,8 +385,7 @@ function FullScreenEditorModule(options) {
 				function setInitialFocus(callback) {
 					
 					switch(self.editorMode) {
-						case 'edit' :
-							self.editModeFocus = 'editor';
+						case 'edit' :							
 							self.switchToHeader();
 							break;
 
@@ -425,7 +423,7 @@ function FullScreenEditorModule(options) {
 
 	this.updateEditModePosition = function(pos) {
 		if('edit' === this.editorMode) {
-			var posView = self.viewControllers.footerEdit.getView(1);
+			var posView = self.viewControllers.footerEditor.getView(1);
 			if(posView) {
 				self.client.term.rawWrite(ansi.savePos());
 				posView.setText(_.padLeft(String(pos.row + 1), 2, '0') + ',' + _.padLeft(String(pos.col + 1), 2, '0'));
@@ -436,7 +434,7 @@ function FullScreenEditorModule(options) {
 
 	this.updateTextEditMode = function(mode) {
 		if('edit' === this.editorMode) {
-			var modeView = self.viewControllers.footerEdit.getView(2);
+			var modeView = self.viewControllers.footerEditor.getView(2);
 			if(modeView) {
 				self.client.term.rawWrite(ansi.savePos());
 				modeView.setText('insert' === mode ? 'INS' : 'OVR');
@@ -487,7 +485,7 @@ function FullScreenEditorModule(options) {
 			function helpDisplayed(err, artData) {
 				self.client.waitForKeyPress(function keyPress(ch, key) {
 					self.redrawScreen();
-					self.viewControllers.footerEditMenu.setFocus(true);
+					self.viewControllers.footerEditorMenu.setFocus(true);
 				});
 			}
 		);
@@ -523,7 +521,7 @@ function FullScreenEditorModule(options) {
 			self.switchToBody();
 		},
 		editModeEscPressed : function(formData, extraArgs) {
-			self.editModeFocus = 'editor' === self.editModeFocus ? 'editMenu' : 'editor';
+			self.footerMode = 'editor' === self.footerMode ? 'editorMenu' : 'editor';
 			//self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
 
 			self.switchFooter(function next(err) {
@@ -531,18 +529,18 @@ function FullScreenEditorModule(options) {
 					//	:TODO:... what now?
 					console.log(err)
 				} else {
-					switch(self.editModeFocus) {
+					switch(self.footerMode) {
 						case 'editor' :
-							if(!_.isUndefined(self.viewControllers.footerEditMenu)) {
-								self.viewControllers.footerEditMenu.setFocus(false);
+							if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
+								self.viewControllers.footerEditorMenu.setFocus(false);
 							}
 							self.viewControllers.body.switchFocus(1);
 							self.observeEditorEvents();
 							break;
 
-						case 'editMenu' :
+						case 'editorMenu' :
 							self.viewControllers.body.setFocus(false);
-							self.viewControllers.footerEditMenu.switchFocus(1);
+							self.viewControllers.footerEditorMenu.switchFocus(1);
 							break;
 
 						default : throw new Error('Unexpected mode');
@@ -560,7 +558,7 @@ function FullScreenEditorModule(options) {
 
 		},
 		editModeMenuHelp : function(formData, extraArgs) {
-			self.viewControllers.footerEditMenu.setFocus(false);
+			self.viewControllers.footerEditorMenu.setFocus(false);
 			self.displayHelp();
 		}
 	};
