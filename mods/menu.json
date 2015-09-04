@@ -323,7 +323,7 @@
 			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",
 			"config" 	: {
-
+				"listType"	: "private"
 			},
 			"form"		: {
 				"0" : {
@@ -469,6 +469,7 @@
 					"footerView"		: "demo_fse_netmail_footer_view.ans",
 					"help"				: "demo_fse_netmail_help.ans"
 				},
+				"editorMode"	: "edit",
 				"editorType"	: "area"
 			},
 			"form" : {

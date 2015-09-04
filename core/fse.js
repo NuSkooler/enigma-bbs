@@ -44,6 +44,15 @@ exports.moduleInfo = {
 			
 */
 
+
+var MCICodeIds = {
+	Header : {
+		From		: 1,
+		To			: 2,
+		Subject		: 3,
+	}
+};
+
 function FullScreenEditorModule(options) {
 	MenuModule.call(this, options);
 
@@ -63,11 +72,15 @@ function FullScreenEditorModule(options) {
 	this.editorType	= config.editorType;
 	this.editorMode	= config.editorMode;
 
+	console.log('editorMode=' + this.editorMode)
+
+
 	if(_.isObject(options.extraArgs)) {
 		this.messageAreaName = options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
 	}
 	
 	this.isEditMode = function() {
+		console.log(self.editorMode)
 		return 'edit' === self.editorMode;
 	};
 	
@@ -107,6 +120,7 @@ function FullScreenEditorModule(options) {
 			message			: self.viewControllers.body.getFormData().value.message,
 		};
 
+		console.log(msgOpts)
 		self.message = new Message(msgOpts);
 	};
 
@@ -117,7 +131,9 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.getMessage = function() {
+		console.log('getMessage')
 		if(self.isEditMode()) {
+			console.log('want build msg')
 			self.buildMessage();
 		}
 
@@ -210,6 +226,8 @@ function FullScreenEditorModule(options) {
 
 	this.switchFooter = function(cb) {
 		var footerName = self.getFooterName();
+
+		console.log('footerName=' + footerName)
 	
 		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
 			if(err) {
@@ -369,6 +387,7 @@ function FullScreenEditorModule(options) {
 					
 					switch(self.editorMode) {
 						case 'edit' :
+							self.editModeFocus = 'editor';
 							self.switchToHeader();
 							break;
 
@@ -435,6 +454,7 @@ function FullScreenEditorModule(options) {
 				v.setText(text);
 			}
 		}
+
 		/*	TL1 - From
 			TL2 - To
 			TL3 - Subject
@@ -447,9 +467,9 @@ function FullScreenEditorModule(options) {
 			TL10 - Message ID
 			TL11 - Reply to message ID*/
 
-		setHeaderText(1, self.message.fromUserName);
-		setHeaderText(2, self.message.toUserName);
-		setHeaderText(3, self.message.subject);
+		setHeaderText(MCICodeIds.Header.From, self.message.fromUserName);
+		setHeaderText(MCICodeIds.Header.To, self.message.toUserName);
+		setHeaderText(MCICodeIds.Subject, self.message.subject);
 		
 		setHeaderText(5, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
 		setHeaderText(6, '1');	//	:TODO: Message number
@@ -503,15 +523,16 @@ function FullScreenEditorModule(options) {
 			self.switchToBody();
 		},
 		editModeEscPressed : function(formData, extraArgs) {
-			self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
+			self.editModeFocus = 'editor' === self.editModeFocus ? 'editMenu' : 'editor';
+			//self.editorMode = 'edit' === self.editorMode ? 'editMenu' : 'edit';
 
 			self.switchFooter(function next(err) {
 				if(err) {
 					//	:TODO:... what now?
 					console.log(err)
 				} else {
-					switch(self.editorMode) {
-						case 'edit' :
+					switch(self.editModeFocus) {
+						case 'editor' :
 							if(!_.isUndefined(self.viewControllers.footerEditMenu)) {
 								self.viewControllers.footerEditMenu.setFocus(false);
 							}
@@ -544,7 +565,7 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
-	if(_.isObject(options.extraArgs.message)) {
+	if(_.has(options, 'extraArgs.message')) {
 		this.setMessage(options.extraArgs.message);
 	}
 }

@@ -14,6 +14,7 @@ exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
 
 function getAvailableMessageAreas() {
+	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
 	return Config.messages.areas;
 }
 

@@ -46,6 +46,11 @@ function MessageListModule(options) {
 
 	var self = this;
 
+	var config = this.menuConfig.config;
+	//	config.listType : public | private
+
+	this.listType = config.listType || 'public';
+
 	this.messageList = [];
 
 	this.menuMethods = {
@@ -80,6 +85,17 @@ function MessageListModule(options) {
 
 require('util').inherits(MessageListModule, MenuModule);
 
+MessageListModule.prototype.enter = function(client) {
+
+	if('private' === this.listType) {
+		this.messageAreaName = Message.WellKnownAreaNames.Private;
+	} else {
+		this.messageAreaName = client.user.properties.message_area_name;
+	}
+
+	MessageListModule.super_.prototype.enter.call(this, client);
+};
+
 MessageListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
 
@@ -99,9 +115,13 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				vc.loadFromMenuConfig(loadOpts, callback);
 			},
 			function fetchMessagesInArea(callback) {
-				messageArea.getMessageListForArea( { client : self.client }, self.client.user.properties.message_area_name, function msgs(err, msgList) {
-					self.messageList = msgList;
-					callback(err);
+				messageArea.getMessageListForArea( { client : self.client }, self.messageAreaName, function msgs(err, msgList) {
+					if(msgList && 0 === msgList.length) {
+						callback(new Error('No messages in area'));
+					} else {
+						self.messageList = msgList;
+						callback(err);
+					}
 				});
 			},
 			function populateList(callback) {
@@ -125,6 +145,8 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 		],
 		function complete(err) {
 			if(err) {
+				//	:TODO: log this properly
+				self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
 				console.log(err)
 			}
 			cb(err);
