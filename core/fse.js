@@ -513,6 +513,7 @@ function FullScreenEditorModule(options) {
 
 
 	this.menuMethods = {
+		//	:TODO: rename to editModeHeaderSubmit
 		headerSubmit : function(formData, extraArgs) {
 			self.switchToBody();
 		},
@@ -555,6 +556,15 @@ function FullScreenEditorModule(options) {
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
 			self.displayHelp();
+		},
+		///////////////////////////////////////////////////////////////////////
+		//	View Mode
+		///////////////////////////////////////////////////////////////////////
+		viewModeEscPressed : function(formData, extraArgs) {
+			//
+			//	MLTEV won't get key events -- we need to handle them all here?
+			//	...up/down, page up/page down... both should go by pages
+			//	...Next/Prev/Etc. here
 		}
 	};
 
