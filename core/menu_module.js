@@ -30,8 +30,7 @@ function MenuModule(options) {
 	this.initSequence = function() {
 		var mciData = { };
 
-		//	:TODO: This could be .series() currently
-		async.waterfall(
+		async.series(
 			[
 				function beforeDisplayArt(callback) {
 					self.beforeArt();
@@ -139,6 +138,16 @@ function MenuModule(options) {
 			menuUtil.handleAction(self.client, null, self.menuConfig);
 		}
 	};
+
+	this.setMenuStatus = function(status) {
+		self.menuStatus = status;
+	};
+
+	if(_.isString(this.menuConfig.status)) {
+		self.setMenuStatus(self.menuConfig.status);
+	} else {
+		self.setMenuStatus('Browsing menus');
+	}
 }
 
 require('util').inherits(MenuModule, PluginModule);

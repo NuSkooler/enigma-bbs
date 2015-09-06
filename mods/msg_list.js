@@ -56,10 +56,28 @@ function MessageListModule(options) {
 	this.menuMethods = {
 		selectMessage : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
+				/*
+					extraArgs.messageAreaName
+					extraArgs.messageList
+					extraArgs.messageListIndex
+				*/
+
 				var selected = self.messageList[formData.value.message];
-				console.log(selected);
-				
-				//						
+				//console.log(selected);
+
+				var modOpts = {
+					name		: 'messageAreaViewPost',	//	:TODO: should come from config?
+					extraArgs 	: {
+						messageAreaName		: self.messageAreaName,
+						messageList			: self.messageList,
+						messageListIndex	: formData.value.message,
+					}
+				};
+
+				self.client.gotoMenuModule(modOpts);
+
+				/*
+				//					
 				//	Load full Message object
 				//
 				var msg = new Message();
@@ -83,6 +101,7 @@ function MessageListModule(options) {
 						self.client.gotoMenuModule(modOpts);
 					}
 				});
+*/
 			}
 		}
 	};

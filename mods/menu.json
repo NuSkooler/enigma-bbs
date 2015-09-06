@@ -279,6 +279,10 @@
 				{
 					"value"		: { "command" : "Q" },
 					"action"	: "@menu:mainMenu"
+				},
+				{
+					"value"		: 1,
+					"action"	: "@menu:messageArea"
 				}
 			]
 		},
@@ -429,26 +433,33 @@
 						}
 					}
 				},
-				"3" : {
+				"4" : {
 					"HM" : {
 						"mci" : {
 							"HM1" : {
+								//	(P)rev/(N)ext/Post/(R)eply/(Q)uit/(?)Help
+								//	(#)Jump/(L)Index (msg list)/Last
+
 								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
-								"items" : [ "Save", "Discard", "Quote", "Help" ]
+								"items" : [ "Prev", "Next", "Reply", "Quit", "Help" ]
 							}
-						}/*,
+						},
 						"submit" : {
 							"*" : [
 								{
-									"value"		: { "1" : 0 },
-									"action"	: "@method:editModeMenuSave"
+									"value"		: { "1" : 1 },
+									"action"	: "@method:nextMessage"
+								},
+								{
+									"value"		: { "1" : 3 },
+									"action"	: "@menu:messageArea"
 								}
 							]
-						}*/,
-						"actionKeys" : [	//	:TODO: Need better name
+						},
+						"actionKeys" : [
 							{
 								"keys"		: [ "escape" ],
-								"action"	: "@method:editModeEscPressed"
+								"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
 							}
 						]
 					}
@@ -457,6 +468,7 @@
 		},
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		"messageAreaNewPost" : {
+			"status"	: "Posting message",
 			"module"	: "msg_area_post_fse",
 			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
@@ -597,34 +609,6 @@
 				}
 			}
 		},
-		/*
-		"messageAreaMenu" : {
-			"module"	: "message_area",
-			"art"		: "MSGAREA",
-			"options"	: { "cls" : true },
-			"prompt"	: "menuCommand",
-			"config"	: {
-				"fseArt" : {
-						"header"			: "demo_fse_netmail_header.ans",
-						"body"				: "demo_fse_netmail_body.ans",
-						"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
-						"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
-						"footerView"		: "demo_fse_netmail_footer_view.ans",
-						"help"				: "demo_fse_netmail_help.ans"
-				}
-			},
-			"submit"	: [
-				{
-					"value"		: { "command" : "R" },
-					"action"	: "@method:readMessages"
-				},
-				{
-					"value"		: { "command" : "P" },
-					"action"	: "@method:postMessage"
-				}
-			]
-		}
-		*/
 		///////////////////////////////////////////////////////////////////////
 		//	Doors
 		///////////////////////////////////////////////////////////////////////

@@ -42,10 +42,17 @@ exports.moduleInfo = {
 			TL9 - Hash tags
 			TL10 - Message ID
 			TL11 - Reply to message ID
+
+		Footer - Viewing
+			HM1 - Menu (prev/next/etc.)
+
+			TL6 - Message number
+			TL7 - Message total (in area)
+
 			
 */
 var MCICodeIds = {
-	Header : {
+	ViewModeHeader : {
 		From			: 1,
 		To				: 2,
 		Subject			: 3,
@@ -84,6 +91,8 @@ function FullScreenEditorModule(options) {
 		this.messageNumber		= options.extraArgs.messageNumber || 0;
 		this.messageTotal		= options.extraArgs.messageTotal || 0;
 	}
+
+	this.isReady				= false;
 	
 	this.isEditMode = function() {
 		return 'edit' === self.editorMode;
@@ -135,9 +144,19 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.setMessage = function(message) {
-		console.log(message)
+		//console.log(message)
 		
 		self.message = message;
+
+		if(self.isReady) {
+			self.initHeaderViewMode();
+
+			var bodyMessageView = self.viewControllers.body.getView(1);
+			if(bodyMessageView && _.has(self, 'message.message')) {
+				bodyMessageView.setText(self.message.message);
+			}
+		}
+
 	};
 
 	this.getMessage = function() {
@@ -296,19 +315,22 @@ function FullScreenEditorModule(options) {
 					self.setInitialFooterMode();
 
 					var footerName = self.getFooterName();
+					console.log(footerName)
 					self.redrawFooter( { footerName : footerName }, function artDisplayed(err, artData) {
 						mciData[footerName] = artData;
 						callback(err);
 					});
 				},
 				function afterArtDisplayed(callback) {
-					self.mciReady(mciData);
-					callback(null);
+					self.mciReady(mciData, callback);
 				}
 			],
 			function complete(err) {
 				if(err) {					
 					console.log(err)
+				} else {
+					self.isReady = true;
+					self.finishedLoading();
 				}
 			}
 		);	
@@ -334,6 +356,8 @@ function FullScreenEditorModule(options) {
 				function body(callback) {
 					menuLoadOpts.formId	= self.getFormId('body');
 					menuLoadOpts.mciMap	= mciData.body.mciMap;
+
+					console.log('creating body.l..')
 
 					self.addViewController(
 						'body',
@@ -399,7 +423,7 @@ function FullScreenEditorModule(options) {
 							break;
 
 						case 'view' :
-							self.switchToBody();
+							self.switchToFooter();
 							break;
 					}
 
@@ -412,9 +436,10 @@ function FullScreenEditorModule(options) {
 		);
 	};
 
-	this.mciReadyHandler = function(mciData) {
+	this.mciReadyHandler = function(mciData, cb) {
 
 		self.createInitialViews(mciData, function viewsCreated(err) {
+
 			self.viewControllers.header.on('leave', function headerViewLeave(view) {
 
 				if(2 === view.id) {	//	"to" field
@@ -427,11 +452,13 @@ function FullScreenEditorModule(options) {
 					});				
 				}
 			});
+
+			cb(err);
 		});
 	};
 
 	this.updateEditModePosition = function(pos) {
-		if('edit' === this.editorMode) {
+		if(self.isEditMode()) {
 			var posView = self.viewControllers.footerEditor.getView(1);
 			if(posView) {
 				self.client.term.rawWrite(ansi.savePos());
@@ -442,7 +469,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.updateTextEditMode = function(mode) {
-		if('edit' === this.editorMode) {
+		if(self.isEditMode()) {
 			var modeView = self.viewControllers.footerEditor.getView(2);
 			if(modeView) {
 				self.client.term.rawWrite(ansi.savePos());
@@ -462,16 +489,16 @@ function FullScreenEditorModule(options) {
 			}
 		}
 
-		setHeaderText(MCICodeIds.Header.From, self.message.fromUserName);
-		setHeaderText(MCICodeIds.Header.To, self.message.toUserName);
-		setHeaderText(MCICodeIds.Header.Subject, self.message.subject);
-		setHeaderText(MCICodeIds.Header.DateTime, moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		setHeaderText(MCICodeIds.Header.MsgNum, self.messageNumber.toString());
-		setHeaderText(MCICodeIds.Header.MsgTotal, self.messageTotal.toString());
-		setHeaderText(MCICodeIds.Header.ViewCount, self.message.viewCount);
-		setHeaderText(MCICodeIds.Header.HashTags, 'TODO hash tags');
-		setHeaderText(MCICodeIds.Header.MessageID, self.message.messageId);
-		setHeaderText(MCICodeIds.Header.ReplyToMsgID, self.message.replyToMessageId);
+		setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
+		setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
+		setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
+		setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
+		setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			self.messageNumber.toString());
+		setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
+		setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
+		setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
+		setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
+		setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
 	};
 
 	this.displayHelp = function() {
@@ -509,6 +536,13 @@ function FullScreenEditorModule(options) {
 		self.viewControllers.body.switchFocus(1);
 
 		self.observeEditorEvents();
+	};
+
+	this.switchToFooter = function() {
+		self.viewControllers.header.setFocus(false);
+		self.viewControllers.body.setFocus(false);
+
+		self.viewControllers[self.getFooterName()].switchFocus(1);	//	HM1
 	};
 
 
@@ -579,12 +613,11 @@ FullScreenEditorModule.prototype.enter = function(client) {
 	FullScreenEditorModule.super_.prototype.enter.call(this, client);
 };
 
-FullScreenEditorModule.prototype.mciReady = function(mciData) {
-	this.mciReadyHandler(mciData);
+FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {
+	this.mciReadyHandler(mciData, cb);
 	//this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
 };
 
 FullScreenEditorModule.prototype.validateToUserName = function(un, cb) {
 	cb(null);	//	note: to be implemented by sub classes
 };
-

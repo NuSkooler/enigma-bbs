@@ -3,6 +3,7 @@
 
 var msgDb			= require('./database.js').dbs.message;
 var Config			= require('./config.js').config;
+var Message			= require('./message.js');
 
 var async			= require('async');
 var _				= require('lodash');
@@ -12,6 +13,7 @@ exports.getAvailableMessageAreas			= getAvailableMessageAreas;
 exports.getMessageAreaByName				= getMessageAreaByName;
 exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
+exports.gotoMsgAreaFSEModuleForMessage		= gotoMsgAreaFSEModuleForMessage;
 
 function getAvailableMessageAreas() {
 	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
@@ -122,4 +124,32 @@ function getMessageListForArea(options, areaName, cb) {
 			cb(err, msgList);
 		}
 	);
+}
+
+function gotoMsgAreaFSEModuleForMessage(options, cb) {
+	//	options.client
+	//	options.msgAreaName
+	//	options.messageUuid
+	//	options.moduleName
+	//	options.msgNumber
+	//	options.msgTotal
+
+	var msg = new Message();
+	msg.load( { uuid : options.messageUuid, user : options.client.user }, function loaded(err) {
+		if(err) {
+			cb(err);
+		} else {
+			var modOpts = {				
+				name		: options.moduleName,
+				extraArgs	: { 
+					message 		: msg,
+					messageAreaName	: options.msgAreaName,
+					messageNumber	: options.msgNumber,
+					messageTotal	: options.msgTotal,
+				},
+			};
+
+			options.client.gotoMenuModule(modOpts, cb);
+		}
+	});
 }

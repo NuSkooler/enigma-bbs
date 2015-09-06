@@ -147,7 +147,7 @@ function getDefaultConfig() {
 		},
 
 		misc : {
-			idleLogoutSeconds	: 60 * 3,	//	3m
+			idleLogoutSeconds	: 60 * 6,	//	6m
 		},
 
 		logging : {
