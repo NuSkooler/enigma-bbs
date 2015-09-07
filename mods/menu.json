@@ -255,6 +255,7 @@
 		"messageArea" : {
 			"module"	: "msg_area",
 			"art"		: "MSGAREA",
+			"desc"		: "Message Area",
 			"options"	: { "cls" : true },
 			"prompt"	: "menuCommand",
 			"submit"	: [
@@ -439,13 +440,15 @@
 							"HM1" : {
 								//	(P)rev/(N)ext/Post/(R)eply/(Q)uit/(?)Help
 								//	(#)Jump/(L)Index (msg list)/Last
-
-								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
 								"items" : [ "Prev", "Next", "Reply", "Quit", "Help" ]
 							}
 						},
 						"submit" : {
 							"*" : [
+								{
+									"value"		: { "1" : 0 },
+									"action"	: "@method:prevMessage"
+								},							
 								{
 									"value"		: { "1" : 1 },
 									"action"	: "@method:nextMessage"
@@ -457,9 +460,15 @@
 							]
 						},
 						"actionKeys" : [
+						/*
 							{
 								"keys"		: [ "escape" ],
 								"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
+							},
+							*/
+							{
+								"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
+								"action"	: "@method:movementKeyPressed"
 							}
 						]
 					}

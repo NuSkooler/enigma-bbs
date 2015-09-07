@@ -44,10 +44,8 @@ exports.moduleInfo = {
 function MessageListModule(options) {
 	MenuModule.call(this, options);
 
-	var self = this;
-
-	var config = this.menuConfig.config;
-	//	config.listType : public | private
+	var self	= this;
+	var config	= this.menuConfig.config;
 
 	this.listType = config.listType || 'public';
 
@@ -56,52 +54,16 @@ function MessageListModule(options) {
 	this.menuMethods = {
 		selectMessage : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
-				/*
-					extraArgs.messageAreaName
-					extraArgs.messageList
-					extraArgs.messageListIndex
-				*/
-
-				var selected = self.messageList[formData.value.message];
-				//console.log(selected);
-
 				var modOpts = {
 					name		: 'messageAreaViewPost',	//	:TODO: should come from config?
 					extraArgs 	: {
 						messageAreaName		: self.messageAreaName,
 						messageList			: self.messageList,
-						messageListIndex	: formData.value.message,
+						messageIndex		: formData.value.message,
 					}
 				};
 
 				self.client.gotoMenuModule(modOpts);
-
-				/*
-				//					
-				//	Load full Message object
-				//
-				var msg = new Message();
-				msg.load( { uuid : selected.messageUuid, user : self.client.user }, function loaded(err) {
-
-					if(err) {
-						//	:TODO: Now what?!
-						console.log(err)
-					} else {
-						var modOpts = {				
-							//	:TODO: get this name from config
-							name		: 'messageAreaViewPost',
-							extraArgs	: { 
-								message 		: msg,
-								messageAreaName	: self.messageAreaName,
-								messageNumber	: formData.value.message + 1,
-								messageTotal	: self.messageList.length,
-							},
-						};
-
-						self.client.gotoMenuModule(modOpts);
-					}
-				});
-*/
 			}
 		}
 	};
@@ -122,7 +84,6 @@ MessageListModule.prototype.enter = function(client) {
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
-
 	var vc		= self.viewControllers.msgList = new ViewController( { client : self.client } );
 
 	async.series(

@@ -29,6 +29,8 @@ function MCIViewFactory(client) {
 	this.client = client;
 }
 
+//	:TODO: This portion should be made more generic so pipe code formatting can use it!
+//	e..g MCIPrint() -> enigmaToAnsi() -> 
 MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 
 	var self = this;
@@ -36,6 +38,10 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 	function getMessageAreaDescription() {
 		var area = getMessageAreaByName(self.client.user.properties.message_area_name);
 		return area ? area.desc : '';
+	}
+
+	function getCurrentMenuDescription() {
+		return _.has(self, 'client.currentMenuModule.menuConfig.desc') ? self.client.currentMenuModule.menuConfig.desc : '';
 	}
 
 	try {
@@ -57,8 +63,11 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			UF	: this.client.user.properties.affiliation,
 			UT	: this.client.user.properties.theme_id,
 			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
+			CS	: this.client.currentStatus,
+			MD	: getCurrentMenuDescription(),
 
 			MA	: getMessageAreaDescription(),
+
 
 
 			SH	: this.client.term.termHeight.toString(),

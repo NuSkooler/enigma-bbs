@@ -1049,8 +1049,14 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 MultiLineEditTextView.prototype.setText = function(text) {
 	//text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
+	this.textLines = [ ];
 	this.insertRawText(text);
-	this.cursorEndOfDocument();
+
+	if(this.isEditMode()) {
+		this.cursorEndOfDocument();
+	} else if(this.isPreviewMode()) {
+		this.cursorStartOfDocument();
+	}
 };
 
 MultiLineEditTextView.prototype.getData = function() {

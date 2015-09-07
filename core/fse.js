@@ -78,9 +78,9 @@ function FullScreenEditorModule(options) {
 	//		editorType				: email | area
 	//		editorMode				: view | edit | quote
 	//
-	//	extraArgs:
+	//	extraArgs - view mode
 	//		messageAreaName
-	//		messageNumber / messageTotal
+	//		messageIndex / messageTotal
 	//
 	//
 	this.editorType	= config.editorType;
@@ -88,7 +88,7 @@ function FullScreenEditorModule(options) {
 
 	if(_.isObject(options.extraArgs)) {
 		this.messageAreaName	= options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
-		this.messageNumber		= options.extraArgs.messageNumber || 0;
+		this.messageIndex		= options.extraArgs.messageIndex || 0;
 		this.messageTotal		= options.extraArgs.messageTotal || 0;
 	}
 
@@ -154,6 +154,7 @@ function FullScreenEditorModule(options) {
 			var bodyMessageView = self.viewControllers.body.getView(1);
 			if(bodyMessageView && _.has(self, 'message.message')) {
 				bodyMessageView.setText(self.message.message);
+				//bodyMessageView.redraw();
 			}
 		}
 
@@ -493,7 +494,7 @@ function FullScreenEditorModule(options) {
 		setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
 		setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
 		setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			self.messageNumber.toString());
+		setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			(self.messageIndex + 1).toString());
 		setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
 		setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
 		setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');

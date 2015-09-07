@@ -24,7 +24,7 @@ function MenuModule(options) {
 	this.menuConfig			= options.menuConfig;
 	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};	//	methods called from @method's
-	
+
 	this.initViewControllers();
 
 	this.initSequence = function() {
@@ -138,16 +138,6 @@ function MenuModule(options) {
 			menuUtil.handleAction(self.client, null, self.menuConfig);
 		}
 	};
-
-	this.setMenuStatus = function(status) {
-		self.menuStatus = status;
-	};
-
-	if(_.isString(this.menuConfig.status)) {
-		self.setMenuStatus(self.menuConfig.status);
-	} else {
-		self.setMenuStatus('Browsing menus');
-	}
 }
 
 require('util').inherits(MenuModule, PluginModule);
@@ -157,6 +147,12 @@ require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(_.isObject(client));
+
+	if(_.isString(this.menuConfig.status)) {
+		this.client.currentStatus = this.menuConfig.status;
+	} else {
+		this.client.currentStatus = 'Browsing menus';
+	}
 
 	this.initSequence();
 };

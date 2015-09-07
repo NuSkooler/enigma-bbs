@@ -34,31 +34,33 @@ function AreaViewFSEModule(options) {
 
 	this.messageList	= this.messageList || [];
 	this.messageIndex	= this.messageIndex || 0;
-
-	this.messageNumber	= this.messageIndex + 1;
 	this.messageTotal	= this.messageList.length;
 
-	//assert(_.isString(options.extraArgs.messageAreaName),	'messageAreaName must be supplied!');
-	//assert(options.extraArgs.messageId,						'messageId must be supplied!');
-	//assert(_.isString(options.extraArgs.messageUuid),		'messageUuid must be supplied!');
-	//this.messageUuid		= options.extraArgs.messageUuid;
-	/*
-	this.loadMessage = function(uuid) {
-		var msg = new Message();
-		msg.load( { uuid : uuid, user : self.client.user }, function loaded(err) {
-			//	:TODO: Hrm... if error...
-			self.setMessage(msg);
-		});
-	};
-	*/
-
 	this.menuMethods.nextMessage = function(formData, extraArgs) {
-		//	:TODO: Next shouldn't even be a option if this is not the case:
 		if(self.messageIndex + 1 < self.messageList.length) {
-			self.messageNumber++;	//	:TODO: should consolidate index + number?
-			self.loadMessageByUuid(self.messageList[self.messageIndex++].messageUuid);
-		}
+			self.messageIndex++;
 
+			self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid);
+		}
+	};
+
+	this.menuMethods.prevMessage = function(formData, extraArgs) {
+		if(self.messageIndex > 0) {
+			self.messageIndex--;
+
+			self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid);
+		}
+	};
+
+	this.menuMethods.movementKeyPressed = function(formData, extraArgs) {
+		var bodyView = self.viewControllers.body.getView(1);
+
+		switch(formData.key.name) {
+			case 'down arrow'	: bodyView.scrollDocumentUp(); break;
+			case 'up arrow'		: bodyView.scrollDocumentDown(); break;
+			case 'page up'		: bodyView.keyPressPageUp(); break;
+			case 'page down'	: bodyView.keyPressPageDown(); break;
+		}
 	};
 
 	this.loadMessageByUuid = function(uuid) {
@@ -71,18 +73,8 @@ function AreaViewFSEModule(options) {
 
 require('util').inherits(AreaViewFSEModule, FullScreenEditorModule);
 
-/*
-AreaViewFSEModule.prototype.enter = function(client) {	
-	AreaViewFSEModule.super_.prototype.enter.call(this, client);
-};
-
-*/
-
 AreaViewFSEModule.prototype.finishedLoading = function() {
-	//AreaViewFSEModule.super_.prototype.finishedLoading.call(this);
-
 	if(this.messageList.length) {
-		console.log('loading from index ' + this.messageIndex)
 		this.loadMessageByUuid(this.messageList[this.messageIndex].messageUuid);
 	}
 };
