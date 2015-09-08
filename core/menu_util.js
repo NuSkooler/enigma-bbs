@@ -213,12 +213,17 @@ function handleAction(client, formData, conf) {
 	}
 }
 
+//	:TODO: This should be in theme.js
+
+//	:TODO: Need to take (optional) form ID to search for (e.g. for multi-form menus)
+//	:TODO: custom art needs a way to be themed -- e.g. config.art.someArtThing
+
 function applyThemeCustomization(options) {
 	//
-	//	options.name : menu/prompt name
+	//	options.name 		: menu/prompt name
 	//	options.configMci	: menu or prompt config (menu.json / prompt.json) specific mci section
-	//	options.client	: client
-	//	options.type	: menu|prompt
+	//	options.client		: client
+	//	options.type		: menu|prompt
 	//
 	assert(_.isString(options.name));
 	assert("menus" === options.type || "prompts" === options.type);
