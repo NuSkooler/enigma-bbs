@@ -43,11 +43,17 @@ exports.moduleInfo = {
 			TL10 - Message ID
 			TL11 - Reply to message ID
 
+			TL12 - User1
+			TL13 - User2
+
 		Footer - Viewing
 			HM1 - Menu (prev/next/etc.)
 
 			TL6 - Message number
 			TL7 - Message total (in area)
+
+			TL12 - User1 (fmt message object)
+			TL13 - User2
 
 			
 */
@@ -64,6 +70,10 @@ var MCICodeIds = {
 		HashTags		: 9,
 		MessageID		: 10,
 		ReplyToMsgID	: 11
+	},
+	ViewModeFooter : {
+		MsgNum			: 6,
+		MsgTotal		: 7,
 	}
 };
 
@@ -150,6 +160,7 @@ function FullScreenEditorModule(options) {
 
 		if(self.isReady) {
 			self.initHeaderViewMode();
+			self.initFooterViewMode();
 
 			var bodyMessageView = self.viewControllers.body.getView(1);
 			if(bodyMessageView && _.has(self, 'message.message')) {
@@ -181,7 +192,7 @@ function FullScreenEditorModule(options) {
 					//	Body  : We must find this in the config / theme
 					//
 					//	:TODO: don't hard code this -- allow footer height to be part of theme/etc.
-					self.client.term.rawWrite(ansi.goto(23, 1));
+					self.client.term.rawWrite(ansi.goto(24, 1));
 					callback(null);
 				},
 				function clearFooterArea(callback) {
@@ -401,6 +412,7 @@ function FullScreenEditorModule(options) {
 						case 'view' :
 							if(self.message) {
 								self.initHeaderViewMode();
+								self.initFooterViewMode();
 
 								var bodyMessageView = self.viewControllers.body.getView(1);
 								if(bodyMessageView && _.has(self, 'message.message')) {
@@ -500,6 +512,19 @@ function FullScreenEditorModule(options) {
 		setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
 		setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
 		setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
+	};
+
+	this.initFooterViewMode = function() {
+		
+		function setFooterText(id, text) {
+			var v = self.viewControllers.footerView.getView(id);
+			if(v) {
+				v.setText(text);
+			}
+		}
+
+		setFooterText(MCICodeIds.ViewModeFooter.MsgNum,			(self.messageIndex + 1).toString());
+		setFooterText(MCICodeIds.ViewModeFooter.MsgTotal,		self.messageTotal.toString());
 	};
 
 	this.displayHelp = function() {

@@ -431,7 +431,7 @@ Client.prototype.address = function() {
 Client.prototype.gotoMenuModule = function(options, cb) {
 	var self = this;
 
-	assert(options.name);
+	assert(_.isString(options.name), 'Missing options.name');
 	
 	//	Assign a default missing module handler callback if none was provided
 	var callbackOnErrorOnly = !_.isFunction(cb);
@@ -452,9 +452,17 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 		} else {
 			self.log.debug( { menuName : options.name }, 'Goto menu module');
 
-			modInst.enter(self);
+			if(self.currentMenuModule) {
+				self.lastMenuModuleInfo = {
+					name		: self.currentMenuModule.modInfo.name,
+					extraArgs	: self.currentMenuModuleExtraArgs,
+				};
+			}
 
-			self.currentMenuModule = modInst;
+			modInst.enter(self);
+			
+			self.currentMenuModule			= modInst;	//	:TODO: should probably be before enter() above
+			self.currentMenuModuleExtraArgs = options.extraArgs;
 
 			if(!callbackOnErrorOnly) {
 				cb(null);
@@ -464,7 +472,16 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 };
 
 Client.prototype.fallbackMenuModule = function(cb) {
+	var self = this;
 
+	if(self.lastMenuModuleInfo) {
+		var modOpts = {
+			name		: self.lastMenuModuleInfo.name, 
+			extraArgs	: self.lastMenuModuleInfo.extraArgs,
+		};
+
+		self.gotoMenuModule(modOpts, cb);
+	}
 };
 
 ///////////////////////////////////////////////////////////////////////////////

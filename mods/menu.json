@@ -63,7 +63,7 @@
 							"*" : [
 								{
 									"value"		: { "1" : 0 },
-									"action"	: "@menu:login"
+									"action"	: "@menu:login2"
 								},
 								{
 									"value"		: { "1" : 1 },
@@ -86,8 +86,8 @@
 			//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
 			"prompt"	: "userCredentials",
 			"fallback"	: "matrix",
-			//"next"		: "fullLoginSequenceLoginArt",
-			"next" : "messageArea",
+			"next"		: "fullLoginSequenceLoginArt",
+			//"next" : "messageArea",
 			"action"	: "@systemMethod:login",
 
 			//	:TODO: support alt submit method for prompts
@@ -102,6 +102,45 @@
 
 			"options" : {
 				"cls" : true
+			}
+		},
+		"login2" : {
+			"art"		: "USRCRED",
+			"fallback"	: "matrix",
+			"next"		: "fullLoginSequenceLoginArt",
+			"options"	: { "cls" : true },
+			"form"		: {
+				"0" : {
+					"mci"	: {
+						"ET1" : {
+							"width"		: 20,
+							"maxLength"	: "@config:users.usernameMax",
+							"argName"	: "username",
+							"focus"		: true
+						},
+						"ET2" : {
+							"width"		: 20,
+							"password"	: true,
+							"maxLength"	: "@config:users.passwordMax",
+							"argName"	: "password",
+							"submit"	: true
+						}
+					},
+					"submit" : {
+						"*" : [
+							{
+								"value"		: { "password" : null },
+								"action" 	: "@systemMethod:login"
+							}
+						]
+					},
+					"actionKeys" : [
+						{
+							"keys"		: [ "escape" ],
+							"action"	: "@menu:matrix"
+						}
+					]
+				}
 			}
 		},
 		"logoff" : {
@@ -205,10 +244,15 @@
 			"config" 	: {
 				"dateTimeFormat" : "ddd MMM Do h:mm a"
 			},
+			"action"	: "@menu:fullLoginSequenceSysStats"
+		},
+		"fullLoginSequenceSysStats" : {
+			"art"		: "SYSSTAT",
+			"options"	: { "cls" : true, "pause" : true },
 			"action"	: "@menu:fullLoginSequenceUserStats"
 		},
 		"fullLoginSequenceUserStats" : {
-			"art"		: "userstats",
+			"art"		: "USRSTAT",
 			"options"	: { "cls" : true, "pause" : true },
 			"action"	: "@menu:mainMenu"
 		},
@@ -223,7 +267,8 @@
 			//"action"	: "@menu:lastCallers"
 		},
 		"mainMenu" : {
-			"art"		: "MAINMENU",
+			"art"		: "MMENU1",
+			"desc"		: "Main Menu",
 			"options"	: { "cls" : true },
 			"prompt" : "menuCommand",
 			"submit" : [
@@ -235,9 +280,19 @@
 					"value"		: { "command" : "D" },
 					"action"	: "@menu:doorPimpWars"
 				},
+				/*
 				{
 					"value"		: { "command" : "L" },
 					"action"	: "@menu:doorLORD"
+				},
+				*/
+				{
+					"value"		: { "command" : "L" },
+					"action"	: "@menu:mainMenuLastCallers"
+				},
+				{
+					"value"		: { "command" : "U" },
+					"action"	: "@menu:mainMenuUserStats"
 				},
 				{
 					"value"		: { "command" : "M" },
@@ -248,6 +303,20 @@
 					"action"	: "@menu:mainMenu"
 				}
 			]
+		},
+		"mainMenuLastCallers" : {
+			"module"	: "last_callers",
+			"art"		: "LASTCALL",
+			"options"	: { "cls" : true, "pause" : true },
+			"config" 	: {
+				"dateTimeFormat" : "ddd MMM Do h:mm a"
+			},
+			"action"	: "@menu:mainMenu"
+		},
+		"mainMenuUserStats" : {
+			"art"		: "USRSTAT",
+			"options"	: { "cls" : true, "pause" : true },
+			"action"	: "@menu:mainMenu"
 		},
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
@@ -365,11 +434,11 @@
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			"config"	: {
 				"art" : {
-					"header"			: "msg_area_view_header",
+					"header"			: "MSGVHDR",
 					"body"				: "demo_fse_netmail_body.ans",
 					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
 					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
-					"footerView"		: "msg_area_footer_view.ans",
+					"footerView"		: "MSGVFTR",
 					"help"				: "demo_fse_netmail_help.ans"
 				},
 				"editorMode"	: "view",
@@ -379,20 +448,21 @@
 				"0" : {
 					"mci" : {
 						"TL1" : {
-							"width"		: 36
+							"width"		: 27
 						},
 						"TL2" : {
-							"width"		: 36
+							"width"		: 27
 						},
 						"TL3" : {
-							"width"			: 39,
+							//"width"			: 39,
+							"width"			: 27,
 							"textOverflow"	: "..."
 						},
 						"TL5" :  {
-							"width"		: 19
+							"width"		: 27
 						},
 						"MA5" : {
-							"width"			: 19,
+							"width"			: 27,
 							"textOverflow"	: "..."
 						}
 					}
@@ -402,7 +472,7 @@
 						"mci" : {
 							"MT1" : {
 								"width"		: 79,
-								"height"	: 17,
+								"height"	: 12,
 								"mode"		: "preview"
 							}
 						},
@@ -435,43 +505,53 @@
 					}
 				},
 				"4" : {
-					"HM" : {
-						"mci" : {
-							"HM1" : {
-								//	(P)rev/(N)ext/Post/(R)eply/(Q)uit/(?)Help
-								//	(#)Jump/(L)Index (msg list)/Last
-								"items" : [ "Prev", "Next", "Reply", "Quit", "Help" ]
-							}
-						},
-						"submit" : {
-							"*" : [
-								{
-									"value"		: { "1" : 0 },
-									"action"	: "@method:prevMessage"
-								},							
-								{
-									"value"		: { "1" : 1 },
-									"action"	: "@method:nextMessage"
-								},
-								{
-									"value"		: { "1" : 3 },
-									"action"	: "@menu:messageArea"
-								}
-							]
-						},
-						"actionKeys" : [
-						/*
+					"mci" : {
+						"HM1" : {
+							//	(P)rev/(N)ext/Post/(R)eply/(Q)uit/(?)Help
+							//	(#)Jump/(L)Index (msg list)/Last
+							"items" : [ "Prev", "Next", "Reply", "Quit", "Help" ]
+						}
+					},
+					"submit" : {
+						"*" : [
 							{
-								"keys"		: [ "escape" ],
-								"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
+								"value"		: { "1" : 0 },
+								"action"	: "@method:prevMessage"
+							},							
+							{
+								"value"		: { "1" : 1 },
+								"action"	: "@method:nextMessage"
 							},
-							*/
 							{
-								"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
-								"action"	: "@method:movementKeyPressed"
+								"value"		: { "1" : 3 },
+								"action"	: "@menu:messageArea"
 							}
 						]
-					}
+					},
+					"actionKeys" : [
+					/*
+						{
+							"keys"		: [ "escape" ],
+							"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
+						},
+						*/
+						{
+							"keys"		: [ "P", "p" ],
+							"action"	: "@method:prevMessage"
+						},						
+						{
+							"keys"		: [ "N", "n" ],
+							"action"	: "@method:nextMessage"
+						},						
+						{
+							"keys"		: [ "escape", "Q", "q" ],
+							"action"	: "@menu:messageArea"
+						},
+						{
+							"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
+							"action"	: "@method:movementKeyPressed"
+						}
+					]
 				}
 			}
 		},

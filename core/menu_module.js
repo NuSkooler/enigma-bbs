@@ -16,6 +16,8 @@ var _					= require('lodash');
 
 exports.MenuModule		= MenuModule;
 
+//	:TODO: some of this is a bit off... should pause after finishedLoading()
+
 function MenuModule(options) {
 	PluginModule.call(this, options);
 

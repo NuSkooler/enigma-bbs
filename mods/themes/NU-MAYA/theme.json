@@ -62,6 +62,11 @@
 					"width"			: 17,
 					"textOverflow"	: "..."
 				}
+			},
+			"messageAreaViewPost" : {
+				"TL3" : {
+					"width" 		: 25
+				}
 			}
 		},
 		"prompts" : {

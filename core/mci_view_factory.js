@@ -62,6 +62,8 @@ MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
 			UW	: this.client.user.properties.web_address,
 			UF	: this.client.user.properties.affiliation,
 			UT	: this.client.user.properties.theme_id,
+			UC	: this.client.user.properties.login_count.toString(),
+
 			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
 			CS	: this.client.currentStatus,
 			MD	: getCurrentMenuDescription(),
