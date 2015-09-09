@@ -139,7 +139,7 @@
 		},
 		"logoff" : {
 			"art"		: "LOGOFF",
-			"action"	: "@systemMethod:logoff",
+			"next"		: "@systemMethod:logoff",
 		},
 		"apply" : {
 			"art"		: "APPLY",
@@ -225,7 +225,7 @@
 		"fullLoginSequenceLoginArt" : {
 			"art"		: "LOGIN",
 			"options"	: { "pause" : true },
-			"action"	: "@menu:fullLoginSequenceLastCallers"
+			"next"		: "fullLoginSequenceLastCallers"
 		},
 		"fullLoginSequenceLastCallers": {
 			"module"	: "last_callers",
@@ -234,22 +234,22 @@
 			"config" 	: {
 				"dateTimeFormat" : "ddd MMM Do h:mm a"
 			},
-			"action"	: "@menu:fullLoginSequenceSysStats"
+			"next"		: "fullLoginSequenceSysStats"
 		},
 		"fullLoginSequenceSysStats" : {
 			"art"		: "SYSSTAT",
 			"options"	: { "pause" : true },
-			"action"	: "@menu:fullLoginSequenceUserStats"
+			"next"		: "fullLoginSequenceUserStats"
 		},
 		"fullLoginSequenceUserStats" : {
 			"art"		: "USRSTAT",
 			"options"	: { "pause" : true },
-			"action"	: "@menu:mainMenu"
+			"next"		: "mainMenu"
 		},
 		"newUserActive" : {
 			"art"		: "SO-CC1.ANS",
 			"options"	: { "pause" : true },
-			"action"	: "@menu:currentUserStats"
+			"next"		: "currentUserStats"
 		},
 		"currentUserStats" : {
 			"art" : "userstats",
@@ -300,12 +300,12 @@
 			"config" 	: {
 				"dateTimeFormat" : "ddd MMM Do h:mm a"
 			},
-			"action"	: "@menu:mainMenu"
+			"next"		: "mainMenu"
 		},
 		"mainMenuUserStats" : {
 			"art"		: "USRSTAT",
 			"options"	: { "pause" : true },
-			"action"	: "@menu:mainMenu"
+			"next"		: "mainMenu"
 		},
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related

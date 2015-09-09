@@ -129,7 +129,8 @@ function MenuModule(options) {
 				}
 
 				self.finishedLoading();
-				self.nextAction();
+				self.nextMenu();
+				//self.nextAction();
 			}
 		);
 	};
@@ -138,12 +139,31 @@ function MenuModule(options) {
 		return 'end' === self.menuConfig.options.pause || true === self.menuConfig.options.pause;
 	};
 
+	this.hasNextTimeout = function() {
+		return _.isNumber(self.menuConfig.options.nextTimeout);
+	};
+
 	//	:TODO: Convert this to process "next" instead of "action"
 	this.nextAction = function() {
 		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
 			_.isString(self.menuConfig.action))
 		{
 			menuUtil.handleAction(self.client, null, self.menuConfig);
+		}
+	};
+
+	this.nextMenu = function() {
+		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
+			_.isString(self.menuConfig.next))
+		{
+			if(self.hasNextTimeout()) {
+				setTimeout(function nextTimeout() {
+					menuUtil.handleNext(self.client, self.menuConfig.next);
+					
+				}, this.menuConfig.options.nextTimeout);
+			} else {
+				menuUtil.handleNext(self.client, self.menuConfig.next);
+			}
 		}
 	};
 }
@@ -239,7 +259,7 @@ MenuModule.prototype.standardMCIReadyHandler = function(mciData, cb) {
 };
 
 MenuModule.prototype.finishedLoading = function() {
-
+/*
 	var self = this;
 
 	if(_.isNumber(this.menuConfig.options.nextTimeout) &&
@@ -250,4 +270,5 @@ MenuModule.prototype.finishedLoading = function() {
 			//self.client.gotoMenuModule( { name : self.menuConfig.next } );
 		}, this.menuConfig.options.nextTimeout);
 	}
+	*/
 };
