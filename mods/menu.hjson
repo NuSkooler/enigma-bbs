@@ -1,5 +1,10 @@
 {	
 	/*
+		ENiGMA½ Menu Configuration
+
+		See http://hjson.org/ for syntax
+	*/
+	/*
 		Menu Configuration
 
 		Tip: demjson's jsonlint is an excellent tool for linting JSON files
@@ -42,7 +47,6 @@
 			"art"		: "CONNECT",
 			"next"		: "matrix",
 			"options"	: {
-				"cls"	: true,
 				"nextTimeout"	: 1500
 			}
 		},
@@ -77,38 +81,28 @@
 						}
 					}
 				}
-			},
-			"options" : {
-				"cls" : true
 			}
 		},
 		"login" : {
-			//	:TODO: may want { "prompt" : { "name" : "blah", "action" : ... }}
-			"prompt"	: "userCredentials",
+			"prompt"	: "userLoginCredentials",
 			"fallback"	: "matrix",
 			"next"		: "fullLoginSequenceLoginArt",
-			//"next" : "messageArea",
 			"action"	: "@systemMethod:login",
 
 			//	:TODO: support alt submit method for prompts
 			//	if present, standard filters apply. No need for multiple submit ID's
 			//	since a prompt can only utilize one:
-			"submit" : [
+			/*"submit" : [
 				{
-					"value" : { "1" : "thing" },
-					"action" : "@method:doThings"
+					"value" : { "password" : null },
+					"action" : "@systemMethod:login"
 				}
-			],
-
-			"options" : {
-				"cls" : true
-			}
+			]*/
 		},
 		"login2" : {
 			"art"		: "USRCRED",
 			"fallback"	: "matrix",
 			"next"		: "fullLoginSequenceLoginArt",
-			"options"	: { "cls" : true },
 			"form"		: {
 				"0" : {
 					"mci"	: {
@@ -146,7 +140,6 @@
 		"logoff" : {
 			"art"		: "LOGOFF",
 			"action"	: "@systemMethod:logoff",
-			"options" : { "cls" : true }
 		},
 		"apply" : {
 			"art"		: "APPLY",
@@ -227,20 +220,17 @@
 						}
 					}
 				}
-			},
-			"options" : {
-				"cls" : true
 			}
 		},
 		"fullLoginSequenceLoginArt" : {
 			"art"		: "LOGIN",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"action"	: "@menu:fullLoginSequenceLastCallers"
 		},
 		"fullLoginSequenceLastCallers": {
 			"module"	: "last_callers",
 			"art"		: "LASTCALL",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"config" 	: {
 				"dateTimeFormat" : "ddd MMM Do h:mm a"
 			},
@@ -248,28 +238,27 @@
 		},
 		"fullLoginSequenceSysStats" : {
 			"art"		: "SYSSTAT",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"action"	: "@menu:fullLoginSequenceUserStats"
 		},
 		"fullLoginSequenceUserStats" : {
 			"art"		: "USRSTAT",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"action"	: "@menu:mainMenu"
 		},
 		"newUserActive" : {
 			"art"		: "SO-CC1.ANS",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"action"	: "@menu:currentUserStats"
 		},
 		"currentUserStats" : {
 			"art" : "userstats",
-			"options" : { "cls" : true, "pause" : true }
+			"options" : { "pause" : true }
 			//"action"	: "@menu:lastCallers"
 		},
 		"mainMenu" : {
 			"art"		: "MMENU1",
 			"desc"		: "Main Menu",
-			"options"	: { "cls" : true },
 			"prompt" : "menuCommand",
 			"submit" : [
 				{
@@ -307,7 +296,7 @@
 		"mainMenuLastCallers" : {
 			"module"	: "last_callers",
 			"art"		: "LASTCALL",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"config" 	: {
 				"dateTimeFormat" : "ddd MMM Do h:mm a"
 			},
@@ -315,7 +304,7 @@
 		},
 		"mainMenuUserStats" : {
 			"art"		: "USRSTAT",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"action"	: "@menu:mainMenu"
 		},
 		///////////////////////////////////////////////////////////////////////
@@ -325,7 +314,6 @@
 			"module"	: "msg_area",
 			"art"		: "MSGAREA",
 			"desc"		: "Message Area",
-			"options"	: { "cls" : true },
 			"prompt"	: "menuCommand",
 			"submit"	: [
 				{
@@ -359,7 +347,6 @@
 		"messageAreaChangeCurrentArea" : {
 			"art"		: "msg_area_list.ans",
 			"module"	: "msg_area_list",
-			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",
 			"form"		: {
 				"0" : {
@@ -394,7 +381,6 @@
 		"messageAreaMessageList" : {
 			"module"	: "msg_list",
 			"art"		: "msg_list",
-			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",
 			"config" 	: {
 				"listType"	: "public"
@@ -430,7 +416,6 @@
 		},
 		"messageAreaViewPost" :  {
 			"module" 	: "msg_area_view_fse",
-			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			"config"	: {
 				"art" : {
@@ -559,7 +544,6 @@
 		"messageAreaNewPost" : {
 			"status"	: "Posting message",
 			"module"	: "msg_area_post_fse",
-			"options"	: { "cls" : true },
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			"config"	: {
 				"art" : {
@@ -732,7 +716,6 @@
 		////////////////////////////////////////////////////////////////////////
 		"idleLogoff" : {
 			"art" 		: "IDLELOG",
-			"options" 	: { "cls" : true },
 			"action"	: "@systemMethod:logoff"
 		},
 		////////////////////////////////////////////////////////////////////////
@@ -741,7 +724,7 @@
 		"lastCallers" :{
 			"module"	: "last_callers",
 			"art"		: "LASTCALL.ANS",
-			"options"	: { "cls" : true, "pause" : true },
+			"options"	: { "pause" : true },
 			"config"	: {
 				"dateTimeFormat" : "ddd MMM Do H:mm a"
 			},
@@ -774,7 +757,6 @@
 		////////////////////////////////////////////////////////////////////////
 		"demoMain" : {
 			"art" : "demo_selection_vm.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"VM" : {
@@ -838,7 +820,6 @@
 		},
 		"demoEditTextView" : {
 			"art" : "demo_edit_text_view1.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"BTETETETET" : {
@@ -888,7 +869,6 @@
 		},
 		"demoSpinAndToggleView" : {
 			"art" : "demo_spin_and_toggle.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"BTSMSMTM" : {
@@ -928,7 +908,6 @@
 		},
 		"demoMaskEditView" : {
 			"art" : "demo_mask_edit_text_view1.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"BTMEME" : {
@@ -964,7 +943,6 @@
 		},
 		"demoMultiLineEditTextView" : {
 			"art" : "demo_multi_line_edit_text_view1.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"BTMT" : {
@@ -1001,7 +979,6 @@
 		},
 		"demoHorizontalMenuView" : {
 			"art" : "demo_horizontal_menu_view1.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"BTHMHM" : {
@@ -1038,7 +1015,6 @@
 		},
 		"demoVerticalMenuView" : {
 			"art"		: "demo_vertical_menu_view1.ans",
-			"options"	: { "cls" : true },
 			"form"		: {
 				"0"	: {
 					"BTVM" : {
@@ -1085,7 +1061,6 @@
 		},
 		"demoArtDisplay" : {
 			"art" : "demo_selection_vm.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"VM" : {
@@ -1123,20 +1098,16 @@
 			}
 		},
 		"demoDefaultsDosAnsi" : {
-			"art" : "DM-ENIG2.ANS",
-			"options" : { "cls" : true }
+			"art" : "DM-ENIG2.ANS"
 		},
 		"demoDefaultsDosAnsi_bw_mindgames" : {
-			"art" : "bw_mindgames.ans",
-			"options" : { "cls" : true }
+			"art" : "bw_mindgames.ans"
 		},
 		"demoDefaultsDosAnsi_test" : {
-			"art" : "test.ans",
-			"options" : { "cls" : true }
+			"art" : "test.ans"
 		},
 		"demoFullScreenEditor" : {
 			"module"	: "@systemModule:fse",
-			"options"	: { "cls" : true },
 			"config"	: {
 				"editorType"	: "netMail",
 				"art"			: {
@@ -1322,7 +1293,6 @@
 		/*
 		"demoEditTextView" : {
 			"art" : "demo_edit_text_view.ans",
-			"options" : { "cls" : true },
 			"form" : {
 				"0" : {
 					"ET1ET2ET3ET5SM4TM6" : {

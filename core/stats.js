@@ -30,3 +30,4 @@ function getUserLoginHistory(numRequested, cb) {
 		}
 	);
 }
+

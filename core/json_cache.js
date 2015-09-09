@@ -9,6 +9,7 @@ var fs					= require('fs');
 var Gaze				= require('gaze').Gaze;
 var stripJsonComments	= require('strip-json-comments');
 var assert				= require('assert');
+var hjson				= require('hjson');
 
 module.exports = exports = new JSONCache();
 
@@ -21,9 +22,11 @@ function JSONCache() {
 	this.reCacheJSONFromFile = function(filePath, cb) {
 		fs.readFile(filePath, { encoding : 'utf-8' }, function fileRead(err, data) {
 			try {
-				self.cache[filePath] = JSON.parse(stripJsonComments(data));
+				//self.cache[filePath] = JSON.parse(stripJsonComments(data));
+				self.cache[filePath] = hjson.parse(data);
 				cb(null, self.cache[filePath]);
 			} catch(e) {
+				console.log(e)
 				cb(e);
 			}
 		});

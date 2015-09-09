@@ -227,7 +227,7 @@ function displayThemedPause(options, cb) {
 	async.series(
 		[
 			function loadPromptJSON(callback) {
-				jsonCache.getJSON('prompt.json', function loaded(err, promptJson) {
+				jsonCache.getJSON('prompt.hjson', function loaded(err, promptJson) {
 					if(err) {
 						callback(err);
 					} else {

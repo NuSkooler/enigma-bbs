@@ -5,9 +5,9 @@ var miscUtil			= require('./misc_util.js');
 
 var fs					= require('fs');
 var paths				= require('path');
-var stripJsonComments	= require('strip-json-comments');
 var async				= require('async');
 var _					= require('lodash');
+var hjson				= require('hjson');
 
 exports.init				= init;
 exports.getDefaultPath		= getDefaultPath;
@@ -22,9 +22,10 @@ function init(configPath, cb) {
 						callback(null, { } );
 					} else {
 						try {
-							var configJson = JSON.parse(stripJsonComments(data));
+							var configJson = hjson.parse(data);
 							callback(null, configJson);
 						} catch(e) {
+							console.log(e)
 							callback(e);							
 						}
 					}
@@ -53,7 +54,7 @@ function init(configPath, cb) {
 function getDefaultPath() {
 	var base = miscUtil.resolvePath('~/');
 	if(base) {
-		return paths.join(base, '.enigma-bbs', 'config.json');
+		return paths.join(base, '.enigma-bbs', 'config.hjson');
 	}
 }
 
@@ -80,6 +81,16 @@ function getDefaultConfig() {
 			defaultGroups		: [ 'users' ]					//	default groups new users belong to
 		},
 
+		//	:TODO: better name for "defaults"... which is redundant here!
+		/*
+		Concept
+		"theme" : {
+			"default" : "defaultThemeName", // or "*"
+			"preLogin" : "*",
+			"passwordChar" : "*",
+			...
+		}
+		*/
 		defaults : {
 			theme			: 'NU-MAYA',	//	:TODO: allow "*" here
 			passwordChar	: '*',		//	TODO: move to user ?
@@ -94,14 +105,9 @@ function getDefaultConfig() {
 			}
 		},
 
-		/*
-		Concept
-		"theme" : {
-			"default" : "defaultThemeName", // or "*"
-			"passwordChar" : "*",
-			...
-		}
-		*/
+		menus : {
+			cls		: true,	//	Clear screen before each menu by default?
+		},	
 
 		paths		: {
 			mods				: paths.join(__dirname, './../mods/'),

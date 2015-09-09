@@ -15,6 +15,21 @@
 				}
 			}
 		},
+		"userLoginCredentials" : {
+			"art"	: "USRCRED",
+			"mci"	: {
+				"ET1" : {
+					"argName"	: "username",
+					"maxLength"	: "@config:users.usernameMax"
+				},
+				"ET2" : {
+					"submit"	: true,
+					"argName"	: "password",
+					"password"	: true,
+					"maxLength"	: "@config:users.passwordMax"
+				}
+			}
+		},
 		"menuCommand" : {
 			"art" : "menu_prompt.ans",
 			"mci" :  {

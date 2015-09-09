@@ -17,11 +17,10 @@ var async				= require('async');
 var assert				= require('assert');
 var _					= require('lodash');
 
-var stripJsonComments	= require('strip-json-comments');
-
 exports.loadMenu						= loadMenu;
 exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
 exports.handleAction					= handleAction;
+exports.handleNext						= handleNext;
 exports.applyThemeCustomization			= applyThemeCustomization;
 
 function getMenuConfig(name, cb) {
@@ -30,7 +29,7 @@ function getMenuConfig(name, cb) {
 	async.waterfall(
 		[
 			function loadMenuJSON(callback) {
-				jsonCache.getJSON('menu.json', function loaded(err, menuJson) {
+				jsonCache.getJSON('menu.hjson', function loaded(err, menuJson) {
 					callback(err, menuJson);
 				});
 			},
@@ -44,7 +43,7 @@ function getMenuConfig(name, cb) {
 			},
 			function loadPromptJSON(callback) {
 				if(_.isString(menuConfig.prompt)) {
-					jsonCache.getJSON('prompt.json', function loaded(err, promptJson, reCached) {
+					jsonCache.getJSON('prompt.hjson', function loaded(err, promptJson, reCached) {
 						callback(err, promptJson);
 					});
 				} else {
@@ -166,6 +165,20 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	cb(new Error('No matching form configuration found for key \'' + mciReqKey + '\''));
 }
 
+//	:TODO: Most of this should be moved elsewhere .... DRY...
+function callModuleMenuMethod(client, asset, path, formData) {
+	if('' === paths.extname(path)) {
+		path += '.js';
+	}
+
+	try {
+		var methodMod = require(path);
+		methodMod[asset.asset](client.currentMenuModule, formData || { }, conf.extraArgs);
+	} catch(e) {
+		client.log.error( { error : e.toString(), methodName : asset.asset }, 'Failed to execute asset method');
+	}
+}
+
 function handleAction(client, formData, conf) {
 	assert(_.isObject(conf));
 	assert(_.isString(conf.action));
@@ -173,30 +186,16 @@ function handleAction(client, formData, conf) {
 	var actionAsset = asset.parseAsset(conf.action);
 	assert(_.isObject(actionAsset));
 
-	//	:TODO: Most of this should be moved elsewhere .... DRY...
-	function callModuleMenuMethod(path) {
-		if('' === paths.extname(path)) {
-			path += '.js';
-		}
-
-		try {
-			var methodMod = require(path);
-			methodMod[actionAsset.asset](client.currentMenuModule, formData, conf.extraArgs);
-		} catch(e) {
-			Log.error( { error : e.toString(), methodName : actionAsset.asset }, 'Failed to execute asset method');
-		}
-	}
-
 	switch(actionAsset.type) {
 		case 'method' :
 		case 'systemMethod' : 
 			if(_.isString(actionAsset.location)) {
-				callModuleMenuMethod(paths.join(Config.paths.mods, actionAsset.location));
+				callModuleMenuMethod(client, actionAsset, paths.join(Config.paths.mods, actionAsset.location, formData));
 			} else {
 				if('systemMethod' === actionAsset.type) {
 					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
 					//	:TODO: Probably better as system_method.js
-					callModuleMenuMethod(paths.join(__dirname, 'system_menu_method.js'));
+					callModuleMenuMethod(client, actionAsset, paths.join(__dirname, 'system_menu_method.js'), formData);
 				} else {
 					//	local to current module
 					var currentModule = client.currentMenuModule;
@@ -209,6 +208,40 @@ function handleAction(client, formData, conf) {
 
 		case 'menu' :
 			client.gotoMenuModule( { name : actionAsset.asset, formData : formData, extraArgs : conf.extraArgs } );
+			break;
+	}
+}
+
+function handleNext(client, nextSpec) {
+	assert(_.isString(nextSpec));
+
+	var nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
+
+	switch(nextAsset.type) {
+		case 'method' :
+		case 'systemMethod' :
+			if(_.isString(nextAsset.location)) {
+				callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, actionAsset.location));
+			} else {
+				if('systemMethod' === nextAsset.type) {
+					//	:TODO: see other notes about system_menu_method.js here
+					callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'));
+				} else {
+					//	local to current module
+					var currentModule = client.currentMenuModule;
+					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+						currentModule.menuMethods[actionAsset.asset]( { }, { } );
+					}
+				}
+			}
+			break;
+
+		case 'menu' :
+			client.gotoMenuModule( { name : nextAsset.asset } );
+			break;
+
+		default :
+			client.log.error( { nextSpec : nextSpec }, 'Invalid asset type for "next"');
 			break;
 	}
 }

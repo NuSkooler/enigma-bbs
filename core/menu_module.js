@@ -9,6 +9,7 @@ var ansi				= require('./ansi_term.js');
 var asset				= require('./asset.js');
 var ViewController		= require('./view_controller.js').ViewController;
 var menuUtil			= require('./menu_util.js');
+var Config				= require('./config.js').config;
 
 var async				= require('async');
 var assert				= require('assert');
@@ -26,6 +27,10 @@ function MenuModule(options) {
 	this.menuConfig			= options.menuConfig;
 	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};	//	methods called from @method's
+
+	this.cls				= _.isBoolean(this.menuConfig.options.cls) ? 
+		this.menuConfig.options.cls : 
+		Config.menus.cls;
 
 	this.initViewControllers();
 
@@ -133,6 +138,7 @@ function MenuModule(options) {
 		return 'end' === self.menuConfig.options.pause || true === self.menuConfig.options.pause;
 	};
 
+	//	:TODO: Convert this to process "next" instead of "action"
 	this.nextAction = function() {
 		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
 			_.isString(self.menuConfig.action))
@@ -164,7 +170,7 @@ MenuModule.prototype.leave = function() {
 };
 
 MenuModule.prototype.beforeArt = function() {	
-	if(this.menuConfig.options.cls) {
+	if(this.cls) {
 		this.client.term.write(ansi.resetScreen());
 	}
 
@@ -240,7 +246,8 @@ MenuModule.prototype.finishedLoading = function() {
 		_.isString(this.menuConfig.next))
 	{
 		setTimeout(function nextTimeout() {
-			self.client.gotoMenuModule( { name : self.menuConfig.next } );
+			menuUtil.handleNext(self.client, self.menuConfig.next);
+			//self.client.gotoMenuModule( { name : self.menuConfig.next } );
 		}, this.menuConfig.options.nextTimeout);
 	}
 };

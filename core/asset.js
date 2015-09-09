@@ -8,6 +8,7 @@ var _			= require('lodash');
 var assert		= require('assert');
 
 exports.parseAsset				= parseAsset;
+exports.getAssetWithShorthand	= getAssetWithShorthand;
 exports.getArtAsset				= getArtAsset;
 exports.getModuleAsset			= getModuleAsset;
 exports.resolveConfigAsset		= resolveConfigAsset;
@@ -42,6 +43,25 @@ function parseAsset(s) {
 	}
 }
 
+function getAssetWithShorthand(spec, defaultType) {
+	if(!_.isString(spec)) {
+		return null;
+	}
+
+	if('@' === spec[0]) {
+		var asset = parseAsset(spec);
+		assert(_.isString(asset.type));
+
+		return asset;
+	} else {
+		return {
+			type	: defaultType,
+			asset	: spec,
+		}
+	}
+}
+
+//	:TODO: Convert these to getAssetWithShorthand()
 function getArtAsset(art) {
 	if(!_.isString(art)) {
 		return null;
