@@ -15,7 +15,6 @@ var paths				= require('path');
 var async				= require('async');
 var _					= require('lodash');
 var assert				= require('assert');
-var stripJsonComments	= require('strip-json-comments');
 
 exports.loadTheme				= loadTheme;
 exports.getThemeArt				= getThemeArt;

@@ -25,7 +25,6 @@ function init(configPath, cb) {
 							var configJson = hjson.parse(data);
 							callback(null, configJson);
 						} catch(e) {
-							console.log(e)
 							callback(e);							
 						}
 					}
