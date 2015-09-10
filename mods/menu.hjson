@@ -414,20 +414,22 @@
 				}
 			}
 		},
-		"messageAreaViewPost" :  {
-			"module" 	: "msg_area_view_fse",
-			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
-			"config"	: {
-				"art" : {
-					"header"			: "MSGVHDR",
-					"body"				: "demo_fse_netmail_body.ans",
-					"footerEdit"		: "demo_fse_netmail_footer_edit.ans",
-					"footerEditMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
-					"footerView"		: "MSGVFTR",
-					"help"				: "demo_fse_netmail_help.ans"
+
+		messageAreaViewPost:  {
+			module: msg_area_view_fse
+			//	:TODO: remove once default fallback is in place
+			fallback: messageArea		
+			config: {
+				art: {
+					header:				MSGVHDR
+					body: 				demo_fse_netmail_body.ans
+					footerEdit:			demo_fse_netmail_footer_edit.ans
+					footerEditMenu: 	demo_fse_netmail_footer_edit_menu.ans
+					footerView:			MSGVFTR
+					help:				demo_fse_netmail_help.ans
 				},
-				"editorMode"	: "view",
-				"editorType"	: "area"
+				editorMode: view
+				editorType: area
 			},
 			"form" : {
 				"0" : {
