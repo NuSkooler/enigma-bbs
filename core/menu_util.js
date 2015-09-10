@@ -8,7 +8,7 @@ var conf				= require('./config.js');	//	:TODO: remove me!
 var Config				= require('./config.js').config;
 var asset				= require('./asset.js');
 var theme				= require('./theme.js');
-var jsonCache			= require('./json_cache.js');
+var configCache			= require('./config_cache.js');
 var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
 
 var fs					= require('fs');
@@ -29,7 +29,7 @@ function getMenuConfig(name, cb) {
 	async.waterfall(
 		[
 			function loadMenuJSON(callback) {
-				jsonCache.getJSON('menu.hjson', function loaded(err, menuJson) {
+				configCache.getModConfig('menu.hjson', function loaded(err, menuJson) {
 					callback(err, menuJson);
 				});
 			},
@@ -43,7 +43,7 @@ function getMenuConfig(name, cb) {
 			},
 			function loadPromptJSON(callback) {
 				if(_.isString(menuConfig.prompt)) {
-					jsonCache.getJSON('prompt.hjson', function loaded(err, promptJson, reCached) {
+					configCache.getModConfig('prompt.hjson', function loaded(err, promptJson, reCached) {
 						callback(err, promptJson);
 					});
 				} else {
@@ -166,14 +166,14 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 }
 
 //	:TODO: Most of this should be moved elsewhere .... DRY...
-function callModuleMenuMethod(client, asset, path, formData) {
+function callModuleMenuMethod(client, asset, path, formData, extraArgs) {
 	if('' === paths.extname(path)) {
 		path += '.js';
 	}
 
 	try {
 		var methodMod = require(path);
-		methodMod[asset.asset](client.currentMenuModule, formData || { }, conf.extraArgs);
+		methodMod[asset.asset](client.currentMenuModule, formData || { }, extraArgs);
 	} catch(e) {
 		client.log.error( { error : e.toString(), methodName : asset.asset }, 'Failed to execute asset method');
 	}
@@ -190,12 +190,12 @@ function handleAction(client, formData, conf) {
 		case 'method' :
 		case 'systemMethod' : 
 			if(_.isString(actionAsset.location)) {
-				callModuleMenuMethod(client, actionAsset, paths.join(Config.paths.mods, actionAsset.location, formData));
+				callModuleMenuMethod(client, actionAsset, paths.join(Config.paths.mods, actionAsset.location, formData, conf.extraArgs));
 			} else {
 				if('systemMethod' === actionAsset.type) {
 					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
 					//	:TODO: Probably better as system_method.js
-					callModuleMenuMethod(client, actionAsset, paths.join(__dirname, 'system_menu_method.js'), formData);
+					callModuleMenuMethod(client, actionAsset, paths.join(__dirname, 'system_menu_method.js'), formData, conf.extraArgs);
 				} else {
 					//	local to current module
 					var currentModule = client.currentMenuModule;
@@ -212,32 +212,35 @@ function handleAction(client, formData, conf) {
 	}
 }
 
-function handleNext(client, nextSpec) {
+function handleNext(client, nextSpec, conf) {
 	assert(_.isString(nextSpec));
 
 	var nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
+
+	conf = conf || {};
+	var extraArgs = conf.extraArgs || {};
 
 	switch(nextAsset.type) {
 		case 'method' :
 		case 'systemMethod' :
 			if(_.isString(nextAsset.location)) {
-				callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, actionAsset.location));
+				callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, actionAsset.location), {}, extraArgs);
 			} else {
 				if('systemMethod' === nextAsset.type) {
 					//	:TODO: see other notes about system_menu_method.js here
-					callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'));
+					callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'), {}, extraArgs);
 				} else {
 					//	local to current module
 					var currentModule = client.currentMenuModule;
 					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-						currentModule.menuMethods[actionAsset.asset]( { }, { } );
+						currentModule.menuMethods[actionAsset.asset]( { }, extraArgs );
 					}
 				}
 			}
 			break;
 
 		case 'menu' :
-			client.gotoMenuModule( { name : nextAsset.asset } );
+			client.gotoMenuModule( { name : nextAsset.asset, extraArgs : extraArgs } );
 			break;
 
 		default :
@@ -246,17 +249,24 @@ function handleNext(client, nextSpec) {
 	}
 }
 
-//	:TODO: This should be in theme.js
+//	:TODO: custom art needs a way to be themed -- e.g. config.art.someArtThing -- what does this mean exactly?
 
-//	:TODO: Need to take (optional) form ID to search for (e.g. for multi-form menus)
-//	:TODO: custom art needs a way to be themed -- e.g. config.art.someArtThing
-
+//	:TODO: Seems better in theme.js, but that includes ViewController...which would then include theme.js
 function applyThemeCustomization(options) {
 	//
 	//	options.name 		: menu/prompt name
 	//	options.configMci	: menu or prompt config (menu.json / prompt.json) specific mci section
 	//	options.client		: client
 	//	options.type		: menu|prompt
+	//	options.formId		: (optional) form ID in cases where multiple forms may exist wanting their own customization
+	//
+	//	In the case of formId, the theme must include the ID as well, e.g.:
+	//  {
+	//	  ...
+	//	  "2" : {
+	//      "TL1" : { ... }
+	//    }
+	//	}
 	//
 	assert(_.isString(options.name));
 	assert("menus" === options.type || "prompts" === options.type);
@@ -268,6 +278,12 @@ function applyThemeCustomization(options) {
 
 	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
 		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
+
+		if(options.formId && _.has(themeConfig, options.formId.toString())) {
+			//	form ID found - use exact match
+			themeConfig = themeConfig[options.formId];
+		}
+
 		Object.keys(themeConfig).forEach(function mciEntry(mci) {
 			_.defaults(options.configMci[mci], themeConfig[mci]);		
 		});

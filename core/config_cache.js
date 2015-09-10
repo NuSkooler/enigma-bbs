@@ -7,16 +7,16 @@ var Log					= require('./logger.js').log;
 var paths				= require('path');
 var fs					= require('fs');
 var Gaze				= require('gaze').Gaze;
-var stripJsonComments	= require('strip-json-comments');
+var events				= require('events');
+var util				= require('util');
 var assert				= require('assert');
 var hjson				= require('hjson');
 
-module.exports = exports = new JSONCache();
-
-function JSONCache() {
+function ConfigCache() {
+	events.EventEmitter.call(this);
 
 	var self 	= this;
-	this.cache	= {};	//	filePath -> JSON
+	this.cache	= {};	//	filePath -> HJSON
 	this.gaze	= new Gaze();
 
 	this.reCacheJSONFromFile = function(filePath, cb) {
@@ -45,14 +45,18 @@ function JSONCache() {
 		self.reCacheJSONFromFile(filePath, function reCached(err) {
 			if(err) {
 				Log.error( { error : err, filePath : filePath } , 'Error recaching JSON');
+			} else {
+				self.emit('recached', filePath);
 			}
 		});
 	});
+
 }
 
-JSONCache.prototype.getJSON = function(fileName, cb) {
+util.inherits(ConfigCache, events.EventEmitter);
+
+ConfigCache.prototype.getConfig = function(filePath, cb) {
 	var self		= this;
-	var filePath	= paths.join(Config.paths.mods, fileName);
 
 	if(filePath in this.cache) {
 		cb(null, this.cache[filePath], false);
@@ -65,3 +69,9 @@ JSONCache.prototype.getJSON = function(fileName, cb) {
 		});
 	}
 };
+
+ConfigCache.prototype.getModConfig = function(fileName, cb) {
+	this.getConfig(paths.join(Config.paths.mods, fileName), cb);
+};
+
+module.exports = exports = new ConfigCache();

@@ -6,7 +6,7 @@ var art					= require('./art.js');
 var ansi				= require('./ansi_term.js');
 var miscUtil			= require('./misc_util.js');
 var Log					= require('./logger.js').log;
-var jsonCache			= require('./json_cache.js');
+var configCache			= require('./config_cache.js');
 var asset				= require('./asset.js');
 var ViewController		= require('./view_controller.js').ViewController;
 
@@ -25,77 +25,73 @@ exports.displayThemeArt			= displayThemeArt;
 exports.displayThemedPause		= displayThemedPause;
 exports.displayThemedAsset		= displayThemedAsset;
 
-//	:TODO: use JSONCache here... may need to fancy it up a bit in order to have events for after re-cache, e.g. to update helpers below:
-function loadTheme(themeID, cb) {
-	var path = paths.join(Config.paths.themes, themeID, 'theme.json');
+function refreshThemeHelpers(theme) {
+	//
+	//	Create some handy helpers
+	//
+	theme.helpers = {
+		getPasswordChar : function() {
+			var pwChar = Config.defaults.passwordChar;
+			if(_.has(theme, 'customization.defaults.general')) {
+				var themePasswordChar = theme.customization.defaults.general.passwordChar;
+				if(_.isString(themePasswordChar)) {
+					pwChar = themePasswordChar.substr(0, 1);
+				} else if(_.isNumber(themePasswordChar)) {
+					pwChar = String.fromCharCode(themePasswordChar);
+				}
+			}
+			return pwChar;
+		},
+		getDateFormat : function(style) {
+			style = style || 'short';
 
-	fs.readFile(path, { encoding : 'utf8' }, function onData(err, data) {
+			var format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
+
+			if(_.has(theme, 'customization.defaults.dateFormat')) {
+				return theme.customization.defaults.dateFormat[style] || format;
+			}
+			return format;
+		},
+		getTimeFormat : function(style) {
+			style = style || 'short';
+
+			var format = Config.defaults.timeFormat[style] || 'h:mm a';
+
+			if(_.has(theme, 'customization.defaults.timeFormat')) {
+				return theme.customization.defaults.timeFormat[style] || format;
+			}
+			return format;
+		},
+		getDateTimeFormat : function(style) {
+			style = style || 'short';
+
+			var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+
+			if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
+				return theme.customization.defaults.dateTimeFormat[style] || format;
+			}
+
+			return format;
+		}
+	}
+}
+
+function loadTheme(themeID, cb) {
+
+	var path = paths.join(Config.paths.themes, themeID, 'theme.hjson');
+
+	configCache.getConfig(path, function loaded(err, theme) {
 		if(err) {
 			cb(err);
 		} else {
-			try {
-				var theme = JSON.parse(stripJsonComments(data));
-
-				if(!_.isObject(theme.info)) {
-					cb(new Error('Invalid theme JSON'));
-					return;
-				}
-
-				assert(!_.isObject(theme.helpers));	//	we create this on the fly!
-
-				//
-				//	Create some handy helpers
-				//
-				theme.helpers = {
-					getPasswordChar : function() {
-						var pwChar = Config.defaults.passwordChar;
-						if(_.has(theme, 'customization.defaults.general')) {
-							var themePasswordChar = theme.customization.defaults.general.passwordChar;
-							if(_.isString(themePasswordChar)) {
-								pwChar = themePasswordChar.substr(0, 1);
-							} else if(_.isNumber(themePasswordChar)) {
-								pwChar = String.fromCharCode(themePasswordChar);
-							}
-						}
-						return pwChar;
-					},
-					getDateFormat : function(style) {
-						style = style || 'short';
-
-						var format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
-
-						if(_.has(theme, 'customization.defaults.dateFormat')) {
-							return theme.customization.defaults.dateFormat[style] || format;
-						}
-						return format;
-					},
-					getTimeFormat : function(style) {
-						style = style || 'short';
-
-						var format = Config.defaults.timeFormat[style] || 'h:mm a';
-
-						if(_.has(theme, 'customization.defaults.timeFormat')) {
-							return theme.customization.defaults.timeFormat[style] || format;
-						}
-						return format;
-					},
-					getDateTimeFormat : function(style) {
-						style = style || 'short';
-
-						var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
-
-						if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
-							return theme.customization.defaults.dateTimeFormat[style] || format;
-						}
-
-						return format;
-					}
-				};
-
-				cb(null, theme);
-			} catch(e) {
-				cb(err);
+			if(!_.isObject(theme.info)) {
+				cb(new Error('Invalid theme or missing \'info\' section'));
+				return;
 			}
+
+			refreshThemeHelpers(theme);
+
+			cb(null, theme, path);
 		}
 	});
 }
@@ -118,9 +114,20 @@ function initAvailableThemes(cb) {
 			},
 			function populateAvailable(filtered, callback) {
 				filtered.forEach(function onTheme(themeId) {
-					loadTheme(themeId, function themeLoaded(err, theme) {
+					loadTheme(themeId, function themeLoaded(err, theme, themePath) {
 						if(!err) {
 							availableThemes[themeId] = theme;
+
+							configCache.on('recached', function recached(path) {
+								if(themePath === path) {									
+									loadTheme(themeId, function reloaded(err, reloadedTheme) {
+										Log.debug( { info : theme.info }, 'Theme recached' );
+
+										availableThemes[themeId] = reloadedTheme;
+									});
+								}
+							});
+
 							Log.debug( { info : theme.info }, 'Theme loaded');
 						}
 					});
@@ -227,7 +234,7 @@ function displayThemedPause(options, cb) {
 	async.series(
 		[
 			function loadPromptJSON(callback) {
-				jsonCache.getJSON('prompt.hjson', function loaded(err, promptJson) {
+				configCache.getModConfig('prompt.hjson', function loaded(err, promptJson) {
 					if(err) {
 						callback(err);
 					} else {

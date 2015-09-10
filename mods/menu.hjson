@@ -440,8 +440,8 @@
 						},
 						"TL3" : {
 							//"width"			: 39,
-							"width"			: 27,
-							"textOverflow"	: "..."
+							//"width"			: 27,
+							//"textOverflow"	: "..."
 						},
 						"TL5" :  {
 							"width"		: 27

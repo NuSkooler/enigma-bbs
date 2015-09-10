@@ -562,6 +562,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 						type		: 'menus',
 						client		: self.client,
 						configMci	: formConfig.mci,
+						formId		: formIdKey,
 					});
 				}
 

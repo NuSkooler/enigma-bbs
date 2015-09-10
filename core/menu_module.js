@@ -154,8 +154,15 @@ function MenuModule(options) {
 
 	this.nextMenu = function() {
 		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-			_.isString(self.menuConfig.next))
+			(_.isString(self.menuConfig.next) || _.isObject(self.menuConfig.next)))
 		{
+			/*
+				next : "spec"
+				next: {
+					"asset" : "spec",
+					"extraArgs" : ...
+				}
+			*/
 			if(self.hasNextTimeout()) {
 				setTimeout(function nextTimeout() {
 					menuUtil.handleNext(self.client, self.menuConfig.next);
