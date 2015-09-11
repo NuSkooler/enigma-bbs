@@ -532,15 +532,15 @@
 						},
 						*/
 						{
-							"keys"		: [ "P", "p" ],
+							"keys"		: [ "p", "shift + p" ],
 							"action"	: "@method:prevMessage"
 						},						
 						{
-							"keys"		: [ "N", "n" ],
+							"keys"		: [ "n", "shift + n" ],
 							"action"	: "@method:nextMessage"
 						},						
 						{
-							"keys"		: [ "escape", "Q", "q" ],
+							"keys"		: [ "escape", "q", "shift + q" ],
 							"action"	: "@menu:messageArea"
 						},
 						{
@@ -556,55 +556,48 @@
 			"status"	: "Posting message",
 			"module"	: "msg_area_post_fse",
 			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
-			"config"	: {
-				"art" : {
-					"header"			: "msg_area_post_header",
-					"body"				: "demo_fse_netmail_body.ans",
-					"footerEditor"		: "demo_fse_netmail_footer_edit.ans",
-					"footerEditorMenu"	: "demo_fse_netmail_footer_edit_menu.ans",
-					"footerView"		: "demo_fse_netmail_footer_view.ans",
-					"help"				: "demo_fse_netmail_help.ans"
+			config: {
+				art: {
+					header:				MSGEHDR
+					body:				demo_fse_netmail_body.ans
+					footerEditor:		MSGEFTR
+					footerEditorMenu:	MSGEMFT
+					footerView:			demo_fse_netmail_footer_view.ans
+					help:				demo_fse_netmail_help.ans
 				},
-				"editorMode"	: "edit",
-				"editorType"	: "area"
+				editorMode: edit
+				editorType: area
 			},
 			"form" : {
 				"0" : {
-					"ETETTL" : {
-						"mci" : {
-							"TL1" : {
-								"width"		: 36,
-								"argName"	: "from"
-							},
-							"ET2" : {
-								"width"		: 36,
-								"argName"	: "to",
-								"focus"		: true
-							},
-							"ET3" : {
-								"width"		: 65,
-								"argName"	: "subject",
-								"maxLength"	: 72,
-								"submit"	: true
-							},
-							"MA5" : {
-								"width"			: 19,
-								"textOverflow"	: "..."
-							}
-							/*,
-							"TL4" :  {
-								"width"			: 19,
-								"textOverflow"	: "..."
-							}*/
-						},
-						"submit" : {
-							"3" : [
-								{
-									"value"		: { "subject" : null },
-									"action"	: "@method:headerSubmit"
-								}
-							]
+					mci: {
+						TL1: {
+							width: 		27
+							argName: 	from
 						}
+						ET2: {
+							width: 		27
+							argName:	to
+							focus:		true
+						}
+						"ET3" : {
+							"width"		: 27,
+							"argName"	: "subject",
+							"maxLength"	: 72,
+							"submit"	: true
+						},
+						"MA5" : {
+							"width"			: 27,
+							"textOverflow"	: "..."
+						}
+					},
+					"submit" : {
+						"3" : [
+							{
+								"value"		: { "subject" : null },
+								"action"	: "@method:headerSubmit"
+							}
+						]
 					}
 				},
 				"1" : {
@@ -963,7 +956,7 @@
 								"height"	: 17,
 								//"text"		: "@art:demo_multi_line_edit_text_view_text.txt",
 								// "text" : "@systemMethod:textFromFile"
-								"text"		: "Hints:\n\t* Insert / CTRL-V toggles overtype mode\n\t* CTRL-Y deletes the current line\n\t* Try Page Up / Page Down\n\t* Home goes to the start of line text\n\t* End goes to the end of a line\n\n\nTab handling:\n-------------------------------------------------\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\nA0\tBB\t1\tCCC\t2\tDDD\t3EEEE\nW\t\tX\t\tY\t\tZ\n\nAn excerpt from A Clockwork Orange:\n\"What sloochatted then, of course, was that my cellmates woke up and started joining in, tolchocking a bit wild in the near-dark, and the shoom seemed to wake up the whole tier, so that you could slooshy a lot of creeching and banging about with tin mugs on the wall, as though all the plennies in all the cells thought a big break was about to commence, O my brothers.\n",
+								text: "Hints:\n\t* Insert / CTRL-V toggles overtype mode\n\t* CTRL-Y deletes the current line\n\t* Try Page Up / Page Down\n\t* Home goes to the start of line text\n\t* End goes to the end of a line\n\n\nTab handling:\n-------------------------------------------------\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\n\tA\tB\tC\tD\tE\tF\nA\tB\tC\tD\tE\tF\tG\tH\nA0\tBB\t1\tCCC\t2\tDDD\t3EEEE\nW\t\tX\t\tY\t\tZ\n\nAn excerpt from A Clockwork Orange:\n\"What sloochatted then, of course, was that my cellmates woke up and started joining in, tolchocking a bit wild in the near-dark, and the shoom seemed to wake up the whole tier, so that you could slooshy a lot of creeching and banging about with tin mugs on the wall, as though all the plennies in all the cells thought a big break was about to commence, O my brothers.\n",
 								"focus"		: true
 							},
 							"BT5" : {

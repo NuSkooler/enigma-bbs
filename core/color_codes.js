@@ -47,9 +47,7 @@ function enigmaToAnsi(s, client) {
 			//	ENiGMA MCI code? Only available if |client|
 			//	is supplied.
 			//
-			console.log('attempting to resolve ' + m[1])
 			val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);	//	value itself or literal
-			console.log(val)
 		}
 
 		if(_.isString(val)) {
