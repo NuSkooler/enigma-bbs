@@ -11,111 +11,19 @@ var ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
 var MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
 var StatusBarView			= require('./status_bar_view.js').StatusBarView;
 var MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
-var getMessageAreaByName	= require('./message_area.js').getMessageAreaByName;
-
-var Config					= require('./config.js').config;
+var getPredefinedMCIValue	= require('./predefined_mci.js').getPredefinedMCIValue;
 var ansi					= require('./ansi_term.js');
 
 var packageJson 			= require('../package.json');
 
 var assert					= require('assert');
-var os						= require('os');
 var _						= require('lodash');
-var moment					= require('moment');
 
 exports.MCIViewFactory		= MCIViewFactory;
 
 function MCIViewFactory(client) {
 	this.client = client;
 }
-
-//	:TODO: This portion should be made more generic so pipe code formatting can use it!
-//	e..g MCIPrint() -> enigmaToAnsi() -> 
-MCIViewFactory.prototype.getPredefinedViewLabel = function(code) {
-
-	var self = this;
-	
-	function getMessageAreaDescription() {
-		var area = getMessageAreaByName(self.client.user.properties.message_area_name);
-		return area ? area.desc : '';
-	}
-
-	function getCurrentMenuDescription() {
-		return _.has(self, 'client.currentMenuModule.menuConfig.desc') ? self.client.currentMenuModule.menuConfig.desc : '';
-	}
-
-	try {
-		return {
-			BN	: Config.general.boardName,
-			VL	: 'ENiGMA½ v' + packageJson.version,
-			VN	: packageJson.version,
-
-			UN	: this.client.user.username,
-			UI	: this.client.user.userId.toString(),
-			UG	: _.values(this.client.user.groups).join(', '),
-			UR	: this.client.user.properties.real_name,
-			LO	: this.client.user.properties.location,
-			UA	: this.client.user.getAge().toString(),
-			UB	: moment(this.client.user.properties.birthdate).format(this.client.currentTheme.helpers.getDateFormat()),
-			US	: this.client.user.properties.sex,
-			UE	: this.client.user.properties.email_address,
-			UW	: this.client.user.properties.web_address,
-			UF	: this.client.user.properties.affiliation,
-			UT	: this.client.user.properties.theme_id,
-			UC	: this.client.user.properties.login_count.toString(),
-
-			MS	: moment(this.client.user.properties.account_created).format(this.client.currentTheme.helpers.getDateFormat()),
-			CS	: this.client.currentStatus,
-			MD	: getCurrentMenuDescription(),
-
-			MA	: getMessageAreaDescription(),
-
-
-
-			SH	: this.client.term.termHeight.toString(),
-			SW	: this.client.term.termWidth.toString(),
-
-			ND	: this.client.node.toString(),
-
-			//	:TODO: change to CD for 'Current Date'
-			DT	: moment().format(this.client.currentTheme.helpers.getDateFormat()),
-			CT	: moment().format(this.client.currentTheme.helpers.getTimeFormat()),
-
-
-			OS	: {
-				linux	: 'Linux',
-				darwin	: 'Mac OS X',
-				win32	: 'Windows',
-				sunos	: 'SunOS',
-				freebsd	: 'FreeBSD',
-			}[os.platform()] || os.type(),
-
-			OA	: os.arch(),
-			SC	: os.cpus()[0].model,
-
-			IP	: this.client.address().address,
-		}[code];
-	} catch(e) {
-		this.client.log.warn( { code : code, exception : e.message }, 'Exception caught attempting to construct predefined label');
-	}
-};
-
-/*
-MCIViewFactory.getUserViewClass = function(code) {
-	return {
-		TL	: TextView,
-		ET	: EditTextView,
-		ME	: MaskEditTextView,
-		MT	: MultiLineEditTextView,
-		PL	: TextView,
-		BT	: ButtonView,
-		VM	: VerticalMenuView,
-		HM	: HorizontalMenuView,
-		SM	: SpinnerMenuView,
-		TM	: ToggleMenuView,
-	}[code];
-};
-*/
 
 MCIViewFactory.UserViewCodes = [
 	'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'SM', 'TM'
@@ -202,7 +110,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 		//	Pre-defined Label (Text View)
 		case 'PL' : 
 			if(mci.args.length > 0) {
-				options.text = this.getPredefinedViewLabel(mci.args[0]);
+				options.text = getPredefinedMCIValue(this.client, mci.args[0]);
 				if(options.text) {
 					setOption(1, 'textStyle');
 					setOption(2, 'justify');
@@ -272,7 +180,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 
 		default :
-			options.text = this.getPredefinedViewLabel(mci.code);
+			options.text = getPredefinedMCIValue(this.client, mci.code);
 			if(_.isString(options.text)) {
 				setWidth(0);
 

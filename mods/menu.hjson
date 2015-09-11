@@ -2,9 +2,17 @@
 	/*
 		ENiGMA½ Menu Configuration
 
-		See http://hjson.org/ for syntax
+		This configuration is in HJSON format. Strict to-spec JSON is also
+		perfectly valid. The hjson npm can be used to convert to/from JSON.
+
+		See http://hjson.org/ for more information and syntax.
+
+
+
 	*/
 	/*
+		:TODO: Fully convert to HJSON
+
 		Menu Configuration
 
 		Tip: demjson's jsonlint is an excellent tool for linting JSON files
@@ -422,6 +430,7 @@
 			config: {
 				art: {
 					header:				MSGVHDR
+					//	:TODO: fix these!!
 					body: 				demo_fse_netmail_body.ans
 					footerEdit:			demo_fse_netmail_footer_edit.ans
 					footerEditMenu: 	demo_fse_netmail_footer_edit_menu.ans

@@ -1,9 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-var ansi		= require('./ansi_term.js');
+var ansi					= require('./ansi_term.js');
+var getPredefinedMCIValue	= require('./predefined_mci.js').getPredefinedMCIValue;
 
-var assert		= require('assert');
+var assert					= require('assert');
+var _						= require('lodash');
 
 exports.pipeToAnsi		= exports.enigmaToAnsi			= enigmaToAnsi;
 exports.stripPipeCodes	= exports.stripEnigmaCodes		= stripEnigmaCodes;
@@ -21,13 +23,13 @@ exports.renegadeToAnsi	= renegadeToAnsi;
 //	* fromWWIV(): <ctrl-c><0-7>
 //	* fromSyncronet(): <ctrl-a><colorCode>
 //	See http://wiki.synchro.net/custom:colors
-function enigmaToAnsi(s) {
+function enigmaToAnsi(s, client) {
 	if(-1 == s.indexOf('|')) {
 		return s;	//	no pipe codes present
 	}
 
 	var result	= '';
-	var re		= /\|(\d{2}|\|)/g;
+	var re		= /\|([A-Z\d]{2}|\|)/g;
 	var m;
     var lastIndex = 0;
 	while((m = re.exec(s))) {
@@ -41,22 +43,33 @@ function enigmaToAnsi(s) {
 		//	convert to number
 		val = parseInt(val, 10);
 		if(isNaN(val)) {
-			val = 0;
+			//
+			//	ENiGMA MCI code? Only available if |client|
+			//	is supplied.
+			//
+			console.log('attempting to resolve ' + m[1])
+			val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);	//	value itself or literal
+			console.log(val)
 		}
 
-		assert(val >= 0 && val <= 47);
+		if(_.isString(val)) {
+			result += s.substr(lastIndex, m.index - lastIndex) + val;
+		} else {
+			assert(val >= 0 && val <= 47);
 
-		var attr = '';
-		if(7 == val) {
-			attr = ansi.sgr('normal');
-		} else if (val < 7 || val >= 16) {
-			attr = ansi.sgr(['normal', val]);
-		} else if (val <= 15) {
-			attr = ansi.sgr(['normal', val - 8, 'bold']);
-		}
+			var attr = '';
+			if(7 == val) {
+				attr = ansi.sgr('normal');
+			} else if (val < 7 || val >= 16) {
+				attr = ansi.sgr(['normal', val]);
+			} else if (val <= 15) {
+				attr = ansi.sgr(['normal', val - 8, 'bold']);
+			}
 
-		result += s.substr(lastIndex, m.index - lastIndex) + attr;
-        lastIndex = re.lastIndex;
+			result += s.substr(lastIndex, m.index - lastIndex) + attr;			
+	    }
+
+	    lastIndex = re.lastIndex;
 	}
 
     result = (0 === result.length ? s : result + s.substr(lastIndex));
@@ -65,7 +78,7 @@ function enigmaToAnsi(s) {
 }
 
 function stripEnigmaCodes(s) {
-    return s.replace(/\|[\d]{2}/g, '');
+    return s.replace(/\|[A-Z\d]{2}/g, '');
 }
 
 function enigmaStrLen(s) {

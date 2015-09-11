@@ -138,7 +138,7 @@ ClientTerminal.prototype.rawWrite = function(s) {
 };
 
 ClientTerminal.prototype.pipeWrite = function(s) {
-	this.write(enigmaToAnsi(s));
+	this.write(enigmaToAnsi(s, this));
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
