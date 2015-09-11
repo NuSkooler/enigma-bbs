@@ -5,6 +5,7 @@ var View			= require('./view.js').View;
 var miscUtil		= require('./misc_util.js');
 var strUtil			= require('./string_util.js');
 var ansi			= require('./ansi_term.js');
+var colorCodes		= require('./color_codes.js');
 
 var assert			= require('assert');
 var _				= require('lodash');
@@ -486,6 +487,10 @@ function MultiLineEditTextView(options) {
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
+	this.getStringLength = function(s) {
+		return self.isPreviewMode() ? colorCodes.enigmaStrLen(s) : s.length;
+	};
+
 	this.wordWrapSingleLine = function(s, tabHandling, width) {
 		tabHandling = tabHandling || 'expandTabs';
 		if(!_.isNumber(width)) {
@@ -513,12 +518,17 @@ function MultiLineEditTextView(options) {
 		var results = { wrapped : [ '' ] };
 		var i = 0;
 		var word;
+		var wordLen;
 
 		function addWord() {
 			word.match(new RegExp('.{0,' + width + '}', 'g')).forEach(function wrd(w) {
+				wordLen = self.getStringLength(w);
+
 				if(results.wrapped[i].length + w.length > width) {
+				//if(results.wrapped[i].length + wordLen > width) {
 					if(0 === i) {
 						results.firstWrapRange = { start : wordStart, end : wordStart + w.length };
+						//results.firstWrapRange = { start : wordStart, end : wordStart + wordLen };
 					}
 					results.wrapped[++i] = w;
 				} else {

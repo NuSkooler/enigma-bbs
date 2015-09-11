@@ -108,6 +108,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 
 		//	Pre-defined Label (Text View)
+		//	:TODO: Currently no real point of PL -- @method replaces this pretty much... probably remove
 		case 'PL' : 
 			if(mci.args.length > 0) {
 				options.text = getPredefinedMCIValue(this.client, mci.args[0]);
