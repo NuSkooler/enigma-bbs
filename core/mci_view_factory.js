@@ -26,7 +26,14 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.UserViewCodes = [
-	'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'SM', 'TM'
+	'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'SM', 'TM',
+
+	//
+	//	XY is a special MCI code that allows finding positions
+	//	and counts for key lookup, but does not explicitly
+	//	represent a visible View on it's own
+	//
+	'XY',
 ];
 
 MCIViewFactory.prototype.createFromMCI = function(mci) {
@@ -189,8 +196,6 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 				setOption(2,	'justify');
 
 				view = new TextView(options);
-			} else {
-				//	:TODO: log this
 			}
 			break;
 	}

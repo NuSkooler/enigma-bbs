@@ -184,19 +184,17 @@ function FullScreenEditorModule(options) {
 			[
 				function moveToFooterPosition(callback) {
 					//
-					//	Calculate footer staring position
+					//	Calculate footer starting position
 					//
 					//	row = (header height + body height)
 					//
-					//	Header: mciData.body.height
-					//	Body  : We must find this in the config / theme
-					//
-					//	:TODO: don't hard code this -- allow footer height to be part of theme/etc.
-					self.client.term.rawWrite(ansi.goto(24, 1));
+					var footerRow = self.header.height + self.body.height;
+					self.client.term.rawWrite(ansi.goto(footerRow, 1));
 					callback(null);
 				},
 				function clearFooterArea(callback) {
 					if(options.clear) {
+						//	footer up to 3 rows in height
 						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 					}
 					callback(null);
@@ -316,6 +314,9 @@ function FullScreenEditorModule(options) {
 							{ font : self.menuConfig.font },
 							function displayed(err, artData) {
 								mciData[n] = artData;
+
+								self[n] = { height : artData.height };
+
 								next(err);
 							}
 						);
@@ -327,7 +328,7 @@ function FullScreenEditorModule(options) {
 					self.setInitialFooterMode();
 
 					var footerName = self.getFooterName();
-					console.log(footerName)
+
 					self.redrawFooter( { footerName : footerName }, function artDisplayed(err, artData) {
 						mciData[footerName] = artData;
 						callback(err);
@@ -368,8 +369,6 @@ function FullScreenEditorModule(options) {
 				function body(callback) {
 					menuLoadOpts.formId	= self.getFormId('body');
 					menuLoadOpts.mciMap	= mciData.body.mciMap;
-
-					console.log('creating body.l..')
 
 					self.addViewController(
 						'body',

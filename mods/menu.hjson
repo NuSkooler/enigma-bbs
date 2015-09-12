@@ -50,47 +50,50 @@
 				}
 			}
 	*/
-	"menus" : {
-		"connected" : {
-			"art"		: "CONNECT",
-			"next"		: "matrix",
-			"options"	: {
-				"nextTimeout"	: 1500
+	menus: {
+		connected: {
+			art:	CONNECT
+			next:	matrix
+			options: {
+				nextTimeout: 1500
 			}
-		},
-		"matrix" : {
-			"art"		: "matrix",
-			"form"		: {
-				"0"	: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
-					"VM" : {
-						"mci" : {
-							"VM1" :  {
-								"submit"	: true,
-								"focus"		: true,
+		}
+
+		matrix: {
+			art: matrix
+			form: {
+				0: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
+					VM: {
+						mci: {
+							VM1:  {
+								submit:	true
+								focus:	true
 								//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-								"items" 	: [ "Login", "Apply", "Log Off" ]//,
+								items: [ "Login", "Apply", "Log Off" ]
 							}
-						},
-						"submit" : {
-							"*" : [
+						}
+
+						submit: {
+							*: [
 								{
-									"value"		: { "1" : 0 },
-									"action"	: "@menu:login2"
+									value: { 1: 0 }
+									action:	@menu:login2
 								},
 								{
-									"value"		: { "1" : 1 },
-									"action"	: "@menu:apply"
+									value: { 1: 1 },
+									action: @menu:apply
 								},
 								{
-									"value"		: { "1" : 2 },
-									"action"	: "@menu:logoff"
+									value: { 1: 2 },
+									action: @menu:logoff
 								}
 							]
 						}
 					}
 				}
 			}
-		},
+		}
+
 		"login" : {
 			"prompt"	: "userLoginCredentials",
 			"fallback"	: "matrix",
@@ -110,7 +113,8 @@
 		"login2" : {
 			"art"		: "USRCRED",
 			"fallback"	: "matrix",
-			"next"		: "fullLoginSequenceLoginArt",
+			next: messageArea
+			//"next"		: "fullLoginSequenceLoginArt",
 			"form"		: {
 				"0" : {
 					"mci"	: {
@@ -431,7 +435,7 @@
 				art: {
 					header:				MSGVHDR
 					//	:TODO: fix these!!
-					body: 				demo_fse_netmail_body.ans
+					body: 				MSGBODY
 					footerEdit:			demo_fse_netmail_footer_edit.ans
 					footerEditMenu: 	demo_fse_netmail_footer_edit_menu.ans
 					footerView:			MSGVFTR
@@ -464,29 +468,27 @@
 					}
 				},
 				"1" : {
-					"MT" : {
-						"mci" : {
-							"MT1" : {
-								"width"		: 79,
-								"height"	: 12,
-								"mode"		: "preview"
-							}
-						},
-						"submit" : {
-							"*" : [
-								{
-									"value"		: "message",
-									"action"	: "@method:editModeEscPressed"
-								}
-							]
-						},
-						"actionKeys" : [
+					"mci" : {
+						"MT1" : {
+							"width"		: 79,
+							"height"	: 12,
+							"mode"		: "preview"
+						}
+					},
+					"submit" : {
+						"*" : [
 							{
-								"keys"		: [ "escape" ],
-								"viewId"	: 1
+								"value"		: "message",
+								"action"	: "@method:editModeEscPressed"
 							}
 						]
-					}
+					},
+					"actionKeys" : [
+						{
+							"keys"		: [ "escape" ],
+							"viewId"	: 1
+						}
+					]
 				},
 				"2" : {
 					"TLTL" :  {
@@ -559,7 +561,7 @@
 			config: {
 				art: {
 					header:				MSGEHDR
-					body:				demo_fse_netmail_body.ans
+					body:				MSGBODY
 					footerEditor:		MSGEFTR
 					footerEditorMenu:	MSGEMFT
 					footerView:			demo_fse_netmail_footer_view.ans
@@ -601,29 +603,24 @@
 					}
 				},
 				"1" : {
-					"MT" : {
-						"mci" : {
-							"MT1" : {
-								"width"		: 79,
-								"height"	: 17,
-								"argName"	: "message"
-							}
-						},
-						"submit" : {
-							"*" : [
-								{
-									"value"		: "message",
-									"action"	: "@method:editModeEscPressed"
-								}
-							]
-						},
-						"actionKeys" : [
-							{
-								"keys"		: [ "escape" ],
-								"viewId"	: 1
-							}
-						]
+					"mci" : {
+						MT1: {
+							width: 		79
+							height: 	12
+							argName:	message
+							mode: 		edit
+						}
 					}
+
+					submit: {
+						*: [ { "value": "message", "action": "@method:editModeEscPressed" } ]
+					},
+					"actionKeys" : [
+						{
+							"keys"		: [ "escape" ],
+							"viewId"	: 1
+						}
+					]
 				},
 				"2" : {
 					"TLTL" :  {
@@ -718,9 +715,9 @@
 		////////////////////////////////////////////////////////////////////////
 		//	Mods
 		////////////////////////////////////////////////////////////////////////
-		"idleLogoff" : {
-			"art" 		: "IDLELOG",
-			"action"	: "@systemMethod:logoff"
+		idleLogoff: {
+			art:	IDLELOG
+			next:	@systemMethod:logoff
 		},
 		////////////////////////////////////////////////////////////////////////
 		//	Mods

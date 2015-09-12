@@ -154,13 +154,19 @@ function MenuModule(options) {
 
 	this.nextMenu = function() {
 		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-			(_.isString(self.menuConfig.next) || _.isObject(self.menuConfig.next)))
+			!_.isUndefined(self.menuConfig.next))
 		{
 			/*
-				next : "spec"
+				'next' may be a simple asset, or a object with next.asset and
+				extrArgs
+
+				next: assetSpec
+
+				-or-
+
 				next: {
-					"asset" : "spec",
-					"extraArgs" : ...
+					asset: assetSpec
+					extraArgs: ...
 				}
 			*/
 			if(self.hasNextTimeout()) {

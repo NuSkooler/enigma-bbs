@@ -13,6 +13,13 @@ var util			= require('util');
 var async			= require('async');
 var iconv			= require('iconv-lite');
 
+/*
+	:TODO: should probably be broken up
+		FTNPacket
+		FTNPacketImport: packet -> message(s)
+		FTNPacketExport: message(s) -> packet
+*/
+
 //
 //	References
 //	* http://ftsc.org/docs/fts-0001.016
