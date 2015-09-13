@@ -63,6 +63,20 @@ function AreaViewFSEModule(options) {
 		}
 	};
 
+	this.menuMethods.replyMessage = function(formData, extraArgs) {
+		if(_.isString(extraArgs.menu)) {
+			var modOpts = {
+				name			: extraArgs.menu,
+				messageArea		: self.messageAreaName,
+				replyToMessage	: self.message,
+			};
+
+			self.client.gotoMenuModule(modOpts);
+		} else {
+			self.client.log(extraArgs, 'Missing extraArgs.menu');
+		}
+	};
+
 	this.loadMessageByUuid = function(uuid) {
 		var msg = new Message();
 		msg.load( { uuid : uuid, user : self.client.user }, function loaded(err) {
