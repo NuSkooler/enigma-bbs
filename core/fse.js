@@ -74,6 +74,13 @@ var MCICodeIds = {
 	ViewModeFooter : {
 		MsgNum			: 6,
 		MsgTotal		: 7,
+	},
+
+	ReplyEditModeHeader : {
+		From			: 1,
+		To				: 2,
+		Subject			: 3,
+
 	}
 };
 
@@ -154,8 +161,6 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.setMessage = function(message) {
-		//console.log(message)
-		
 		self.message = message;
 
 		if(self.isReady) {
@@ -406,7 +411,7 @@ function FullScreenEditorModule(options) {
 					callback(null);
 				},
 				function setInitialData(callback) {
-					
+
 					switch(self.editorMode) {						
 						case 'view' :
 							if(self.message) {
@@ -422,6 +427,10 @@ function FullScreenEditorModule(options) {
 							
 						case 'edit' :
 							self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
+
+							if(self.replyToMessage) {
+								self.initHeaderReplyEditMode();
+							}
 							break;
 					}
 
@@ -511,6 +520,21 @@ function FullScreenEditorModule(options) {
 		setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
 		setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
 		setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
+	};
+
+	this.initHeaderReplyEditMode = function() {
+		assert(_.isObject(self.replyToMessage));
+
+		function setHeaderText(id, text) {
+			var v = self.viewControllers.header.getView(id);
+			if(v) {
+				v.setText(text);
+			}
+		}
+
+		setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
+		setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	'RE: ' + self.replyToMessage.subject);
+
 	};
 
 	this.initFooterViewMode = function() {
@@ -604,11 +628,6 @@ function FullScreenEditorModule(options) {
 				}
 			});
 		},
-		/*
-		editModeMenuSave : function(formData, extraArgs) {
-			var msg = self.getMessage();
-			console.log(msg);
-		},*/
 		editModeMenuQuote : function(formData, extraArgs) {
 
 		},
@@ -629,6 +648,8 @@ function FullScreenEditorModule(options) {
 
 	if(_.has(options, 'extraArgs.message')) {
 		this.setMessage(options.extraArgs.message);
+	} else if(_.has(options, 'extraArgs.replyToMessage')) {
+		this.replyToMessage = options.extraArgs.replyToMessage;
 	}
 }
 

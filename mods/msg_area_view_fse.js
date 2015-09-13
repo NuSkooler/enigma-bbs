@@ -67,8 +67,10 @@ function AreaViewFSEModule(options) {
 		if(_.isString(extraArgs.menu)) {
 			var modOpts = {
 				name			: extraArgs.menu,
-				messageArea		: self.messageAreaName,
-				replyToMessage	: self.message,
+				extraArgs : {
+					messageAreaName		: self.messageAreaName,
+					replyToMessage		: self.message,	
+				}				
 			};
 
 			self.client.gotoMenuModule(modOpts);

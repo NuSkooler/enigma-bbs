@@ -561,7 +561,8 @@
 			}
 		},
 		messageAreaReplyPost: {
-			module: msg_area_reply_fse			
+			//module: msg_area_reply_fse			
+			module: msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -603,7 +604,29 @@
 							textOverflow: ...
 						}
 					}
+					submit: {
+						3: [ { "value" : { "subject" : null }, "action"	: "@method:headerSubmit" } ]
+					}
 				}
+				1: {
+					mci: {
+						MT1: {
+							width: 		79
+							height: 	12
+							argName:	message
+							mode: 		edit
+						}
+					}
+					submit: {
+						*: [ { "value": "message", "action": "@method:editModeEscPressed" } ]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ],
+							viewId: 1
+						}
+					]
+				},
 			}
 		}
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
@@ -617,7 +640,6 @@
 					body:				MSGBODY
 					footerEditor:		MSGEFTR
 					footerEditorMenu:	MSGEMFT
-					footerView:			demo_fse_netmail_footer_view.ans
 					help:				demo_fse_netmail_help.ans
 				},
 				editorMode: edit
