@@ -540,6 +540,7 @@
 							"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
 						},
 						*/
+						//	:TODO: Need similar to viewId for actionKeys for specifis, e.g. viewId + index type stuff
 						{
 							"keys"		: [ "p", "shift + p" ],
 							"action"	: "@method:prevMessage"
@@ -551,6 +552,13 @@
 						{
 							"keys"		: [ "escape", "q", "shift + q" ],
 							"action"	: "@menu:messageArea"
+						},
+						{
+							keys:	: [ "r", "shift + r" ],
+							action: @method:replyMessage
+							extraArgs: {
+								menu: messageAreaReplyPost
+							}
 						},
 						{
 							"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
@@ -626,7 +634,23 @@
 							viewId: 1
 						}
 					]
-				},
+				}
+
+				4: {
+					mci: {
+						HM1: {
+							items: [ "Save", "Discard", "Quote", "Help" ]
+						},
+						submit: {
+							*: [
+								{
+									value: { 1: 2 },
+									action: @method:editModeQuote
+								}
+							]
+						}
+					}
+				}
 			}
 		}
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu

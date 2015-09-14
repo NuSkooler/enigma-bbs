@@ -563,6 +563,15 @@ function FullScreenEditorModule(options) {
 		);
 	};
 
+	this.displayQuoteBuilder = function() {
+		//
+		//	Clear body area
+		//
+		self.client.term.rawWrite(
+			ansi.goto(self.header.height, 1) +
+			ansi.eraseLine(self.body.height));
+	};
+
 	this.observeEditorEvents = function() {
 		var bodyView = self.viewControllers.body.getView(1);
 
@@ -629,7 +638,8 @@ function FullScreenEditorModule(options) {
 			});
 		},
 		editModeMenuQuote : function(formData, extraArgs) {
-
+			self.viewControllers.footerEditorMenu.setFocus(false);
+			self.displayQuoteBuilder();
 		},
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
