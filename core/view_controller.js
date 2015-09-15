@@ -215,10 +215,14 @@ function ViewController(options) {
 		var initialFocusId = 1;
 
 		async.each(Object.keys(config.mci), function entry(mci, nextItem) {
-			var mciMatch	= mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????	
+			var mciMatch = mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????
+			if(null === mciMatch) {
+				self.client.log.warn( { mci : mci }, 'Unable to parse MCI code');
+				return;
+			}	
 
-			var viewId		= parseInt(mciMatch[2]);
-			assert(!isNaN(viewId));
+			var viewId = parseInt(mciMatch[2]);
+			assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]);	//	shouldn't be possible with RegExp used
 
 			if(viewId > highestId) {
 				highestId = viewId;

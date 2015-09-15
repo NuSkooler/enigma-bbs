@@ -521,7 +521,7 @@
 								"action"	: "@method:nextMessage"
 							},
 							{
-								value: { 1: 2 },
+								value: { 1: 2 }
 								action: @method:replyMessage
 								extraArgs: {
 									menu: messageAreaReplyPost
@@ -546,15 +546,16 @@
 							"action"	: "@method:prevMessage"
 						},						
 						{
-							"keys"		: [ "n", "shift + n" ],
-							"action"	: "@method:nextMessage"
+							keys: [ "n", "shift + n" ]
+							action: @method:nextMessage
 						},						
 						{
 							"keys"		: [ "escape", "q", "shift + q" ],
 							"action"	: "@menu:messageArea"
 						},
+						//	:TODO: why the fuck is 'r' not working but 'n' for example does?
 						{
-							keys:	: [ "r", "shift + r" ],
+							keys:	: [ "r", "shift + r" ]
 							action: @method:replyMessage
 							extraArgs: {
 								menu: messageAreaReplyPost
@@ -636,19 +637,43 @@
 					]
 				}
 
-				4: {
-					mci: {
-						HM1: {
-							items: [ "Save", "Discard", "Quote", "Help" ]
-						},
+				3: {
+					HM: {
+						mci: {
+							HM1: {
+								items: [ "Save", "Discard", "Quote", "Help" ]
+							}
+						}
+
 						submit: {
 							*: [
 								{
 									value: { 1: 2 },
-									action: @method:editModeQuote
+									action: @method:editModeMenuQuote
 								}
 							]
 						}
+
+						actionKeys: [
+							{
+								keys: [ "escape" ]
+								action: @method:editModeEscPressed
+							}
+						]
+					}
+				}
+
+				5: {
+					mci: {
+						MT1: {
+							width: 79
+							height: 7
+						}
+						VM3: {
+							//items: [ "just", "testing", "some", "things" ]
+							width: 79
+							height: 4
+						}						
 					}
 				}
 			}

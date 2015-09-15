@@ -134,6 +134,7 @@ function FullScreenEditorModule(options) {
 			footerEditor		: 2,
 			footerEditorMenu	: 3,
 			footerView			: 4,
+			quoteBuilder		: 5,
 
 			help				: 50,
 		}[name];
@@ -268,7 +269,7 @@ function FullScreenEditorModule(options) {
 
 	this.switchFooter = function(cb) {
 		var footerName = self.getFooterName();
-	
+
 		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
 			if(err) {
 				cb(err);
@@ -567,9 +568,58 @@ function FullScreenEditorModule(options) {
 		//
 		//	Clear body area
 		//
-		self.client.term.rawWrite(
-			ansi.goto(self.header.height, 1) +
-			ansi.eraseLine(self.body.height));
+		async.waterfall(
+			[
+				function clearAndDisplayArt(callback) {
+					console.log(self.header.height);
+					self.client.term.rawWrite(
+						ansi.goto(self.header.height + 1, 1));
+						//ansi.eraseLine(2));
+						
+					theme.displayThemeArt( { name : self.menuConfig.config.art.quote, client : self.client }, function displayed(err, artData) {
+						callback(err, artData);
+					});
+				},
+				function createViewsIfNecessary(artData, callback) {
+					var formId = self.getFormId('quoteBuilder');
+					
+					if(_.isUndefined(self.viewControllers.quoteBuilder)) {
+						var menuLoadOpts = {
+							callingMenu	: self,
+							formId		: formId,
+							mciMap		: artData.mciMap,	
+						};
+						
+						self.addViewController(
+							'quoteBuilder', 
+							new ViewController( { client : self.client, formId : formId } )
+						).loadFromMenuConfig(menuLoadOpts, function quoteViewsReady(err) {
+							callback(err);
+						});
+					} else {
+						self.viewControllers.quoteBuilder.redrawAll();
+						callback(null);
+					}
+				},
+				function loadQuoteLines(callback) {
+					//	:TODO: MLTEV's word wrapping -> line[] stuff needs to be made a public API. This can then be used here and elsewhere.
+					//	...should not be too bad to do at all
+					self.viewControllers.quoteBuilder.getView(3).setItems(['Someone said some shit', 'then they said more shit', 'and what not...', 'hurp durp']);
+					callback(null);
+				},
+				function setViewFocus(callback) {
+					self.viewControllers.quoteBuilder.getView(1).setFocus(false);
+					self.viewControllers.quoteBuilder.switchFocus(3);
+
+					callback(null);
+				}
+			],
+			function complete(err) {
+				if(err) {
+					console.log(err)	//	:TODO: needs real impl.
+				}
+			}
+		);	
 	};
 
 	this.observeEditorEvents = function() {
