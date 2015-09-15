@@ -573,7 +573,8 @@ function FullScreenEditorModule(options) {
 				function clearAndDisplayArt(callback) {
 					console.log(self.header.height);
 					self.client.term.rawWrite(
-						ansi.goto(self.header.height + 1, 1));
+						ansi.goto(self.header.height + 1, 1) +
+						ansi.deleteLine(24 - self.header.height));
 						//ansi.eraseLine(2));
 						
 					theme.displayThemeArt( { name : self.menuConfig.config.art.quote, client : self.client }, function displayed(err, artData) {
@@ -604,6 +605,9 @@ function FullScreenEditorModule(options) {
 				function loadQuoteLines(callback) {
 					//	:TODO: MLTEV's word wrapping -> line[] stuff needs to be made a public API. This can then be used here and elsewhere.
 					//	...should not be too bad to do at all
+					//	...probably do want quote markers in place here though, e.g. " Nu> Said some things"
+					//	...this could be handled via message.getQuoteLines(...) => []
+
 					self.viewControllers.quoteBuilder.getView(3).setItems(['Someone said some shit', 'then they said more shit', 'and what not...', 'hurp durp']);
 					callback(null);
 				},
