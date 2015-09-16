@@ -2,6 +2,7 @@
 'use strict';
 
 var msgDb			= require('./database.js').dbs.message;
+var wordWrapText	= require('./word_wrap.js').wordWrapText;
 
 var uuid			= require('node-uuid');
 var async			= require('async');
@@ -241,4 +242,29 @@ Message.prototype.persist = function(cb) {
 			});
 		}
 	);
+};
+
+Message.prototype.getQuoteLines = function(width) {
+	var quoteLines = [];
+
+	var origLines = this.message
+		.replace(/\b/g, '')
+		.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);	
+	
+	var wrapOpts = {
+		width		: width,
+		tabHandling	: 'expand',
+		tabWidth	: 4,
+	};
+
+	var wrapped;
+	var quotePrefix = 'Nu> ';	//	:TODO: build FTN style quote prefix
+
+	for(var i = 0; i < origLines.length; ++i) {
+		wrapped = wordWrapText(quotePrefix + origLines[i], wrapOpts).wrapped;
+
+		Array.prototype.push.apply(quoteLines, wrapped);
+	}
+
+	return quoteLines;
 };

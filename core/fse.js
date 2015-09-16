@@ -607,8 +607,13 @@ function FullScreenEditorModule(options) {
 					//	...should not be too bad to do at all
 					//	...probably do want quote markers in place here though, e.g. " Nu> Said some things"
 					//	...this could be handled via message.getQuoteLines(...) => []
-
-					self.viewControllers.quoteBuilder.getView(3).setItems(['Someone said some shit', 'then they said more shit', 'and what not...', 'hurp durp']);
+					//self.viewControllers.quoteBuilder.getView(3).setItems(['Someone said some shit', 'then they said more shit', 'and what not...', 'hurp durp']);
+					var quoteView = self.viewControllers.quoteBuilder.getView(3);
+					var quoteWidth = quoteView.dimens.width;
+					console.log(quoteWidth)
+					var quoteLines = self.replyToMessage.getQuoteLines(quoteWidth);
+					console.log(quoteLines)
+					quoteView.setItems(quoteLines);
 					callback(null);
 				},
 				function setViewFocus(callback) {
