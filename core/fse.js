@@ -603,17 +603,8 @@ function FullScreenEditorModule(options) {
 					}
 				},
 				function loadQuoteLines(callback) {
-					//	:TODO: MLTEV's word wrapping -> line[] stuff needs to be made a public API. This can then be used here and elsewhere.
-					//	...should not be too bad to do at all
-					//	...probably do want quote markers in place here though, e.g. " Nu> Said some things"
-					//	...this could be handled via message.getQuoteLines(...) => []
-					//self.viewControllers.quoteBuilder.getView(3).setItems(['Someone said some shit', 'then they said more shit', 'and what not...', 'hurp durp']);
 					var quoteView = self.viewControllers.quoteBuilder.getView(3);
-					var quoteWidth = quoteView.dimens.width;
-					console.log(quoteWidth)
-					var quoteLines = self.replyToMessage.getQuoteLines(quoteWidth);
-					console.log(quoteLines)
-					quoteView.setItems(quoteLines);
+					quoteView.setItems(self.replyToMessage.getQuoteLines(quoteView.dimens.width));
 					callback(null);
 				},
 				function setViewFocus(callback) {
@@ -699,6 +690,11 @@ function FullScreenEditorModule(options) {
 		editModeMenuQuote : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
 			self.displayQuoteBuilder();
+		},
+		appendQuoteEntry: function(formData, extraArgs) {
+			//	:TODO: Dont' use magic # ID's here
+			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
+			self.viewControllers.quoteBuilder.getView(1).addText(quoteText);
 		},
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);

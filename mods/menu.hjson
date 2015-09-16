@@ -673,7 +673,17 @@
 							//items: [ "just", "testing", "some", "things" ]
 							width: 79
 							height: 4
+							argName: quote
 						}						
+					}
+
+					submit: {
+						*: [
+							{
+								value: { quote: null }
+								action: @method:appendQuoteEntry
+							}
+						]
 					}
 				}
 			}

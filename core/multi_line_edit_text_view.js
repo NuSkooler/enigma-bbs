@@ -993,6 +993,17 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	//text = require('fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
 
 	this.textLines = [ ];
+	this.addText(text);
+	/*this.insertRawText(text);
+
+	if(this.isEditMode()) {
+		this.cursorEndOfDocument();
+	} else if(this.isPreviewMode()) {
+		this.cursorStartOfDocument();
+	}*/
+};
+
+MultiLineEditTextView.prototype.addText = function(text) {
 	this.insertRawText(text);
 
 	if(this.isEditMode()) {

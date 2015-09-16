@@ -58,6 +58,10 @@ MenuView.prototype.setItems = function(items) {
 	}
 };
 
+MenuView.prototype.getItem = function(index) {
+	return this.items[index].text;
+};
+
 MenuView.prototype.setFocusItems = function(items) {
 	var self = this;
 

@@ -245,6 +245,8 @@ Message.prototype.persist = function(cb) {
 };
 
 Message.prototype.getQuoteLines = function(width) {
+	//	:TODO: options.maxBlankLines = 1
+	
 	var quoteLines = [];
 
 	var origLines = this.message
@@ -257,13 +259,10 @@ Message.prototype.getQuoteLines = function(width) {
 		tabWidth	: 4,
 	};
 
-	var wrapped;
 	var quotePrefix = 'Nu> ';	//	:TODO: build FTN style quote prefix
 
 	for(var i = 0; i < origLines.length; ++i) {
-		wrapped = wordWrapText(quotePrefix + origLines[i], wrapOpts).wrapped;
-
-		Array.prototype.push.apply(quoteLines, wrapped);
+		Array.prototype.push.apply(quoteLines, wordWrapText(quotePrefix + origLines[i], wrapOpts).wrapped);
 	}
 
 	return quoteLines;
