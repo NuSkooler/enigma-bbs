@@ -568,10 +568,12 @@ function FullScreenEditorModule(options) {
 		//
 		//	Clear body area
 		//
+		self.newQuoteBlock = true;
+		
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
-					console.log(self.header.height);
+
 					self.client.term.rawWrite(
 						ansi.goto(self.header.height + 1, 1) +
 						ansi.deleteLine(24 - self.header.height));
@@ -692,9 +694,46 @@ function FullScreenEditorModule(options) {
 			self.displayQuoteBuilder();
 		},
 		appendQuoteEntry: function(formData, extraArgs) {
-			//	:TODO: Dont' use magic # ID's here
+			//	:TODO: Dont' use magic # ID's here			
+			var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
+
+			if(self.newQuoteBlock) {
+				self.newQuoteBlock = false;
+				
+				var dtFormat = self.client.currentTheme.helpers.getDateTimeFormat();
+				quoteMsgView.addText(
+					'On {0} {1} said...'.format(
+						moment(self.replyToMessage.modTimestamp).format(dtFormat), 
+						self.replyToMessage.fromUserName)
+					);
+			}
+			
 			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
-			self.viewControllers.quoteBuilder.getView(1).addText(quoteText);
+			quoteMsgView.addText(quoteText);
+
+			//	:TODO: Menus need a setFocusIndex() call -- move down to next item here
+		},
+		quoteBuilderEscPressed : function(formData, extraArgs) {
+			//	:TODO: fix magic #'s
+			var quoteMsgView	= self.viewControllers.quoteBuilder.getView(1);
+			var msgView			= self.viewControllers.body.getView(1);
+
+			//msgView.addText(_.trim(quoteMsgView.getData(), '\n'));
+			//msgView.addText(new Array(msgView.dimens.width - 1).join('-') + '\n');
+			msgView.addText(quoteMsgView.getData() + '\n');
+			quoteMsgView.setText('');
+
+			var footerName = self.getFooterName();
+			
+			//self.redrawFooter( { clear : true, footerName : footerName }, function footerDisplayed(err) {
+			self.footerMode = 'editor';
+			
+			self.switchFooter(function switched(err) {
+				self.viewControllers.quoteBuilder.setFocus(false);
+				self.viewControllers.body.redrawAll();
+				self.viewControllers[footerName].redrawAll();
+				self.viewControllers.body.switchFocus(1);				
+			});
 		},
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);

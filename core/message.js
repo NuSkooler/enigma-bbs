@@ -244,9 +244,34 @@ Message.prototype.persist = function(cb) {
 	);
 };
 
-Message.prototype.getQuoteLines = function(width) {
+Message.prototype.getFTNQuotePrefix = function(source) {
+	source = source || 'fromUserName';
+
+	switch(source) {
+		case 'fromUserName' :
+			return this.fromUserName[0].toUpperCase() + this.fromUserName[1].toLowerCase();
+
+		case 'toUserName' :
+			return this.toUserName[0].toUpperCase() + this.toUserName[1].toLowerCase();		
+
+		//	:TODO: real names
+	}
+};
+
+Message.prototype.getQuoteLines = function(width, options) {
 	//	:TODO: options.maxBlankLines = 1
+
+	options = options || {};
 	
+	//
+	//	Include FSC-0032 style quote prefixes?
+	//
+	//	See http://ftsc.org/docs/fsc-0032.001
+	//
+	if(!_.isBoolean(options.includePrefix)) {
+		options.includePrefix = true;
+	}
+
 	var quoteLines = [];
 
 	var origLines = this.message
@@ -259,7 +284,10 @@ Message.prototype.getQuoteLines = function(width) {
 		tabWidth	: 4,
 	};
 
-	var quotePrefix = 'Nu> ';	//	:TODO: build FTN style quote prefix
+	var quotePrefix;
+	if(options.includePrefix) {
+		quotePrefix = ' ' + this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') + '> ';
+	}
 
 	for(var i = 0; i < origLines.length; ++i) {
 		Array.prototype.push.apply(quoteLines, wordWrapText(quotePrefix + origLines[i], wrapOpts).wrapped);

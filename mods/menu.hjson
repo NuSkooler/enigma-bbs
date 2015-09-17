@@ -471,7 +471,7 @@
 					"mci" : {
 						"MT1" : {
 							"width"		: 79,
-							"height"	: 12,
+							"height"	: 14,
 							"mode"		: "preview"
 						}
 					},
@@ -621,7 +621,7 @@
 					mci: {
 						MT1: {
 							width: 		79
-							height: 	12
+							height: 	14
 							argName:	message
 							mode: 		edit
 						}
@@ -685,6 +685,13 @@
 							}
 						]
 					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:quoteBuilderEscPressed
+						}
+					]
 				}
 			}
 		}
@@ -740,7 +747,7 @@
 					"mci" : {
 						MT1: {
 							width: 		79
-							height: 	12
+							height: 	14
 							argName:	message
 							mode: 		edit
 						}
