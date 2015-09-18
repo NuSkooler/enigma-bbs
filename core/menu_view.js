@@ -62,6 +62,14 @@ MenuView.prototype.getItem = function(index) {
 	return this.items[index].text;
 };
 
+MenuView.prototype.focusNext = function() {
+	//	nothing @ base currently
+};
+
+MenuView.prototype.focusPrevious = function() {
+	//	nothign @ base currently
+};
+
 MenuView.prototype.setFocusItems = function(items) {
 	var self = this;
 

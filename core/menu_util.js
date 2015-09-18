@@ -110,7 +110,7 @@ function loadMenu(options, cb) {
 						{
 							menuName	: options.name,
 							menuConfig	: modData.config, 
-							extraArgs	: options.extraArgs,
+							extraArgs	: options.extraArgs
 						});
 					callback(null, moduleInstance);
 				} catch(e) {

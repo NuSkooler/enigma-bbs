@@ -151,7 +151,9 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
 		var prevFocusedItemIndex = this.focusedItemIndex;
 
-		if(this.isKeyMapped('up', key.name)) {		
+		if(this.isKeyMapped('up', key.name)) {
+			this.focusPrevious();
+			/*
 			if(0 === this.focusedItemIndex) {
 				this.focusedItemIndex = this.items.length - 1;
 				
@@ -169,8 +171,9 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 					this.viewWindow.bottom--;
 				}
 			}
+			*/
 		} else if(this.isKeyMapped('down', key.name)) {
-			if(this.items.length - 1 === this.focusedItemIndex) {
+			/*if(this.items.length - 1 === this.focusedItemIndex) {
 				this.focusedItemIndex = 0;
 				
 				this.viewWindow = {
@@ -185,11 +188,13 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 					this.viewWindow.bottom++;
 				}
 			}
+			*/
+			this.focusNext();
 		}
 
 		if(prevFocusedItemIndex !== this.focusedItemIndex) {
 			//	:TODO: Optimize this for cases where no scrolling occured & only two items need updated
-			this.redraw();
+	//		this.redraw();
 		}
 	}
 
@@ -205,6 +210,54 @@ VerticalMenuView.prototype.setItems = function(items) {
 
 	this.positionCacheExpired = true;
 };
+
+
+VerticalMenuView.prototype.focusNext = function() {
+	VerticalMenuView.super_.prototype.focusNext.call(this);
+
+	if(this.items.length - 1 === this.focusedItemIndex) {
+		this.focusedItemIndex = 0;
+		
+		this.viewWindow = {
+			top		: 0,
+			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+		};
+	} else {
+		this.focusedItemIndex++;
+
+		if(this.focusedItemIndex > this.viewWindow.bottom) {
+			this.viewWindow.top++;
+			this.viewWindow.bottom++;
+		}
+	}
+
+	this.redraw();
+};
+
+VerticalMenuView.prototype.focusPrevious = function() {
+	VerticalMenuView.super_.prototype.focusPrevious.call(this);
+
+	if(0 === this.focusedItemIndex) {
+		this.focusedItemIndex = this.items.length - 1;
+		
+		this.viewWindow = {
+			//top		: this.items.length - this.maxVisibleItems,
+			top		: Math.max(this.items.length - this.maxVisibleItems, 0),
+			bottom	: this.items.length - 1
+		};
+
+	} else {
+		this.focusedItemIndex--;
+
+		if(this.focusedItemIndex < this.viewWindow.top) {
+			this.viewWindow.top--;
+			this.viewWindow.bottom--;
+		}
+	}
+
+	this.redraw();
+};
+
 
 VerticalMenuView.prototype.setFocusItems = function(items) {
 	VerticalMenuView.super_.prototype.setFocusItems.call(this, items);

@@ -570,7 +570,6 @@
 			}
 		},
 		messageAreaReplyPost: {
-			//module: msg_area_reply_fse			
 			module: msg_area_post_fse
 			config: {
 				art: {
@@ -579,7 +578,8 @@
 					quote:				MSGQUOT
 					footerEditor:		MSGEFTR
 					footerEditorMenu:	MSGEMFT
-					//	:TODO: help
+					//	:TODO: fix help
+					help:				demo_fse_netmail_help.ans
 				}
 				editorMode: edit
 				editorType: area
@@ -648,8 +648,16 @@
 						submit: {
 							*: [
 								{
+									value: { 1: 1 }
+									action: @method:replyDiscard
+								}
+								{
 									value: { 1: 2 },
 									action: @method:editModeMenuQuote
+								}
+								{
+									value: { 1: 3 }
+									action: @method:editModeMenuHelp
 								}
 							]
 						}
@@ -670,7 +678,6 @@
 							height: 7
 						}
 						VM3: {
-							//items: [ "just", "testing", "some", "things" ]
 							width: 79
 							height: 4
 							argName: quote

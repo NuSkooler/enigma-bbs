@@ -395,6 +395,9 @@ function Client(input, output) {
 	self.detachCurrentMenuModule = function() {
 		if(self.currentMenuModule) {
 			self.currentMenuModule.leave();
+			
+			self.lastMenuModuleInfo = self.currentMenuModuleInfo;
+
 			self.currentMenuModule = null;
 		}
 	};
@@ -446,24 +449,22 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 		extraArgs	: options.extraArgs,
 	};
 
-	menuUtil.loadMenu(loadOptions, function onMenuModuleLoaded(err, modInst) {
+	menuUtil.loadMenu(loadOptions, function menuModuleLoaded(err, modInst) {
 		if(err) {
 			cb(err);
 		} else {
 			self.log.debug( { menuName : options.name }, 'Goto menu module');
 
-			if(self.currentMenuModule) {
-				self.lastMenuModuleInfo = {
-					name		: self.currentMenuModule.modInfo.name,
-					extraArgs	: self.currentMenuModuleExtraArgs,
-				};
+			self.currentMenuModule = modInst;	//	:TODO: should probably be before enter() above
+
+			self.currentMenuModuleInfo = {
+				//	:TODO: This is quite the hack... doesn't seem right...
+				menuName	: self.currentMenuModule.menuName,
+				extraArgs	: options.extraArgs,
 			}
 
 			modInst.enter(self);
 			
-			self.currentMenuModule			= modInst;	//	:TODO: should probably be before enter() above
-			self.currentMenuModuleExtraArgs = options.extraArgs;
-
 			if(!callbackOnErrorOnly) {
 				cb(null);
 			}
@@ -476,11 +477,13 @@ Client.prototype.fallbackMenuModule = function(cb) {
 
 	if(self.lastMenuModuleInfo) {
 		var modOpts = {
-			name		: self.lastMenuModuleInfo.name, 
+			name		: self.lastMenuModuleInfo.menuName,
 			extraArgs	: self.lastMenuModuleInfo.extraArgs,
 		};
 
 		self.gotoMenuModule(modOpts, cb);
+	} else {
+		cb(new Error('Nothing to fallback to!'));
 	}
 };
 

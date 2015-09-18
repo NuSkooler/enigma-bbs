@@ -655,6 +655,19 @@ function FullScreenEditorModule(options) {
 		self.viewControllers[self.getFooterName()].switchFocus(1);	//	HM1
 	};
 
+	this.switchFromQuoteBuilderToBody = function() {
+		self.viewControllers.quoteBuilder.setFocus(false);
+		var body = self.viewControllers.body.getView(1);
+		body.redraw();
+		self.viewControllers.body.switchFocus(1);
+		
+		//	:TODO: create method (DRY)
+		
+		self.updateTextEditMode(body.getTextEditMode());
+		self.updateEditModePosition(body.getEditPosition());
+
+		self.observeEditorEvents();
+	}
 
 	this.menuMethods = {
 		//	:TODO: rename to editModeHeaderSubmit
@@ -700,6 +713,7 @@ function FullScreenEditorModule(options) {
 			if(self.newQuoteBlock) {
 				self.newQuoteBlock = false;
 				
+				//	:TODO: Make date/time format avail as FSE config
 				var dtFormat = self.client.currentTheme.helpers.getDateTimeFormat();
 				quoteMsgView.addText(
 					'On {0} {1} said...'.format(
@@ -711,7 +725,7 @@ function FullScreenEditorModule(options) {
 			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
 			quoteMsgView.addText(quoteText);
 
-			//	:TODO: Menus need a setFocusIndex() call -- move down to next item here
+			self.viewControllers.quoteBuilder.getView(3).focusNext();
 		},
 		quoteBuilderEscPressed : function(formData, extraArgs) {
 			//	:TODO: fix magic #'s
@@ -727,12 +741,16 @@ function FullScreenEditorModule(options) {
 			
 			//self.redrawFooter( { clear : true, footerName : footerName }, function footerDisplayed(err) {
 			self.footerMode = 'editor';
-			
+
 			self.switchFooter(function switched(err) {
-				self.viewControllers.quoteBuilder.setFocus(false);
-				self.viewControllers.body.redrawAll();
-				self.viewControllers[footerName].redrawAll();
-				self.viewControllers.body.switchFocus(1);				
+				self.switchFromQuoteBuilderToBody();
+			});
+		},
+		replyDiscard : function(formData, extraArgs) {
+			//	:TODO: need to prompt yes/no
+			//	:TODO: @method for fallback would be better
+			self.client.fallbackMenuModule(function fallback(err) {
+				console.log(err)
 			});
 		},
 		editModeMenuHelp : function(formData, extraArgs) {
