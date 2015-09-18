@@ -542,25 +542,25 @@
 						*/
 						//	:TODO: Need similar to viewId for actionKeys for specifis, e.g. viewId + index type stuff
 						{
-							"keys"		: [ "p", "shift + p" ],
-							"action"	: "@method:prevMessage"
-						},						
+							keys: [ "p", "shift + p" ]
+							action: @method:prevMessage
+						}
 						{
 							keys: [ "n", "shift + n" ]
 							action: @method:nextMessage
-						},						
+						}				
 						{
-							"keys"		: [ "escape", "q", "shift + q" ],
-							"action"	: "@menu:messageArea"
-						},
+							keys: [ "escape", "q", "shift + q" ]
+							action: @menu:messageArea
+						}
 						//	:TODO: why the fuck is 'r' not working but 'n' for example does?
 						{
-							keys:	: [ "r", "shift + r" ]
+							keys:	[ "r", "shift + r" ]
 							action: @method:replyMessage
 							extraArgs: {
 								menu: messageAreaReplyPost
 							}
-						},
+						}
 						{
 							"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
 							"action"	: "@method:movementKeyPressed"

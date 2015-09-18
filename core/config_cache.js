@@ -19,10 +19,9 @@ function ConfigCache() {
 	this.cache	= {};	//	filePath -> HJSON
 	this.gaze	= new Gaze();
 
-	this.reCacheJSONFromFile = function(filePath, cb) {
+	this.reCacheConfigFromFile = function(filePath, cb) {
 		fs.readFile(filePath, { encoding : 'utf-8' }, function fileRead(err, data) {
 			try {
-				//self.cache[filePath] = JSON.parse(stripJsonComments(data));
 				self.cache[filePath] = hjson.parse(data);
 				cb(null, self.cache[filePath]);
 			} catch(e) {
@@ -40,11 +39,11 @@ function ConfigCache() {
 	this.gaze.on('changed', function fileChanged(filePath) {
 		assert(filePath in self.cache);
 
-		Log.info( { filePath : filePath }, 'JSON file changed; recaching');
+		Log.info( { filePath : filePath }, 'Configuration file changed; recaching');
 
-		self.reCacheJSONFromFile(filePath, function reCached(err) {
+		self.reCacheConfigFromFile(filePath, function reCached(err) {
 			if(err) {
-				Log.error( { error : err, filePath : filePath } , 'Error recaching JSON');
+				Log.error( { error : err, filePath : filePath } , 'Error recaching HJSON config');
 			} else {
 				self.emit('recached', filePath);
 			}
@@ -61,11 +60,11 @@ ConfigCache.prototype.getConfig = function(filePath, cb) {
 	if(filePath in this.cache) {
 		cb(null, this.cache[filePath], false);
 	} else {
-		this.reCacheJSONFromFile(filePath, function fileCached(err, json) {
+		this.reCacheConfigFromFile(filePath, function fileCached(err, config) {
 			if(!err) {
 				self.gaze.add(filePath);
 			}
-			cb(err, json, true);
+			cb(err, config, true);
 		});
 	}
 };
