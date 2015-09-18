@@ -185,6 +185,7 @@ require('util').inherits(MenuModule, PluginModule);
 
 require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 
+
 MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(_.isObject(client));
@@ -196,6 +197,14 @@ MenuModule.prototype.enter = function(client) {
 	}
 
 	this.initSequence();
+};
+
+MenuModule.prototype.getSaveState = function() {
+	//	nothing in base
+};
+
+MenuModule.prototype.restoreSavedState = function(savedState) {
+	//	nothing in base
 };
 
 MenuModule.prototype.leave = function() {

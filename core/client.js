@@ -394,9 +394,13 @@ function Client(input, output) {
 
 	self.detachCurrentMenuModule = function() {
 		if(self.currentMenuModule) {
+						
+			var savedState = self.currentMenuModule.getSaveState();
+
 			self.currentMenuModule.leave();
 			
-			self.lastMenuModuleInfo = self.currentMenuModuleInfo;
+			self.lastMenuModuleInfo				= self.currentMenuModuleInfo;
+			self.lastMenuModuleInfo.savedState	= savedState;
 
 			self.currentMenuModule = null;
 		}
@@ -463,6 +467,10 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 				extraArgs	: options.extraArgs,
 			}
 
+			if(options.savedState) {
+				modInst.restoreSavedState(options.savedState);
+			}
+
 			modInst.enter(self);
 			
 			if(!callbackOnErrorOnly) {
@@ -479,6 +487,7 @@ Client.prototype.fallbackMenuModule = function(cb) {
 		var modOpts = {
 			name		: self.lastMenuModuleInfo.menuName,
 			extraArgs	: self.lastMenuModuleInfo.extraArgs,
+			savedState	: self.lastMenuModuleInfo.savedState,
 		};
 
 		self.gotoMenuModule(modOpts, cb);

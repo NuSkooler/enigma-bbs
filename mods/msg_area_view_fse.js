@@ -55,6 +55,7 @@ function AreaViewFSEModule(options) {
 	this.menuMethods.movementKeyPressed = function(formData, extraArgs) {
 		var bodyView = self.viewControllers.body.getView(1);
 
+		//	:TODO: Create methods for up/down vs using keyPressXXXXX
 		switch(formData.key.name) {
 			case 'down arrow'	: bodyView.scrollDocumentUp(); break;
 			case 'up arrow'		: bodyView.scrollDocumentDown(); break;
@@ -93,4 +94,22 @@ AreaViewFSEModule.prototype.finishedLoading = function() {
 	if(this.messageList.length) {
 		this.loadMessageByUuid(this.messageList[this.messageIndex].messageUuid);
 	}
+};
+
+AreaViewFSEModule.prototype.getSaveState = function() {
+	AreaViewFSEModule.super_.prototype.getSaveState.call(this);
+
+	return {
+		messageList		: this.messageList,
+		messageIndex	: this.messageIndex,
+		messageTotal	: this.messageList.length,
+	}
+};
+
+AreaViewFSEModule.prototype.restoreSavedState = function(savedState) {
+	AreaViewFSEModule.super_.prototype.restoreSavedState.call(this, savedState);
+
+	this.messageList	= savedState.messageList;
+	this.messageIndex	= savedState.messageIndex;
+	this.messageTotal	= savedState.messageTotal;
 };
