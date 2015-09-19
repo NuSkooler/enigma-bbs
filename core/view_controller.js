@@ -43,22 +43,20 @@ function ViewController(options) {
 		//	Everything else is forwarded on to the focused View, if any.
 		//
 		if(key) {
-			var actionForKey = self.actionKeyMap[key.name];
+			var actionForKey = self.actionKeyMap[key.name]
 			if(actionForKey) {
-				if(_.isNumber(actionForKey)) {
+				if(_.isNumber(actionForKey.viewId)) {
 					//
 					//	Key works on behalf of a view -- switch focus & submit
 					//
-					self.switchFocus(actionForKey);
+					self.switchFocus(actionForKey.viewId);
 					self.submitForm(key);
-				} else if(_.isString(actionForKey)) {
-					//	:TODO: Populate formData here?
-					//	:TODO: Populate actionBlock here -- that is, the actionKey entry... or
-					//	really we just need |extraArgs| to be present, if any
-					menuUtil.handleAction(self.client, { key : key }, { action : actionForKey } );
+				} else if(_.isString(actionForKey.action)) {
+					menuUtil.handleAction(
+						self.client, 
+						{ key : key },		//	formData
+						actionForKey);		//	action block
 				}
-
-				return;
 			}
 		}
 
@@ -626,8 +624,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					callback(null);
 					return;
 				}
-
-				var actionKeyEntry;
+				
 				formConfig.actionKeys.forEach(function akEntry(ak) {
 					//
 					//	*	'keys' must be present and be an array of key names
@@ -636,24 +633,16 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					//	*	If 'action' is present, that action will be procesed when
 					//		triggered by key(s)
 					//
-					//	Ultimately, we'll create a map of key -> { viewId | action }
+					//	Ultimately, create a map of key -> { action block }
 					//
-					//	:TODO: allow for args to be passed along with action as well...
 					if(!_.isArray(ak.keys)) {
 						return;
 					}
 
-					if(_.isNumber(ak.viewId)) {
-						actionKeyEntry = ak.viewId;
-					} else if(_.isString(ak.action)) {
-						actionKeyEntry = ak.action;
-					} else {
-						return;
-					}
-
 					ak.keys.forEach(function actionKeyName(kn) {
-						self.actionKeyMap[kn] = actionKeyEntry;
+						self.actionKeyMap[kn] = ak;
 					});
+
 				});
 
 				callback(null);
