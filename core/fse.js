@@ -123,6 +123,10 @@ function FullScreenEditorModule(options) {
 		return 'email' === self.editorType && Message.WellKnownAreaNames.Private === self.messageAreaName;
 	};
 
+	this.isReply = function() {
+		return !_.isUndefined(self.replyToMessage);
+	};
+
 	this.getFooterName = function() {
 		return 'footer' + _.capitalize(self.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
 	};
@@ -138,6 +142,38 @@ function FullScreenEditorModule(options) {
 
 			help				: 50,
 		}[name];
+	};
+
+	/*ViewModeHeader : {
+		From			: 1,
+		To				: 2,
+		Subject			: 3,
+
+		DateTime		: 5,
+		MsgNum			: 6,
+		MsgTotal		: 7,
+		ViewCount		: 8,
+		HashTags		: 9,
+		MessageID		: 10,
+		ReplyToMsgID	: 11
+	},*/
+
+	//	:TODO: convert to something like this for all view acces:
+	this.getHeaderViews = function() {
+		var vc = self.viewControllers.header;
+
+		if(self.isViewMode()) {
+			return {
+				from	: vc.getView(1),
+				to		: vc.getView(2),
+				subject	: vc.getView(3),
+
+				dateTime	: vc.getView(5),
+				msgNum		: vc.getView(7),
+				//	...
+
+			};
+		}
 	};
 
 	this.setInitialFooterMode = function() {
@@ -157,6 +193,11 @@ function FullScreenEditorModule(options) {
 			subject			: headerValues.subject,
 			message			: self.viewControllers.body.getFormData().value.message,
 		};
+
+		if(self.isReply()) {
+			msgOpts.replyToMsgId	= self.replyToMessageId;
+		}
+
 
 		self.message = new Message(msgOpts);
 	};

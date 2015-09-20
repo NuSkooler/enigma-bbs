@@ -230,6 +230,13 @@
 								}
 							]
 						}
+
+						actionKeys: [
+							{
+								keys: [ "escape" ]
+								viewId: 13
+							}
+						]
 					}
 				}
 			}
@@ -665,6 +672,10 @@
 						submit: {
 							*: [
 								{
+									value: { 1: 0 }
+									action: @method:editModeMenuSave
+								}
+								{
 									value: { 1: 1 }
 									action: @method:replyDiscard
 								}
@@ -686,7 +697,7 @@
 							}
 							{
 								keys: [ "s", "shift + s" ]
-								action: @method:replySave
+								action: @method:editModeMenuSave
 							}
 							{
 								keys: [ "d", "shift + d" ]

@@ -12,6 +12,7 @@ function wordWrapText(text, options) {
 	//		width			: word wrap width
 	//		tabHandling		: expand (default=expand)
 	//		tabWidth		: tab width if tabHandling is 'expand' (default=4)
+	//		tabChar			: character to use for tab expansion
 	//
 	assert(_.isObject(options),			'Missing options!');
 	assert(_.isNumber(options.width),	'Missing options.width!');
@@ -21,6 +22,8 @@ function wordWrapText(text, options) {
 	if(!_.isNumber(options.tabWidth)) {
 		options.tabWidth = 4;
 	}
+
+	options.tabChar = options.tabChar || ' ';
 
 	//
 	//	Notes
@@ -47,7 +50,7 @@ function wordWrapText(text, options) {
 
 	function expandTab(col) {
 		var remainWidth = options.tabWidth - (col % options.tabWidth);
-		return new Array(remainWidth).join('\t');
+		return new Array(remainWidth).join(options.tabChar);
 	}
 
 	//	:TODO: support wrapping pipe code text (e.g. ignore color codes, expand MCI codes)
@@ -84,7 +87,7 @@ function wordWrapText(text, options) {
 				//	Nice info here: http://c-for-dummies.com/blog/?p=424
 				//
 				if('expand' === options.tabHandling) {
-					word += expandTab(results.wrapped[i].length + word.length) + '\t';
+					word += expandTab(results.wrapped[i].length + word.length) + options.tabChar;
 				} else {
 					word += m[0];
 				}

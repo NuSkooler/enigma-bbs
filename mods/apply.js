@@ -32,7 +32,7 @@ function validateApplicationData(formData, cb) {
 	}
 
 	if(isNaN(Date.parse(formData.value.birthdate))) {
-		cb('Invalid birthdate!');
+		cb('Invalid birthdate!', [ 3 ] );
 		return;
 	}
 
@@ -109,6 +109,8 @@ function submitApplication(callingMenu, formData, extraArgs) {
 
 			newUser.create( { password : formData.value.password }, function created(err) {
 				if(err) {
+					Log.info( { error : err, username : formData.value.username }, 'New user creation failed');
+
 					client.gotoMenuModule( { name : extraArgs.error } );
 				} else {
 					Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');

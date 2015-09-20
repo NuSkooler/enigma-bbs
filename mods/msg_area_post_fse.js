@@ -50,7 +50,8 @@ function AreaPostFSEModule(options) {
 					console.log(msg);
 				}
 
-				self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+				self.client.fallbackMenuModule();
+				//self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
 			}
 		);
 	};

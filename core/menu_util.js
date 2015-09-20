@@ -172,6 +172,8 @@ function callModuleMenuMethod(client, asset, path, formData, extraArgs) {
 	}
 
 	try {
+		client.log.trace( { methodName : asset.asset, formData : formData, extraArgs : extraArgs } );
+
 		var methodMod = require(path);
 		methodMod[asset.asset](client.currentMenuModule, formData || { }, extraArgs);
 	} catch(e) {
@@ -190,7 +192,7 @@ function handleAction(client, formData, conf) {
 		case 'method' :
 		case 'systemMethod' : 
 			if(_.isString(actionAsset.location)) {
-				callModuleMenuMethod(client, actionAsset, paths.join(Config.paths.mods, actionAsset.location, formData, conf.extraArgs));
+				callModuleMenuMethod(client, actionAsset, paths.join(Config.paths.mods, actionAsset.location), formData, conf.extraArgs);
 			} else {
 				if('systemMethod' === actionAsset.type) {
 					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()

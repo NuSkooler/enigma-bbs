@@ -502,6 +502,7 @@ function MultiLineEditTextView(options) {
 				width		: width,
 				tabHandling	: tabHandling || 'expand',
 				tabWidth	: self.tabWidth,
+				tabChar		: '\t',
 			});
 	};
 
@@ -545,7 +546,10 @@ function MultiLineEditTextView(options) {
 		var wrapped;
 		
 		for(var i = 0; i < text.length; ++i) {
-			wrapped = self.wordWrapSingleLine(text[i], 'expandTabs', self.dimens.width).wrapped;
+			wrapped = self.wordWrapSingleLine(
+				text[i], 	//	input
+				'expand', 	//	tabHandling
+				self.dimens.width).wrapped;
 
 			for(var j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
