@@ -244,6 +244,7 @@ Message.prototype.persist = function(cb) {
 	);
 };
 
+//	:TODO: Update this to use a FTN module, e.g. ftn.getQuotePrefix(name)
 Message.prototype.getFTNQuotePrefix = function(source) {
 	source = source || 'fromUserName';
 
@@ -275,22 +276,29 @@ Message.prototype.getQuoteLines = function(width, options) {
 	var quoteLines = [];
 
 	var origLines = this.message
+		.trim()
 		.replace(/\b/g, '')
 		.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);	
 	
-	var wrapOpts = {
-		width		: width,
-		tabHandling	: 'expand',
-		tabWidth	: 4,
-	};
-
-	var quotePrefix;
+	var quotePrefix = '';	//	we need this init even if blank
 	if(options.includePrefix) {
 		quotePrefix = ' ' + this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') + '> ';
 	}
 
+	var wrapOpts = {
+		width		: width - quotePrefix.length,
+		tabHandling	: 'expand',
+		tabWidth	: 4,
+	};
+
+	function addPrefix(l) {
+		return quotePrefix + l;
+	}
+
+	var wrapped;
 	for(var i = 0; i < origLines.length; ++i) {
-		Array.prototype.push.apply(quoteLines, wordWrapText(quotePrefix + origLines[i], wrapOpts).wrapped);
+		wrapped = wordWrapText(origLines[i], wrapOpts).wrapped;
+		Array.prototype.push.apply(quoteLines, _.map(wrapped, addPrefix));
 	}
 
 	return quoteLines;

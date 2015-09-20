@@ -42,21 +42,20 @@ function ViewController(options) {
 		//	Process key presses treating form submit mapped	keys special. 
 		//	Everything else is forwarded on to the focused View, if any.
 		//
-		if(key) {
-			var actionForKey = self.actionKeyMap[key.name]
-			if(actionForKey) {
-				if(_.isNumber(actionForKey.viewId)) {
-					//
-					//	Key works on behalf of a view -- switch focus & submit
-					//
-					self.switchFocus(actionForKey.viewId);
-					self.submitForm(key);
-				} else if(_.isString(actionForKey.action)) {
-					menuUtil.handleAction(
-						self.client, 
-						{ key : key },		//	formData
-						actionForKey);		//	action block
-				}
+		var actionForKey = key ? self.actionKeyMap[key.name] : self.actionKeyMap[ch];
+		//var actionForKey = self.actionKeyMap[key.name] || self.actionKeyMap[ch];
+		if(actionForKey) {
+			if(_.isNumber(actionForKey.viewId)) {
+				//
+				//	Key works on behalf of a view -- switch focus & submit
+				//
+				self.switchFocus(actionForKey.viewId);
+				self.submitForm(key);
+			} else if(_.isString(actionForKey.action)) {
+				menuUtil.handleAction(
+					self.client, 
+					{ ch : ch, key : key },		//	formData
+					actionForKey);		//	action block
 			}
 		}
 
@@ -298,6 +297,21 @@ function ViewController(options) {
 	if(!options.detached) {
 		this.attachClientEvents();
 	}
+
+	this.setViewFocusWithEvents = function(view, focused) {
+		if(!view || !view.acceptsFocus) {
+			return;
+		}
+
+		if(focused) {
+			self.switchFocusEvent('return', view);
+			self.focusedView = view;
+		} else {
+			self.switchFocusEvent('leave', view);
+		}
+
+		view.setFocus(focused);
+	};
 }
 
 util.inherits(ViewController, events.EventEmitter);
@@ -358,23 +372,19 @@ ViewController.prototype.setFocus = function(focused) {
 	} else {
 		this.detachClientEvents();
 	}
+
+	//	:TODO: without this, setFocus(false) is broken (doens't call focus events); with it, FSE menus break!!
+//	this.setViewFocusWithEvents(this.focusedView, focused);
 };
 
 ViewController.prototype.switchFocus = function(id) {
 	this.setFocus(true);	//	ensure events are attached
 
-	if(this.focusedView && this.focusedView.acceptsFocus) {
-		this.switchFocusEvent('leave', this.focusedView);
-		this.focusedView.setFocus(false);
-	}
+	//	remove from old
+	this.setViewFocusWithEvents(this.focusedView, false);
 
-	var view = this.getView(id);
-	if(view && view.acceptsFocus) {
-		this.switchFocusEvent('return', view);
-
-		this.focusedView = view;
-		this.focusedView.setFocus(true);
-	}
+	//	set to new
+	this.setViewFocusWithEvents(this.getView(id), true);
 };
 
 ViewController.prototype.nextFocus = function() {	
@@ -624,7 +634,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					callback(null);
 					return;
 				}
-				
+
 				formConfig.actionKeys.forEach(function akEntry(ak) {
 					//
 					//	*	'keys' must be present and be an array of key names

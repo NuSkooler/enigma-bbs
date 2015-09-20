@@ -70,6 +70,11 @@ AreaPostFSEModule.prototype.enter = function(client) {
 AreaPostFSEModule.prototype.validateToUserName = function(un, cb) {
 	var self = this;
 
+	if(!un) {
+		cb(new Error('Username must be supplied!'));
+		return;
+	}
+
 	if(!self.isLocalEmail()) {
 		cb(null);
 		return;

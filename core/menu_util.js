@@ -201,6 +201,8 @@ function handleAction(client, formData, conf) {
 					var currentModule = client.currentMenuModule;
 					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
 						currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
+					} else {
+						client.log.warn( { method : actionAsset.asset }, 'Method does not exist in module');
 					}
 				}
 			}

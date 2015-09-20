@@ -446,6 +446,7 @@ function FullScreenEditorModule(options) {
 
 						case 'view' :
 							self.switchToFooter();
+							//self.observeViewPosition();
 							break;
 					}
 
@@ -558,7 +559,7 @@ function FullScreenEditorModule(options) {
 			function helpDisplayed(err, artData) {
 				self.client.waitForKeyPress(function keyPress(ch, key) {
 					self.redrawScreen();
-					self.viewControllers.footerEditorMenu.setFocus(true);
+					self.viewControllers[self.getFooterName()].setFocus(true);
 				});
 			}
 		);
@@ -635,6 +636,14 @@ function FullScreenEditorModule(options) {
 			self.updateTextEditMode(mode);
 		});
 	};
+
+	/*
+	this.observeViewPosition = function() {
+		self.viewControllers.body.getView(1).on('edit position', function positionUpdate(pos) {
+			console.log(pos.percent + ' / ' + pos.below)
+		});
+	};
+	*/
 
 	this.switchToHeader = function() {
 		self.viewControllers.body.setFocus(false);
@@ -765,6 +774,10 @@ function FullScreenEditorModule(options) {
 			//	MLTEV won't get key events -- we need to handle them all here?
 			//	...up/down, page up/page down... both should go by pages
 			//	...Next/Prev/Etc. here
+		},
+		viewModeMenuHelp : function(formData, extraArgs) {
+			self.viewControllers.footerView.setFocus(false);
+			self.displayHelp();
 		}
 	};
 

@@ -60,8 +60,12 @@ function AreaViewFSEModule(options) {
 			case 'down arrow'	: bodyView.scrollDocumentUp(); break;
 			case 'up arrow'		: bodyView.scrollDocumentDown(); break;
 			case 'page up'		: bodyView.keyPressPageUp(); break;
-			case 'page down'	: bodyView.keyPressPageDown(); break;
+			case 'page down'	: bodyView.keyPressPageDown(); break;			
 		}
+
+		//	:TODO: need to stop down/page down if doing so would push the last
+		//	visible page off the screen at all
+
 	};
 
 	this.menuMethods.replyMessage = function(formData, extraArgs) {

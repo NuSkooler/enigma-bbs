@@ -365,7 +365,7 @@ function MultiLineEditTextView(options) {
 			self.updateTextWordWrap(index);
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			self.moveClientCusorToCursorPos();
+			self.moveClientCursorToCursorPos();
 		} else if('delete line' === operation) {
 			//
 			//	Delete a visible line. Note that this is *not* the "physical" line, or
@@ -401,7 +401,7 @@ function MultiLineEditTextView(options) {
 			if(isLastLine) {
 				self.cursorEndOfPreviousLine();
 			} else {
-				self.moveClientCusorToCursorPos();
+				self.moveClientCursorToCursorPos();
 			}
 		}
 	};
@@ -438,7 +438,7 @@ function MultiLineEditTextView(options) {
 				self.cursorPos.col += cursorOffset;
 				self.client.term.rawWrite(ansi.right(cursorOffset));
 			} else {
-				self.moveClientCusorToCursorPos();
+				self.moveClientCursorToCursorPos();
 			}
 		} else {
 			//
@@ -561,7 +561,7 @@ function MultiLineEditTextView(options) {
 		};
 	};
 
-	this.moveClientCusorToCursorPos = function() {
+	this.moveClientCursorToCursorPos = function() {
 		var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 		self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
 	};
@@ -669,14 +669,14 @@ function MultiLineEditTextView(options) {
 		} else {
 			self.cursorPos.col = 0;
 		}
-		self.moveClientCusorToCursorPos();
+		self.moveClientCursorToCursorPos();
 
 		self.emitEditPosition();
 	};
 
 	this.keyPressEnd = function() {
 		self.cursorPos.col = self.getTextEndOfLineColumn();
-		self.moveClientCusorToCursorPos();
+		self.moveClientCursorToCursorPos();
 		self.emitEditPosition();
 	};
 
@@ -687,7 +687,7 @@ function MultiLineEditTextView(options) {
 			self.adjustCursorIfPastEndOfLine(true);
 		} else {
 			self.cursorPos.row = 0;
-			self.moveClientCusorToCursorPos();	//	:TODO: ajust if eol, etc.
+			self.moveClientCursorToCursorPos();	//	:TODO: ajust if eol, etc.
 		}
 
 		self.emitEditPosition();
@@ -817,7 +817,7 @@ function MultiLineEditTextView(options) {
 		}
 
 		if(forceUpdate) {
-			self.moveClientCusorToCursorPos();
+			self.moveClientCursorToCursorPos();
 		}
 	};
 
@@ -874,7 +874,7 @@ function MultiLineEditTextView(options) {
 		self.cursorPos			= { row : 0, col : 0 };
 
 		self.redraw();
-		self.moveClientCusorToCursorPos();
+		self.moveClientCursorToCursorPos();
 	};
 
 	this.cursorEndOfDocument = function() {
@@ -883,7 +883,7 @@ function MultiLineEditTextView(options) {
 		self.cursorPos.col		= self.getTextEndOfLineColumn();
 
 		self.redraw();
-		self.moveClientCusorToCursorPos();
+		self.moveClientCursorToCursorPos();
 	};
 
 	this.cursorBeginOfNextLine = function() {
@@ -984,7 +984,7 @@ MultiLineEditTextView.prototype.redraw = function() {
 
 MultiLineEditTextView.prototype.setFocus = function(focused) {
 	this.client.term.rawWrite(this.getSGRFor('text'));
-	this.moveClientCusorToCursorPos();
+	this.moveClientCursorToCursorPos();
 
 	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 };
@@ -1036,12 +1036,6 @@ var HANDLED_SPECIAL_KEYS = [
 	'delete line',
 ];
 
-/*
-var EDIT_MODE_KEYS = [
-	'line feed', 'insert', 'tab', 'backspace', 'del', 'delete line'
-];
-*/
-
 var PREVIEW_MODE_KEYS = [
 	'up', 'down', 'page up', 'page down'
 ];
@@ -1078,6 +1072,13 @@ MultiLineEditTextView.prototype.getTextEditMode = function() {
 };
 
 MultiLineEditTextView.prototype.getEditPosition = function() {
-	return { row : this.getTextLinesIndex(this.cursorPos.row), col : this.cursorPos.col }
+	var currentIndex = this.getTextLinesIndex() + 1;
+
+	return { 
+		row		: this.getTextLinesIndex(this.cursorPos.row), 
+		col 	: this.cursorPos.col,
+		percent	: Math.floor(((currentIndex / this.textLines.length) * 100)),
+		below	: this.getRemainingLinesBelowRow(),
+	};
 };
 
