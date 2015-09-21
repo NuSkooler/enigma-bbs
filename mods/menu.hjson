@@ -153,6 +153,71 @@
 			"art"		: "LOGOFF",
 			"next"		: "@systemMethod:logoff",
 		},
+		/*
+			nua -> send sysop mail -> { active } -> matrix
+			                       -> you must active -> matrix
+		*/
+		newUserApplication: {
+			art: NUA
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							focus: true
+							argName: username
+							maxLength: @config:users.usernameMax
+						}
+						ET2: {
+							argName: realName
+							maxLength: 32
+						}
+						MET3: {
+							argName: birthdate
+							maskPattern: "####/##/##"
+						}
+						//	:TODO: use a mask edit for this:
+						ET4: {
+							argName: sex
+							maxLength: 1
+						}
+						ET5: {
+							argName: location
+							maxLength: 32
+						}
+						ET6: {
+							argName: affils
+							maxLength: 32
+						}
+						ET7: {
+							argName: email
+							maxLength: 255
+						}
+						ET8: {
+							argName: web
+							maxLength: 255
+						}
+						ET9: {
+							argName: password
+							password: true
+							maxLength: @config:users.passwordMax
+						}
+						ET10: {
+							argName: passwordConfirm
+							password: true
+							maxLength: @config:users.passwordMax
+						}
+						BT12: {
+							submit: true
+							text: Apply
+						}
+						BT13: {
+							submit: true
+							text: Cancel
+						}
+					}
+				}
+			}
+		}
 		"apply" : {
 			"art"		: "APPLY",
 			"next"		: "newUserActive",
