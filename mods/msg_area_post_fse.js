@@ -25,17 +25,15 @@ function AreaPostFSEModule(options) {
 	this.editorMode = 'edit';
 
 	this.menuMethods.editModeMenuSave = function(formData, extraArgs) {
-		var msg = self.getMessage();
 
+		var msg;
 		async.series(
 			[
-				function prepareMessage(callback) {
-					if(self.isLocalEmail()) {
-						msg.setLocalFromUserId(self.client.user.userId);
-						msg.setLocalToUserId(self.toUserId);
-					}
-
-					callback(null);
+				function getMessageObject(callback) {
+					self.getMessage(function gotMsg(err, msgObj) {
+						msg = msgObj;
+						callback(err);
+					});
 				},
 				function saveMessage(callback) {
 					msg.persist(function persisted(err) {

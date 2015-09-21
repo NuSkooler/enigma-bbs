@@ -195,9 +195,8 @@ function FullScreenEditorModule(options) {
 		};
 
 		if(self.isReply()) {
-			msgOpts.replyToMsgId	= self.replyToMessageId;
+			msgOpts.replyToMsgId	= self.replyToMessage.messageId;
 		}
-
 
 		self.message = new Message(msgOpts);
 	};
@@ -218,12 +217,29 @@ function FullScreenEditorModule(options) {
 
 	};
 
-	this.getMessage = function() {
-		if(self.isEditMode()) {
-			self.buildMessage();
-		}
+	this.getMessage = function(cb) {
+		async.series(
+			[
+				function buildIfNecessary(callback) {
+					if(self.isEditMode()) {
+						self.buildMessage();	//	creates initial self.message
+					}
+					callback(null);
+				},
+				function populateLocalUserInfo(callback) {
+					if(self.isLocalEmail()) {
+						msg.setLocalFromUserId(self.client.user.userId);
+						msg.setLocalToUserId(self.toUserId);
+					}
 
-		return self.message;
+					//	:TODO: DO THAT!
+					callback(null);
+				}
+			],
+			function complete(err) {
+				cb(err, self.message);
+			}
+		);
 	};
 
 	this.redrawFooter = function(options, cb) {
@@ -720,7 +736,6 @@ function FullScreenEditorModule(options) {
 	}
 
 	this.menuMethods = {
-		//	:TODO: rename to editModeHeaderSubmit
 		headerSubmit : function(formData, extraArgs) {
 			self.switchToBody();
 		},
@@ -735,7 +750,8 @@ function FullScreenEditorModule(options) {
 					switch(self.footerMode) {
 						case 'editor' :
 							if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
-								self.viewControllers.footerEditorMenu.setFocus(false);
+								//self.viewControllers.footerEditorMenu.setFocus(false);
+								self.viewControllers.footerEditorMenu.detachClientEvents();
 							}
 							self.viewControllers.body.switchFocus(1);
 							self.observeEditorEvents();
@@ -782,14 +798,11 @@ function FullScreenEditorModule(options) {
 			var quoteMsgView	= self.viewControllers.quoteBuilder.getView(1);
 			var msgView			= self.viewControllers.body.getView(1);
 
-			//msgView.addText(_.trim(quoteMsgView.getData(), '\n'));
-			//msgView.addText(new Array(msgView.dimens.width - 1).join('-') + '\n');
 			msgView.addText(quoteMsgView.getData() + '\n');
 			quoteMsgView.setText('');
 
 			var footerName = self.getFooterName();
-			
-			//self.redrawFooter( { clear : true, footerName : footerName }, function footerDisplayed(err) {
+
 			self.footerMode = 'editor';
 
 			self.switchFooter(function switched(err) {

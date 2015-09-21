@@ -10,9 +10,12 @@ var binary			= require('binary');
 var fs				= require('fs');
 var util			= require('util');
 
+//	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringFromFTN			= stringFromFTN;
 exports.getFormattedFTNAddress	= getFormattedFTNAddress;
 exports.getDateFromFtnDateTime	= getDateFromFtnDateTime;
+
+exports.getQuotePrefix			= getQuotePrefix;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
@@ -79,6 +82,12 @@ function getFtnMessageSerialNumber(messageId) {
 
 function getFTNMessageID(messageId, areaId) {
     return messageId + '.' + areaId + '@' + getFTNAddress() + ' ' + getFTNMessageSerialNumber(messageId)
+}
+
+//	Get a FSC-0032 style quote prefixes
+function getQuotePrefix(name) {
+	//	:TODO: Add support for real names (e.g. with spaces) -> initials
+	return ' ' + name[0].toUpperCase() + name[1].toLowerCase() + '> ';
 }
 
 

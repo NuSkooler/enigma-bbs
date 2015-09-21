@@ -3,6 +3,7 @@
 
 var msgDb			= require('./database.js').dbs.message;
 var wordWrapText	= require('./word_wrap.js').wordWrapText;
+var ftnUtil			= require('./ftn_util.js');
 
 var uuid			= require('node-uuid');
 var async			= require('async');
@@ -244,19 +245,10 @@ Message.prototype.persist = function(cb) {
 	);
 };
 
-//	:TODO: Update this to use a FTN module, e.g. ftn.getQuotePrefix(name)
 Message.prototype.getFTNQuotePrefix = function(source) {
 	source = source || 'fromUserName';
 
-	switch(source) {
-		case 'fromUserName' :
-			return this.fromUserName[0].toUpperCase() + this.fromUserName[1].toLowerCase();
-
-		case 'toUserName' :
-			return this.toUserName[0].toUpperCase() + this.toUserName[1].toLowerCase();		
-
-		//	:TODO: real names
-	}
+	return ftnUtil.getQuotePrefix(this[source]);
 };
 
 Message.prototype.getQuoteLines = function(width, options) {
@@ -282,7 +274,7 @@ Message.prototype.getQuoteLines = function(width, options) {
 	
 	var quotePrefix = '';	//	we need this init even if blank
 	if(options.includePrefix) {
-		quotePrefix = ' ' + this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') + '> ';
+		quotePrefix = this.getFTNQuotePrefix(options.prefixSource || 'fromUserName');
 	}
 
 	var wrapOpts = {

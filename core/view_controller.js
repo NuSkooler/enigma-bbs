@@ -57,11 +57,11 @@ function ViewController(options) {
 					{ ch : ch, key : key },		//	formData
 					actionForKey);		//	action block
 			}
+		} else {
+			if(self.focusedView && self.focusedView.acceptsInput) {
+				self.focusedView.onKeyPress(ch, key);
+			}
 		}
-
-		if(self.focusedView && self.focusedView.acceptsInput) {
-			self.focusedView.onKeyPress(ch, key);
-		}		
 	};
 
 	this.viewActionListener = function(action, key) {
@@ -373,12 +373,12 @@ ViewController.prototype.setFocus = function(focused) {
 		this.detachClientEvents();
 	}
 
-	//	:TODO: without this, setFocus(false) is broken (doens't call focus events); with it, FSE menus break!!
-//	this.setViewFocusWithEvents(this.focusedView, focused);
+	this.setViewFocusWithEvents(this.focusedView, focused);
 };
 
 ViewController.prototype.switchFocus = function(id) {
-	this.setFocus(true);	//	ensure events are attached
+	//this.setFocus(true);	//	ensure events are attached
+	this.attachClientEvents();
 
 	//	remove from old
 	this.setViewFocusWithEvents(this.focusedView, false);

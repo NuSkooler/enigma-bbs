@@ -774,6 +774,7 @@
 							width: 		27
 							argName:	to
 							focus:		true
+							text: All
 						}
 						"ET3" : {
 							"width"		: 27,
@@ -855,10 +856,14 @@
 								}
 							]
 						},
-						"actionKeys" : [	//	:TODO: Need better name
+						actionKeys: [	//	:TODO: Need better name
 							{
-								"keys"		: [ "escape" ],
-								"action"	: "@method:editModeEscPressed"
+								keys: [ "escape" ]
+								action: @method:editModeEscPressed
+							}
+							{
+								keys: [ "?" ]
+								action: @method:editModeMenuHelp
 							}
 						]
 						//	:TODO: something like the following for overriding keymap

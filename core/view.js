@@ -247,6 +247,9 @@ View.prototype.setFocus = function(focused) {
 };
 
 View.prototype.onKeyPress = function(ch, key) {
+	if(false === this.hasFocus) {
+		console.log('doh!');
+	}
 	assert(this.hasFocus,		'View does not have focus');
 	assert(this.acceptsInput,	'View does not accept input');
 

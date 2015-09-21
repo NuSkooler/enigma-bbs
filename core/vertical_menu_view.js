@@ -149,52 +149,10 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 
 	if(key) {
-		var prevFocusedItemIndex = this.focusedItemIndex;
-
 		if(this.isKeyMapped('up', key.name)) {
 			this.focusPrevious();
-			/*
-			if(0 === this.focusedItemIndex) {
-				this.focusedItemIndex = this.items.length - 1;
-				
-				this.viewWindow = {
-					//top		: this.items.length - this.maxVisibleItems,
-					top		: Math.max(this.items.length - this.maxVisibleItems, 0),
-					bottom	: this.items.length - 1
-				};
-
-			} else {
-				this.focusedItemIndex--;
-
-				if(this.focusedItemIndex < this.viewWindow.top) {
-					this.viewWindow.top--;
-					this.viewWindow.bottom--;
-				}
-			}
-			*/
 		} else if(this.isKeyMapped('down', key.name)) {
-			/*if(this.items.length - 1 === this.focusedItemIndex) {
-				this.focusedItemIndex = 0;
-				
-				this.viewWindow = {
-					top		: 0,
-					bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
-				};
-			} else {
-				this.focusedItemIndex++;
-
-				if(this.focusedItemIndex > this.viewWindow.bottom) {
-					this.viewWindow.top++;
-					this.viewWindow.bottom++;
-				}
-			}
-			*/
 			this.focusNext();
-		}
-
-		if(prevFocusedItemIndex !== this.focusedItemIndex) {
-			//	:TODO: Optimize this for cases where no scrolling occured & only two items need updated
-	//		this.redraw();
 		}
 	}
 
@@ -211,6 +169,7 @@ VerticalMenuView.prototype.setItems = function(items) {
 	this.positionCacheExpired = true;
 };
 
+//	:TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
 
 VerticalMenuView.prototype.focusNext = function() {
 	VerticalMenuView.super_.prototype.focusNext.call(this);
