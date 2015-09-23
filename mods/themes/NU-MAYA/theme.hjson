@@ -56,6 +56,29 @@
 				ET10: { width: 21 }
 			}
 
+			newUserApplication: {
+				ET1: { width: 21 }
+				
+				ET2: { width: 21 }
+				
+				/*ME3: {
+					styleSGR1: |00|30|01
+					styleSGR2: |00|37
+					fillChar: "#"
+				}*/
+
+				//ET4: { width: 1	}
+				ET5: { width: 21 }
+				ET6: { width: 21 }
+				ET7: { width: 21 }
+				ET8: { width: 21 }
+				ET9: { width: 21 }
+				ET10: { width: 21 }
+				TM12: {
+					focusTextStyle: first lower
+				}
+			}
+
 			lastCallers: {
 				TL1: {
 					resizable: false

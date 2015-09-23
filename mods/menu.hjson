@@ -81,7 +81,8 @@
 								},
 								{
 									value: { 1: 1 },
-									action: @menu:apply
+									action: @menu:newUserApplication
+									//action: @menu:apply
 								},
 								{
 									value: { 1: 2 },
@@ -175,10 +176,10 @@
 							argName: birthdate
 							maskPattern: "####/##/##"
 						}
-						//	:TODO: use a mask edit for this:
-						ET4: {
+						ME4: {
 							argName: sex
-							maxLength: 1
+							maskPattern: A
+							textStyle: U
 						}
 						ET5: {
 							argName: location
@@ -206,16 +207,26 @@
 							password: true
 							maxLength: @config:users.passwordMax
 						}
-						BT12: {
+						TM12: {
+							argName: submission
+							items: [ "Apply", "Cancel" ]
 							submit: true
-							text: Apply
-						}
-						BT13: {
-							submit: true
-							text: Cancel
 						}
 					}
-				}
+
+					submit: {
+						*: [
+							{
+								value: { "submission" : 0 }
+								action: @method:apply/submitApplication
+								extraArgs: {
+									inactive: userNeedsActivated
+									error: newUserCreateError
+								}
+							}
+						]
+					}
+				}				
 			}
 		}
 		"apply" : {

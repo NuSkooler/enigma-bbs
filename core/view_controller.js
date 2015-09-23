@@ -43,7 +43,6 @@ function ViewController(options) {
 		//	Everything else is forwarded on to the focused View, if any.
 		//
 		var actionForKey = key ? self.actionKeyMap[key.name] : self.actionKeyMap[ch];
-		//var actionForKey = self.actionKeyMap[key.name] || self.actionKeyMap[ch];
 		if(actionForKey) {
 			if(_.isNumber(actionForKey.viewId)) {
 				//
