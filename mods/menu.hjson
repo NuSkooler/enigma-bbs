@@ -160,6 +160,7 @@
 		*/
 		newUserApplication: {
 			art: NUA
+			next: newUserFeedbackToSysOp
 			form: {
 				0: {
 					mci: {
@@ -179,7 +180,7 @@
 						ME4: {
 							argName: sex
 							maskPattern: A
-							textStyle: U
+							textStyle: upper
 						}
 						ET5: {
 							argName: location
@@ -224,99 +225,154 @@
 									error: newUserCreateError
 								}
 							}
+							{
+								value: { "submission" : 1 }
+								action: @menu:matrix
+							}
 						]
 					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @menu:matrix
+						}
+					]
 				}				
 			}
 		}
-		"apply" : {
-			"art"		: "APPLY",
-			"next"		: "newUserActive",
-			"form"		: {
-				"0" : {
-					"BTBTETETETETETETETETETMETL" : {
-						"mci" : {
-							"ET1" : {
-								"focus"		: true,
-								"argName"	: "username",
-								"maxLength"	: "@config:users.usernameMax"
-							},
-							"ET2" : {
-								"argName"	: "realName",
-								"maxLength"	: 32
-							},
-							"ME3" : {
-								"argName"		: "birthdate",
-								"maskPattern" 	: "####/##/##"
-							},
-							"ET4" : {
-								"argName"	: "sex",
-								"maxLength"	: 1
-							},
-							"ET5" : {
-								"argName"	: "location",
-								"maxLength"	: 32
-							},
-							"ET6" : {
-								"argName" : "affils",
-								"maxLength" : 32
-							},
-							"ET7" : {
-								"argName" : "email",
-								"maxLength" : 255
-							},
-							"ET8" : {
-								"argName" : "web",
-								"maxLength" : 255
-							},
-							"ET9" : {
-								"argName"	: "password",
-								"password"	: true,
-								"maxLength"	: "@config:users.passwordMax"
-							},
-							"ET10" : {
-								"argName"	: "passwordConfirm",
-								"password"	: true,
-								"maxLength"	: "@config:users.passwordMax"
-							},
-							"BT12" : {
-								"submit" : true,
-								"text"	: "Apply"
-							},
-							"BT13" : {
-								"submit" : [ "escape" ],
-								"text" : "Cancel"
-							}
-						},
-						"submit" : {
-							"12" : [	//	Apply
-								{
-									"value" : 12,	//	:TODO: better, this should be optional; if not present it's a any match
-									"action" : "@method:apply/submitApplication",
-									"extraArgs" : {
-										"inactive"	: "userNeedsActivated",
-										"error"		: "newUserCreateError"
-									}								
-								}
-							],
-							"13" : [	//	Cancel
-								{
-									"value" : 13,
-									"action"	: "@menu:matrix"
-								}
-							]
-						}
 
-						actionKeys: [
+		newUserFeedbackToSysOp: {
+			status: Feedback to SysOp
+			module: msg_area_post_fse
+			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
+			config: {
+				art: {
+					header:				MSGEHDR
+					body:				MSGBODY
+					footerEditor:		MSGEFTR
+					footerEditorMenu:	MSGEMFT
+					help:				MSGEHLP
+				},
+				editorMode: edit
+				editorType: area
+			},
+			"form" : {
+				"0" : {
+					mci: {
+						TL1: {
+							width: 		27
+							argName: 	from
+						}
+						ET2: {
+							width: 		27
+							argName:	to
+							focus:		true
+							text: All
+							//	:TODO: @systemMethod:getSysOpUsername
+							//	:TODO: readOnly: true
+						}
+						"ET3" : {
+							"width"		: 27,
+							"argName"	: "subject",
+							"maxLength"	: 72,
+							"submit"	: true
+						},
+						"MA5" : {
+							"width"			: 27,
+							"textOverflow"	: "..."
+						}
+					},
+					"submit" : {
+						"3" : [
 							{
-								keys: [ "escape" ]
-								viewId: 13
+								"value"		: { "subject" : null },
+								"action"	: "@method:headerSubmit"
 							}
 						]
 					}
+				},
+				"1" : {
+					"mci" : {
+						MT1: {
+							width: 		79
+							height: 	14
+							argName:	message
+							mode: 		edit
+						}
+					}
+
+					submit: {
+						*: [ { "value": "message", "action": "@method:editModeEscPressed" } ]
+					},
+					"actionKeys" : [
+						{
+							"keys"		: [ "escape" ],
+							"viewId"	: 1
+						}
+					]
+				},
+				"2" : {
+					"TLTL" :  {
+						"mci" : {
+							"TL1" : {
+								"width"	: 5
+							},
+							"TL2" : {
+								"width" : 4
+							}
+						}
+					}
+				},
+				"3" : {
+					"HM" : {
+						"mci" : {
+							"HM1" : {
+								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
+								"items" : [ "Save", "Discard", "Quote", "Help" ]
+							}
+						},
+						"submit" : {
+							"*" : [
+								{
+									"value"		: { "1" : 0 },
+									"action"	: "@method:editModeMenuSave"
+								},
+								{
+									"value"		: { "1" : 1 },
+									"action"	: "@menu:messageArea"
+								},
+								{
+									value: { 1: 2 },
+									action: @method:editModeQuote
+								},
+								{
+									"value"		: { "1" : 3 },
+									"action"	: "@method:editModeMenuHelp"
+								}
+							]
+						},
+						actionKeys: [	//	:TODO: Need better name
+							{
+								keys: [ "escape" ]
+								action: @method:editModeEscPressed
+							}
+							{
+								keys: [ "?" ]
+								action: @method:editModeMenuHelp
+							}
+						]
+						//	:TODO: something like the following for overriding keymap
+						//	this should only override specified entries. others will default
+						/*
+						"keyMap" : {
+							"accept" : [ "return" ]
+						}
+						*/
+					}
 				}
 			}
-		},
+		}
 		"fullLoginSequenceLoginArt" : {
 			"art"		: "LOGIN",
 			"options"	: { "pause" : true },

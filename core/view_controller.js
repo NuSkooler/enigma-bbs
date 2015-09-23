@@ -245,8 +245,12 @@ function ViewController(options) {
 		function complete(err) {		
 			//	default to highest ID if no 'submit' entry present
 			if(!submitId) {
-				//	:TODO: fix bug here: If errornous MCI code sare used, we'll reference invalid views -- these should jsut be ignored
-				self.getView(highestId).submit = true;
+				var highestIdView = self.getView(highestId);
+				if(highestIdView) {
+					highestIdView.submit = true;
+				} else {
+					self.client.log.warn( { highestId : highestId }, 'View does not exist');
+				}
 			}
 
 			cb(err, { initialFocusId : initialFocusId } );

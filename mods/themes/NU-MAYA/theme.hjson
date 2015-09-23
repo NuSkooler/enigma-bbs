@@ -57,9 +57,9 @@
 			}
 
 			newUserApplication: {
-				ET1: { width: 21 }
+				ET1: { width: 38 }
 				
-				ET2: { width: 21 }
+				ET2: { width: 38 }
 				
 				/*ME3: {
 					styleSGR1: |00|30|01
@@ -68,12 +68,12 @@
 				}*/
 
 				//ET4: { width: 1	}
-				ET5: { width: 21 }
-				ET6: { width: 21 }
-				ET7: { width: 21 }
-				ET8: { width: 21 }
-				ET9: { width: 21 }
-				ET10: { width: 21 }
+				ET5: { width: 38 }
+				ET6: { width: 38 }
+				ET7: { width: 38 }
+				ET8: { width: 38 }
+				ET9: { width: 38 }
+				ET10: { width: 38 }
 				TM12: {
 					focusTextStyle: first lower
 				}
