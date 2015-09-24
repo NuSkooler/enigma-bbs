@@ -104,7 +104,9 @@ function FullScreenEditorModule(options) {
 	this.editorMode	= config.editorMode;
 
 	if(_.isObject(options.extraArgs)) {
+		console.log(options.extraArgs)
 		this.messageAreaName	= options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
+		console.log(this.messageAreaName)
 		this.messageIndex		= options.extraArgs.messageIndex || 0;
 		this.messageTotal		= options.extraArgs.messageTotal || 0;
 	}
