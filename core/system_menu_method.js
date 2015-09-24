@@ -10,6 +10,7 @@ var async				= require('async');
 
 exports.login			= login;
 exports.logoff			= logoff;
+exports.fallbackMenu	= fallbackMenu;
 
 function login(callingMenu, formData, extraArgs) {
 	var client = callingMenu.client;
@@ -138,7 +139,7 @@ function logoff(callingMenu, formData, extraArgs) {
 function fallbackMenu(callingMenu, formData, extraArgs) {
 	callingMenu.client.fallbackMenuModule( { extraArgs : extraArgs }, function result(err) {
 		if(err) {
-			callingMenu.client.log.error( { error : err }, 'Error attempting to ')
+			callingMenu.client.log.error( { error : err }, 'Error attempting to fallback!');
 		}
 	});
 }

@@ -474,21 +474,20 @@ Client.prototype.fallbackMenuModule = function(options, cb) {
 
 	var modOpts;
 
-	if(_.isString(self.currentMenuModule.menuConfig.fallback)()) {
+	if(_.isString(self.currentMenuModule.menuConfig.fallback)) {
 		modOpts = {
 			name		: self.currentMenuModule.menuConfig.fallback,
 			extraArgs	: options.extraArgs,
 		};
-
-		self.gotoMenuModule(modOpts, cb);
-
 	} else if(self.lastMenuModuleInfo) {
 		modOpts = {
 			name		: self.lastMenuModuleInfo.menuName,
 			extraArgs	: self.lastMenuModuleInfo.extraArgs,
 			savedState	: self.lastMenuModuleInfo.savedState,
 		};
+	}
 
+	if(modOpts) {
 		self.gotoMenuModule(modOpts, cb);
 	} else {
 		cb(new Error('Nothing to fallback to!'));

@@ -809,6 +809,7 @@ function FullScreenEditorModule(options) {
 				self.switchFromQuoteBuilderToBody();
 			});
 		},
+		/*
 		replyDiscard : function(formData, extraArgs) {
 			//	:TODO: need to prompt yes/no
 			//	:TODO: @method for fallback would be better
@@ -816,6 +817,7 @@ function FullScreenEditorModule(options) {
 				console.log(err)
 			});
 		},
+		*/
 		editModeMenuHelp : function(formData, extraArgs) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
 			self.displayHelp();

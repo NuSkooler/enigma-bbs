@@ -25,6 +25,10 @@ function getPredefinedMCIValue(client, code) {
 			VL	: function versionLabel() { return 'ENiGMA½ v' + packageJson.version; },
 			VN	: function version() { return packageJson.version; },
 
+			//	:TODO: SysOp username
+			//	:TODO: SysOp real name
+			
+
 			UN	: function userName() { return client.user.username; },
 			UI	: function userId() { return client.user.userId.toString(); },
 			UG	: function groups() { return _.values(client.user.groups).join(', '); },

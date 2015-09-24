@@ -172,7 +172,9 @@ function callModuleMenuMethod(client, asset, path, formData, extraArgs) {
 	}
 
 	try {
-		client.log.trace( { methodName : asset.asset, formData : formData, extraArgs : extraArgs } );
+		client.log.trace(
+			{ path : path, methodName : asset.asset, formData : formData, extraArgs : extraArgs },
+			'Calling menu method');
 
 		var methodMod = require(path);
 		methodMod[asset.asset](client.currentMenuModule, formData || { }, extraArgs);

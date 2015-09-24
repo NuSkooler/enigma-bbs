@@ -160,7 +160,7 @@
 		*/
 		newUserApplication: {
 			art: NUA
-			next: newUserFeedbackToSysOp
+			next: newUserFeedbackToSysOpPreamble
 			form: {
 				0: {
 					mci: {
@@ -242,10 +242,16 @@
 			}
 		}
 
+		newUserFeedbackToSysOpPreamble: {
+			art: NUAFDBK
+			options: { pause: true }
+			next: newUserFeedbackToSysOp
+		}
+
 		newUserFeedbackToSysOp: {
 			status: Feedback to SysOp
 			module: msg_area_post_fse
-			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
+			fallback: mainMenu
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -256,9 +262,9 @@
 				},
 				editorMode: edit
 				editorType: area
-			},
-			"form" : {
-				"0" : {
+			}
+			form: {
+				0: {
 					mci: {
 						TL1: {
 							width: 		27
@@ -268,30 +274,30 @@
 							width: 		27
 							argName:	to
 							focus:		true
-							text: All
-							//	:TODO: @systemMethod:getSysOpUsername
+							text: @config:general.sysOp.username
 							//	:TODO: readOnly: true
 						}
-						"ET3" : {
-							"width"		: 27,
-							"argName"	: "subject",
-							"maxLength"	: 72,
-							"submit"	: true
+						ET3: {
+							width: 27
+							argName: subject
+							maxLength: 72
+							submit: true
+							text: New user feedback
 						},
 						"MA5" : {
 							"width"			: 27,
 							"textOverflow"	: "..."
 						}
-					},
-					"submit" : {
-						"3" : [
+					}
+					submit: {
+						3: [
 							{
 								"value"		: { "subject" : null },
 								"action"	: "@method:headerSubmit"
 							}
 						]
 					}
-				},
+				}
 				"1" : {
 					"mci" : {
 						MT1: {
@@ -323,36 +329,31 @@
 							}
 						}
 					}
-				},
-				"3" : {
-					"HM" : {
-						"mci" : {
-							"HM1" : {
-								//	:TODO: Continue, Save, Discard, Clear, Quote, Help
-								"items" : [ "Save", "Discard", "Quote", "Help" ]
+				}
+				3: {
+					HM: {
+						mci: {
+							HM1: {
+								items: [ "Save", "Discard", "Help" ]
 							}
-						},
-						"submit" : {
-							"*" : [
+						}
+						submit: {
+							*: [
 								{
-									"value"		: { "1" : 0 },
-									"action"	: "@method:editModeMenuSave"
-								},
+									value: { 1: 0 }
+									action: @method:editModeMenuSave
+								}
 								{
-									"value"		: { "1" : 1 },
-									"action"	: "@menu:messageArea"
-								},
+									value: { 1: 1 }
+									action: @systemMethod:fallbackMenu
+								}
 								{
-									value: { 1: 2 },
-									action: @method:editModeQuote
-								},
-								{
-									"value"		: { "1" : 3 },
-									"action"	: "@method:editModeMenuHelp"
+									value: { 1: 2 }
+									action: @method:editModeMenuHelp
 								}
 							]
-						},
-						actionKeys: [	//	:TODO: Need better name
+						}
+						actionKeys: [
 							{
 								keys: [ "escape" ]
 								action: @method:editModeEscPressed
@@ -362,13 +363,6 @@
 								action: @method:editModeMenuHelp
 							}
 						]
-						//	:TODO: something like the following for overriding keymap
-						//	this should only override specified entries. others will default
-						/*
-						"keyMap" : {
-							"accept" : [ "return" ]
-						}
-						*/
 					}
 				}
 			}
@@ -809,7 +803,8 @@
 								}
 								{
 									value: { 1: 1 }
-									action: @method:replyDiscard
+									action: @systemMethod:fallbackMenu
+									//action: @method:replyDiscard
 								}
 								{
 									value: { 1: 2 },
@@ -833,7 +828,8 @@
 							}
 							{
 								keys: [ "d", "shift + d" ]
-								action: @method:replyDiscard
+								//action: @method:replyDiscard
+								action: @systemMethod:fallbackMenu
 							}
 							{
 								keys: [ "q", "shift + q" ]
