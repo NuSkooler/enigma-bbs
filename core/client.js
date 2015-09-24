@@ -81,17 +81,6 @@ var RE_ESC_CODE_ANYWHERE			= new RegExp( [
 	].join('|'));
 
 
-/*
-Convert names to eg 'ctrl-x', 'shift-x',...
-https://github.com/chjj/blessed/blob/master/lib/program.js
-
-Look at blessed DSR stuff, etc
-Also cursor shape
-
-Key filtering here: https://github.com/chjj/blessed/blob/master/lib/widgets/textarea.js
-*/
-
-
 function Client(input, output) {
 	stream.call(this);
 
@@ -480,6 +469,33 @@ Client.prototype.gotoMenuModule = function(options, cb) {
 	});
 };
 
+Client.prototype.fallbackMenuModule = function(options, cb) {
+	var self = this;
+
+	var modOpts;
+
+	if(_.isString(self.currentMenuModule.menuConfig.fallback)()) {
+		modOpts = {
+			name		: self.currentMenuModule.menuConfig.fallback,
+			extraArgs	: options.extraArgs,
+		};
+
+		self.gotoMenuModule(modOpts, cb);
+
+	} else if(self.lastMenuModuleInfo) {
+		modOpts = {
+			name		: self.lastMenuModuleInfo.menuName,
+			extraArgs	: self.lastMenuModuleInfo.extraArgs,
+			savedState	: self.lastMenuModuleInfo.savedState,
+		};
+
+		self.gotoMenuModule(modOpts, cb);
+	} else {
+		cb(new Error('Nothing to fallback to!'));
+	}
+};
+
+/*
 Client.prototype.fallbackMenuModule = function(cb) {
 	var self = this;
 
@@ -495,6 +511,7 @@ Client.prototype.fallbackMenuModule = function(cb) {
 		cb(new Error('Nothing to fallback to!'));
 	}
 };
+*/
 
 ///////////////////////////////////////////////////////////////////////////////
 //	Default error handlers

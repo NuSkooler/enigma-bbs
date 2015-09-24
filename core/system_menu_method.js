@@ -134,3 +134,11 @@ function logoff(callingMenu, formData, extraArgs) {
 		client.end();
 	}, 500);
 }
+
+function fallbackMenu(callingMenu, formData, extraArgs) {
+	callingMenu.client.fallbackMenuModule( { extraArgs : extraArgs }, function result(err) {
+		if(err) {
+			callingMenu.client.log.error( { error : err }, 'Error attempting to ')
+		}
+	});
+}
