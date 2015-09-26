@@ -1,16 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var ansi			= require('../core/ansi_term.js');
-var art				= require('../core/art.js');
-var user			= require('../core/user.js');
-var theme			= require('../core/theme.js');
-var Log				= require('../core/logger.js').log;
-var MenuModule		= require('../core/menu_module.js').MenuModule;
-var ViewController	= require('../core/view_controller.js').ViewController;
-var Config			= require('../core/config.js').config;
+var ansi					= require('../core/ansi_term.js');
+var art						= require('../core/art.js');
+var user					= require('../core/user.js');
+var theme					= require('../core/theme.js');
+var Log						= require('../core/logger.js').log;
+var MenuModule				= require('../core/menu_module.js').MenuModule;
+var ViewController			= require('../core/view_controller.js').ViewController;
+var Config					= require('../core/config.js').config;
+var sysMenuMethod			= require('../core/system_menu_method.js');
+var getDefaultMessageArea	= require('../core/message_area.js').getDefaultMessageArea;
 
-var util			= require('util');
+var util					= require('util');
 
 exports.submitApplication	= submitApplication;
 
@@ -85,14 +87,16 @@ function submitApplication(callingMenu, formData, extraArgs) {
 			newUser.username = formData.value.username;
 
 			newUser.properties = {
-				real_name		: formData.value.realName,
-				birthdate		: new Date(Date.parse(formData.value.birthdate)).toISOString(),
-				sex				: formData.value.sex,
-				location		: formData.value.location,
-				affiliation		: formData.value.affils,
-				email_address	: formData.value.email,
-				web_address		: formData.value.web,
-				account_created	: new Date().toISOString(),
+				real_name			: formData.value.realName,
+				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
+				sex					: formData.value.sex,
+				location			: formData.value.location,
+				affiliation			: formData.value.affils,
+				email_address		: formData.value.email,
+				web_address			: formData.value.web,
+				account_created		: new Date().toISOString(),
+
+				message_area_name	: getDefaultMessageArea().name,
 				
 				//	:TODO: This is set in User.create() -- proabbly don't need it here:
 				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
@@ -118,7 +122,11 @@ function submitApplication(callingMenu, formData, extraArgs) {
 					if(user.User.AccountStatus.inactive === client.user.properties.account_status) {
 						client.gotoMenuModule( { name : extraArgs.inactive } );
 					} else {
-						client.gotoMenuModule( { name : menuConfig.next } );
+						//
+						//	If active now, we need to call login() to authenticate
+						//
+						sysMenuMethod.login(callingMenu, formData, extraArgs);
+					//	client.gotoMenuModule( { name : menuConfig.next } );
 					}
 				}
 			});

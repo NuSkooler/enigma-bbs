@@ -31,7 +31,7 @@
 			}
 		},
 		"menuCommand" : {
-			"art" : "menu_prompt.ans",
+			art: MNUPRMT
 			"mci" :  {
 				"ET2" : {
 					"argName" 	: "command",

@@ -10,6 +10,7 @@ var _				= require('lodash');
 var assert			= require('assert');
 
 exports.getAvailableMessageAreas			= getAvailableMessageAreas;
+exports.getDefaultMessageArea				= getDefaultMessageArea;
 exports.getMessageAreaByName				= getMessageAreaByName;
 exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
@@ -18,6 +19,10 @@ exports.gotoMsgAreaFSEModuleForMessage		= gotoMsgAreaFSEModuleForMessage;
 function getAvailableMessageAreas() {
 	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
 	return Config.messages.areas;
+}
+
+function getDefaultMessageArea() {
+	return getAvailableMessageAreas()[0];
 }
 
 function getMessageAreaByName(areaName) {
