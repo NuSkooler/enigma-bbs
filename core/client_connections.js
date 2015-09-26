@@ -10,7 +10,7 @@ var clientConnections = [];
 exports.clientConnections		= clientConnections;
 
 function addNewClient(client) {
-	var id = client.runtime.id = clientConnections.push(client) - 1;
+	var id = client.session.id = clientConnections.push(client) - 1;
 
 	//	Create a client specific logger 
 	client.log = logger.log.child( { clientId : id } );
@@ -37,7 +37,7 @@ function removeClient(client) {
 		logger.log.info(
 			{ 
 				connectionCount	: clientConnections.length,
-				clientId		: client.runtime.id 
+				clientId		: client.session.id 
 			}, 
 			'Client disconnected'
 			);

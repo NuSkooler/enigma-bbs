@@ -186,8 +186,8 @@ function startListening() {
 			//	Start tracking the client. We'll assign it an ID which is
 			//	just the index in our connections array.
 			//
-			if(_.isUndefined(client.runtime)) {
-				client.runtime = {};
+			if(_.isUndefined(client.session)) {
+				client.session = {};
 			}
 
 			clientConns.addNewClient(client);
@@ -205,12 +205,12 @@ function startListening() {
 			});
 
 			client.on('error', function onClientError(err) {
-				logger.log.info({ clientId : client.runtime.id }, 'Connection error: %s' % err.message);
+				logger.log.info({ clientId : client.session.id }, 'Connection error: %s' % err.message);
 			});
 
 			client.on('close', function onClientClose(hadError) {
 				var l = hadError ? logger.log.info : logger.log.debug;
-				l( { clientId : client.runtime.id }, 'Connection closed');
+				l( { clientId : client.session.id }, 'Connection closed');
 				
 				clientConns.removeClient(client);
 			});

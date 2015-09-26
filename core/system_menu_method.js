@@ -41,7 +41,7 @@ function login(callingMenu, formData, extraArgs) {
 
 			if(existingClientConnection) {
 				client.log.info( {
-					existingClientId	: existingClientConnection.runtime.id, 
+					existingClientId	: existingClientConnection.session.id, 
 					username			: user.username, 
 					userId				: user.userId },
 					'Already logged in'

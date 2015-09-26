@@ -106,7 +106,7 @@ function Client(input, output) {
 
 	Object.defineProperty(this, 'node', {
 		get : function() {
-			return self.runtime.id + 1;
+			return self.session.id + 1;
 		}
 	});
 

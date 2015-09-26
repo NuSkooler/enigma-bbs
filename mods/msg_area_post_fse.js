@@ -61,7 +61,7 @@ require('util').inherits(AreaPostFSEModule, FullScreenEditorModule);
 
 AreaPostFSEModule.prototype.enter = function(client) {	
 
-	if(_.isString(client.user.properties.message_area_name)) {
+	if(_.isString(client.user.properties.message_area_name) && !_.isString(this.messageAreaName)) {
 		this.messageAreaName = client.user.properties.message_area_name;
 	}
 	

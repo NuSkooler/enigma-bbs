@@ -246,6 +246,9 @@
 			art: NUAFDBK
 			options: { pause: true }
 			next: newUserFeedbackToSysOp
+			extraArgs: {
+				messageAreaName: private_mail
+			}
 		}
 
 		newUserFeedbackToSysOp: {

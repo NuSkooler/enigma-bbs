@@ -24,6 +24,7 @@ function getMessageAreaByName(areaName) {
 	areaName = areaName.toLowerCase();
 
 	var availAreas	= getAvailableMessageAreas();
+	console.log(availAreas)
 	var index		= _.findIndex(availAreas, function pred(an) {
 		return an.name == areaName;
 	});
