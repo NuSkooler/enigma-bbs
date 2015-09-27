@@ -36,15 +36,14 @@ function ANSIEscapeParser(options) {
 		mciReplaceChar		: '',
 		termHeight			: 25,
 		termWidth			: 80,
-		omitTrailingLF		: false,
+		trailingLF			: 'default',	//	default|omit|no|yes, ...
 	});
 
 	this.mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, '');
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
-	this.omitTrailingLF		= miscUtil.valueWithDefault(options.omitTrailingLF, false);
+	this.trailingLF			= miscUtil.valueWithDefault(options.trailingLF, 'default');
 
-	
 	function getArgArray(array) {
 		var i = array.length;
 		while(i--) {
@@ -246,9 +245,28 @@ function ANSIEscapeParser(options) {
 
 		if(pos < buffer.length) {
 			var lastBit = buffer.slice(pos);
-			if(self.omitTrailingLF && '\r\n' === lastBit.slice(-2).toString()) {
-				lastBit = lastBit.slice(pos, -2);	//	trim off last CRLF
+
+			//	:TODO: check for various ending LF's, not just DOS \r\n
+			if('\r\n' === lastBit.slice(-2).toString()) {
+				switch(self.trailingLF) {
+					case 'default' :
+						//
+						//	Default is to *not* omit the trailing LF
+						//	if we're going to end on termHeight
+						//
+						if(this.termHeight === self.row) {
+							lastBit = lastBit.slice(0, -2);
+						}
+						break;
+
+					case 'omit' :
+					case 'no' :
+					case false :
+						lastBit = lastBit.slice(0, -2);
+						break;
+				}
 			}
+			
 			parseMCI(lastBit)
 		}
 

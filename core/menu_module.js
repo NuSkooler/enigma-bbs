@@ -48,10 +48,10 @@ function MenuModule(options) {
 						theme.displayThemedAsset(
 							self.menuConfig.art, 
 							self.client, 
-							{ font : self.menuConfig.font },
+							self.menuConfig.options,	//	can include .font, .trailingLF, etc.
 							function displayed(err, artData) {
 								if(err) {
-									self.client.log.debug( { art : self.menuConfig.arg, err : err }, 'Could not display art');
+									self.client.log.debug( { art : self.menuConfig.art, err : err }, 'Could not display art');
 								} else {
 									mciData.menu = artData.mciMap;
 								}
@@ -83,7 +83,7 @@ function MenuModule(options) {
 						theme.displayThemedAsset(
 							promptConfig.art, 
 							self.client, 
-							{ font : self.menuConfig.font },
+							self.menuConfig.options,	//	can include .font, .trailingLF, etc.
 							function displayed(err, artData) {
 								if(!err) {
 									mciData.prompt = artData.mciMap;
@@ -130,7 +130,6 @@ function MenuModule(options) {
 
 				self.finishedLoading();
 				self.nextMenu();
-				//self.nextAction();
 			}
 		);
 	};
@@ -143,20 +142,22 @@ function MenuModule(options) {
 		return _.isNumber(self.menuConfig.options.nextTimeout);
 	};
 
-	//	:TODO: Convert this to process "next" instead of "action"
-	this.nextAction = function() {
-		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-			_.isString(self.menuConfig.action))
-		{
-			menuUtil.handleAction(self.client, null, self.menuConfig);
-		}
-	};
-
 	this.nextMenu = function() {
-		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt) &&
-			!_.isUndefined(self.menuConfig.next))
-		{
+		function goNext() {
+			if(_.isString(self.menuConfig.next)) {
+				menuUtil.handleNext(self.client, self.menuConfig.next);	
+			} else {
+				self.client.fallbackMenuModule( { }, function fallback(err) {
+					//	:TODO: this seems sloppy... look into further
+				});
+			}
+		}
+
+		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt)) {
 			/*
+				If 'next' is supplied, we'll use it. Otherwise, utlize fallback which
+				may be explicit (supplied) or non-explicit (previous menu)
+
 				'next' may be a simple asset, or a object with next.asset and
 				extrArgs
 
@@ -168,14 +169,13 @@ function MenuModule(options) {
 					asset: assetSpec
 					extraArgs: ...
 				}
-			*/
+			*/			
 			if(self.hasNextTimeout()) {
 				setTimeout(function nextTimeout() {
-					menuUtil.handleNext(self.client, self.menuConfig.next);
-					
+					goNext();
 				}, this.menuConfig.options.nextTimeout);
 			} else {
-				menuUtil.handleNext(self.client, self.menuConfig.next);
+				goNext();
 			}
 		}
 	};

@@ -61,6 +61,9 @@
 
 		matrix: {
 			art: matrix
+			options: {
+				
+			}
 			form: {
 				0: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
 					VM: {
@@ -69,7 +72,7 @@
 								submit:	true
 								focus:	true
 								//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-								items: [ "Login", "Apply", "Log Off" ]
+								items: [ "login", "apply", "log off" ]
 							}
 						}
 
@@ -111,45 +114,45 @@
 				}
 			]*/
 		},
-		"login2" : {
-			"art"		: "USRCRED",
-			"fallback"	: "matrix",
+
+		login2: {
+			art: USERLOG
 			next: messageArea
 			//"next"		: "fullLoginSequenceLoginArt",
-			"form"		: {
-				"0" : {
-					"mci"	: {
-						"ET1" : {
-							"width"		: 20,
-							"maxLength"	: "@config:users.usernameMax",
-							"argName"	: "username",
-							"focus"		: true
-						},
-						"ET2" : {
-							"width"		: 20,
-							"password"	: true,
-							"maxLength"	: "@config:users.passwordMax",
-							"argName"	: "password",
-							"submit"	: true
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							maxLength: @config:users.usernameMax
+							argName: username
+							focus: true
 						}
-					},
-					"submit" : {
-						"*" : [
+						ET2: {
+							password: true
+							maxLength: @config:users.passwordMax
+							argName: password
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
 							{
-								"value"		: { "password" : null },
-								"action" 	: "@systemMethod:login"
+								value: { password: null }
+								action: @systemMethod:login
 							}
 						]
-					},
-					"actionKeys" : [
+					}
+					actionKeys: [
 						{
-							"keys"		: [ "escape" ],
-							"action"	: "@menu:matrix"
+							keys: [ "escape" ]
+							action: @menu:matrix
 						}
 					]
 				}
 			}
-		},
+		}
+
 		"logoff" : {
 			"art"		: "LOGOFF",
 			"next"		: "@systemMethod:logoff",
@@ -390,7 +393,7 @@
 			"next"		: "fullLoginSequenceUserStats"
 		},
 		"fullLoginSequenceUserStats" : {
-			"art"		: "USRSTAT",
+			art: STATUS
 			"options"	: { "pause" : true },
 			"next"		: "mainMenu"
 		},
@@ -404,17 +407,20 @@
 			"options" : { "pause" : true }
 			//"action"	: "@menu:lastCallers"
 		},
-		"mainMenu" : {
-			"art"		: "MMENU1",
-			"desc"		: "Main Menu",
-			"prompt" : "menuCommand",
+		mainMenu: {
+			art: MMENU
+			/*options: {
+				trailingLF: yes
+			}*/
+			desc: Main Menu
+			prompt: menuCommand
 			"submit" : [
 				{
 					"value" 	: { "command" : "G" },
 					"action"	: "@menu:logoff"
 				},
 				{
-					"value"		: { "command" : "D" },
+					"value"		: { "command" : "O" },
 					"action"	: "@menu:doorPimpWars"
 				},
 				/*
@@ -441,20 +447,16 @@
 				}
 			]
 		},
-		"mainMenuLastCallers" : {
-			"module"	: "last_callers",
-			"art"		: "LASTCALL",
-			"options"	: { "pause" : true },
-			"config" 	: {
-				"dateTimeFormat" : "ddd MMM Do h:mm a"
-			},
-			"next"		: "mainMenu"
-		},
-		"mainMenuUserStats" : {
-			"art"		: "USRSTAT",
-			"options"	: { "pause" : true },
-			"next"		: "mainMenu"
-		},
+		mainMenuLastCallers: {
+			module: last_callers
+			art: LASTCALL
+			options: { pause: true }
+		}
+		mainMenuUserStats: {
+			art: STATUS
+			options: { pause: true }
+			next: mainMenu
+		}
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
 		///////////////////////////////////////////////////////////////////////

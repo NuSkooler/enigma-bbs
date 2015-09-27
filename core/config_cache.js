@@ -11,6 +11,7 @@ var events				= require('events');
 var util				= require('util');
 var assert				= require('assert');
 var hjson				= require('hjson');
+var _					= require('lodash');
 
 function ConfigCache() {
 	events.EventEmitter.call(this);
@@ -54,19 +55,27 @@ function ConfigCache() {
 
 util.inherits(ConfigCache, events.EventEmitter);
 
-ConfigCache.prototype.getConfig = function(filePath, cb) {
-	var self		= this;
+ConfigCache.prototype.getConfigWithOptions = function(options, cb) {
+	assert(_.isString(options.filePath));
 
-	if(filePath in this.cache) {
-		cb(null, this.cache[filePath], false);
-	} else {
-		this.reCacheConfigFromFile(filePath, function fileCached(err, config) {
-			if(!err) {
-				self.gaze.add(filePath);
+	var self		= this;
+	var isCached	= (options.filePath in this.cache);
+
+	if(options.forceReCache || !isCached) {
+		this.reCacheConfigFromFile(options.filePath, function fileCached(err, config) {
+			if(!err && !isCached) {
+				self.gaze.add(options.filePath);
 			}
 			cb(err, config, true);
 		});
+	} else {
+		cb(null, this.cache[options.filePath], false);
 	}
+};
+
+
+ConfigCache.prototype.getConfig = function(filePath, cb) {
+	this.getConfigWithOptions( { filePath : filePath }, cb);
 };
 
 ConfigCache.prototype.getModConfig = function(fileName, cb) {

@@ -59,11 +59,14 @@
 		///////////////////////////////////////////////////////////////////////
 		//	Standard / Required
 		///////////////////////////////////////////////////////////////////////
-		"pause" : {
+		pause: {
 			//
 			//	Any menu 'pause' will use this prompt
 			//
-			"art" : "pause"
+			art: pause
+			options: {
+				trailingLF: no
+			}
 			/*
 			"mci" : {
 				//	:TODO: Need special pause for a key MCI

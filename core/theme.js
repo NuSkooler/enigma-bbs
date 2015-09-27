@@ -79,7 +79,7 @@ function loadTheme(themeID, cb) {
 
 	var path = paths.join(Config.paths.themes, themeID, 'theme.hjson');
 
-	configCache.getConfig(path, function loaded(err, theme) {
+	configCache.getConfigWithOptions( { filePath : path, forceReCache : true }, function loaded(err, theme) {
 		if(err) {
 			cb(err);
 		} else {
@@ -195,12 +195,13 @@ function displayThemeArt(options, cb) {
 		if(err) {
 			cb(err);
 		} else {
+			//	:TODO: just use simple merge of options -> displayOptions
 			var dispOptions = {
 				art				: artInfo.data,
 				sauce			: artInfo.sauce,
 				client			: options.client,
 				font			: options.font,
-				omitTrailingLF	: options.omitTrailingLF,
+				trailingLF		: options.trailingLF,
 			};
 
 			art.display(dispOptions, function displayed(err, mciMap, extraInfo) {
@@ -250,7 +251,7 @@ function displayThemedPause(options, cb) {
 				displayThemedAsset(
 					promptConfig.art, 
 					options.client,
-					{ font : promptConfig.font, omitTrailingLF : true },
+					promptConfig.options,
 					function displayed(err, artData) {
 						artInfo = artData;
 						callback(err);
@@ -323,11 +324,12 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 		return;
 	}
 
+	//	:TODO: just use simple merge of options -> displayOptions
 	var dispOpts = {
 		name			: artAsset.asset,
 		client			: client,
 		font			: options.font,
-		omitTrailingLF	: options.omitTrailingLF,
+		trailingLF		: options.trailingLF,
 	};
 
 	switch(artAsset.type) {

@@ -571,15 +571,15 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				});
 			},
 			function applyThemeCustomization(callback) {
-				if(_.isObject(formConfig)) {
+				//if(_.isObject(formConfig)) {
 					menuUtil.applyThemeCustomization({
 						name		: self.client.currentMenuModule.menuName,
 						type		: 'menus',
 						client		: self.client,
-						configMci	: formConfig.mci,
+						configMci	: formConfig ? formConfig.mci : {},
 						formId		: formIdKey,
 					});
-				}
+				//}
 
 				callback(null);
 			},

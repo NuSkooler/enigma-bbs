@@ -238,18 +238,18 @@ function startListening() {
 }
 
 function prepareClient(client, cb) {
+	var theme = require('./theme.js');
+
 	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
+
 	if('*' === conf.config.preLoginTheme) {
-		var theme = require('./theme.js');
-
 		client.user.properties.theme_id = theme.getRandomTheme() || '';
-
-		theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
-			client.currentTheme = theme;
-			cb(null);
-		});
 	} else {
 		client.user.properties.theme_id = conf.config.preLoginTheme;
-		cb(null);
 	}
+
+	theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
+		client.currentTheme = theme;
+		cb(null);
+	});
 }

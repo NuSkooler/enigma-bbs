@@ -22,7 +22,8 @@ function login(callingMenu, formData, extraArgs) {
 			//	:TODO: if username exists, record failed login attempt to properties
 			//	:TODO: check Config max failed logon attempts/etc.
 
-			client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
+			client.fallbackMenuModule();
+			//client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );
 		} else {
 			var now		= new Date();
 			var user	= callingMenu.client.user;
@@ -47,7 +48,7 @@ function login(callingMenu, formData, extraArgs) {
 					'Already logged in'
 				);
 
-				//	:TODO: display custom message if present
+				//	:TODO: display custom message if present (Obv/2: TOONODE.ANS)
 				
 				client.term.write('\nA user by that name is already logged in.\n');
 

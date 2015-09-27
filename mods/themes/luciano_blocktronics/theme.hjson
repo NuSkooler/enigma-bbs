@@ -1,0 +1,46 @@
+{
+	info: {
+		name: Mystery Skull
+		author: Luciano Ayres
+		group: blocktronics
+	}
+
+	customization: {
+
+		defaults: {
+			general: {
+				passwordChar: *
+			}
+
+			dateTimeFormat: {
+				short: MMM Do h:mm a
+			}
+		}
+
+		menus: {
+			matrix: {
+				VM1: {
+					focusTextStyle: first lower
+				}
+			}
+
+			login2: {
+				ET1: { width: 14 }
+				ET2: { width: 14 }
+			}
+
+			mainMenuUserStats: {
+				UN1: { width: 17 }
+				UR2: { width: 17 }
+				LO3: { width: 17 }
+				UF4: { width: 17 }
+				UG5: { width: 17 }
+				UT6: { width: 17 }
+				UC7: { width: 17 }
+			}
+
+			mainMenuLastCallers: {
+			}
+		}
+	}
+}

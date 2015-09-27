@@ -378,9 +378,10 @@ function FullScreenEditorModule(options) {
 							self.client,
 							{ font : self.menuConfig.font },
 							function displayed(err, artData) {
-								mciData[n] = artData;
-
-								self[n] = { height : artData.height };
+								if(artData) {
+									mciData[n] = artData;
+									self[n] = { height : artData.height };
+								}
 
 								next(err);
 							}
