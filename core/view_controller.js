@@ -210,7 +210,7 @@ function ViewController(options) {
 		var submitId;
 		var initialFocusId = 1;
 
-		async.each(Object.keys(config.mci), function entry(mci, nextItem) {
+		async.each(Object.keys(config.mci || {}), function entry(mci, nextItem) {
 			var mciMatch = mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????
 			if(null === mciMatch) {
 				self.client.log.warn( { mci : mci }, 'Unable to parse MCI code');
@@ -572,15 +572,16 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			},
 			function applyThemeCustomization(callback) {
 				//if(_.isObject(formConfig)) {
+					formConfig = formConfig || {}
+
 					menuUtil.applyThemeCustomization({
 						name		: self.client.currentMenuModule.menuName,
 						type		: 'menus',
 						client		: self.client,
-						configMci	: formConfig ? formConfig.mci : {},
+						configMci	: formConfig.mci,
 						formId		: formIdKey,
 					});
 				//}
-
 				callback(null);
 			},
 			function applyViewConfiguration(callback) {
