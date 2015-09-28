@@ -91,7 +91,7 @@ function getDefaultConfig() {
 		}
 		*/
 		defaults : {
-			theme			: 'NU-MAYA',	//	:TODO: allow "*" here
+			theme			: 'luciano_blocktronics',
 			passwordChar	: '*',		//	TODO: move to user ?
 			dateFormat	: {
 				short	: 'MM/DD/YYYY',

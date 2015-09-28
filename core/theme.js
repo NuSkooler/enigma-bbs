@@ -153,37 +153,73 @@ function getRandomTheme() {
 	}
 }
 
-function getThemeArt(name, themeID, options, cb) {
-	//	allow options to be optional
-	if(_.isUndefined(cb)) {
-		cb		= options;
-		options = {};
+function getThemeArt(options, cb) {
+	//
+	//	options - required:
+	//	name
+	//	client
+	//	
+	//	options - optional
+	//	themeId
+	//	asAnsi
+	//	readSauce
+	//	random
+	//
+	if(!options.themeId && _.has(options.client, 'user.properties.theme_id')) {
+		options.themeId = options.client.user.properties.theme_id;
+	} else {
+		options.themeId = Config.defaults.theme;
 	}
-
-	//	set/override some options
 
 	//	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
 	//	:TODO: Some of these options should only be set if not provided!
-	options.asAnsi		= true;
-	options.readSauce	= true;	//	encoding/fonts/etc.
-	options.random		= miscUtil.valueWithDefault(options.random, true);
-	options.basePath	= paths.join(Config.paths.themes, themeID);
+	options.asAnsi		= true;	//	always convert to ANSI
+	options.readSauce	= true;	//	read SAUCE, if avail
+	options.random		= _.isBoolean(options.random) ? options.random : true;	//	FILENAME<n>.EXT support
 
-	art.getArt(name, options, function onThemeArt(err, artInfo) {		
-		if(err) {
-			//	try fallback of art directory
-			options.basePath = Config.paths.art;
-			art.getArt(name, options, function onFallbackArt(err, artInfo) {
-				if(err) {
-					cb(err);
+	//
+	//	We look for themed art in the following manor:
+	//	* Supplied theme via |themeId|
+	//	* Fallback 1: Default theme (if different than |themeId|)
+	//	* General art directory
+	//
+	async.waterfall(
+		[
+			function fromSuppliedTheme(callback) {
+				options.basePath = paths.join(Config.paths.themes, options.themeId);
+
+				art.getArt(options.name, options, function artLoaded(err, artInfo) {
+					callback(null, artInfo);
+				});
+			},
+			function fromDefaultTheme(artInfo, callback) {
+				if(artInfo || Config.defaults.theme === options.themeId) {
+					callback(null, artInfo);
 				} else {
-					cb(null, artInfo);
+					console.log('trying default theme')
+					options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
+
+					art.getArt(options.name, options, function artLoaded(err, artInfo) {
+						callback(null, artInfo);
+					});
 				}
-			});
-		} else {
-			cb(null, artInfo);
-		}
-	});
+			},
+			function fromGeneralArtDir(artInfo, callback) {
+				if(artInfo) {
+					callback(null, artInfo);
+				} else {
+					console.log('using general art dir')
+					options.basePath = Config.paths.art;
+
+					art.getArt(options.name, options, function artLoaded(err, artInfo) {
+						console.log('cannot find art: ' + options.name)
+						callback(err, artInfo);
+					});
+				}
+			}
+		],
+		cb	//	cb(err, artInfo)
+	);
 }
 
 function displayThemeArt(options, cb) {
@@ -191,7 +227,7 @@ function displayThemeArt(options, cb) {
 	assert(_.isObject(options.client));
 	assert(_.isString(options.name));
 
-	getThemeArt(options.name, options.client.user.properties.theme_id, function themeArt(err, artInfo) {
+	getThemeArt(options, function themeArt(err, artInfo) {
 		if(err) {
 			cb(err);
 		} else {

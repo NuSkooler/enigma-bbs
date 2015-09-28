@@ -261,10 +261,11 @@ function handleNext(client, nextSpec, conf) {
 function applyThemeCustomization(options) {
 	//
 	//	options.name 		: menu/prompt name
-	//	options.configMci	: menu or prompt config (menu.json / prompt.json) specific mci section
+	//	options.mci			: menu/prompt .mci section
 	//	options.client		: client
 	//	options.type		: menu|prompt
 	//	options.formId		: (optional) form ID in cases where multiple forms may exist wanting their own customization
+	//	options.config		: menu/prompt .config section
 	//
 	//	In the case of formId, the theme must include the ID as well, e.g.:
 	//  {
@@ -278,8 +279,12 @@ function applyThemeCustomization(options) {
 	assert("menus" === options.type || "prompts" === options.type);
 	assert(_.isObject(options.client));
 	
-	if(_.isUndefined(options.configMci)) {
-		options.configMci = {};
+	if(_.isUndefined(options.mci)) {
+		options.mci = {};
+	}
+
+	if(_.isUndefined(options.config)) {
+		options.config = {};
 	}
 
 	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
@@ -290,9 +295,17 @@ function applyThemeCustomization(options) {
 			themeConfig = themeConfig[options.formId];
 		}
 
-		Object.keys(themeConfig).forEach(function mciEntry(mci) {
-			_.defaults(options.configMci[mci], themeConfig[mci]);		
-		});
+		if(themeConfig.mci) {
+			Object.keys(themeConfig.mci).forEach(function mciEntry(mci) {
+				_.defaults(options.mci[mci], themeConfig.mci[mci]);
+			});
+		}
+
+		if(themeConfig.config) {
+			Object.keys(themeConfig.config).forEach(function confEntry(conf) {
+				_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
+			});
+		}
 	}
 
 	//	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")

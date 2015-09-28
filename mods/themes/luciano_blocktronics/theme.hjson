@@ -19,27 +19,54 @@
 
 		menus: {
 			matrix: {
-				VM1: {
-					focusTextStyle: first lower
+				mci: {
+					VM1: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			newUserApplication: {
+				mci: {
+					ET1: { width: 23 }
+					ET2: { width: 23 }
+					ET5: { width: 23 }
+					ET6: { width: 23 }
+					
+					ET7: { width: 23 }
+					ET8: { width: 23 }
+					ET9: { width: 23 }
+					ET10: { width: 23 }
+
+					TM12: {
+						focusTextStyle: first lower
+					}
 				}
 			}
 
 			login2: {
-				ET1: { width: 14 }
-				ET2: { width: 14 }
+				mci: {
+					ET1: { width: 14 }
+					ET2: { width: 14 }
+				}
 			}
 
 			mainMenuUserStats: {
-				UN1: { width: 17 }
-				UR2: { width: 17 }
-				LO3: { width: 17 }
-				UF4: { width: 17 }
-				UG5: { width: 17 }
-				UT6: { width: 17 }
-				UC7: { width: 17 }
+				mci: {
+					UN1: { width: 17 }
+					UR2: { width: 17 }
+					LO3: { width: 17 }
+					UF4: { width: 17 }
+					UG5: { width: 17 }
+					UT6: { width: 17 }
+					UC7: { width: 17 }
+				}
 			}
 
 			mainMenuLastCallers: {
+				config: {
+					dateTimeFormat: MMM Do H:mm a
+				}
 			}
 		}
 	}

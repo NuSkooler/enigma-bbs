@@ -462,7 +462,8 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 						name		: promptName,
 						type		: "prompts",
 						client		: self.client,
-						configMci	: promptConfig.mci,
+						mci			: promptConfig.mci,
+						config		: promptConfig.config,
 					});
 				}
 				callback(null);
@@ -574,11 +575,14 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				//if(_.isObject(formConfig)) {
 					formConfig = formConfig || {}
 
+					console.log(formConfig)
+
 					menuUtil.applyThemeCustomization({
 						name		: self.client.currentMenuModule.menuName,
 						type		: 'menus',
 						client		: self.client,
-						configMci	: formConfig.mci,
+						mci			: formConfig.mci,
+						config		: formConfig.config,
 						formId		: formIdKey,
 					});
 				//}

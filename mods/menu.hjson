@@ -213,7 +213,7 @@
 						}
 						TM12: {
 							argName: submission
-							items: [ "Apply", "Cancel" ]
+							items: [ "apply", "cancel" ]
 							submit: true
 						}
 					}
