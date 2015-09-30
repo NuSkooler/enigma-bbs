@@ -573,7 +573,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			},
 			function applyThemeCustomization(callback) {
 				//if(_.isObject(formConfig)) {
-					formConfig = formConfig || {}
+					formConfig = formConfig || {};
 
 					console.log(formConfig)
 
