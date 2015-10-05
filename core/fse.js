@@ -34,6 +34,7 @@ exports.moduleInfo = {
 			TL1 - From
 			TL2 - To
 			TL3 - Subject
+			TL4 - Area name
 			
 			TL5 - Date/Time (TODO: format)
 			TL6 - Message number
@@ -62,6 +63,7 @@ var MCICodeIds = {
 		From			: 1,
 		To				: 2,
 		Subject			: 3,
+		AreaName		: 4,
 
 		DateTime		: 5,
 		MsgNum			: 6,
@@ -169,6 +171,7 @@ function FullScreenEditorModule(options) {
 				from	: vc.getView(1),
 				to		: vc.getView(2),
 				subject	: vc.getView(3),
+				areaName	: vc.getView(4),
 
 				dateTime	: vc.getView(5),
 				msgNum		: vc.getView(7),
@@ -514,6 +517,9 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
+				if(err) {
+					console.error(err)
+				}
 				cb(err);
 			}
 		);
@@ -575,6 +581,7 @@ function FullScreenEditorModule(options) {
 		setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
 		setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
 		setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
+		setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		self.messageAreaName);
 		setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
 		setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			(self.messageIndex + 1).toString());
 		setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
