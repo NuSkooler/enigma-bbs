@@ -296,6 +296,7 @@ function applyThemeCustomization(options) {
 		}
 
 		if(themeConfig.mci) {
+			console.log('>>>>>>>>>>>>>>>>>>>>>>> ' + options.name)
 			Object.keys(themeConfig.mci).forEach(function mciEntry(mci) {
 				_.defaults(options.mci[mci], themeConfig.mci[mci]);
 			});

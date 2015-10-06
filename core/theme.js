@@ -196,7 +196,6 @@ function getThemeArt(options, cb) {
 				if(artInfo || Config.defaults.theme === options.themeId) {
 					callback(null, artInfo);
 				} else {
-					console.log('trying default theme')
 					options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
 
 					art.getArt(options.name, options, function artLoaded(err, artInfo) {
@@ -208,17 +207,20 @@ function getThemeArt(options, cb) {
 				if(artInfo) {
 					callback(null, artInfo);
 				} else {
-					console.log('using general art dir')
 					options.basePath = Config.paths.art;
 
 					art.getArt(options.name, options, function artLoaded(err, artInfo) {
-						console.log('cannot find art: ' + options.name)
 						callback(err, artInfo);
 					});
 				}
 			}
 		],
-		cb	//	cb(err, artInfo)
+		function complete(err, artInfo) {
+			if(err) {
+				options.client.log.debug( { error : err }, 'Cannot find art');
+			}
+			cb(err, artInfo);
+		}
 	);
 }
 

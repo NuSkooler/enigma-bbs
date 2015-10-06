@@ -586,18 +586,17 @@
 				"0" : {
 					"mci" : {
 						"TL1" : {
-							"width"		: 27
+						//	"width"		: 27
 						},
 						"TL2" : {
-							"width"		: 27
+						//	"width"		: 27
 						},
 						"TL3" : {
-							//"width"			: 39,
 							//"width"			: 27,
 							//"textOverflow"	: "..."
 						},
 						"TL5" :  {
-							"width"		: 27
+						//	"width"		: 27
 						},
 						"MA5" : {
 							"width"			: 27,
@@ -743,29 +742,29 @@
 					mci: {
 						//	:TODO: use appropriate system properties for these lenghts
 						TL1: {
-							width: 27
+							//width: 27
 							argName: from
 						}
 						ET2: {
-							width: 27
+							//width: 27
 							argName: to
 							focus: true
 						}
 						ET3: {
-							width: 27
+							//width: 27
 							argName: subject							
 							maxLength: 72
 							submit: true
-							textOverflow: ...
+							//textOverflow: ...
 						}
 						TL4: {
 							//	:TODO: this is for RE: line (NYI)
-							width: 27
-							textOverflow: ...
+							//width: 27
+							//textOverflow: ...
 						}
 						MA5: {
-							width: 27
-							textOverflow: ...
+							//width: 27
+							//textOverflow: ...
 						}
 					}
 					submit: {
@@ -900,24 +899,24 @@
 				"0" : {
 					mci: {
 						TL1: {
-							width: 		27
+							//width: 		27
 							argName: 	from
 						}
 						ET2: {
-							width: 		27
+							//width: 		27
 							argName:	to
 							focus:		true
 							text: All
 						}
 						"ET3" : {
-							"width"		: 27,
+							//"width"		: 27,
 							"argName"	: "subject",
 							"maxLength"	: 72,
 							"submit"	: true
 						},
 						"MA5" : {
-							"width"			: 27,
-							"textOverflow"	: "..."
+							//"width"			: 27,
+							//"textOverflow"	: "..."
 						}
 					},
 					"submit" : {

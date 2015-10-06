@@ -7,6 +7,7 @@ var ansi					= require('../core/ansi_term.js');
 var theme					= require('../core/theme.js');
 var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 var Message					= require('../core/message.js');
+var getMessageAreaByName	= require('../core/message_area.js').getMessageAreaByName;
 
 var async					= require('async');
 var assert					= require('assert');
@@ -108,7 +109,6 @@ function FullScreenEditorModule(options) {
 	if(_.isObject(options.extraArgs)) {
 		//console.log(options.extraArgs)
 		this.messageAreaName	= options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
-		console.log(this.messageAreaName)
 		this.messageIndex		= options.extraArgs.messageIndex || 0;
 		this.messageTotal		= options.extraArgs.messageTotal || 0;
 	}
@@ -494,6 +494,8 @@ function FullScreenEditorModule(options) {
 
 							if(self.replyToMessage) {
 								self.initHeaderReplyEditMode();
+							} else {
+								self.initHeaderNewEditMode();
 							}
 							break;
 					}
@@ -568,41 +570,45 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
+	this.setHeaderText = function(id, text) {
+		var v = self.viewControllers.header.getView(id);
+		if(v) {
+			v.setText(text);
+		}
+	};
+
+	this.initHeaderGeneric = function() {
+		self.setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		getMessageAreaByName(self.messageAreaName).desc);
+	};
+
 	this.initHeaderViewMode = function() {
 		assert(_.isObject(self.message));
 
-		function setHeaderText(id, text) {
-			var v = self.viewControllers.header.getView(id);
-			if(v) {
-				v.setText(text);
-			}
-		}
+		self.initHeaderGeneric();
+		
+		self.setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
+		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			(self.messageIndex + 1).toString());
+		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
+		self.setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
+		self.setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
+	};
 
-		setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
-		setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
-		setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
-		setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		self.messageAreaName);
-		setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			(self.messageIndex + 1).toString());
-		setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
-		setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
-		setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
-		setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
-		setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
+	this.initHeaderNewEditMode = function() {
+		self.initHeaderGeneric();
 	};
 
 	this.initHeaderReplyEditMode = function() {
 		assert(_.isObject(self.replyToMessage));
 
-		function setHeaderText(id, text) {
-			var v = self.viewControllers.header.getView(id);
-			if(v) {
-				v.setText(text);
-			}
-		}
+		self.initHeaderGeneric();
 
-		setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
-		setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	'RE: ' + self.replyToMessage.subject);
+		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
+		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	'RE: ' + self.replyToMessage.subject);
 
 	};
 

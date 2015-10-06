@@ -68,6 +68,39 @@
 					dateTimeFormat: MMM Do H:mm a
 				}
 			}
+
+			messageAreaViewPost: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						TL2: { width: 19, textOverflow: "..." }
+						TL3: { width: 19, textOverflow: "..." }
+						TL5: { width: 19, textOverflow: "..." }
+					}
+				}
+			}
+
+			messageAreaNewPost: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						//TL4: { width: 25 }
+					}
+				}
+			}
+
+			messageAreaReplyPost: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+						TL4: { width: 25, textOverflow: "..." }
+					}
+				}
+			}
 		}
 	}
 }
