@@ -296,15 +296,23 @@ function applyThemeCustomization(options) {
 		}
 
 		if(themeConfig.mci) {
-			console.log('>>>>>>>>>>>>>>>>>>>>>>> ' + options.name)
 			Object.keys(themeConfig.mci).forEach(function mciEntry(mci) {
-				_.defaults(options.mci[mci], themeConfig.mci[mci]);
+				//	:TODO: a better way to do this?
+				if(options.mci[mci]) {
+					_.defaults(options.mci[mci], themeConfig.mci[mci]);
+				} else {
+					options.mci[mci] = themeConfig.mci[mci];
+				}
 			});
 		}
 
 		if(themeConfig.config) {
 			Object.keys(themeConfig.config).forEach(function confEntry(conf) {
-				_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
+				if(options.config[conf]) {
+					_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
+				} else {
+					options.config[conf] = themeConfig.config[conf];
+				}
 			});
 		}
 	}

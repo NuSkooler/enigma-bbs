@@ -72,10 +72,34 @@
 			messageAreaViewPost: {
 				0: {
 					mci: {
-						TL1: { width: 19, textOverflow: "..." }
-						TL2: { width: 19, textOverflow: "..." }
-						TL3: { width: 19, textOverflow: "..." }
-						TL5: { width: 19, textOverflow: "..." }
+						TL1: { 
+							width: 19
+							textOverflow: ... 
+						}
+						TL2: {
+							width: 19
+							textOverflow: ...
+						}
+						TL3: { 
+							width: 19
+							textOverflow: ...
+						}
+						TL5: { 
+							width: 19
+							textOverflow: ...
+						}
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+				4: {
+					mci: {
+						HM1: {
+							focusTextStyle: first upper
+						}
 					}
 				}
 			}
@@ -89,6 +113,11 @@
 						//TL4: { width: 25 }
 					}
 				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
 			}
 
 			messageAreaReplyPost: {
@@ -98,6 +127,13 @@
 						ET2: { width: 19, textOverflow: "..." }
 						ET3: { width: 19, textOverflow: "..." }
 						TL4: { width: 25, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+						}
 					}
 				}
 			}
