@@ -25,6 +25,8 @@ exports.getModule	= LastCallersModule;
 //	:TODO:
 //	*	config.evenRowSGR (optional)
 
+//	:TODO: convert to using %XY system for finding row count
+
 function LastCallersModule(options) {
 	MenuModule.call(this, options);
 
@@ -32,7 +34,13 @@ function LastCallersModule(options) {
 	this.menuConfig	= options.menuConfig;
 
 	this.rows			= 10;
-	
+}
+
+util.inherits(LastCallersModule, MenuModule);
+
+LastCallersModule.prototype.enter = function(client) {
+	LastCallersModule.super_.prototype.enter.call(this, client);
+
 	if(_.isObject(this.menuConfig.config)) {
 		if(_.isNumber(this.menuConfig.config.rows)) {
 			this.rows = Math.max(1, this.menuConfig.config.rows);
@@ -41,12 +49,6 @@ function LastCallersModule(options) {
 			this.dateTimeFormat = this.menuConfig.config.dateTimeFormat;
 		}
 	}
-}
-
-util.inherits(LastCallersModule, MenuModule);
-
-LastCallersModule.prototype.enter = function(client) {
-	LastCallersModule.super_.prototype.enter.call(this, client);
 
 	//	we need the client to init this for theming
 	if(!_.isString(this.dateTimeFormat)) {

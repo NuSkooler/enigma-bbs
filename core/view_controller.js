@@ -457,13 +457,13 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				});
 			},
 			function applyThemeCustomization(callback) {
+				//	:TODO: apply .config customization as well
 				if(_.isObject(promptConfig)) {
-					menuUtil.applyThemeCustomization({
+					menuUtil.applyMciThemeCustomization({
 						name		: promptName,
 						type		: "prompts",
 						client		: self.client,
-						mci			: promptConfig.mci,
-						config		: promptConfig.config,
+						mci			: promptConfig.mci
 					});
 				}
 				callback(null);
@@ -572,20 +572,24 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				});
 			},
 			function applyThemeCustomization(callback) {
-				//if(_.isObject(formConfig)) {
-					formConfig = formConfig || {};
+				formConfig = formConfig || {};
+				//self.client.currentMenuModule.menuConfig.config = self.client.currentMenuModule.menuConfig.config || {};
 
-					console.log(formConfig)
+				//console.log('menu config.....');
+				//console.log(self.client.currentMenuModule.menuConfig)
 
-					menuUtil.applyThemeCustomization({
-						name		: self.client.currentMenuModule.menuName,
-						type		: 'menus',
-						client		: self.client,
-						mci			: formConfig.mci,
-						config		: formConfig.config,
-						formId		: formIdKey,
-					});
-				//}
+				menuUtil.applyMciThemeCustomization({
+					name		: self.client.currentMenuModule.menuName,
+					type		: 'menus',
+					client		: self.client,
+					mci			: formConfig.mci,
+					//config		: self.client.currentMenuModule.menuConfig.config,
+					formId		: formIdKey,
+				});
+
+				//console.log('after theme...')
+				//console.log(self.client.currentMenuModule.menuConfig.config)
+				
 				callback(null);
 			},
 			function applyViewConfiguration(callback) {

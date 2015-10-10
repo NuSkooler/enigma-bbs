@@ -32,6 +32,8 @@ function MenuModule(options) {
 		this.menuConfig.options.cls : 
 		Config.menus.cls;
 
+	this.menuConfig.config = this.menuConfig.config || {};
+
 	this.initViewControllers();
 
 	this.initSequence = function() {
@@ -189,6 +191,13 @@ require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(_.isObject(client));
+
+	menuUtil.applyGeneralThemeCustomization( {
+		name		: this.menuName,
+		client		: this.client,
+		type		: 'menus',
+		config		: this.menuConfig.config,
+	});
 
 	if(_.isString(this.menuConfig.status)) {
 		this.client.currentStatus = this.menuConfig.status;

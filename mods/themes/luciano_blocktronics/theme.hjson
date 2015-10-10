@@ -69,6 +69,13 @@
 				}
 			}
 
+			messageAreaMessageList: {
+				config: {
+					listFormat: "|00|01|37{msgNum:>4} |22|37- |00|36{subj:>35} |01{to:>17}"
+					focusListFormat: "|00|01|42|37{msgNum:>4} |22|37- |36{subj:>35} |01{to:>17}"
+				}
+			}
+
 			messageAreaViewPost: {
 				0: {
 					mci: {

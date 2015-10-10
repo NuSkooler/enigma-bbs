@@ -21,7 +21,8 @@ exports.loadMenu						= loadMenu;
 exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
 exports.handleAction					= handleAction;
 exports.handleNext						= handleNext;
-exports.applyThemeCustomization			= applyThemeCustomization;
+exports.applyGeneralThemeCustomization	= applyGeneralThemeCustomization;
+exports.applyMciThemeCustomization		= applyMciThemeCustomization;
 
 function getMenuConfig(name, cb) {
 	var menuConfig;
@@ -255,17 +256,45 @@ function handleNext(client, nextSpec, conf) {
 	}
 }
 
-//	:TODO: custom art needs a way to be themed -- e.g. config.art.someArtThing -- what does this mean exactly?
+
 
 //	:TODO: Seems better in theme.js, but that includes ViewController...which would then include theme.js
-function applyThemeCustomization(options) {
+//	...theme.js only brings in VC to create themed pause prompt. Perhaps that should live elsewhere
+
+function applyGeneralThemeCustomization(options) {
+	//
+	//	options.name
+	//	options.client
+	//	options.type
+	//	options.config
+	//
+	assert(_.isString(options.name));
+	assert(_.isObject(options.client));
+	assert("menus" === options.type || "prompts" === options.type);
+	
+	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
+		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
+
+		if(themeConfig.config) {
+			Object.keys(themeConfig.config).forEach(function confEntry(conf) {
+				if(options.config[conf]) {
+					_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
+				} else {
+					options.config[conf] = themeConfig.config[conf];
+				}
+			});
+		}
+	}
+}
+
+
+function applyMciThemeCustomization(options) {
 	//
 	//	options.name 		: menu/prompt name
 	//	options.mci			: menu/prompt .mci section
 	//	options.client		: client
 	//	options.type		: menu|prompt
 	//	options.formId		: (optional) form ID in cases where multiple forms may exist wanting their own customization
-	//	options.config		: menu/prompt .config section
 	//
 	//	In the case of formId, the theme must include the ID as well, e.g.:
 	//  {
@@ -283,10 +312,6 @@ function applyThemeCustomization(options) {
 		options.mci = {};
 	}
 
-	if(_.isUndefined(options.config)) {
-		options.config = {};
-	}
-
 	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
 		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
 
@@ -302,16 +327,6 @@ function applyThemeCustomization(options) {
 					_.defaults(options.mci[mci], themeConfig.mci[mci]);
 				} else {
 					options.mci[mci] = themeConfig.mci[mci];
-				}
-			});
-		}
-
-		if(themeConfig.config) {
-			Object.keys(themeConfig.config).forEach(function confEntry(conf) {
-				if(options.config[conf]) {
-					_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
-				} else {
-					options.config[conf] = themeConfig.config[conf];
 				}
 			});
 		}

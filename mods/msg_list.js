@@ -55,7 +55,7 @@ function MessageListModule(options) {
 		selectMessage : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
 				var modOpts = {
-					name		: 'messageAreaViewPost',	//	:TODO: should come from config?
+					name		: 'messageAreaViewPost',	//	:TODO: should come from config!!!
 					extraArgs 	: {
 						messageAreaName		: self.messageAreaName,
 						messageList			: self.messageList,
@@ -72,14 +72,13 @@ function MessageListModule(options) {
 require('util').inherits(MessageListModule, MenuModule);
 
 MessageListModule.prototype.enter = function(client) {
+	MessageListModule.super_.prototype.enter.call(this, client);
 
 	if('private' === this.listType) {
 		this.messageAreaName = Message.WellKnownAreaNames.Private;
 	} else {
 		this.messageAreaName = client.user.properties.message_area_name;
 	}
-
-	MessageListModule.super_.prototype.enter.call(this, client);
 };
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
@@ -112,14 +111,28 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 			function populateList(callback) {
 				var msgListView = vc.getView(1);
 
+				var listFormat = self.menuConfig.config.listFormat || '{msgNum:>4} - {subj:>35} |{to:>15}';
+				var focusListFormat = self.menuConfig.config.focusListFormat;
+
 				var msgNum = 1;
 				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-					return '{msgNum:>4} - {subj:>25} {to:>15}'.format( { 
+					return listFormat.format( { 
 						msgNum	: msgNum++, 
 						subj	: mle.subject,
 						to		: mle.toUserName
 					} );
 				}));
+
+				if(focusListFormat) {
+					msgNum = 1;
+					msgListView.setFocusItems(_.map(self.messageList, function formatMsgListEntry(mle) {
+						return focusListFormat.format( { 
+							msgNum	: msgNum++, 
+							subj	: mle.subject,
+							to		: mle.toUserName
+						} );
+					}));
+				}
 
 				msgListView.redraw();
 
