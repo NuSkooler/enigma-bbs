@@ -567,21 +567,16 @@
 
 		messageAreaViewPost:  {
 			module: msg_area_view_fse
-			//	:TODO: remove once default fallback is in place
-			fallback: messageArea		
 			config: {
 				art: {
 					header:				MSGVHDR
-					//	:TODO: fix these!!
 					body: 				MSGBODY
-					footerEdit:			demo_fse_netmail_footer_edit.ans
-					footerEditMenu: 	demo_fse_netmail_footer_edit_menu.ans
 					footerView:			MSGVFTR
 					help:				MSGVHLP
 				},
 				editorMode: view
 				editorType: area
-			},
+			}
 			form: {
 				0: {
 					mci: {
@@ -603,46 +598,32 @@
 								"action"	: "@method:editModeEscPressed"
 							}
 						]
-					},
-					"actionKeys" : [
+					}
+					actionKeys: [
 						{
-							"keys"		: [ "escape" ],
-							"viewId"	: 1
+							keys: [ "escape" ]
+							viewId: 1
 						}
 					]
-				},
-				"2" : {
-					"TLTL" :  {
-						"mci" : {
-							"TL1" : {
-								"width"	: 5
-							},
-							"TL2" : {
-								"width" : 4
-							}
+				}
+				2: {
+					TLTL:  {
+						mci: {
+							TL1: { width: 5	}
+							TL2: { width: 4	}
 						}
 					}
-				},
+				}
 				4: {
 					mci: {
 						HM1: {
 							//	:TODO: (#)Jump/(L)Index (msg list)/Last
-							items: [
-								//	(P)revious 
-								prev
-								//	(N)ext
-								next
-								//	(R)reply
-								reply
-								//	(Q)uit (ESC)
-								quit
-								//	(?)Help
-								help
-							]
+							//	(p)rev, (n)ext, (r)eply, (q)uit/ESC, (?)help
+							items: [ "prev", "next", "reply", "quit", "help" ]
 						}
-					},
-					"submit" : {
-						"*" : [
+					}
+					submit: {
+						*: [
 							{
 								value: { 1: 0 }
 								action: @method:prevMessage
@@ -667,15 +648,8 @@
 								action: @method:viewModeMenuHelp
 							}
 						]
-					},
-					"actionKeys" : [
-					/*
-						{
-							"keys"		: [ "escape" ],
-							"action"	: "@method:editModeEscPressed"	//	:TODO: fixme
-						},
-						*/
-						//	:TODO: Need similar to viewId for actionKeys for specifis, e.g. viewId + index type stuff
+					}
+					actionKeys: [
 						{
 							keys: [ "p", "shift + p" ]
 							action: @method:prevMessage
@@ -693,15 +667,16 @@
 						}
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @menu:messageArea
+							action: @systemMethod:fallbackMenu
+							//action: @menu:messageArea
 						}
 						{
 							keys: [ "?" ]
 							action: @method:viewModeMenuHelp
 						}						
 						{
-							"keys"		: [ "down arrow", "up arrow", "page up", "page down" ],
-							"action"	: "@method:movementKeyPressed"
+							keys: [ "down arrow", "up arrow", "page up", "page down" ]
+							action: @method:movementKeyPressed
 						}
 					]
 				}
