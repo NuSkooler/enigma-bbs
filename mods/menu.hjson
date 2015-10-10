@@ -530,8 +530,7 @@
 		},
 		"messageAreaMessageList" : {
 			"module"	: "msg_list",
-			"art"		: "msg_list",
-			"fallback"	: "messageArea",
+			"art"		: "msg_list"
 			"config" 	: {
 				"listType"	: "public"
 			},
@@ -556,7 +555,7 @@
 						},
 						"actionKeys" : [
 							{
-								"keys"		: [ "escape" ],
+								"keys"		: [ "escape", "q", "shift + q" ],
 								"action"	: "@menu:messageArea"
 							}
 						]
@@ -710,11 +709,9 @@
 							focus: true
 						}
 						ET3: {
-							//width: 27
 							argName: subject							
 							maxLength: 72
 							submit: true
-							//textOverflow: ...
 						}
 						TL4: {
 							//	:TODO: this is for RE: line (NYI)
@@ -733,10 +730,10 @@
 				1: {
 					mci: {
 						MT1: {
-							width: 		79
-							height: 	14
-							argName:	message
-							mode: 		edit
+							width: 79
+							height: 14
+							argName: message
+							mode: edit
 						}
 					}
 					submit: {
@@ -767,7 +764,6 @@
 								{
 									value: { 1: 1 }
 									action: @systemMethod:fallbackMenu
-									//action: @method:replyDiscard
 								}
 								{
 									value: { 1: 2 },
@@ -791,7 +787,6 @@
 							}
 							{
 								keys: [ "d", "shift + d" ]
-								//action: @method:replyDiscard
 								action: @systemMethod:fallbackMenu
 							}
 							{

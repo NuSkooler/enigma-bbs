@@ -112,14 +112,12 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 			function populateList(callback) {
 				var msgListView = vc.getView(1);
 
-				//	:TODO: {name!over5}, ...over6, over7... -> "text..." for format()
-
 				var msgNum = 1;
 				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-					return '{msgNum} - {subj}         {to}'.format( { 
+					return '{msgNum:>4} - {subj:>25} {to:>15}'.format( { 
 						msgNum	: msgNum++, 
 						subj	: mle.subject,
-						to		: mle.toUsername
+						to		: mle.toUserName
 					} );
 				}));
 
@@ -131,6 +129,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 		function complete(err) {
 			if(err) {
 				//	:TODO: log this properly
+				//	:TODO: use fallbackMenuModule() here
 				self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
 				console.log(err)
 			}

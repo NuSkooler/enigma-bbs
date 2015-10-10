@@ -17,7 +17,7 @@
 		"gaze"			: "0.5.x",
 		"mkdirp"		: "0.5.x",
 		"pty.js"		: "0.3.x",
-		"string-format"	: "0.5.x",
+		"string-format"	: "davidchambers/string-format#mini-language",
 		"hjson"			: "1.7.x"
 	},
 	"engine" : "node >= 0.12.2"
