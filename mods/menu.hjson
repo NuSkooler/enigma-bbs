@@ -528,41 +528,39 @@
 				}
 			}
 		},
-		"messageAreaMessageList" : {
-			"module"	: "msg_list",
-			"art"		: "msg_list"
-			"config" 	: {
-				"listType"	: "public"
-			},
-			"form"		: {
-				"0" : {
-					"VM" : {
-						"mci" :  {
-							"VM1" : {
-								"height"	: 10,
-								"focus"		: true,
-								"submit"	: true,
-								"argName"	: "message"
-							}
-						},
-						"submit" : {
-							"*": [
-								{
-									"value"		: { "message" : null },
-									"action"	: "@method:selectMessage"
-								}
-							]
-						},
-						"actionKeys" : [
+		messageAreaMessageList: {
+			module: msg_list
+			art: MSGLIST
+			config: {
+				listType: public
+			}
+			form: {
+				0: {
+					mci:  {
+						VM1: {
+							height: 10
+							focus: true
+							submit: true
+							argName: message
+						}
+					}
+					submit: {
+						*: [
 							{
-								"keys"		: [ "escape", "q", "shift + q" ],
-								"action"	: "@menu:messageArea"
+								value: { message: null }
+								action: @method:selectMessage
 							}
 						]
 					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @menu:messageArea
+						}
+					]
 				}
 			}
-		},
+		}
 
 		messageAreaViewPost:  {
 			module: msg_area_view_fse

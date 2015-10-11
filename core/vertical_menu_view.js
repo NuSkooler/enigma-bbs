@@ -172,8 +172,6 @@ VerticalMenuView.prototype.setItems = function(items) {
 //	:TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
 
 VerticalMenuView.prototype.focusNext = function() {
-	VerticalMenuView.super_.prototype.focusNext.call(this);
-
 	if(this.items.length - 1 === this.focusedItemIndex) {
 		this.focusedItemIndex = 0;
 		
@@ -191,11 +189,11 @@ VerticalMenuView.prototype.focusNext = function() {
 	}
 
 	this.redraw();
+
+	VerticalMenuView.super_.prototype.focusNext.call(this);
 };
 
 VerticalMenuView.prototype.focusPrevious = function() {
-	VerticalMenuView.super_.prototype.focusPrevious.call(this);
-
 	if(0 === this.focusedItemIndex) {
 		this.focusedItemIndex = this.items.length - 1;
 		
@@ -215,6 +213,8 @@ VerticalMenuView.prototype.focusPrevious = function() {
 	}
 
 	this.redraw();
+
+	VerticalMenuView.super_.prototype.focusPrevious.call(this);
 };
 
 
@@ -222,7 +222,7 @@ VerticalMenuView.prototype.setFocusItems = function(items) {
 	VerticalMenuView.super_.prototype.setFocusItems.call(this, items);
 
 	this.positionCacheExpired = true;
-}
+};
 
 VerticalMenuView.prototype.setItemSpacing = function(itemSpacing) {
 	VerticalMenuView.super_.prototype.setItemSpacing.call(this, itemSpacing);

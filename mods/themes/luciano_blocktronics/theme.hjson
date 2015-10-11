@@ -71,8 +71,8 @@
 
 			messageAreaMessageList: {
 				config: {
-					listFormat: "|00|01|37{msgNum:>4} |22|37- |00|36{subj:>35} |01{to:>17}"
-					focusListFormat: "|00|01|42|37{msgNum:>4} |22|37- |36{subj:>35} |01{to:>17}"
+					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} {newMark}"
+					focusListFormat: "|00|42|30{msgNum:>4} - {subj:<29.29} {from:<20.20} {ts} {newMark}"
 				}
 			}
 

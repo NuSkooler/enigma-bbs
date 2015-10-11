@@ -64,10 +64,12 @@ MenuView.prototype.getItem = function(index) {
 
 MenuView.prototype.focusNext = function() {
 	//	nothing @ base currently
+	this.emit('index update', this.focusedItemIndex);
 };
 
 MenuView.prototype.focusPrevious = function() {
 	//	nothign @ base currently
+	this.emit('index update', this.focusedItemIndex);
 };
 
 MenuView.prototype.setFocusItems = function(items) {
@@ -79,7 +81,7 @@ MenuView.prototype.setFocusItems = function(items) {
 			self.focusItems.push( { text : itemText } );
 		});
 	}
-}
+};
 
 MenuView.prototype.setItemSpacing = function(itemSpacing) {
 	itemSpacing = parseInt(itemSpacing);

@@ -10,6 +10,7 @@ var Message				= require('../core/message.js');
 var async				= require('async');
 var assert				= require('assert');
 var _					= require('lodash');
+var moment				= require('moment');
 
 exports.getModule		= MessageListModule;
 
@@ -38,8 +39,22 @@ exports.moduleInfo = {
 //	* Multiple LV's in sync with keyboard input
 //	* New Table LV (TV)
 //	* 
+
+//	VM1		- message list
+//	TL2		- Message area desc
+
+//	TL4		- message selected # 
+//	TL5		- message total #
 //	
 //	See Obv/2, Iniq, and Mystic docs
+
+var MciCodesIds = {
+	MsgList			: 1,
+	MsgAreaDesc		: 2,
+	
+	MsgSelNum		: 4,
+	MsgTotal		: 5,
+};
 
 function MessageListModule(options) {
 	MenuModule.call(this, options);
@@ -67,6 +82,13 @@ function MessageListModule(options) {
 			}
 		}
 	};
+
+	this.setViewText = function(id, text) {
+		var v = self.viewControllers.allViews.getView(id);
+		if(v) {
+			v.setText(text);
+		}
+	};
 }
 
 require('util').inherits(MessageListModule, MenuModule);
@@ -83,7 +105,7 @@ MessageListModule.prototype.enter = function(client) {
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
-	var vc		= self.viewControllers.msgList = new ViewController( { client : self.client } );
+	var vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
 
 	async.series(
 		[
@@ -109,17 +131,22 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				});
 			},
 			function populateList(callback) {
-				var msgListView = vc.getView(1);
+				var msgListView = vc.getView(MciCodesIds.MsgList);
 
 				var listFormat = self.menuConfig.config.listFormat || '{msgNum:>4} - {subj:>35} |{to:>15}';
 				var focusListFormat = self.menuConfig.config.focusListFormat;
 
 				var msgNum = 1;
+				var newMark = '*';	//	:TODO: Make configurable
+				var dateFmt = 'ddd MMM DD';	//	:TODO: Make configurable
 				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
 					return listFormat.format( { 
 						msgNum	: msgNum++, 
 						subj	: mle.subject,
-						to		: mle.toUserName
+						from	: mle.fromUserName,
+						to		: mle.toUserName,
+						ts		: moment(mle.modTimestamp).format(dateFmt),
+						newMark	: newMark,	//	:TODO: These should only be for actual new messages!
 					} );
 				}));
 
@@ -129,15 +156,29 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 						return focusListFormat.format( { 
 							msgNum	: msgNum++, 
 							subj	: mle.subject,
-							to		: mle.toUserName
+							from	: mle.fromUserName,
+							to		: mle.toUserName,
+							ts		: moment(mle.modTimestamp).format(dateFmt),
+							newMark	: newMark,
 						} );
 					}));
 				}
 
+				msgListView.on('index update', function indexUpdated(idx) {
+					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
+				});
+
 				msgListView.redraw();
 
 				callback(null);
-			}
+			},
+			function populateOtherMciViews(callback) {
+
+				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByName(self.messageAreaName).desc);
+				self.setViewText(MciCodesIds.MsgTotal, self.messageList.length.toString());
+
+				callback(null);
+			},
 		],
 		function complete(err) {
 			if(err) {
