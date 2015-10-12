@@ -110,7 +110,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 	async.series(
 		[
 			function callParentMciReady(callback) {
-				MessageListModule.super_.prototype.mciReady.call(this, mciData, callback);
+				MessageListModule.super_.prototype.mciReady.call(self, mciData, callback);
 			},
 			function loadFromConfig(callback) {
 				var loadOpts = {

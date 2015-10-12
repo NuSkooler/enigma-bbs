@@ -409,9 +409,6 @@
 		},
 		mainMenu: {
 			art: MMENU
-			/*options: {
-				trailingLF: yes
-			}*/
 			desc: Main Menu
 			prompt: menuCommand
 			"submit" : [
@@ -442,6 +439,10 @@
 					"action"	: "@menu:messageArea"
 				},
 				{
+					value: { command: "C" }
+					action: @menu:mainMenuUserConfig
+				}
+				{
 					"value"		: 1,
 					"action"	: "@menu:mainMenu"
 				}
@@ -455,7 +456,10 @@
 		mainMenuUserStats: {
 			art: STATUS
 			options: { pause: true }
-			next: mainMenu
+		}
+		mainMenuUserConfig: {
+			module: @systemModule:user_config
+			art: CONFSCR
 		}
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
