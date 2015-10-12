@@ -133,6 +133,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 			function populateList(callback) {
 				var msgListView = vc.getView(MciCodesIds.MsgList);
 
+				//	:TODO: fix default format
 				var listFormat = self.menuConfig.config.listFormat || '{msgNum:>4} - {subj:>35} |{to:>15}';
 				var focusListFormat = self.menuConfig.config.focusListFormat;
 
@@ -175,6 +176,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 			function populateOtherMciViews(callback) {
 
 				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByName(self.messageAreaName).desc);
+				self.setViewText(MciCodesIds.MsgSelNum, (vc.getView(MciCodesIds.MsgList).getData() + 1).toString());
 				self.setViewText(MciCodesIds.MsgTotal, self.messageList.length.toString());
 
 				callback(null);

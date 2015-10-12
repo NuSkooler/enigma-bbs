@@ -538,7 +538,6 @@
 				0: {
 					mci:  {
 						VM1: {
-							height: 10
 							focus: true
 							submit: true
 							argName: message
