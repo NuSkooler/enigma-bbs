@@ -559,7 +559,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					if(err) {
 						//	non-fatal
 						self.client.log.trace(
-							{ error : err, mci : Object.keys(options.mciMap), formId : formIdKey },
+							{ error : err.toString(), mci : Object.keys(options.mciMap), formId : formIdKey },
 							'Unable to find matching form configuration');
 					}
 

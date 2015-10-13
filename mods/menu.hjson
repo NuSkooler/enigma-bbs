@@ -460,6 +460,32 @@
 		mainMenuUserConfig: {
 			module: @systemModule:user_config
 			art: CONFSCR
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							argName: email
+						}
+						ET2: {
+							argName: location
+						}
+						ET3: {
+							argName: webAddress
+						}
+						ET4: {
+							argName: affils
+						}
+						ME5: {
+							maskPattern: "####/##/##"
+							argName: birthdate
+						}
+						ME11: {
+							maskPattern: "##x##"
+							argName: termSize
+						}
+					}
+				}
+			}
 		}
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
