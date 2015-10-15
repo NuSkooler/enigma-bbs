@@ -309,7 +309,7 @@
 						MT1: {
 							width: 		79
 							height: 	14
-							argName:	message
+							argName:	`
 							mode: 		edit
 						}
 					}
@@ -427,11 +427,15 @@
 				},
 				*/
 				{
+					value: { command: "E" }
+					action: @menu:doorTestExample
+				}
+				{
 					"value"		: { "command" : "L" },
 					"action"	: "@menu:mainMenuLastCallers"
 				},
 				{
-					"value"		: { "command" : "U" },
+					"value"		: { "command" : "Y" },
 					"action"	: "@menu:mainMenuUserStats"
 				},
 				{
@@ -490,71 +494,60 @@
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
 		///////////////////////////////////////////////////////////////////////
-		"messageArea" : {
-			"module"	: "msg_area",
-			"art"		: "MSGAREA",
-			"desc"		: "Message Area",
-			"prompt"	: "menuCommand",
-			"submit"	: [
+		messageArea: {
+			module: msg_area
+			art: MSGMNU
+			desc: Message Area
+			prompt: menuCommand
+			submit: [
 				{
-					"value"		: { "command" : "N" },
-					"action"	: "@menu:messageAreaNewPost"//,
-					//"extraArgs" : { "messageAreaId" : 123 }
-				},
+					value: { command: "P" }
+					action: @menu:messageAreaNewPost
+				}
 				{
-					"value"		: { "command" : "C" },
-					"action"	: "@menu:messageAreaChangeCurrentArea"
-				},
+					value: { command: "C" }
+					action: @menu:messageAreaChangeCurrentArea
+				}
 				{
-					"value"		: { "command" : "L" },
-					"action"	: "@menu:messageAreaMessageList"
-				},
-				/*{
-					"value"		: { "command" : "A" },
-					"action"	: "@method:changeArea"
-				},
-				*/
+					value: { command: "L" }
+					action: @menu:messageAreaMessageList
+				}
 				{
-					"value"		: { "command" : "Q" },
-					"action"	: "@menu:mainMenu"
-				},
+					value: { command: "Q" }
+					action: @menu:mainMenu
+				}
 				{
-					"value"		: 1,
-					"action"	: "@menu:messageArea"
+					value: 1
+					action: @menu:messageArea
 				}
 			]
-		},
-		"messageAreaChangeCurrentArea" : {
-			"art"		: "msg_area_list.ans",
-			"module"	: "msg_area_list",
-			"fallback"	: "messageArea",
+		}
+		messageAreaChangeCurrentArea: {
+			art: CHANGE
+			module: msg_area_list
 			"form"		: {
 				"0" : {
-					"VM" : {
-						"mci" : {
-							"VM1" : {
-								"widht"		: 30,
-								"height"	: 10,
-								"focus"		: true,
-								"submit"	: true,
-								"argName"	: "area"
-							}
-						},
-						"submit" : {
-							"*" : [
-								{
-									"value"		: { "area" : null },
-									"action"	: "@method:changeArea"
-								}
-							]
-						},
-						"actionKeys" : [
+					"mci" : {
+						"VM1" : {
+							"focus"		: true,
+							"submit"	: true,
+							"argName"	: "area"
+						}
+					},
+					"submit" : {
+						"*" : [
 							{
-								"keys"		: [ "escape" ],
-								"action"	: "@menu:messageArea"
+								"value"		: { "area" : null },
+								"action"	: "@method:changeArea"
 							}
 						]
-					}
+					},
+					"actionKeys" : [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:fallbackMenu
+						}
+					]
 				}
 			}
 		},
@@ -584,7 +577,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @menu:messageArea
+							action: @systemMethod:fallbackMenu
 						}
 					]
 				}
@@ -1008,6 +1001,15 @@
 				]
 			}
 		},
+		doorTestExample: {
+			module: abracadabra
+			config: {
+				name: example
+				dropFileType: DOOR
+				cmd: "/usr/bin/dosemu"
+				args: [ "-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\SLOWMO.EXE 1 120 X:\\LORD\\LAIRANS.ANS"]
+			}
+		}
 		////////////////////////////////////////////////////////////////////////
 		//	Mods
 		////////////////////////////////////////////////////////////////////////

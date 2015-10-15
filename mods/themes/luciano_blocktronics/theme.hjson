@@ -81,6 +81,19 @@
 				}
 			}
 
+			messageAreaChangeCurrentArea: {
+				config: {
+					listFormat: "|00|01|37{index} |00|37- |36{desc}"
+					focusListFormat: "|00|42|30{index} - {desc}"
+				}
+				mci: {
+					VM1: {
+						width: 26
+						height: 19
+					}
+				}
+			}
+
 			messageAreaViewPost: {
 				0: {
 					mci: {

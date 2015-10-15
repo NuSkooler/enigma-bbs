@@ -33,6 +33,11 @@ exports.moduleInfo = {
           |TI      Current time
 */
 
+var MciCodesIds = {
+	AreaList	: 1,
+	CurrentArea	: 2,
+};
+
 function MessageAreaListModule(options) {
 	MenuModule.call(this, options);
 
@@ -40,44 +45,36 @@ function MessageAreaListModule(options) {
 
 	this.messageAreas = messageArea.getAvailableMessageAreas();
 
-	if(_.isObject(this.menuConfig.config)) {
-		if(_.isString(this.menuConfig.config.entryFormat)) {
-			this.entryFormat = this.menuConfig.config.entryFormat;
-		}
-	}
-
-	this.entryFormat = this.entryFormat || '( {index} ) - {desc}';
-
 	this.menuMethods = {
 		changeArea : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
 				var areaName = self.messageAreas[formData.value.area].name;
 
-				messageArea.changeMessageArea(self.client, areaName, function areaChanged(err) {
+			messageArea.changeMessageArea(self.client, areaName, function areaChanged(err) {
 					if(err) {
 						self.client.term.pipeWrite('\n|00Cannot change area: ' + err.message + '\n');
 
 						setTimeout(function timeout() {
-							self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+							self.client.fallbackMenuModule();
 						}, 1000);
 					} else {
-						self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+						self.client.fallbackMenuModule();
 					}
 				});
 			}
 		}
 	};
 
+	this.setViewText = function(id, text) {
+		var v = self.viewControllers.areaList.getView(id);
+		if(v) {
+			v.setText(text);
+		}
+	};
+
 }
 
 require('util').inherits(MessageAreaListModule, MenuModule);
-/*
-MessageAreaListModule.prototype.enter = function(client) {
-	this.messageAreas = messageArea.getAvailableMessageAreas();
-
-	MessageAreaListModule.super_.prototype.enter.call(this, client);
-};
-*/
 
 MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
@@ -102,16 +99,34 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 				});
 			},
 			function populateAreaListView(callback) {
+				var listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {desc}';
+				var focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
+
 				var areaListItems = [];
+				var focusListItems = [];
 				for(var i = 0; i < self.messageAreas.length; ++i) {
-					areaListItems.push(self.entryFormat.format(
+					areaListItems.push(listFormat.format(
+						{ index : i, name : self.messageAreas[i].name, desc : self.messageAreas[i].desc	} )
+					);
+					focusListItems.push(focusListFormat.format(
 						{ index : i, name : self.messageAreas[i].name, desc : self.messageAreas[i].desc	} )
 					);
 				}
 
 				var areaListView = vc.getView(1);
+				
 				areaListView.setItems(areaListItems);
+				areaListView.setFocusItems(focusListItems);
+
 				areaListView.redraw();
+
+				callback(null);
+			},
+			function populateTextViews(callback) {
+				//	:TODO: populate current message area desc!
+				//self.setViewText(MciCodesIds.CurrentArea, 
+
+				callback(null);
 			}
 		],
 		function complete(err) {

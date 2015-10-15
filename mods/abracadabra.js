@@ -119,7 +119,7 @@ function AbracadabraModule(options) {
 			function complete(err) {
 				if(err) {
 					self.lastError = err;
-					self.fallbackModule();
+					self.client.fallbackMenuModule();
 				} else {
 					self.finishedLoading();
 				}
@@ -147,16 +147,12 @@ function AbracadabraModule(options) {
 		var doorInstance = new door.Door(this.client, exeInfo);
 
 		doorInstance.on('finished', function doorFinished() {
-			self.fallbackModule();
+			self.client.fallbackMenuModule();
 		});
 
 		self.client.term.write(ansi.resetScreen());
 
 		doorInstance.run();
-	};
-
-	this.fallbackModule = function() {
-		self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
 	};
 }
 
