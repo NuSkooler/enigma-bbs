@@ -7,6 +7,7 @@ var ansi				= require('./ansi_term.js');
 var userDb				= require('./database.js').dbs.user;
 
 var async				= require('async');
+var _					= require('lodash');
 
 exports.login			= login;
 exports.logoff			= logoff;
@@ -48,13 +49,30 @@ function login(callingMenu, formData, extraArgs) {
 					'Already logged in'
 				);
 
-				//	:TODO: display custom message if present (Obv/2: TOONODE.ANS)
-				
-				client.term.write('\nA user by that name is already logged in.\n');
+				client.term.rawWrite(ansi.resetScreen());
 
-				setTimeout(function timeout() {
-					client.gotoMenuModule( { name : callingMenu.menuConfig.fallback } );					
-				}, 500);
+				var tooNodeArt;
+				if(_.has(callingMenu, 'menuConfig.config.tooNodeArt')) {
+					tooNodeArt = callingMenu.menuConfig.config.tooNodeArt;
+				} else {
+					tooNodeArt = 'TOONODE';
+				}
+
+				var artOpts = {
+					client 		: client,
+					font		: callingMenu.menuConfig.font,
+					name		: tooNodeArt,
+				};
+
+				theme.displayThemeArt(artOpts, function artDisplayed(err) {
+					if(err) {
+						client.term.write('\nA user by that name is already logged in.\n');		
+					}
+
+					setTimeout(function timeout() {
+						client.fallbackMenuModule();
+					}, 2000);
+				});
 
 				return;
 			}

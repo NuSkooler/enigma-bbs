@@ -44,6 +44,21 @@
 				}
 			}
 
+			newUserFeedbackToSysOp: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
 			login2: {
 				mci: {
 					ET1: { width: 14 }
@@ -160,6 +175,29 @@
 							focusTextStyle: first lower
 						}
 					}
+				}
+			}
+
+
+			fullLoginSequenceLastCallers: {
+				config: {
+					dateTimeFormat: MMM Do H:mm a
+				}
+			}
+
+			fullLoginSequenceSysStats: {
+
+			}
+
+			fullLoginSequenceUserStats: {
+				mci: {
+					UN1: { width: 17 }
+					UR2: { width: 17 }
+					LO3: { width: 17 }
+					UF4: { width: 17 }
+					UG5: { width: 17 }
+					UT6: { width: 17 }
+					UC7: { width: 17 }
 				}
 			}
 		}

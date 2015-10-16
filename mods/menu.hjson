@@ -117,8 +117,11 @@
 
 		login2: {
 			art: USERLOG
-			next: messageArea
-			//"next"		: "fullLoginSequenceLoginArt",
+			//next: messageArea
+			next: fullLoginSequenceLoginArt
+			config: {
+				tooNodeArt: TOONODE
+			}
 			form: {
 				0: {
 					mci: {
@@ -246,7 +249,7 @@
 		}
 
 		newUserFeedbackToSysOpPreamble: {
-			art: NUAFDBK
+			art: LETTER
 			options: { pause: true }
 			next: newUserFeedbackToSysOp
 			extraArgs: {
@@ -257,7 +260,9 @@
 		newUserFeedbackToSysOp: {
 			status: Feedback to SysOp
 			module: msg_area_post_fse
-			fallback: mainMenu
+			//	:TODO: If the user is auto-approved, login seq. else, DONE.ANS -> Logoff
+			//	:TODO: client.nextOrFallback(): go next or fallback. Use in MenuModule base also
+			fallback: fullLoginSequenceLoginArt
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -273,65 +278,57 @@
 				0: {
 					mci: {
 						TL1: {
-							width: 		27
 							argName: 	from
 						}
 						ET2: {
-							width: 		27
-							argName:	to
-							focus:		true
+							argName: to
+							focus: true
 							text: @config:general.sysOp.username
 							//	:TODO: readOnly: true
 						}
 						ET3: {
-							width: 27
 							argName: subject
 							maxLength: 72
 							submit: true
 							text: New user feedback
-						},
-						"MA5" : {
-							"width"			: 27,
-							"textOverflow"	: "..."
 						}
 					}
 					submit: {
 						3: [
 							{
-								"value"		: { "subject" : null },
-								"action"	: "@method:headerSubmit"
+								value: { subject: null }
+								action: @method:headerSubmit
 							}
 						]
 					}
 				}
-				"1" : {
-					"mci" : {
+				1: {
+					mci: {
 						MT1: {
-							width: 		79
-							height: 	14
-							argName:	`
-							mode: 		edit
+							width: 79
+							argName: message
+							mode: edit
 						}
 					}
 
 					submit: {
-						*: [ { "value": "message", "action": "@method:editModeEscPressed" } ]
-					},
-					"actionKeys" : [
+						*: [ { value: "message", action: "@method:editModeEscPressed" } ]
+					}
+					actionKeys: [
 						{
-							"keys"		: [ "escape" ],
-							"viewId"	: 1
+							keys: [ "escape" ]
+							viewId: 1
 						}
 					]
 				},
-				"2" : {
-					"TLTL" :  {
-						"mci" : {
-							"TL1" : {
-								"width"	: 5
-							},
-							"TL2" : {
-								"width" : 4
+				2: {
+					TLTL:  {
+						mci: {
+							TL1: {
+								width: 5
+							}
+							TL2: {
+								width: 4
 							}
 						}
 					}
@@ -340,7 +337,8 @@
 					HM: {
 						mci: {
 							HM1: {
-								items: [ "Save", "Discard", "Help" ]
+								//	:TODO: clear
+								items: [ "save", "help" ]
 							}
 						}
 						submit: {
@@ -351,10 +349,6 @@
 								}
 								{
 									value: { 1: 1 }
-									action: @systemMethod:fallbackMenu
-								}
-								{
-									value: { 1: 2 }
 									action: @method:editModeMenuHelp
 								}
 							]
@@ -373,29 +367,26 @@
 				}
 			}
 		}
-		"fullLoginSequenceLoginArt" : {
-			"art"		: "LOGIN",
-			"options"	: { "pause" : true },
-			"next"		: "fullLoginSequenceLastCallers"
-		},
-		"fullLoginSequenceLastCallers": {
-			"module"	: "last_callers",
-			"art"		: "LASTCALL",
-			"options"	: { "pause" : true },
-			"config" 	: {
-				"dateTimeFormat" : "ddd MMM Do h:mm a"
-			},
-			"next"		: "fullLoginSequenceSysStats"
-		},
-		"fullLoginSequenceSysStats" : {
-			"art"		: "SYSSTAT",
-			"options"	: { "pause" : true },
-			"next"		: "fullLoginSequenceUserStats"
-		},
-		"fullLoginSequenceUserStats" : {
+		fullLoginSequenceLoginArt: {
+			art: LOGIN
+			options: { pause: true }
+			next: fullLoginSequenceLastCallers
+		}
+		fullLoginSequenceLastCallers: {
+			module: last_callers
+			art: LASTCALL
+			options: { pause: true }
+			next: fullLoginSequenceSysStats
+		}
+		fullLoginSequenceSysStats: {
+			art: SYSSTAT
+			options: { pause: true }
+			next: fullLoginSequenceUserStats
+		}
+		fullLoginSequenceUserStats: {
 			art: STATUS
-			"options"	: { "pause" : true },
-			"next"		: "mainMenu"
+			options: { pause: true }
+			next: mainMenu
 		},
 		"newUserActive" : {
 			"art"		: "SO-CC1.ANS",
@@ -517,9 +508,13 @@
 					action: @menu:mainMenu
 				}
 				{
+					value: { command: "G" }
+					action: @menu:logoff
+				}
+				{
 					value: 1
 					action: @menu:messageArea
-				}
+				}				
 			]
 		}
 		messageAreaChangeCurrentArea: {
@@ -854,10 +849,10 @@
 			}
 		}
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
-		"messageAreaNewPost" : {
-			"status"	: "Posting message",
-			"module"	: "msg_area_post_fse",
-			"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
+		messageAreaNewPost: {
+			status: Posting message,
+			module: msg_area_post_fse
+			//"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -865,10 +860,10 @@
 					footerEditor:		MSGEFTR
 					footerEditorMenu:	MSGEMFT
 					help:				MSGEHLP
-				},
+				}
 				editorMode: edit
 				editorType: area
-			},
+			}
 			form: {
 				0: {
 					mci: {
