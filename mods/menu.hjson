@@ -408,7 +408,7 @@
 			art: MMENU
 			desc: Main Menu
 			prompt: menuCommand
-			"submit" : [
+			submit: [
 				{
 					"value" 	: { "command" : "G" },
 					"action"	: "@menu:logoff"
@@ -416,7 +416,11 @@
 				{
 					"value"		: { "command" : "O" },
 					"action"	: "@menu:doorPimpWars"
-				},
+				}
+				{
+					value: { command: "D" }
+					action: @menu:doorMenu
+				}
 				/*
 				{
 					"value"		: { "command" : "L" },
@@ -452,7 +456,7 @@
 					"action"	: "@menu:mainMenu"
 				}
 			]
-		},
+		}
 		mainMenuLastCallers: {
 			module: last_callers
 			art: LASTCALL
@@ -501,6 +505,29 @@
 					]
 				}
 			}
+		}
+		doorMenu: {
+			desc: Doors Menu
+			art: DOORMNU
+			prompt: menuCommand
+			submit: [
+				{
+					value: { command: "G" }
+					action: @menu:logoff
+				}
+				{
+					value: { command: "Q" }
+					action: @systemMethod:fallbackMenu
+				}
+				{
+					value: { command: "1" }
+					action: @menu:doorPimpWars
+				}
+				{
+					value: { command: "2" }
+					action: @menu:doorLORD
+				}
+			]
 		}
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Related
@@ -990,18 +1017,19 @@
 		///////////////////////////////////////////////////////////////////////
 		//	Doors
 		///////////////////////////////////////////////////////////////////////
-		"doorPimpWars" : {
-			"module"	: "abracadabra",
-			"fallback"	: "mainMenu",
-			"config"	: {
-				"name"			: "PimpWars",
-				"dropFileType"	: "DORINFO",
-				"cmd"			: "/usr/bin/dosemu",
-				"args"			: [ 
+		doorPimpWars: {
+			desc: Playing PimpWars
+			module: abracadabra			
+			config: {
+				name: PimpWars
+				dropFileType: DORINFO
+				cmd: /usr/bin/dosemu
+				args: [ 
 					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
 				],
-				"nodeMax" : 1,
-				"tooManyArt"	: "doortoomany.ans"
+				nodeMax: 1
+				//	:TODO: Obv/2 name for this?
+				tooManyArt: doortoomany.ans
 			}
 		},
 		"doorLORD" : {
