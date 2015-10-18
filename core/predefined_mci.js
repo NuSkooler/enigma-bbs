@@ -91,7 +91,12 @@ function getPredefinedMCIValue(client, code) {
 			},
 
 			OA	: function systemArchitecture() { return os.arch(); },
-			SC	: function systemCpuModel() { return os.cpus()[0].model; },
+			SC		: function systemCpuModel() {
+				//
+				//	Clean up CPU strings a bit for better display
+				//
+				return os.cpus()[0].model.replace(/\s+(?= )|\(R\)|\(TM\)|CPU/g, '');
+			},
 
 			//	:TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
 

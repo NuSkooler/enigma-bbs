@@ -16,21 +16,38 @@ exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
 exports.gotoMsgAreaFSEModuleForMessage		= gotoMsgAreaFSEModuleForMessage;
 
-function getAvailableMessageAreas() {
+function getAvailableMessageAreas(options) {
 	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
-	return Config.messages.areas;
+	options = options || {};
+
+	var areas = Config.messages.areas;
+	var avail = [];
+	for(var i = 0; i < areas.length; ++i) {
+		if(true !== options.includePrivate &&
+			Message.WellKnownAreaNames.Private === areas[i].name)
+		{
+			continue;
+		}
+
+		avail.push(areas[i]);
+	}
+
+	return avail;
 }
 
 function getDefaultMessageArea() {
 	//
 	//	Return first non-private/etc. area name. This will be from config.hjson
 	//
+	return getAvailableMessageAreas()[0];
+	/*
 	var avail = getAvailableMessageAreas();
 	for(var i = 0; i < avail.length; ++i) {
 		if(Message.WellKnownAreaNames.Private !== avail[i].name) {
 			return avail[i];
 		}
 	}
+	*/
 }
 
 function getMessageAreaByName(areaName) {

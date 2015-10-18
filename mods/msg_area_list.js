@@ -104,6 +104,8 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 
 				var areaListItems = [];
 				var focusListItems = [];
+
+				//	:TODO: use _.map() here
 				for(var i = 0; i < self.messageAreas.length; ++i) {
 					areaListItems.push(listFormat.format(
 						{ index : i, name : self.messageAreas[i].name, desc : self.messageAreas[i].desc	} )
