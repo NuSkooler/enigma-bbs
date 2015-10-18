@@ -107,6 +107,9 @@ function initialize(cb) {
 				database.initializeDatabases();
 				callback(null);			
 			},
+			function initSystemProperties(callback) {
+				require('./system_property.js').loadSystemProperties(callback);
+			},
 			function initThemes(callback) {
 				//	Have to pull in here so it's after Config init
 				var theme = require('./theme.js');

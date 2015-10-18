@@ -17,11 +17,13 @@ function getDatabasePath(name) {
 }
 
 function initializeDatabases() {
-	//	:TODO: this will need to change if more DB's are added
+	//	:TODO: this will need to change if more DB's are added ... why?
 	dbs.user	= new sqlite3.Database(getDatabasePath('user'));
 	dbs.message	= new sqlite3.Database(getDatabasePath('message'));
+	dbs.system	= new sqlite3.Database(getDatabasePath('system'));
 
 	dbs.user.serialize(function serialized() {
+		createSystemTables();
 		createUserTables();
 		createInitialUserValues();
 	});
@@ -30,6 +32,15 @@ function initializeDatabases() {
 		createMessageBaseTables();
 		createInitialMessageValues();
 	});
+}
+
+function createSystemTables() {
+	dbs.system.run(
+		'CREATE TABLE IF NOT EXISTS system_property ('			+
+		'	prop_name		VARCHAR PRIMARY KEY NOT NULL,'	+
+		'	prop_value		VARCHAR NOT NULL'				+
+		');'
+		);
 }
 
 function createUserTables() {

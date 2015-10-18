@@ -22,7 +22,15 @@ function getAvailableMessageAreas() {
 }
 
 function getDefaultMessageArea() {
-	return getAvailableMessageAreas()[0];
+	//
+	//	Return first non-private/etc. area name. This will be from config.hjson
+	//
+	var avail = getAvailableMessageAreas();
+	for(var i = 0; i < avail.length; ++i) {
+		if(Message.WellKnownAreaNames.Private !== avail[i].name) {
+			return avail[i];
+		}
+	}
 }
 
 function getMessageAreaByName(areaName) {

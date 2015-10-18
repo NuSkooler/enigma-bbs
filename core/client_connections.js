@@ -3,11 +3,16 @@
 
 var logger						= require('./logger.js');
 
+exports.getActiveConnections	= getActiveConnections;
 exports.addNewClient			= addNewClient;
 exports.removeClient			= removeClient;
 
 var clientConnections = [];
 exports.clientConnections		= clientConnections;
+
+function getActiveConnections() {
+	return clientConnections.length;
+}
 
 function addNewClient(client) {
 	var id = client.session.id = clientConnections.push(client) - 1;

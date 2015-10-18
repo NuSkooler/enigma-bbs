@@ -25,7 +25,18 @@ exports.getModule	= LastCallersModule;
 //	:TODO:
 //	*	config.evenRowSGR (optional)
 
+
 //	:TODO: convert to using %XY system for finding row count
+//	..or, better, use %VM1 with listFormat and noInput
+
+/*
+	Available listFormat object members:
+	who
+	location
+	affils
+	ts
+	
+*/
 
 function LastCallersModule(options) {
 	MenuModule.call(this, options);

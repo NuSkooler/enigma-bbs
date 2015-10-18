@@ -78,9 +78,28 @@
 				}
 			}
 
+			mainMenuSystemStats: {
+				mci: {
+					BN1: { width: 17 }
+					VL2: { width: 17 }
+					OS3: { width: 33 }
+					SC4: { width: 33 }
+					DT5: { width: 33 }
+					CT6: { width: 33 }
+					AN7: { width: 6 }
+					ND8: { width: 6 }
+					TC9: { width: 6 }
+				}
+			}
+
+
 			mainMenuLastCallers: {
 				config: {
-					dateTimeFormat: MMM Do H:mm a
+					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<18.18}{ts:<15}"
+					dateTimeFormat: MMM Do h:mma
+				}
+				mci: {
+					VM1: { height: 10 }
 				}
 			}
 
@@ -181,7 +200,11 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					dateTimeFormat: MMM Do H:mm a
+					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<18.18}{ts:<15}"
+					dateTimeFormat: MMM Do h:mma
+				}
+				mci: {
+					VM1: { height: 10 }
 				}
 			}
 

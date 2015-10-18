@@ -42,6 +42,12 @@ function UserConfigModule(options) {
 		}
 	};
 
+	this.menuMethods = {
+		exitKeyPressed : function(formData, extraArgs) {
+			//	:TODO: save/etc.
+			self.client.fallbackMenuModule();
+		}
+	};
 }
 
 require('util').inherits(UserConfigModule, MenuModule);

@@ -5,6 +5,7 @@ var theme				= require('./theme.js');
 var clientConnections	= require('./client_connections.js').clientConnections;
 var ansi				= require('./ansi_term.js');
 var userDb				= require('./database.js').dbs.user;
+var sysProp				= require('./system_property.js');
 
 var async				= require('async');
 var _					= require('lodash');
@@ -89,6 +90,11 @@ function login(callingMenu, formData, extraArgs) {
 							callback(null);	//	always non-fatal
 						});
 					},
+					function updateSystemLoginCount(callback) {
+						var sysLoginCount = sysProp.getSystemProperty('login_count') || 0;
+						sysLoginCount = parseInt(sysLoginCount, 10) + 1;
+						sysProp.persistSystemProperty('login_count', sysLoginCount, callback);
+					},
 					function recordLastLogin(callback) {
 						user.persistProperty('last_login_timestamp', now.toISOString(), function persisted(err) {
 							callback(err);
@@ -106,7 +112,6 @@ function login(callingMenu, formData, extraArgs) {
 						});
 					},
 					function recordLoginHistory(callback) {
-
 						userDb.serialize(function serialized() {
 							userDb.run(
 								'INSERT INTO user_login_history (user_id, user_name, timestamp) ' +

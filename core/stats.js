@@ -3,9 +3,7 @@
 
 var userDb			= require('./database.js').dbs.user;
 
-var async			= require('async');
-
-exports.getUserLoginHistory	= getUserLoginHistory;
+exports.getUserLoginHistory		= getUserLoginHistory;
 
 function getUserLoginHistory(numRequested, cb) {
 
@@ -30,4 +28,3 @@ function getUserLoginHistory(numRequested, cb) {
 		}
 	);
 }
-

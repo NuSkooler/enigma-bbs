@@ -172,24 +172,6 @@ function ViewController(options) {
 							}
 						}
 						break;
-					/*case 'method' :
-		case 'systemMethod' : 
-			if(_.isString(actionAsset.location)) {
-				callModuleMenuMethod(paths.join(Config.paths.mods, actionAsset.location));
-			} else {
-				if('systemMethod' === actionAsset.type) {
-					//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
-					//	:TODO: Probably better as system_method.js
-					callModuleMenuMethod(paths.join(__dirname, 'system_menu_method.js'));
-				} else {
-					//	local to current module
-					var currentModule = client.currentMenuModule;
-					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-						currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs);
-					}
-				}
-			}*/
-						break;
 
 					default : 
 						propValue = propValue = conf[propName];
@@ -224,7 +206,7 @@ function ViewController(options) {
 				highestId = viewId;
 			}
 
-			var view		= self.getView(viewId);
+			var view = self.getView(viewId);
 			
 			if(!view) {
 				self.client.log.warn( { viewId : viewId }, 'Cannot find view');
@@ -573,6 +555,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			},
 			function applyThemeCustomization(callback) {
 				formConfig = formConfig || {};
+				formConfig.mci = formConfig.mci || {};
 				//self.client.currentMenuModule.menuConfig.config = self.client.currentMenuModule.menuConfig.config || {};
 
 				//console.log('menu config.....');

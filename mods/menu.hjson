@@ -163,6 +163,7 @@
 		/*
 			nua -> send sysop mail -> { active } -> matrix
 			                       -> you must active -> matrix
+			TODO: display PRINT before this (Obv/2)
 		*/
 		newUserApplication: {
 			art: NUA
@@ -367,23 +368,28 @@
 				}
 			}
 		}
+
 		fullLoginSequenceLoginArt: {
+			desc: Logging In
 			art: LOGIN
 			options: { pause: true }
 			next: fullLoginSequenceLastCallers
 		}
 		fullLoginSequenceLastCallers: {
+			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
 			options: { pause: true }
-			next: fullLoginSequenceSysStats
+			next: fullLoginSequenceSysStats			
 		}
 		fullLoginSequenceSysStats: {
+			desc: System Stats
 			art: SYSSTAT
 			options: { pause: true }
 			next: fullLoginSequenceUserStats
 		}
 		fullLoginSequenceUserStats: {
+			desc: User Stats
 			art: STATUS
 			options: { pause: true }
 			next: mainMenu
@@ -438,6 +444,10 @@
 					action: @menu:mainMenuUserConfig
 				}
 				{
+					value: { command: "S" }
+					action: @menu:mainMenuSystemStats
+				}
+				{
 					"value"		: 1,
 					"action"	: "@menu:mainMenu"
 				}
@@ -450,6 +460,10 @@
 		}
 		mainMenuUserStats: {
 			art: STATUS
+			options: { pause: true }
+		}
+		mainMenuSystemStats: {
+			art: SYSSTAT
 			options: { pause: true }
 		}
 		mainMenuUserConfig: {
@@ -479,6 +493,12 @@
 							argName: termSize
 						}
 					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:exitKeyPressed
+						}
+					]
 				}
 			}
 		}

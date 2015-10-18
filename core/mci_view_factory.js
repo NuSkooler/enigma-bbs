@@ -36,7 +36,7 @@ MCIViewFactory.UserViewCodes = [
 	'XY',
 ];
 
-MCIViewFactory.prototype.createFromMCI = function(mci) {
+MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 	assert(mci.code);
 	assert(mci.id > 0);
 	assert(mci.position);
@@ -54,9 +54,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 	function setOption(pos, name) {
 		if(mci.args.length > pos && mci.args[pos].length > 0) {
 			options[name] = mci.args[pos];
-			return true;
 		}
-		return false;
 	}
 
 	function setWidth(pos) {
@@ -65,16 +63,13 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 				options.dimens = {};
 			}
 			options.dimens.width = parseInt(mci.args[pos], 10);
-			return true;
 		}
-		return false;
 	}
 
 	function setFocusOption(pos, name) {
 		if(mci.focusArgs && mci.focusArgs.length > pos && mci.focusArgs[pos].length > 0) {
 			options[name] = mci.focusArgs[pos];
 		}
-		return false;
 	}
 
 	//
