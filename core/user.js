@@ -15,6 +15,7 @@ exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
 exports.getUserName					= getUserName;
 exports.loadProperties				= loadProperties;
+exports.getUserList					= getUserList;
 
 function User() {
 	var self = this;
@@ -481,4 +482,41 @@ function loadProperties(options, cb) {
 	}, function complete() {
 		cb(null, properties);
 	});
+}
+
+function getUserList(options, cb) {
+	var userList = [];
+
+	var orderClause = 'ORDER BY ' + (options.order || 'user_name');
+
+	userDb.each(
+		'SELECT id, user_name '			+
+		'FROM user '					+
+		orderClause + ';',
+		function userRow(err, row) {
+			userList.push({
+				userId		: row.id,
+				userName	: row.user_name,
+			});
+		},
+		function usersComplete(err) {
+			options.properties = options.properties || [];
+			async.map(userList, function iter(user, callback) {
+				userDb.each(
+					'SELECT prop_name, prop_value '	+
+					'FROM user_property '			+
+					'WHERE user_id=? AND prop_name IN ("' + options.properties.join('","') + '");',
+					[ user.userId ],
+					function propRow(err, row) {
+						user[row.prop_name] = row.prop_value;
+					},
+					function complete(err) {							
+						callback(err, user);
+					}
+				);
+			}, function propsComplete(err, transformed) {
+				cb(err, transformed);
+			});
+		}
+	);
 }

@@ -3,9 +3,9 @@
 
 var userDb			= require('./database.js').dbs.user;
 
-exports.getUserLoginHistory		= getUserLoginHistory;
+exports.getSystemLoginHistory		= getSystemLoginHistory;
 
-function getUserLoginHistory(numRequested, cb) {
+function getSystemLoginHistory(numRequested, cb) {
 
 	numRequested = Math.max(1, numRequested);
 

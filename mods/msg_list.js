@@ -135,7 +135,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 
 				//	:TODO: fix default format
 				var listFormat = self.menuConfig.config.listFormat || '{msgNum:>4} - {subj:>35} |{to:>15}';
-				var focusListFormat = self.menuConfig.config.focusListFormat;
+				var focusListFormat = self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
 
 				var msgNum = 1;
 				var newMark = '*';	//	:TODO: Make configurable

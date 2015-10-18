@@ -4,7 +4,7 @@
 var MenuModule			= require('../core/menu_module.js').MenuModule;
 var userDb				= require('../core/database.js').dbs.user;
 var ViewController		= require('../core/view_controller.js').ViewController;
-var getUserLoginHistory	= require('../core/stats.js').getUserLoginHistory;
+var getSystemLoginHistory	= require('../core/stats.js').getSystemLoginHistory;
 var colorCodes			= require('../core/color_codes.js');
 
 var moment				= require('moment');
@@ -65,7 +65,7 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 			function fetchHistory(callback) {
 				callersView = vc.getView(MciCodeIds.CallerList);
 
-				getUserLoginHistory(callersView.dimens.height, function historyRetrieved(err, lh) {
+				getSystemLoginHistory(callersView.dimens.height, function historyRetrieved(err, lh) {
 					loginHistory = lh;
 					callback(err);
 				});

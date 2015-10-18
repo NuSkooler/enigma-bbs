@@ -428,6 +428,10 @@
 				},
 				*/
 				{
+					value: { command: "U" }
+					action: @menu:mainMenuUserList
+				}
+				{
 					value: { command: "E" }
 					action: @menu:doorTestExample
 				}
@@ -458,17 +462,41 @@
 			]
 		}
 		mainMenuLastCallers: {
+			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
 			options: { pause: true }
 		}
 		mainMenuUserStats: {
+			desc: User Stats
 			art: STATUS
-			options: { pause: true }
+			options: { pause: true }			
 		}
 		mainMenuSystemStats: {
+			desc: System Stats
 			art: SYSSTAT
 			options: { pause: true }
+		}
+		mainMenuUserList: {
+			desc: User Listing
+			module: user_list
+			art: USERLST
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							submit: true
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:fallbackMenu
+						}
+					]
+				}
+			}
 		}
 		mainMenuUserConfig: {
 			module: @systemModule:user_config
