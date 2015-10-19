@@ -3,6 +3,11 @@
 	"version"		: "0.0.1-alpha",
 	"description"	: "ENiGMA½ Bulletin Board System",
 	"author"		: "Bryan Ashby <bryan@l33t.codes>",
+	"license"		: "BSD-2-Clause",
+	"keywords"		: [
+		"bbs",
+		"telnet"
+	],
 	"dependencies"	: {
 		"async"			: "1.4.x",
 		"binary"		: "0.3.x",
