@@ -12,14 +12,15 @@ var assert				= require('assert');
 var _					= require('lodash');
 
 /*
-	Available listFormat object members:
-	userId
-	userName
-	lastLoginTs
-	status
-	location
-	affiliation
-	note
+	Available listFormat/focusListFormat object members:
+	
+	userId			: User ID
+	userName		: User name/handle
+	lastLoginTs		: Last login timestamp
+	status			: Status: active | inactive
+	location		: Location
+	affiliation		: Affils
+	note			: User note
 */
 
 exports.moduleInfo = {

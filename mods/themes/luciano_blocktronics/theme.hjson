@@ -105,8 +105,8 @@
 
 			mainMenuUserList: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{affils:<21.21}{note:<21.21}{lastLoginTs}"
-					focusListFormat: "|00|42|30{userName:<17.17}{affils:<21.21}{note:<21.21}{lastLoginTs}"
+					listFormat: "|00|01|36{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
+					focusListFormat: "|00|42|30{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
@@ -118,6 +118,7 @@
 				config: {
 					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} |01|31{newMark}"
 					focusListFormat: "|00|42|30{msgNum:>4} - {subj:<29.29} {from:<20.20} {ts} {newMark}"
+					dateTimeFormat: ddd MMM DDD
 				}
 				mci: {
 					VM1: {

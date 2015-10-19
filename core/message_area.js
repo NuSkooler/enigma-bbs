@@ -53,7 +53,7 @@ function getDefaultMessageArea() {
 function getMessageAreaByName(areaName) {
 	areaName = areaName.toLowerCase();
 
-	var availAreas	= getAvailableMessageAreas();
+	var availAreas	= getAvailableMessageAreas( { includePrivate : true } );
 	var index		= _.findIndex(availAreas, function pred(an) {
 		return an.name == areaName;
 	});

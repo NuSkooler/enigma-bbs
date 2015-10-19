@@ -12,6 +12,24 @@ var assert				= require('assert');
 var _					= require('lodash');
 var moment				= require('moment');
 
+/*
+	Available listFormat/focusListFormat members (VM1):
+
+	msgNum			: Message number
+	to				: To username/handle
+	from			: From username/handle
+	subj			: Subject
+	ts				: Message mod timestamp (format with config.dateTimeFormat)
+	newIndicator	: New mark/indicator (config.newIndicator)
+
+	MCI codes:
+
+	VM1			: Message list
+	TL2			: Message area description
+	TL4			: Message selected #
+	TL5			: Total messages in area
+*/
+
 exports.getModule		= MessageListModule;
 
 exports.moduleInfo = {
@@ -19,34 +37,6 @@ exports.moduleInfo = {
 	desc	: 'Module for listing/browsing available messages',
 	author	: 'NuSkooler',
 };
-
-//
-//	:TODO:
-//	* Avail data:
-//		To					- {to}
-//		From				- {from}
-//		Subject
-//		Date
-//		Status (New/Read)
-//		Message Num (Area)
-//		Message Total (Area)
-//		Message Area desc	- {areaDesc} / %TL2
-//		Message Area Name	- {areaName}
-//		
-//	Ideas
-//	* Module config can define custom formats for items & focused items (inc. Pipe Codes)
-//	* Single list view with advanced formatting (would need textOverflow stuff), advanced formatting...
-//	* Multiple LV's in sync with keyboard input
-//	* New Table LV (TV)
-//	* 
-
-//	VM1		- message list
-//	TL2		- Message area desc
-
-//	TL4		- message selected # 
-//	TL5		- message total #
-//	
-//	See Obv/2, Iniq, and Mystic docs
 
 var MciCodesIds = {
 	MsgList			: 1,
@@ -134,36 +124,32 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				var msgListView = vc.getView(MciCodesIds.MsgList);
 
 				//	:TODO: fix default format
-				var listFormat = self.menuConfig.config.listFormat || '{msgNum:>4} - {subj:>35} |{to:>15}';
+				var listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subj} |{to}';
 				var focusListFormat = self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
+				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DDD';
+				var newIndicator		= self.menuConfig.config.newIndicator || '*';
 
 				var msgNum = 1;
-				var newMark = '*';	//	:TODO: Make configurable
-				var dateFmt = 'ddd MMM DD';	//	:TODO: Make configurable
+
+				function getMsgFmtObj(mle) {
+					return {
+						msgNum			: msgNum++, 
+						subj			: mle.subject,
+						from			: mle.fromUserName,
+						to				: mle.toUserName,
+						ts				: moment(mle.modTimestamp).format(dateTimeFormat),
+						newIndicator	: newIndicator,	//	:TODO: These should only be for actual new messages!
+					}
+				}
+
 				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-					return listFormat.format( { 
-						msgNum	: msgNum++, 
-						subj	: mle.subject,
-						from	: mle.fromUserName,
-						to		: mle.toUserName,
-						ts		: moment(mle.modTimestamp).format(dateFmt),
-						newMark	: newMark,	//	:TODO: These should only be for actual new messages!
-					} );
+					return listFormat.format(getMsgFmtObj(mle));
 				}));
 
-				if(focusListFormat) {
-					msgNum = 1;
-					msgListView.setFocusItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-						return focusListFormat.format( { 
-							msgNum	: msgNum++, 
-							subj	: mle.subject,
-							from	: mle.fromUserName,
-							to		: mle.toUserName,
-							ts		: moment(mle.modTimestamp).format(dateFmt),
-							newMark	: newMark,
-						} );
-					}));
-				}
+				msgNum = 1;
+				msgListView.setFocusItems(_.map(self.messageList, function formatMsgListEntry(mle) {
+					return focusListFormat.format(getMsgFmtObj(mle));
+				});
 
 				msgListView.on('index update', function indexUpdated(idx) {
 					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
@@ -184,10 +170,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 		],
 		function complete(err) {
 			if(err) {
-				//	:TODO: log this properly
-				//	:TODO: use fallbackMenuModule() here
-				self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
-				console.log(err)
+				self.client.log.error( { error : err.toString() }, 'Error loading message list');
 			}
 			cb(err);
 		}

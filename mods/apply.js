@@ -97,6 +97,9 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				account_created		: new Date().toISOString(),
 
 				message_area_name	: getDefaultMessageArea().name,
+
+				term_height			: client.term.termHeight,
+				term_width			: client.term.termWidth,
 				
 				//	:TODO: This is set in User.create() -- proabbly don't need it here:
 				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,

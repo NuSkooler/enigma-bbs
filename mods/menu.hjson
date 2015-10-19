@@ -491,7 +491,7 @@
 					}
 					actionKeys: [
 						{
-							keys: [ "escape" ]
+							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:fallbackMenu
 						}
 					]
