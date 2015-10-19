@@ -120,7 +120,10 @@
 			//next: messageArea
 			next: fullLoginSequenceLoginArt
 			config: {
-				tooNodeArt: TOONODE
+				//tooNodeArt: TOONODE
+				tooNode: {
+					art: TOONODE
+				}
 			}
 			form: {
 				0: {
