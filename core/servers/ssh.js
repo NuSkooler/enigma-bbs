@@ -8,6 +8,11 @@ var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
 var userLogin		= require('../user_login.js').userLogin;
 
+//	:TODO: remove this - currently an experimental hack:
+var term			= require('../client_term.js');
+
+var packageJson 	= require('../../package.json');
+
 var ssh2			= require('ssh2');
 var fs				= require('fs');
 var util			= require('util');
@@ -32,7 +37,12 @@ function SSHClient(clientConn) {
 	var self = this;
 
 	clientConn.on('authentication', function authentication(ctx) {
-		self.log.trace( { context : ctx }, 'SSH authentication');
+		self.log.trace(
+			{
+				domain		: ctx.domain,
+				username	: ctx.username,
+				method		: ctx.method,
+			}, 'SSH authentication');
 
 		//	:TODO: check Config max failed logon attempts/etc.
 
@@ -84,7 +94,7 @@ function SSHClient(clientConn) {
 				break;
 
 			default :
-				self.log.info( { method : ctx.method }, 'Unsupported SSH authentication method. Rejecting connection.');
+				self.log.info( { method : ctx.method }, 'Unsupported SSH authentication method');
 				ctx.reject();
 		}
 	});
@@ -93,13 +103,35 @@ function SSHClient(clientConn) {
 		self.log.info('SSH authentication success');
 
 		clientConn.on('session', function sess(accept, reject) {
-			self.input = accept();
-			self.output = self.input;
+			
+			var session = accept();
+
+			session.on('pty-req', function pty(accept, reject, info) {
+				console.log(info);
+				var channel = accept();
+				console.log(channel)
+
+			});
+
+			session.on('shell', function shell(accept, reject) {
+				var channel = accept();
+
+				channel._write('Hello, world!')
+
+				self.input = channel._client._sock;
+				self.output = channel._client._sock;
+
+
+				self.term				= new term.ClientTerminal(self.output);
+
+				self.emit('ready')
+			});
+
 		});
 	});
 
 	clientConn.on('end', function clientEnd() {
-		self.emit('end');
+		//self.emit('end');
 	});
 }
 
@@ -117,12 +149,13 @@ SSHServerModule.prototype.createServer = function() {
 	//	:TODO: setup all options here. What should the banner, etc. really be????
 	var serverConf = {
 		privateKey	: fs.readFileSync(conf.config.servers.ssh.rsaPrivateKey),
-		banner		: 'ENiGMA½ BBS SSH Server',
+		banner		: 'ENiGMA½ BBS ' + packageJson.version + ' SSH Server',
+		ident		: 'enigma-bbs-' + packageJson.version + '-srv',
 		debug		: function debugSsh(dbgLine) { 
 			if(true === conf.config.servers.ssh.debugConnections) {
 				self.log.trace('SSH: ' + dbgLine);
 			}
-		}
+		},
 	};
 
 	var server = ssh2.Server(serverConf);

@@ -6,9 +6,6 @@ var theme		= require('./theme.js');
 var moduleUtil	= require('./module_util.js');
 var Config		= require('./config.js').config;
 
-
-var packageJson = require('../package.json');
-
 var assert		= require('assert');
 var util		= require('util');
 
