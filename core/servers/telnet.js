@@ -430,6 +430,8 @@ function TelnetClient(input, output) {
 	var readyFired = false;
 	var encodingSet = false;
 
+	this.setInputOutput(input, output);
+
 	this.negotiationsComplete	= false;	//	are we in the 'negotiation' phase?
 	this.didReady				= false;	//	have we emit the 'ready' event?
 
@@ -761,21 +763,6 @@ Object.keys(OPTIONS).forEach(function(name) {
 	});
 });
 
-/*
-function createServer() {
-	var server = net.createServer(function onConnection(sock) {
-		var self = this;
-		var client = new TelnetClient(sock, sock);
-		
-		client.banner();
-
-		self.emit('client', client);
-	});
-
-	return server;
-}
-*/
-
 function TelnetServerModule() {
 	ServerModule.call(this);
 }
@@ -791,7 +778,7 @@ TelnetServerModule.prototype.createServer = function() {
 		
 		client.banner();
 
-		self.emit('client', client);
+		self.emit('client', client, sock);
 	});
 
 	return server;

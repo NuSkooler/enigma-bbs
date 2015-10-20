@@ -184,7 +184,7 @@ function startListening() {
 
 		//	:TODO: handle maxConnections, e.g. conf.maxConnections
 
-		server.on('client', function onClient(client) {									
+		server.on('client', function newClient(client, clientSock) {									
 			//
 			//	Start tracking the client. We'll assign it an ID which is
 			//	just the index in our connections array.
@@ -193,7 +193,7 @@ function startListening() {
 				client.session = {};
 			}
 
-			clientConns.addNewClient(client);
+			clientConns.addNewClient(client, clientSock);
 
 			client.on('ready', function onClientReady() {
 

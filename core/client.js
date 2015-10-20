@@ -5,8 +5,9 @@
 	Portions of this code for key handling heavily inspired from the following:
 	https://github.com/chjj/blessed/blob/master/lib/keys.js
 
-	MIT license is as follows:
-	--------------------------
+	chji's blessed is MIT licensed:
+
+	----/snip/----------------------
 	The MIT License (MIT)
 
 	Copyright (c) <year> <copyright holders>
@@ -28,7 +29,7 @@
 	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 	THE SOFTWARE.
-	--------------------------
+	----/snip/----------------------
 */
 var term		= require('./client_term.js');
 var miscUtil	= require('./misc_util.js');
@@ -86,9 +87,9 @@ function Client(input, output) {
 
 	var self	= this;
 
-	this.input				= input;
-	this.output				= output;
-	this.term				= new term.ClientTerminal(this.output);
+	//this.input				= input;
+	//this.output				= output;
+	//this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
@@ -109,6 +110,8 @@ function Client(input, output) {
 			return self.session.id + 1;
 		}
 	});
+
+
 
 	//
 	//	Peek at incoming |data| and emit events for any special
@@ -397,6 +400,13 @@ function Client(input, output) {
 }
 
 require('util').inherits(Client, stream);
+
+Client.prototype.setInputOutput = function(input, output) {
+	this.input	= input;
+	this.output	= output;
+
+	this.term	= new term.ClientTerminal(this.output);
+};
 
 Client.prototype.end = function () {
 	this.detachCurrentMenuModule();

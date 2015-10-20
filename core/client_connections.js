@@ -14,17 +14,17 @@ function getActiveConnections() {
 	return clientConnections.length;
 }
 
-function addNewClient(client) {
+function addNewClient(client, clientSock) {
 	var id = client.session.id = clientConnections.push(client) - 1;
 
 	//	Create a client specific logger 
 	client.log = logger.log.child( { clientId : id } );
 
-	var connInfo = { ip : client.input.remoteAddress };
+	var connInfo = { ip : clientSock.remoteAddress };
 
 	if(client.log.debug()) {
-		connInfo.port		= client.input.localPort;
-		connInfo.family		= client.input.localFamily;
+		connInfo.port		= clientSock.localPort;
+		connInfo.family		= clientSock.localFamily;
 	}
 
 	client.log.info(connInfo, 'Client connected');

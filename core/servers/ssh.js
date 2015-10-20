@@ -7,11 +7,7 @@ var baseClient		= require('../client.js');
 var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
 var userLogin		= require('../user_login.js').userLogin;
-
-//	:TODO: remove this - currently an experimental hack:
-var term			= require('../client_term.js');
-
-var packageJson 	= require('../../package.json');
+var enigVersion 	= require('../../package.json').version;
 
 var ssh2			= require('ssh2');
 var fs				= require('fs');
@@ -25,6 +21,26 @@ exports.moduleInfo = {
 };
 
 exports.getModule		= SSHServerModule;
+
+/*
+Hello,
+
+If you follow the first server example in the `ssh2` readme and substitute the `session.once('exec', ...)` with `session.once('shell', ...)` 
+you should be fine. Just about all ssh clients default to an interactive shell session so that is what you will want to look for. As the 
+documentation notes, the `shell` event handler is just passed `accept, reject` with `accept()` returning a duplex stream representing 
+stdin/stdout. You can write to stderr by using the `stderr` property of the duplex stream object.
+
+You will probably also want to handle the `pty` event on the session, since most clients (by default) will request a pseudo-TTY before 
+requesting an interactive shell. I believe this event may be especially useful in your case because the ssh client can send certain terminal 
+modes which can have relevance with your telnet usage. The event info also contains window dimensions which may help in determining layout 
+of your display (there is also a `window-change` event that contains these same dimensions whenever the client's screen/window dimensions 
+change).
+
+If you are still having problems after making these changes, post your code somewhere and I will see if there is anything out of place. 
+Additionally, you can set `debug: console.log` in the server config object to show debug output which may be useful to see what is or isn't 
+being sent/received ssh protocol-wise.
+*/
+
 
 function SSHClient(clientConn) {
 	baseClient.Client.apply(this, arguments);
@@ -106,7 +122,7 @@ function SSHClient(clientConn) {
 			
 			var session = accept();
 
-			session.on('pty-req', function pty(accept, reject, info) {
+			session.on('pty', function pty(accept, reject, info) {
 				console.log(info);
 				var channel = accept();
 				console.log(channel)
@@ -116,13 +132,7 @@ function SSHClient(clientConn) {
 			session.on('shell', function shell(accept, reject) {
 				var channel = accept();
 
-				channel._write('Hello, world!')
-
-				self.input = channel._client._sock;
-				self.output = channel._client._sock;
-
-
-				self.term				= new term.ClientTerminal(self.output);
+				self.setInputOutput(channel.stdin, channel.stdout);
 
 				self.emit('ready')
 			});
@@ -146,14 +156,13 @@ util.inherits(SSHServerModule, ServerModule);
 SSHServerModule.prototype.createServer = function() {
 	SSHServerModule.super_.prototype.createServer.call(this);
 
-	//	:TODO: setup all options here. What should the banner, etc. really be????
 	var serverConf = {
 		privateKey	: fs.readFileSync(conf.config.servers.ssh.rsaPrivateKey),
-		banner		: 'ENiGMA½ BBS ' + packageJson.version + ' SSH Server',
-		ident		: 'enigma-bbs-' + packageJson.version + '-srv',
+		banner		: 'ENiGMA½ BBS ' + enigVersion + ' SSH Server',
+		ident		: 'enigma-bbs-' + enigVersion + '-srv',
 		debug		: function debugSsh(dbgLine) { 
 			if(true === conf.config.servers.ssh.debugConnections) {
-				self.log.trace('SSH: ' + dbgLine);
+				Log.trace('SSH: ' + dbgLine);
 			}
 		},
 	};
@@ -163,7 +172,8 @@ SSHServerModule.prototype.createServer = function() {
 		Log.info(info, 'New SSH connection');
 
 		var client = new SSHClient(conn);
-		this.emit('client', client);
+		
+		this.emit('client', client, conn._sock);
 	});
 
 	return server;
