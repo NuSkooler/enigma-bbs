@@ -13,6 +13,7 @@ var ssh2			= require('ssh2');
 var fs				= require('fs');
 var util			= require('util');
 var _				= require('lodash');
+var assert			= require('assert');
 
 exports.moduleInfo = {
 	name	: 'SSH',
@@ -52,6 +53,22 @@ function SSHClient(clientConn) {
 
 	var self = this;
 
+	this.userLoginWithCredentials = function(username, password, ctx) {
+		userLogin(self, ctx.username, ctx.password, function authResult(err) {
+			if(err) {
+				if(err.existingConn) {
+					//	:TODO: Already logged in - how to let the SSH client know?
+					//self.term.write('User already logged in');
+					ctx.reject();
+				} else {
+					ctx.reject();
+				}
+			} else {
+				ctx.accept();
+			}
+		});
+	};
+
 	clientConn.on('authentication', function authentication(ctx) {
 		self.log.trace(
 			{
@@ -65,13 +82,7 @@ function SSHClient(clientConn) {
 		switch(ctx.method) {
 			case 'password' :
 				//	:TODO: Proper userLogin() here
-				self.user.authenticate(ctx.username, ctx.password, self, function authResult(err) {
-					if(err) {
-						ctx.reject();
-					} else {
-						ctx.accept();
-					}
-				});
+				self.userLoginWithCredentials(ctx.username, ctx.password, ctx);
 				break;
 
 			case 'publickey' :
@@ -110,10 +121,47 @@ function SSHClient(clientConn) {
 				break;
 
 			default :
-				self.log.info( { method : ctx.method }, 'Unsupported SSH authentication method');
-				ctx.reject();
+				//
+				//	Some terminals such as EtherTERM send a 'none' auth type, but include
+				//	a username and password. For now, allow this. This should be looked
+				//	into further as it may be a security issue!
+				//
+				if('none' === ctx.method && _.isString(ctx.username) && _.isString(ctx.password)) {
+					self.log.warn('Attempting authentication with \'none\' method');
+
+					self.userLoginWithCredentials(ctx.username, ctx.password, ctx);
+				} else {
+					self.log.warn( { method : ctx.method }, 'Unsupported SSH authentication method');
+					ctx.reject( [ 'password', 'keyboard-interactive' ] );
+				}
 		}
 	});
+
+	this.updateTermInfo = function(info) {
+		//
+		//	From ssh2 docs:
+		//	"rows and cols override width and height when rows and cols are non-zero."
+		//
+		var termHeight	= 24;
+		var termWidth	= 80;
+
+		if(info.rows > 0 && info.cols > 0) {
+			termHeight 	= info.rows;
+			termWidth	= info.cols;
+		} else if(info.width > 0 && info.height > 0) {
+			termHeight	= info.height;
+			termWidth	= info.width;
+		}
+
+		assert(_.isObject(self.term));
+
+		self.term.termHeight = termHeight;
+		self.term.termWidth	= termWidth;
+
+		if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
+			self.setTermType(info.term);
+		}
+	};
 
 	clientConn.on('ready', function clientReady() {
 		self.log.info('SSH authentication success');
@@ -123,18 +171,36 @@ function SSHClient(clientConn) {
 			var session = accept();
 
 			session.on('pty', function pty(accept, reject, info) {
-				console.log(info);
-				var channel = accept();
-				console.log(channel)
+				self.log.debug(info, 'SSH pty event');
 
+				if(self.input) {	//	do we have I/O?
+					self.updateTermInfo(info);
+				}
 			});
 
 			session.on('shell', function shell(accept, reject) {
+				self.log.debug('SSH shell event');
+
 				var channel = accept();
 
 				self.setInputOutput(channel.stdin, channel.stdout);
 
+				channel.stdin.on('data', function clientData(data) {
+					self.emit('data', data);
+				});
+
 				self.emit('ready')
+			});
+
+			session.on('subsystem', function subsystem(accept, reject, info) {
+				console.log('subsystem')
+				console.log(info)
+			});
+
+			session.on('window-change', function windowChange(accept, reject, info) {
+				self.log.debug(info, 'SSH window-change event');
+
+				self.updateTermInfo(info);
 			});
 
 		});
@@ -158,8 +224,8 @@ SSHServerModule.prototype.createServer = function() {
 
 	var serverConf = {
 		privateKey	: fs.readFileSync(conf.config.servers.ssh.rsaPrivateKey),
-		banner		: 'ENiGMA½ BBS ' + enigVersion + ' SSH Server',
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
+		//	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: function debugSsh(dbgLine) { 
 			if(true === conf.config.servers.ssh.debugConnections) {
 				Log.trace('SSH: ' + dbgLine);

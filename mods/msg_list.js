@@ -149,7 +149,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				msgNum = 1;
 				msgListView.setFocusItems(_.map(self.messageList, function formatMsgListEntry(mle) {
 					return focusListFormat.format(getMsgFmtObj(mle));
-				});
+				}));
 
 				msgListView.on('index update', function indexUpdated(idx) {
 					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
