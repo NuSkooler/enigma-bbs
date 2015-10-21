@@ -558,12 +558,14 @@ TelnetClient.prototype.handleDontCommand = function(evt) {
 	this.log.trace(evt, 'dont');
 };
 
+/*
 TelnetClient.prototype.setTermType = function(ttype) {
 	this.term.env.TERM		= ttype;
 	this.term.termType		= ttype;
 
 	this.log.debug( { termType : ttype }, 'Set terminal type');
 };
+*/
 
 TelnetClient.prototype.handleSbCommand = function(evt) {
 	var self = this;

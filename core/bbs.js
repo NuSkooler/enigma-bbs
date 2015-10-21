@@ -197,6 +197,8 @@ function startListening() {
 
 			client.on('ready', function onClientReady() {
 
+				client.startIdleMonitor();
+
 				//	Go to module -- use default error handler
 				prepareClient(client, function onPrepared() {
 					require('./connect.js').connectEntry(client);
@@ -219,7 +221,7 @@ function startListening() {
 			});
 
 			client.on('idle timeout', function idleTimeout() {
-				client.log.info('User idle timeout expired');
+				client.log.info('User idle timeout expired');				
 
 				client.gotoMenuModule( { name : 'idleLogoff' }, function goMenuRes(err) {
 					if(err) {

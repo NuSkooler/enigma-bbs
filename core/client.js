@@ -94,23 +94,11 @@ function Client(input, output) {
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
 
-	//
-	//	Every 1m, check for idle.
-	//
-	this.idleCheck = setInterval(function checkForIdle() {
-		var nowMs	= Date.now();
-
-		if(nowMs - self.lastKeyPressMs >= (Config.misc.idleLogoutSeconds * 1000)) {
-			self.emit('idle timeout');
-		}
-	}, 1000 * 60);
-
 	Object.defineProperty(this, 'node', {
 		get : function() {
 			return self.session.id + 1;
 		}
 	});
-
 
 
 	//
@@ -406,6 +394,30 @@ Client.prototype.setInputOutput = function(input, output) {
 	this.output	= output;
 
 	this.term	= new term.ClientTerminal(this.output);
+};
+
+Client.prototype.setTermType = function(termType) {
+	this.term.env.TERM		= termType;
+	this.term.termType		= termType;
+
+	this.log.debug( { termType : termType }, 'Set terminal type');
+};
+
+Client.prototype.startIdleMonitor = function() {
+	var self = this;
+
+	self.lastKeyPressMs		= Date.now();
+
+	//
+	//	Every 1m, check for idle.
+	//
+	self.idleCheck = setInterval(function checkForIdle() {
+		var nowMs	= Date.now();
+
+		if(nowMs - self.lastKeyPressMs >= (Config.misc.idleLogoutSeconds * 1000)) {
+			self.emit('idle timeout');
+		}
+	}, 1000 * 60);
 };
 
 Client.prototype.end = function () {

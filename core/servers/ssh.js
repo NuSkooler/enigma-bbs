@@ -24,24 +24,11 @@ exports.moduleInfo = {
 exports.getModule		= SSHServerModule;
 
 /*
-Hello,
-
-If you follow the first server example in the `ssh2` readme and substitute the `session.once('exec', ...)` with `session.once('shell', ...)` 
-you should be fine. Just about all ssh clients default to an interactive shell session so that is what you will want to look for. As the 
-documentation notes, the `shell` event handler is just passed `accept, reject` with `accept()` returning a duplex stream representing 
-stdin/stdout. You can write to stderr by using the `stderr` property of the duplex stream object.
-
-You will probably also want to handle the `pty` event on the session, since most clients (by default) will request a pseudo-TTY before 
-requesting an interactive shell. I believe this event may be especially useful in your case because the ssh client can send certain terminal 
-modes which can have relevance with your telnet usage. The event info also contains window dimensions which may help in determining layout 
-of your display (there is also a `window-change` event that contains these same dimensions whenever the client's screen/window dimensions 
-change).
-
-If you are still having problems after making these changes, post your code somewhere and I will see if there is anything out of place. 
-Additionally, you can set `debug: console.log` in the server config object to show debug output which may be useful to see what is or isn't 
-being sent/received ssh protocol-wise.
+	TODO's
+	* Need to handle new user path
+		=> [ new username(s) ] -> apply path -> 
+		=> "new" or "apply" -> ....
 */
-
 
 function SSHClient(clientConn) {
 	baseClient.Client.apply(this, arguments);
@@ -53,88 +40,54 @@ function SSHClient(clientConn) {
 
 	var self = this;
 
-	this.userLoginWithCredentials = function(username, password, ctx) {
-		userLogin(self, ctx.username, ctx.password, function authResult(err) {
-			if(err) {
-				if(err.existingConn) {
-					//	:TODO: Already logged in - how to let the SSH client know?
-					//self.term.write('User already logged in');
-					ctx.reject();
-				} else {
-					ctx.reject();
-				}
-			} else {
-				ctx.accept();
-			}
-		});
-	};
+	clientConn.on('authentication', function authAttempt(ctx) {
+		self.log.trace( { method : ctx.method, username : ctx.username }, 'SSH authentication attempt');
 
-	clientConn.on('authentication', function authentication(ctx) {
-		self.log.trace(
-			{
-				domain		: ctx.domain,
-				username	: ctx.username,
-				method		: ctx.method,
-			}, 'SSH authentication');
+		var username	= ctx.username || '';
+		var password	= ctx.password || '';
 
-		//	:TODO: check Config max failed logon attempts/etc.
-
-		switch(ctx.method) {
-			case 'password' :
-				//	:TODO: Proper userLogin() here
-				self.userLoginWithCredentials(ctx.username, ctx.password, ctx);
-				break;
-
-			case 'publickey' :
-				//	:TODO: 
-				ctx.reject();
-				break;
-
-			case 'keyboard-interactive' :
-				if(!_.isString(ctx.username)) {
-					//	:TODO: Let client know a username is required!
-					ctx.reject()
-				}
-
-				var PASS_PROMPT = { prompt : 'Password: ', echo : false };
-				
-				ctx.prompt(PASS_PROMPT, function promptResponse(responses) {
-					if(0 === responses.length) {
-						return ctx.reject( ['keyboard-interactive'] );
+		if(0 === username.length > 0 && password.length > 0) {
+			userLogin(self, ctx.username, ctx.password, function authResult(err) {
+				if(err) {
+					if(err.existingConn) {
+						//	:TODO: Can we display somthing here?
+						ctx.reject();
+						clientConn.end();
+						return;
 					}
-
-					userLogin(self, ctx.username, responses[0], function authResult(err) {
-						if(err) {
-							if(err.existingConn) {
-								//	:TODO: Already logged in - how to let the SSH client know?
-								//self.term.write('User already logged in');
-								ctx.reject();
-							} else {
-								PASS_PROMPT.prompt = 'Invalid username or password\nPassword: ';
-								ctx.prompt(PASS_PROMPT, promptResponse);
-							}
-						} else {
-							ctx.accept();
-						}
-					});					
-				});
-				break;
-
-			default :
-				//
-				//	Some terminals such as EtherTERM send a 'none' auth type, but include
-				//	a username and password. For now, allow this. This should be looked
-				//	into further as it may be a security issue!
-				//
-				if('none' === ctx.method && _.isString(ctx.username) && _.isString(ctx.password)) {
-					self.log.warn('Attempting authentication with \'none\' method');
-
-					self.userLoginWithCredentials(ctx.username, ctx.password, ctx);
 				} else {
-					self.log.warn( { method : ctx.method }, 'Unsupported SSH authentication method');
-					ctx.reject( [ 'password', 'keyboard-interactive' ] );
+					ctx.accept();
 				}
+			});
 		}
+
+		if('keyboard-interactive' !== ctx.method) {
+			return ctx.reject( ['keyboard-interactive'] );
+		}
+
+		if(0 === username.length) {
+			//	:TODO: can we display something here?
+			return ctx.reject();
+		}
+
+		var interactivePrompt = { prompt: ctx.username + '\'s password: ', echo : false };
+
+		ctx.prompt(interactivePrompt, function retryPrompt(answers) {
+			userLogin(self, username, (answers[0] || ''), function authResult(err) {
+				if(err) {
+					if(err.existingConn) {
+						//	:TODO: can we display something here?
+						ctx.reject();
+						clientConn.end();
+					} else {
+						interactivePrompt.prompt = 'Access denied\n' + interactivePrompt.prompt;
+						return ctx.prompt(interactivePrompt, retryPrompt);
+					}
+				} else {
+					ctx.accept();
+				}
+			});	
+		});		
 	});
 
 	this.updateTermInfo = function(info) {
@@ -142,8 +95,8 @@ function SSHClient(clientConn) {
 		//	From ssh2 docs:
 		//	"rows and cols override width and height when rows and cols are non-zero."
 		//
-		var termHeight	= 24;
-		var termWidth	= 80;
+		var termHeight;
+		var termWidth;
 
 		if(info.rows > 0 && info.cols > 0) {
 			termHeight 	= info.rows;
@@ -155,30 +108,40 @@ function SSHClient(clientConn) {
 
 		assert(_.isObject(self.term));
 
-		self.term.termHeight = termHeight;
-		self.term.termWidth	= termWidth;
+		//
+		//	Note that if we fail here, connect.js attempts some non-standard
+		//	queries/etc., and ultimately will default to 80x24 if all else fails
+		//
+		if(termHeight > 0 && termWidth > 0) {
+			self.term.termHeight = termHeight;
+			self.term.termWidth	= termWidth;
+		}
 
 		if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
 			self.setTermType(info.term);
 		}
 	};
 
-	clientConn.on('ready', function clientReady() {
+	clientConn.once('ready', function clientReady() {
 		self.log.info('SSH authentication success');
 
-		clientConn.on('session', function sess(accept, reject) {
+		clientConn.once('session', function sess(accept, reject) {
 			
 			var session = accept();
 
-			session.on('pty', function pty(accept, reject, info) {
+			session.once('pty', function pty(accept, reject, info) {
 				self.log.debug(info, 'SSH pty event');
+
+				accept();
 
 				if(self.input) {	//	do we have I/O?
 					self.updateTermInfo(info);
+				} else {
+					self.cachedPtyInfo = info;
 				}
 			});
 
-			session.on('shell', function shell(accept, reject) {
+			session.once('shell', function shell(accept, reject) {
 				self.log.debug('SSH shell event');
 
 				var channel = accept();
@@ -189,12 +152,13 @@ function SSHClient(clientConn) {
 					self.emit('data', data);
 				});
 
-				self.emit('ready')
-			});
+				if(self.cachedPtyInfo) {
+					self.updateTermInfo(self.cachedPtyInfo);
+					delete self.cachedPtyInfo;
+				}
 
-			session.on('subsystem', function subsystem(accept, reject, info) {
-				console.log('subsystem')
-				console.log(info)
+				//	we're ready!
+				self.emit('ready');
 			});
 
 			session.on('window-change', function windowChange(accept, reject, info) {
@@ -207,7 +171,12 @@ function SSHClient(clientConn) {
 	});
 
 	clientConn.on('end', function clientEnd() {
-		//self.emit('end');
+		self.emit('end');	//	remove client connection/tracking
+	});
+
+	clientConn.on('error', function connError(err) {
+		//	:TODO: what to do here?
+		console.log(err)
 	});
 }
 
