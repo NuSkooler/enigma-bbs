@@ -82,6 +82,7 @@ function getDefaultConfig() {
 			defaultGroups		: [ 'users' ],					//	default groups new users belong to
 
 			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
+			badUserNames		: [ 'sysop', 'admin', 'administrator', 'root' ],
 		},
 
 		//	:TODO: better name for "defaults"... which is redundant here!

@@ -43,6 +43,24 @@
 					}
 				}
 			}
+			
+			newUserApplicationSsh: {
+				mci: {
+					ET1: { width: 23 }
+					ET2: { width: 23 }
+					ET5: { width: 23 }
+					ET6: { width: 23 }
+					
+					ET7: { width: 23 }
+					ET8: { width: 23 }
+					ET9: { width: 23 }
+					ET10: { width: 23 }
+
+					TM12: {
+						focusTextStyle: first lower
+					}
+				}
+			}
 
 			newUserFeedbackToSysOp: {
 				0: {
@@ -117,8 +135,8 @@
 
 			messageAreaMessageList: {
 				config: {
-					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} |01|31{newMark}"
-					focusListFormat: "|00|42|30{msgNum:>4} - {subj:<29.29} {from:<20.20} {ts} {newMark}"
+					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} |01|31{newIndicator}"
+					focusListFormat: "|00|42|30{msgNum:>4} - {subj:<29.29} {from:<20.20} {ts} {newIndicator}"
 					dateTimeFormat: ddd MMM DDD
 				}
 				mci: {

@@ -496,6 +496,12 @@ function TelnetClient(input, output) {
 		self.log.debug(err);	//	:TODO: probably something better...
 		self.emit('end');
 	});
+
+	this.connectionDebug = function(info, msg) {
+		if(Config.servers.telnet.debugConnections) {
+			self.log.trace(info, 'Telnet: ' + msg);
+		}
+	};
 }
 
 util.inherits(TelnetClient, baseClient.Client);
@@ -529,12 +535,12 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 		this.requestNewEnvironment();
 	} else {
 		//	:TODO: temporary:
-		this.log.trace(evt, 'WILL');
+		this.connectionDebug(evt, 'WILL');
 	}
 };
 
 TelnetClient.prototype.handleWontCommand = function(evt) {
-	this.log.trace(evt, 'WONT');
+	this.connectionDebug(evt, 'WONT');
 };
 
 TelnetClient.prototype.handleDoCommand = function(evt) {
@@ -552,12 +558,12 @@ TelnetClient.prototype.handleDoCommand = function(evt) {
 		this.wont.encrypt();
 	} else {
 		//	:TODO: temporary:
-		this.log.trace(evt, 'DO');
+		this.connectionDebug(evt, 'DO');
 	}
 };
 
 TelnetClient.prototype.handleDontCommand = function(evt) {
-	this.log.trace(evt, 'dont');
+	this.connectionDebug(evt, 'dont');
 };
 
 /*

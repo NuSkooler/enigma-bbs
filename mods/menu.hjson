@@ -482,7 +482,7 @@
 
 		fullLoginSequenceLoginArt: {
 			desc: Logging In
-			art: LOGIN
+			art: WELCOME
 			options: { pause: true }
 			next: fullLoginSequenceLastCallers
 		}

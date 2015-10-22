@@ -33,6 +33,12 @@ function validateApplicationData(formData, cb) {
 		return;
 	}
 
+	var invalidNames = Config.users.newUserNames + Config.users.badUserNames;
+	if(invalidNames.indexOf(formData.value.username.toLowerCase()) > -1) {
+		cb('Handle is blacklisted!', [ 1 ] );
+		return;
+	}
+
 	if(isNaN(Date.parse(formData.value.birthdate))) {
 		cb('Invalid birthdate!', [ 3 ] );
 		return;
