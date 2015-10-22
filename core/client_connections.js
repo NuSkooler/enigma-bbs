@@ -22,7 +22,8 @@ function addNewClient(client, clientSock) {
 
 	var connInfo = {
 		ip			: clientSock.remoteAddress,
-		serverType	: client.session.serverType,
+		serverName	: client.session.serverName,
+		isSecure	: client.session.isSecure,
 	};
 
 	if(client.log.debug()) {

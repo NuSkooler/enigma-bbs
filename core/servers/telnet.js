@@ -16,9 +16,10 @@ var util			= require('util');
 //var debug	= require('debug')('telnet');
 
 exports.moduleInfo = {
-	name	: 'Telnet',
-	desc	: 'Telnet Server',
-	author	: 'NuSkooler'
+	name		: 'Telnet',
+	desc		: 'Telnet Server',
+	author		: 'NuSkooler',
+	isSecure	: false,
 };
 
 exports.getModule	= TelnetServerModule;
@@ -784,8 +785,4 @@ TelnetServerModule.prototype.createServer = function() {
 	});
 
 	return server;
-};
-
-TelnetServerModule.prototype.getServerType = function() {
-	return 'TELNET';
 };

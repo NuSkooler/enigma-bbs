@@ -193,7 +193,8 @@ function startListening() {
 				client.session = {};
 			}
 
-			client.session.serverType = moduleInst.getServerType();
+			client.session.serverName 	= module.moduleInfo.name;
+			client.session.isSecure		= module.moduleInfo.isSecure || false;
 
 			clientConns.addNewClient(client, clientSock);
 

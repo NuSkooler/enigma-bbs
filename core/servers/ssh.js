@@ -16,9 +16,10 @@ var _				= require('lodash');
 var assert			= require('assert');
 
 exports.moduleInfo = {
-	name	: 'SSH',
-	desc	: 'SSH Server',
-	author	: 'NuSkooler'
+	name		: 'SSH',
+	desc		: 'SSH Server',
+	author		: 'NuSkooler',
+	isSecure	: true,
 };
 
 exports.getModule		= SSHServerModule;
@@ -231,8 +232,4 @@ SSHServerModule.prototype.createServer = function() {
 	});
 
 	return server;
-};
-
-SSHServerModule.prototype.getServerType = function() {
-	return 'SSH';
 };

@@ -13,6 +13,3 @@ require('util').inherits(ServerModule, PluginModule);
 
 ServerModule.prototype.createServer = function() {
 };
-
-ServerModule.prototype.getServerType = function() {	
-};
