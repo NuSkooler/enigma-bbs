@@ -61,6 +61,8 @@ function getDefaultConfig() {
 	return {
 		general : {
 			boardName		: 'Another Fine ENiGMA½ BBS',
+
+			loginAttempts	: 3,
 		},
 
 		firstMenu	: 'connected',

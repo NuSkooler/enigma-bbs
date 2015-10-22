@@ -54,6 +54,7 @@ function getPredefinedMCIValue(client, code) {
 			UC	: function loginCount() { return client.user.properties.login_count.toString(); },
 			ND	: function connectedNode() { return client.node.toString(); },
 			IP	: function clientIpAddress() { return client.address().address; },
+			ST	: function serverType() { return client.session.serverType; },
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },

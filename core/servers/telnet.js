@@ -785,3 +785,7 @@ TelnetServerModule.prototype.createServer = function() {
 
 	return server;
 };
+
+TelnetServerModule.prototype.getServerType = function() {
+	return 'TELNET';
+};

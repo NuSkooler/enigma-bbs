@@ -40,54 +40,68 @@ function SSHClient(clientConn) {
 
 	var self = this;
 
+	var loginAttempts = 0;
+
 	clientConn.on('authentication', function authAttempt(ctx) {
 		self.log.trace( { method : ctx.method, username : ctx.username }, 'SSH authentication attempt');
 
 		var username	= ctx.username || '';
 		var password	= ctx.password || '';
 
-		if(0 === username.length > 0 && password.length > 0) {
+		function termConnection() {
+			ctx.reject();
+			clientConn.end();
+		}
+
+		if(username.length > 0 && password.length > 0) {
+			loginAttempts += 1;
+
 			userLogin(self, ctx.username, ctx.password, function authResult(err) {
 				if(err) {
 					if(err.existingConn) {
 						//	:TODO: Can we display somthing here?
-						ctx.reject();
-						clientConn.end();
+						termConnection();
 						return;
 					}
 				} else {
 					ctx.accept();
 				}
 			});
-		}
+		} else {
+			if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
+				return ctx.reject(SSHClient.ValidAuthMethods);
+			}
 
-		if('keyboard-interactive' !== ctx.method) {
-			return ctx.reject( ['keyboard-interactive'] );
-		}
+			if(0 === username.length) {
+				//	:TODO: can we display something here?
+				return ctx.reject();
+			}
 
-		if(0 === username.length) {
-			//	:TODO: can we display something here?
-			return ctx.reject();
-		}
+			var interactivePrompt = { prompt: ctx.username + '\'s password: ', echo : false };
 
-		var interactivePrompt = { prompt: ctx.username + '\'s password: ', echo : false };
+			ctx.prompt(interactivePrompt, function retryPrompt(answers) {
+				loginAttempts += 1;
 
-		ctx.prompt(interactivePrompt, function retryPrompt(answers) {
-			userLogin(self, username, (answers[0] || ''), function authResult(err) {
-				if(err) {
-					if(err.existingConn) {
-						//	:TODO: can we display something here?
-						ctx.reject();
-						clientConn.end();
+				userLogin(self, username, (answers[0] || ''), function authResult(err) {
+					if(err) {
+						if(err.existingConn) {
+							//	:TODO: can we display something here?
+							termConnection();
+						} else {
+							interactivePrompt.prompt = 'Access denied\n' + ctx.username + '\'s password: ';
+							
+							if(loginAttempts >= conf.config.general.loginAttempts) {
+								termConnection();
+							} else {
+								return ctx.prompt(interactivePrompt, retryPrompt);
+							}
+						}
 					} else {
-						interactivePrompt.prompt = 'Access denied\n' + interactivePrompt.prompt;
-						return ctx.prompt(interactivePrompt, retryPrompt);
+						ctx.accept();
 					}
-				} else {
-					ctx.accept();
-				}
-			});	
-		});		
+				});	
+			});		
+		}
 	});
 
 	this.updateTermInfo = function(info) {
@@ -125,14 +139,16 @@ function SSHClient(clientConn) {
 	clientConn.once('ready', function clientReady() {
 		self.log.info('SSH authentication success');
 
-		clientConn.once('session', function sess(accept, reject) {
+		clientConn.on('session', function sess(accept, reject) {
 			
 			var session = accept();
 
-			session.once('pty', function pty(accept, reject, info) {
+			session.on('pty', function pty(accept, reject, info) {
 				self.log.debug(info, 'SSH pty event');
 
-				accept();
+				if(_.isFunction(accept)) {
+					accept();
+				}
 
 				if(self.input) {	//	do we have I/O?
 					self.updateTermInfo(info);
@@ -141,7 +157,7 @@ function SSHClient(clientConn) {
 				}
 			});
 
-			session.once('shell', function shell(accept, reject) {
+			session.on('shell', function shell(accept, reject) {
 				self.log.debug('SSH shell event');
 
 				var channel = accept();
@@ -164,6 +180,8 @@ function SSHClient(clientConn) {
 			session.on('window-change', function windowChange(accept, reject, info) {
 				self.log.debug(info, 'SSH window-change event');
 
+				console.log('window-change: ' + accept)
+
 				self.updateTermInfo(info);
 			});
 
@@ -175,12 +193,13 @@ function SSHClient(clientConn) {
 	});
 
 	clientConn.on('error', function connError(err) {
-		//	:TODO: what to do here?
-		console.log(err)
+		self.log.warn( { error : err.toString(), code : err.code }, 'SSH connection error');
 	});
 }
 
 util.inherits(SSHClient, baseClient.Client);
+
+SSHClient.ValidAuthMethods = [ 'password', 'keyboard-interactive' ];
 
 function SSHServerModule() {
 	ServerModule.call(this);
@@ -212,4 +231,8 @@ SSHServerModule.prototype.createServer = function() {
 	});
 
 	return server;
+};
+
+SSHServerModule.prototype.getServerType = function() {
+	return 'SSH';
 };

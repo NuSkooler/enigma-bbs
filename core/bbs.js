@@ -175,7 +175,7 @@ function startListening() {
 
 		var port = parseInt(module.runtime.config.port);
 		if(isNaN(port)) {
-			logger.log.error({ port : module.runtime.config.port, server : module.moduleInfo.name }, 'Cannot load server (Invalid port)');
+			logger.log.error( { port : module.runtime.config.port, server : module.moduleInfo.name }, 'Cannot load server (Invalid port)');
 			return;
 		}
 
@@ -188,10 +188,12 @@ function startListening() {
 			//
 			//	Start tracking the client. We'll assign it an ID which is
 			//	just the index in our connections array.
-			//
+			//			
 			if(_.isUndefined(client.session)) {
 				client.session = {};
 			}
+
+			client.session.serverType = moduleInst.getServerType();
 
 			clientConns.addNewClient(client, clientSock);
 

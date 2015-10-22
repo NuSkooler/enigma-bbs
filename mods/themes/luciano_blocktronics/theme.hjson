@@ -75,6 +75,7 @@
 					UG5: { width: 17 }
 					UT6: { width: 17 }
 					UC7: { width: 17 }
+					ST8: { width: 17 }
 				}
 			}
 
@@ -233,6 +234,7 @@
 					UG5: { width: 17 }
 					UT6: { width: 17 }
 					UC7: { width: 17 }
+					ST8: { width: 17 }
 				}
 			}
 		}

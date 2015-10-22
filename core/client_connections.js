@@ -20,7 +20,10 @@ function addNewClient(client, clientSock) {
 	//	Create a client specific logger 
 	client.log = logger.log.child( { clientId : id } );
 
-	var connInfo = { ip : clientSock.remoteAddress };
+	var connInfo = {
+		ip			: clientSock.remoteAddress,
+		serverType	: client.session.serverType,
+	};
 
 	if(client.log.debug()) {
 		connInfo.port		= clientSock.localPort;

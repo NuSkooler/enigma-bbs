@@ -425,7 +425,15 @@ Client.prototype.end = function () {
 
 	clearInterval(this.idleCheck);
 	
-	return this.output.end.apply(this.output, arguments);
+	try {
+		//
+		//	We can end up calling 'end' before TTY/etc. is established, e.g. with SSH
+		//
+		//	:TODO: is this OK?
+		return this.output.end.apply(this.output, arguments);
+	} catch(e) {
+		//	TypeError
+	}
 };
 
 Client.prototype.destroy = function () {

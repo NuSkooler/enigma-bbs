@@ -74,6 +74,17 @@ function ClientTerminal(output) {
 			//	SCREEN
 			//		* ConnectBot
 			//
+			//	syncterm
+			//		*
+			//
+			//	Reports from various terminals
+			//	SyncTERM
+			//		* syncterm
+			//	
+			//	PuTTY
+			//		* xterm
+			//	
+			//
 			if(this.isANSI()) {
 				this.outputEncoding = 'cp437';
 			} else {
@@ -125,7 +136,7 @@ function ClientTerminal(output) {
 
 ClientTerminal.prototype.isANSI = function() {
 	//	:TODO: Others??
-	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi' ].indexOf(this.termType) > -1;
+	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
 };
 
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
