@@ -180,9 +180,6 @@ function startListening() {
 			return;
 		}
 
-		//	servers require 'firstMenu'
-		assert(module.runtime.config.firstMenu, 'Server missing \'firstMenu\' member!');
-
 		var moduleInst = new module.getModule();
 		var server = moduleInst.createServer();
 
@@ -202,13 +199,13 @@ function startListening() {
 
 			clientConns.addNewClient(client, clientSock);
 
-			client.on('ready', function onClientReady() {
+			client.on('ready', function clientReady(readyOptions) {
 
 				client.startIdleMonitor();
 
 				//	Go to module -- use default error handler
-				prepareClient(client, function onPrepared() {
-					require('./connect.js').connectEntry(client, module.runtime.config.firstMenu);
+				prepareClient(client, function clientPrepared() {
+					require('./connect.js').connectEntry(client, readyOptions.firstMenu);
 				});
 			});
 

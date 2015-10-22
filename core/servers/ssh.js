@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-var conf			= require('../config.js');
+var Config			= require('../config.js').config;
 var baseClient		= require('../client.js');
 var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
@@ -45,14 +45,23 @@ function SSHClient(clientConn) {
 	var loginAttempts = 0;
 
 	clientConn.on('authentication', function authAttempt(ctx) {
-		self.log.trace( { method : ctx.method, username : ctx.username }, 'SSH authentication attempt');
-
 		var username	= ctx.username || '';
 		var password	= ctx.password || '';
+		self.isNewUser	= (Config.users.newUserNames || []).indexOf(username) > -1;
+
+		self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
 		function termConnection() {
 			ctx.reject();
 			clientConn.end();
+		}
+
+		//
+		//	If the system is open and |isNewUser| is true, the login
+		//	sequence is hijacked in order to start the applicaiton process.
+		//
+		if(false === Config.general.closedSystem && self.isNewUser) {
+			return ctx.accept();
 		}
 
 		if(username.length > 0 && password.length > 0) {
@@ -76,8 +85,6 @@ function SSHClient(clientConn) {
 				return ctx.reject(SSHClient.ValidAuthMethods);
 			}
 
-			console.log(ctx.method)
-
 			if(0 === username.length) {
 				//	:TODO: can we display something here?
 				return ctx.reject();
@@ -94,7 +101,7 @@ function SSHClient(clientConn) {
 							//	:TODO: can we display something here?
 							termConnection();
 						} else {				
-							if(loginAttempts >= conf.config.general.loginAttempts) {
+							if(loginAttempts >= Config.general.loginAttempts) {
 								termConnection();
 							} else {
 								var artOpts = {
@@ -106,7 +113,7 @@ function SSHClient(clientConn) {
 									if(err) {
 										interactivePrompt.prompt = 'Access denied\n' + ctx.username + '\'s password: ';
 									} else {
-										var newUserNameList = '"' + (conf.config.users.newUserNames || []).join(', ') + '"';
+										var newUserNameList = '"' + (Config.users.newUserNames || []).join(', ') + '"';
 										interactivePrompt.prompt = 
 											'Access denied\n' + 
 											artInfo.data.format( { newUserNames : newUserNameList } ) + 
@@ -194,7 +201,8 @@ function SSHClient(clientConn) {
 				}
 
 				//	we're ready!
-				self.emit('ready');
+				var firstMenu = self.isNewUser ? Config.servers.ssh.firstMenuNewUser : Config.servers.ssh.firstMenu;
+				self.emit('ready', { firstMenu : firstMenu } );
 			});
 
 			session.on('window-change', function windowChange(accept, reject, info) {
@@ -231,11 +239,11 @@ SSHServerModule.prototype.createServer = function() {
 	SSHServerModule.super_.prototype.createServer.call(this);
 
 	var serverConf = {
-		privateKey	: fs.readFileSync(conf.config.servers.ssh.rsaPrivateKey),
+		privateKey	: fs.readFileSync(Config.servers.ssh.rsaPrivateKey),
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
 		//	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: function debugSsh(dbgLine) { 
-			if(true === conf.config.servers.ssh.debugConnections) {
+			if(true === Config.servers.ssh.debugConnections) {
 				Log.trace('SSH: ' + dbgLine);
 			}
 		},

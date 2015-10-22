@@ -70,6 +70,17 @@
 			options: { nextTimeout: 1500 }
 		}
 
+		//
+		//	Another SSH specialization: If the user logs in with a new user
+		//	name (e.g. "new", "apply", ...) they will be directed to the 
+		//	application process.
+		//
+		sshConnectedNewUser: {
+			art: CONNECT
+			next: newUserApplicationSsh
+			options: { nextTimeout: 1500 }
+		}
+
 		matrix: {
 			art: matrix
 			options: {
@@ -248,7 +259,7 @@
 							}
 							{
 								value: { "submission" : 1 }
-								action: @menu:matrix
+								action: @systemMethod:fallbackMenu
 							}
 						]
 					}
@@ -256,7 +267,93 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @menu:matrix
+							action: @systemMethod:fallbackMenu
+						}
+					]
+				}				
+			}
+		}
+
+		//	SSH specialization of NUA
+		newUserApplicationSsh: {
+			art: NUA
+			fallback: logoff
+			next: newUserFeedbackToSysOpPreamble
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							focus: true
+							argName: username
+							maxLength: @config:users.usernameMax
+						}
+						ET2: {
+							argName: realName
+							maxLength: 32
+						}
+						MET3: {
+							argName: birthdate
+							maskPattern: "####/##/##"
+						}
+						ME4: {
+							argName: sex
+							maskPattern: A
+							textStyle: upper
+						}
+						ET5: {
+							argName: location
+							maxLength: 32
+						}
+						ET6: {
+							argName: affils
+							maxLength: 32
+						}
+						ET7: {
+							argName: email
+							maxLength: 255
+						}
+						ET8: {
+							argName: web
+							maxLength: 255
+						}
+						ET9: {
+							argName: password
+							password: true
+							maxLength: @config:users.passwordMax
+						}
+						ET10: {
+							argName: passwordConfirm
+							password: true
+							maxLength: @config:users.passwordMax
+						}
+						TM12: {
+							argName: submission
+							items: [ "apply", "cancel" ]
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { "submission" : 0 }
+								action: @method:apply/submitApplication
+								extraArgs: {
+									inactive: userNeedsActivated
+									error: newUserCreateError
+								}
+							}
+							{
+								value: { "submission" : 1 }
+								action: @systemMethod:fallbackMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:fallbackMenu
 						}
 					]
 				}				

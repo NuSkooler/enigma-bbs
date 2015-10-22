@@ -62,6 +62,8 @@ function getDefaultConfig() {
 		general : {
 			boardName		: 'Another Fine ENiGMA½ BBS',
 
+			closedSystem	: false,							//	is the system closed to new users?
+
 			loginAttempts	: 3,
 		},
 
@@ -127,11 +129,12 @@ function getDefaultConfig() {
 				firstMenu		: 'telnetConnected',
 			},
 			ssh : {
-				port			: 8889,
-				enabled			: true,
-				rsaPrivateKey	: paths.join(__dirname, './../misc/default_key.rsa'),
-				dsaPrivateKey	: paths.join(__dirname, './../misc/default_key.dsa'),
-				firstMenu		: 'sshConnected',
+				port				: 8889,
+				enabled				: true,
+				rsaPrivateKey		: paths.join(__dirname, './../misc/default_key.rsa'),
+				dsaPrivateKey		: paths.join(__dirname, './../misc/default_key.dsa'),
+				firstMenu			: 'sshConnected',
+				firstMenuNewUser	: 'sshConnectedNewUser',
 			}
 		},
 

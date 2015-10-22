@@ -5,6 +5,7 @@
 var baseClient		= require('../client.js');
 var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
+var Config			= require('../config.js').config;
 
 var net 			= require('net');
 var buffers			= require('buffers');
@@ -583,7 +584,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 
 		if(!self.didReady) {
 			self.didReady = true;
-			self.emit('ready');
+			self.emit('ready', { firstMenu : Config.servers.telnet.firstMenu } );
 		}
 	} else if('new environment' === evt.option) {
 		//
