@@ -88,7 +88,7 @@ function displayBanner(term) {
 		'|00');
 }
 
-function connectEntry(client) {
+function connectEntry(client, nextMenu) {
 	var term = client.term;
 
 	/*
@@ -143,7 +143,7 @@ function connectEntry(client) {
 		displayBanner(term);
 
 		setTimeout(function onTimeout() {
-			client.gotoMenuModule( { name : Config.firstMenu } );
+			client.gotoMenuModule( { name : nextMenu } );
 		}, 500);
 	});	
 }

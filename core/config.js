@@ -65,8 +65,6 @@ function getDefaultConfig() {
 			loginAttempts	: 3,
 		},
 
-		firstMenu	: 'connected',
-		
 		preLoginTheme : '*',
 
 		users : {
@@ -124,12 +122,14 @@ function getDefaultConfig() {
 			telnet : {
 				port			: 8888,
 				enabled			: true,
+				firstMenu		: 'telnetConnected',
 			},
 			ssh : {
 				port			: 8889,
 				enabled			: true,
 				rsaPrivateKey	: paths.join(__dirname, './../misc/default_key.rsa'),
 				dsaPrivateKey	: paths.join(__dirname, './../misc/default_key.dsa'),
+				firstMenu		: 'sshConnected',
 			}
 		},
 

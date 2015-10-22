@@ -51,12 +51,23 @@
 			}
 	*/
 	menus: {
-		connected: {
-			art:	CONNECT
-			next:	matrix
-			options: {
-				nextTimeout: 1500
-			}
+		//
+		//	Send telnet connections to matrix where users can login, apply, etc.
+		//
+		telnetConnected: {
+			art: CONNECT
+			next: matrix
+			options: { nextTimeout: 1500 }
+		}
+
+		//
+		//	SSH connections are pre-authenticated via the SSH server itself.
+		//	Jump directly to the login sequence
+		//
+		sshConnected: {
+			art: CONNECT
+			next: fullLoginSequenceLoginArt
+			options: { nextTimeout: 1500 }
 		}
 
 		matrix: {

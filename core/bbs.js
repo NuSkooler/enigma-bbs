@@ -12,6 +12,7 @@ var paths		= require('path');
 var async		= require('async');
 var util		= require('util');
 var _			= require('lodash');
+var assert		= require('assert');
 
 exports.bbsMain			= bbsMain;
 
@@ -179,6 +180,9 @@ function startListening() {
 			return;
 		}
 
+		//	servers require 'firstMenu'
+		assert(module.runtime.config.firstMenu, 'Server missing \'firstMenu\' member!');
+
 		var moduleInst = new module.getModule();
 		var server = moduleInst.createServer();
 
@@ -204,7 +208,7 @@ function startListening() {
 
 				//	Go to module -- use default error handler
 				prepareClient(client, function onPrepared() {
-					require('./connect.js').connectEntry(client);
+					require('./connect.js').connectEntry(client, module.runtime.config.firstMenu);
 				});
 			});
 
