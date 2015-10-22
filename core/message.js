@@ -54,6 +54,10 @@ function Message(options) {
 		return true;
 	};
 
+	this.isPrivate = function() {
+		return this.areaName === Message.WellKnownAreaNames.Private ? true : false;
+	};
+
 	this.getMessageTimestampString = function(ts) {
 		ts = ts || new Date();
 		return ts.toISOString();

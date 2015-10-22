@@ -149,6 +149,15 @@ function createMessageBaseTables() {
 	);
 
 	dbs.message.run(
+		'CREATE TABLE IF NOT EXISTS user_message_area_last_read ('	+
+		'	user_id		INTEGER NOT NULL,'						+
+		'	area_name	VARCHAR NOT NULL,'						+
+		'	message_id	INTEGER NOT NULL,'						+
+		'	UNIQUE(user_id, area_name)'				+
+		');'
+	);
+
+	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS user_message_status ('	+
 		'	user_id		INTEGER NOT NULL,'					+
 		'	message_id	INTEGER NOT NULL,'					+

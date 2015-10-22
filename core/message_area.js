@@ -15,6 +15,8 @@ exports.getMessageAreaByName				= getMessageAreaByName;
 exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
 exports.gotoMsgAreaFSEModuleForMessage		= gotoMsgAreaFSEModuleForMessage;
+exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
+exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 
 function getAvailableMessageAreas(options) {
 	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
@@ -182,4 +184,37 @@ function gotoMsgAreaFSEModuleForMessage(options, cb) {
 			options.client.gotoMenuModule(modOpts, cb);
 		}
 	});
+}
+
+function getMessageAreaLastReadId(userId, areaName, cb) {
+	msgDb.get(
+		'SELECT message_id '					+
+		'FROM user_message_area_last_read '		+
+		'WHERE user_id = ? AND area_name = ?;',
+		[ userId, areaName ],
+		cb	//	(err, lastId)
+	);
+}
+
+function updateMessageAreaLastReadId(userId, areaName, messageId) {
+	//	:TODO: likely a better way to do this...
+	async.waterfall(
+		[
+			function getCurrent(callback) {
+				getMessageAreaLastReadId(userId, areaName, function result(err, lastId) {
+					lastId = lastId || 0;
+					callback(null, lastId);	//	ignore errors as we default to 0
+				});
+			},
+			function update(lastId, callback) {
+				if(messageId > lastId) {
+					msgDb.run(
+						'REPLACE INTO user_message_area_last_read (user_id, area_name, message_id) '	+
+						'VALUES (?, ?, ?);',
+						[ userId, areaName, messageId ]
+					);
+				}
+			}
+		]
+	);
 }

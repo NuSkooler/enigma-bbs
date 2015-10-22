@@ -120,11 +120,17 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					}
 				});
 			},
+			function getLastReadMesageId(callback) {
+				messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaName, function lastRead(err, lastReadId) {
+					self.lastReadId = lastReadId || 0;
+					callback(null);	//	ignore any errors, e.g. missing value
+				});
+			},
 			function populateList(callback) {
 				var msgListView = vc.getView(MciCodesIds.MsgList);
 
 				//	:TODO: fix default format
-				var listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subj} |{to}';
+				var listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subj} - {to}';
 				var focusListFormat = self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
 				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DDD';
 				var newIndicator		= self.menuConfig.config.newIndicator || '*';
@@ -138,7 +144,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 						from			: mle.fromUserName,
 						to				: mle.toUserName,
 						ts				: moment(mle.modTimestamp).format(dateTimeFormat),
-						newIndicator	: newIndicator,	//	:TODO: These should only be for actual new messages!
+						newIndicator	: mle.messageId > self.lastReadId ? newIndicator : '',
 					}
 				}
 

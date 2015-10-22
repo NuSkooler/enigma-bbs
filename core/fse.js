@@ -1,13 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule				= require('../core/menu_module.js').MenuModule;
-var ViewController			= require('../core/view_controller.js').ViewController;
-var ansi					= require('../core/ansi_term.js');
-var theme					= require('../core/theme.js');
-var MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-var Message					= require('../core/message.js');
-var getMessageAreaByName	= require('../core/message_area.js').getMessageAreaByName;
+var MenuModule					= require('../core/menu_module.js').MenuModule;
+var ViewController				= require('../core/view_controller.js').ViewController;
+var ansi						= require('../core/ansi_term.js');
+var theme						= require('../core/theme.js');
+var MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+var Message						= require('../core/message.js');
+var getMessageAreaByName		= require('../core/message_area.js').getMessageAreaByName;
+var updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
 
 var async					= require('async');
 var assert					= require('assert');
@@ -208,6 +209,10 @@ function FullScreenEditorModule(options) {
 
 	this.setMessage = function(message) {
 		self.message = message;
+
+		if(!self.message.isPrivate()) {
+			updateMessageAreaLastReadId(self.client.user.userId, self.messageAreaName, self.message.messageId);
+		}
 
 		if(self.isReady) {
 			self.initHeaderViewMode();
@@ -864,6 +869,8 @@ require('util').inherits(FullScreenEditorModule, MenuModule);
 
 FullScreenEditorModule.prototype.enter = function(client) {	
 	FullScreenEditorModule.super_.prototype.enter.call(this, client);
+
+
 };
 
 FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {
