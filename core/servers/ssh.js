@@ -8,6 +8,7 @@ var Log				= require('../logger.js').log;
 var ServerModule	= require('../server_module.js').ServerModule;
 var userLogin		= require('../user_login.js').userLogin;
 var enigVersion 	= require('../../package.json').version;
+var theme			= require('../theme.js');
 
 var ssh2			= require('ssh2');
 var fs				= require('fs');
@@ -63,6 +64,8 @@ function SSHClient(clientConn) {
 						//	:TODO: Can we display somthing here?
 						termConnection();
 						return;
+					} else {
+						return ctx.reject(SSHClient.ValidAuthMethods);
 					}
 				} else {
 					ctx.accept();
@@ -72,6 +75,8 @@ function SSHClient(clientConn) {
 			if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
 				return ctx.reject(SSHClient.ValidAuthMethods);
 			}
+
+			console.log(ctx.method)
 
 			if(0 === username.length) {
 				//	:TODO: can we display something here?
@@ -88,13 +93,27 @@ function SSHClient(clientConn) {
 						if(err.existingConn) {
 							//	:TODO: can we display something here?
 							termConnection();
-						} else {
-							interactivePrompt.prompt = 'Access denied\n' + ctx.username + '\'s password: ';
-							
+						} else {				
 							if(loginAttempts >= conf.config.general.loginAttempts) {
 								termConnection();
 							} else {
-								return ctx.prompt(interactivePrompt, retryPrompt);
+								var artOpts = {
+									client		: self,
+									name 		: 'SSHPMPT.ASC',
+									readSauce	: false,
+								};
+								theme.getThemeArt(artOpts, function gotArt(err, artInfo) {
+									if(err) {
+										interactivePrompt.prompt = 'Access denied\n' + ctx.username + '\'s password: ';
+									} else {
+										var newUserNameList = '"' + (conf.config.users.newUserNames || []).join(', ') + '"';
+										interactivePrompt.prompt = 
+											'Access denied\n' + 
+											artInfo.data.format( { newUserNames : newUserNameList } ) + 
+											'\n' + ctx.username + '\'s password: ';
+									}
+									return ctx.prompt(interactivePrompt, retryPrompt);
+								});
 							}
 						}
 					} else {

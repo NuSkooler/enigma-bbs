@@ -77,7 +77,9 @@ function getDefaultConfig() {
 			invalidUsernames	: [],
 
 			groups				: [ 'users', 'sysops' ],		//	built in groups
-			defaultGroups		: [ 'users' ]					//	default groups new users belong to
+			defaultGroups		: [ 'users' ],					//	default groups new users belong to
+
+			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
 		},
 
 		//	:TODO: better name for "defaults"... which is redundant here!
