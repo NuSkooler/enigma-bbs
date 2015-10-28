@@ -1,6 +1,6 @@
 # ENiGMA½ BBS Software
 
-![ENiGMA½ BBS][enigma_by_luciano](http://i325.photobucket.com/albums/k361/request4spam/enigma.ans_zps05w2ey4s.png)
+![alt text](http://i325.photobucket.com/albums/k361/request4spam/enigma.ans_zps05w2ey4s.png "ENiGMA½ BBS")
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
