@@ -32,7 +32,7 @@ As of now this is considered **alpha** code! Please **expect bugs** -- and when 
 
 ## Boards
 * WQH: Xibalba
-* Official support: [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html)
+* Support board: [BLACK ƒlag](telnet://blackflag.acid.org:2425)
 
 
 ## Installation
