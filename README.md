@@ -10,7 +10,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * MCI support for lightbars, toggles, input areas, other bells and whistles you expect with a modern flare
  * Telnet & SSH access built in. Additional servers are easy to build & plug in
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
- * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended!
+ * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
  * Renegade style pipe codes
  * [SQLite](http://sqlite.org/) storage of users and message areas
@@ -25,10 +25,17 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 * Full access checking framework
 * SysOp console
 * Missing functionality such as searching, pipe code support in message areas, etc.
+* String localization
 * A lot more!
 
 ## Known Issues
 As of now this is considered **alpha** code! Please **expect bugs** -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also looking for semi dedicated testers, artists, etc.
+
+## Terminal Clients
+ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
+* [SyncTERM](http://syncterm.bbsdev.net/)
+* [EtherTerm](https://github.com/M-griffin/EtherTerm)
+* [NetRunner](http://mysticbbs.com/downloads.html)
 
 ## Boards
 * WQH: Xibalba
@@ -63,7 +70,7 @@ node main.js
 
 ## Special Thanks
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
-* [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral) and [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM)
+* [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
 * [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html) BBS
 * Luciano Ayres of [Blocktronics](http://blocktronics.org/)   
 
