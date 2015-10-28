@@ -132,8 +132,17 @@ function getDefaultConfig() {
 			ssh : {
 				port				: 8889,
 				enabled				: true,
-				rsaPrivateKey		: paths.join(__dirname, './../misc/default_key.rsa'),
-				dsaPrivateKey		: paths.join(__dirname, './../misc/default_key.dsa'),
+
+				//
+				//	Private key in PEM format
+				//	
+				//	Generating your PK:
+				//	> openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
+				//
+				//	Then, set servers.ssh.privateKeyPass to the password you use above
+				//	in your config.hjson
+				//
+				privateKeyPem		: paths.join(__dirname, './../misc/ssh_private_key.pem'),
 				firstMenu			: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			}

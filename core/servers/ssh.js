@@ -25,13 +25,6 @@ exports.moduleInfo = {
 
 exports.getModule		= SSHServerModule;
 
-/*
-	TODO's
-	* Need to handle new user path
-		=> [ new username(s) ] -> apply path -> 
-		=> "new" or "apply" -> ....
-*/
-
 function SSHClient(clientConn) {
 	baseClient.Client.apply(this, arguments);
 
@@ -239,7 +232,8 @@ SSHServerModule.prototype.createServer = function() {
 	SSHServerModule.super_.prototype.createServer.call(this);
 
 	var serverConf = {
-		privateKey	: fs.readFileSync(Config.servers.ssh.rsaPrivateKey),
+		privateKey	: fs.readFileSync(Config.servers.ssh.privateKeyPem),
+		passphrase	: Config.servers.ssh.privateKeyPass,
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
 		//	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: function debugSsh(dbgLine) { 
