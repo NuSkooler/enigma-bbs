@@ -29,7 +29,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 * A lot more!
 
 ## Known Issues
-As of now this is considered **alpha** code! Please **expect bugs** -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also looking for semi dedicated testers, artists, etc.
+As of now this is considered **alpha** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also looking for semi dedicated testers, artists, etc.
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
@@ -38,7 +38,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [NetRunner](http://mysticbbs.com/downloads.html)
 
 ## Boards
-* WQH: Xibalba
+* WQH: :skull: Xibalba :skull:
 * Support board: BLACK ƒlag (**telnet://blackflag.acid.org:2425**)
 
 
