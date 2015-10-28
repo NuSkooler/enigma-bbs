@@ -6,49 +6,6 @@
 		perfectly valid. The hjson npm can be used to convert to/from JSON.
 
 		See http://hjson.org/ for more information and syntax.
-
-
-
-	*/
-	/*
-		:TODO: Fully convert to HJSON
-
-		Menu Configuration
-
-		Tip: demjson's jsonlint is an excellent tool for linting JSON files
-		that contains comments:
-			jsonlint -S menu.json
-
-		Some concept/ideas:
-			"mci" : {
-				"BT1" : {
-					...
-					"draw" : "@script:blah.js/drawButton"
-					//	@method:scriptName[.js]/methodName (foreign .js)
-					//	@art:artName
-					//	@method:/methodName (local to module.js)
-					//	... pass isFocused/etc. into draw method				
-					NOte that @draw & @art should check theme first. 
-					@draw:myMethod -> theme/draw.js::myMethod(opts)
-
-					priority:
-					@draw:location.js/myMethod -> outside of theme
-					@draw:myMethod -> checks theme -> local first
-					
-					-OR- just inside themes for customization...
-					e.g; 
-					{
-						"myTheme" {
-							"views" : {
-								"VerticalMenuView" : {
-									"draw" : "@method:location.js/myMethod"
-								}
-							}
-						}
-					}
-
-				}
-			}
 	*/
 	menus: {
 		//
@@ -81,13 +38,11 @@
 			options: { nextTimeout: 1500 }
 		}
 
+		//	Ye ol' standard matrix
 		matrix: {
 			art: matrix
-			options: {
-				
-			}
 			form: {
-				0: {	//	:TODO: 	Make form "0" the default if missing (e.g. optional)... not sure how with current structure though
+				0: {
 					VM: {
 						mci: {
 							VM1:  {
@@ -97,18 +52,16 @@
 								items: [ "login", "apply", "log off" ]
 							}
 						}
-
 						submit: {
 							*: [
 								{
 									value: { 1: 0 }
-									action:	@menu:login2
-								},
+									action:	@menu:login
+								}
 								{
 									value: { 1: 1 },
 									action: @menu:newUserApplication
-									//action: @menu:apply
-								},
+								}
 								{
 									value: { 1: 2 },
 									action: @menu:logoff
@@ -120,29 +73,10 @@
 			}
 		}
 
-		"login" : {
-			"prompt"	: "userLoginCredentials",
-			"fallback"	: "matrix",
-			"next"		: "fullLoginSequenceLoginArt",
-			"action"	: "@systemMethod:login",
-
-			//	:TODO: support alt submit method for prompts
-			//	if present, standard filters apply. No need for multiple submit ID's
-			//	since a prompt can only utilize one:
-			/*"submit" : [
-				{
-					"value" : { "password" : null },
-					"action" : "@systemMethod:login"
-				}
-			]*/
-		},
-
-		login2: {
+		login: {
 			art: USERLOG
-			//next: messageArea
 			next: fullLoginSequenceLoginArt
 			config: {
-				//tooNodeArt: TOONODE
 				tooNode: {
 					art: TOONODE
 				}
@@ -162,7 +96,6 @@
 							submit: true
 						}
 					}
-
 					submit: {
 						*: [
 							{
@@ -181,14 +114,14 @@
 			}
 		}
 
-		"logoff" : {
-			"art"		: "LOGOFF",
-			"next"		: "@systemMethod:logoff",
-		},
+		logoff: {
+			art: LOGOFF
+			next: @systemMethod:logoff
+		}
 		/*
 			nua -> send sysop mail -> { active } -> matrix
 			                       -> you must active -> matrix
-			TODO: display PRINT before this (Obv/2)
+			TODO: display PRINT before this (Obv/2) or NEWUSER1 (Mystic)
 		*/
 		newUserApplication: {
 			art: NUA
@@ -504,17 +437,11 @@
 			art: STATUS
 			options: { pause: true }
 			next: mainMenu
-		},
-		"newUserActive" : {
-			"art"		: "SO-CC1.ANS",
-			"options"	: { "pause" : true },
-			"next"		: "currentUserStats"
-		},
-		"currentUserStats" : {
-			"art" : "userstats",
-			"options" : { "pause" : true }
-			//"action"	: "@menu:lastCallers"
-		},
+		}
+
+		///////////////////////////////////////////////////////////////////////
+		//	Main Menu
+		///////////////////////////////////////////////////////////////////////
 		mainMenu: {
 			art: MMENU
 			desc: Main Menu
@@ -532,12 +459,6 @@
 					value: { command: "D" }
 					action: @menu:doorMenu
 				}
-				/*
-				{
-					"value"		: { "command" : "L" },
-					"action"	: "@menu:doorLORD"
-				},
-				*/
 				{
 					value: { command: "U" }
 					action: @menu:mainMenuUserList
@@ -645,6 +566,9 @@
 				}
 			}
 		}
+		///////////////////////////////////////////////////////////////////////
+		//	Doors Menu
+		///////////////////////////////////////////////////////////////////////
 		doorMenu: {
 			desc: Doors Menu
 			art: DOORMNU
@@ -668,8 +592,40 @@
 				}
 			]
 		}
+		/*
+			The 'abracadabra' module's config.args accepts the following format objects:
+			{dropfile}		- Path to generated dropfile
+			{node}			- Node number
+		*/
+		doorPimpWars: {
+			desc: Playing PimpWars
+			module: abracadabra			
+			config: {
+				name: PimpWars
+				dropFileType: DORINFO
+				cmd: /usr/bin/dosemu
+				args: [ 
+					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
+				],
+				nodeMax: 1
+				//	:TODO: Obv/2 name for this?
+				tooManyArt: doortoomany.ans
+			}
+		},
+		doorLORD: {
+			desc: Playing L.O.R.D.
+			module: abracadabra
+			config: {
+				name: LORD
+				dropFileType: DOOR
+				cmd: /usr/bin/dosemu
+				args: [
+					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\LORD\\START.BAT {node}"
+				]
+			}
+		}
 		///////////////////////////////////////////////////////////////////////
-		//	Message Area Related
+		//	Message Area Menu
 		///////////////////////////////////////////////////////////////////////
 		messageArea: {
 			module: msg_area
@@ -706,24 +662,24 @@
 		messageAreaChangeCurrentArea: {
 			art: CHANGE
 			module: msg_area_list
-			"form"		: {
-				"0" : {
-					"mci" : {
-						"VM1" : {
-							"focus"		: true,
-							"submit"	: true,
-							"argName"	: "area"
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							submit: true
+							argName: area
 						}
-					},
-					"submit" : {
-						"*" : [
+					}
+					submit: {
+						*: [
 							{
-								"value"		: { "area" : null },
-								"action"	: "@method:changeArea"
+								value: { area: null }
+								action: @method:changeArea
 							}
 						]
-					},
-					"actionKeys" : [
+					}
+					actionKeys: [
 						{
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:fallbackMenu
@@ -731,12 +687,13 @@
 					]
 				}
 			}
-		},
+		}
 		messageAreaMessageList: {
 			module: msg_list
 			art: MSGLIST
 			config: {
 				listType: public
+				menuViewPost: messageAreaViewPost
 			}
 			form: {
 				0: {
@@ -769,10 +726,10 @@
 			module: msg_area_view_fse
 			config: {
 				art: {
-					header:				MSGVHDR
-					body: 				MSGBODY
-					footerView:			MSGVFTR
-					help:				MSGVHLP
+					header:		MSGVHDR
+					body: 		MSGBODY
+					footerView:	MSGVFTR
+					help:		MSGVHLP
 				},
 				editorMode: view
 				editorType: area
@@ -787,15 +744,14 @@
 					mci: {
 						MT1: {
 							width: 79
-							//"height"	: 14,
 							mode: preview
 						}
 					}
 					submit: {
 						*: [
 							{
-								"value"		: "message",
-								"action"	: "@method:editModeEscPressed"
+								value: message
+								action: @method:editModeEscPressed
 							}
 						]
 					}
@@ -818,7 +774,6 @@
 					mci: {
 						HM1: {
 							//	:TODO: (#)Jump/(L)Index (msg list)/Last
-							//	(p)rev, (n)ext, (r)eply, (q)uit/ESC, (?)help
 							items: [ "prev", "next", "reply", "quit", "help" ]
 						}
 					}
@@ -868,7 +823,6 @@
 						{
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:fallbackMenu
-							//action: @menu:messageArea
 						}
 						{
 							keys: [ "?" ]
@@ -887,7 +841,7 @@
 			config: {
 				art: {
 					header:				MSGEHDR
-					body:				MSGBODY
+					body: 				MSGBODY
 					quote:				MSGQUOT
 					footerEditor:		MSGEFTR
 					footerEditorMenu:	MSGEMFT
@@ -899,13 +853,11 @@
 			form: {
 				0: {
 					mci: {
-						//	:TODO: use appropriate system properties for these lenghts
+						//	:TODO: use appropriate system properties for max lengths
 						TL1: {
-							//width: 27
 							argName: from
 						}
 						ET2: {
-							//width: 27
 							argName: to
 							focus: true
 						}
@@ -916,10 +868,6 @@
 						}
 						TL4: {
 							//	:TODO: this is for RE: line (NYI)
-							//width: 27
-							//textOverflow: ...
-						}
-						MA5: {
 							//width: 27
 							//textOverflow: ...
 						}
@@ -1038,7 +986,6 @@
 		messageAreaNewPost: {
 			status: Posting message,
 			module: msg_area_post_fse
-			//"fallback"	: "messageArea",	//	:TODO: remove once default fallback is in place
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -1067,11 +1014,11 @@
 							submit: true
 						}
 					}
-					"submit" : {
-						"3" : [
+					submit: {
+						3: [
 							{
-								"value"		: { "subject" : null },
-								"action"	: "@method:headerSubmit"
+								value: { subject: null }
+								action: @method:headerSubmit
 							}
 						]
 					}
@@ -1088,51 +1035,47 @@
 
 					submit: {
 						*: [ { "value": "message", "action": "@method:editModeEscPressed" } ]
-					},
+					}
 					actionKeys: [
 						{
-							"keys"		: [ "escape" ],
-							"viewId"	: 1
+							keys: [ "escape" ]
+							viewId: 1
 						}
 					]
-				},
-				"2" : {
-					"TLTL" :  {
-						"mci" : {
-							"TL1" : {
-								"width"	: 5
-							},
-							"TL2" : {
-								"width" : 4
-							}
+				}
+				2: {
+					TLTL:  {
+						mci: {
+							TL1: { width: 5 }
+							TL2: { width: 4	}
 						}
 					}
-				},
-				"3" : {
-					"HM" : {
-						"mci" : {
-							"HM1" : {
+				}
+				3: {
+					HM: {
+						mci: {
+							HM1: {
 								//	:TODO: clear
 								"items" : [ "save", "discard", "help" ]
 							}
-						},
-						"submit" : {
-							"*" : [
+						}
+						submit: {
+							*: [
 								{
-									"value"		: { "1" : 0 },
-									"action"	: "@method:editModeMenuSave"
-								},
-								{
-									"value"		: { "1" : 1 },
-									"action"	: "@menu:messageArea"
+									value: { 1: 0 }
+									action: @method:editModeMenuSave
 								}
 								{
-									"value"		: { "1" : 2 },
-									"action"	: "@method:editModeMenuHelp"
+									value: { 1: 1 }
+									action: @menu:messageArea
+								}
+								{
+									value: { 1: 2 }
+									action: @method:editModeMenuHelp
 								}
 							]
-						},
-						actionKeys: [	//	:TODO: Need better name
+						}
+						actionKeys: [
 							{
 								keys: [ "escape" ]
 								action: @method:editModeEscPressed
@@ -1152,89 +1095,17 @@
 					}
 				}
 			}
-		},
-		///////////////////////////////////////////////////////////////////////
-		//	Doors
-		///////////////////////////////////////////////////////////////////////
-		doorPimpWars: {
-			desc: Playing PimpWars
-			module: abracadabra			
-			config: {
-				name: PimpWars
-				dropFileType: DORINFO
-				cmd: /usr/bin/dosemu
-				args: [ 
-					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
-				],
-				nodeMax: 1
-				//	:TODO: Obv/2 name for this?
-				tooManyArt: doortoomany.ans
-			}
-		},
-		"doorLORD" : {
-			"module"	: "abracadabra",
-			"fallback"	: "mainMenu",
-			"config" 	: {
-				"name"			: "LORD",
-				"dropFileType"	: "DOOR",
-				"cmd"			: "/usr/bin/dosemu",
-				"args"			: [
-					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\LORD\\START.BAT {node}"
-				]
-			}
-		},
-		doorTestExample: {
-			module: abracadabra
-			config: {
-				name: example
-				dropFileType: DOOR
-				cmd: "/usr/bin/dosemu"
-				args: [ "-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\SLOWMO.EXE 1 120 X:\\LORD\\LAIRANS.ANS"]
-			}
 		}
 		////////////////////////////////////////////////////////////////////////
-		//	Mods
+		//	Required entries
 		////////////////////////////////////////////////////////////////////////
 		idleLogoff: {
 			art:	IDLELOG
 			next:	@systemMethod:logoff
-		},
-		////////////////////////////////////////////////////////////////////////
-		//	Mods
-		////////////////////////////////////////////////////////////////////////
-		"lastCallers" :{
-			"module"	: "last_callers",
-			"art"		: "LASTCALL.ANS",
-			"options"	: { "pause" : true },
-			"config"	: {
-				"dateTimeFormat" : "ddd MMM Do H:mm a"
-			},
-			"form" : {
-				"0" : {
-					"TLTLTLTL" : {
-						"mci" : {
-							//	:TODO: Bug: Without any keys here, theme customization does not apply!!!!
-							"TL1" :  {
-								"styleSGR1" : "|00|24"
-							},
-							"TL2" :  {
-								"styleSGR1" : "|00|24"
-							},
-							"TL3" :  {
-								"styleSGR1" : "|00|24"
-							},
-							"TL4" :  {
-								"styleSGR1" : "|00|24"
-							}
-
-						}
-					}
-				}
-			}
-
-		},
+		}
 		////////////////////////////////////////////////////////////////////////
 		//	Demo Section
+		//	:TODO: This entire section needs updated!!!
 		////////////////////////////////////////////////////////////////////////
 		"demoMain" : {
 			"art" : "demo_selection_vm.ans",
@@ -1708,96 +1579,9 @@
 								"action"	: "@method:editModeEscPressed"
 							}
 						]
-						//	:TODO: something like the following for overriding keymap
-						//	this should only override specified entries. others will default
-						/*
-						"keyMap" : {
-							"accept" : [ "return" ]
-						}
-						*/
 					}
 				}
 			}
-			/*
-			"form" : {
-				"0" : {
-					"ET1ET2MT3" : {
-						"mci" : {
-							"ET1" : {
-								"width"			: 20,
-								"placeholder"	: "TODO support this",
-								"focus"			: true
-							},
-							"ET2" : {
-								"width" : 20
-							},
-							"MT3" : {
-								"width"		: 79,
-								"height" 	: 17,
-								"text"		: "",
-								"submit"	: [ "escape" ]
-							}
-						},
-						"submit" : {
-							//	:TODO: It may be nice to have a way to submit without data - e.g. we just care about the key press. 
-							"3" : [
-								{
-									"value" 	: 3,
-									"action"	: "@method:editorEscPressed"
-								}
-							]
-						}
-					}
-				}
-			}
-			*/
-		}
-		
-		/*
-		:TODO: conceptual simplified menus -- actions/etc. without forms
-
-		{
-			"myMenu" : {
-				"art" : "MENUART",
-				"mci" : {	//	lack of "form": direct to form:0 {}
-					"VM1" : {
-						"items" : [ "Hello", "Goodbye" ],
-						"action" : "@method:someMethod"	//	implies  { "submit" : true }
-					},
-					"submit" : {
-						//	alternate form with filters
-					}
-				}
-			}
-		}
-		*/
-		/*
-		"demoEditTextView" : {
-			"art" : "demo_edit_text_view.ans",
-			"form" : {
-				"0" : {
-					"ET1ET2ET3ET5SM4TM6" : {
-						"mci" : {
-							"ET1" : { "maxLength" : 1 },
-							"ET2" : { "maxLength" : 1 },
-							"ET3" : { "maxLength" : 1 },
-							"SM4" : {
-								"items" : [ "One", "Two", "Three", "Four" ]
-							},
-							"ET5" : {
-								"password" : true,
-								"submit" : [ "escape" ],
-								"fillChar" : "#"
-							},
-							"TM6" : {
-								"items" : [ "Yes", "No" ],
-								"hotkeys" : { "Y" : 0, "n" : 1 }
-							}
-						}
-					}
-				}
-			}
-		}
-		*/
+		}		
 	}
 }

@@ -77,7 +77,7 @@
 				}
 			}
 
-			login2: {
+			login: {
 				mci: {
 					ET1: { width: 14 }
 					ET2: { width: 14 }
