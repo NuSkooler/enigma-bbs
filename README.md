@@ -38,7 +38,7 @@ As of now this is considered alpha code! Please **expect bugs** -- and when you 
 ## Installation
 1. Clone:
 ```bash
-git clone https://TODO
+git clone https://github.com/NuSkooler/enigma-bbs.git
 ```
 2. Create **~/.enigma-bbs/config.hjson**. Example:
 ```hjson
