@@ -1,5 +1,7 @@
 # ENiGMA½ BBS Software
 
+![ENiGMA½ BBS][enigma_by_luciano](http://i325.photobucket.com/albums/k361/request4spam/enigma.ans_zps05w2ey4s.png)
+
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
 
@@ -8,7 +10,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Multi node support
  * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and theming in addition to JS based mods
  * MCI support for lightbars, toggles, input areas, other bells and whistles you expect with a modern flare
- * Telnet & SSH access built in. Additional servers are easy to build & plug in
+ * Telnet & SSH access built in. Additional servers are easy to implement & plug in
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
@@ -72,7 +74,7 @@ node main.js
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
 * [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html) BBS
-* Luciano Ayres of [Blocktronics](http://blocktronics.org/)   
+* Luciano Ayres of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
