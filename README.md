@@ -51,8 +51,12 @@ messages: {
   ]
 }
 ```
-3. Launch:
+3. Install dependencies:
+```bash
+npm install
 ```
+4. Launch:
+```bash
 node main.js
 ```
 (More information will be available in the documentation in the near future)
