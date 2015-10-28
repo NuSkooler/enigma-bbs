@@ -28,10 +28,12 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 * SysOp console
 * Missing functionality such as searching, pipe code support in message areas, etc.
 * String localization
-* A lot more!
+* A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 
 ## Known Issues
 As of now this is considered **alpha** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also looking for semi dedicated testers, artists, etc.
+
+See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more information.
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
