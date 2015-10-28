@@ -9,7 +9,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Multiplatform: Anywhere Node.js runs likely works (tested under Linux and OS X)
  * Multi node support
  * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and theming in addition to JS based mods
- * MCI support for lightbars, toggles, input areas, other bells and whistles you expect with a modern flare
+ * MCI support for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet & SSH access built in. Additional servers are easy to implement & plug in
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
