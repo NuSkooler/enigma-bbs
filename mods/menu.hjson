@@ -608,9 +608,7 @@
 					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
 				],
 				nodeMax: 1
-				//	:TODO: Obv/2 name for this?
 				tooManyArt: DOORMANY
-				tooManyArt: doortoomany.ans
 			}
 		},
 		doorLORD: {
