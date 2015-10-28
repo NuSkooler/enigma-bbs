@@ -31,7 +31,6 @@ function init(configPath, cb) {
 				});
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				//var mergedConfig = _.defaultsDeep(configJson, getDefaultConfig());
 				var mergedConfig = _.merge(getDefaultConfig(), configJson, function mergeCustomizer(conf1, conf2) {
 					//	Arrays should always concat
 					if(_.isArray(conf1)) {
@@ -62,7 +61,7 @@ function getDefaultConfig() {
 		general : {
 			boardName		: 'Another Fine ENiGMA½ BBS',
 
-			closedSystem	: false,							//	is the system closed to new users?
+			closedSystem	: false,					//	is the system closed to new users?
 
 			loginAttempts	: 3,
 		},
@@ -82,6 +81,8 @@ function getDefaultConfig() {
 			defaultGroups		: [ 'users' ],					//	default groups new users belong to
 
 			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
+
+			//	:TODO: Mystic uses TRASHCAN.DAT for this -- is there a reason to support something like that?
 			badUserNames		: [ 'sysop', 'admin', 'administrator', 'root' ],
 		},
 

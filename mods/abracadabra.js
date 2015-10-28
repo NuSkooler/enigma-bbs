@@ -40,6 +40,8 @@ exports.moduleInfo = {
 			"tooManyArt"	: "toomany-lord.ans"
 		}
 	}
+
+	:TODO: See Mystic & others for other arg options that we may need to support
 */
 function AbracadabraModule(options) {
 	MenuModule.call(this, options);
