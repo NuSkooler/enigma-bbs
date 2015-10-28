@@ -32,7 +32,7 @@ As of now this is considered **alpha** code! Please **expect bugs** -- and when 
 
 ## Boards
 * WQH: Xibalba
-* Support board: [BLACK ƒlag](telnet://blackflag.acid.org:2425)
+* Support board: BLACK ƒlag (**telnet://blackflag.acid.org:2425**)
 
 
 ## Installation
