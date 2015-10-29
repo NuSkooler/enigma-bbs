@@ -66,7 +66,22 @@ messages: {
 ```bash
 npm install
 ```
-4. Launch:
+4. Generate a PK for SSH usage:
+```bash
+mkdir misc
+openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
+```
+
+After generation, set servers.ssh.privateKeyPass to your password in config.hjson:
+```hjson
+servers: {
+  ssh: {
+    privateKeyPass: YOUR_PK_PASS
+  }
+}
+```
+
+5. Launch:
 ```bash
 node main.js
 ```
