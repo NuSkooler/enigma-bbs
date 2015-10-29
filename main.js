@@ -1,11 +1,12 @@
-"use strict";
+#!/usr/bin/env node
 
-var net		= require('net');
-var fs		= require('fs');
-var paths	= require('path');
+/* jslint node: true */
+'use strict';
 
-//	ENiGMA½
-var bbs		= require('./core/bbs.js')
+/*
+	ENiGMA½ entry point
 
-//	The entry point.
-bbs.bbsMain();
+	If this file does not run directly, ensure it's executable:
+	> chmod u+x main.js	
+*/
+require('./core/bbs.js').bbsMain();
