@@ -1,4 +1,6 @@
 {
+	//	:TODO: this entire file needs cleaned up a LOT
+	//	:TODO: Convert all of this to HJSON
 	"prompts" : {
 		"userCredentials" : {
 			"art" : "usercred",
