@@ -2,12 +2,8 @@
 'use strict';
 
 var ansi		= require('./ansi_term.js');
-var theme		= require('./theme.js');
-var moduleUtil	= require('./module_util.js');
-var Config		= require('./config.js').config;
 
 var assert		= require('assert');
-var util		= require('util');
 
 exports.connectEntry	= connectEntry;
 
@@ -81,31 +77,15 @@ function prepareTerminal(term) {
 }
 
 function displayBanner(term) {
-	//	:TODO: add URL(s) to banner
 	term.pipeWrite(
 		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 |VN\n'	+
 		'|00|33Copyright (c) 2014-2015 Bryan Ashby |33|01- |31|01http://l33t.codes/\n'	+ 
+		'|00|33Updates & source |01- |31|01https://github.com/NuSkooler/enigma-bbs/\n'			+
 		'|00');
 }
 
 function connectEntry(client, nextMenu) {
 	var term = client.term;
-
-	/*
-	theme.displayThemeArt({client : client, name : 'DM-ENIG.ANS'}, function onArt() {
-		return;
-	});
-*/
-	/*
-	var iconv = require('iconv-lite');
-	var art1 = require('fs').readFileSync('/home/nuskooler/dev/enigma-bbs/mods/art/DM-ENIG.ANS');
-	console.log(typeof art1);
-	art1 = iconv.decode(art1, 'cp437');
-	console.log(typeof art1)
-	term.output.write(art1);
-	//term.output.write(require('iconv-lite').encode(art1, 'CP437'));
-	return;
-	*/
 
 	//	:TODO: Enthral for example queries cursor position & checks if it worked. This might be good
 	//	:TODO: How to detect e.g. if show/hide cursor can work? Probably can if CPR is avail
@@ -115,7 +95,7 @@ function connectEntry(client, nextMenu) {
 	//
 	term.rawWrite(ansi.queryDeviceAttributes(0));
 
-	//	:TODO: PuTTY will apparently respond with "PuTTY" if a CTRL-E is sent to it
+	//	:TODO: PuTTY will apparently respond with "PuTTY" if a CTRL-E is sent to it. Add in detection.
 
 	//	
 	//	If we don't yet know the client term width/height,
