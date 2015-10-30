@@ -47,11 +47,13 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 
 ## Installation
-1. Clone:
+**Clone**
 ```bash
 git clone https://github.com/NuSkooler/enigma-bbs.git
+
 ```
-2. Create **~/.enigma-bbs/config.hjson**. Example:
+**Create a Config**
+Create new *~/.enigma-bbs/config.hjson* file. Example:
 ```hjson
 general: {
   boardName: Super Awesome BBS
@@ -62,11 +64,13 @@ messages: {
   ]
 }
 ```
-3. Install dependencies:
+
+**Install dependencies**
 ```bash
 npm install
 ```
-4. Generate a PK for SSH usage:
+
+**Generate a PK for SSH usage**
 ```bash
 mkdir misc
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
@@ -81,7 +85,7 @@ servers: {
 }
 ```
 
-5. Launch:
+**Launch**
 ```bash
 node main.js
 ```
