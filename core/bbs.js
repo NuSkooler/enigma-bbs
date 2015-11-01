@@ -99,7 +99,6 @@ function initialize(cb) {
 				});
 
 				//	Init some extensions
-				require('iconv-lite').extendNodeEncodings();
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 
 				callback(null);

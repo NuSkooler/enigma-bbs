@@ -9,6 +9,7 @@ var assert			= require('assert');
 var binary			= require('binary');
 var fs				= require('fs');
 var util			= require('util');
+var iconv			= require('iconv-lite');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringFromFTN			= stringFromFTN;
@@ -29,7 +30,7 @@ function stringFromFTN(buf, encoding) {
 		}
 	}
 
-	return buf.slice(0, nullPos).toString(encoding || 'utf-8');
+	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
 }
 
 

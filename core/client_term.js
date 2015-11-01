@@ -10,8 +10,6 @@ var iconv			= require('iconv-lite');
 var assert			= require('assert');
 var _				= require('lodash');
 
-//iconv.extendNodeEncodings();
-
 exports.ClientTerminal	= ClientTerminal;
 
 function ClientTerminal(output) {

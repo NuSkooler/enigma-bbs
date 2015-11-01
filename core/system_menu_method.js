@@ -10,6 +10,7 @@ var userLogin			= require('./user_login.js').userLogin;
 
 var async				= require('async');
 var _					= require('lodash');
+var iconv				= require('iconv-lite');
 
 exports.login			= login;
 exports.logoff			= logoff;
@@ -66,7 +67,7 @@ function logoff(callingMenu, formData, extraArgs) {
 		//
 		client.term.write(
 			ansi.normal() +	'\n' +
-			require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20).toString(client.term.outputEncoding) + 
+			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) + 
 			'NO CARRIER');
 
 		client.end();
