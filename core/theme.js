@@ -280,16 +280,22 @@ function displayThemedPause(options, cb) {
 							promptConfig = promptJson.prompts.pause;
 							callback(_.isObject(promptConfig) ? null : new Error('Invalid prompt config block!'));
 						} else {
-							callback(new Error('Missing standard \'pause\' prompt'))
+							callback(new Error('Missing standard \'pause\' prompt'));
 						}
 					}					
 				});
 			},
 			function displayPausePrompt(callback) {
+				//
+				//	Override .font so it doesn't change from current setting
+				//
+				var dispOptions = promptConfig.options;
+				dispOptions.font = 'not_really_a_font!';
+
 				displayThemedAsset(
 					promptConfig.art, 
 					options.client,
-					promptConfig.options,
+					dispOptions,
 					function displayed(err, artData) {
 						artInfo = artData;
 						callback(err);

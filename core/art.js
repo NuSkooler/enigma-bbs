@@ -35,7 +35,9 @@ var SUPPORTED_ART_TYPES = {
 	'.asc'	: { name : 'ASCII',		defaultEncoding : 'cp437',	eof : 0x1a  },
 	'.pcb'	: { name : 'PCBoard',	defaultEncoding : 'cp437',	eof : 0x1a  },
 	'.bbs'	: { name : 'Wildcat',	defaultEncoding : 'cp437',	eof : 0x1a  },
-	'.txt'	: { name : 'Text',		defaultEncoding : 'cp437',	eof : 0x1a  },	//	:TODO: think about this more...
+
+	'.amiga'	: { name : 'Amiga',			defaultEncoding	: 'amiga',	eof : 0x1a }, 
+	'.txt'		: { name : 'Amiga Text',	defaultEncoding : 'cp437',	eof : 0x1a  },
 	//	:TODO: extentions for wwiv, renegade, celerity, syncronet, ...
 	//	:TODO: extension for atari
 	//	:TODO: extension for topaz ansi/ascii.
@@ -79,7 +81,7 @@ function readSAUCE(data, cb) {
 				return;
 			}	
 
-			var ver = vars.version.toString('cp437');
+			var ver = iconv.decode(vars.version, 'cp437');
 
 			if('00' !== ver) {
 				cb(new Error('Unsupported SAUCE version: ' + ver));
@@ -87,12 +89,12 @@ function readSAUCE(data, cb) {
 			}
 
 			var sauce = {
-				id 			: vars.id.toString('cp437'),
-				version		: vars.version.toString('cp437'),
-				title		: vars.title.toString('cp437').trim(),
-				author		: vars.author.toString('cp437').trim(),
-				group		: vars.group.toString('cp437').trim(),
-				date		: vars.date.toString('cp437').trim(),
+				id 			: iconv.decode(vars.id, 'cp437'),
+				version		: iconv.decode(vars.version, 'cp437').trim(),
+				title		: iconv.decode(vars.title, 'cp437').trim(),
+				author		: iconv.decode(vars.author, 'cp437').trim(),
+				group		: iconv.decode(vars.group, 'cp437').trim(),
+				date		: iconv.decode(vars.date, 'cp437').trim(),
 				fileSize	: vars.fileSize,
 				dataType	: vars.dataType,
 				fileType	: vars.fileType,
@@ -182,7 +184,7 @@ function parseCharacterSAUCE(sauce) {
 		while(i < sauce.tinfos.length && sauce.tinfos[i] !== 0x00) {
 			++i;
 		}
-		var fontName = sauce.tinfos.slice(0, i).toString('cp437');
+		var fontName = iconv.decode(sauce.tinfos.slice(0, i), 'cp437');
 		if(fontName.length > 0) {
 			result.fontName = fontName;
 		}
@@ -525,7 +527,6 @@ function display(options, cb) {
 
 	//	:TODO: If options.font, set the font via ANSI
 	//	...this should come from sauce, be passed in, or defaulted
-
 	var ansiFont = '';
 	if(options.font) {
 		//	:TODO: how to set to ignore SAUCE?		
