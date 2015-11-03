@@ -1,0 +1,10 @@
+site_name: ENiGMA½ BBS Software
+site_author: Bryan Ashby
+repo_url: https://github.com/NuSkooler/enigma-bbs
+theme: readthedocs
+
+pages:
+  - Introduction: 'index.md'
+  - Raspberry Pi: 'rpi.md'
+  - About: 'about.md'
+
