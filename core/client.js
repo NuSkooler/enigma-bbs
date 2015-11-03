@@ -39,6 +39,7 @@ var user		= require('./user.js');
 var moduleUtil	= require('./module_util.js');
 var menuUtil	= require('./menu_util.js');
 var Config		= require('./config.js').config;
+var MenuStack	= require('./menu_stack.js');
 
 var stream		= require('stream');
 var assert		= require('assert');
@@ -93,6 +94,7 @@ function Client(input, output) {
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
+	this.menuStack			= new MenuStack();
 
 	Object.defineProperty(this, 'node', {
 		get : function() {
@@ -363,7 +365,7 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
-				self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');
+				self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');	// jshint ignore:line
 
 				self.lastKeyPressMs = Date.now();
 
