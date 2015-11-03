@@ -216,6 +216,18 @@ MenuModule.prototype.restoreSavedState = function(savedState) {
 	//	nothing in base
 };
 
+MenuModule.prototype.nextMenu = function(cb) {
+	self.client.menuStack.next(cb);
+};
+
+MenuModule.prototype.prevMenu = function(cb) {
+	self.client.menuStack.prev(cb);
+};
+
+MenuModule.prototype.gotoMenu = function(name, options, cb) {
+	self.client.menuStack.goto(name, options, cb);
+};
+
 MenuModule.prototype.leave = function() {
 	this.detachViewControllers();
 };
