@@ -37,14 +37,14 @@ function login(callingMenu, formData, extraArgs) {
 					}
 
 					setTimeout(function timeout() {
-						client.fallbackMenuModule();
+						callingMenu.prevMenu();
 					}, 2000);
 				});
 
 				return;
 			} else {
 				//	Other error
-				client.fallbackMenuModule();
+				callingMenu.prevMenu();
 			}
 
 		} else {

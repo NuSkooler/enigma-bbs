@@ -60,7 +60,6 @@ function MessageListModule(options) {
 		selectMessage : function(formData, extraArgs) {
 			if(1 === formData.submitId) {
 				var modOpts = {
-					name		: config.menuViewPost || 'messageAreaViewPost',//'messageAreaViewPost',	//	:TODO: should come from config!!!
 					extraArgs 	: {
 						messageAreaName		: self.messageAreaName,
 						messageList			: self.messageList,

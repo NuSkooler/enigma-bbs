@@ -7,24 +7,6 @@ var loadMenu	= require('./menu_util.js').loadMenu;
 var _			= require('lodash');
 var assert		= require('assert');
 
-/*
-MenuStack(client)
-	stack[] push, pop, ...
-
-	next()
-	goto(name, options, cb)
-	prev()
-
-MenuModule
-	nextMenu()
-	gotoMenu(name, options, cb)
-	prevMenu()
-*/
-
-//	:TODO: Clean up client attach/detach/etc.
-//	:TODO: gotoMenuModule() -> MenuModule.gotoMenu()
-//	:TODO: fallbackMenuModule() -> MenuModule.prevMenu()
-
 module.exports	= MenuStack;
 
 function MenuStack(client) {

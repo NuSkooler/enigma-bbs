@@ -448,15 +448,6 @@ Client.prototype.address = function() {
 	return this.input.address();
 };
 
-//	:TODO: remove these deprecated wrappers:
-Client.prototype.gotoMenuModule = function(options, cb) {
-	this.menuStack.goto(options.name, options, cb);
-};
-
-Client.prototype.fallbackMenuModule = function(options, cb) {
-	this.menuStack.prev(cb);
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 //	Default error handlers
 ///////////////////////////////////////////////////////////////////////////////

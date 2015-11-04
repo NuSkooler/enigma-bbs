@@ -71,14 +71,13 @@ function AreaViewFSEModule(options) {
 	this.menuMethods.replyMessage = function(formData, extraArgs) {
 		if(_.isString(extraArgs.menu)) {
 			var modOpts = {
-				name			: extraArgs.menu,
 				extraArgs : {
 					messageAreaName		: self.messageAreaName,
 					replyToMessage		: self.message,	
 				}				
 			};
 
-			self.client.gotoMenuModule(modOpts);
+			self.gotoMenu(extraArgs.menu, modOpts);
 		} else {
 			self.client.log(extraArgs, 'Missing extraArgs.menu');
 		}

@@ -124,18 +124,21 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				if(err) {
 					Log.info( { error : err, username : formData.value.username }, 'New user creation failed');
 
-					client.gotoMenuModule( { name : extraArgs.error } );
+					callingMenu.gotoMenu(extraArgs.error, function result(err) {
+						if(err) {
+							callingMenu.prevMenu();
+						}
+					});
 				} else {
 					Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
 
 					if(user.User.AccountStatus.inactive === client.user.properties.account_status) {
-						client.gotoMenuModule( { name : extraArgs.inactive } );
+						callingMenu.gotoMenu(extraArgs.inactive);
 					} else {
 						//
 						//	If active now, we need to call login() to authenticate
 						//
 						sysMenuMethod.login(callingMenu, formData, extraArgs);
-					//	client.gotoMenuModule( { name : menuConfig.next } );
 					}
 				}
 			});

@@ -121,7 +121,7 @@ function AbracadabraModule(options) {
 			function complete(err) {
 				if(err) {
 					self.lastError = err;
-					self.client.fallbackMenuModule();
+					self.prevMenu();
 				} else {
 					self.finishedLoading();
 				}
@@ -149,7 +149,7 @@ function AbracadabraModule(options) {
 		var doorInstance = new door.Door(this.client, exeInfo);
 
 		doorInstance.on('finished', function doorFinished() {
-			self.client.fallbackMenuModule();
+			self.prevMenu();
 		});
 
 		self.client.term.write(ansi.resetScreen());

@@ -55,10 +55,10 @@ function MessageAreaListModule(options) {
 						self.client.term.pipeWrite('\n|00Cannot change area: ' + err.message + '\n');
 
 						setTimeout(function timeout() {
-							self.client.fallbackMenuModule();
+							self.prevMenu();
 						}, 1000);
 					} else {
-						self.client.fallbackMenuModule();
+						self.prevMenu();
 					}
 				});
 			}

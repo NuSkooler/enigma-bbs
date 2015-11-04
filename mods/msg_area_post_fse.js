@@ -48,10 +48,7 @@ function AreaPostFSEModule(options) {
 					console.log(msg);
 				}
 
-				self.client.fallbackMenuModule( { }, function result(err) {
-					//	:TODO: how to best handle this??? fallbackMenuModule should prob inspect options & cb to be optional. gotoMenuModule() already has default cb
-				});
-				//self.client.gotoMenuModule( { name : self.menuConfig.fallback } );
+				self.prevMenu();
 			}
 		);
 	};

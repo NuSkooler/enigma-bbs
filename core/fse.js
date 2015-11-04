@@ -834,9 +834,7 @@ function FullScreenEditorModule(options) {
 		replyDiscard : function(formData, extraArgs) {
 			//	:TODO: need to prompt yes/no
 			//	:TODO: @method for fallback would be better
-			self.client.fallbackMenuModule(function fallback(err) {
-				console.log(err)
-			});
+			self.prevMenu();
 		},
 		*/
 		editModeMenuHelp : function(formData, extraArgs) {
