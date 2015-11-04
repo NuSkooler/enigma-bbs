@@ -5,6 +5,7 @@
 var loadMenu	= require('./menu_util.js').loadMenu;
 
 var _			= require('lodash');
+var assert		= require('assert');
 
 /*
 MenuStack(client)
@@ -21,7 +22,8 @@ MenuModule
 */
 
 //	:TODO: Clean up client attach/detach/etc.
-//	:TODO: Cleanup up client currentMenuModule related stuff (all over!). Make this a property that returns .menuStack.getCurrentModule()
+//	:TODO: gotoMenuModule() -> MenuModule.gotoMenu()
+//	:TODO: fallbackMenuModule() -> MenuModule.prevMenu()
 
 module.exports	= MenuStack;
 
@@ -39,6 +41,12 @@ function MenuStack(client) {
 		return self.stack.pop();
 	};
 
+	this.peekPrev = function() {
+		if(this.stackSize() > 1) {
+			return self.stack[self.stack.length - 2];
+		}
+	};
+
 	this.top = function() {
 		if(self.stackSize() > 0) {
 			return self.stack[self.stack.length - 1];
@@ -52,23 +60,27 @@ function MenuStack(client) {
 
 MenuStack.prototype.next = function(cb) {
 	var currentModuleInfo = this.top();
+	assert(currentModuleInfo, 'Empty menu stack!');
 
-	if(!_.isString(currentModuleInfo.menuConfig.next)) {
-		this.log.error('No \'next\' member in menu config!');
+	var menuConfig = currentModuleInfo.instance.menuConfig;
+
+	if(!_.isString(menuConfig.next)) {
+		cb(new Error('No \'next\' member in menu config!'));
 		return;
 	}
 
-	if(current.menuConfig.next === currentModuleInfo.name) {
-		this.log.warn('Menu config \'next\' specifies current menu!');
+	if(menuConfig.next === currentModuleInfo.name) {
+		cb(new Error('Menu config \'next\' specifies current menu!'));
 		return;
 	}
 
-	this.goto(current.menuConfig.next, { }, cb);
+	this.goto(menuConfig.next, { }, cb);
 };
 
 MenuStack.prototype.prev = function(cb) {
-	var previousModuleInfo = this.pop();
-	
+	this.pop().instance.leave();			//	leave & remove current
+	var previousModuleInfo = this.pop();	//	get previous
+
 	if(previousModuleInfo) {
 		this.goto(previousModuleInfo.name, { extraArgs : previousModuleInfo.extraArgs, savedState : previousModuleInfo.savedState }, cb);
 	} else {
@@ -77,17 +89,17 @@ MenuStack.prototype.prev = function(cb) {
 };
 
 MenuStack.prototype.goto = function(name, options, cb) {
-	var currentModuleInfo = this.menuStack.top();
+	var currentModuleInfo = this.top();
+
+	if(!cb && _.isFunction(options)) {
+		cb = options;
+	}
 
 	var self = this;
 
 	if(currentModuleInfo && name === currentModuleInfo.name) {
-		var err = new Error('Already at supplied menu!');
-	
-		self.client.log.warn( { menuName : name, error : err.toString() }, 'Cannot go to menu');
-
 		if(cb) {
-			cb(err);	//	non-fatal
+			cb(new Error('Already at supplied menu!'));
 		}
 		return;
 	}
@@ -95,14 +107,18 @@ MenuStack.prototype.goto = function(name, options, cb) {
 	var loadOpts = {
 		name		: name,
 		client		: self.client, 
-		extraArgs	: options.extraArgs,
 	};
+
+	if(options) {
+		loadOpts.extraArgs = options.extraArgs;
+	}
 
 	loadMenu(loadOpts, function menuLoaded(err, modInst) {
 		if(err) {
 			var errCb = cb || self.defaultHandlerMissingMod();
 			errCb(err);
 		} else {
+			//	:TODO: Move this log to caller
 			self.client.log.debug( { menuName : name }, 'Goto menu module');
 
 			if(currentModuleInfo) {
@@ -112,18 +128,22 @@ MenuStack.prototype.goto = function(name, options, cb) {
 				currentModuleInfo.instance.leave();
 			}
 
-			self.push( {
+			self.push({
 				name		: name,
 				instance	: modInst,
-				extraArgs	: options.extraArgs,
+				extraArgs	: loadOpts.extraArgs,
 			});
 
 			//	restore previous state if requested
-			if(options.savedState) {
+			if(options && options.savedState) {
 				modInst.restoreSavedState(options.savedState);
 			}
 
 			modInst.enter(self.client);
+
+			self.client.log.trace(
+				{ stack : _.map(self.stack, function(si) { return si.name; } ) },
+				'Updated menu stack');
 
 			if(cb) {
 				cb(null);

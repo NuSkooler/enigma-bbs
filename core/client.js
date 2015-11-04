@@ -94,11 +94,17 @@ function Client(input, output) {
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
-	this.menuStack			= new MenuStack();
+	this.menuStack			= new MenuStack(this);
 
 	Object.defineProperty(this, 'node', {
 		get : function() {
 			return self.session.id + 1;
+		}
+	});
+
+	Object.defineProperty(this, 'currentMenuModule', {
+		get : function() {
+			return self.menuStack.getCurrentModule();
 		}
 	});
 
@@ -373,20 +379,6 @@ function Client(input, output) {
 			}
 		});
 	});
-
-	self.detachCurrentMenuModule = function() {
-		if(self.currentMenuModule) {
-						
-			var savedState = self.currentMenuModule.getSaveState();
-
-			self.currentMenuModule.leave();
-			
-			self.lastMenuModuleInfo				= self.currentMenuModuleInfo;
-			self.lastMenuModuleInfo.savedState	= savedState;
-
-			self.currentMenuModule = null;
-		}
-	};
 }
 
 require('util').inherits(Client, stream);
@@ -423,7 +415,7 @@ Client.prototype.startIdleMonitor = function() {
 };
 
 Client.prototype.end = function () {
-	this.detachCurrentMenuModule();
+	this.menuStack.getCurrentModule().leave();
 
 	clearInterval(this.idleCheck);
 	
@@ -456,93 +448,14 @@ Client.prototype.address = function() {
 	return this.input.address();
 };
 
+//	:TODO: remove these deprecated wrappers:
 Client.prototype.gotoMenuModule = function(options, cb) {
-	var self = this;
-
-	assert(_.isString(options.name), 'Missing options.name');
-	
-	//	Assign a default missing module handler callback if none was provided
-	var callbackOnErrorOnly = !_.isFunction(cb);
-
-	cb = miscUtil.valueWithDefault(cb, self.defaultHandlerMissingMod());
-
-	self.detachCurrentMenuModule();
-
-	var loadOptions = {
-		name		: options.name, 
-		client		: self, 
-		extraArgs	: options.extraArgs,
-	};
-
-	menuUtil.loadMenu(loadOptions, function menuModuleLoaded(err, modInst) {
-		if(err) {
-			cb(err);
-		} else {
-			self.log.debug( { menuName : options.name }, 'Goto menu module');
-
-			self.currentMenuModule = modInst;	//	:TODO: should probably be before enter() above
-
-			self.currentMenuModuleInfo = {
-				//	:TODO: This is quite the hack... doesn't seem right...
-				menuName	: self.currentMenuModule.menuName,
-				extraArgs	: options.extraArgs,
-			}
-
-			if(options.savedState) {
-				modInst.restoreSavedState(options.savedState);
-			}
-
-			modInst.enter(self);
-			
-			if(!callbackOnErrorOnly) {
-				cb(null);
-			}
-		}
-	});
+	this.menuStack.goto(options.name, options, cb);
 };
 
 Client.prototype.fallbackMenuModule = function(options, cb) {
-	var self = this;
-
-	var modOpts;
-
-	if(_.isString(self.currentMenuModule.menuConfig.fallback)) {
-		modOpts = {
-			name		: self.currentMenuModule.menuConfig.fallback,
-			extraArgs	: options.extraArgs,
-		};
-	} else if(self.lastMenuModuleInfo) {
-		modOpts = {
-			name		: self.lastMenuModuleInfo.menuName,
-			extraArgs	: self.lastMenuModuleInfo.extraArgs,
-			savedState	: self.lastMenuModuleInfo.savedState,
-		};
-	}
-
-	if(modOpts) {
-		self.gotoMenuModule(modOpts, cb);
-	} else {
-		cb(new Error('Nothing to fallback to!'));
-	}
+	this.menuStack.prev(cb);
 };
-
-/*
-Client.prototype.fallbackMenuModule = function(cb) {
-	var self = this;
-
-	if(self.lastMenuModuleInfo) {
-		var modOpts = {
-			name		: self.lastMenuModuleInfo.menuName,
-			extraArgs	: self.lastMenuModuleInfo.extraArgs,
-			savedState	: self.lastMenuModuleInfo.savedState,
-		};
-
-		self.gotoMenuModule(modOpts, cb);
-	} else {
-		cb(new Error('Nothing to fallback to!'));
-	}
-};
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 //	Default error handlers

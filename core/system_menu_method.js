@@ -14,7 +14,7 @@ var iconv				= require('iconv-lite');
 
 exports.login			= login;
 exports.logoff			= logoff;
-exports.fallbackMenu	= fallbackMenu;
+exports.prevMenu		= prevMenu;
 
 function login(callingMenu, formData, extraArgs) {
 	var client = callingMenu.client;
@@ -49,7 +49,7 @@ function login(callingMenu, formData, extraArgs) {
 
 		} else {
 			//	success!
-			client.gotoMenuModule( { name : callingMenu.menuConfig.next } );
+			callingMenu.nextMenu();
 		}
 	});
 }
@@ -74,10 +74,10 @@ function logoff(callingMenu, formData, extraArgs) {
 	}, 500);
 }
 
-function fallbackMenu(callingMenu, formData, extraArgs) {
-	callingMenu.client.fallbackMenuModule( { extraArgs : extraArgs }, function result(err) {
+function prevMenu(callingMenu, formData, extraArgs) {
+	callingMenu.prevMenu(function result(err) {
 		if(err) {
-			callingMenu.client.log.error( { error : err }, 'Error attempting to fallback!');
+			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to fallback!');
 		}
 	});
 }

@@ -68,7 +68,7 @@ function MessageListModule(options) {
 					}
 				};
 
-				self.client.gotoMenuModule(modOpts);
+				self.gotoMenu(config.menuViewPost || 'messageAreaViewPost', modOpts);
 			}
 		}
 	};

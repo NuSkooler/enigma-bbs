@@ -123,7 +123,7 @@ function connectEntry(client, nextMenu) {
 		displayBanner(term);
 
 		setTimeout(function onTimeout() {
-			client.gotoMenuModule( { name : nextMenu } );
+			client.menuStack.goto(nextMenu);
 		}, 500);
 	});	
 }

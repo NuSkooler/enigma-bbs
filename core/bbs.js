@@ -224,9 +224,9 @@ function startListening() {
 			});
 
 			client.on('idle timeout', function idleTimeout() {
-				client.log.info('User idle timeout expired');				
+				client.log.info('User idle timeout expired');
 
-				client.gotoMenuModule( { name : 'idleLogoff' }, function goMenuRes(err) {
+				client.menuStack.goto('idleLogoff', function goMenuRes(err) {
 					if(err) {
 						//	likely just doesn't exist
 						client.term.write('\nIdle timeout expired. Goodbye!\n');

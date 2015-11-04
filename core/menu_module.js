@@ -131,7 +131,7 @@ function MenuModule(options) {
 				}
 
 				self.finishedLoading();
-				self.nextMenu();
+				self.autoNextMenu();
 			}
 		);
 	};
@@ -144,14 +144,12 @@ function MenuModule(options) {
 		return _.isNumber(self.menuConfig.options.nextTimeout);
 	};
 
-	this.nextMenu = function() {
+	this.autoNextMenu = function() {
 		function goNext() {
 			if(_.isString(self.menuConfig.next)) {
 				menuUtil.handleNext(self.client, self.menuConfig.next);	
 			} else {
-				self.client.fallbackMenuModule( { }, function fallback(err) {
-					//	:TODO: this seems sloppy... look into further
-				});
+				self.prevMenu();
 			}
 		}
 
@@ -217,15 +215,15 @@ MenuModule.prototype.restoreSavedState = function(savedState) {
 };
 
 MenuModule.prototype.nextMenu = function(cb) {
-	self.client.menuStack.next(cb);
+	this.client.menuStack.next(cb);
 };
 
 MenuModule.prototype.prevMenu = function(cb) {
-	self.client.menuStack.prev(cb);
+	this.client.menuStack.prev(cb);
 };
 
 MenuModule.prototype.gotoMenu = function(name, options, cb) {
-	self.client.menuStack.goto(name, options, cb);
+	this.client.menuStack.goto(name, options, cb);
 };
 
 MenuModule.prototype.leave = function() {
@@ -302,16 +300,4 @@ MenuModule.prototype.standardMCIReadyHandler = function(mciData, cb) {
 };
 
 MenuModule.prototype.finishedLoading = function() {
-/*
-	var self = this;
-
-	if(_.isNumber(this.menuConfig.options.nextTimeout) &&
-		_.isString(this.menuConfig.next))
-	{
-		setTimeout(function nextTimeout() {
-			menuUtil.handleNext(self.client, self.menuConfig.next);
-			//self.client.gotoMenuModule( { name : self.menuConfig.next } );
-		}, this.menuConfig.options.nextTimeout);
-	}
-	*/
 };

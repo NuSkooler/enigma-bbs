@@ -96,8 +96,11 @@ function getPredefinedMCIValue(client, code) {
 				//
 				//	Clean up CPU strings a bit for better display
 				//
-				return os.cpus()[0].model.replace(/\s+(?= )|\(R\)|\(TM\)|processor|CPU/g, '');
+				return os.cpus()[0].model.replace(/\(R\)|\(TM\)|processor|CPU/g, '')
+					.replace(/\s+(?= )/g, '');
 			},
+
+			//	:TODO: MCI for core count, e.g. os.cpus().length
 
 			//	:TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
 			//	:TODO: Node version/info

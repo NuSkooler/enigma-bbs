@@ -214,7 +214,7 @@ function handleAction(client, formData, conf) {
 			break;
 
 		case 'menu' :
-			client.gotoMenuModule( { name : actionAsset.asset, formData : formData, extraArgs : conf.extraArgs } );
+			client.currentMenuModule.gotoMenu(actionAsset.asset, { formData : formData, extraArgs : conf.extraArgs } );
 			break;
 	}
 }
@@ -231,7 +231,7 @@ function handleNext(client, nextSpec, conf) {
 		case 'method' :
 		case 'systemMethod' :
 			if(_.isString(nextAsset.location)) {
-				callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, actionAsset.location), {}, extraArgs);
+				callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, nextAsset.location), {}, extraArgs);
 			} else {
 				if('systemMethod' === nextAsset.type) {
 					//	:TODO: see other notes about system_menu_method.js here
@@ -239,15 +239,15 @@ function handleNext(client, nextSpec, conf) {
 				} else {
 					//	local to current module
 					var currentModule = client.currentMenuModule;
-					if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-						currentModule.menuMethods[actionAsset.asset]( { }, extraArgs );
+					if(_.isFunction(currentModule.menuMethods[nextAsset.asset])) {
+						currentModule.menuMethods[nextAsset.asset]( { }, extraArgs );
 					}
 				}
 			}
 			break;
 
 		case 'menu' :
-			client.gotoMenuModule( { name : nextAsset.asset, extraArgs : extraArgs } );
+			client.currentMenuModule.gotoMenu(nextAsset.asset, { extraArgs : extraArgs } );
 			break;
 
 		default :

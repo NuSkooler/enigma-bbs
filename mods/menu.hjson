@@ -107,7 +107,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @menu:matrix
+							action: @systemMethod:prevMenu
 						}
 					]
 				}
@@ -192,7 +192,7 @@
 							}
 							{
 								value: { "submission" : 1 }
-								action: @systemMethod:fallbackMenu
+								action: @systemMethod:prevMenu
 							}
 						]
 					}
@@ -200,7 +200,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 					]
 				}				
@@ -278,7 +278,7 @@
 							}
 							{
 								value: { "submission" : 1 }
-								action: @systemMethod:fallbackMenu
+								action: @systemMethod:prevMenu
 							}
 						]
 					}
@@ -286,7 +286,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 					]
 				}				
@@ -524,7 +524,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 					]
 				}
@@ -580,7 +580,7 @@
 				}
 				{
 					value: { command: "Q" }
-					action: @systemMethod:fallbackMenu
+					action: @systemMethod:prevMenu
 				}
 				{
 					value: { command: "1" }
@@ -646,7 +646,7 @@
 				}
 				{
 					value: { command: "Q" }
-					action: @menu:mainMenu
+					action: @systemMethod:prevMenu
 				}
 				{
 					value: { command: "G" }
@@ -681,7 +681,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 					]
 				}
@@ -714,7 +714,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 					]
 				}
@@ -821,7 +821,7 @@
 						}
 						{
 							keys: [ "escape", "q", "shift + q" ]
-							action: @systemMethod:fallbackMenu
+							action: @systemMethod:prevMenu
 						}
 						{
 							keys: [ "?" ]
@@ -911,7 +911,7 @@
 								}
 								{
 									value: { 1: 1 }
-									action: @systemMethod:fallbackMenu
+									action: @systemMethod:prevMenu
 								}
 								{
 									value: { 1: 2 },
@@ -935,7 +935,7 @@
 							}
 							{
 								keys: [ "d", "shift + d" ]
-								action: @systemMethod:fallbackMenu
+								action: @systemMethod:prevMenu
 							}
 							{
 								keys: [ "q", "shift + q" ]
