@@ -48,8 +48,18 @@ function User() {
 
 	this.isSysOp = this.isRoot;	//	alias
 
-	this.isGroupMember = function(groupName) {
-		return self.groups.indexOf(groupName) > -1;
+	this.isGroupMember = function(groupNames) {
+		if(_.isString(groupNames)) {
+			groupNames = [ groupNames ];
+		}
+
+		groupNames.forEach(function groupEntry(groupName) {
+			if(-1 === self.groups.indexOf(groupName)) {
+				return false;
+			}
+		});
+
+		return true;
 	};
 
 	this.getLegacySecurityLevel = function() {

@@ -83,7 +83,7 @@ function getDefaultConfig() {
 			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
 
 			//	:TODO: Mystic uses TRASHCAN.DAT for this -- is there a reason to support something like that?
-			badUserNames		: [ 'sysop', 'admin', 'administrator', 'root' ],
+			badUserNames		: [ 'sysop', 'admin', 'administrator', 'root', 'all' ],
 		},
 
 		//	:TODO: better name for "defaults"... which is redundant here!

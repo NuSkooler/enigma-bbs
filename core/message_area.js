@@ -78,8 +78,13 @@ function changeMessageArea(client, areaName, cb) {
 				}
 			},
 			function validateAccess(area, callback) {
-				//	:TODO: validate user has access to |area| -- must belong to group(s) specified
-				callback(null, area);
+				if(_.isArray(area.groups) && !
+					client.user.isGroupMember(area.groups))
+				{
+					callback(new Error('User does not have access to this area'));
+				} else {
+					callback(null, area);
+				}
 			},
 			function changeArea(area, callback) {
 				client.user.persistProperty('message_area_name', area.name, function persisted(err) {

@@ -1066,7 +1066,7 @@
 								}
 								{
 									value: { 1: 1 }
-									action: @menu:messageArea
+									action: @systemMethod:prevMenu
 								}
 								{
 									value: { 1: 2 }

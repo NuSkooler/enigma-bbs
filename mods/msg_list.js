@@ -144,7 +144,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 						to				: mle.toUserName,
 						ts				: moment(mle.modTimestamp).format(dateTimeFormat),
 						newIndicator	: mle.messageId > self.lastReadId ? newIndicator : '',
-					}
+					};
 				}
 
 				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
