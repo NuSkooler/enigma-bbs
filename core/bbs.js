@@ -13,6 +13,7 @@ var async		= require('async');
 var util		= require('util');
 var _			= require('lodash');
 var assert		= require('assert');
+var mkdirp 		= require('mkdirp');
 
 exports.bbsMain			= bbsMain;
 
@@ -87,6 +88,18 @@ function parseArgs() {
 function initialize(cb) {
 	async.series(
 		[
+			function createMissingDirectories(callback) {
+				async.each(Object.keys(conf.config.paths), function entry(pathKey, next) {
+					mkdirp(conf.config.paths[pathKey], function dirCreated(err) {
+						if(err) {
+							console.error('Could not create path: ' + conf.config.paths[pathKey] + ': ' + err.toString());
+						}
+						next(err);
+					});
+				}, function dirCreationComplete(err) {
+					callback(err);
+				});
+			},
 			function basicInit(callback) {
 				logger.init();
 
@@ -102,7 +115,7 @@ function initialize(cb) {
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 
 				callback(null);
-			},
+			},			
 			function initDatabases(callback) {
 				database.initializeDatabases();
 				callback(null);			
