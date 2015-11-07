@@ -117,8 +117,7 @@ function initialize(cb) {
 				callback(null);
 			},			
 			function initDatabases(callback) {
-				database.initializeDatabases();
-				callback(null);			
+				database.initializeDatabases(callback);
 			},
 			function initSystemProperties(callback) {
 				require('./system_property.js').loadSystemProperties(callback);

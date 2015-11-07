@@ -2,8 +2,10 @@
 'use strict';
 
 var conf			= require('./config.js');
+
 var sqlite3			= require('sqlite3');
 var paths			= require('path');
+var async			= require('async');
 
 //	database handles
 var dbs = {};
@@ -16,22 +18,50 @@ function getDatabasePath(name) {
 	return paths.join(conf.config.paths.db, name + '.sqlite3');
 }
 
-function initializeDatabases() {
+function initializeDatabases(cb) {
 	//	:TODO: this will need to change if more DB's are added ... why?
-	dbs.user	= new sqlite3.Database(getDatabasePath('user'));
-	dbs.message	= new sqlite3.Database(getDatabasePath('message'));
-	dbs.system	= new sqlite3.Database(getDatabasePath('system'));
-
-	dbs.user.serialize(function serialized() {
-		createSystemTables();
-		createUserTables();
-		createInitialUserValues();
-	});
-
-	dbs.message.serialize(function serialized() {
-		createMessageBaseTables();
-		createInitialMessageValues();
-	});
+	async.series(
+		[
+			function systemDb(callback) {
+				dbs.system	= new sqlite3.Database(getDatabasePath('system'), function dbCreated(err) {
+					if(err) {
+						callback(err);
+					} else {
+						dbs.system.serialize(function serialized() {
+							createSystemTables();
+						});
+						callback(null);
+					}
+				});				
+			},
+			function userDb(callback) {
+				dbs.user = new sqlite3.Database(getDatabasePath('user'), function dbCreated(err) {
+					if(err) {
+						callback(err);
+					} else {
+						dbs.user.serialize(function serialized() {
+							createInitialUserValues();
+						});
+						callback(null);
+					}
+				});
+			},
+			function messageDb(callback) {
+				dbs.message	= new sqlite3.Database(getDatabasePath('message'), function dbCreated(err) {
+					if(err) {
+						callback(err);
+					} else {
+						dbs.message.serialize(function serialized() {
+							createMessageBaseTables();
+							createInitialMessageValues();
+						});
+						callback(null);
+					}
+				});
+			}
+		],
+		cb
+	);
 }
 
 function createSystemTables() {
