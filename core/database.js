@@ -40,6 +40,7 @@ function initializeDatabases(cb) {
 						callback(err);
 					} else {
 						dbs.user.serialize(function serialized() {
+							createUserTables();
 							createInitialUserValues();
 						});
 						callback(null);
