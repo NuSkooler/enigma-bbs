@@ -1,9 +1,13 @@
 
 {
 	var user = options.user;
+	var client	= options.client;
 
 	function checkAcs(name, value) {
 		return {
+			SC 	: function secureConnection() {
+				return client.session.isSecure;
+			},
 			ID	: function userId(value) {
 				return user.userId === value;
 			}
