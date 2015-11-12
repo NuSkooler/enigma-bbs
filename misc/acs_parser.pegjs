@@ -1,76 +1,168 @@
 
 {
-	var user = options.user;
 	var client	= options.client;
+	var user	= options.client.user;
 
-	function checkAcs(name, value) {
+	var _		= require('lodash');
+
+	function checkAccess(name, value) {
 		return {
-			SC 	: function secureConnection() {
+			'='	: function isLocalConnection() {
+				return client.isLocal();
+			},
+			A	: function ageGreaterOrEqualThan() {
+				return !isNaN(value) && user.getAge() >= value;
+			},
+			EC	: function isEncoding() {
+				switch(value) {
+					case 0	: return 'cp437' === client.term.outputEncoding.toLowerCase();
+					case 1	: return 'utf-8' === client.term.outputEncoding.toLowerCase();
+					default	: return false;
+				}
+			},
+			GM	: function isOneOfGroups() {
+				if(!_.isArray(value)) {
+					return false;
+				}
+
+				value.forEach(function grpEntry(groupName) {
+					if(user.isGroupMember(groupName)) {
+						return true;
+					}
+				});
+
+				return false;
+			},
+			N	: function isNode() {
+				return client.node === value;
+			},
+			P	: function numberOfPosts() {
+				//	:TODO: implement me!!!!
+				return false;
+			},
+			Q	: function numberOfCalls() {
+				//	:TODO: implement me!!
+				return false;
+			},
+			SC 	: function isSecerConnection() {
 				return client.session.isSecure;
 			},
-			ID	: function userId(value) {
+			T	: function minutesLeft() {
+				//	:TODO: implement me!
+				return false;
+			},
+			TH	: function termHeight() {
+				return !isNaN(value) && client.term.termHeight >= value;
+			},
+			TM	: function isOneOfThemes() {
+				if(!_.isArray(value)) {
+					return false;
+				}
+
+				return value.indexOf(client.currentTheme.name) > -1;
+			},
+			TT	: function isOneOfTermTypes() {
+				if(!_.isArray(value)) {
+					return false;
+				}
+
+				return value.indexOf(client.term.termType) > -1;
+			},
+			TW	: function termWidth() {
+				return !isNaN(value) && client.term.termWidth >= value;
+			},
+			U	: function isUserId(value) {
 				return user.userId === value;
+			},
+			W	: function isOneOfDayOfWeek() {
+				//	:TODO: return true if DoW
+				if(_.isNumber(value)) {
+
+				} else if(_.isArray(value)) {
+
+				}
+				return false;
+			},
+			Y	: function isMinutesPastMidnight() {
+				//	:TODO: return true if value is >= minutes past midnight sys time
+				return false;
 			}
 		}[name](value) || false;
 	}
-
-  function check(name, value) {
-    // Dummy implementation: returns true when the name starts with 'A'
-    return name.charAt(0) == 'A';
-  }
 }
 
 start
- = expr
+	= expr
 
 expr
- = or_expr
+	= orExpr
 
-or_expr
- = left:and_expr '|' right:expr { return left || right; }
- / and_expr
+OR
+	= '|'
 
-and_expr
- = left:not_expr '&'? right:expr { return left && right; }
- / not_expr
+AND
+	= '&'
 
-not_expr
- = '!' value:atom { return !value; }
- / atom
+NOT
+	= '!'
+
+groupOpen
+	= '('
+
+groupClose
+	= ')'
+
+orExpr
+	= left:andExpr OR right:expr { return left || right; }
+	/ andExpr
+
+andExpr
+	= left:notExpr AND? right:expr { return left && right; }
+	/ notExpr
+
+notExpr
+	= NOT value:atom { return !value; }
+	/ atom
 
 atom
- = acs_check
- / '(' value:expr ')' { return value; }
+	= acsCheck
+	/ groupOpen value:expr groupClose { return value; }
 
-comma = ','
-ws = ' '
+comma
+	= ','
 
-optionalSpc = ws*
+ws 
+	= ' '
 
-acs_check
- = n:name a:arg { return checkAcs(n, a); }
+optWs
+	= ws*
+
+listOpen
+	= '['
+
+listClose
+	= ']'
+
+acsCheck
+	= n:name a:arg { return checkAccess(n, a); }
 
 name
- = c:([A-Z][A-Z]) { return c.join(''); }
-
-argNum
- = c:[A-Za-z]+ { return c.join('') }
+	= c:([A-Z\=][A-Z]?) { return c.join(''); }
 
 argVar
- = a:[A-Za-z0-9\-]+ { return a.join('') }
+	= a:[A-Za-z0-9\-_\+]+ { return a.join('') }
 
 commaList
- = start:(v:argVar comma { return v; })* last:argVar { return start.concat(last); }
+	= start:(v:argVar optWs comma optWs { return v; })* last:argVar { return start.concat(last); }
 
-allList
- = '{' l:commaList '}' { return l; }
+list
+	= listOpen l:commaList listClose { return l; }
 
-anyList
- = '[' l:commaList ']' { return l; }
+number
+	= d:([0-9]+) { return parseInt(d.join(''), 10); }
 
 arg
- = allList
- / anyList
- / c:[A-Za-z]+ { return c.join(''); }
- / d:[0-9]* { return d ? parseInt(d.join(''), 10) : null; }
+	= list
+	/ num:number?
+
  

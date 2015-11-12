@@ -3,6 +3,7 @@
 
 //	ENiGMA½
 var loadMenu	= require('./menu_util.js').loadMenu;
+var acsUtil		= require('./acs_util.js');
 
 var _			= require('lodash');
 var assert		= require('assert');
@@ -37,7 +38,7 @@ function MenuStack(client) {
 
 	this.stackSize = function() {
 		return self.stack.length;
-	}
+	};
 }
 
 MenuStack.prototype.next = function(cb) {
@@ -46,8 +47,31 @@ MenuStack.prototype.next = function(cb) {
 
 	var menuConfig = currentModuleInfo.instance.menuConfig;
 
-	if(!_.isString(menuConfig.next)) {
-		cb(new Error('No \'next\' member in menu config!'));
+	/*	
+		:TODO: next should allow for conditionals based on ACS
+
+		next: [
+			{ acs: "GM[sysops]|U1", next: theNextMenu },
+			...
+		]
+
+		acsUtil.getAcsConditionMatch(cond, memberName) -> value | undefined
+		(memberName = "next")
+	*/
+
+	var next;
+
+	if(_.isArray(menuConfig.next)) {
+		next = acsUtil.getConditionalValue(this.client, menuConfig.next, 'next');
+		console.log('conditional next: ' + next);
+		if(!next) {
+			cb(new Error('No matching condition for \'next\'!'));
+			return;
+		}
+	} else if(_.isString(menuConfig.next)) {
+		next = menuConfig.next;
+	} else {
+		cb(new Error('Invalid or missing \'next\' member in menu config!'));
 		return;
 	}
 
