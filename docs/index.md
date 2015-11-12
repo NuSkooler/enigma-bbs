@@ -38,3 +38,10 @@ messages: {
   ]
 }
 ```
+
+5\. Launch!
+```bash
+./main.js
+```
+
+The first user you create via applying is the root SysOp.

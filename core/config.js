@@ -52,7 +52,8 @@ function init(configPath, cb) {
 function getDefaultPath() {
 	var base = miscUtil.resolvePath('~/');
 	if(base) {
-		return paths.join(base, '.enigma-bbs', 'config.hjson');
+		//	e.g. /home/users/joeuser/.config/enigma-bbs/config.hjson
+		return paths.join(base, '.config', 'enigma-bbs', 'config.hjson');
 	}
 }
 
