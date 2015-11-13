@@ -58,21 +58,19 @@ module.exports = (function() {
         peg$c19 = { type: "literal", value: "[", description: "\"[\"" },
         peg$c20 = "]",
         peg$c21 = { type: "literal", value: "]", description: "\"]\"" },
-        peg$c22 = function(n, a) { return checkAccess(n, a); },
+        peg$c22 = function(acs, a) { return checkAccess(acs, a); },
         peg$c23 = /^[A-Z]/,
         peg$c24 = { type: "class", value: "[A-Z]", description: "[A-Z]" },
         peg$c25 = function(c) { return c.join(''); },
-        peg$c26 = /^[A-Z=]/,
-        peg$c27 = { type: "class", value: "[A-Z\\=]", description: "[A-Z\\=]" },
-        peg$c28 = /^[A-Za-z0-9\-_+]/,
-        peg$c29 = { type: "class", value: "[A-Za-z0-9\\-_\\+]", description: "[A-Za-z0-9\\-_\\+]" },
-        peg$c30 = function(a) { return a.join('') },
-        peg$c31 = function(v) { return v; },
-        peg$c32 = function(start, last) { return start.concat(last); },
-        peg$c33 = function(l) { return l; },
-        peg$c34 = /^[0-9]/,
-        peg$c35 = { type: "class", value: "[0-9]", description: "[0-9]" },
-        peg$c36 = function(d) { return parseInt(d.join(''), 10); },
+        peg$c26 = /^[A-Za-z0-9\-_+]/,
+        peg$c27 = { type: "class", value: "[A-Za-z0-9\\-_\\+]", description: "[A-Za-z0-9\\-_\\+]" },
+        peg$c28 = function(a) { return a.join('') },
+        peg$c29 = function(v) { return v; },
+        peg$c30 = function(start, last) { return start.concat(last); },
+        peg$c31 = function(l) { return l; },
+        peg$c32 = /^[0-9]/,
+        peg$c33 = { type: "class", value: "[0-9]", description: "[0-9]" },
+        peg$c34 = function(d) { return parseInt(d.join(''), 10); },
 
         peg$currPos          = 0,
         peg$savedPos         = 0,
@@ -535,7 +533,7 @@ module.exports = (function() {
       var s0, s1, s2;
 
       s0 = peg$currPos;
-      s1 = peg$parsename();
+      s1 = peg$parseacsCode();
       if (s1 !== peg$FAILED) {
         s2 = peg$parsearg();
         if (s2 !== peg$FAILED) {
@@ -554,7 +552,7 @@ module.exports = (function() {
       return s0;
     }
 
-    function peg$parsename() {
+    function peg$parseacsCode() {
       var s0, s1, s2, s3;
 
       s0 = peg$currPos;
@@ -590,15 +588,6 @@ module.exports = (function() {
         s1 = peg$c25(s1);
       }
       s0 = s1;
-      if (s0 === peg$FAILED) {
-        if (peg$c26.test(input.charAt(peg$currPos))) {
-          s0 = input.charAt(peg$currPos);
-          peg$currPos++;
-        } else {
-          s0 = peg$FAILED;
-          if (peg$silentFails === 0) { peg$fail(peg$c27); }
-        }
-      }
 
       return s0;
     }
@@ -608,22 +597,22 @@ module.exports = (function() {
 
       s0 = peg$currPos;
       s1 = [];
-      if (peg$c28.test(input.charAt(peg$currPos))) {
+      if (peg$c26.test(input.charAt(peg$currPos))) {
         s2 = input.charAt(peg$currPos);
         peg$currPos++;
       } else {
         s2 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c29); }
+        if (peg$silentFails === 0) { peg$fail(peg$c27); }
       }
       if (s2 !== peg$FAILED) {
         while (s2 !== peg$FAILED) {
           s1.push(s2);
-          if (peg$c28.test(input.charAt(peg$currPos))) {
+          if (peg$c26.test(input.charAt(peg$currPos))) {
             s2 = input.charAt(peg$currPos);
             peg$currPos++;
           } else {
             s2 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c29); }
+            if (peg$silentFails === 0) { peg$fail(peg$c27); }
           }
         }
       } else {
@@ -631,7 +620,7 @@ module.exports = (function() {
       }
       if (s1 !== peg$FAILED) {
         peg$savedPos = s0;
-        s1 = peg$c30(s1);
+        s1 = peg$c28(s1);
       }
       s0 = s1;
 
@@ -653,7 +642,7 @@ module.exports = (function() {
             s6 = peg$parseoptWs();
             if (s6 !== peg$FAILED) {
               peg$savedPos = s2;
-              s3 = peg$c31(s3);
+              s3 = peg$c29(s3);
               s2 = s3;
             } else {
               peg$currPos = s2;
@@ -683,7 +672,7 @@ module.exports = (function() {
               s6 = peg$parseoptWs();
               if (s6 !== peg$FAILED) {
                 peg$savedPos = s2;
-                s3 = peg$c31(s3);
+                s3 = peg$c29(s3);
                 s2 = s3;
               } else {
                 peg$currPos = s2;
@@ -706,7 +695,7 @@ module.exports = (function() {
         s2 = peg$parseargVar();
         if (s2 !== peg$FAILED) {
           peg$savedPos = s0;
-          s1 = peg$c32(s1, s2);
+          s1 = peg$c30(s1, s2);
           s0 = s1;
         } else {
           peg$currPos = s0;
@@ -731,7 +720,7 @@ module.exports = (function() {
           s3 = peg$parselistClose();
           if (s3 !== peg$FAILED) {
             peg$savedPos = s0;
-            s1 = peg$c33(s2);
+            s1 = peg$c31(s2);
             s0 = s1;
           } else {
             peg$currPos = s0;
@@ -754,22 +743,22 @@ module.exports = (function() {
 
       s0 = peg$currPos;
       s1 = [];
-      if (peg$c34.test(input.charAt(peg$currPos))) {
+      if (peg$c32.test(input.charAt(peg$currPos))) {
         s2 = input.charAt(peg$currPos);
         peg$currPos++;
       } else {
         s2 = peg$FAILED;
-        if (peg$silentFails === 0) { peg$fail(peg$c35); }
+        if (peg$silentFails === 0) { peg$fail(peg$c33); }
       }
       if (s2 !== peg$FAILED) {
         while (s2 !== peg$FAILED) {
           s1.push(s2);
-          if (peg$c34.test(input.charAt(peg$currPos))) {
+          if (peg$c32.test(input.charAt(peg$currPos))) {
             s2 = input.charAt(peg$currPos);
             peg$currPos++;
           } else {
             s2 = peg$FAILED;
-            if (peg$silentFails === 0) { peg$fail(peg$c35); }
+            if (peg$silentFails === 0) { peg$fail(peg$c33); }
           }
         }
       } else {
@@ -777,7 +766,7 @@ module.exports = (function() {
       }
       if (s1 !== peg$FAILED) {
         peg$savedPos = s0;
-        s1 = peg$c36(s1);
+        s1 = peg$c34(s1);
       }
       s0 = s1;
 
@@ -804,13 +793,13 @@ module.exports = (function() {
 
     	var _		= require('lodash');
 
-    	function checkAccess(name, value) {
+    	function checkAccess(acsCode, value) {
     		try {
     			return {
-    				'='	: function isLocalConnection() {
+    				LC	: function isLocalConnection() {
     					return client.isLocal();
     				},
-    				A	: function ageGreaterOrEqualThan() {
+    				AG	: function ageGreaterOrEqualThan() {
     					return !isNaN(value) && user.getAge() >= value;
     				},
     				EC	: function isEncoding() {
@@ -833,21 +822,21 @@ module.exports = (function() {
 
     					return false;
     				},
-    				N	: function isNode() {
+    				NN	: function isNode() {
     					return client.node === value;
     				},
-    				P	: function numberOfPosts() {
+    				NP	: function numberOfPosts() {
     					//	:TODO: implement me!!!!
     					return false;
     				},
-    				Q	: function numberOfCalls() {
+    				NC	: function numberOfCalls() {
     					//	:TODO: implement me!!
     					return false;
     				},
     				SC 	: function isSecerConnection() {
     					return client.session.isSecure;
     				},
-    				T	: function minutesLeft() {
+    				ML	: function minutesLeft() {
     					//	:TODO: implement me!
     					return false;
     				},
@@ -871,10 +860,10 @@ module.exports = (function() {
     				TW	: function termWidth() {
     					return !isNaN(value) && client.term.termWidth >= value;
     				},
-    				U	: function isUserId(value) {
+    				ID	: function isUserId(value) {
     					return user.userId === value;
     				},
-    				W	: function isOneOfDayOfWeek() {
+    				WD	: function isOneOfDayOfWeek() {
     					//	:TODO: return true if DoW
     					if(_.isNumber(value)) {
 
@@ -883,13 +872,13 @@ module.exports = (function() {
     					}
     					return false;
     				},
-    				Y	: function isMinutesPastMidnight() {
+    				MM	: function isMinutesPastMidnight() {
     					//	:TODO: return true if value is >= minutes past midnight sys time
     					return false;
     				}
-    			}[name](value);
+    			}[acsCode](value);
     		} catch (e) {
-    			client.log.warn( { name : name, value : value }, 'Invalid ACS string!');
+    			client.log.warn( { acsCode : acsCode, value : value }, 'Invalid ACS string!');
     			return false;
     		}
     	}

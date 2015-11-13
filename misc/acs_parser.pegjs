@@ -5,13 +5,13 @@
 
 	var _		= require('lodash');
 
-	function checkAccess(name, value) {
+	function checkAccess(acsCode, value) {
 		try {
 			return {
-				'='	: function isLocalConnection() {
+				LC	: function isLocalConnection() {
 					return client.isLocal();
 				},
-				A	: function ageGreaterOrEqualThan() {
+				AG	: function ageGreaterOrEqualThan() {
 					return !isNaN(value) && user.getAge() >= value;
 				},
 				EC	: function isEncoding() {
@@ -34,21 +34,21 @@
 
 					return false;
 				},
-				N	: function isNode() {
+				NN	: function isNode() {
 					return client.node === value;
 				},
-				P	: function numberOfPosts() {
+				NP	: function numberOfPosts() {
 					//	:TODO: implement me!!!!
 					return false;
 				},
-				Q	: function numberOfCalls() {
+				NC	: function numberOfCalls() {
 					//	:TODO: implement me!!
 					return false;
 				},
 				SC 	: function isSecerConnection() {
 					return client.session.isSecure;
 				},
-				T	: function minutesLeft() {
+				ML	: function minutesLeft() {
 					//	:TODO: implement me!
 					return false;
 				},
@@ -72,10 +72,10 @@
 				TW	: function termWidth() {
 					return !isNaN(value) && client.term.termWidth >= value;
 				},
-				U	: function isUserId(value) {
+				ID	: function isUserId(value) {
 					return user.userId === value;
 				},
-				W	: function isOneOfDayOfWeek() {
+				WD	: function isOneOfDayOfWeek() {
 					//	:TODO: return true if DoW
 					if(_.isNumber(value)) {
 
@@ -84,13 +84,13 @@
 					}
 					return false;
 				},
-				Y	: function isMinutesPastMidnight() {
+				MM	: function isMinutesPastMidnight() {
 					//	:TODO: return true if value is >= minutes past midnight sys time
 					return false;
 				}
-			}[name](value);
+			}[acsCode](value);
 		} catch (e) {
-			client.log.warn( { name : name, value : value }, 'Invalid ACS string!');
+			client.log.warn( { acsCode : acsCode, value : value }, 'Invalid ACS string!');
 			return false;
 		}
 	}
@@ -149,11 +149,10 @@ listClose
 	= ']'
 
 acsCheck
-	= n:name a:arg { return checkAccess(n, a); }
+	= acs:acsCode a:arg { return checkAccess(acs, a); }
 
-name
+acsCode
 	= c:([A-Z][A-Z]) { return c.join(''); }
-	/ c:[A-Z\=]
 
 argVar
 	= a:[A-Za-z0-9\-_\+]+ { return a.join('') }

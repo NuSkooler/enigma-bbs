@@ -76,14 +76,6 @@
 		login: {
 			art: USERLOG
 			next: fullLoginSequenceLoginArt
-			/*
-			next: [
-				{
-					acs: "=N2"
-					next: fullLoginSequenceLoginArt
-				}
-			]
-			*/
 			config: {
 				tooNode: {
 					art: TOONODE

@@ -215,6 +215,13 @@ MenuModule.prototype.restoreSavedState = function(savedState) {
 };
 
 MenuModule.prototype.nextMenu = function(cb) {
+	//	:TODO: this, prevMenu(), and gotoMenu() need a default |cb| handler if none is supplied.
+	//	...if the error is that we do not meet ACS requirements and did not get a match, then what?
+	if(!cb) {
+		cb = function(err) {
+			console.log(err)
+		}
+	}
 	this.client.menuStack.next(cb);
 };
 
