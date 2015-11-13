@@ -14,8 +14,10 @@ function getConditionalValue(client, condArray, memberName) {
 	assert(_.isArray(condArray));
 	assert(_.isString(memberName));
 
+	console.log(condArray)
+
 	condArray.forEach(function cond(c) {
-		if(acsParser.parse( { client : client }, c.acs)) {
+		if(acsParser.parse(c.acs, { client : client })) {
 			return c[memberName];
 		}
 	});

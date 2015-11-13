@@ -59,11 +59,11 @@ module.exports = (function() {
         peg$c20 = "]",
         peg$c21 = { type: "literal", value: "]", description: "\"]\"" },
         peg$c22 = function(n, a) { return checkAccess(n, a); },
-        peg$c23 = /^[A-Z=]/,
-        peg$c24 = { type: "class", value: "[A-Z\\=]", description: "[A-Z\\=]" },
-        peg$c25 = /^[A-Z]/,
-        peg$c26 = { type: "class", value: "[A-Z]", description: "[A-Z]" },
-        peg$c27 = function(c) { return c.join(''); },
+        peg$c23 = /^[A-Z]/,
+        peg$c24 = { type: "class", value: "[A-Z]", description: "[A-Z]" },
+        peg$c25 = function(c) { return c.join(''); },
+        peg$c26 = /^[A-Z=]/,
+        peg$c27 = { type: "class", value: "[A-Z\\=]", description: "[A-Z\\=]" },
         peg$c28 = /^[A-Za-z0-9\-_+]/,
         peg$c29 = { type: "class", value: "[A-Za-z0-9\\-_\\+]", description: "[A-Za-z0-9\\-_\\+]" },
         peg$c30 = function(a) { return a.join('') },
@@ -567,15 +567,12 @@ module.exports = (function() {
         if (peg$silentFails === 0) { peg$fail(peg$c24); }
       }
       if (s2 !== peg$FAILED) {
-        if (peg$c25.test(input.charAt(peg$currPos))) {
+        if (peg$c23.test(input.charAt(peg$currPos))) {
           s3 = input.charAt(peg$currPos);
           peg$currPos++;
         } else {
           s3 = peg$FAILED;
-          if (peg$silentFails === 0) { peg$fail(peg$c26); }
-        }
-        if (s3 === peg$FAILED) {
-          s3 = null;
+          if (peg$silentFails === 0) { peg$fail(peg$c24); }
         }
         if (s3 !== peg$FAILED) {
           s2 = [s2, s3];
@@ -590,9 +587,18 @@ module.exports = (function() {
       }
       if (s1 !== peg$FAILED) {
         peg$savedPos = s0;
-        s1 = peg$c27(s1);
+        s1 = peg$c25(s1);
       }
       s0 = s1;
+      if (s0 === peg$FAILED) {
+        if (peg$c26.test(input.charAt(peg$currPos))) {
+          s0 = input.charAt(peg$currPos);
+          peg$currPos++;
+        } else {
+          s0 = peg$FAILED;
+          if (peg$silentFails === 0) { peg$fail(peg$c27); }
+        }
+      }
 
       return s0;
     }
@@ -799,88 +805,93 @@ module.exports = (function() {
     	var _		= require('lodash');
 
     	function checkAccess(name, value) {
-    		return {
-    			'='	: function isLocalConnection() {
-    				return client.isLocal();
-    			},
-    			A	: function ageGreaterOrEqualThan() {
-    				return !isNaN(value) && user.getAge() >= value;
-    			},
-    			EC	: function isEncoding() {
-    				switch(value) {
-    					case 0	: return 'cp437' === client.term.outputEncoding.toLowerCase();
-    					case 1	: return 'utf-8' === client.term.outputEncoding.toLowerCase();
-    					default	: return false;
-    				}
-    			},
-    			GM	: function isOneOfGroups() {
-    				if(!_.isArray(value)) {
-    					return false;
-    				}
-
-    				value.forEach(function grpEntry(groupName) {
-    					if(user.isGroupMember(groupName)) {
-    						return true;
+    		try {
+    			return {
+    				'='	: function isLocalConnection() {
+    					return client.isLocal();
+    				},
+    				A	: function ageGreaterOrEqualThan() {
+    					return !isNaN(value) && user.getAge() >= value;
+    				},
+    				EC	: function isEncoding() {
+    					switch(value) {
+    						case 0	: return 'cp437' === client.term.outputEncoding.toLowerCase();
+    						case 1	: return 'utf-8' === client.term.outputEncoding.toLowerCase();
+    						default	: return false;
     					}
-    				});
+    				},
+    				GM	: function isOneOfGroups() {
+    					if(!_.isArray(value)) {
+    						return false;
+    					}
 
-    				return false;
-    			},
-    			N	: function isNode() {
-    				return client.node === value;
-    			},
-    			P	: function numberOfPosts() {
-    				//	:TODO: implement me!!!!
-    				return false;
-    			},
-    			Q	: function numberOfCalls() {
-    				//	:TODO: implement me!!
-    				return false;
-    			},
-    			SC 	: function isSecerConnection() {
-    				return client.session.isSecure;
-    			},
-    			T	: function minutesLeft() {
-    				//	:TODO: implement me!
-    				return false;
-    			},
-    			TH	: function termHeight() {
-    				return !isNaN(value) && client.term.termHeight >= value;
-    			},
-    			TM	: function isOneOfThemes() {
-    				if(!_.isArray(value)) {
+    					value.forEach(function grpEntry(groupName) {
+    						if(user.isGroupMember(groupName)) {
+    							return true;
+    						}
+    					});
+
+    					return false;
+    				},
+    				N	: function isNode() {
+    					return client.node === value;
+    				},
+    				P	: function numberOfPosts() {
+    					//	:TODO: implement me!!!!
+    					return false;
+    				},
+    				Q	: function numberOfCalls() {
+    					//	:TODO: implement me!!
+    					return false;
+    				},
+    				SC 	: function isSecerConnection() {
+    					return client.session.isSecure;
+    				},
+    				T	: function minutesLeft() {
+    					//	:TODO: implement me!
+    					return false;
+    				},
+    				TH	: function termHeight() {
+    					return !isNaN(value) && client.term.termHeight >= value;
+    				},
+    				TM	: function isOneOfThemes() {
+    					if(!_.isArray(value)) {
+    						return false;
+    					}
+
+    					return value.indexOf(client.currentTheme.name) > -1;
+    				},
+    				TT	: function isOneOfTermTypes() {
+    					if(!_.isArray(value)) {
+    						return false;
+    					}
+
+    					return value.indexOf(client.term.termType) > -1;
+    				},
+    				TW	: function termWidth() {
+    					return !isNaN(value) && client.term.termWidth >= value;
+    				},
+    				U	: function isUserId(value) {
+    					return user.userId === value;
+    				},
+    				W	: function isOneOfDayOfWeek() {
+    					//	:TODO: return true if DoW
+    					if(_.isNumber(value)) {
+
+    					} else if(_.isArray(value)) {
+
+    					}
+    					return false;
+    				},
+    				Y	: function isMinutesPastMidnight() {
+    					//	:TODO: return true if value is >= minutes past midnight sys time
     					return false;
     				}
-
-    				return value.indexOf(client.currentTheme.name) > -1;
-    			},
-    			TT	: function isOneOfTermTypes() {
-    				if(!_.isArray(value)) {
-    					return false;
-    				}
-
-    				return value.indexOf(client.term.termType) > -1;
-    			},
-    			TW	: function termWidth() {
-    				return !isNaN(value) && client.term.termWidth >= value;
-    			},
-    			U	: function isUserId(value) {
-    				return user.userId === value;
-    			},
-    			W	: function isOneOfDayOfWeek() {
-    				//	:TODO: return true if DoW
-    				if(_.isNumber(value)) {
-
-    				} else if(_.isArray(value)) {
-
-    				}
-    				return false;
-    			},
-    			Y	: function isMinutesPastMidnight() {
-    				//	:TODO: return true if value is >= minutes past midnight sys time
-    				return false;
-    			}
-    		}[name](value) || false;
+    			}[name](value);
+    		} catch (e) {
+    			client.log.warn( { name : name, value : value }, 'Invalid ACS string!');
+    			return false;
+    		}
     	}
 
 
