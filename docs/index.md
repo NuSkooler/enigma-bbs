@@ -22,7 +22,7 @@ openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
 
 4\. Create a minimal config
-Main system configuration is handled via `~/.enigma-bbs/config.hjson`. This is a HJSON file (compiliant JSON is also OK).
+Main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a HJSON file (compiliant JSON is also OK).
 
 ```hjson
 general: {

@@ -54,7 +54,7 @@ git clone https://github.com/NuSkooler/enigma-bbs.git
 ```
 **Create a Config**
 ```hjson
-/* ~/.enigma-bbs/config.hjson */
+/* ~/.config/enigma-bbs/config.hjson */
 general: {
   boardName: Super Awesome BBS
 }
