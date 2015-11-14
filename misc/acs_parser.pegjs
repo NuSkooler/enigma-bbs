@@ -4,6 +4,7 @@
 	var user	= options.client.user;
 
 	var _		= require('lodash');
+	var assert	= require('assert');
 
 	function checkAccess(acsCode, value) {
 		try {
@@ -13,6 +14,18 @@
 				},
 				AG	: function ageGreaterOrEqualThan() {
 					return !isNaN(value) && user.getAge() >= value;
+				},
+				AS	: function accountStatus() {
+
+					if(_.isNumber(value)) {
+						value = [ value ];
+					}
+
+					assert(_.isArray(value));
+						
+					return _.findIndex(value, function cmp(accStatus) {
+						return parseInt(accStatus, 10) === parseInt(user.properties.account_status, 10);
+					}) > -1;
 				},
 				EC	: function isEncoding() {
 					switch(value) {
@@ -26,13 +39,9 @@
 						return false;
 					}
 
-					value.forEach(function grpEntry(groupName) {
-						if(user.isGroupMember(groupName)) {
-							return true;
-						}
-					});
-
-					return false;
+					return _.findIndex(value, function cmp(groupName) {
+						return user.isGroupMember(groupName);
+					}) > - 1;
 				},
 				NN	: function isNode() {
 					return client.node === value;

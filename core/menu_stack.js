@@ -46,24 +46,10 @@ MenuStack.prototype.next = function(cb) {
 	assert(currentModuleInfo, 'Empty menu stack!');
 
 	var menuConfig = currentModuleInfo.instance.menuConfig;
-
-	/*	
-		:TODO: next should allow for conditionals based on ACS
-
-		next: [
-			{ acs: "GM[sysops]|U1", next: theNextMenu },
-			...
-		]
-
-		acsUtil.getAcsConditionMatch(cond, memberName) -> value | undefined
-		(memberName = "next")
-	*/
-
 	var next;
 
 	if(_.isArray(menuConfig.next)) {
 		next = acsUtil.getConditionalValue(this.client, menuConfig.next, 'next');
-		console.log('conditional next: ' + next);
 		if(!next) {
 			cb(new Error('No matching condition for \'next\'!'));
 			return;
@@ -75,12 +61,12 @@ MenuStack.prototype.next = function(cb) {
 		return;
 	}
 
-	if(menuConfig.next === currentModuleInfo.name) {
+	if(next === currentModuleInfo.name) {
 		cb(new Error('Menu config \'next\' specifies current menu!'));
 		return;
 	}
 
-	this.goto(menuConfig.next, { }, cb);
+	this.goto(next, { }, cb);
 };
 
 MenuStack.prototype.prev = function(cb) {

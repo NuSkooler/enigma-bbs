@@ -48,7 +48,7 @@ function AreaPostFSEModule(options) {
 					console.log(msg);
 				}
 
-				self.prevMenu();
+				self.nextMenu();
 			}
 		);
 	};

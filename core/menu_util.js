@@ -10,6 +10,7 @@ var asset				= require('./asset.js');
 var theme				= require('./theme.js');
 var configCache			= require('./config_cache.js');
 var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
+var acsUtil				= require('./acs_util.js');
 
 var fs					= require('fs');
 var paths				= require('path');
@@ -220,8 +221,12 @@ function handleAction(client, formData, conf) {
 }
 
 function handleNext(client, nextSpec, conf) {
-	assert(_.isString(nextSpec));
-
+	assert(_.isString(nextSpec) || _.isArray(nextSpec));
+	
+	if(_.isArray(nextSpec)) {
+		nextSpec = acsUtil.getConditionalValue(client, nextSpec, 'next');
+	}
+	
 	var nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
 
 	conf = conf || {};

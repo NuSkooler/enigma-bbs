@@ -85,9 +85,9 @@ User.StandardPropertyGroups = {
 };
 
 User.AccountStatus = {
-	disabled	: -1,
-	inactive	: 0,
-	active		: 1,
+	disabled	: 0,
+	inactive	: 1,
+	active		: 2,
 };
 
 User.prototype.load = function(userId, cb) {

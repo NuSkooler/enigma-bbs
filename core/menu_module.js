@@ -146,7 +146,7 @@ function MenuModule(options) {
 
 	this.autoNextMenu = function() {
 		function goNext() {
-			if(_.isString(self.menuConfig.next)) {
+			if(_.isString(self.menuConfig.next) || _.isArray(self.menuConfig.next)) {
 				menuUtil.handleNext(self.client, self.menuConfig.next);	
 			} else {
 				self.prevMenu();
@@ -178,6 +178,10 @@ function MenuModule(options) {
 				goNext();
 			}
 		}
+	};
+
+	this.haveNext = function() {
+		return (_.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next));
 	};
 }
 
@@ -215,6 +219,14 @@ MenuModule.prototype.restoreSavedState = function(savedState) {
 };
 
 MenuModule.prototype.nextMenu = function(cb) {
+	//
+	//	If we don't actually have |next|, we'll go previous
+	//
+	if(!this.haveNext()) {
+		this.prevMenu(cb);
+		return;
+	}
+
 	//	:TODO: this, prevMenu(), and gotoMenu() need a default |cb| handler if none is supplied.
 	//	...if the error is that we do not meet ACS requirements and did not get a match, then what?
 	if(!cb) {

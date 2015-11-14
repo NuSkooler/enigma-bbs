@@ -14,11 +14,11 @@ function getConditionalValue(client, condArray, memberName) {
 	assert(_.isArray(condArray));
 	assert(_.isString(memberName));
 
-	console.log(condArray)
-
-	condArray.forEach(function cond(c) {
-		if(acsParser.parse(c.acs, { client : client })) {
-			return c[memberName];
-		}
+	var matchCond = _.find(condArray, function cmp(cond) {
+		return acsParser.parse(cond.acs, { client : client } );
 	});
+	
+	if(matchCond) {
+		return matchCond[memberName];
+	}
 }

@@ -119,8 +119,6 @@
 			next: @systemMethod:logoff
 		}
 		/*
-			nua -> send sysop mail -> { active } -> matrix
-			                       -> you must active -> matrix
 			TODO: display PRINT before this (Obv/2) or NEWUSER1 (Mystic)
 		*/
 		newUserApplication: {
@@ -305,9 +303,16 @@
 		newUserFeedbackToSysOp: {
 			status: Feedback to SysOp
 			module: msg_area_post_fse
-			//	:TODO: If the user is auto-approved, login seq. else, DONE.ANS -> Logoff
-			//	:TODO: client.nextOrFallback(): go next or fallback. Use in MenuModule base also
-			fallback: fullLoginSequenceLoginArt
+			next: [
+				{ 
+					acs: AS2
+					next: fullLoginSequenceLoginArt
+				}
+				{
+					acs: !AS2
+					next: newUserInactiveDone
+				}
+			]
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -413,6 +418,13 @@
 			}
 		}
 
+		newUserInactiveDone: {
+			desc: Finished with NUA
+			art: DONE
+			options: { pause: true }
+			next: @menu:logoff
+		}
+
 		fullLoginSequenceLoginArt: {
 			desc: Logging In
 			art: WELCOME
@@ -448,12 +460,8 @@
 			prompt: menuCommand
 			submit: [
 				{
-					"value" 	: { "command" : "G" },
-					"action"	: "@menu:logoff"
-				},
-				{
-					"value"		: { "command" : "O" },
-					"action"	: "@menu:doorPimpWars"
+					value: { command: "G" }
+					action: @menu:logoff
 				}
 				{
 					value: { command: "D" }
@@ -464,21 +472,17 @@
 					action: @menu:mainMenuUserList
 				}
 				{
-					value: { command: "E" }
-					action: @menu:doorTestExample
+					value: { command: "L" }
+					action: @menu:mainMenuLastCallers
 				}
 				{
-					"value"		: { "command" : "L" },
-					"action"	: "@menu:mainMenuLastCallers"
-				},
+					value: { command: "Y" }
+					action: @menu:mainMenuUserStats
+				}
 				{
-					"value"		: { "command" : "Y" },
-					"action"	: "@menu:mainMenuUserStats"
-				},
-				{
-					"value"		: { "command" : "M" },
-					"action"	: "@menu:messageArea"
-				},
+					value: { command: "M" }
+					action: @menu:messageArea
+				}
 				{
 					value: { command: "C" }
 					action: @menu:mainMenuUserConfig
@@ -488,8 +492,8 @@
 					action: @menu:mainMenuSystemStats
 				}
 				{
-					"value"		: 1,
-					"action"	: "@menu:mainMenu"
+					value: 1
+					action: @menu:mainMenu
 				}
 			]
 		}
