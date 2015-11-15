@@ -16,7 +16,6 @@
 					return !isNaN(value) && user.getAge() >= value;
 				},
 				AS	: function accountStatus() {
-
 					if(_.isNumber(value)) {
 						value = [ value ];
 					}
@@ -82,16 +81,28 @@
 					return !isNaN(value) && client.term.termWidth >= value;
 				},
 				ID	: function isUserId(value) {
-					return user.userId === value;
+					if(_.isNumber(value)) {
+						value = [ value ];
+					}
+
+					assert(_.isArray(value));
+
+					return _.findIndex(value, function cmp(uid) {
+						return user.userId === parseInt(uid, 10);
+					}) > -1;
 				},
 				WD	: function isOneOfDayOfWeek() {
-					//	:TODO: return true if DoW
 					if(_.isNumber(value)) {
-
-					} else if(_.isArray(value)) {
-
+						value = [ value ];
 					}
-					return false;
+
+					assert(_.isArray(value));
+
+					var nowDayOfWeek = new Date().getDay();
+
+					return _.findIndex(value, function cmp(dow) {
+						return nowDayOfWeek === parseInt(dow, 10);
+					}) > -1;
 				},
 				MM	: function isMinutesPastMidnight() {
 					//	:TODO: return true if value is >= minutes past midnight sys time

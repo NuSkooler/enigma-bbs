@@ -307,9 +307,9 @@
 				{ 
 					acs: AS2
 					next: fullLoginSequenceLoginArt
-				}
+				}				
 				{
-					acs: !AS2
+				//	acs: !AS2
 					next: newUserInactiveDone
 				}
 			]
