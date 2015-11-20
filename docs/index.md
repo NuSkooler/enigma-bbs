@@ -14,7 +14,12 @@ git clone https://github.com/NuSkooler/enigma-bbs.git
 npm install
 ```
 
-3\. Generate a SSH Private Key
+**Note for Windows users**:<br>
+Some dependencies require compilation. You will need at least the following installed for `npm install` to succeed:
+* A recent copy of Visual Studio (Express editions OK)
+* Python 2.7.x
+
+3\. Generate a SSH Private Key<br>
 Note that you can skip this step and disable the SSH server in your `config.hjson` if desired.
 
 ```bash

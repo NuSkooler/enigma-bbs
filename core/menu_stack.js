@@ -107,7 +107,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 
 	loadMenu(loadOpts, function menuLoaded(err, modInst) {
 		if(err) {
-			var errCb = cb || self.defaultHandlerMissingMod();
+			var errCb = cb || currentModuleInfo.instance.defaultHandlerMissingMod();
 			errCb(err);
 		} else {
 			//	:TODO: Move this log to caller

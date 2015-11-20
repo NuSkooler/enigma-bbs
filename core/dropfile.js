@@ -8,6 +8,7 @@ var paths			= require('path');
 var _				= require('lodash');
 var async			= require('async');
 var moment			= require('moment');
+var iconv			= require('iconv-lite');
 
 exports.DropFile	= DropFile;
 
@@ -84,7 +85,7 @@ function DropFile(client, fileType) {
 		//	:TODO: fix time remaining
 		//	:TODO: fix default protocol -- user prop: transfer_protocol
 
-		return new Buffer( [
+		return iconv.encode( [
 			'COM1:',											//	"Comm Port - COM0: = LOCAL MODE"
 			'57600',											//	"Baud Rate - 300 to 38400" (Note: set as 57600 instead!)
 			'8',												//	"Parity - 7 or 8"
@@ -158,7 +159,7 @@ function DropFile(client, fileType) {
 		var un			= /[^\s]*/.exec(self.client.user.username)[0];
 		var secLevel	= self.client.user.getLegacySecurityLevel().toString();
 
-		return new Buffer( [
+		return iconv.encode( [
 			Config.general.boardName,							//	"The name of the system."
 			opUn,												//	"The sysop's name up to the first space."
 			opUn,												//	"The sysop's name following the first space."

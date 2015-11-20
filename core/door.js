@@ -5,7 +5,7 @@ var spawn			= require('child_process').spawn;
 var events			= require('events');
 
 var _				= require('lodash');
-var pty				= require('pty.js');
+var pty				= require('ptyw.js');
 
 exports.Door		= Door;
 
@@ -47,6 +47,7 @@ Door.prototype.run = function() {
 
 	//	:TODO: do this with pluggable pipe/filter classes
 
+	//	:TODO: This causes an error to be thrown when e.g. 'cp437' is used due to Node buffer changes
 	door.setEncoding(this.exeInfo.encoding);
 
 	door.on('data', function doorData(data) {
