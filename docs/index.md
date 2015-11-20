@@ -44,4 +44,7 @@ messages: {
 ./main.js
 ```
 
-The first user you create via applying is the root SysOp.
+Some points of interest:
+* Default ports are 8888 (Telnet) and 8889 (SSH)
+* The first user you create via applying is the root SysOp.
+* You may want to tail the logfile with Bunyan: `tail -F ./logs/enigma-bbs.log | ./node_modules/bunyan/bin/bunyan`
