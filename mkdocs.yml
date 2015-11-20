@@ -5,6 +5,7 @@ theme: readthedocs
 
 pages:
   - Introduction: 'index.md'
+  - Configuration: 'config.md'
   - Raspberry Pi: 'rpi.md'
   - About: 'about.md'
 

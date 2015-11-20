@@ -47,49 +47,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 
 ## Installation
-**Clone**
-```bash
-git clone https://github.com/NuSkooler/enigma-bbs.git
-
-```
-**Create a Config**
-```hjson
-/* ~/.config/enigma-bbs/config.hjson */
-general: {
-  boardName: Super Awesome BBS
-}
-messages: {
-  areas: [
-    { name: "local_enigma_discusssion", desc: "ENiGMA Discussion", groups: [ "users" ] }
-  ]
-}
-```
-
-**Install dependencies**
-```bash
-npm install
-```
-
-**Generate a PK for SSH usage**
-```bash
-mkdir misc
-openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
-```
-
-After generation, set servers.ssh.privateKeyPass to your password in config.hjson:
-```hjson
-servers: {
-  ssh: {
-    privateKeyPass: YOUR_PK_PASS
-  }
-}
-```
-
-**Launch**
-```bash
-node main.js
-```
-(More information will be available in the documentation in the near future)
+Please see the [Quickstart](docs/config.md#quickstart)
 
 ## Special Thanks
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
