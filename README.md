@@ -47,7 +47,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 
 ## Installation
-Please see the [Quickstart](docs/config.md#quickstart)
+Please see the [Quickstart](docs/index.md#quickstart)
 
 ## Special Thanks
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
