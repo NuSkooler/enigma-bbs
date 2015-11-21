@@ -23,7 +23,8 @@ function valueWithDefault(val, defVal) {
 
 function resolvePath(path) {
 	if(path.substr(0, 2) === '~/') {
-		path = (process.env.HOME || process.env.HOMEPATH || process.env.HOMEDIR || process.cwd()) + path.substr(1);
+		var mswCombined = process.env.HOMEDRIVE + process.env.HOMEPATH;
+		path = (process.env.HOME || mswCombined || process.env.HOMEPATH || process.env.HOMEDIR || process.cwd()) + path.substr(1);
 	}
 	return paths.resolve(path);
 }
