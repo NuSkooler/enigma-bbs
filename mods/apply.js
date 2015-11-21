@@ -132,6 +132,15 @@ function submitApplication(callingMenu, formData, extraArgs) {
 				} else {
 					Log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
 
+					//	Cache SysOp information now
+					//	:TODO: Similar to bbs.js. DRY
+					if(newUser.isSysOp()) {
+						Config.general.sysOp = {
+							username	: formData.value.username,
+							properties	: newUser.properties,
+						};
+					}
+
 					if(user.User.AccountStatus.inactive === client.user.properties.account_status) {
 						callingMenu.gotoMenu(extraArgs.inactive);
 					} else {

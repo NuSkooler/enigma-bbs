@@ -85,6 +85,8 @@ Message.WellKnownAreaNames = {
 	Private	: 'private_mail'
 };
 
+//	:TODO: This doesn't seem like a good way to go -- perhaps only for local/user2user, or just use
+//	a system similar to the "last read" for general areas
 Message.Status = {
 	New		: 0,
 	Read	: 1,

@@ -123,7 +123,17 @@
 		*/
 		newUserApplication: {
 			art: NUA
-			next: newUserFeedbackToSysOpPreamble
+			next: [
+				{
+					//	Initial SysOp does not send feedback to themselves
+					acs: ID1
+					next: fullLoginSequenceLoginArt
+				}
+				{
+					//	...everyone else does
+					next: newUserFeedbackToSysOpPreamble
+				}
+			]
 			form: {
 				0: {
 					mci: {
@@ -309,7 +319,6 @@
 					next: fullLoginSequenceLoginArt
 				}				
 				{
-				//	acs: !AS2
 					next: newUserInactiveDone
 				}
 			]
