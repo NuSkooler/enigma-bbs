@@ -16,19 +16,22 @@ function init(configPath, cb) {
 	async.waterfall(
 		[
 			function loadUserConfig(callback) {
-		
-				fs.readFile(configPath, { encoding : 'utf8' }, function configData(err, data) {
-					if(err) {
-						callback(null, { } );
-					} else {
-						try {
-							var configJson = hjson.parse(data);
-							callback(null, configJson);
-						} catch(e) {
-							callback(e);							
+				if(_.isString(configPath)) {
+					fs.readFile(configPath, { encoding : 'utf8' }, function configData(err, data) {
+						if(err) {
+							callback(err);
+						} else {
+							try {
+								var configJson = hjson.parse(data);
+								callback(null, configJson);
+							} catch(e) {
+								callback(e);							
+							}
 						}
-					}
-				});
+					});
+				} else {
+					callback(null, { } );
+				}
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
 				var mergedConfig = _.merge(getDefaultConfig(), configJson, function mergeCustomizer(conf1, conf2) {
@@ -38,6 +41,23 @@ function init(configPath, cb) {
 						return conf1.concat(conf2);
 					}
 				});
+
+				callback(null, mergedConfig);
+			},
+			function validate(mergedConfig, callback) {
+				//
+				//	Various sections must now exist in config
+				//
+				if(!_.has(mergedConfig, 'messages.areas.') ||
+					!_.isArray(mergedConfig.messages.areas) ||
+					0 == mergedConfig.messages.areas.length ||
+					!_.isString(mergedConfig.messages.areas[0].name))
+				{
+					var msgAreasErr = new Error('Please create at least one message area');
+					msgAreasErr.code = 'EBADCONFIG';
+					callback(msgAreasErr);
+					return;
+				}
 
 				callback(null, mergedConfig);
 			}

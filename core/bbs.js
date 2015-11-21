@@ -47,9 +47,18 @@ function bbsMain() {
 					//	If the user supplied a path and we can't read/parse it 
 					//	then it's a fatal error
 					//
+					if(err) {
+						if('ENOENT' === err.code) {
+							console.error('Configuration file does not exist: ' + configPath);
+						} else {
+							console.error(err.toString());
+						}
+					}
+					callback(err);
+					/*
 					if(configPathSupplied && err) {
 						if('ENOENT' === err.code) {
-							console.error('Configuration file does not existing: ' + configPath);
+							console.error('Configuration file does not exist: ' + configPath);
 						} else {
 							console.error('Failed parsing configuration: ' + configPath);
 						}
@@ -57,6 +66,7 @@ function bbsMain() {
 					} else {
 						callback(null);
 					}
+					*/
 				});
 			},
 			function initSystem(callback) {
