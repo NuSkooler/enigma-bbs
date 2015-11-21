@@ -47,7 +47,6 @@ function bbsMain() {
 					//	If the user supplied a path and we can't read/parse it 
 					//	then it's a fatal error
 					//
-					console.log(err)
 					if(err) {
 						if('ENOENT' === err.code)  {
 							if(configPathSupplied) {
