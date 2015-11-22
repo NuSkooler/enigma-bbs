@@ -529,7 +529,6 @@ function display(options, cb) {
 	//	...this should come from sauce, be passed in, or defaulted
 	var ansiFont = '';
 	if(options.font) {
-		//	:TODO: how to set to ignore SAUCE?		
 		ansiFont = ansi.setSyncTERMFont(options.font);
 	} else if(options.sauce) {
 		var fontName = getFontNameFromSAUCE(options.sauce);
@@ -537,7 +536,8 @@ function display(options, cb) {
 			fontName = ansi.getSyncTERMFontFromAlias(fontName);
 		}
 		
-		if(fontName) {
+		//	Don't set default (cp437) from SAUCE
+		if(fontName && 'cp437' !== fontName) {
 			ansiFont = ansi.setSyncTERMFont(fontName);
 		}
 	}
