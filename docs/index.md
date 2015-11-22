@@ -26,8 +26,8 @@ Note that you can skip this step and disable the SSH server in your `config.hjso
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
 
-4\. Create a minimal config
-Main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a HJSON file (compiliant JSON is also OK).
+4\. Create a minimal config<br>
+The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
 ```hjson
 general: {
