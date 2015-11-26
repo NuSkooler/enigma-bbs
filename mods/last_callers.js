@@ -5,7 +5,6 @@ var MenuModule			= require('../core/menu_module.js').MenuModule;
 var userDb				= require('../core/database.js').dbs.user;
 var ViewController		= require('../core/view_controller.js').ViewController;
 var getSystemLoginHistory	= require('../core/stats.js').getSystemLoginHistory;
-var colorCodes			= require('../core/color_codes.js');
 
 var moment				= require('moment');
 var async				= require('async');
@@ -89,8 +88,6 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 				});
 			},
 			function populateList(callback) {
-				var callersView = vc.getView(MciCodeIds.CallerList);
-
 				var listFormat 	= self.menuConfig.config.listFormat || '{userName} - {location} - {affils} - {ts}';
 				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
 
@@ -118,4 +115,4 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 			cb(err);
 		}
 	);
-}
+};

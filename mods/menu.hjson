@@ -485,6 +485,10 @@
 					action: @menu:mainMenuLastCallers
 				}
 				{
+					value: { command: "W" }
+					action: @menu:mainMenuWhosOnline
+				}
+				{
 					value: { command: "Y" }
 					action: @menu:mainMenuUserStats
 				}
@@ -510,6 +514,12 @@
 			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
+			options: { pause: true }
+		}
+		mainMenuWhosOnline: {
+			desc: Who's Online
+			module: whos_online
+			art: WHOSON
 			options: { pause: true }
 		}
 		mainMenuUserStats: {

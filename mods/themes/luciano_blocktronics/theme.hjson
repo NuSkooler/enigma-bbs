@@ -133,6 +133,15 @@
 				}
 			}
 
+			mainMenuWhosOnline: {
+				config: {
+					listFormat: "|00|01|36{node:<6.6}{userName:<17.17}{affils:<19.19}{action:<20.20}{timeOn:<8}"
+				}
+				mci: {
+					VM1: { height: 10 }
+				}
+			}
+
 			messageAreaMessageList: {
 				config: {
 					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} |01|31{newIndicator}"

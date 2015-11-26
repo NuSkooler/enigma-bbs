@@ -11,7 +11,7 @@ var clientConnections = [];
 exports.clientConnections		= clientConnections;
 
 function getActiveConnections() {
-	return clientConnections.length;
+	return clientConnections;
 }
 
 function addNewClient(client, clientSock) {

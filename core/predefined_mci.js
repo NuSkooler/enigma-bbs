@@ -105,7 +105,7 @@ function getPredefinedMCIValue(client, code) {
 			//	:TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
 			//	:TODO: Node version/info
 
-			AN	: function activeNodes() { return clientConnections.getActiveConnections().toString(); },
+			AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
 			TC	: function totalCalls() { return sysProp.getSystemProperty('login_count').toString(); },
 			
