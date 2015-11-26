@@ -245,7 +245,7 @@ function setSyncTERMFont(name, fontPage) {
 	assert(p1 >= 0 && p1 <= 3);
 
 	var p2 = SYNCTERM_FONT_AND_ENCODING_TABLE.indexOf(name);
-	if(_.isNumber(p2)) {
+	if(p2 > -1) {
 		return ESC_CSI + p1 + ';' + p2 + ' D';
 	}
 
