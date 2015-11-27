@@ -617,7 +617,7 @@
 		}
 		/*
 			The 'abracadabra' module's config.args accepts the following format objects:
-			{dropfile}		- Path to generated dropfile
+			{dropFile}		- Path to generated dropfile
 			{node}			- Node number
 		*/
 		doorPimpWars: {
@@ -628,7 +628,7 @@
 				dropFileType: DORINFO
 				cmd: /usr/bin/dosemu
 				args: [ 
-					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropfile} {node}"
+					"-quiet", "-f", "/home/nuskooler/DOS/X/LORD/dosemu.conf", "X:\\PW\\START.BAT {dropFile} {node}"
 				],
 				nodeMax: 1
 				tooManyArt: DOORMANY

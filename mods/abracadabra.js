@@ -140,10 +140,13 @@ function AbracadabraModule(options) {
 			args	: this.config.args,
 		};
 
-		//	:TODO: this system should probably be generic
+
 		for(var i = 0; i < exeInfo.args.length; ++i) {
-			exeInfo.args[i] = exeInfo.args[i].replace(/\{dropfile\}/g,	self.dropFile.fileName);
-			exeInfo.args[i] = exeInfo.args[i].replace(/\{node\}/g,		self.client.node.toString());
+			exeInfo.args[i] = exeInfo.args[i].format( { 
+				dropFile	: self.dropFile.fileName,
+				node		: self.client.node.toString(),
+				socket		: self.client.output._handle.fd.toString(),	//	ugg!
+			});
 		}
 
 		var doorInstance = new door.Door(this.client, exeInfo);

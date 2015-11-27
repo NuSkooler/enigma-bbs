@@ -6,6 +6,7 @@ var events			= require('events');
 
 var _				= require('lodash');
 var pty				= require('ptyw.js');
+var decode 			= require('iconv-lite').decode;
 
 exports.Door		= Door;
 
@@ -38,20 +39,22 @@ Door.prototype.run = function() {
 		rows : self.client.term.termHeight,
 		//	:TODO: cwd
 		env	: self.exeInfo.env,
+		//encoding	: self.client.term.outputEncoding,
 	});
 
 	//	:TODO: can we pause the stream, write our own "Loading...", then on resume?
 
 	//door.pipe(self.client.term.output);
 	self.client.term.output.pipe(door);
-
+	
 	//	:TODO: do this with pluggable pipe/filter classes
 
 	//	:TODO: This causes an error to be thrown when e.g. 'cp437' is used due to Node buffer changes
-	door.setEncoding(this.exeInfo.encoding);
+	//door.setEncoding(this.exeInfo.encoding);
+	
 
 	door.on('data', function doorData(data) {
-		self.client.term.write(data);
+		self.client.term.write(decode(data, self.client.term.outputEncoding));
 	});
 
 	door.on('close', function closed() {
