@@ -58,7 +58,7 @@ function DropFile(client, fileType) {
 		get : function() {
 			return {
 				DOOR			: self.getDoorSysBuffer(),
-
+				DOOR32			: self.getDoor32Buffer(),
 				DORINFO			: self.getDoorInfoDefBuffer(),
 			}[self.fileType];
 		}
@@ -95,7 +95,7 @@ function DropFile(client, fileType) {
 			'Y',												//	"Printer Toggle - Y=On  N=Off             (Default to Y)"
 			'Y',												//	"Page Bell      - Y=On  N=Off             (Default to Y)"
 			'Y',												//	"Caller Alarm   - Y=On  N=Off             (Default to Y)"
-			up.realName || self.client.user.username,			//	"User Full Name"
+			up.real_name || self.client.user.username,			//	"User Full Name"
 			up.location || 'Anywhere',							//	"Calling From"
 			'123-456-7890',										//	"Home Phone"
 			'123-456-7890',										//	"Work/Data Phone"
@@ -146,6 +146,28 @@ function DropFile(client, fileType) {
 			].join('\r\n') + '\r\n', 'cp437');
 	};
 
+	this.getDoor32Buffer = function() {
+		//
+		//	Resources:
+		//	* http://wiki.bbses.info/index.php/DOOR32.SYS
+		//
+		//	:TODO: local/serial/telnet need to be configurable -- which also changes socket handle!
+		return iconv.encode([
+			'2',						//	:TODO: This needs to be configurable!
+			self.client.output._handle.fd.toString(),
+			'57600',
+			Config.general.boardName,
+			self.client.user.userId.toString(),
+			self.client.user.properties.real_name || self.client.user.username,
+			self.client.user.username,
+			self.client.user.getLegacySecurityLevel.toString(),
+			'546',	//	:TODO: Minutes left!
+			'1',	//	ANSI
+			self.client.node.toString(),
+		].join('\r\n') + '\r\n', 'cp437');
+
+	};
+
 	this.getDoorInfoDefBuffer = function() {
 		//	:TODO: fix time remaining
 
@@ -184,4 +206,5 @@ DropFile.prototype.createFile = function(cb) {
 	fs.writeFile(this.fullPath, this.dropFileContents, function written(err) {
 		cb(err);
 	});
-}
+};
+
