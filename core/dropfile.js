@@ -154,13 +154,13 @@ function DropFile(client, fileType) {
 		//	:TODO: local/serial/telnet need to be configurable -- which also changes socket handle!
 		return iconv.encode([
 			'2',						//	:TODO: This needs to be configurable!
-			self.client.output._handle.fd.toString(),
+			self.client.output._handle.fd.toString(),	//	:TODO: ALWAYS -1 on Windows!
 			'57600',
 			Config.general.boardName,
 			self.client.user.userId.toString(),
 			self.client.user.properties.real_name || self.client.user.username,
 			self.client.user.username,
-			self.client.user.getLegacySecurityLevel.toString(),
+			self.client.user.getLegacySecurityLevel().toString(),
 			'546',	//	:TODO: Minutes left!
 			'1',	//	ANSI
 			self.client.node.toString(),
