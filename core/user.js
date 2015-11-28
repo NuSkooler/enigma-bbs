@@ -15,6 +15,7 @@ exports.User						= User;
 exports.getUserIdAndName			= getUserIdAndName;
 exports.getUserName					= getUserName;
 exports.loadProperties				= loadProperties;
+exports.getUserIdsWithProperty		= getUserIdsWithProperty;
 exports.getUserList					= getUserList;
 
 function User() {
@@ -492,6 +493,26 @@ function loadProperties(options, cb) {
 	}, function complete() {
 		cb(null, properties);
 	});
+}
+
+//	:TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
+function getUserIdsWithProperty(propName, propValue, cb) {
+	var userIds = [];
+
+	userDb.each(
+		'SELECT user_id '		+
+		'FROM user_property	'	+
+		'WHERE prop_name = ? AND prop_value = ?;',
+		[ propName, propValue ], 
+		function rowEntry(err, row) {
+			if(!err) {
+				userIds.push(row.user_id);
+			}
+		}, 
+		function complete() {
+			cb(null, userIds);
+		}
+	);
 }
 
 function getUserList(options, cb) {
