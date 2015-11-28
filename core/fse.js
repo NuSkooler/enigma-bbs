@@ -291,7 +291,7 @@ function FullScreenEditorModule(options) {
 		);
 	};
 
-	this.redrawScreen = function(options, cb) {
+	this.redrawScreen = function(cb) {
 		var comps	= [ 'header', 'body' ];
 		var art		= self.menuConfig.config.art;
 
@@ -325,6 +325,8 @@ function FullScreenEditorModule(options) {
 					comps.forEach(function artComp(n) {
 						self.viewControllers[n].redrawAll();
 					});
+
+					callback(null);
 				}
 			],
 			function complete(err) {
@@ -413,7 +415,8 @@ function FullScreenEditorModule(options) {
 				}
 			],
 			function complete(err) {
-				if(err) {					
+				if(err) {
+					//	:TODO: This needs properly handled!
 					console.log(err)
 				} else {
 					self.isReady = true;
@@ -636,8 +639,9 @@ function FullScreenEditorModule(options) {
 		theme.displayThemeArt( { name : self.menuConfig.config.art.help, client	: self.client },
 			function helpDisplayed(err, artData) {
 				self.client.waitForKeyPress(function keyPress(ch, key) {
-					self.redrawScreen();
-					self.viewControllers[self.getFooterName()].setFocus(true);
+					self.redrawScreen(function redrawn(err) {
+						self.viewControllers[self.getFooterName()].setFocus(true);
+					});
 				});
 			}
 		);
@@ -754,7 +758,7 @@ function FullScreenEditorModule(options) {
 		self.updateEditModePosition(body.getEditPosition());
 
 		self.observeEditorEvents();
-	}
+	};
 
 	this.menuMethods = {
 		headerSubmit : function(formData, extraArgs) {
