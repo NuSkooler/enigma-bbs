@@ -1,0 +1,4 @@
+*.asc	eol=crlf
+*.ans	eol=crlf
+*.txt	eol=crlf
+*.diz	eol=crlf
