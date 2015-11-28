@@ -18,54 +18,6 @@ var async					= require('async');
 exports.submitApplication	= submitApplication;
 
 function validateApplicationData(formData, cb) {
-	/*
-	if(formData.value.username.length < Config.users.usernameMin) {
-		cb('Handle too short!', [ 1 ]);
-		return;
-	}
-
-	if(formData.value.username.length > Config.users.usernameMax) {
-		cb('Handle too long!', [ 1 ]);
-		return;
-	}
-
-	var re = new RegExp(Config.users.usernamePattern);
-	if(!re.test(formData.value.username)) {
-		cb('Handle contains invalid characters!', [ 1 ] );
-		return;
-	}
-
-	var invalidNames = Config.users.newUserNames + Config.users.badUserNames;
-	if(invalidNames.indexOf(formData.value.username.toLowerCase()) > -1) {
-		cb('Handle is blacklisted!', [ 1 ] );
-		return;
-	}
-
-	if(isNaN(Date.parse(formData.value.birthdate))) {
-		cb('Invalid birthdate!', [ 3 ] );
-		return;
-	}
-
-	if(formData.value.password.length < Config.users.passwordMin) {
-		cb('Password too short!', [ 9, 10 ]);
-		return;
-	}
-
-	if(formData.value.password !== formData.value.passwordConfirm) {
-		cb('Passwords do not match!', [ 9, 10 ]);
-		return;
-	}
-
-	user.getUserIdAndName(formData.value.username, function userIdAndName(err) {
-		var alreadyExists = !err;
-		if(alreadyExists) {
-			cb('Username unavailable!', [ 1  ] );
-		} else {
-			cb(null);
-		}
-	});
-	*/
-
 	//	:TODO: This entire section should be replaced with a generic form validation system!!
 	async.waterfall(
 		[
