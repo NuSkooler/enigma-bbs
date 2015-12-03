@@ -12,6 +12,7 @@ var assert				= require('assert');
 var mkdirp 				= require('mkdirp');
 var paths				= require('path');
 var _					= require('lodash');
+var net					= require('net');
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
 
@@ -29,6 +30,25 @@ exports.moduleInfo = {
 
 /*
 	Example configuration for LORD under DOSEMU:
+
+	{
+		config: {
+			name: PimpWars
+			dropFileType: DORINFO
+			cmd: qemu-system-i386
+			args: [
+				"-localtime",
+				"freedos.img",
+				"-chardev",
+				"socket,port={srvPort},nowait,host=localhost,id=s0",
+				"-device",
+				"isa-serial,chardev=s0"
+			]
+			io: socket
+		}
+	}
+
+	listen: socket | stdio
 
 	{
 		"config" : {
@@ -129,27 +149,19 @@ function AbracadabraModule(options) {
 		);
 	};
 
-	this.runDosEmuDoor = function() {
-
-	};
-
 	this.runDoor = function() {
 
 		var exeInfo = {
-			cmd		: this.config.cmd,
-			args	: this.config.args,
+			cmd			: self.config.cmd,
+			args		: self.config.args,
+			io			: self.config.io || 'stdio',
+			encoding	: self.config.encoding || self.client.term.outputEncoding,
+			dropFile	: self.dropFile.fileName,
+			node		: self.client.node,
+			inhSocket	: self.client.output._handle.fd,
 		};
 
-
-		for(var i = 0; i < exeInfo.args.length; ++i) {
-			exeInfo.args[i] = exeInfo.args[i].format( { 
-				dropFile	: self.dropFile.fileName,
-				node		: self.client.node.toString(),
-				socket		: self.client.output._handle.fd.toString(),	//	ugg!
-			});
-		}
-
-		var doorInstance = new door.Door(this.client, exeInfo);
+		var doorInstance = new door.Door(self.client, exeInfo);
 
 		doorInstance.on('finished', function doorFinished() {
 			self.prevMenu();
@@ -163,10 +175,11 @@ function AbracadabraModule(options) {
 
 require('util').inherits(AbracadabraModule, MenuModule);
 
+/*
 AbracadabraModule.prototype.enter = function(client) {
 	AbracadabraModule.super_.prototype.enter.call(this, client);
-
 };
+*/
 
 AbracadabraModule.prototype.leave = function() {
 	AbracadabraModule.super_.prototype.leave.call(this);
@@ -177,6 +190,5 @@ AbracadabraModule.prototype.leave = function() {
 };
 
 AbracadabraModule.prototype.finishedLoading = function() {
-	
 	this.runDoor();
 };

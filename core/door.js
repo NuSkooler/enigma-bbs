@@ -7,6 +7,8 @@ var events			= require('events');
 var _				= require('lodash');
 var pty				= require('ptyw.js');
 var decode 			= require('iconv-lite').decode;
+var net				= require('net');
+var async			= require('async');
 
 exports.Door		= Door;
 
@@ -18,12 +20,18 @@ function Door(client, exeInfo) {
 
 	this.exeInfo.encoding	= this.exeInfo.encoding || 'cp437';
 
-	//	exeInfo.cmd
-	//	exeInfo.args[]
-	//	exeInfo.env{}
-	//	exeInfo.cwd
-	//	exeInfo.encoding
-
+	//
+	//	Members of exeInfo:
+	//	cmd
+	//	args[]
+	//	env{}
+	//	cwd
+	//	io
+	//	encoding
+	//	dropFile
+	//	node
+	//	inhSocket
+	//	
 }
 
 require('util').inherits(Door, events.EventEmitter);
@@ -34,39 +42,95 @@ Door.prototype.run = function() {
 
 	var self = this;
 
-	var door = pty.spawn(self.exeInfo.cmd, self.exeInfo.args, {
-		cols : self.client.term.termWidth,
-		rows : self.client.term.termHeight,
-		//	:TODO: cwd
-		env	: self.exeInfo.env,
-		//encoding	: self.client.term.outputEncoding,
-	});
+	var doorData = function(data) {
+		self.client.term.write(decode(data, self.exeInfo.encoding));
+	};
 
-	//	:TODO: can we pause the stream, write our own "Loading...", then on resume?
+	var sockServer;
 
-	//door.pipe(self.client.term.output);
-	self.client.term.output.pipe(door);
-	
-	//	:TODO: do this with pluggable pipe/filter classes
+	async.series(
+		[
+			function prepareServer(callback) {
+				if('socket' === self.exeInfo.io) {
+					sockServer =  net.createServer(function connected(conn) {
 
-	//	:TODO: This causes an error to be thrown when e.g. 'cp437' is used due to Node buffer changes
-	//door.setEncoding(this.exeInfo.encoding);
-	
+						sockServer.getConnections(function connCount(err, count) {
 
-	door.on('data', function doorData(data) {
-		self.client.term.write(decode(data, self.client.term.outputEncoding));
-	});
+							//	We expect only one connection from our DOOR/emulator/etc.
+							if(!err && count <= 1) {
+								self.client.term.output.pipe(conn);
+								
+								conn.on('data', doorData);
 
-	door.on('close', function closed() {
-		self.client.term.output.unpipe(door);
-		self.client.term.output.resume();
-	});
+								conn.on('end', function ended() {
+									self.client.term.output.unpipe(conn);
+									self.client.term.output.resume();
+								});
+							}
+						});
+					});
 
-	door.on('exit', function exited(code) {
-		self.client.log.info( { code : code }, 'Door exited');
+					sockServer.listen(0, function listening() {
+						callback(null);
+					});
+				} else {
+					callback(null);
+				}
+			},
+			function launch(callback) {
+				//	Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
+				var args = _.clone(self.exeInfo.args);	//	we need a copy so the original is not modified
 
-		door.removeAllListeners();
+				for(var i = 0; i < args.length; ++i) {
+					args[i] = self.exeInfo.args[i].format({
+						dropFile		: self.exeInfo.dropFile,
+						node			: self.exeInfo.node.toString(),
+						inhSocket		: self.exeInfo.inhSocket.toString(),
+						srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
+					});
+				}
 
-		self.emit('finished');
-	});
+				var door = pty.spawn(self.exeInfo.cmd, args, {
+					cols : self.client.term.termWidth,
+					rows : self.client.term.termHeight,
+					//	:TODO: cwd
+					env	: self.exeInfo.env,
+				});				
+
+				if('stdio' === self.exeInfo.io) {
+					self.client.log.debug('Using stdio for door I/O');
+
+					self.client.term.output.pipe(door);
+
+					door.on('data', doorData);
+
+					door.on('close', function closed() {
+						self.client.term.output.unpipe(door);
+						self.client.term.output.resume();
+					});
+				} else if('socket' === self.exeInfo.io) {
+					self.client.log.debug(
+						{ port : sockServer.address().port }, 
+						'Using temporary socket server for door I/O');
+				}
+
+				door.on('exit', function exited(code) {
+					self.client.log.info( { code : code }, 'Door exited');
+
+					if(sockServer) {
+						sockServer.close();
+					}
+
+					door.removeAllListeners();
+
+					self.emit('finished');
+				});
+			}
+		],
+		function complete(err) {
+			if(err) {
+				self.client.log.warn( { error : err.toString() }, 'Failed executing door');
+			}
+		}
+	);
 };
