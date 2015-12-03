@@ -31,9 +31,15 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 * A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 
 ## Known Issues
-As of now this is considered **alpha** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also looking for semi dedicated testers, artists, etc.
+As of now this is considered **alpha** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. Feature requests, suggestions, and so on are always welcome! I am also **looking for semi dedicated testers, artists, etc**!
 
 See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more information.
+
+## Support
+* Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
+* IRC: **#enigma-bbs** on **chat.freenode.net**
+* Email: bryan -at- l33t.codes
+* **Discussion on a ENiGMA BBS!**
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
