@@ -46,6 +46,11 @@ Door.prototype.run = function() {
 		self.client.term.write(decode(data, self.exeInfo.encoding));
 	};
 
+	var restore = function(piped) {
+		self.client.term.output.unpipe(piped);
+		self.client.term.output.resume();
+	}
+
 	var sockServer;
 
 	async.series(
@@ -63,8 +68,12 @@ Door.prototype.run = function() {
 								conn.on('data', doorData);
 
 								conn.on('end', function ended() {
-									self.client.term.output.unpipe(conn);
-									self.client.term.output.resume();
+									restore(conn);									
+								});
+
+								conn.on('error', function error(err) {
+									self.client.log.info('Door socket server connection error: ' + err.message);
+									restore(conn);
 								});
 							}
 						});
@@ -105,8 +114,7 @@ Door.prototype.run = function() {
 					door.on('data', doorData);
 
 					door.on('close', function closed() {
-						self.client.term.output.unpipe(door);
-						self.client.term.output.resume();
+						restore(door);
 					});
 				} else if('socket' === self.exeInfo.io) {
 					self.client.log.debug(
