@@ -40,6 +40,7 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 * IRC: **#enigma-bbs** on **chat.freenode.net**
 * Email: bryan -at- l33t.codes
 * **Discussion on a ENiGMA BBS!**
+* Facebook ENiGMA½ group
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
@@ -48,7 +49,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [NetRunner](http://mysticbbs.com/downloads.html)
 
 ## Boards
-* WQH: :skull: Xibalba :skull:
+* WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
 * Support board: BLACK ƒlag (**telnet://blackflag.acid.org:2425**)
 
 
