@@ -43,13 +43,14 @@ Door.prototype.run = function() {
 	var self = this;
 
 	var doorData = function(data) {
+		//	:TODO: skip decoding if we have a match, e.g. cp437 === cp437
 		self.client.term.write(decode(data, self.exeInfo.encoding));
 	};
 
 	var restore = function(piped) {
 		self.client.term.output.unpipe(piped);
 		self.client.term.output.resume();
-	}
+	};
 
 	var sockServer;
 
@@ -96,6 +97,7 @@ Door.prototype.run = function() {
 						node			: self.exeInfo.node.toString(),
 						inhSocket		: self.exeInfo.inhSocket.toString(),
 						srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
+						userId			: self.client.user.userId.toString(),
 					});
 				}
 
