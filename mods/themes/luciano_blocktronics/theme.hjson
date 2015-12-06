@@ -114,7 +114,7 @@
 
 			mainMenuLastCallers: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<18.18}{ts:<15}"
+					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<17.17}{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
@@ -240,8 +240,17 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<18.18}{ts:<15}"
+					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<17.17}{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
+				}
+				mci: {
+					VM1: { height: 10 }
+				}
+			}
+
+			fullLoginSequenceWhosOnline: {
+				config: {
+					listFormat: "|00|01|36{node:<6.6}{userName:<17.17}{affils:<19.19}{action:<20.20}{timeOn:<8}"
 				}
 				mci: {
 					VM1: { height: 10 }
