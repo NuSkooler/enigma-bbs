@@ -29,5 +29,7 @@
     "ssh2": "^0.4.12",
     "string-format": "davidchambers/string-format#mini-language"
   },
-  "engine": "node >= 0.12.2"
+  "engines" : {
+    "node" : ">=0.12.2"
+  }
 }
