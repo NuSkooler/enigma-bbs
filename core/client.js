@@ -415,7 +415,13 @@ Client.prototype.startIdleMonitor = function() {
 };
 
 Client.prototype.end = function () {
-	this.menuStack.getCurrentModule().leave();
+	this.term.disconnect();
+
+	var currentModule = this.menuStack.getCurrentModule();
+
+	if(currentModule) {
+		currentModule.leave();
+	}
 
 	clearInterval(this.idleCheck);
 	
