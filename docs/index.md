@@ -36,6 +36,7 @@ general: {
 servers: {
   ssh: {
     privateKeyPass: YOUR_PK_PASS
+    enabled: true /* set to false to disable the SSH server */
   }
 }
 messages: {
