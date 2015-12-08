@@ -237,7 +237,7 @@ SSHServerModule.prototype.createServer = function() {
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
 		//	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: function debugSsh(dbgLine) { 
-			if(true === Config.servers.ssh.debugConnections) {
+			if(true === Config.servers.ssh.traceConnections) {
 				Log.trace('SSH: ' + dbgLine);
 			}
 		},
