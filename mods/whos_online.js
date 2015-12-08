@@ -78,7 +78,14 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 						userName	: oe.user.username,
 						realName	: oe.user.properties.real_name,
 						timeOn		: _.capitalize(moment.duration(55, 'minutes').humanize()),
-						action		: oe.currentMenuModule.menuConfig.desc || 'Unknown',
+						action		: function getCurrentAction() {
+							var cmm = oe.currentMenuModule;
+							if(cmm) {
+								return cmm.menuConfig.desc || 'Unknown';
+							}
+							return 'Unknown';
+							//oe.currentMenuModule.menuConfig.desc || 'Unknown',
+						},
 						location	: oe.user.properties.location,
 						affils		: oe.user.properties.affiliation,
 					});
