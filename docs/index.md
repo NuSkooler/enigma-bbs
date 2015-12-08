@@ -5,7 +5,9 @@ ENiGMA½ is a modern from scratch BBS package written in Node.js.
 TL;DR? This should get you started...
 
 ## Prerequisites
-* Node.js version **v0.12.2 or higher** (v4.2+ is recommended). io.js should also work, though I have not yet tested this.
+* [Node.js](https://nodejs.org/) version **v0.12.2 or higher** (v4.2+ is recommended)
+  * [io.js](https://iojs.org/) should also work, though I have not yet tested this.
+  * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
 * Windows users will need additional dependencies installed for the `npm install` step in order to compile native binaries:
   * A recent copy of Visual Studio (Express editions OK)
   * Python 2.7.x
@@ -49,6 +51,11 @@ messages: {
 ```bash
 ./main.js
 ```
+
+# Advanced Installation
+If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation may be in order. 
+
+[PM2](https://github.com/Unitech/pm2) is an excellent choice for managing your running ENiGMA½ instances. Additionally, it is suggested that you run as a specific more locked down user (e.g. 'enigma').
 
 Some points of interest:
 * Default ports are 8888 (Telnet) and 8889 (SSH)
