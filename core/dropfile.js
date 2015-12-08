@@ -154,7 +154,8 @@ function DropFile(client, fileType) {
 		//	:TODO: local/serial/telnet need to be configurable -- which also changes socket handle!
 		return iconv.encode([
 			'2',						//	:TODO: This needs to be configurable!
-			self.client.output._handle.fd.toString(),	//	:TODO: ALWAYS -1 on Windows!
+			//	:TODO: Completely broken right now -- This need to be configurable & come from temp socket server most likely
+			'-1',	//	self.client.output._handle.fd.toString(),	//	:TODO: ALWAYS -1 on Windows!
 			'57600',
 			Config.general.boardName,
 			self.client.user.userId.toString(),

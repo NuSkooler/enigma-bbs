@@ -70,6 +70,7 @@ function AbracadabraModule(options) {
 
 	this.config = options.menuConfig.config;
 
+	//	:TODO: MenuModule.validateConfig(cb) -- validate config section gracefully instead of asserts!
 	assert(_.isString(this.config.name, 		'Config \'name\' is required'));
 	assert(_.isString(this.config.dropFileType,	'Config \'dropFileType\' is required'));
 	assert(_.isString(this.config.cmd,			'Config \'cmd\' is required'));
@@ -140,6 +141,7 @@ function AbracadabraModule(options) {
 			],
 			function complete(err) {
 				if(err) {
+					self.client.log.warn( { error : err.toString() }, 'Could not start door');
 					self.lastError = err;
 					self.prevMenu();
 				} else {
@@ -158,7 +160,7 @@ function AbracadabraModule(options) {
 			encoding	: self.config.encoding || self.client.term.outputEncoding,
 			dropFile	: self.dropFile.fileName,
 			node		: self.client.node,
-			inhSocket	: self.client.output._handle.fd,
+			//inhSocket	: self.client.output._handle.fd,
 		};
 
 		var doorInstance = new door.Door(self.client, exeInfo);
