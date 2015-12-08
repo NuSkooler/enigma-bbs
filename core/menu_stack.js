@@ -145,5 +145,8 @@ MenuStack.prototype.goto = function(name, options, cb) {
 };
 
 MenuStack.prototype.getCurrentModule = function() {
-	return this.top().instance;
+	var top = this.top();
+	if(top) {
+		return top.instance;
+	}
 };
