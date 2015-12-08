@@ -371,7 +371,9 @@ function Client(input, output) {
 			}
 
 			if(key || ch) {
-				self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');	// jshint ignore:line
+				if(Config.logging.traceUserKeyboardInput) {
+					self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');	// jshint ignore:line
+				}
 
 				self.lastKeyPressMs = Date.now();
 
@@ -415,7 +417,9 @@ Client.prototype.startIdleMonitor = function() {
 };
 
 Client.prototype.end = function () {
-	this.term.disconnect();
+	if(this.term) {
+		this.term.disconnect();
+	}
 
 	var currentModule = this.menuStack.getCurrentModule();
 
