@@ -157,17 +157,28 @@ function ViewController(options) {
 
 					case 'method' : 
 					case 'systemMethod' :
-						if(_.isString(propAsset.location)) {
-
-						} else {
+						if('validate' === propName) {						
+							//	:TODO: handle propAsset.location for @method script specification
 							if('systemMethod' === propAsset.type) {
-								//	:TODO:
+								//	:TODO: implementation validation @systemMethod handling!
 							} else {
-								//	local to current module
-								var currentModule = self.client.currentMenuModule;
-								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-									//	:TODO: Fix formData & extraArgs... this all needs general processing
-									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
+									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
+								}
+							}
+						} else {
+							if(_.isString(propAsset.location)) {
+
+							} else {
+								if('systemMethod' === propAsset.type) {
+									//	:TODO:
+								} else {
+									//	local to current module
+									var currentModule = self.client.currentMenuModule;
+									if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+										//	:TODO: Fix formData & extraArgs... this all needs general processing
+										propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+									}
 								}
 							}
 						}
@@ -362,7 +373,40 @@ ViewController.prototype.setFocus = function(focused) {
 };
 
 ViewController.prototype.switchFocus = function(id) {
-	//this.setFocus(true);	//	ensure events are attached
+	//
+	//	Perform focus switching validation now
+	//
+	var self 		= this;
+	var focusedView	= self.focusedView;
+
+	function performSwitch() {
+		self.attachClientEvents();
+
+		//	remove from old
+		self.setViewFocusWithEvents(focusedView, false);
+
+		//	set to new
+		self.setViewFocusWithEvents(self.getView(id), true);
+	};
+
+	
+	if(focusedView && focusedView.validate) {
+		focusedView.validate(focusedView.getData(), function validated(isValid, msgProp) {
+			if(isValid) {
+				performSwitch();
+			} else {
+				if(_.isFunction(self.client.currentMenuModule.menuMethods.validationFailure)) {
+					self.client.currentMenuModule.menuMethods.validationFailure(focusedView, msgProp, function validateFailNext() {
+
+					});
+				}
+			}
+		});
+	} else {
+		performSwitch();
+	}
+
+/*
 	this.attachClientEvents();
 
 	//	remove from old
@@ -370,15 +414,19 @@ ViewController.prototype.switchFocus = function(id) {
 
 	//	set to new
 	this.setViewFocusWithEvents(this.getView(id), true);
+	*/
 };
 
-ViewController.prototype.nextFocus = function() {	
+ViewController.prototype.nextFocus = function() {
+	var nextId;
+
 	if(!this.focusedView) {
-		this.switchFocus(this.views[this.firstId].id);
+		nextId = this.views[this.firstId].id;
 	} else {
-		var nextId = this.views[this.focusedView.id].nextId;
-		this.switchFocus(nextId);
+		nextId = this.views[this.focusedView.id].nextId;		
 	}
+
+	this.switchFocus(nextId);
 };
 
 ViewController.prototype.setViewOrder = function(order) {
