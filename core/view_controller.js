@@ -70,8 +70,9 @@ function ViewController(options) {
 				self.nextFocus();
 				break;
 
-			case 'accept' :
+			case 'accept' :			
 				if(self.focusedView && self.focusedView.submit) {
+					//	:TODO: need to do validation here!!!
 					self.submitForm(key);
 				} else {
 					self.nextFocus();
@@ -161,6 +162,10 @@ function ViewController(options) {
 							//	:TODO: handle propAsset.location for @method script specification
 							if('systemMethod' === propAsset.type) {
 								//	:TODO: implementation validation @systemMethod handling!
+								var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
+								if(_.isFunction(methodModule[propAsset.asset])) {
+									propValue = methodModule[propAsset.asset];
+								}
 							} else {
 								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
 									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
@@ -391,14 +396,28 @@ ViewController.prototype.switchFocus = function(id) {
 
 	
 	if(focusedView && focusedView.validate) {
-		focusedView.validate(focusedView.getData(), function validated(isValid, msgProp) {
-			if(isValid) {
-				performSwitch();
+		focusedView.validate(focusedView.getData(), function validated(err) {
+			if(_.isFunction(self.client.currentMenuModule.menuMethods.viewValidationListener)) {
+				if(err) {
+					err.view = focusedView;
+				}
+			
+				self.client.currentMenuModule.menuMethods.viewValidationListener(err, function validateComplete(newFocusId) {
+					if(err) {
+						//	:TODO: switchFocus() really needs a cb -- 
+						var newFocusView;
+						if(newFocusId) {
+							newFocusView = self.getView(newFocusId) || focusedView;
+						}
+					
+						self.setViewFocusWithEvents(newFocusView, true);
+					} else {
+						performSwitch();
+					}
+				});
 			} else {
-				if(_.isFunction(self.client.currentMenuModule.menuMethods.validationFailure)) {
-					self.client.currentMenuModule.menuMethods.validationFailure(focusedView, msgProp, function validateFailNext() {
-
-					});
+				if(!err) {
+					performSwitch();
 				}
 			}
 		});
