@@ -226,7 +226,6 @@ View.prototype.setPropertyValue = function(propName, value) {
 		case 'argName' : this.submitArgName = value; break;
 
 		case 'validate' :
-			console.log(value)
 			if(_.isFunction(value)) {
 				this.validate = value;
 			}
