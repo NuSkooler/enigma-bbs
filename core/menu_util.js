@@ -31,7 +31,14 @@ function getMenuConfig(name, cb) {
 	async.waterfall(
 		[
 			function loadMenuJSON(callback) {
-				configCache.getModConfig('menu.hjson', function loaded(err, menuJson) {
+				var menuFilePath = Config.general.menuFile;
+
+				//	menuFile is assumed to be in 'mods' if a path is not supplied
+				if('.' === paths.dirname(menuFilePath)) {
+					menuFilePath = paths.join(__dirname, '../mods', menuFilePath);
+				}
+
+				configCache.getConfig(menuFilePath, function loaded(err, menuJson) {
 					callback(err, menuJson);
 				});
 			},

@@ -85,8 +85,11 @@ function getDefaultConfig() {
 			closedSystem	: false,					//	is the system closed to new users?
 
 			loginAttempts	: 3,
+
+			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./mods)
 		},
 
+		//	:TODO: see notes below about 'theme' section - move this!
 		preLoginTheme : '*',
 
 		users : {

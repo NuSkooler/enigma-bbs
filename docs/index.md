@@ -4,29 +4,31 @@ ENiGMA½ is a modern from scratch BBS package written in Node.js.
 # Quickstart
 TL;DR? This should get you started...
 
-1\. Clone
+## Prerequisites
+* [Node.js](https://nodejs.org/) version **v0.12.2 or higher** (v4.2+ is recommended)
+  * [io.js](https://iojs.org/) should also work, though I have not yet tested this.
+  * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
+* Windows users will need additional dependencies installed for the `npm install` step in order to compile native binaries:
+  * A recent copy of Visual Studio (Express editions OK)
+  * Python 2.7.x
+  
+## Clone
 ```bash
 git clone https://github.com/NuSkooler/enigma-bbs.git
 ```
 
-2\. Install dependencies
+## Install Node Modules
 ```bash
 npm install
 ```
 
-**Note for Windows users**:<br>
-Some dependencies require compilation. You will need at least the following installed for `npm install` to succeed:
-* A recent copy of Visual Studio (Express editions OK)
-* Python 2.7.x
-
-3\. Generate a SSH Private Key<br>
-Note that you can skip this step and disable the SSH server in your `config.hjson` if desired.
-
+## Generate a SSH Private Key
+To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if desired by disabling the SSH server in `config.hjson`.
 ```bash
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
 
-4\. Create a minimal config<br>
+## Create a Minimal Config
 The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
 ```hjson
@@ -36,6 +38,8 @@ general: {
 servers: {
   ssh: {
     privateKeyPass: YOUR_PK_PASS
+    enabled: true /* set to false to disable the SSH server */
+  }
 }
 messages: {
   areas: [
@@ -44,12 +48,17 @@ messages: {
 }
 ```
 
-5\. Launch!
+## Launch!
 ```bash
 ./main.js
 ```
 
+# Advanced Installation
+If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation may be in order. 
+
+[PM2](https://github.com/Unitech/pm2) is an excellent choice for managing your running ENiGMA½ instances. Additionally, it is suggested that you run as a specific more locked down user (e.g. 'enigma').
+
 Some points of interest:
 * Default ports are 8888 (Telnet) and 8889 (SSH)
-* The first user you create via applying is the root SysOp.
+* The first user you create via applying is the SysOp (aka root)
 * You may want to tail the logfile with Bunyan: `tail -F ./logs/enigma-bbs.log | ./node_modules/bunyan/bin/bunyan`

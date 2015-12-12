@@ -178,6 +178,11 @@ MaskEditTextView.prototype.setPropertyValue = function(propName, value) {
 
 MaskEditTextView.prototype.getData = function() {
 	var rawData = MaskEditTextView.super_.prototype.getData.call(this);
+	
+	if(!rawData || 0 === rawData.length) {
+		return rawData;
+	}
+	
 	var data	= '';
 
 	assert(rawData.length <= this.patternArray.length);

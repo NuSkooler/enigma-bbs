@@ -106,13 +106,18 @@ function initialize(cb) {
 				logger.init();
 
 				process.on('SIGINT', function onSigInt() {
-					//	:TODO: for any client in |clientConnections|, if 'ready', send a "Server Disconnecting" + semi-gracefull hangup
-					//	e.g. client.disconnectNow()
+					logger.log.info('Process interrupted, shutting down...');
 
-					logger.log.info('Process interrupted, shutting down');
+					var activeConnections = clientConns.getActiveConnections();
+					var i = activeConnections.length;
+					while(i--) {
+						activeConnections[i].term.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
+						clientConns.removeClient(activeConnections[i]);
+					}
+					
 					process.exit();
 				});
-
+				
 				//	Init some extensions
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 
