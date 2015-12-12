@@ -1,11 +1,20 @@
 var user				= require('./user.js');
 var Config				= require('./config.js').config;
 
-
+exports.validateNonEmpty		= validateNonEmpty;
+exports.validateMessageSubject	= validateMessageSubject;
 exports.validateUserNameAvail 	= validateUserNameAvail;
 exports.validateEmailAvail		= validateEmailAvail;
 exports.validateBirthdate		= validateBirthdate;
 exports.validatePasswordSpec	= validatePasswordSpec;
+
+function validateNonEmpty(data, cb) {
+	cb(data && data.length > 0 ? null : new Error('Field cannot be empty'));
+}
+
+function validateMessageSubject(data, cb) {
+	cb(data && data.length > 1 ? null : new Error('Subject too short'));
+};
 
 function validateUserNameAvail(data, cb) {
 	if(data.length < Config.users.usernameMin) {
@@ -34,6 +43,24 @@ function validateUserNameAvail(data, cb) {
 }
 
 function validateEmailAvail(data, cb) {
+	//
+	//	This particular method allows empty data - e.g. no email entered
+	//	
+	if(!data || 0 === data.length) {
+		return cb(null);
+	}
+
+	//
+	//	Otherwise, it must be a valid email. We'll be pretty lose here, like
+	//	the HTML5 spec.
+	//
+	//	See http://stackoverflow.com/questions/7786058/find-the-regex-used-by-html5-forms-for-validation
+	//
+	var emailRegExp = /[a-z0-9!#$%&'*+\/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
+	if(!emailRegExp.test(data)) {
+		return cb(new Error('Invalid email address'));
+	}
+
 	user.getUserIdsWithProperty('email_address', data, function userIdsWithEmail(err, uids) {
 		if(err) {
 			cb(new Error('Internal system error'));

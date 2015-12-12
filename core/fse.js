@@ -48,6 +48,8 @@ exports.moduleInfo = {
 
 			TL12 - User1
 			TL13 - User2
+			
+			TL16 - Error / Information area
 
 		Footer - Viewing
 			HM1 - Menu (prev/next/etc.)
@@ -73,7 +75,9 @@ var MCICodeIds = {
 		ViewCount		: 8,
 		HashTags		: 9,
 		MessageID		: 10,
-		ReplyToMsgID	: 11
+		ReplyToMsgID	: 11,
+		
+		ErrorMsg		: 16,
 	},
 	ViewModeFooter : {
 		MsgNum			: 6,
@@ -540,6 +544,8 @@ function FullScreenEditorModule(options) {
 		self.createInitialViews(mciData, function viewsCreated(err) {
 			//	:TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in 
 			//	place - if this is for existing usernames else validate spec
+
+			/*
 			self.viewControllers.header.on('leave', function headerViewLeave(view) {
 
 				if(2 === view.id) {	//	"to" field
@@ -551,7 +557,7 @@ function FullScreenEditorModule(options) {
 						}
 					});				
 				}
-			});
+			});*/
 
 			cb(err);
 		});
@@ -762,6 +768,26 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.menuMethods = {
+		//
+		//	Validation stuff
+		//
+		viewValidationListener : function(err, cb) {
+			var errMsgView = self.viewControllers.header.getView(MCICodeIds.ViewModeHeader.ErrorMsg);
+			var newFocusViewId;
+			if(errMsgView) {
+				if(err) {
+					errMsgView.setText(err.message);
+					
+					if(MCICodeIds.ViewModeHeader.Subject === err.view.getId()) {
+						//	:TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
+					}
+				} else {
+					errMsgView.clearText();
+				}
+			}
+			cb(newFocusViewId);
+		},
+		
 		headerSubmit : function(formData, extraArgs) {
 			self.switchToBody();
 		},
@@ -879,8 +905,4 @@ FullScreenEditorModule.prototype.enter = function(client) {
 FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {
 	this.mciReadyHandler(mciData, cb);
 	//this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
-};
-
-FullScreenEditorModule.prototype.validateToUserName = function(un, cb) {
-	cb(null);	//	note: to be implemented by sub classes
 };

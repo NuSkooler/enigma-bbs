@@ -153,6 +153,7 @@
 						ET2: {
 							argName: realName
 							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
 						}
 						MET3: {
 							argName: birthdate
@@ -163,10 +164,12 @@
 							argName: sex
 							maskPattern: A
 							textStyle: upper
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET5: {
 							argName: location
 							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET6: {
 							argName: affils
@@ -239,23 +242,28 @@
 							focus: true
 							argName: username
 							maxLength: @config:users.usernameMax
+							validate: @systemMethod:validateUserNameAvail
 						}
 						ET2: {
 							argName: realName
 							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
 						}
 						MET3: {
 							argName: birthdate
 							maskPattern: "####/##/##"
+							validate: @systemMethod:validateBirthdate
 						}
 						ME4: {
 							argName: sex
 							maskPattern: A
 							textStyle: upper
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET5: {
 							argName: location
 							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET6: {
 							argName: affils
@@ -264,6 +272,7 @@
 						ET7: {
 							argName: email
 							maxLength: 255
+							validate: @systemMethod:validateEmailAvail
 						}
 						ET8: {
 							argName: web
@@ -273,11 +282,13 @@
 							argName: password
 							password: true
 							maxLength: @config:users.passwordMax
+							validate: @systemMethod:validatePasswordSpec
 						}
 						ET10: {
 							argName: passwordConfirm
 							password: true
 							maxLength: @config:users.passwordMax
+							validate: @method:validatePassConfirmMatch
 						}
 						TM12: {
 							argName: submission
@@ -362,6 +373,7 @@
 							maxLength: 72
 							submit: true
 							text: New user feedback
+							validate: @systemMethod:validateMessageSubject
 						}
 					}
 					submit: {
@@ -921,11 +933,13 @@
 						ET2: {
 							argName: to
 							focus: true
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET3: {
 							argName: subject							
 							maxLength: 72
 							submit: true
+							validate: @systemMethod:validateNonEmpty
 						}
 						TL4: {
 							//	:TODO: this is for RE: line (NYI)
@@ -1068,11 +1082,13 @@
 							argName: to
 							focus: true
 							text: All
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET3: {
 							argName: subject
 							maxLength: 72
 							submit: true
+							validate: @systemMethod:validateNonEmpty
 							//	:TODO: Validate -> close/cancel if empty
 						}
 					}

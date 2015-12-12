@@ -73,7 +73,17 @@ function ViewController(options) {
 			case 'accept' :			
 				if(self.focusedView && self.focusedView.submit) {
 					//	:TODO: need to do validation here!!!
-					self.submitForm(key);
+					var focusedView = self.focusedView;
+					self.validateView(focusedView, function validated(err, newFocusedViewId) {
+						console.log(err)
+						if(err) {
+							var newFocusedView = self.getView(newFocusedViewId) || focusedView;
+							self.setViewFocusWithEvents(newFocusedView, true);
+						} else {
+							self.submitForm(key);
+						}
+					});
+					//self.submitForm(key);
 				} else {
 					self.nextFocus();
 				}
@@ -313,6 +323,27 @@ function ViewController(options) {
 
 		view.setFocus(focused);
 	};
+
+	this.validateView = function(view, cb) {
+		if(view && _.isFunction(view.validate)) {
+			view.validate(view.getData(), function validateResult(err) {
+				var viewValidationListener = self.client.currentMenuModule.menuMethods.viewValidationListener;
+				if(_.isFunction(viewValidationListener)) {
+					if(err) {
+						err.view = view;	//	pass along the view that failed
+					}
+
+					viewValidationListener(err, function validationComplete(newViewFocusId) {
+						cb(err, newViewFocusId);
+					});
+				} else {
+					cb(err);
+				}
+			});
+		} else {
+			cb(null);
+		}
+	};
 }
 
 util.inherits(ViewController, events.EventEmitter);
@@ -384,56 +415,20 @@ ViewController.prototype.switchFocus = function(id) {
 	var self 		= this;
 	var focusedView	= self.focusedView;
 
-	function performSwitch() {
-		self.attachClientEvents();
+	self.validateView(focusedView, function validated(err, newFocusedViewId) {
+		if(err) {
+			var newFocusedView = self.getView(newFocusedViewId) || focusedView;	
+			self.setViewFocusWithEvents(newFocusedView, true);
+		} else {
+			self.attachClientEvents();
 
-		//	remove from old
-		self.setViewFocusWithEvents(focusedView, false);
+			//	remove from old
+			self.setViewFocusWithEvents(focusedView, false);
 
-		//	set to new
-		self.setViewFocusWithEvents(self.getView(id), true);
-	};
-
-	
-	if(focusedView && focusedView.validate) {
-		focusedView.validate(focusedView.getData(), function validated(err) {
-			if(_.isFunction(self.client.currentMenuModule.menuMethods.viewValidationListener)) {
-				if(err) {
-					err.view = focusedView;
-				}
-			
-				self.client.currentMenuModule.menuMethods.viewValidationListener(err, function validateComplete(newFocusId) {
-					if(err) {
-						//	:TODO: switchFocus() really needs a cb -- 
-						var newFocusView;
-						if(newFocusId) {
-							newFocusView = self.getView(newFocusId) || focusedView;
-						}
-					
-						self.setViewFocusWithEvents(newFocusView, true);
-					} else {
-						performSwitch();
-					}
-				});
-			} else {
-				if(!err) {
-					performSwitch();
-				}
-			}
-		});
-	} else {
-		performSwitch();
-	}
-
-/*
-	this.attachClientEvents();
-
-	//	remove from old
-	this.setViewFocusWithEvents(this.focusedView, false);
-
-	//	set to new
-	this.setViewFocusWithEvents(this.getView(id), true);
-	*/
+			//	set to new
+			self.setViewFocusWithEvents(self.getView(id), true);
+		}
+	});
 };
 
 ViewController.prototype.nextFocus = function() {

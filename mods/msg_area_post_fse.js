@@ -64,22 +64,3 @@ AreaPostFSEModule.prototype.enter = function(client) {
 	
 	AreaPostFSEModule.super_.prototype.enter.call(this, client);
 };
-
-AreaPostFSEModule.prototype.validateToUserName = function(un, cb) {
-	var self = this;
-
-	if(!un) {
-		cb(new Error('Username must be supplied!'));
-		return;
-	}
-
-	if(!self.isLocalEmail()) {
-		cb(null);
-		return;
-	}
-
-	user.getUserIdAndName(un, function uidAndName(err, userId, userName) {
-		self.toUserId = userId;
-		cb(err);
-	});
-};
