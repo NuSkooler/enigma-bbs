@@ -95,7 +95,7 @@ Door.prototype.run = function() {
 					args[i] = self.exeInfo.args[i].format({
 						dropFile		: self.exeInfo.dropFile,
 						node			: self.exeInfo.node.toString(),
-						inhSocket		: self.exeInfo.inhSocket.toString(),
+						//inhSocket		: self.exeInfo.inhSocket.toString(),
 						srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
 						userId			: self.client.user.userId.toString(),
 					});

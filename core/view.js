@@ -224,6 +224,12 @@ View.prototype.setPropertyValue = function(propName, value) {
 			break;
 
 		case 'argName' : this.submitArgName = value; break;
+
+		case 'validate' :
+			if(_.isFunction(value)) {
+				this.validate = value;
+			}
+			break;
 	}
 
 	if(/styleSGR[0-9]{1,2}/.test(propName)) {

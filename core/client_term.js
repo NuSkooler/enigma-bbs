@@ -132,6 +132,10 @@ function ClientTerminal(output) {
 	});
 }
 
+ClientTerminal.prototype.disconnect = function() {
+	this.output = null;
+};
+
 ClientTerminal.prototype.isANSI = function() {
 	//	:TODO: Others??
 	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
@@ -140,11 +144,17 @@ ClientTerminal.prototype.isANSI = function() {
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
 
 ClientTerminal.prototype.write = function(s, convertLineFeeds) {
-	this.output.write(this.encode(s, convertLineFeeds));
+	this.rawWrite(this.encode(s, convertLineFeeds));
 };
 
 ClientTerminal.prototype.rawWrite = function(s) {
-	this.output.write(s);
+	if(this.output) {
+		this.output.write(s, function written(err) {
+			if(err) {
+				Log.warn('Failed writing to socket: ' + err.toString());
+			}
+		});
+	}
 };
 
 ClientTerminal.prototype.pipeWrite = function(s, spec) {

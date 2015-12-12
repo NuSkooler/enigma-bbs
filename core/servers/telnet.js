@@ -499,7 +499,7 @@ function TelnetClient(input, output) {
 	});
 
 	this.connectionDebug = function(info, msg) {
-		if(Config.servers.telnet.debugConnections) {
+		if(Config.servers.telnet.traceConnections) {
 			self.log.trace(info, 'Telnet: ' + msg);
 		}
 	};

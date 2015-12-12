@@ -70,8 +70,9 @@ function ViewController(options) {
 				self.nextFocus();
 				break;
 
-			case 'accept' :
+			case 'accept' :			
 				if(self.focusedView && self.focusedView.submit) {
+					//	:TODO: need to do validation here!!!
 					self.submitForm(key);
 				} else {
 					self.nextFocus();
@@ -157,17 +158,32 @@ function ViewController(options) {
 
 					case 'method' : 
 					case 'systemMethod' :
-						if(_.isString(propAsset.location)) {
-
-						} else {
+						if('validate' === propName) {						
+							//	:TODO: handle propAsset.location for @method script specification
 							if('systemMethod' === propAsset.type) {
-								//	:TODO:
+								//	:TODO: implementation validation @systemMethod handling!
+								var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
+								if(_.isFunction(methodModule[propAsset.asset])) {
+									propValue = methodModule[propAsset.asset];
+								}
 							} else {
-								//	local to current module
-								var currentModule = self.client.currentMenuModule;
-								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-									//	:TODO: Fix formData & extraArgs... this all needs general processing
-									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
+									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
+								}
+							}
+						} else {
+							if(_.isString(propAsset.location)) {
+
+							} else {
+								if('systemMethod' === propAsset.type) {
+									//	:TODO:
+								} else {
+									//	local to current module
+									var currentModule = self.client.currentMenuModule;
+									if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+										//	:TODO: Fix formData & extraArgs... this all needs general processing
+										propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+									}
 								}
 							}
 						}
@@ -362,7 +378,54 @@ ViewController.prototype.setFocus = function(focused) {
 };
 
 ViewController.prototype.switchFocus = function(id) {
-	//this.setFocus(true);	//	ensure events are attached
+	//
+	//	Perform focus switching validation now
+	//
+	var self 		= this;
+	var focusedView	= self.focusedView;
+
+	function performSwitch() {
+		self.attachClientEvents();
+
+		//	remove from old
+		self.setViewFocusWithEvents(focusedView, false);
+
+		//	set to new
+		self.setViewFocusWithEvents(self.getView(id), true);
+	};
+
+	
+	if(focusedView && focusedView.validate) {
+		focusedView.validate(focusedView.getData(), function validated(err) {
+			if(_.isFunction(self.client.currentMenuModule.menuMethods.viewValidationListener)) {
+				if(err) {
+					err.view = focusedView;
+				}
+			
+				self.client.currentMenuModule.menuMethods.viewValidationListener(err, function validateComplete(newFocusId) {
+					if(err) {
+						//	:TODO: switchFocus() really needs a cb -- 
+						var newFocusView;
+						if(newFocusId) {
+							newFocusView = self.getView(newFocusId) || focusedView;
+						}
+					
+						self.setViewFocusWithEvents(newFocusView, true);
+					} else {
+						performSwitch();
+					}
+				});
+			} else {
+				if(!err) {
+					performSwitch();
+				}
+			}
+		});
+	} else {
+		performSwitch();
+	}
+
+/*
 	this.attachClientEvents();
 
 	//	remove from old
@@ -370,15 +433,19 @@ ViewController.prototype.switchFocus = function(id) {
 
 	//	set to new
 	this.setViewFocusWithEvents(this.getView(id), true);
+	*/
 };
 
-ViewController.prototype.nextFocus = function() {	
+ViewController.prototype.nextFocus = function() {
+	var nextId;
+
 	if(!this.focusedView) {
-		this.switchFocus(this.views[this.firstId].id);
+		nextId = this.views[this.firstId].id;
 	} else {
-		var nextId = this.views[this.focusedView.id].nextId;
-		this.switchFocus(nextId);
+		nextId = this.views[this.focusedView.id].nextId;		
 	}
+
+	this.switchFocus(nextId);
 };
 
 ViewController.prototype.setViewOrder = function(order) {

@@ -3,6 +3,7 @@
 
 var MenuModule		= require('../core/menu_module.js').MenuModule;
 var Log				= require('../core/logger.js').log;
+var resetScreen		= require('../core/ansi_term.js').resetScreen;
 
 var async			= require('async');
 var _				= require('lodash');
@@ -35,6 +36,7 @@ var packageJson 	= require('../package.json');
 */
 
 //	:TODO: BUG: When a client disconnects, it's not handled very well -- the log is spammed with tons of errors
+//	:TODO: ENH: Support nodeMax and tooManyArt
 
 exports.getModule	= BBSLinkModule;
 
@@ -131,6 +133,9 @@ function BBSLinkModule(options) {
 					};
 
 					var clientTerminated;
+
+					self.client.term.write(ansi.resetScreen());
+					self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
 
 					var bridgeConnection = net.createConnection(connectOpts, function connected() {
 						self.client.log.info(connectOpts, 'BBSLink bridge connection established');

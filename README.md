@@ -8,24 +8,24 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 ## Feature Available Now
  * Multi platform: Anywhere Node.js runs likely works (tested under Linux and OS X)
  * Multi node support
- * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JS based mods
+ * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based mods
  * MCI support for lightbars, toggles, input areas, and so on plus many other other bells and whistles
- * Telnet & SSH access built in. Additional servers are easy to implement & plug in
+ * Telnet & **SSH** access built in. Additional servers are easy to implement & plug in
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
- * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
+ * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior
  * [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
- * Renegade style pipe codes
+ * Pipe codes (ala Renegade)
  * [SQLite](http://sqlite.org/) storage of users and message areas
- * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password storage
- * Door support including common dropfile formats and [DOSEMU](http://www.dosemu.org/)
+ * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption
+ * Door support including common dropfile formats and legacy DOS doors (See [Doors](docs/doors.md))
  * [Bunyan](https://github.com/trentm/node-bunyan) logging
 
 ## In the Works
 * Lots of code cleanup, ES6+ usage, and **documentation**!
 * FTN import & export
 * File areas
-* Full access checking framework
-* SysOp console
+* Full access checking framework (ACS)
+* SysOp dashboard (ye ol' WFC)
 * Missing functionality such as searching, pipe code support in message areas, etc.
 * String localization
 * A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
@@ -37,9 +37,9 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 
 ## Support
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
+* **Discussion on a ENiGMA BBS!**
 * IRC: **#enigma-bbs** on **chat.freenode.net**
 * Email: bryan -at- l33t.codes
-* **Discussion on a ENiGMA BBS!**
 * Facebook ENiGMA½ group
 
 ## Terminal Clients
@@ -50,7 +50,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Boards
 * WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
-* Support board: BLACK ƒlag (**telnet://blackflag.acid.org:2425**)
+* Support board: &#x2620; BLACK ƒlag &#x2620; (**telnet://blackflag.acid.org:2425**)
 
 
 ## Installation

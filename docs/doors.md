@@ -174,3 +174,16 @@ doorTradeWars2002BBSLink: {
 ```
 
 Fill in your credentials in `sysCode`, `authCode`, and `schemeCode` and that's it!
+
+# Resources
+
+### DOSBox
+* Custom DOSBox builds http://home.arcor.de/h-a-l-9000/
+
+## Door Downloads & Support Sites
+### General
+* http://bbsfiles.com/
+* http://bbstorrents.bbses.info/
+
+### L.O.R.D.
+* http://lord.lordlegacy.com/

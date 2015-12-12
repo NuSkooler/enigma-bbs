@@ -22,26 +22,8 @@ function login(callingMenu, formData, extraArgs) {
 	userLogin(callingMenu.client, formData.value.username, formData.value.password, function authResult(err) {
 		if(err) {
 			//	login failure
-			if(err.existingConn) {
-				client.term.rawWrite(ansi.resetScreen());
-
-				var artOpts = {
-					client 		: client,
-					font		: _.has(callingMenu, 'menuConfig.config.tooNode.font') ? callingMenu.menuConfig.config.tooNode.font : null,
-					name		: _.has(callingMenu, 'menuConfig.config.tooNode.art') ? callingMenu.menuConfig.config.tooNode.art : 'TOONODE',
-				};
-
-				theme.displayThemeArt(artOpts, function artDisplayed(err) {
-					if(err) {
-						client.term.write('\nA user by that name is already logged in.\n');		
-					}
-
-					setTimeout(function timeout() {
-						callingMenu.prevMenu();
-					}, 2000);
-				});
-
-				return;
+			if(err.existingConn && _.has(callingMenu, 'menuConfig.config.tooNodeMenu')) {
+				callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu);
 			} else {
 				//	Other error
 				callingMenu.prevMenu();

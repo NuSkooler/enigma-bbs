@@ -538,7 +538,8 @@ function FullScreenEditorModule(options) {
 	this.mciReadyHandler = function(mciData, cb) {
 
 		self.createInitialViews(mciData, function viewsCreated(err) {
-
+			//	:TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in 
+			//	place - if this is for existing usernames else validate spec
 			self.viewControllers.header.on('leave', function headerViewLeave(view) {
 
 				if(2 === view.id) {	//	"to" field
