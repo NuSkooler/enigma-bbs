@@ -5,6 +5,7 @@ var user					= require('../core/user.js');
 var theme					= require('../core/theme.js');
 var login					= require('../core/system_menu_method.js').login;
 var Config					= require('../core/config.js').config;
+var getDefaultMessageArea	= require('../core/message_area.js').getDefaultMessageArea;
 
 var async					= require('async');
 
@@ -76,8 +77,8 @@ function NewUserAppModule(options) {
 
 				message_area_name	: getDefaultMessageArea().name,
 
-				term_height			: client.term.termHeight,
-				term_width			: client.term.termWidth,
+				term_height			: self.client.term.termHeight,
+				term_width			: self.client.term.termWidth,
 				
 				//	:TODO: This is set in User.create() -- proabbly don't need it here:
 				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
@@ -114,7 +115,7 @@ function NewUserAppModule(options) {
 						};
 					}
 
-					if(user.User.AccountStatus.inactive === client.user.properties.account_status) {
+					if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
 						self.gotoMenu(extraArgs.inactive);
 					} else {
 						//

@@ -207,7 +207,7 @@
 						*: [
 							{
 								value: { "submission" : 0 }
-								action: @method:apply/submitApplication
+								action: @method:submitApplication
 								extraArgs: {
 									inactive: userNeedsActivated
 									error: newUserCreateError
@@ -301,7 +301,7 @@
 						*: [
 							{
 								value: { "submission" : 0 }
-								action: @method:apply/submitApplication
+								action: @method:submitApplication
 								extraArgs: {
 									inactive: userNeedsActivated
 									error: newUserCreateError
