@@ -26,7 +26,7 @@ function ConfigCache() {
 				self.cache[filePath] = hjson.parse(data);
 				cb(null, self.cache[filePath]);
 			} catch(e) {
-				console.log(e)
+				Log.error( { filePath : filePath, error : e.toString() }, 'Failed recaching');
 				cb(e);
 			}
 		});

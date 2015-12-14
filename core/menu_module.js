@@ -231,7 +231,10 @@ MenuModule.prototype.nextMenu = function(cb) {
 	//	...if the error is that we do not meet ACS requirements and did not get a match, then what?
 	if(!cb) {
 		cb = function(err) {
-			console.log(err)
+			if(err) {
+				//	:TODO: Don't console.log() here!
+				console.log(err)
+			}
 		}
 	}
 	this.client.menuStack.next(cb);
