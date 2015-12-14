@@ -131,7 +131,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				//	:TODO: fix default format
 				var listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subj} - {to}';
 				var focusListFormat = self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
-				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DDD';
+				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM Do';
 				var newIndicator		= self.menuConfig.config.newIndicator || '*';
 
 				var msgNum = 1;
