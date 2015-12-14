@@ -131,6 +131,8 @@ qemu-system-i386 -localtime /home/enigma/dos/images/freedos_c.img -chardev socke
 
 Note the `qemu-system-i386` line. We're telling QEMU to launch and use localtime for the clock, create a character device that connects to our temporary server port on localhost and map that to a serial device. The `-hdb` entry will represent the D: drive where our drop file is generated, while `-hdc` is the path that `GO.BAT` is generated in (`E:\GO.BAT`). Finally we specify `-nographic` to run headless.
 
+For doors that do not *require* a FOSSIL driver, it is recommended to not load or use one unless you are having issues.
+
 #### Step 4: Create a menu entry
 Finally we can create a `menu.hjson` entry using the `abracadabra` module:
 ```hjson

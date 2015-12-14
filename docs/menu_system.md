@@ -1,5 +1,13 @@
 # Menu System
-ENiGMA½'s menu system is highly flexible and moddable. The possibilities are almost endless! By modifying `menu.hjson` you will be able to create a custom look and feel unique to your board.
+ENiGMA½'s menu system is highly flexible and moddable. The possibilities are almost endless! By modifying your `menu.hjson` you will be able to create a custom look and feel unique to your board.
+
+The default `menu.hjson` file lives within the `mods` directory. To specify another file, set the `menuFile` property in your `config.hjson` file:
+```hjson
+general: {
+  /* Can also specify a full path */
+  menuFile: mybbs.hjson
+}
+```
 
 ## The Basics
 Like all configuration within ENiGMA½, menu configuration is done via a HJSON file. This file is located in the `mods` directory: `mods/menu.hjson`.
