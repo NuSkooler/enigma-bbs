@@ -54,35 +54,7 @@ function ClientTerminal(output) {
 		},
 		set : function(ttype) {
 			termType = ttype.toLowerCase();
-
-			//
-			//	ANSI terminals should be encoded to CP437
-			//
-			//	Some terminal types provided by Mercyful Fate / Enthral:
-			//	ANSI-BBS
-			//	PC-ANSI
-			//	QANSI
-			//	SCOANSI
-			//	VT100
-			//	XTERM
-			//		* PuTTY
-			//	LINUX
-			//		* JuiceSSH - also via TERM=
-			//	QNX
-			//	SCREEN
-			//		* ConnectBot
-			//
-			//	syncterm
-			//		*
-			//
-			//	Reports from various terminals
-			//	SyncTERM
-			//		* syncterm
-			//	
-			//	PuTTY
-			//		* xterm
-			//	
-			//
+			
 			if(this.isANSI()) {
 				this.outputEncoding = 'cp437';
 			} else {
@@ -137,8 +109,37 @@ ClientTerminal.prototype.disconnect = function() {
 };
 
 ClientTerminal.prototype.isANSI = function() {
+	//
+	//	ANSI terminals should be encoded to CP437
+	//
+	//	Some terminal types provided by Mercyful Fate / Enthral:
+	//		ANSI-BBS
+	//		PC-ANSI
+	//		QANSI
+	//		SCOANSI
+	//		VT100
+	//		QNX
+	//
+	//	Reports from various terminals
+	//
+	//	syncterm:
+	//		* SyncTERM
+	//	
+	//	xterm:
+	//		* PuTTY
+	//
+	//	ansi-bbs:
+	//		* fTelnet
+	//
+	//	screen:
+	//		* ConnectBot (Android)
+	//
+	//	linux:
+	//		* JuiceSSH (note: TERM=linux also)
+	//
+
 	//	:TODO: Others??
-	return [ 'ansi', 'pc-ansi', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
+	return [ 'ansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
 };
 
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
