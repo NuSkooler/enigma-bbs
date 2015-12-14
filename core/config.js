@@ -90,7 +90,7 @@ function getDefaultConfig() {
 		},
 
 		//	:TODO: see notes below about 'theme' section - move this!
-		preLoginTheme : '*',
+		preLoginTheme : 'luciano_blocktronics',
 
 		users : {
 			usernameMin			: 2,

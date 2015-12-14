@@ -17,7 +17,7 @@ var _					= require('lodash');
 	userName
 	location
 	affiliation
-	timestamp
+	ts
 	
 */
 

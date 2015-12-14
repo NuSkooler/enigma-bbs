@@ -75,7 +75,6 @@ function ViewController(options) {
 					//	:TODO: need to do validation here!!!
 					var focusedView = self.focusedView;
 					self.validateView(focusedView, function validated(err, newFocusedViewId) {
-						console.log(err)
 						if(err) {
 							var newFocusedView = self.getView(newFocusedViewId) || focusedView;
 							self.setViewFocusWithEvents(newFocusedView, true);

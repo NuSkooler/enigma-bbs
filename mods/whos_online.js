@@ -71,13 +71,18 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 
 				var listFormat 	= self.menuConfig.config.listFormat || '{node} - {username} - {action} - {timeOn}';
 
+				var now = moment();
+
 				onlineListView.setItems(_.map(onlineList, function formatOnlineEntry(oe) {					
 					return listFormat.format({
 						node		: oe.node,
 						userId		: oe.user.userId,
 						userName	: oe.user.username,
 						realName	: oe.user.properties.real_name,
-						timeOn		: _.capitalize(moment.duration(55, 'minutes').humanize()),
+						timeOn		: function getTimeOn() {
+							var diff = now.diff(moment(oe.user.properties.last_login_timestamp), 'minutes');
+							return _.capitalize(moment.duration(diff, 'minutes').humanize());
+						},
 						action		: function getCurrentAction() {
 							var cmm = oe.currentMenuModule;
 							if(cmm) {
