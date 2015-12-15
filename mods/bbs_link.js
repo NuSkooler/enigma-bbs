@@ -134,7 +134,7 @@ function BBSLinkModule(options) {
 
 					var clientTerminated;
 
-					self.client.term.write(ansi.resetScreen());
+					self.client.term.write(resetScreen());
 					self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
 
 					var bridgeConnection = net.createConnection(connectOpts, function connected() {
