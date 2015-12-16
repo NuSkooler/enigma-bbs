@@ -48,8 +48,10 @@ Door.prototype.run = function() {
 	};
 
 	var restore = function(piped) {
-		self.client.term.output.unpipe(piped);
-		self.client.term.output.resume();
+		if(self.client.term.output) {
+			self.client.term.output.unpipe(piped);
+			self.client.term.output.resume();
+		}
 	};
 
 	var sockServer;
