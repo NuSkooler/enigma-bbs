@@ -114,7 +114,7 @@
 
 			mainMenuLastCallers: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<17.17}{ts:<15}"
+					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
@@ -124,8 +124,8 @@
 
 			mainMenuUserList: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
-					focusListFormat: "|00|42|30{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
+					listFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{note:<19.19}|03{lastLoginTs}"
+					focusListFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
@@ -135,7 +135,7 @@
 
 			mainMenuWhosOnline: {
 				config: {
-					listFormat: "|00|01|36{node:<6.6}{userName:<17.17}{affils:<19.19}{action:<20.20}{timeOn:<8}"
+					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
 				}
 				mci: {
 					VM1: { height: 10 }
@@ -144,8 +144,8 @@
 
 			messageAreaMessageList: {
 				config: {
-					listFormat: "|00|01|37{msgNum:>4} |00|37- |36{subj:<29.29} {from:<20.20} {ts} |01|31{newIndicator}"
-					focusListFormat: "|00|42|30{msgNum:>4} - {subj:<29.29} {from:<20.20} {ts} {newIndicator}"
+					listFormat: "|00|15{msgNum:>4}  |03{subj:<29.29} |11{from:<20.20} |03{ts} |01|31{newIndicator}"
+					focusListFormat: "|00|19|15{msgNum:>4}  {subj:<29.29} {from:<20.20} {ts} {newIndicator}"
 					dateTimeFormat: ddd MMM Do
 				}
 				mci: {
@@ -157,8 +157,8 @@
 
 			messageAreaChangeCurrentArea: {
 				config: {
-					listFormat: "|00|01|37{index} |00|37- |36{desc}"
-					focusListFormat: "|00|42|30{index} - {desc}"
+					listFormat: "|00|15{index} |07- |03{desc}"
+					focusListFormat: "|00|19|15{index} - {desc}"
 				}
 				mci: {
 					VM1: {
@@ -240,7 +240,7 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					listFormat: "|00|01|36{userName:<17.17}{location:<20.20}{affils:<17.17}{ts:<15}"
+					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
@@ -250,7 +250,7 @@
 
 			fullLoginSequenceWhosOnline: {
 				config: {
-					listFormat: "|00|01|36{node:<6.6}{userName:<17.17}{affils:<19.19}{action:<20.20}{timeOn:<8}"
+					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
 				}
 				mci: {
 					VM1: { height: 10 }
