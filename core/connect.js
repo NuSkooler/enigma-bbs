@@ -78,9 +78,9 @@ function prepareTerminal(term) {
 
 function displayBanner(term) {
 	term.pipeWrite(
-		'|33Conected to |32EN|33|01i|00|32|22GMA|32|01½|00 |33BBS version|31|01 |VN\n'	+
-		'|00|33Copyright (c) 2014-2015 Bryan Ashby |33|01- |31|01http://l33t.codes/\n'	+ 
-		'|00|33Updates & source |01- |31|01https://github.com/NuSkooler/enigma-bbs/\n'			+
+		'|06Conected to |02EN|10i|02GMA|10½ |06BBS version |12|VN\n'	+
+		'|06Copyright (c) 2014-2015 Bryan Ashby |14- |12http://l33t.codes/\n'	+ 
+		'|06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/\n'			+
 		'|00');
 }
 

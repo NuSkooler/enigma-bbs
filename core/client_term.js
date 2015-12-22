@@ -159,7 +159,7 @@ ClientTerminal.prototype.rawWrite = function(s) {
 };
 
 ClientTerminal.prototype.pipeWrite = function(s, spec) {
-	spec = spec || 'enigma';
+	spec = spec || 'renegade';
 	
 	var conv = {
 		enigma		: enigmaToAnsi,

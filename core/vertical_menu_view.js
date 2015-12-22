@@ -89,8 +89,8 @@ function VerticalMenuView(options) {
 			//	:TODO: Need to support pad()
 			//	:TODO: shoudl we detect if pipe codes are used?
 			self.client.term.write(
-				ansi.goto(item.row, self.position.col) +
-				colorCodes.enigmaToAnsi(text)
+				ansi.goto(item.row, self.position.col) +				
+				colorCodes.pipeToAnsi(text, self.client)
 				);
 
 		} else {

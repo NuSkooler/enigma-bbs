@@ -7,10 +7,10 @@ var getPredefinedMCIValue	= require('./predefined_mci.js').getPredefinedMCIValue
 var assert					= require('assert');
 var _						= require('lodash');
 
-exports.pipeToAnsi		= exports.enigmaToAnsi			= enigmaToAnsi;
+exports.enigmaToAnsi	= enigmaToAnsi;
 exports.stripPipeCodes	= exports.stripEnigmaCodes		= stripEnigmaCodes;
 exports.pipeStrLen		= exports.enigmaStrLen			= enigmaStrLen;
-exports.renegadeToAnsi	= renegadeToAnsi;
+exports.pipeToAnsi		= exports.renegadeToAnsi		= renegadeToAnsi;
 
 //	:TODO: Not really happy with the module name of "color_codes". Would like something better
 
@@ -83,13 +83,13 @@ function enigmaStrLen(s) {
 	return stripEnigmaCodes(s).length;
 }
 
-function renegadeToAnsi(s) {
-if(-1 == s.indexOf('|')) {
+function renegadeToAnsi(s, client) {
+	if(-1 == s.indexOf('|')) {
 		return s;	//	no pipe codes present
 	}
 
 	var result	= '';
-	var re		= /\|(\d{2}|\|)/g;
+	var re		= /\|([A-Z\d]{2}|\|)/g;
 	var m;
     var lastIndex = 0;
 	while((m = re.exec(s))) {
@@ -101,42 +101,46 @@ if(-1 == s.indexOf('|')) {
 		}
 
 		//	convert to number
-		val = parseInt(val, 10);
+		val = parseInt(val, 10);		
 		if(isNaN(val)) {
-			val = 0;
+			val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);	//	value itself or literal
 		}
-		assert(val >= 0 && val <= 23);
 
-		var attr = ansi.sgr({
-			0	: [ 'reset', 'black' ],
-			1	: [ 'reset', 'blue' ],
-			2	: [ 'reset', 'green' ],
-			3	: [ 'reset', 'cyan' ],
-			4	: [ 'reset', 'red' ],
-			5	: [ 'reset', 'magenta' ],
-			6	: [ 'reset', 'yellow' ],
-			7	: [ 'reset', 'white' ],
+		if(_.isString(val)) {
+			result += s.substr(lastIndex, m.index - lastIndex) + val;
+		} else {
+			var attr = ansi.sgr({
+				0	: [ 'reset', 'black' ],
+				1	: [ 'reset', 'blue' ],
+				2	: [ 'reset', 'green' ],
+				3	: [ 'reset', 'cyan' ],
+				4	: [ 'reset', 'red' ],
+				5	: [ 'reset', 'magenta' ],
+				6	: [ 'reset', 'yellow' ],
+				7	: [ 'reset', 'white' ],
 
-			8	: [ 'bold', 'black' ],
-			9	: [ 'bold', 'blue' ],
-			10	: [ 'bold', 'green' ],
-			11	: [ 'bold', 'cyan' ],
-			12	: [ 'bold', 'red' ],
-			13	: [ 'bold', 'magenta' ],
-			14	: [ 'bold', 'yellow' ],
-			15	: [ 'bold', 'white' ],
+				8	: [ 'bold', 'black' ],
+				9	: [ 'bold', 'blue' ],
+				10	: [ 'bold', 'green' ],
+				11	: [ 'bold', 'cyan' ],
+				12	: [ 'bold', 'red' ],
+				13	: [ 'bold', 'magenta' ],
+				14	: [ 'bold', 'yellow' ],
+				15	: [ 'bold', 'white' ],
 
-			16	: [ 'blackBG' ],
-			17 	: [ 'blueBG' ],
-			18	: [ 'greenBG' ],
-			19	: [ 'cyanBG' ],
-			20	: [ 'redBG' ],
-			21	: [ 'magentaBG' ],
-			22	: [ 'yellowBG' ],
-			23	: [ 'whiteBG' ],
-		}[val] || 'normal');
+				16	: [ 'blackBG' ],
+				17 	: [ 'blueBG' ],
+				18	: [ 'greenBG' ],
+				19	: [ 'cyanBG' ],
+				20	: [ 'redBG' ],
+				21	: [ 'magentaBG' ],
+				22	: [ 'yellowBG' ],
+				23	: [ 'whiteBG' ],
+			}[val] || 'normal');
 
-		result += s.substr(lastIndex, m.index - lastIndex) + attr;
+			result += s.substr(lastIndex, m.index - lastIndex) + attr;
+		}
+
         lastIndex = re.lastIndex;
 	}
 
