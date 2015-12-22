@@ -84,10 +84,11 @@ UserListModule.prototype.mciReady = function(mciData, cb) {
 						userId		: ue.userId,
 						userName	: ue.userName,
 						affils		: ue.affiliation,
+						location	: ue.location,
 						//	:TODO: the rest!
 						note		: ue.note || '',
 						lastLoginTs	: moment(ue.last_login_timestamp).format(dateTimeFormat),
-					}
+					};
 				}
 
 				userListView.setItems(_.map(userList, function formatUserEntry(ue) {
