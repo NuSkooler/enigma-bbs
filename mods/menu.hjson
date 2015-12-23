@@ -120,8 +120,46 @@
 			}
 		}
 
-		logoff: {
+		//	:TODO: Prompt Yes/No for logoff confirm
+		fullLogoffSequence: {
+			desc: Logging Off
+			prompt: logoffConfirmation
+			submit:	[
+				{
+					value: { promptValue: 0 }
+					action: @menu:fullLogoffSequencePreAd
+				}
+				{
+					value: { promptValue: 1 }
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+
+		fullLogoffSequencePreAd: {
+			art: PRELOGAD
+			desc: Logging Off
+			next: fullLogoffSequenceRandomBoardAd
+			options: {
+				cls: true
+				nextTimeout: 1500
+			}
+		}
+
+		fullLogoffSequenceRandomBoardAd: {
+			art: OTHRBBS
+			desc: Logging Off
+			next: logoff
+			options: {
+				baudRate: 57600
+				pause: true
+				cls: true
+			}
+		}
+
+		logoff: {			
 			art: LOGOFF
+			desc: Logging Off
 			next: @systemMethod:logoff
 		}
 		/*
@@ -230,7 +268,10 @@
 			}
 		}
 
+		//
 		//	SSH specialization of NUA
+		//	Canceling this form logs off vs falling back to matrix
+		//
 		newUserApplicationSsh: {
 			art: NUA
 			fallback: logoff
@@ -501,7 +542,7 @@
 			submit: [
 				{
 					value: { command: "G" }
-					action: @menu:logoff
+					action: @menu:fullLogoffSequence
 				}
 				{
 					value: { command: "D" }
