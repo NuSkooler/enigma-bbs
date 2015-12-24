@@ -44,6 +44,16 @@ function MenuView(options) {
 	this.hasFocusItems = function() {
 		return !_.isUndefined(self.focusItems);
 	};
+
+	this.getHotKeyItemIndex = function(ch) {
+		if(ch && self.hotKeys) {
+			var keyIndex = self.hotKeys[self.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
+			if(_.isNumber(keyIndex)) {
+				return keyIndex;
+			}
+		}
+		return -1;
+	};
 }
 
 util.inherits(MenuView, View);
@@ -72,6 +82,23 @@ MenuView.prototype.focusPrevious = function() {
 	this.emit('index update', this.focusedItemIndex);
 };
 
+MenuView.prototype.setFocusItemIndex = function(index) {
+	this.focusedItemIndex = index;
+};
+
+MenuView.prototype.onKeyPress = function(ch, key) {
+	var itemIndex = this.getHotKeyItemIndex(ch);
+	if(itemIndex >= 0) {
+		this.setFocusItemIndex(itemIndex);
+
+		if(true === this.hotKeySubmit) {
+			this.emit('action', 'accept');
+		}
+	}
+
+	MenuView.super_.prototype.onKeyPress.call(this, ch, key);
+};
+
 MenuView.prototype.setFocusItems = function(items) {
 	var self = this;
 
@@ -97,6 +124,7 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 		case 'items'		: this.setItems(value); break;
 		case 'focusItems'	: this.setFocusItems(value); break;
 		case 'hotKeys'		: this.setHotKeys(value); break;
+		case 'hotKeySubmit'	: this.hotKeySubmit = value; break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);

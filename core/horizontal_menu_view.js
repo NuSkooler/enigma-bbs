@@ -140,14 +140,6 @@ HorizontalMenuView.prototype.onKeyPress = function(ch, key) {
 		}
 	}
 
-	if(ch && this.hotKeys) {
-		var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
-		if(_.isNumber(keyIndex)) {
-			this.focusedItemIndex = keyIndex;
-			this.redraw();
-		}
-	}
-
 	HorizontalMenuView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 
