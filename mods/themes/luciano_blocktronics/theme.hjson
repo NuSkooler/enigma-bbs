@@ -273,6 +273,28 @@
 					ST8: { width: 17 }
 				}
 			}
+
+			mainMenuUserConfig: {
+				mci: {
+					ET1: { width: 27 }
+					ME2: { width: 27 }
+					ME3: { width: 27 }
+					ET4: { width: 27 }
+					ET5: { width: 27 }
+					ET6: { width: 27 }
+					ET7: { width: 27 }
+					ET8: { width: 27 }
+					ET9: { width: 27 }
+					ET10: { width: 18 }
+					ET11: { width: 18 }
+					TL20: { width: 71 }
+					TL21: { width: 43 }
+
+					TM25: {
+						focusTextStyle: first lower
+					}
+				}
+			}
 		}
 	}
 }
