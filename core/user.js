@@ -375,6 +375,25 @@ User.prototype.persistAllProperties = function(cb) {
 */
 };
 
+User.prototype.setNewAuthCredentials = function(password, cb) {
+	var self = this;
+
+	generatePasswordDerivedKeyAndSalt(password, function dkAndSalt(err, info) {
+		if(err) {
+			cb(err);
+		} else {
+			var newProperties = {
+				pw_pbkdf2_salt	: info.salt,
+				pw_pbkdf2_dk	: info.dk,
+			};
+
+			self.persistProperties(newProperties, function persisted(err) {
+				cb(err);
+			});
+		}
+	});
+};
+
 User.prototype.getAge = function() {
 	if(_.has(this.properties, 'birthdate')) {
 		return moment().diff(this.properties.birthdate, 'years');
