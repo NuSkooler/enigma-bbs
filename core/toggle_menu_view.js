@@ -62,6 +62,12 @@ ToggleMenuView.prototype.redraw = function() {
 	}
 };
 
+ToggleMenuView.prototype.setFocusItemIndex = function(index) {
+	ToggleMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+
+	this.updateSelection();
+};
+
 ToggleMenuView.prototype.setFocus = function(focused) {
 	ToggleMenuView.super_.prototype.setFocus.call(this, focused);
 
@@ -90,14 +96,6 @@ ToggleMenuView.prototype.onKeyPress = function(ch, key) {
 		if(needsUpdate) {
 			this.updateSelection();
 			return;
-		}
-	}
-
-	if(ch && this.hotKeys) {
-		var keyIndex = this.hotKeys[this.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
-		if(_.isNumber(keyIndex)) {
-			this.focusedItemIndex = keyIndex;
-			this.updateSelection();
 		}
 	}
 
