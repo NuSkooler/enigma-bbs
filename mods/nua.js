@@ -14,7 +14,7 @@ exports.getModule	= NewUserAppModule;
 exports.moduleInfo = {
 	name	: 'NUA',
 	desc	: 'New User Application',
-}
+};
 
 var MciViewIds = {
 	userName	: 1,

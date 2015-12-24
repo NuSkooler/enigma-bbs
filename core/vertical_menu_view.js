@@ -146,6 +146,12 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
+VerticalMenuView.prototype.setFocusItemIndex = function(index) {
+	VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+	
+	this.redraw();
+};
+
 VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 
 	if(key) {

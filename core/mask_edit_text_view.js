@@ -103,6 +103,14 @@ MaskEditTextView.maskPatternCharacterRegEx = {
 	'&'				: /[\w\d\s]/,			//	Any "printable" 32-126, 128-255
 };
 
+MaskEditTextView.prototype.setText = function(text) {
+	MaskEditTextView.super_.prototype.setText.call(this, text);
+	
+	if(this.patternArray) {	//	:TODO: This is a hack - see TextView ctor note about setText()
+		this.patternArrayPos = this.patternArray.length;
+	}
+};
+
 MaskEditTextView.prototype.setMaskPattern = function(pattern) {
 	this.dimens.width = pattern.length;
 

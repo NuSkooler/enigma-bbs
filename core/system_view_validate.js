@@ -14,7 +14,7 @@ function validateNonEmpty(data, cb) {
 
 function validateMessageSubject(data, cb) {
 	cb(data && data.length > 1 ? null : new Error('Subject too short'));
-};
+}
 
 function validateUserNameAvail(data, cb) {
 	if(data.length < Config.users.usernameMin) {

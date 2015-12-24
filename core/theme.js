@@ -16,8 +16,10 @@ var async				= require('async');
 var _					= require('lodash');
 var assert				= require('assert');
 
+
 exports.loadTheme				= loadTheme;
 exports.getThemeArt				= getThemeArt;
+exports.getAvailableThemes		= getAvailableThemes;
 exports.getRandomTheme			= getRandomTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
@@ -72,7 +74,7 @@ function refreshThemeHelpers(theme) {
 
 			return format;
 		}
-	}
+	};
 }
 
 function loadTheme(themeID, cb) {
@@ -83,8 +85,11 @@ function loadTheme(themeID, cb) {
 		if(err) {
 			cb(err);
 		} else {
-			if(!_.isObject(theme.info)) {
-				cb(new Error('Invalid theme or missing \'info\' section'));
+			if(!_.isObject(theme.info) || 
+				!_.isString(theme.info.name) ||
+				!_.isString(theme.info.author))
+			{
+				cb(new Error('Invalid or missing "info" section!'));
 				return;
 			}
 
@@ -128,6 +133,8 @@ function initAvailableThemes(cb) {
 							});
 
 							Log.debug( { info : theme.info }, 'Theme loaded');
+						} else {
+							Log.warn( { themeId : themeId, error : err.toString() }, 'Failed to load theme');
 						}
 					});
 
@@ -144,6 +151,10 @@ function initAvailableThemes(cb) {
 			cb(null, availableThemes.length);
 		}
 	);
+}
+
+function getAvailableThemes() {
+	return availableThemes;
 }
 
 function getRandomTheme() {

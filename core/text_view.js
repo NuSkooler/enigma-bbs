@@ -89,6 +89,7 @@ function TextView(options) {
 		return this.position.col + offset;	
 	};
 
+	//	:TODO: Whatever needs init here should be done separately from setText() since it redraws/etc.
 	this.setText(options.text || '');
 }
 
@@ -97,7 +98,9 @@ util.inherits(TextView, View);
 TextView.prototype.redraw = function() {
 	TextView.super_.prototype.redraw.call(this);
 
-	this.drawText(this.text);
+	if(_.isString(this.text)) {
+		this.drawText(this.text);
+	}
 };
 
 TextView.prototype.setFocus = function(focused) {
