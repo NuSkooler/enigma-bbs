@@ -190,7 +190,7 @@
 						}
 						ET2: {
 							argName: realName
-							maxLength: 32
+							maxLength: @config:users.realNameMax
 							validate: @systemMethod:validateNonEmpty
 						}
 						MET3: {
@@ -206,21 +206,21 @@
 						}
 						ET5: {
 							argName: location
-							maxLength: 32
+							maxLength: @config:users.locationMax
 							validate: @systemMethod:validateNonEmpty
 						}
 						ET6: {
 							argName: affils
-							maxLength: 32
+							maxLength: @config:users.affilsMax
 						}
 						ET7: {
 							argName: email
-							maxLength: 255
+							maxLength: @config:users.emailMax
 							validate: @systemMethod:validateEmailAvail
 						}
 						ET8: {
 							argName: web
-							maxLength: 255
+							maxLength: @config:users.webMax
 						}
 						ET9: {
 							argName: password
@@ -287,7 +287,7 @@
 						}
 						ET2: {
 							argName: realName
-							maxLength: 32
+							maxLength: @config:users.realNameMax
 							validate: @systemMethod:validateNonEmpty
 						}
 						MET3: {
@@ -303,21 +303,21 @@
 						}
 						ET5: {
 							argName: location
-							maxLength: 32
+							maxLength: @config:users.locationMax
 							validate: @systemMethod:validateNonEmpty
 						}
 						ET6: {
 							argName: affils
-							maxLength: 32
+							maxLength: @config:users.affilsMax
 						}
 						ET7: {
 							argName: email
-							maxLength: 255
+							maxLength: @config:users.emailMax
 							validate: @systemMethod:validateEmailAvail
 						}
 						ET8: {
 							argName: web
-							maxLength: 255
+							maxLength: @config:users.webMax
 						}
 						ET9: {
 							argName: password
@@ -625,6 +625,7 @@
 				}
 			}
 		}
+
 		mainMenuUserConfig: {
 			module: @systemModule:user_config
 			art: CONFSCR
@@ -632,30 +633,83 @@
 				0: {
 					mci: {
 						ET1: {
-							argName: email
+							argName: realName
+							maxLength: @config:users.realNameMax
+							validate: @systemMethod:validateNonEmpty
+							focus: true
 						}
-						ET2: {
-							argName: location
+						ME2: {
+							argName: birthdate
+							maskPattern: "####/##/##"
 						}
-						ET3: {
-							argName: webAddress
+						ME3: {
+							argName: sex
+							maskPattern: A
+							textStyle: upper
+							validate: @systemMethod:validateNonEmpty
 						}
 						ET4: {
+							argName: location
+							maxLength: @config:users.locationMax
+							validate: @systemMethod:validateNonEmpty
+						}
+						ET5: {
 							argName: affils
+							maxLength: @config:users.affilsMax
 						}
-						ME5: {
-							maskPattern: "####/##/##"
-							argName: birthdate
+						ET6: {
+							argName: email
+							maxLength: @config:users.emailMax
+							validate: @method:validateEmailAvail
 						}
-						ME11: {
-							maskPattern: "##x##"
-							argName: termSize
+						ET7: {
+							argName: web
+							maxLength: @config:users.webMax
+						}
+						ME8: {
+							maskPattern: "##"
+							argName: termHeight
+							validate: @systemMethod:validateNonEmpty
+						}
+						SM9: {
+							argName: theme
+						}
+						ET10: {
+							argName: password
+							maxLength: @config:users.passwordMax
+							password: true
+							validate: @method:validatePassword
+						}
+						ET11: {
+							argName: passwordConfirm
+							maxLength: @config:users.passwordMax
+							password: true
+							validate: @method:validatePassConfirmMatch
+						}
+						TM25: {
+							argName: submission
+							items: [ "save", "cancel" ]
+							submit: true
 						}
 					}
+
+					submit: {
+						*: [
+							{
+								value: { submission: 0 }
+								action: @method:saveChanges
+							}
+							{
+								value: { submission: 1 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @method:exitKeyPressed
+							action: @systemMethod:prevMenu
 						}
 					]
 				}
