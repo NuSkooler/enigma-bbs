@@ -103,7 +103,7 @@ function View(options) {
 	this.restoreCursor = function() {
 		//this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
 		this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
-	};
+	};	
 }
 
 util.inherits(View, events.EventEmitter);
