@@ -64,6 +64,12 @@ SpinnerMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
+SpinnerMenuView.prototype.setFocusItemIndex = function(index) {
+	SpinnerMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+	
+	this.updateSelection();	//	will redraw
+};
+
 SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
 		if(this.isKeyMapped('up', key.name)) {		
