@@ -47,10 +47,13 @@ Door.prototype.run = function() {
 		self.client.term.write(decode(data, self.exeInfo.encoding));
 	};
 
+	var restored = false;
+
 	var restore = function(piped) {
-		if(self.client.term.output) {
+		if(!restored && self.client.term.output) {
 			self.client.term.output.unpipe(piped);
 			self.client.term.output.resume();
+			restored = true;
 		}
 	};
 
@@ -131,6 +134,11 @@ Door.prototype.run = function() {
 
 					if(sockServer) {
 						sockServer.close();
+					}
+
+					//	we may not get a close
+					if('stdio' === self.exeInfo.io) {
+						restore(door);
 					}
 
 					door.removeAllListeners();
