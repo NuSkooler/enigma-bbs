@@ -81,8 +81,9 @@ function Message(options) {
 }
 
 Message.WellKnownAreaNames = {
-	Invalid	: '',
-	Private	: 'private_mail'
+	Invalid		: '',
+	Private		: 'private_mail',
+	Bulletin	: 'local_bulletin',
 };
 
 //	:TODO: This doesn't seem like a good way to go -- perhaps only for local/user2user, or just use
