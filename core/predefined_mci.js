@@ -109,7 +109,7 @@ function getPredefinedMCIValue(client, code) {
 
 			TC	: function totalCalls() { return sysProp.getSystemProperty('login_count').toString(); },
 			
-		}[code]();
+		}[code]();	//	:TODO: Just call toString() here and remove above - DRY
 
 	} catch(e) {
 		//	Don't use client.log here as we may not have a client logger established yet!!
