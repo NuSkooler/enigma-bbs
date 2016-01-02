@@ -14,6 +14,7 @@ exports.getDefaultMessageArea				= getDefaultMessageArea;
 exports.getMessageAreaByName				= getMessageAreaByName;
 exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
+exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 
@@ -102,6 +103,60 @@ function changeMessageArea(client, areaName, cb) {
 			cb(err);
 		}
 	);
+}
+
+function getNewMessagesInAreaForUser(userId, areaName, cb) {
+	//
+	//	If |areaName| is Message.WellKnownAreaNames.Private,
+	//	only messages addressed to |userId| should be returned.
+	//
+	//	Only messages > lastMessageId should be returned
+	//
+	var msgList = [];
+
+	async.waterfall(
+		[
+			function getLastMessageId(callback) {
+				getMessageAreaLastReadId(userId, areaName, function fetched(err, lastMessageId) {
+					callback(null, lastMessageId || 0);	//	note: willingly ignoring any errors here!
+				});
+			},
+			function getMessages(lastMessageId, callback) {
+				var sql = 
+					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count ' +
+					'FROM message ' +
+					'WHERE area_name="' + areaName + '" AND message_id > ' + lastMessageId;
+
+				if(Message.WellKnownAreaNames.Private === areaName) {
+					sql += 
+						' AND message_id in (' +
+						'SELECT message_id from message_meta where meta_category=' + Message.MetaCategories.System + 
+						' AND meta_name="' + Message.SystemMetaNames.LocalToUserID + '" and meta_value=' + userId + ')';
+				}
+
+				sql += ' ORDER BY message_id;';
+								
+				msgDb.each(sql, function msgRow(err, row) {
+					if(!err) {
+						msgList.push( { 
+							messageId		: row.message_id,
+							messageUuid		: row.message_uuid,
+							replyToMsgId	: row.reply_to_message_id,
+							toUserName		: row.to_user_name,
+							fromUserName	: row.from_user_name,
+							subject			: row.subject,
+							modTimestamp	: row.modified_timestamp,
+							viewCount		: row.view_count,
+						} );
+					}
+				}, callback);
+			}
+		],
+		function complete(err) {
+			console.log(msgList)
+			cb(err, msgList);
+		}
+	);	
 }
 
 function getMessageListForArea(options, areaName, cb) {
