@@ -144,21 +144,23 @@ ClientTerminal.prototype.isANSI = function() {
 
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
 
-ClientTerminal.prototype.write = function(s, convertLineFeeds) {
-	this.rawWrite(this.encode(s, convertLineFeeds));
+ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
+	this.rawWrite(this.encode(s, convertLineFeeds), cb);
 };
 
-ClientTerminal.prototype.rawWrite = function(s) {
+ClientTerminal.prototype.rawWrite = function(s, cb) {
 	if(this.output) {
 		this.output.write(s, function written(err) {
-			if(err) {
+			if(_.isFunction(cb)) {
+				cb(err);
+			} else if(err) {
 				Log.warn('Failed writing to socket: ' + err.toString());
 			}
 		});
 	}
 };
 
-ClientTerminal.prototype.pipeWrite = function(s, spec) {
+ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
 	spec = spec || 'renegade';
 	
 	var conv = {
@@ -166,11 +168,12 @@ ClientTerminal.prototype.pipeWrite = function(s, spec) {
 		renegade	: renegadeToAnsi,
 	}[spec] || enigmaToAnsi;
 	
-	this.write(conv(s, this));
+	this.write(conv(s, this), null, cb);	//	null = use default for |convertLineFeeds|
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
-	convertLineFeeds = _.isUndefined(convertLineFeeds) ? this.convertLF : convertLineFeeds;
+	convertLineFeeds = _.isBoolean(convertLineFeeds) ? convertLineFeeds : this.convertLF;
+	
 	if(convertLineFeeds && _.isString(s)) {
 		s = s.replace(/\n/g, '\r\n');
 	}
