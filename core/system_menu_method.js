@@ -2,7 +2,7 @@
 'use strict';
 
 var theme				= require('./theme.js');
-var clientConnections	= require('./client_connections.js').clientConnections;
+var removeClient		= require('./client_connections.js').removeClient;
 var ansi				= require('./ansi_term.js');
 var userDb				= require('./database.js').dbs.user;
 var sysProp				= require('./system_property.js');
@@ -50,9 +50,11 @@ function logoff(callingMenu, formData, extraArgs) {
 		client.term.write(
 			ansi.normal() +	'\n' +
 			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) + 
-			'NO CARRIER');
+			'NO CARRIER', null, function written() {
 
-		client.end();
+				//	after data is written, disconnect & remove the client
+				removeClient(client);
+			});
 	}, 500);
 }
 
