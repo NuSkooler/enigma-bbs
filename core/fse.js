@@ -49,7 +49,6 @@ exports.moduleInfo = {
 			TL12 - User1
 			TL13 - User2
 			
-			TL16 - Error / Information area
 
 		Footer - Viewing
 			HM1 - Menu (prev/next/etc.)
@@ -77,8 +76,8 @@ var MCICodeIds = {
 		MessageID		: 10,
 		ReplyToMsgID	: 11,
 		
-		ErrorMsg		: 16,
 	},
+	
 	ViewModeFooter : {
 		MsgNum			: 6,
 		MsgTotal		: 7,
@@ -88,8 +87,9 @@ var MCICodeIds = {
 		From			: 1,
 		To				: 2,
 		Subject			: 3,
-
-	}
+		
+		ErrorMsg		: 13,
+	},
 };
 
 function FullScreenEditorModule(options) {
@@ -272,7 +272,12 @@ function FullScreenEditorModule(options) {
 				function clearFooterArea(callback) {
 					if(options.clear) {
 						//	footer up to 3 rows in height
-						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+
+						//	:TODO: We'd like to delete up to N rows, but this does not work
+						//	in NetRunner:
+						//self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+						
+						self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
 					}
 					callback(null);
 				},
@@ -623,7 +628,17 @@ function FullScreenEditorModule(options) {
 		self.initHeaderGeneric();
 
 		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
-		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	'RE: ' + self.replyToMessage.subject);
+
+		//
+		//	We want to prefix the subject with "RE: " only if it's not already
+		//	that way -- avoid RE: RE: RE: RE: ...
+		//
+		var newSubj = self.replyToMessage.subject;
+		if(!_.startsWith(self.replyToMessage.subject, 'RE:')) {
+			newSubj = 'RE: ' + newSubj;
+		}
+
+		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	newSubj);
 
 	};
 
@@ -664,11 +679,13 @@ function FullScreenEditorModule(options) {
 			[
 				function clearAndDisplayArt(callback) {
 
+					//	:TODO: use termHeight, not hard coded 24 here:
+
+					//	:TODO: NetRunner does NOT support delete line, so this does not work:
 					self.client.term.rawWrite(
 						ansi.goto(self.header.height + 1, 1) +
 						ansi.deleteLine(24 - self.header.height));
-						//ansi.eraseLine(2));
-						
+	
 					theme.displayThemeArt( { name : self.menuConfig.config.art.quote, client : self.client }, function displayed(err, artData) {
 						callback(err, artData);
 					});
@@ -772,7 +789,7 @@ function FullScreenEditorModule(options) {
 		//	Validation stuff
 		//
 		viewValidationListener : function(err, cb) {
-			var errMsgView = self.viewControllers.header.getView(MCICodeIds.ViewModeHeader.ErrorMsg);
+			var errMsgView = self.viewControllers.header.getView(MCICodeIds.ReplyEditModeHeader.ErrorMsg);
 			var newFocusViewId;
 			if(errMsgView) {
 				if(err) {
