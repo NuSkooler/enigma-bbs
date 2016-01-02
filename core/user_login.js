@@ -5,6 +5,7 @@ var theme				= require('./theme.js');
 var clientConnections	= require('./client_connections.js').clientConnections;
 var userDb				= require('./database.js').dbs.user;
 var sysProp				= require('./system_property.js');
+var logger				= require('./logger.js');
 
 var async				= require('async');
 var _					= require('lodash');
@@ -48,13 +49,13 @@ function userLogin(client, username, password, cb) {
 				var existingConnError = new Error('Already logged in as supplied user');
 				existingClientConnection.existingConn = true;
 
-				cb(existingClientConnection);
-				return;
+				return cb(existingClientConnection);
 			}
 
 
-			//	use client.user so we can get correct case
-			client.log.info( { username : user.username }, 'Successful login');
+			//	update client logger with addition of username
+			client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
+			client.log.info('Successful login');
 
 			async.parallel(
 				[

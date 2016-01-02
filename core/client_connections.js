@@ -18,6 +18,7 @@ function addNewClient(client, clientSock) {
 	var id = client.session.id = clientConnections.push(client) - 1;
 
 	//	Create a client specific logger 
+	//	Note that this will be updated @ login with additional information
 	client.log = logger.log.child( { clientId : id } );
 
 	var connInfo = {
