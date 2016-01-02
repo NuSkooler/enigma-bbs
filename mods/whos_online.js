@@ -73,7 +73,33 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 
 				var now = moment();
 
-				onlineListView.setItems(_.map(onlineList, function formatOnlineEntry(oe) {					
+				onlineListView.setItems(_.map(onlineList, function formatOnlineEntry(oe) {
+					var fmtObj = {
+						node		: oe.node,
+						userId		: oe.user.userId,
+						userName	: oe.user.username,
+						realName	: oe.user.properties.real_name,
+						timeOn		: function getTimeOn() {
+							var diff = now.diff(moment(oe.user.properties.last_login_timestamp), 'minutes');
+							return _.capitalize(moment.duration(diff, 'minutes').humanize());
+						},
+						action		: function getCurrentAction() {
+							var cmm = oe.currentMenuModule;
+							if(cmm) {
+								return cmm.menuConfig.desc || 'Unknown';
+							}
+							return 'Unknown';
+							//oe.currentMenuModule.menuConfig.desc || 'Unknown',
+						},
+						location	: oe.user.properties.location,
+						affils		: oe.user.properties.affiliation,
+					};
+					try {
+						return listFormat.format(fmtObj);
+					} catch(e) {
+						console.log('Exception caught formatting: ' + e.toString() + ':\n' + JSON.stringify(fmtObj));
+					}
+					/*
 					return listFormat.format({
 						node		: oe.node,
 						userId		: oe.user.userId,
@@ -94,6 +120,7 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 						location	: oe.user.properties.location,
 						affils		: oe.user.properties.affiliation,
 					});
+					 */
 				}));
 
 				//	:TODO: This is a hack until pipe codes are better implemented
