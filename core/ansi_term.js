@@ -26,6 +26,7 @@ exports.clearScreen					= clearScreen;
 exports.resetScreen					= resetScreen;
 exports.normal						= normal;
 exports.goHome						= goHome;
+//exports.deleteLine					= deleteLine;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
@@ -52,10 +53,52 @@ var CONTROL = {
 	nextLine		: 'E',
 	prevLine		: 'F',
 	horizAbsolute	: 'G',
+
+	//
+	//	CSI [ p1 ] J
+	//	Erase in Page / Erase Data
+	//	Defaults: p1 = 0
+	//	Erases from the current screen according to the value of p1
+	//	0 - Erase from the current position to the end of the screen.
+	//	1 - Erase from the current position to the start of the screen.
+	//	2 - Erase entire screen.  As a violation of ECMA-048, also moves
+	//	    the cursor to position 1/1 as a number of BBS programs assume
+	//		this behaviour.
+	//	Erased characters are set to the current attribute.
+	//
+	//	Support:
+	//	* SyncTERM: Works as expected
+	//	* NetRunner: Always clears a screen *height* (e.g. 25) regardless of p1
+	//	  and screen remainder
+	//
 	eraseData		: 'J',
+
 	eraseLine		: 'K',
 	insertLine		: 'L',
+
+	//
+	//	CSI [ p1 ] M
+	//	Delete Line(s) / "ANSI" Music
+	//	Defaults: p1 = 1
+	//	Deletes the current line and the p1 - 1 lines after it scrolling the
+	//	first non-deleted line up to the current line and filling the newly
+	//	empty lines at the end of the screen with the current attribute.
+	//	If "ANSI" Music is fully enabled (CSI = 2 M), performs "ANSI" music
+	//	instead.
+	//	See "ANSI" MUSIC section for more details.
+	//
+	//	Support:
+	//	* SyncTERM: Works as expected
+	//	* NetRunner: 	
+	//
+	//	General Notes:
+	//	See also notes in bansi.txt and cterm.txt about the various
+	//	incompatibilities & oddities around this sequence. ANSI-BBS
+	//	states that it *should* work with any value of p1.
+	//
 	deleteLine		: 'M',
+	ansiMusic		: 'M',
+
 	scrollUp		: 'S',
 	scrollDown		: 'T',
 	setScrollRegion	: 'r',
@@ -386,6 +429,32 @@ function goHome() {
 }
 
 //
+//	Delete line(s)
+//	This method acts like ESC[ p1 M but should work
+//	for all terminals via using eraseLine and movement
+//
+/*
+function deleteLine(count) {
+	count = count || 1;
+
+	console.log(exports.eraseLine)
+	var seq = exports.eraseLine(2);	// 2 = entire line
+	var i;
+	for(i = 1; i < count; ++i) {
+		seq += 
+			'\n' + 					//	down a line
+			exports.eraseLine(2);	//	erase it
+	}
+	
+	//	now, move back up any we lines we went down
+	if(count > 1) {
+		seq += exports.up(count - 1);
+	}
+	return seq;
+}
+*/
+
+//
 //	See http://www.termsys.demon.co.uk/vtANSI_BBS.htm
 //
 function disableVT100LineWrapping() {
@@ -410,5 +479,5 @@ function setEmulatedBaudRate(rate) {
 		115200		: 11,
 	}[rate] || 0;
 	return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
-};
+}
 
