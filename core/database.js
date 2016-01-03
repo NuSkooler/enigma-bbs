@@ -61,17 +61,33 @@ function initializeDatabases(cb) {
 				});
 			}
 		],
-		cb
+		function complete(err) {
+			cb(err);
+		}
 	);
 }
 
 function createSystemTables() {
 	dbs.system.run(
-		'CREATE TABLE IF NOT EXISTS system_property ('			+
+		'CREATE TABLE IF NOT EXISTS system_property ('		+
 		'	prop_name		VARCHAR PRIMARY KEY NOT NULL,'	+
 		'	prop_value		VARCHAR NOT NULL'				+
 		');'
 		);
+
+	//
+	//	system_log can round log_timestamp for daily, monthly, etc.
+	//	statistics as well as unique entries.
+	//
+/*
+	dbs.system.run(
+		'CREATE TABLE IF NOT EXISTS system_log ('					+
+			'	log_timestamp	DATETIME PRIMARY KEY NOT NULL (	'	+
+			'	log_name		VARCHARNOT NULL,'					+
+			'	log_value		VARCHAR NOT NULL,'					+
+			'	UNIQUE(log_timestamp, log_name)'					+
+			');'
+		);*/
 }
 
 function createUserTables() {
@@ -123,7 +139,7 @@ function createMessageBaseTables() {
 		'	from_user_name			VARCHAR NOT NULL,'				+
 		'	subject,'												+	//	FTS @ message_fts
 		'	message,'												+ 	//	FTS @ message_fts
-		'	modified_timestamp	DATETIME NOT NULL,'					+
+		'	modified_timestamp		DATETIME NOT NULL,'				+
 		'	view_count				INTEGER NOT NULL DEFAULT 0,'	+
 		'	UNIQUE(message_uuid)'									+ 
 		');'
