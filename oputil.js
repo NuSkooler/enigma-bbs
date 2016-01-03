@@ -7,6 +7,7 @@ var db		= require('./core/database.js');
 
 var _		= require('lodash');
 var async	= require('async');
+var assert	= require('assert');
 
 var argv 	= require('minimist')(process.argv.slice(2));
 
@@ -72,7 +73,7 @@ function handleUserCommand() {
 				},
 				function getUser(callback) {					
 					user = require('./core/user.js');
-					user.getUserIdAndName(argv.user, function userNameAndId(err, username, userId) {
+					user.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
 						if(err) {
 							process.exitCode = ExitCodes.BAD_ARGS;
 							callback(new Error('Failed to retrieve user'));
@@ -82,8 +83,12 @@ function handleUserCommand() {
 					});
 				},
 				function setNewPass(userId, callback) {
+					assert(_.isNumber(userId));
+					assert(userId > 0);
+					
 					var u = new user.User();
 					u.userId = userId;
+
 					u.setNewAuthCredentials(argv.password, function credsSet(err) {
 						if(err) {
 							process.exitCode = ExitCodes.ERROR;
