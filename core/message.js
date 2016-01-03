@@ -33,7 +33,7 @@ function Message(options) {
 	this.viewCount		= options.viewCount || 0;
 
 	this.meta			= {
-		system	: {},	//	we'll always have this one
+		System	: {},	//	we'll always have this one
 	};
 
 	if(_.isObject(options.meta)) {
@@ -125,11 +125,11 @@ Message.FtnPropertyNames = {
 //	Note: kludges are stored with their names as-is
 
 Message.prototype.setLocalToUserId = function(userId) {
-	this.meta.system.local_to_user_id = userId;
+	this.meta.System.local_to_user_id = userId;
 };
 
 Message.prototype.setLocalFromUserId = function(userId) {
-	this.meta.system.local_from_user_id = userId;
+	this.meta.System.local_from_user_id = userId;
 };
 
 Message.prototype.load = function(options, cb) {
