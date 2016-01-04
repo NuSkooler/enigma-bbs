@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /* jslint node: true */
 'use strict';
 
@@ -85,7 +87,7 @@ function handleUserCommand() {
 				function setNewPass(userId, callback) {
 					assert(_.isNumber(userId));
 					assert(userId > 0);
-					
+
 					var u = new user.User();
 					u.userId = userId;
 
