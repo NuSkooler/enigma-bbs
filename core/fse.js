@@ -110,7 +110,11 @@ function FullScreenEditorModule(options) {
 	//
 	this.editorType			= config.editorType;
 	this.editorMode			= config.editorMode;	
-	this.messageAreaName	= config.messageAreaName || Message.WellKnownAreaNames.Private;
+	
+	if(config.messageAreaName) {
+		this.messageAreaName	= config.messageAreaName;
+	}
+	
 	this.messageIndex		= config.messageIndex || 0;
 	this.messageTotal		= config.messageTotal || 0;
 	this.toUserId			= config.toUserId || 0;
@@ -145,7 +149,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.isLocalEmail = function() {
-		return 'email' === self.editorType && Message.WellKnownAreaNames.Private === self.messageAreaName;
+		return Message.WellKnownAreaNames.Private === self.messageAreaName;
 	};
 
 	this.isReply = function() {

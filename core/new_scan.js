@@ -19,14 +19,16 @@ exports.getModule = NewScanModule;
 
 /*
  * :TODO:
- * * Update message ID when reading (this should be working!)
- * * New scan all areas
- * * User configurable new scan: Area selection (avail from messages area)
+ * * User configurable new scan: Area selection (avail from messages area) (sep module)
  * * Add status TL/VM (either/both should update if present)
  * * 
  
 */
 
+var MciCodeIds = {
+	ScanStatusLabel	: 1,	//	TL1
+	ScanStatusList	: 2,	//	VM2 (appends)
+};
 
 function NewScanModule(options) {
 	MenuModule.call(this, options);
@@ -35,9 +37,27 @@ function NewScanModule(options) {
 	var config	= this.menuConfig.config;
 
 	this.currentStep		= 'messageAreas';
-	this.currentScanAux		= 0;	//	Message.WellKnownAreaNames.Private
+	this.currentScanAux		= 0;	//	e.g. Message.WellKnownAreaNames.Private when currentSteps = messageAreas
 
-	
+	this.scanStartFmt		= config.scanStartFmt || 'Scanning {desc}...';
+	this.scanFinishNoneFmt	= config.scanFinishNoneFmt || 'Nothing new';
+	this.scanFinishNewFmt	= config.scanFinishNewFmt || '{count} entries found';
+	this.scanCompleteMsg	= config.scanCompleteMsg || 'Finished newscan';
+
+	this.updateScanStatus = function(statusText) {
+		var vc = self.viewControllers.allViews;
+		
+		var view = vc.getView(MciCodeIds.ScanStatusLabel);
+		if(view) {
+			view.setText(statusText);
+		}
+
+		view = vc.getView(MciCodeIds.ScanStatusList);
+		//	:TODO: MenuView needs appendItem()
+		if(view) {			
+		}
+	};
+
 	this.newScanMessageArea = function(cb) {
 		var availMsgAreas 	= msgArea.getAvailableMessageAreas( { includePrivate : true } );
 		var currentArea		= availMsgAreas[self.currentScanAux];
@@ -54,16 +74,31 @@ function NewScanModule(options) {
 						self.currentScanAux += 1;
 						callback(null);
 					} else {
+						self.updateScanStatus(self.scanCompleteMsg);
 						callback(new Error('No more areas'));
 					}
 				},
-				function updateStatus(callback) {
-					//	:TODO: Update status text
+				function updateStatusScanStarted(callback) {
+					self.updateScanStatus(self.scanStartFmt.format({
+						desc	: currentArea.desc,
+					}));
 					callback(null);
 				},
 				function newScanAreaAndGetMessages(callback) {
 					msgArea.getNewMessagesInAreaForUser(
 						self.client.user.userId, currentArea.name, function msgs(err, msgList) {
+							if(!err) {
+								if(0 === msgList.length) {
+									self.updateScanStatus(self.scanFinishNoneFmt.format({
+										desc	: currentArea.desc,
+									}));
+								} else {
+									self.updateScanStatus(self.scanFinishNewFmt.format({
+										desc	: currentArea.desc,
+										count	: msgList.length,
+									}));
+								}
+							}
 							callback(err, msgList);
 						}
 					);

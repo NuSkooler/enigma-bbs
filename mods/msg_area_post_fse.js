@@ -45,7 +45,7 @@ function AreaPostFSEModule(options) {
 				if(err) {
 					//	:TODO:... sooooo now what?
 				} else {
-					console.log(msg);
+					console.log(msg);	//	:TODO: remove me -- probably log that one was saved, however.
 				}
 
 				self.nextMenu();

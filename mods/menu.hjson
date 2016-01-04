@@ -369,9 +369,6 @@
 			art: LETTER
 			options: { pause: true }
 			next: newUserFeedbackToSysOp
-			extraArgs: {
-				messageAreaName: private_mail
-			}
 		}
 
 		newUserFeedbackToSysOp: {
@@ -395,7 +392,9 @@
 					help:				MSGEHLP
 				},
 				editorMode: edit
-				editorType: area
+				editorType: email
+				messageAreaName: private_mail
+				toUserId: 1 /* always to +op */
 			}
 			form: {
 				0: {
@@ -505,6 +504,7 @@
 			options: { pause: true }
 			next: fullLoginSequenceLastCallers
 		}
+
 		fullLoginSequenceLastCallers: {
 			desc: Last Callers
 			module: last_callers
@@ -517,8 +517,34 @@
 			module: whos_online
 			art: WHOSON
 			options: { pause: true }
-			next: fullLoginSequenceSysStats
+			next: fullLoginSequenceNewScanConfirm
 		}
+
+		fullLoginSequenceNewScanConfirm: {
+			desc: Logging In
+			prompt: loginGlobalNewScan
+			submit: [
+				{
+					value: { promptValue: 0 }
+					action: @menu:fullLoginSequenceNewScan
+				}
+				{
+					value: { promptValue: 1 }
+					action: @menu:fullLoginSequenceUserStats
+				}
+			]
+		}
+
+		fullLoginSequenceNewScan: {
+			desc: Performing New Scan
+			module: @systemModule:new_scan
+			art: NEWSCAN
+			next: fullLoginSequenceSysStats
+			config: {
+				messageListMenu: newScanMessageList
+			}
+		}
+
 		fullLoginSequenceSysStats: {
 			desc: System Stats
 			art: SYSSTAT
@@ -530,6 +556,40 @@
 			art: STATUS
 			options: { pause: true }
 			next: mainMenu
+		}
+
+		newScanMessageList: {
+			desc: Viewing New Message List
+			module: msg_list
+			art: NEWMSGS
+			config: {
+				menuViewPost: messageAreaViewPost
+			}
+			form: {
+				0: {
+					mci:  {
+						VM1: {
+							focus: true
+							submit: true
+							argName: message
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { message: null }
+								action: @method:selectMessage
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
 		}
 
 		///////////////////////////////////////////////////////////////////////
@@ -743,6 +803,10 @@
 					value: { command: "4" }
 					action: @menu:doorTradeWars2002BBSLink
 				}
+				{
+					value: { command: "DL" }
+					action: @menu:doorDarkLands
+				}
 			]
 		}
 
@@ -753,6 +817,24 @@
 				name: PimpWars
 				dropFileType: DORINFO
 				cmd: /home/nuskooler/DOS/scripts/pimpwars.sh
+				args: [ 
+					"{node}",
+					"{dropFile}",
+					"{srvPort}",
+				],
+				nodeMax: 1
+				tooManyArt: DOORMANY
+				io: socket
+			}
+		}
+
+		doorDarkLands: {
+			desc: Playing Dark Lands
+			module: abracadabra			
+			config: {
+				name: DARKLANDS
+				dropFileType: DOOR
+				cmd: /home/nuskooler/dev/enigma-bbs/doors/darklands/start.sh
 				args: [ 
 					"{node}",
 					"{dropFile}",
@@ -860,7 +942,6 @@
 			module: msg_list
 			art: MSGLIST
 			config: {
-				listType: public
 				menuViewPost: messageAreaViewPost
 			}
 			form: {
