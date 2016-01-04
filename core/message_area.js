@@ -4,6 +4,7 @@
 var msgDb			= require('./database.js').dbs.message;
 var Config			= require('./config.js').config;
 var Message			= require('./message.js');
+var Log				= require('./logger.js').log;
 
 var async			= require('async');
 var _				= require('lodash');
@@ -105,6 +106,19 @@ function changeMessageArea(client, areaName, cb) {
 	);
 }
 
+function getMessageFromRow(row) {
+	return { 
+		messageId		: row.message_id,
+		messageUuid		: row.message_uuid,
+		replyToMsgId	: row.reply_to_message_id,
+		toUserName		: row.to_user_name,
+		fromUserName	: row.from_user_name,
+		subject			: row.subject,
+		modTimestamp	: row.modified_timestamp,
+		viewCount		: row.view_count,
+	};
+}
+
 function getNewMessagesInAreaForUser(userId, areaName, cb) {
 	//
 	//	If |areaName| is Message.WellKnownAreaNames.Private,
@@ -135,19 +149,12 @@ function getNewMessagesInAreaForUser(userId, areaName, cb) {
 				}
 
 				sql += ' ORDER BY message_id;';
+
+				console.log(sql)
 								
 				msgDb.each(sql, function msgRow(err, row) {
 					if(!err) {
-						msgList.push( { 
-							messageId		: row.message_id,
-							messageUuid		: row.message_uuid,
-							replyToMsgId	: row.reply_to_message_id,
-							toUserName		: row.to_user_name,
-							fromUserName	: row.from_user_name,
-							subject			: row.subject,
-							modTimestamp	: row.modified_timestamp,
-							viewCount		: row.view_count,
-						} );
+						msgList.push(getMessageFromRow(row));
 					}
 				}, callback);
 			}
@@ -191,16 +198,7 @@ function getMessageListForArea(options, areaName, cb) {
 					[ areaName.toLowerCase() ],
 					function msgRow(err, row) {
 						if(!err) {
-							msgList.push( { 
-								messageId		: row.message_id,
-								messageUuid		: row.message_uuid,
-								replyToMsgId	: row.reply_to_message_id,
-								toUserName		: row.to_user_name,
-								fromUserName	: row.from_user_name,
-								subject			: row.subject,
-								modTimestamp	: row.modified_timestamp,
-								viewCount		: row.view_count,
-							} );
+							msgList.push(getMessageFromRow(row));
 						}
 					},
 					callback
@@ -222,11 +220,13 @@ function getMessageAreaLastReadId(userId, areaName, cb) {
 		'FROM user_message_area_last_read '		+
 		'WHERE user_id = ? AND area_name = ?;',
 		[ userId, areaName ],
-		cb	//	(err, lastId)
+		function complete(err, row) {
+			cb(err, row ? row.message_id : 0);
+		}
 	);
 }
 
-function updateMessageAreaLastReadId(userId, areaName, messageId) {
+function updateMessageAreaLastReadId(userId, areaName, messageId, cb) {
 	//	:TODO: likely a better way to do this...
 	async.waterfall(
 		[
@@ -241,10 +241,25 @@ function updateMessageAreaLastReadId(userId, areaName, messageId) {
 					msgDb.run(
 						'REPLACE INTO user_message_area_last_read (user_id, area_name, message_id) '	+
 						'VALUES (?, ?, ?);',
-						[ userId, areaName, messageId ]
+						[ userId, areaName, messageId ],
+						callback
 					);
+				} else {
+					callback(null);
 				}
 			}
-		]
+		],
+		function complete(err) {
+			if(err) {
+				Log.debug( 
+					{ error : err.toString(), userId : userId, areaName : areaName, messageId : messageId }, 
+					'Failed updating area last read ID');
+			} else {
+				Log.trace( 
+					{ userId : userId, areaName : areaName, messageId : messageId },
+					'Area last read ID updated');
+			}
+			cb(err);
+		}
 	);
 }
