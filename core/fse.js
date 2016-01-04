@@ -9,6 +9,7 @@ var MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').Mul
 var Message						= require('../core/message.js');
 var getMessageAreaByName		= require('../core/message_area.js').getMessageAreaByName;
 var updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
+var getUserIdAndName			= require('../core/user.js').getUserIdAndName;
 
 var async					= require('async');
 var assert					= require('assert');
@@ -67,7 +68,6 @@ var MCICodeIds = {
 		To				: 2,
 		Subject			: 3,
 		AreaName		: 4,
-
 		DateTime		: 5,
 		MsgNum			: 6,
 		MsgTotal		: 7,
@@ -103,20 +103,40 @@ function FullScreenEditorModule(options) {
 	//		editorType				: email | area
 	//		editorMode				: view | edit | quote
 	//
-	//	extraArgs - view mode
+	//	menuConfig.config or extraArgs
 	//		messageAreaName
 	//		messageIndex / messageTotal
+	//		toUserId
 	//
-	//
-	this.editorType	= config.editorType;
-	this.editorMode	= config.editorMode;
-
-	if(_.isObject(options.extraArgs)) {
-		//console.log(options.extraArgs)
-		this.messageAreaName	= options.extraArgs.messageAreaName || Message.WellKnownAreaNames.Private;
-		this.messageIndex		= options.extraArgs.messageIndex || 0;
-		this.messageTotal		= options.extraArgs.messageTotal || 0;
+	this.editorType			= config.editorType;
+	this.editorMode			= config.editorMode;	
+	
+	if(config.messageAreaName) {
+		this.messageAreaName	= config.messageAreaName;
 	}
+	
+	this.messageIndex		= config.messageIndex || 0;
+	this.messageTotal		= config.messageTotal || 0;
+	this.toUserId			= config.toUserId || 0;
+
+	//	extraArgs can override some config
+	if(_.isObject(options.extraArgs)) {
+		if(options.extraArgs.messageAreaName) {
+			this.messageAreaName = options.extraArgs.messageAreaName;
+		}
+		if(options.extraArgs.messageIndex) {
+			this.messageIndex = options.extraArgs.messageIndex;
+		}
+		if(options.extraArgs.messageTotal) {
+			this.messageTotal = options.extraArgs.messageTotal;
+		}
+		if(options.extraArgs.toUserId) {
+			this.toUserId = options.extraArgs.toUserId;
+		}
+	}
+	
+	console.log(this.toUserId)
+	console.log(this.messageAreaName)
 
 	this.isReady				= false;
 	
@@ -129,7 +149,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.isLocalEmail = function() {
-		return 'email' === self.editorType && Message.WellKnownAreaNames.Private === self.messageAreaName;
+		return Message.WellKnownAreaNames.Private === self.messageAreaName;
 	};
 
 	this.isReply = function() {
@@ -214,21 +234,21 @@ function FullScreenEditorModule(options) {
 	this.setMessage = function(message) {
 		self.message = message;
 
-		if(!self.message.isPrivate()) {
-			updateMessageAreaLastReadId(self.client.user.userId, self.messageAreaName, self.message.messageId);
-		}
+		updateMessageAreaLastReadId(
+			self.client.user.userId, self.messageAreaName, self.message.messageId,
+			function lastReadUpdated() {
 
-		if(self.isReady) {
-			self.initHeaderViewMode();
-			self.initFooterViewMode();
+			if(self.isReady) {
+				self.initHeaderViewMode();
+				self.initFooterViewMode();
 
-			var bodyMessageView = self.viewControllers.body.getView(1);
-			if(bodyMessageView && _.has(self, 'message.message')) {
-				bodyMessageView.setText(self.message.message);
-				//bodyMessageView.redraw();
+				var bodyMessageView = self.viewControllers.body.getView(1);
+				if(bodyMessageView && _.has(self, 'message.message')) {
+					bodyMessageView.setText(self.message.message);
+					//bodyMessageView.redraw();
+				}
 			}
-		}
-
+		});
 	};
 
 	this.getMessage = function(cb) {
@@ -242,12 +262,25 @@ function FullScreenEditorModule(options) {
 				},
 				function populateLocalUserInfo(callback) {
 					if(self.isLocalEmail()) {
-						msg.setLocalFromUserId(self.client.user.userId);
-						msg.setLocalToUserId(self.toUserId);
+						self.message.setLocalFromUserId(self.client.user.userId);
+						
+						if(self.toUserId > 0) {
+							self.message.setLocalToUserId(self.toUserId);
+							callback(null);
+						} else {
+							//	we need to look it up
+							getUserIdAndName(self.message.toUserName, function userInfo(err, toUserId) {
+								if(err) {
+									callback(err);
+								} else {
+									self.message.setLocalToUserId(toUserId);
+									callback(null);
+								}
+							});							
+						}
+					} else {
+						callback(null);
 					}
-
-					//	:TODO: DO THAT!
-					callback(null);
 				}
 			],
 			function complete(err) {

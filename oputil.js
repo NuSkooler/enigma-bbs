@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /* jslint node: true */
 'use strict';
 
@@ -85,7 +87,7 @@ function handleUserCommand() {
 				function setNewPass(userId, callback) {
 					assert(_.isNumber(userId));
 					assert(userId > 0);
-					
+
 					var u = new user.User();
 					u.userId = userId;
 
@@ -113,6 +115,10 @@ function handleUserCommand() {
 function main() {
 
 	process.exitCode = ExitCodes.SUCCESS;
+
+	if(true === argv.version) {
+		return console.info(require('./package.json').version);
+	}
 
 	if(0 === argv._.length ||
 		'help' === argv._[0])
