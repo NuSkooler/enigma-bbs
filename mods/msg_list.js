@@ -52,9 +52,21 @@ function MessageListModule(options) {
 	var self	= this;
 	var config	= this.menuConfig.config;
 
-	this.listType = config.listType || 'public';
+	this.messageAreaName = config.messageAreaName;
 
-	this.messageList = [];
+	if(options.extraArgs) {
+		//
+		//	|extraArgs| can override |messageAreaName| provided by config
+		//	as well as supply a pre-defined message list
+		//
+		if(options.extraArgs.messageAreaName) {
+			this.messageAreaName = options.extraArgs.messageAreaName;
+		}
+
+		if(options.extraArgs.messageList) {
+			this.messageList = options.extraArgs.messageList;
+		}
+	}
 
 	this.menuMethods = {
 		selectMessage : function(formData, extraArgs) {
@@ -85,9 +97,11 @@ require('util').inherits(MessageListModule, MenuModule);
 MessageListModule.prototype.enter = function(client) {
 	MessageListModule.super_.prototype.enter.call(this, client);
 
-	if('private' === this.listType) {
-		this.messageAreaName = Message.WellKnownAreaNames.Private;
-	} else {
+	//
+	//	Config can specify |messageAreaName| else it comes from
+	//	the user's current area
+	//
+	if(!this.messageAreaName) {
 		this.messageAreaName = client.user.properties.message_area_name;
 	}
 };
@@ -110,14 +124,21 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				vc.loadFromMenuConfig(loadOpts, callback);
 			},
 			function fetchMessagesInArea(callback) {
-				messageArea.getMessageListForArea( { client : self.client }, self.messageAreaName, function msgs(err, msgList) {
-					if(msgList && 0 === msgList.length) {
-						callback(new Error('No messages in area'));
-					} else {
-						self.messageList = msgList;
-						callback(err);
-					}
-				});
+				//
+				//	Config can supply messages else we'll need to populate the list now
+				//
+				if(_.isArray(self.messageList)) {
+					callback(0 === self.messageList.length ? new Error('No messages in area') : null);
+				} else {
+					messageArea.getMessageListForArea( { client : self.client }, self.messageAreaName, function msgs(err, msgList) {
+						if(msgList && 0 === msgList.length) {
+							callback(new Error('No messages in area'));
+						} else {
+							self.messageList = msgList;
+							callback(err);
+						}
+					});
+				}
 			},
 			function getLastReadMesageId(callback) {
 				messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaName, function lastRead(err, lastReadId) {
