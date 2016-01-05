@@ -816,6 +816,29 @@ function FullScreenEditorModule(options) {
 
 		self.observeEditorEvents();
 	};
+	
+	this.quoteBuilderFinalize = function() {
+		//	:TODO: fix magic #'s
+		var quoteMsgView	= self.viewControllers.quoteBuilder.getView(1);
+		var msgView			= self.viewControllers.body.getView(1);
+		
+		var quoteLines 		= quoteMsgView.getData();
+		
+		if(quoteLines.trim().length > 0) {
+			msgView.addText(quoteMsgView.getData() + '\n');
+		
+		}
+		
+		quoteMsgView.setText('');
+
+		var footerName = self.getFooterName();
+
+		self.footerMode = 'editor';
+
+		self.switchFooter(function switched(err) {
+			self.switchFromQuoteBuilderToBody();
+		});
+	};
 
 	this.menuMethods = {
 		//
@@ -893,23 +916,19 @@ function FullScreenEditorModule(options) {
 			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
 			quoteMsgView.addText(quoteText);
 
-			self.viewControllers.quoteBuilder.getView(3).focusNext();
+			//
+			//	If this is *not* the last item, advance. Otherwise, do nothing as we
+			//	don't want to jump back to the top and repeat already quoted lines
+			//
+			var quoteListView = self.viewControllers.quoteBuilder.getView(3);
+			if(quoteListView.getData() !== quoteListView.getCount() - 1) {
+				quoteListView.focusNext();
+			} else {
+				self.quoteBuilderFinalize();
+			}
 		},
 		quoteBuilderEscPressed : function(formData, extraArgs) {
-			//	:TODO: fix magic #'s
-			var quoteMsgView	= self.viewControllers.quoteBuilder.getView(1);
-			var msgView			= self.viewControllers.body.getView(1);
-
-			msgView.addText(quoteMsgView.getData() + '\n');
-			quoteMsgView.setText('');
-
-			var footerName = self.getFooterName();
-
-			self.footerMode = 'editor';
-
-			self.switchFooter(function switched(err) {
-				self.switchFromQuoteBuilderToBody();
-			});
+			self.quoteBuilderFinalize();
 		},
 		/*
 		replyDiscard : function(formData, extraArgs) {
