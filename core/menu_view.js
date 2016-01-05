@@ -68,6 +68,16 @@ MenuView.prototype.setItems = function(items) {
 	}
 };
 
+MenuView.prototype.getCount = function() {
+	return this.items.length;
+};
+
+MenuView.prototype.getItems = function() {
+	return _.map(this.items, function itemIter(i) {
+		return i.text;
+	});
+};
+
 MenuView.prototype.getItem = function(index) {
 	return this.items[index].text;
 };
