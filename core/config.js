@@ -50,7 +50,7 @@ function init(configPath, cb) {
 				//
 				if(!_.has(mergedConfig, 'messages.areas.') ||
 					!_.isArray(mergedConfig.messages.areas) ||
-					0 == mergedConfig.messages.areas.length ||
+					0 === mergedConfig.messages.areas.length ||
 					!_.isString(mergedConfig.messages.areas[0].name))
 				{
 					var msgAreasErr = new Error('Please create at least one message area');
