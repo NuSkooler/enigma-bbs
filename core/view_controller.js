@@ -499,18 +499,6 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 					callback(err);
 				});
 			},
-			function applyThemeCustomization(callback) {
-				//	:TODO: apply .config customization as well
-				if(_.isObject(promptConfig)) {
-					menuUtil.applyMciThemeCustomization({
-						name		: promptName,
-						type		: "prompts",
-						client		: self.client,
-						mci			: promptConfig.mci
-					});
-				}
-				callback(null);
-			},
 			function applyViewConfiguration(callback) {
 				if(_.isObject(promptConfig.mci)) {
 					self.applyViewConfig(promptConfig, function configApplied(err, info) {
@@ -614,6 +602,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					callback(err);
 				});
 			},
+            /*
 			function applyThemeCustomization(callback) {
 				formConfig = formConfig || {};
 				formConfig.mci = formConfig.mci || {};
@@ -636,6 +625,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				
 				callback(null);
 			},
+            */
 			function applyViewConfiguration(callback) {
 				if(_.isObject(formConfig)) {
 					self.applyViewConfig(formConfig, function configApplied(err, info) {
