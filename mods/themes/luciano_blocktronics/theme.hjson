@@ -142,6 +142,21 @@
 				}
 			}
 
+			mainMenuFeedbackToSysOp: {
+				0: {
+					mci: {
+						TL1: { width: 19, textOverflow: "..." }
+						ET2: { width: 19, textOverflow: "..." }
+						ET3: { width: 19, textOverflow: "..." }
+					}
+				}
+				1: {
+					mci: {
+						MT1: { height: 14 }
+					}
+				}
+			}
+
 			messageAreaMessageList: {
 				config: {
 					listFormat: "|00|15{msgNum:>4}  |03{subj:<29.29} |11{from:<20.20} |03{ts} |01|31{newIndicator}"
