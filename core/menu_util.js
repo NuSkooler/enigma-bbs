@@ -8,7 +8,7 @@ var conf				= require('./config.js');	//	:TODO: remove me!
 var Config				= require('./config.js').config;
 var asset				= require('./asset.js');
 var theme				= require('./theme.js');
-var configCache			= require('./config_cache.js');
+var getFullConfig		= require('./config_util.js').getFullConfig;
 var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
 var acsUtil				= require('./acs_util.js');
 
@@ -22,53 +22,33 @@ exports.loadMenu						= loadMenu;
 exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
 exports.handleAction					= handleAction;
 exports.handleNext						= handleNext;
-exports.applyGeneralThemeCustomization	= applyGeneralThemeCustomization;
-exports.applyMciThemeCustomization		= applyMciThemeCustomization;
+//exports.applyGeneralThemeCustomization	= applyGeneralThemeCustomization;
+//exports.applyMciThemeCustomization		= applyMciThemeCustomization;
 
-function getMenuConfig(name, cb) {
+function getMenuConfig(client, name, cb) {
 	var menuConfig;
 
 	async.waterfall(
 		[
-			function loadMenuJSON(callback) {
-				var menuFilePath = Config.general.menuFile;
-
-				//	menuFile is assumed to be in 'mods' if a path is not supplied
-				if('.' === paths.dirname(menuFilePath)) {
-					menuFilePath = paths.join(__dirname, '../mods', menuFilePath);
-				}
-
-				configCache.getConfig(menuFilePath, function loaded(err, menuJson) {
-					callback(err, menuJson);
-				});
-			},
-			function locateMenuConfig(menuJson, callback) {
-				if(_.has(menuJson, [ 'menus', name ])) {
-					menuConfig = menuJson.menus[name];
+			function locateMenuConfig(callback) {
+				if(_.has(client.currentTheme, [ 'menus', name ])) {
+					menuConfig = client.currentTheme.menus[name];
 					callback(null);
 				} else {
 					callback(new Error('No menu entry for \'' + name + '\''));
 				}
 			},
-			function loadPromptJSON(callback) {
+			function locatePromptConfig(callback) {
 				if(_.isString(menuConfig.prompt)) {
-					configCache.getModConfig('prompt.hjson', function loaded(err, promptJson, reCached) {
-						callback(err, promptJson);
-					});
-				} else {
-					callback(null, null);
-				}
-			},
-			function locatePromptConfig(promptJson, callback) {
-				if(promptJson) {
-					if(_.has(promptJson, [ 'prompts', menuConfig.prompt ])) {
-						menuConfig.promptConfig = promptJson.prompts[menuConfig.prompt];
+					if(_.has(client.currentTheme, [ 'prompts', menuConfig.prompt ])) {
+						menuConfig.promptConfig = client.currentTheme.prompts[menuConfig.prompt];
+                        callback(null);
 					} else {
 						callback(new Error('No prompt entry for \'' + menuConfig.prompt + '\''));
-						return;
-					}		
+					}
+				} else {
+					callback(null);
 				}
-				callback(null);
 			}			
 		],
 		function complete(err) {
@@ -85,7 +65,7 @@ function loadMenu(options, cb) {
 	async.waterfall(
 		[
 			function getMenuConfiguration(callback) {
-				getMenuConfig(options.name, function menuConfigLoaded(err, menuConfig) {
+				getMenuConfig(options.client, options.name, function menuConfigLoaded(err, menuConfig) {
 					callback(err, menuConfig);
 				});
 			},
@@ -272,7 +252,7 @@ function handleNext(client, nextSpec, conf) {
 
 //	:TODO: Seems better in theme.js, but that includes ViewController...which would then include theme.js
 //	...theme.js only brings in VC to create themed pause prompt. Perhaps that should live elsewhere
-
+/*
 function applyGeneralThemeCustomization(options) {
 	//
 	//	options.name
@@ -298,8 +278,9 @@ function applyGeneralThemeCustomization(options) {
 		}
 	}
 }
+*/
 
-
+/*
 function applyMciThemeCustomization(options) {
 	//
 	//	options.name 		: menu/prompt name
@@ -346,3 +327,4 @@ function applyMciThemeCustomization(options) {
 
 	//	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
 }
+*/

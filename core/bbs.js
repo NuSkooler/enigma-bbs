@@ -274,9 +274,7 @@ function prepareClient(client, cb) {
 	} else {
 		client.user.properties.theme_id = conf.config.preLoginTheme;
 	}
-
-	theme.loadTheme(client.user.properties.theme_id, function themeLoaded(err, theme) {
-		client.currentTheme = theme;
-		cb(null);
-	});
+    
+    theme.setClientTheme(client, client.user.properties.theme_id);
+    cb(null);   //  note: currently useless to use cb here - but this may change...again...
 }

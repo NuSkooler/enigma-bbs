@@ -84,7 +84,7 @@ doorPimpWars: {
 ```
 
 ### QEMU with abracadabra
-[QEMU](http://wiki.qemu.org/Main_Page) provides a robust, cross platform solution for launching doors under many platforms (likely anwywhere Node.js is supported and ENiGMA½ can run). Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
+[QEMU](http://wiki.qemu.org/Main_Page) provides a robust, cross platform solution for launching doors under many platforms (likely anwywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: **Multiple instances of a particular door/OS image should not be run at once!** Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
 
 Basically we'll be creating a bootstrap shell script that generates a temporary node specific `go.bat` to launch our door. This will be called from `autoexec.bat` within our QEMU FreeDOS partition.
 

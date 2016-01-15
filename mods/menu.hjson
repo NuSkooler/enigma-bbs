@@ -637,6 +637,14 @@
 					action: @menu:mainMenuSystemStats
 				}
 				{
+					value: { command: "!" }
+					action: @menu:mainMenuGlobalNewScan
+				}
+				{
+					value: { command: "K" }
+					action: @menu:mainMenuFeedbackToSysOp
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
@@ -775,6 +783,130 @@
 				}
 			}
 		}
+
+		mainMenuGlobalNewScan: {
+			desc: Performing New Scan
+			module: @systemModule:new_scan
+			art: NEWSCAN
+			config: {
+				messageListMenu: newScanMessageList
+			}
+		}
+
+		mainMenuFeedbackToSysOp: {
+			status: Feedback to SysOp
+			module: msg_area_post_fse
+			config: {
+				art: {
+					header:				MSGEHDR
+					body:				MSGBODY
+					footerEditor:		MSGEFTR
+					footerEditorMenu:	MSGEMFT
+					help:				MSGEHLP
+				},
+				editorMode: edit
+				editorType: email
+				messageAreaName: private_mail
+				toUserId: 1 /* always to +op */
+			}
+			form: {
+				0: {
+					mci: {
+						TL1: {
+							argName: 	from
+						}
+						ET2: {
+							argName: to
+							focus: true
+							text: @config:general.sysOp.username
+							//	:TODO: readOnly: true
+						}
+						ET3: {
+							argName: subject
+							maxLength: 72
+							submit: true
+							validate: @systemMethod:validateMessageSubject
+						}
+					}
+					submit: {
+						3: [
+							{
+								value: { subject: null }
+								action: @method:headerSubmit
+							}
+						]
+					}
+				}
+				1: {
+					mci: {
+						MT1: {
+							width: 79
+							argName: message
+							mode: edit
+						}
+					}
+
+					submit: {
+						*: [ { value: "message", action: "@method:editModeEscPressed" } ]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							viewId: 1
+						}
+					]
+				},
+				2: {
+					TLTL:  {
+						mci: {
+							TL1: {
+								width: 5
+							}
+							TL2: {
+								width: 4
+							}
+						}
+					}
+				}
+				3: {
+					HM: {
+						mci: {
+							HM1: {
+								//	:TODO: clear
+								items: [ "save", "discard", "help" ]
+							}
+						}
+						submit: {
+							*: [
+								{
+									value: { 1: 0 }
+									action: @method:editModeMenuSave
+								}
+								{
+									value: { 1: 1 }
+									action: @systemMethod:prevMenu
+								}
+								{
+									value: { 1: 2 }
+									action: @method:editModeMenuHelp
+								}
+							]
+						}
+						actionKeys: [
+							{
+								keys: [ "escape" ]
+								action: @method:editModeEscPressed
+							}
+							{
+								keys: [ "?" ]
+								action: @method:editModeMenuHelp
+							}
+						]
+					}
+				}
+			}
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	Doors Menu
 		///////////////////////////////////////////////////////////////////////
