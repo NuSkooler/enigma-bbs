@@ -120,7 +120,11 @@ function UserConfigModule(options) {
 				term_height			: formData.value.termHeight.toString(),				
 				theme_id			: self.availThemeInfo[formData.value.theme].themeId,
 			};
+            
+            //  runtime set theme
+            theme.setClientTheme(self.client, newProperties.theme_id);
 			
+            //  persist all changes
 			self.client.user.persistProperties(newProperties, function persisted(err) {			
 				if(err) {
 					self.client.log.warn( { error : err.toString() }, 'Failed persisting updated properties');

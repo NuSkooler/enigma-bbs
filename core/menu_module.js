@@ -194,13 +194,6 @@ MenuModule.prototype.enter = function(client) {
 	this.client = client;
 	assert(_.isObject(client));
 
-	menuUtil.applyGeneralThemeCustomization( {
-		name		: this.menuName,
-		client		: this.client,
-		type		: 'menus',
-		config		: this.menuConfig.config,
-	});
-
 	if(_.isString(this.menuConfig.status)) {
 		this.client.currentStatus = this.menuConfig.status;
 	} else {

@@ -87,6 +87,7 @@ function getDefaultConfig() {
 			loginAttempts	: 3,
 
 			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./mods)
+			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./mods)
 		},
 
 		//	:TODO: see notes below about 'theme' section - move this!

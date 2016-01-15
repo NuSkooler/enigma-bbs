@@ -101,7 +101,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 		client		: self.client, 
 	};
 
-	if(options) {
+	if(_.isObject(options)) {
 		loadOpts.extraArgs = options.extraArgs;
 	}
 

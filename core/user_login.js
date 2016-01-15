@@ -1,11 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-var theme				= require('./theme.js');
+var setClientTheme		= require('./theme.js').setClientTheme;
 var clientConnections	= require('./client_connections.js').clientConnections;
 var userDb				= require('./database.js').dbs.user;
 var sysProp				= require('./system_property.js');
 var logger				= require('./logger.js');
+var Config				= require('./config.js').config;
 
 var async				= require('async');
 var _					= require('lodash');
@@ -47,7 +48,7 @@ function userLogin(client, username, password, cb) {
 				);
 
 				var existingConnError = new Error('Already logged in as supplied user');
-				existingClientConnection.existingConn = true;
+				existingConnError.existingConn = true;
 
 				return cb(existingClientConnection);
 			}
@@ -59,12 +60,10 @@ function userLogin(client, username, password, cb) {
 
 			async.parallel(
 				[
-					function loadThemeConfig(callback) {
-						theme.loadTheme(user.properties.theme_id, function themeLoaded(err, theme) {
-							client.currentTheme = theme;
-							callback(null);	//	always non-fatal
-						});
-					},
+                    function setTheme(callback) {
+                        setClientTheme(client, user.properties.theme_id);
+                        callback(null);
+                    },
 					function updateSystemLoginCount(callback) {
 						var sysLoginCount = sysProp.getSystemProperty('login_count') || 0;
 						sysLoginCount = parseInt(sysLoginCount, 10) + 1;
