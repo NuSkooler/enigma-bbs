@@ -205,15 +205,21 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
     
     [ 'menus', 'prompts' ].forEach(function areaEntry(areaName) {
         _.keys(mergedTheme[areaName]).forEach(function menuEntry(menuName) {
+            var createdFormSection = false;
+            var mergedThemeMenu = mergedTheme[areaName][menuName];
+            
             if(_.has(theme, [ 'customization', areaName, menuName ])) {
                 
+                if('telnetConnected' === menuName || 'mainMenuLastCallers' === menuName) {
+                    console.log('break me')
+                }
+                
                 var menuTheme       = theme.customization[areaName][menuName];
-                var mergedThemeMenu = mergedTheme[areaName][menuName];
                 
                 //	config block is direct assign/overwrite
                 //  :TODO: should probably be _.merge()
                 if(menuTheme.config) {
-                    mergedThemeMenu.config = _.assign(mergedThemeMenu || {}, menuTheme.config);
+                    mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
                 }
             
                 if('menus' === areaName) {
@@ -221,11 +227,35 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
                         getFormKeys(mergedThemeMenu.form).forEach(function formKeyEntry(formKey) {
                             applyToForm(mergedThemeMenu.form[formKey], menuTheme, formKey);
                         });
+                    } else {
+                        if(_.isObject(menuTheme.mci)) {
+                            //
+                            //  Not specified at menu level means we apply anything from the
+                            //  theme to form.0.mci{}
+                            //                            
+                            mergedThemeMenu.form = { 0 : { mci : { } } };
+                            mergeMciProperties(mergedThemeMenu.form[0], menuTheme);
+                            createdFormSection = true;
+                        }
                     }
                 } else if('prompts' === areaName) {
                     //  no 'form' or form keys for prompts -- direct to mci
                     applyToForm(mergedThemeMenu, menuTheme);
                 }                
+            }
+            
+            //
+            //  Finished merging for this menu/prompt
+            //
+            //  If the following conditions are true, set runtime.autoNext to true:
+            //  *   This is a menu
+            //  *   There is/was no explicit 'form' section
+            //  *   There is no 'prompt' specified
+            //
+            if('menus' === areaName && !_.isString(mergedThemeMenu.prompt) &&
+                (createdFormSection || !_.isObject(mergedThemeMenu.form)))
+            {
+                mergedThemeMenu.runtime = _.merge(mergedThemeMenu.runtime || {}, { autoNext : true } );
             }
         });
     });
