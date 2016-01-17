@@ -152,8 +152,8 @@ function MenuModule(options) {
 				self.prevMenu();
 			}
 		}
-
-		if(!_.isObject(self.menuConfig.form) && !_.isString(self.menuConfig.prompt)) {
+        
+        if(_.has(self.menuConfig, 'runtime.autoNext') && true === self.menuConfig.runtime.autoNext) {
 			/*
 				If 'next' is supplied, we'll use it. Otherwise, utlize fallback which
 				may be explicit (supplied) or non-explicit (previous menu)

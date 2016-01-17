@@ -22,8 +22,6 @@ exports.loadMenu						= loadMenu;
 exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
 exports.handleAction					= handleAction;
 exports.handleNext						= handleNext;
-//exports.applyGeneralThemeCustomization	= applyGeneralThemeCustomization;
-//exports.applyMciThemeCustomization		= applyMciThemeCustomization;
 
 function getMenuConfig(client, name, cb) {
 	var menuConfig;
