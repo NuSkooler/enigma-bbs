@@ -66,12 +66,15 @@ messages: {
 ./main.js
 ```
 
+ENiGMA½ does not produce much to standard out. See below for tailing the log file to see what's going on.
+
+### Points of Interest
+* Default ports are 8888 (Telnet) and 8889 (SSH)
+  * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
+* The first user you create via applying is the SysOp (aka root)
+* You may want to tail the logfile with Bunyan: `tail -F ./logs/enigma-bbs.log | ./node_modules/bunyan/bin/bunyan`
+
 # Advanced Installation
 If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation may be in order. 
 
 [PM2](https://github.com/Unitech/pm2) is an excellent choice for managing your running ENiGMA½ instances. Additionally, it is suggested that you run as a specific more locked down user (e.g. 'enigma').
-
-Some points of interest:
-* Default ports are 8888 (Telnet) and 8889 (SSH)
-* The first user you create via applying is the SysOp (aka root)
-* You may want to tail the logfile with Bunyan: `tail -F ./logs/enigma-bbs.log | ./node_modules/bunyan/bin/bunyan`
