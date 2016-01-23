@@ -209,12 +209,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
             var mergedThemeMenu = mergedTheme[areaName][menuName];
             
             if(_.has(theme, [ 'customization', areaName, menuName ])) {
-                
-                if('telnetConnected' === menuName || 'mainMenuLastCallers' === menuName) {
-                    console.log('break me')
-                }
-                
-                var menuTheme       = theme.customization[areaName][menuName];
+                var menuTheme = theme.customization[areaName][menuName];
                 
                 //	config block is direct assign/overwrite
                 //  :TODO: should probably be _.merge()
