@@ -26,6 +26,10 @@ function User() {
 	this.properties	= {};	//	name:value
 	this.groups		= [];	//	group membership(s)
 
+	this.isAuthenticated = function() {
+		return true === self.authenticated;
+	}
+
 	this.isValid = function() {
 		if(self.userId <= 0 || self.username.length < Config.users.usernameMin) {
 			return false;
@@ -54,13 +58,16 @@ function User() {
 			groupNames = [ groupNames ];
 		}
 
-		groupNames.forEach(function groupEntry(groupName) {
-			if(-1 === self.groups.indexOf(groupName)) {
-				return false;
-			}
+		var isMember = false;
+		
+		_.forEach(groupNames, groupName => {
+		if(-1 !== self.groups.indexOf(groupName)) {
+		isMember = true;
+		return false;    //  stop iteration
+		} 
 		});
 
-		return true;
+		return isMember;
 	};
 
 	this.getLegacySecurityLevel = function() {
