@@ -3,7 +3,7 @@
 
 var MenuModule				= require('../core/menu_module.js').MenuModule;
 var ViewController			= require('../core/view_controller.js').ViewController;
-var getActiveConnections	= require('../core/client_connections.js').getActiveConnections;
+var getActiveNodeList		= require('../core/client_connections.js').getActiveNodeList;
 
 var moment					= require('moment');
 var async					= require('async');
@@ -67,60 +67,21 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 			function populateList(callback) {
 				var onlineListView = vc.getView(MciCodeIds.OnlineList);
 
-				var onlineList = getActiveConnections().slice(0, onlineListView.height);
-
-				var listFormat 	= self.menuConfig.config.listFormat || '{node} - {username} - {action} - {timeOn}';
-
-				var now = moment();
-
-				onlineListView.setItems(_.map(onlineList, function formatOnlineEntry(oe) {
-					var fmtObj = {
-						node		: oe.node,
-						userId		: oe.user.userId,
-						userName	: oe.user.username,
-						realName	: oe.user.properties.real_name,
-						timeOn		: function getTimeOn() {
-							var diff = now.diff(moment(oe.user.properties.last_login_timestamp), 'minutes');
-							return _.capitalize(moment.duration(diff, 'minutes').humanize());
-						},
-						action		: function getCurrentAction() {
-							var cmm = oe.currentMenuModule;
-							if(cmm) {
-								return cmm.menuConfig.desc || 'Unknown';
-							}
-							return 'Unknown';
-							//oe.currentMenuModule.menuConfig.desc || 'Unknown',
-						},
-						location	: oe.user.properties.location,
-						affils		: oe.user.properties.affiliation,
-					};
-					try {
-						return listFormat.format(fmtObj);
-					} catch(e) {
-						console.log('Exception caught formatting: ' + e.toString() + ':\n' + JSON.stringify(fmtObj));
+				const listFormat	= self.menuConfig.config.listFormat || '{node} - {userName} - {action} - {timeOn}';
+				const nonAuthUser	= self.menuConfig.config.nonAuthUser || 'Logging In';
+				const otherUnknown	= self.menuConfig.config.otherUnknown || 'N/A';	
+				const onlineList 	= getActiveNodeList().slice(0, onlineListView.height);
+				
+				onlineListView.setItems(_.map(onlineList, oe => {
+					if(oe.authenticated) {
+						oe.timeOn = _.capitalize(oe.timeOn.humanize());
+					} else {
+						[ 'realName', 'location', 'affils', 'timeOn' ].forEach(m => {
+							oe[m] = otherUnknown;
+						});
+						oe.userName = nonAuthUser;
 					}
-					/*
-					return listFormat.format({
-						node		: oe.node,
-						userId		: oe.user.userId,
-						userName	: oe.user.username,
-						realName	: oe.user.properties.real_name,
-						timeOn		: function getTimeOn() {
-							var diff = now.diff(moment(oe.user.properties.last_login_timestamp), 'minutes');
-							return _.capitalize(moment.duration(diff, 'minutes').humanize());
-						},
-						action		: function getCurrentAction() {
-							var cmm = oe.currentMenuModule;
-							if(cmm) {
-								return cmm.menuConfig.desc || 'Unknown';
-							}
-							return 'Unknown';
-							//oe.currentMenuModule.menuConfig.desc || 'Unknown',
-						},
-						location	: oe.user.properties.location,
-						affils		: oe.user.properties.affiliation,
-					});
-					 */
+					return listFormat.format(oe);
 				}));
 
 				//	:TODO: This is a hack until pipe codes are better implemented
