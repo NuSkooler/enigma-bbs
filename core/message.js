@@ -16,7 +16,7 @@ function Message(options) {
 	options = options || {};
 
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
-	this.areaName		= options.areaName || Message.WellKnownAreaNames.Invalid;
+	this.areaTag		= options.areaTag || Message.WellKnownAreaTags.Invalid;
 	this.uuid			= uuid.v1();
 	this.replyToMsgId	= options.replyToMsgId || 0;
 	this.toUserName		= options.toUserName || '';
@@ -55,7 +55,7 @@ function Message(options) {
 	};
 
 	this.isPrivate = function() {
-		return this.areaName === Message.WellKnownAreaNames.Private ? true : false;
+		return this.areaTag === Message.WellKnownAreaTags.Private ? true : false;
 	};
 
 	this.getMessageTimestampString = function(ts) {
@@ -80,7 +80,7 @@ function Message(options) {
 	*/
 }
 
-Message.WellKnownAreaNames = {
+Message.WellKnownAreaTags = {
 	Invalid		: '',
 	Private		: 'private_mail',
 	Bulletin	: 'local_bulletin',
@@ -104,16 +104,21 @@ Message.SystemMetaNames = {
 	LocalFromUserID			: 'local_from_user_id',
 };
 
-Message.FtnPropertyNames = {
-	FtnCost				: 'ftn_cost',
+Message.FtnPropertyNames = {	
 	FtnOrigNode			: 'ftn_orig_node',
 	FtnDestNode			: 'ftn_dest_node',
 	FtnOrigNetwork		: 'ftn_orig_network',
 	FtnDestNetwork		: 'ftn_dest_network',
+	FtnAttrFlags1		: 'ftn_attr_flags1',
+	FtnAttrFlags2		: 'ftn_attr_flags2',
+	FtnCost				: 'ftn_cost',
 	FtnOrigZone			: 'ftn_orig_zone',
 	FtnDestZone			: 'ftn_dest_zone',
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
+	
+	
+	
 	FtnAttribute		: 'ftn_attribute',
 
 	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
@@ -141,7 +146,7 @@ Message.prototype.load = function(options, cb) {
 		[
 			function loadMessage(callback) {
 				msgDb.get(
-					'SELECT message_id, area_name, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, '	+
+					'SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, '	+
 					'message, modified_timestamp, view_count '																	+
 					'FROM message '																								+
 					'WHERE message_uuid=? '																						+
@@ -149,7 +154,7 @@ Message.prototype.load = function(options, cb) {
 					[ options.uuid ],
 					function row(err, msgRow) {
 						self.messageId		= msgRow.message_id;
-						self.areaName		= msgRow.area_name;
+						self.areaTag		= msgRow.area_tag;
 						self.messageUuid	= msgRow.message_uuid;
 						self.replyToMsgId	= msgRow.reply_to_message_id;
 						self.toUserName		= msgRow.to_user_name;
@@ -202,8 +207,8 @@ Message.prototype.persist = function(cb) {
 			},
 			function storeMessage(callback) {
 				msgDb.run(
-					'INSERT INTO message (area_name, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
-					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaName, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
+					'INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
+					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
 					function msgInsert(err) {
 						if(!err) {
 							self.messageId = this.lastID;

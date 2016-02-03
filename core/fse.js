@@ -7,7 +7,7 @@ var ansi						= require('../core/ansi_term.js');
 var theme						= require('../core/theme.js');
 var MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 var Message						= require('../core/message.js');
-var getMessageAreaByName		= require('../core/message_area.js').getMessageAreaByName;
+var getMessageAreaByTag		= require('../core/message_area.js').getMessageAreaByTag;
 var updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
 var getUserIdAndName			= require('../core/user.js').getUserIdAndName;
 
@@ -75,6 +75,8 @@ var MCICodeIds = {
 		HashTags		: 9,
 		MessageID		: 10,
 		ReplyToMsgID	: 11,
+
+		//	:TODO: ConfName
 		
 	},
 	
@@ -104,15 +106,15 @@ function FullScreenEditorModule(options) {
 	//		editorMode				: view | edit | quote
 	//
 	//	menuConfig.config or extraArgs
-	//		messageAreaName
+	//		messageAreaTag
 	//		messageIndex / messageTotal
 	//		toUserId
 	//
 	this.editorType			= config.editorType;
 	this.editorMode			= config.editorMode;	
 	
-	if(config.messageAreaName) {
-		this.messageAreaName	= config.messageAreaName;
+	if(config.messageAreaTag) {
+		this.messageAreaTag	= config.messageAreaTag;
 	}
 	
 	this.messageIndex		= config.messageIndex || 0;
@@ -121,8 +123,8 @@ function FullScreenEditorModule(options) {
 
 	//	extraArgs can override some config
 	if(_.isObject(options.extraArgs)) {
-		if(options.extraArgs.messageAreaName) {
-			this.messageAreaName = options.extraArgs.messageAreaName;
+		if(options.extraArgs.messageAreaTag) {
+			this.messageAreaTag = options.extraArgs.messageAreaTag;
 		}
 		if(options.extraArgs.messageIndex) {
 			this.messageIndex = options.extraArgs.messageIndex;
@@ -134,9 +136,6 @@ function FullScreenEditorModule(options) {
 			this.toUserId = options.extraArgs.toUserId;
 		}
 	}
-	
-	console.log(this.toUserId)
-	console.log(this.messageAreaName)
 
 	this.isReady				= false;
 	
@@ -149,7 +148,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.isLocalEmail = function() {
-		return Message.WellKnownAreaNames.Private === self.messageAreaName;
+		return Message.WellKnownAreaTags.Private === self.messageAreaTag;
 	};
 
 	this.isReply = function() {
@@ -217,7 +216,7 @@ function FullScreenEditorModule(options) {
 		var headerValues = self.viewControllers.header.getFormData().value;
 
 		var msgOpts = {
-			areaName		: self.messageAreaName,
+			areaTag			: self.messageAreaTag,
 			toUserName		: headerValues.to,
 			fromUserName	: headerValues.from,
 			subject			: headerValues.subject,
@@ -235,7 +234,7 @@ function FullScreenEditorModule(options) {
 		self.message = message;
 
 		updateMessageAreaLastReadId(
-			self.client.user.userId, self.messageAreaName, self.message.messageId,
+			self.client.user.userId, self.messageAreaTag, self.message.messageId,
 			function lastReadUpdated() {
 
 			if(self.isReady) {
@@ -631,7 +630,7 @@ function FullScreenEditorModule(options) {
 	};
 
 	this.initHeaderGeneric = function() {
-		self.setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		getMessageAreaByName(self.messageAreaName).desc);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		getMessageAreaByTag(self.messageAreaTag).name);
 	};
 
 	this.initHeaderViewMode = function() {
@@ -965,13 +964,10 @@ function FullScreenEditorModule(options) {
 
 require('util').inherits(FullScreenEditorModule, MenuModule);
 
-FullScreenEditorModule.prototype.enter = function(client) {	
-	FullScreenEditorModule.super_.prototype.enter.call(this, client);
-
-
+FullScreenEditorModule.prototype.enter = function() {	
+	FullScreenEditorModule.super_.prototype.enter.call(this);
 };
 
 FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {
 	this.mciReadyHandler(mciData, cb);
-	//this['mciReadyHandler' + _.capitalize(this.editorType)](mciData);
 };

@@ -72,7 +72,7 @@ function AreaViewFSEModule(options) {
 		if(_.isString(extraArgs.menu)) {
 			var modOpts = {
 				extraArgs : {
-					messageAreaName		: self.messageAreaName,
+					messageAreaTag		: self.messageAreaTag,
 					replyToMessage		: self.message,	
 				}				
 			};

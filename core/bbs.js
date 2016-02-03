@@ -1,6 +1,9 @@
 /* jslint node: true */
 'use strict';
 
+//var SegfaultHandler = require('segfault-handler');
+//SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
+
 //	ENiGMA½
 var conf		= require('./config.js');
 var logger		= require('./logger.js');
@@ -21,7 +24,7 @@ function bbsMain() {
 	async.waterfall(
 		[
 			function processArgs(callback) {
-				var args = parseArgs();
+				const args = parseArgs();
 
 				var configPath;
 
@@ -37,8 +40,7 @@ function bbsMain() {
 					}
 				}
 
-				var configPathSupplied = _.isString(configPath);
-				callback(null, configPath || conf.getDefaultPath(), configPathSupplied);
+				callback(null, configPath || conf.getDefaultPath(), _.isString(configPath));
 			},
 			function initConfig(configPath, configPathSupplied, callback) {
 				conf.init(configPath, function configInit(err) {
@@ -117,7 +119,7 @@ function initialize(cb) {
 					
 					process.exit();
 				});
-				
+			
 				//	Init some extensions
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 

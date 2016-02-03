@@ -25,6 +25,10 @@ function MenuModule(options) {
 	var self				= this;
 	this.menuName			= options.menuName;
 	this.menuConfig			= options.menuConfig;
+	this.client				= options.client;
+    
+    //  :TODO: this and the line below with .config creates empty ({}) objects in the theme --
+    //  ...which we really should not do. If they aren't there already, don't use 'em.
 	this.menuConfig.options	= options.menuConfig.options || {};
 	this.menuMethods		= {};	//	methods called from @method's
 
@@ -190,10 +194,7 @@ require('util').inherits(MenuModule, PluginModule);
 require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 
 
-MenuModule.prototype.enter = function(client) {
-	this.client = client;
-	assert(_.isObject(client));
-
+MenuModule.prototype.enter = function() {
 	if(_.isString(this.menuConfig.status)) {
 		this.client.currentStatus = this.menuConfig.status;
 	} else {

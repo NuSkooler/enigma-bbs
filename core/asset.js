@@ -2,7 +2,6 @@
 'use strict';
 
 var Config		= require('./config.js').config;
-var theme		= require('./theme.js');
 
 var _			= require('lodash');
 var assert		= require('assert');

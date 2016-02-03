@@ -3,7 +3,7 @@
 
 var Config					= require('./config.js').config;
 var Log						= require('./logger.js').log;
-var getMessageAreaByName	= require('./message_area.js').getMessageAreaByName;
+var getMessageAreaByTag	= require('./message_area.js').getMessageAreaByTag;
 var clientConnections		= require('./client_connections.js');
 var sysProp					= require('./system_property.js');
 
@@ -63,10 +63,15 @@ function getPredefinedMCIValue(client, code) {
 				return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
 			},
 
-			MA	: function messageAreaDescription() { 
-				var area = getMessageAreaByName(client.user.properties.message_area_name);
-				return area ? area.desc : '';
+			MA	: function messageAreaName() { 
+				const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+				return area ? area.name : '';
 			},
+            
+            ML  : function messageAreaDescription() {
+                const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+                return area ? area.desc : '';
+            },
 
 			SH	: function termHeight() { return client.term.termHeight.toString(); },
 			SW	: function termWidth() { return client.term.termWidth.toString(); },

@@ -56,11 +56,11 @@ function AreaPostFSEModule(options) {
 
 require('util').inherits(AreaPostFSEModule, FullScreenEditorModule);
 
-AreaPostFSEModule.prototype.enter = function(client) {	
+AreaPostFSEModule.prototype.enter = function() {	
 
-	if(_.isString(client.user.properties.message_area_name) && !_.isString(this.messageAreaName)) {
-		this.messageAreaName = client.user.properties.message_area_name;
+	if(_.isString(this.client.user.properties.message_area_tag) && !_.isString(this.messageAreaTag)) {
+		this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
 	
-	AreaPostFSEModule.super_.prototype.enter.call(this, client);
+	AreaPostFSEModule.super_.prototype.enter.call(this);
 };

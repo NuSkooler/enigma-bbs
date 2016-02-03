@@ -804,16 +804,13 @@ module.exports = (function() {
     					return !isNaN(value) && user.getAge() >= value;
     				},
     				AS	: function accountStatus() {
-
-    					if(_.isNumber(value)) {
+    					if(!_.isArray(value)) {
     						value = [ value ];
     					}
 
-    					assert(_.isArray(value));
-    						
-    					return _.findIndex(value, function cmp(accStatus) {
-    						return parseInt(accStatus, 10) === parseInt(user.properties.account_status, 10);
-    					}) > -1;
+    					const userAccountStatus = parseInt(user.properties.account_status, 10);
+    					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+    					return value.indexOf(userAccountStatus) > -1;
     				},
     				EC	: function isEncoding() {
     					switch(value) {
@@ -842,7 +839,7 @@ module.exports = (function() {
     					//	:TODO: implement me!!
     					return false;
     				},
-    				SC 	: function isSecerConnection() {
+    				SC 	: function isSecureConnection() {
     					return client.session.isSecure;
     				},
     				ML	: function minutesLeft() {
@@ -870,16 +867,20 @@ module.exports = (function() {
     					return !isNaN(value) && client.term.termWidth >= value;
     				},
     				ID	: function isUserId(value) {
-    					return user.userId === value;
+    					if(!_.isArray(value)) {
+    						value = [ value ];
+    					}
+
+    					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+    					return value.indexOf(user.userId) > -1;
     				},
     				WD	: function isOneOfDayOfWeek() {
-    					//	:TODO: return true if DoW
-    					if(_.isNumber(value)) {
-
-    					} else if(_.isArray(value)) {
-
+    					if(!_.isArray(value)) {
+    						value = [ value ];
     					}
-    					return false;
+
+    					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+    					return value.indexOf(new Date().getDay()) > -1;
     				},
     				MM	: function isMinutesPastMidnight() {
     					//	:TODO: return true if value is >= minutes past midnight sys time

@@ -65,7 +65,7 @@ Please see the [Quickstart](docs/index.md#quickstart)
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
 
-Copyright (c) 2015, Bryan D. Ashby
+Copyright (c) 2015-2016, Bryan D. Ashby
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

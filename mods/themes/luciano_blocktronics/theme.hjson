@@ -172,8 +172,8 @@
 
 			messageAreaChangeCurrentArea: {
 				config: {
-					listFormat: "|00|15{index} |07- |03{desc}"
-					focusListFormat: "|00|19|15{index} - {desc}"
+					listFormat: "|00|15{index} |07- |03{name}"
+					focusListFormat: "|00|19|15{index} - {name}"
 				}
 				mci: {
 					VM1: {
@@ -307,6 +307,19 @@
 
 					TM25: {
 						focusTextStyle: first lower
+					}
+				}
+			}
+
+			newScanMessageList: {
+				config: {
+					listFormat: "|00|15  {msgNum:<5.5}|03{subj:<29.29} |15{from:<20.20} {ts}"
+					focusListFormat: "|00|19> |15{msgNum:<5.5}{subj:<29.29} {from:<20.20} {ts}"
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 14
 					}
 				}
 			}

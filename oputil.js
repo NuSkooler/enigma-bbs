@@ -13,7 +13,7 @@ var assert	= require('assert');
 
 var argv 	= require('minimist')(process.argv.slice(2));
 
-var ExitCodes = {
+const ExitCodes = {
 	SUCCESS		: 0,
 	ERROR		: -1,
 	BAD_COMMAND	: -2,
@@ -28,9 +28,13 @@ function printUsage(command) {
 			usage = 
 				'usage: oputil.js [--version] [--help]\n' +
 				'                 <command> [<args>]' + 
-				'\n' + 
+				'\n\n' + 
 				'global args:\n' +
-				'  --config PATH        : specify config path';
+				'  --config PATH        : specify config path' +
+				'\n\n' +
+				'commands:\n' +
+				'  user                 : User utilities' +
+				'\n';
 			break;
 
 		case 'user' :
@@ -47,7 +51,7 @@ function printUsage(command) {
 }
 
 function initConfig(cb) {
-	var configPath = argv.config ? argv.config : config.getDefaultPath();
+	const configPath = argv.config ? argv.config : config.getDefaultPath();
 
 	config.init(configPath, cb);
 }
@@ -88,7 +92,7 @@ function handleUserCommand() {
 					assert(_.isNumber(userId));
 					assert(userId > 0);
 
-					var u = new user.User();
+					let u = new user.User();
 					u.userId = userId;
 
 					u.setNewAuthCredentials(argv.password, function credsSet(err) {

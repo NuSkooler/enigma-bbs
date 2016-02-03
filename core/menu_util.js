@@ -4,10 +4,8 @@
 //	ENiGMA½
 var moduleUtil			= require('./module_util.js');
 var Log					= require('./logger.js').log;
-var conf				= require('./config.js');	//	:TODO: remove me!
 var Config				= require('./config.js').config;
 var asset				= require('./asset.js');
-var theme				= require('./theme.js');
 var getFullConfig		= require('./config_util.js').getFullConfig;
 var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
 var acsUtil				= require('./acs_util.js');
@@ -68,17 +66,18 @@ function loadMenu(options, cb) {
 				});
 			},
 			function loadMenuModule(menuConfig, callback) {
-				var modAsset	= asset.getModuleAsset(menuConfig.module);
-				var modSupplied	= null !== modAsset;
 
-				var modLoadOpts = {
+				const modAsset		= asset.getModuleAsset(menuConfig.module);
+				const modSupplied	= null !== modAsset;
+
+				const modLoadOpts = {
 					name		: modSupplied ? modAsset.asset : 'standard_menu',
 					path		: (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config.paths.mods,
 					category	: (!modSupplied || 'systemModule' === modAsset.type) ? null : 'mods',
 				};
 
 				moduleUtil.loadModuleEx(modLoadOpts, function moduleLoaded(err, mod) {
-					var modData = {
+					const modData = {
 						name	: modLoadOpts.name,
 						config	: menuConfig,
 						mod		: mod,
@@ -97,7 +96,8 @@ function loadMenu(options, cb) {
 						{
 							menuName	: options.name,
 							menuConfig	: modData.config, 
-							extraArgs	: options.extraArgs
+							extraArgs	: options.extraArgs,
+                            client      : options.client,
 						});
 					callback(null, moduleInstance);
 				} catch(e) {
@@ -174,7 +174,7 @@ function handleAction(client, formData, conf) {
 	assert(_.isObject(conf));
 	assert(_.isString(conf.action));
 
-	var actionAsset = asset.parseAsset(conf.action);
+	const actionAsset = asset.parseAsset(conf.action);
 	assert(_.isObject(actionAsset));
 
 	switch(actionAsset.type) {
@@ -245,84 +245,3 @@ function handleNext(client, nextSpec, conf) {
 			break;
 	}
 }
-
-
-
-//	:TODO: Seems better in theme.js, but that includes ViewController...which would then include theme.js
-//	...theme.js only brings in VC to create themed pause prompt. Perhaps that should live elsewhere
-/*
-function applyGeneralThemeCustomization(options) {
-	//
-	//	options.name
-	//	options.client
-	//	options.type
-	//	options.config
-	//
-	assert(_.isString(options.name));
-	assert(_.isObject(options.client));
-	assert("menus" === options.type || "prompts" === options.type);
-	
-	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
-		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
-
-		if(themeConfig.config) {
-			Object.keys(themeConfig.config).forEach(function confEntry(conf) {
-				if(options.config[conf]) {
-					_.defaultsDeep(options.config[conf], themeConfig.config[conf]);
-				} else {
-					options.config[conf] = themeConfig.config[conf];
-				}
-			});
-		}
-	}
-}
-*/
-
-/*
-function applyMciThemeCustomization(options) {
-	//
-	//	options.name 		: menu/prompt name
-	//	options.mci			: menu/prompt .mci section
-	//	options.client		: client
-	//	options.type		: menu|prompt
-	//	options.formId		: (optional) form ID in cases where multiple forms may exist wanting their own customization
-	//
-	//	In the case of formId, the theme must include the ID as well, e.g.:
-	//  {
-	//	  ...
-	//	  "2" : {
-	//      "TL1" : { ... }
-	//    }
-	//	}
-	//
-	assert(_.isString(options.name));
-	assert("menus" === options.type || "prompts" === options.type);
-	assert(_.isObject(options.client));
-	
-	if(_.isUndefined(options.mci)) {
-		options.mci = {};
-	}
-
-	if(_.has(options.client.currentTheme, [ 'customization', options.type, options.name ])) {
-		var themeConfig = options.client.currentTheme.customization[options.type][options.name];
-
-		if(options.formId && _.has(themeConfig, options.formId.toString())) {
-			//	form ID found - use exact match
-			themeConfig = themeConfig[options.formId];
-		}
-
-		if(themeConfig.mci) {
-			Object.keys(themeConfig.mci).forEach(function mciEntry(mci) {
-				//	:TODO: a better way to do this?
-				if(options.mci[mci]) {
-					_.defaults(options.mci[mci], themeConfig.mci[mci]);
-				} else {
-					options.mci[mci] = themeConfig.mci[mci];
-				}
-			});
-		}
-	}
-
-	//	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
-}
-*/
