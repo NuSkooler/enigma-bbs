@@ -17,7 +17,7 @@ function Message(options) {
 
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
 	this.areaTag		= options.areaTag || Message.WellKnownAreaTags.Invalid;
-	this.uuid			= uuid.v1();
+	this.uuid			= options.uuid || uuid.v1();
 	this.replyToMsgId	= options.replyToMsgId || 0;
 	this.toUserName		= options.toUserName || '';
 	this.fromUserName	= options.fromUserName || '';

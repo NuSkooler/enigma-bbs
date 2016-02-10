@@ -172,7 +172,10 @@ function getDefaultConfig() {
 		paths		: {
 			mods				: paths.join(__dirname, './../mods/'),
 			servers				: paths.join(__dirname, './servers/'),
-			msgNetworks			: paths.join(__dirname, './msg_networks/'),
+
+			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
+			mailers				: paths.join(__dirname, './mailers/')		,
+
 			art					: paths.join(__dirname, './../mods/art/'),
 			themes				: paths.join(__dirname, './../mods/themes/'),
 			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such

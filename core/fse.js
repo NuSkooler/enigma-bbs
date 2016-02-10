@@ -307,9 +307,9 @@ function FullScreenEditorModule(options) {
 
 						//	:TODO: We'd like to delete up to N rows, but this does not work
 						//	in NetRunner:
-						//self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
+						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 						
-						self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
+						//self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
 					}
 					callback(null);
 				},

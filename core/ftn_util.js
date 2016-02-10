@@ -11,15 +11,36 @@ var fs				= require('fs');
 var util			= require('util');
 var iconv			= require('iconv-lite');
 var moment			= require('moment');
+var createHash		= require('crypto').createHash;
+var uuid			= require('node-uuid');
+var os				= require('os');
+
+var packageJson 	= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringFromFTN			= stringFromFTN;
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
-exports.getFormattedFTNAddress	= getFormattedFTNAddress;
+exports.createMessageUuid			= createMessageUuid;
+exports.parseAddress			= parseAddress;
+exports.formatAddress			= formatAddress;
 exports.getDateFromFtnDateTime	= getDateFromFtnDateTime;
 exports.getDateTimeString		= getDateTimeString;
 
+exports.getMessageIdentifier	= getMessageIdentifier;
+exports.getProductIdentifier	= getProductIdentifier;
+exports.getUTCTimeZoneOffset	= getUTCTimeZoneOffset;
+exports.getOrigin				= getOrigin;
+
 exports.getQuotePrefix			= getQuotePrefix;
+
+//
+//	Namespace for RFC-4122 name based UUIDs generated from
+//	FTN kludges MSGID + AREA
+//
+const ENIGMA_FTN_MSGID_NAMESPACE 	= uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
+
+//	Up to 5D FTN address RegExp
+const ENIGMA_FTN_ADDRESS_REGEXP		= /^([0-9]+):([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
@@ -48,6 +69,7 @@ function stringToNullPaddedBuffer(s, bufLen) {
 //
 //	Convert a FTN style DateTime string to a Date object
 //	
+//	:TODO: Name the next couple methods better - for FTN *packets*
 function getDateFromFtnDateTime(dateTime) {
 	//
 	//	Examples seen in the wild (Working):
@@ -63,10 +85,10 @@ function getDateTimeString(m) {
 	//
 	//	From http://ftsc.org/docs/fts-0001.016:
 	//	DateTime   = (* a character string 20 characters long *)
-	//                             (* 01 Jan 86  02:34:56 *)
-	//           DayOfMonth " " Month " " Year " "
-	//           " " HH ":" MM ":" SS
-	//           Null
+	//  	(* 01 Jan 86  02:34:56 *)
+	//		DayOfMonth " " Month " " Year " "
+	//		" " HH ":" MM ":" SS
+	//		Null
 	//
 	//	DayOfMonth = "01" | "02" | "03" | ... | "31"   (* Fido 0 fills *)
 	//	Month      = "Jan" | "Feb" | "Mar" | "Apr" | "May" | "Jun" |
@@ -83,42 +105,172 @@ function getDateTimeString(m) {
 	return m.format('DD MMM YY  HH:mm:ss');
 }
 
-function getFormattedFTNAddress(address, dimensions) {
-	//var addr = util.format('%d:%d', address.zone, address.net);
-	var addr = '{0}:{1}'.format(address.zone, address.net);
-	switch(dimensions) {
-		case 2 :
-		case '2D' :
-			//	above
-			break;
+function createMessageUuid(ftnMsgId, ftnArea) {
+	//
+	//	v5 UUID generation code based on the work here:
+	//	https://github.com/download13/uuidv5/blob/master/uuid.js
+	//
+	//	Note: CrashMail uses MSGID + AREA, so we go with that as well:
+	//	https://github.com/larsks/crashmail/blob/master/crashmail/dupe.c
+	//
+	if(!Buffer.isBuffer(ftnMsgId)) {
+		ftnMsgId = iconv.encode(ftnMsgId, 'CP437');
+	}
 
-		case 3 :
-		case '3D' :
-			addr += '/{0}'.format(address.node);
-			break;
+	ftnArea = ftnArea || '';	//	AREA is optional
+	if(!Buffer.isBuffer(ftnArea)) {
+		ftnArea = iconv.encode(ftnArea, 'CP437');
+	}
+	
+	const ns = new Buffer(ENIGMA_FTN_MSGID_NAMESPACE);
 
-		case 4 :
-		case '4D':
-			addr += '.{0}'.format(address.point || 0);		//	missing and 0 are equiv for point
-			break;
+	let digest = createHash('sha1').update(
+		Buffer.concat([ ns, ftnMsgId, ftnArea ])).digest();
 
-		case 5 :
-		case '5D' :
-			if(address.domain) {
-				addr += '@{0}'.format(address.domain);
-			}
-			break;
+	let u = new Buffer(16);
+
+	// bbbb - bb - bb - bb - bbbbbb
+	digest.copy(u, 0, 0, 4);			// time_low
+	digest.copy(u, 4, 4, 6);			// time_mid
+	digest.copy(u, 6, 6, 8);			// time_hi_and_version
+
+	u[6] = (u[6] & 0x0f) | 0x50;		// version, 4 most significant bits are set to version 5 (0101)
+	u[8] = (digest[8] & 0x3f) | 0x80;	// clock_seq_hi_and_reserved, 2msb are set to 10
+	u[9] = digest[9];
+	
+	digest.copy(u, 10, 10, 16);
+
+	return uuid.unparse(u);	//	to string
+}
+
+function parseAddress(address) {
+	const m = ENIGMA_FTN_ADDRESS_REGEXP.exec(address);
+	
+	if(m) {
+		let addr = {
+			zone	: parseInt(m[1]),
+			net		: parseInt(m[2]),
+		};
+		
+		//
+		//	substr(1) on the following to remove the
+		//	captured prefix
+		//
+		if(m[3]) {
+			addr.node = parseInt(m[3].substr(1));
+		}
+
+		if(m[4]) {
+			addr.point = parseInt(m[4].substr(1));
+		}
+
+		if(m[5]) {
+			addr.domain = m[5].substr(1);
+		}
+
+		return addr;
+	}	
+}
+
+function formatAddress(address, dimensions) {
+	let addr = `${address.zone}:${address.net}`;
+
+	//	allow for e.g. '4D' or 5 
+	const dim = parseInt(dimensions.toString()[0]);
+
+	if(dim >= 3) {
+		addr += `/${address.node}`;
+	}
+
+	//	missing & .0 are equiv for point
+	if(dim >= 4 && address.point) {
+		addr += `.${addresss.point}`;
+	}
+
+	if(5 === dim && address.domain) {
+		addr += `@${address.domain.toLowerCase()}`;
 	}
 
 	return addr;
 }
 
-function getFtnMessageSerialNumber(messageId) {
-    return ((Math.floor((Date.now() - Date.UTC(2015, 1, 1)) / 1000) + messageId)).toString(16);
+function getMessageSerialNumber(message) {
+    return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
+    	message.messageId)).toString(16)).substr(-8);
 }
 
+//
+//	Return a FTS-0009.001 compliant MSGID value given a message
+//	See http://ftsc.org/docs/fts-0009.001
+//	
+//	"A MSGID line consists of the string "^AMSGID:" (where ^A is a
+//	control-A (hex 01) and the double-quotes are not part of the
+//	string),  followed by a space,  the address of the originating
+//	system,  and a serial number unique to that message on the
+//	originating system,  i.e.:
+//
+//		^AMSGID: origaddr serialno
+//
+//	The originating address should be specified in a form that
+//	constitutes a valid return address for the originating network.   
+//	If the originating address is enclosed in double-quotes,  the
+//	entire string between the beginning and ending double-quotes is 
+//	considered to be the orginating address.  A double-quote character
+//	within a quoted address is represented by by two consecutive
+//	double-quote characters.  The serial number may be any eight
+//	character hexadecimal number,  as long as it is unique - no two
+//	messages from a given system may have the same serial number
+//	within a three years.  The manner in which this serial number is
+//	generated is left to the implementor."
+//	
+//
+//	Examples & Implementations
+//
+//	Synchronet: <msgNum>.<conf+area>@<ftnAddr> <serial>
+//		2606.agora-agn_tst@46:1/142 19609217
+//		
+//	Mystic: <ftnAddress> <serial>
+//		46:3/102 46686263
+//
+//	ENiGMA½: <messageId>.<areaTag>@<5dFtnAddress> <serial>
+//
+function getMessageIdentifier(message, address) {
+	return `${message.messageId}.${message.areaTag.toLowerCase()}@${formatAddress(address, '5D')} ${getMessageSerialNumber(message)}`;
+}
+
+//
+//	Return a FSC-0046.005 Product Identifier or "PID"
+//	http://ftsc.org/docs/fsc-0046.005
+//
+function getProductIdentifier() {
+	const version = packageJson.version
+		.replace(/\-/g, '.')
+		.replace(/alpha/,'a')
+		.replace(/beta/,'b');
+
+	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
+
+	return `ENiGMA1/2 ${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+}
+
+//
+//	Return a FSC-0030.001 compliant (http://ftsc.org/docs/fsc-0030.001) MESSAGE-ID
+//
+//	<unique-part@domain-name>
+//	
+//	:TODO: not implemented to spec at all yet :)
 function getFTNMessageID(messageId, areaId) {
-    return messageId + '.' + areaId + '@' + getFTNAddress() + ' ' + getFTNMessageSerialNumber(messageId)
+    return messageId + '.' + areaId + '@' + getFTNAddress() + ' ' + getMessageSerialNumber(messageId)
+}
+
+//
+//	Return a FRL-1004 style time zone offset for a 
+//	'TZUTC' kludge line
+//
+//	http://ftsc.org/docs/frl-1004.002
+//
+function getUTCTimeZoneOffset() {
+	return moment().format('ZZ').replace(/\+/, '');
 }
 
 //	Get a FSC-0032 style quote prefixes
@@ -127,25 +279,14 @@ function getQuotePrefix(name) {
 	return ' ' + name[0].toUpperCase() + name[1].toLowerCase() + '> ';
 }
 
-
 //
-//	Specs:
-//	* http://ftsc.org/docs/fts-0009.001
-//	* 
-//	
-function getFtnMsgIdKludgeLine(origAddress, messageId) {
-	if(_.isObject(origAddress)) {
-		origAddress = getFormattedFTNAddress(origAddress, '5D');
-	}
+//	Return a FTS-0004 Origin line
+//	http://ftsc.org/docs/fts-0004.001
+//
+function getOrigin(address) {
+	const origin = _.has(Config.messageNetworks.originName) ? 
+		Config.messageNetworks.originName : 
+		Config.general.boardName;
 
-	return '\x01MSGID: ' + origAddress + ' ' + getFtnMessageSerialNumber(messageId);
-}
-
-
-function getFTNOriginLine() {
-	//
-	//	Specs:
-	//	http://ftsc.org/docs/fts-0004.001
-	//
-	return '  * Origin: ' + Config.general.boardName + '(' + getFidoNetAddress() + ')';
+	return `  * Origin: ${origin} (${formatAddress(address, '5D')})`;
 }

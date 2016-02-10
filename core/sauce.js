@@ -6,11 +6,11 @@ var iconv				= require('iconv-lite');
 
 exports.readSAUCE		= readSAUCE;
 
-
 const SAUCE_SIZE	= 128;
 const SAUCE_ID		= new Buffer([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
 const COMNT_ID		= new Buffer([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
 
+exports.SAUCE_SIZE		= SAUCE_SIZE;
 //	:TODO: SAUCE should be a class
 //	- with getFontName()
 //	- ...other methods
@@ -19,6 +19,8 @@ const COMNT_ID		= new Buffer([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
 //	See
 //	http://www.acid.org/info/sauce/sauce.htm
 //
+const SAUCE_VALID_DATA_TYPES = [0, 1, 2, 3, 4, 5, 6, 7, 8 ];
+
 function readSAUCE(data, cb) {
 	if(data.length < SAUCE_SIZE) {
 		cb(new Error('No SAUCE record present'));
@@ -56,6 +58,11 @@ function readSAUCE(data, cb) {
 
 			if('00' !== ver) {
 				cb(new Error('Unsupported SAUCE version: ' + ver));
+				return;
+			}
+
+			if(-1 === SAUCE_VALID_DATA_TYPES.indexOf(vars.dataType)) {
+				cb(new Error('Unsupported SAUCE DataType: ' + vars.dataType));
 				return;
 			}
 

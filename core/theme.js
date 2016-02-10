@@ -523,7 +523,8 @@ function displayThemedPause(options, cb) {
 				if(options.clearPrompt) {
 					if(artInfo.startRow && artInfo.height) {
 						options.client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-						//	:TODO: This will not work with NetRunner:
+						
+						//	Note: Does not work properly in NetRunner < 2.0b17:
 						options.client.term.rawWrite(ansi.deleteLine(artInfo.height));
 					} else {
 						options.client.term.rawWrite(ansi.eraseLine(1))
