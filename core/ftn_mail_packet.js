@@ -18,11 +18,10 @@ var moment			= require('moment');
 
 /*
 	:TODO: things
-	* Read/detect packet types: 2, 2.2, and 2+
-	* Write packet types: 2, 2.2, and 2+
 	* Test SAUCE ignore/extraction
 	* FSP-1010 for netmail (see SBBS)
-
+	* Syncronet apparently uses odd origin lines
+	* Origin lines starting with "#" instead of "*" ?
 
 */
 
@@ -39,7 +38,7 @@ const FTN_MESSAGE_KLUDGE_PREFIX	= '\x01';
 //
 //	Read/Write FTN packets with support for the following formats:
 //
-//	*	Type 1 FTS-0001	@ http://ftsc.org/docs/fts-0001.016 (Obsolete)
+//	*	Type 2 FTS-0001	@ http://ftsc.org/docs/fts-0001.016 (Obsolete)
 //	*	Type 2.2 FSC-0045	@ http://ftsc.org/docs/fsc-0045.001
 //	*	Type 2+ FSC-0039 and FSC-0048 @ http://ftsc.org/docs/fsc-0039.004 
 //		and http://ftsc.org/docs/fsc-0048.002
@@ -81,15 +80,18 @@ function FTNPacket() {
 			.buffer('password', 8)	//	null padded C style string
 			.word16lu('origZone')
 			.word16lu('destZone')
-			//	Additions in FSC-0048.002 follow...
+			//
+			//	The following is "filler" in FTS-0001, specifics in
+			//	FSC-0045 and FSC-0048
+			//
 			.word16lu('auxNet')
-			.word16lu('capWordA')
+			.word16lu('capWordValidate')
 			.word8('prodCodeHi')
 			.word8('prodRevHi')
-			.word16lu('capWordB')
+			.word16lu('capWord')
 			.word16lu('origZone2')
 			.word16lu('destZone2')
-			.word16lu('originPoint')
+			.word16lu('origPoint')
 			.word16lu('destPoint')
 			.word32lu('prodData')
 			.tap(packetHeader => {
@@ -104,24 +106,38 @@ function FTNPacket() {
 				//
 				//	What kind of packet do we really have here?
 				//
+				//	:TODO: adjust values based on version discoverd
 				if(FTN_PACKET_BAUD_TYPE_2_2 === packetHeader.baud) {
 					packetHeader.packetVersion = '2.2';
+
+					//	See FSC-0045
+					packetHeader.origPoint	= packetHeader.year;
+					packetHeader.destPoint	= packetHeader.month;
+
+					packetHeader.destDomain = packetHeader.origZone2;
+					packetHeader.origDomain	= packetHeader.auxNet;
 				} else {
 					//
 					//	See heuristics described in FSC-0048, "Receiving Type-2+ bundles"
 					//
-					const capWordASwapped = 
-						((packetHeader.capWordA & 0xff) << 8) |
-						((packetHeader.capWordA >> 8) & 0xff);
+					const capWordValidateSwapped = 
+						((packetHeader.capWordValidate & 0xff) << 8) |
+						((packetHeader.capWordValidate >> 8) & 0xff);
 
-					if(capWordASwapped === packetHeader.capWordB && 
-						0 != packetHeader.capWordB &&
-						packetHeader.capWordB & 0x0001)
+					if(capWordValidateSwapped === packetHeader.capWord && 
+						0 != packetHeader.capWord &&
+						packetHeader.capWord & 0x0001)
 					{
 						packetHeader.packetVersion = '2+';
+
+						//	See FSC-0048
+						if(-1 === packetHeader.origNet) {
+							packetHeader.origNet = packetHeader.auxNet;
+						}
 					} else {
 						packetHeader.packetVersion = '2';
-						packetHeader.point
+
+						//	:TODO: should fill bytes be 0?
 					}
 				}
 				
@@ -135,41 +151,74 @@ function FTNPacket() {
 			});
 	};
 
-	this.writePacketHeader = function(headerInfo, ws) {
+	this.writePacketHeader = function(packetHeader, ws) {
 		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
 
-		buffer.writeUInt16LE(headerInfo.origNode, 0);
-		buffer.writeUInt16LE(headerInfo.destNode, 2);
-		buffer.writeUInt16LE(headerInfo.created.year(), 4);
-		buffer.writeUInt16LE(headerInfo.created.month(), 6);
-		buffer.writeUInt16LE(headerInfo.created.date(), 8);
-		buffer.writeUInt16LE(headerInfo.created.hour(), 10);
-		buffer.writeUInt16LE(headerInfo.created.minute(), 12);
-		buffer.writeUInt16LE(headerInfo.created.second(), 14);
-		buffer.writeUInt16LE(headerInfo.baud, 16);
+		//	:TODO: write 2, 2.2, or 2+ packet based on packetHeader.packetVersion (def=2+)
+
+		buffer.writeUInt16LE(packetHeader.origNode, 0);
+		buffer.writeUInt16LE(packetHeader.destNode, 2);
+		buffer.writeUInt16LE(packetHeader.created.year(), 4);
+		buffer.writeUInt16LE(packetHeader.created.month(), 6);
+		buffer.writeUInt16LE(packetHeader.created.date(), 8);
+		buffer.writeUInt16LE(packetHeader.created.hour(), 10);
+		buffer.writeUInt16LE(packetHeader.created.minute(), 12);
+		buffer.writeUInt16LE(packetHeader.created.second(), 14);
+		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-		buffer.writeUInt16LE(headerInfo.origNet, 20);
-		buffer.writeUInt16LE(headerInfo.destNet, 22);
-		buffer.writeUInt8(headerInfo.prodCodeLo, 24);
-		buffer.writeUInt8(headerInfo.prodRevHi, 25);
+		buffer.writeUInt16LE(packetHeader.origNet, 20);
+		buffer.writeUInt16LE(packetHeader.destNet, 22);
+		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
+		buffer.writeUInt8(packetHeader.prodRevHi, 25);
 		
-		const pass = ftn.stringToNullPaddedBuffer(headerInfo.password, 8);
+		const pass = ftn.stringToNullPaddedBuffer(packetHeader.password, 8);
 		pass.copy(buffer, 26);
 		
-		buffer.writeUInt16LE(headerInfo.origZone, 34);
-		buffer.writeUInt16LE(headerInfo.destZone, 36);
+		buffer.writeUInt16LE(packetHeader.origZone, 34);
+		buffer.writeUInt16LE(packetHeader.destZone, 36);
+
+		switch(packetHeader.packetType) {
+			case '2' :
+				//	filler...
+				packetHeader.auxNet				= 0;
+				packetHeader.capWordValidate	= 0;
+				packetHeader.prodCodeHi			= 0;
+				packetHeader.prodRevLo			= 0;
+				packetHeader.capWord			= 0;
+				packetHeader.origZone2			= 0;
+				packetHeader.destZone2			= 0;
+				packetHeader.origPoint			= 0;
+				packetHeader.destPoint			= 0;
+				break;
+
+			case '2.2' :
+				packetHeader.day	= 0;
+				packetHeader.hour	= 0;
+				packetHeader.minute	= 0;
+				packetHeader.second = 0;
+				break;
+
+			case '2+' :
+				break;
+
+		}	
+
+		buffer.writeUInt16LE(packetHeader.auxNet, 38);
+		buffer.writeUInt16LE(packetHeader.capWordValidate, 40);
+		buffer.writeUInt8(packetHeader.prodCodeHi, 42);
+		buffer.writeUInt8(packetHeader.prodRevLo, 43);
+		buffer.writeUInt16LE(packetHeader.capWord, 44);
+		buffer.writeUInt16LE(packetHeader.origZone2, 46);
+		buffer.writeUInt16LE(packetHeader.destZone2, 48);
+		buffer.writeUInt16LE(packetHeader.origPoint, 50);
+		buffer.writeUInt16LE(packetHeader.destPoint, 52);
 		
-		//	FSC-0048.002 additions...
-		buffer.writeUInt16LE(headerInfo.auxNet, 38);
-		buffer.writeUInt16LE(headerInfo.capWordA, 40);
-		buffer.writeUInt8(headerInfo.prodCodeHi, 42);
-		buffer.writeUInt8(headerInfo.prodRevLo, 43);
-		buffer.writeUInt16LE(headerInfo.capWordB, 44);
-		buffer.writeUInt16LE(headerInfo.origZone2, 46);
-		buffer.writeUInt16LE(headerInfo.destZone2, 48);
-		buffer.writeUInt16LE(headerInfo.origPoint, 50);
-		buffer.writeUInt16LE(headerInfo.destPoint, 52);
-		buffer.writeUInt32LE(headerInfo.prodData, 54);
+		//	Store in "ENiG" in prodData unless we already have something useful
+		if(0 === packetHeader.prodData) {
+			packetHeader.prodData = 0x47694e45;
+		}
+
+		buffer.writeUInt32LE(packetHeader.prodData, 54);
 		
 		ws.write(buffer);
 	};
@@ -292,6 +341,8 @@ function FTNPacket() {
 
 	this.parsePacketMessages = function(messagesBuffer, iterator, cb) {
 		const NULL_TERM_BUFFER = new Buffer( [ 0 ] );
+		
+		var count = 0;
 
 		binary.stream(messagesBuffer).loop(function looper(end, vars) {
 			//
@@ -315,16 +366,18 @@ function FTNPacket() {
 				.tap(function tapped(msgData) {
 					if(!msgData.ftn_orig_node) {
 						//	end marker -- no more messages
-						end();
-						cb(null);
+						end();						
 						return;
 					}
 
 					if(FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
 						end();
+						//	:TODO: This is probably a bug if we hit a bad message after at leats one iterate
 						cb(new Error('Unsupported message type: ' + msgData.messageType));
 						return;
 					}
+					
+					++count;
 
 					//
 					//	Convert null terminated arrays to strings
@@ -386,6 +439,11 @@ function FTNPacket() {
 						}
 
 						iterator('message', msg);
+						
+						--count;
+						if(0 === count) {
+							cb(null);
+						}
 					})					
 				});
 		});
@@ -439,7 +497,7 @@ function FTNPacket() {
 					a = [ a ];
 				}
 				a.forEach(v => {
-					msgBody += `${k}: ${v}\n`;
+					msgBody += `${k}: ${v}\r`;
 				});
 			}
 		}
@@ -450,13 +508,13 @@ function FTNPacket() {
 		//	Should be first line in a message
 		//
 		if(message.meta.FtnProperty.ftn_area) {
-			msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\n`;
+			msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`;	//	note: no ^A (0x01)
 		}
 		
 		Object.keys(message.meta.FtnKludge).forEach(k => {
 			//	we want PATH to be last
 			if('PATH' !== k) {
-				appendMeta(k, message.meta.FtnKludge[k]);
+				appendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
 			}
 		});
 
@@ -477,8 +535,8 @@ function FTNPacket() {
 		//	FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
 		//	SEEN-BY and PATH should be the last lines of a message
 		//
-		appendMeta('SEEN-BY', message.meta.FtnProperty.ftn_seen_by);
-		appendMeta('PATH', message.meta.FtnKludge['PATH']);
+		appendMeta('SEEN-BY', message.meta.FtnProperty.ftn_seen_by);	//	note: no ^A (0x01)
+		appendMeta('\x01PATH', message.meta.FtnKludge['PATH']);
 
 		ws.write(iconv.encode(msgBody + '\0', 'CP437'));
 	};
@@ -501,7 +559,7 @@ function FTNPacket() {
 						callback);
 				}
 			],
-			cb
+			cb	//	complete
 		);		
 	};
 }
@@ -522,16 +580,21 @@ FTNPacket.prototype.read = function(pathOrBuffer, iterator, cb) {
 				}
 			},
 			function parseBuffer(callback) {
-				self.parsePacketBuffer(pathOrBuffer, iterator, callback);
+				self.parsePacketBuffer(pathOrBuffer, iterator, err => {
+					callback(err);
+				});
 			}
 		],
-		cb	//	completion callback
+		function complete(err) {
+			cb(err);
+		}
 	);
 };
 
-FTNPacket.prototype.write = function(path, headerInfo, messages, cb) {
-	headerInfo.created 	= headerInfo.created || moment();
-	headerInfo.baud		= headerInfo.baud || 0;
+FTNPacket.prototype.write = function(path, packetHeader, messages, cb) {
+	packetHeader.packetType = packetHeader.packetType || '2+';
+	packetHeader.created 	= packetHeader.created || moment();
+	packetHeader.baud		= packetHeader.baud || 0;
 	//	:TODO: Other defaults?
 
 	if(!_.isArray(messages)) {
@@ -539,17 +602,20 @@ FTNPacket.prototype.write = function(path, headerInfo, messages, cb) {
 	}
 
 	let ws = fs.createWriteStream(path);
-	this.writePacketHeader(headerInfo, ws);
+	this.writePacketHeader(packetHeader, ws);
 
 	messages.forEach(msg => {
 		this.writeMessage(msg, ws);
 	});
+	
+	ws.write(new Buffer( [ 0 ] ));	//	final extra null term
 };
 
 
 var ftnPacket = new FTNPacket();
 var theHeader;
 var written = false;
+let messagesToWrite = [];
 ftnPacket.read(
 	process.argv[2],
 	function iterator(dataType, data) {
@@ -560,6 +626,9 @@ ftnPacket.read(
 			const msg = data;
 			console.log(msg);
 
+			messagesToWrite.push(msg);
+
+			/*
 			if(!written) {
 				written = true;
 
@@ -568,7 +637,7 @@ ftnPacket.read(
 
 				});
 
-			}
+			}*/
 
 			let address = {
 				zone	: 46,
@@ -586,6 +655,12 @@ ftnPacket.read(
 		}
 	},
 	function completion(err) {
+		console.log('complete!')
 		console.log(err);
+
+
+		console.log(messagesToWrite.length)
+		ftnPacket.write('/home/nuskooler/Downloads/ftnout/test1.pkt', theHeader, messagesToWrite, err => {
+		});
 	}
 );
