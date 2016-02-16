@@ -2,7 +2,7 @@
 'use strict';
 
 var Config			= require('./config.js').config;
-
+var Address			= require('./ftn_address.js');
 
 var _				= require('lodash');
 var assert			= require('assert');
@@ -18,20 +18,22 @@ var os				= require('os');
 var packageJson 	= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
-exports.stringFromFTN			= stringFromFTN;
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
 exports.createMessageUuid			= createMessageUuid;
-exports.parseAddress			= parseAddress;
-exports.formatAddress			= formatAddress;
-exports.getDateFromFtnDateTime	= getDateFromFtnDateTime;
-exports.getDateTimeString		= getDateTimeString;
+exports.getDateFromFtnDateTime		= getDateFromFtnDateTime;
+exports.getDateTimeString			= getDateTimeString;
 
-exports.getMessageIdentifier	= getMessageIdentifier;
-exports.getProductIdentifier	= getProductIdentifier;
-exports.getUTCTimeZoneOffset	= getUTCTimeZoneOffset;
-exports.getOrigin				= getOrigin;
+exports.getMessageIdentifier		= getMessageIdentifier;
+exports.getProductIdentifier		= getProductIdentifier;
+exports.getUTCTimeZoneOffset		= getUTCTimeZoneOffset;
+exports.getOrigin					= getOrigin;
+exports.getTearLine					= getTearLine;
+exports.getAbbreviatedNetNodeList	= getAbbreviatedNetNodeList;
+exports.parseAbbreviatedNetNodeList	= parseAbbreviatedNetNodeList;
+exports.getUpdatedSeenByEntries		= getUpdatedSeenByEntries;
+exports.getUpdatedPathEntries		= getUpdatedPathEntries;
 
-exports.getQuotePrefix			= getQuotePrefix;
+exports.getQuotePrefix				= getQuotePrefix;
 
 //
 //	Namespace for RFC-4122 name based UUIDs generated from
@@ -40,22 +42,9 @@ exports.getQuotePrefix			= getQuotePrefix;
 const ENIGMA_FTN_MSGID_NAMESPACE 	= uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
 
 //	Up to 5D FTN address RegExp
-const ENIGMA_FTN_ADDRESS_REGEXP		= /^([0-9]+):([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
+const ENIGMA_FTN_ADDRESS_REGEXP		= /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
-
-//	:TODO: proably move this elsewhere as a general method
-function stringFromFTN(buf, encoding) {
-	var nullPos = buf.length;
-	for(var i = 0; i < buf.length; ++i) {
-		if(0x00 === buf[i]) {
-			nullPos = i;
-			break;
-		}
-	}
-
-	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
-}
 
 function stringToNullPaddedBuffer(s, bufLen) {	
 	let buffer 	= new Buffer(bufLen).fill(0x00);
@@ -143,57 +132,6 @@ function createMessageUuid(ftnMsgId, ftnArea) {
 	return uuid.unparse(u);	//	to string
 }
 
-function parseAddress(address) {
-	const m = ENIGMA_FTN_ADDRESS_REGEXP.exec(address);
-	
-	if(m) {
-		let addr = {
-			zone	: parseInt(m[1]),
-			net		: parseInt(m[2]),
-		};
-		
-		//
-		//	substr(1) on the following to remove the
-		//	captured prefix
-		//
-		if(m[3]) {
-			addr.node = parseInt(m[3].substr(1));
-		}
-
-		if(m[4]) {
-			addr.point = parseInt(m[4].substr(1));
-		}
-
-		if(m[5]) {
-			addr.domain = m[5].substr(1);
-		}
-
-		return addr;
-	}	
-}
-
-function formatAddress(address, dimensions) {
-	let addr = `${address.zone}:${address.net}`;
-
-	//	allow for e.g. '4D' or 5 
-	const dim = parseInt(dimensions.toString()[0]);
-
-	if(dim >= 3) {
-		addr += `/${address.node}`;
-	}
-
-	//	missing & .0 are equiv for point
-	if(dim >= 4 && address.point) {
-		addr += `.${addresss.point}`;
-	}
-
-	if(5 === dim && address.domain) {
-		addr += `@${address.domain.toLowerCase()}`;
-	}
-
-	return addr;
-}
-
 function getMessageSerialNumber(message) {
     return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
     	message.messageId)).toString(16)).substr(-8);
@@ -235,7 +173,8 @@ function getMessageSerialNumber(message) {
 //	ENiGMA½: <messageId>.<areaTag>@<5dFtnAddress> <serial>
 //
 function getMessageIdentifier(message, address) {
-	return `${message.messageId}.${message.areaTag.toLowerCase()}@${formatAddress(address, '5D')} ${getMessageSerialNumber(message)}`;
+	const addrStr = new Address(address).toString('5D');
+	return `${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message)}`;
 }
 
 //
@@ -288,5 +227,113 @@ function getOrigin(address) {
 		Config.messageNetworks.originName : 
 		Config.general.boardName;
 
-	return `  * Origin: ${origin} (${formatAddress(address, '5D')})`;
+	const addrStr = new Address(address).toString('5D');
+	return `  * Origin: ${origin} (${addrStr})`;
+}
+
+function getTearLine() {
+	return `--- ENiGMA 1/2 v{$packageJson.version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+}
+
+function getAbbreviatedNetNodeList(netNodes) {
+	let abbrList = '';
+	let currNet;
+	netNodes.forEach(netNode => {
+		if(currNet !== netNode.net) {
+			abbrList += `${netNode.net}/`;
+			currNet = netNode.net;
+		}
+		abbrList += `${netNode.node} `;
+	});
+
+	return abbrList.trim();	//	remove trailing space
+}
+
+function parseAbbreviatedNetNodeList(netNodes) {
+	//
+	//	Make sure we have an array of objects.
+	//	Allow for a single object or string(s)
+	//
+	if(!_.isArray(netNodes)) {
+		if(_.isString(netNodes)) {
+			netNodes = netNodes.split(' ');
+		} else {
+			netNodes = [ netNodes ];
+		}
+	}
+
+	//
+	//	Convert any strings to parsed address objects
+	//
+	return netNodes.map(a => {
+		if(_.isObject(a)) {
+			return a;			
+		} else {
+			return Address.fromString(a);
+		}
+	});
+}
+
+//
+//	Return a FTS-0004.001 SEEN-BY entry(s) that include
+//	all pre-existing SEEN-BY entries with the addition
+//	of |additions|. 
+//
+//	See http://ftsc.org/docs/fts-0004.001
+//	and notes at http://ftsc.org/docs/fsc-0043.002.
+//
+//	For a great write up, see http://www.skepticfiles.org/aj/basics03.htm
+//
+//	This method returns an sorted array of values, but
+//	not the "SEEN-BY" prefix itself
+//
+function getUpdatedSeenByEntries(existingEntries, additions) {
+	/*
+		From FTS-0004:
+
+		"There can  be many  seen-by lines  at the  end of Conference
+		Mail messages,  and they  are the real "meat" of the control
+		information. They  are used  to  determine  the  systems  to
+		receive the exported messages. The format of the line is:
+
+		           SEEN-BY: 132/101 113 136/601 1014/1
+
+		The net/node  numbers correspond  to the net/node numbers of
+		the systems having already received the message. In this way
+		a message  is never  sent to a system twice. In a conference
+		with many  participants the  number of  seen-by lines can be
+		very large.   This line is added if it is not already a part
+		of the  message, or added to if it already exists, each time
+		a message  is exported  to other systems. This is a REQUIRED
+		field, and  Conference Mail  will not  function correctly if
+		this field  is not put in place by other Echomail compatible
+		programs."
+    */
+	existingEntries = existingEntries || [];
+	if(!_.isArray(existingEntries)) {
+		existingEntries = [ existingEntries ];
+	}
+
+	additions = parseAbbreviatedNetNodeList(additions).sort(Address.getComparator());
+
+	//
+	//	For now, we'll just append a new SEEN-BY entry
+	//
+	//	:TODO: we should at least try and update what is already there in a smart way
+	existingEntries.push(getAbbreviatedNetNodeList(additions));
+	return existingEntries;
+}
+
+function getUpdatedPathEntries(existingEntries, localAddress) {
+	//	:TODO: append to PATH in a smart way! We shoudl try to fit at least the last existing line
+
+	existingEntries = existingEntries || [];
+	if(!_.isArray(existingEntries)) {
+		existingEntries = [ existingEntries ];
+	}
+
+	existingEntries.push(getAbbreviatedNetNodeList(
+		parseAbbreviatedNetNodeList(localAddress)));
+
+	return existingEntries;
 }
