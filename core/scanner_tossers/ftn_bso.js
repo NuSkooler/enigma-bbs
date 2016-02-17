@@ -2,12 +2,15 @@
 'use strict';
 
 //	ENiGMA½
-let MessageScanTossModule		= require('../scan_toss_module.js').MessageScanTossModule;
-let Config						= require('../config.js').config;
-let ftnMailpacket				= require('../ftn_mail_packet.js');
-let ftnUtil						= require('../ftn_util.js');
+let MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
+let Config					= require('../config.js').config;
+let ftnMailpacket			= require('../ftn_mail_packet.js');
+let ftnUtil					= require('../ftn_util.js');
+let Address					= require('../ftn_address.js');
+let Log						= require('../logger.js').log;
 
-let moment						= require('moment');
+let moment					= require('moment');
+let _						= require('lodash');
 
 exports.moduleInfo = {
 	name	: 'FTN',
@@ -20,7 +23,9 @@ exports.getModule = FTNMessageScanTossModule;
 function FTNMessageScanTossModule() {
 	MessageScanTossModule.call(this);
 
-	this.config = Config.scannerTossers.ftn_bso;
+	if(_.has(Config, 'scannerTossers.ftn_bso')) {
+		this.config = Config.scannerTossers.ftn_bso;
+	}
 
 	this.createMessagePacket = function(message, config) {
 		this.prepareMessage(message);
@@ -50,10 +55,18 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();
 		message.meta.FtnProperty.ftn_origin			= ftnUtil.getOrigin(config.network.localAddress);
 
-		if(message.areaTag) {
-			message.meta.FtnProperty.ftn_area = message.areaTag;
+		if(message.isPrivate()) {
+			//
+			//	NetMail messages need a FRL-1005.001 "Via" line
+			//	http://ftsc.org/docs/frl-1005.001
+			//
+			if(_.isString(message.meta.FtnKludge['Via'])) {
+				message.meta.FtnKludge['Via'] = [ message.meta.FtnKludge['Via'] ];
+			}
+			message.meta.FtnKludge['Via'] = message.meta.FtnKludge['Via'] || [];
+			message.meta.FtnKludge['Via'].push(ftnUtil.getVia(config.network.localAddress));
 		} else {
-			//	:TODO: add "Via" line -- FSP-1010
+			message.meta.FtnProperty.ftn_area = message.areaTag;
 		}
 
 		//
@@ -81,14 +94,42 @@ function FTNMessageScanTossModule() {
 require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 
 FTNMessageScanTossModule.prototype.startup = function(cb) {
+	Log.info('FidoNet Scanner/Tosser starting up');
+
 	cb(null);
 };
 
 FTNMessageScanTossModule.prototype.shutdown = function(cb) {
+	Log.info('FidoNet Scanner/Tosser shutting down');
+
 	cb(null);
 };
 
 FTNMessageScanTossModule.prototype.record = function(message, cb) {
+	if(!_.has(Config, [ 'messageNetworks', 'ftn', 'areas', message.areaTag ])) {
+		return;
+	}
+
+	const area = Config.messageNetworks.ftn.areas[message.areaTag];
+	if(!_.isString(area.ftnArea) || !_.isArray(area.uplinks)) {
+		//	:TODO: should probably log a warning here
+		return;
+	}
+
+	//
+	//	For each uplink, find the best configuration match
+	//
+	area.uplinks.forEach(uplink => {
+		//	:TODO: sort by least # of '*' & take top?
+		let matchNodes = _.filter(Object.keys(Config.scannerTossers.ftn_bso.nodes), addr => {
+			return Address.fromString(addr).isMatch(uplink);
+		});
+
+		if(matchNodes.length > 0) {
+			const nodeKey = matchNodes[0];
+
+		}
+	});
 
 
 	cb(null);

@@ -28,6 +28,7 @@ exports.getProductIdentifier		= getProductIdentifier;
 exports.getUTCTimeZoneOffset		= getUTCTimeZoneOffset;
 exports.getOrigin					= getOrigin;
 exports.getTearLine					= getTearLine;
+exports.getVia						= getVia;
 exports.getAbbreviatedNetNodeList	= getAbbreviatedNetNodeList;
 exports.parseAbbreviatedNetNodeList	= parseAbbreviatedNetNodeList;
 exports.getUpdatedSeenByEntries		= getUpdatedSeenByEntries;
@@ -181,6 +182,9 @@ function getMessageIdentifier(message, address) {
 //	Return a FSC-0046.005 Product Identifier or "PID"
 //	http://ftsc.org/docs/fsc-0046.005
 //
+//	Note that we use a variant on the spec for <serial>
+//	in which (<os>; <arch>; <nodeVer>) is used instead
+//
 function getProductIdentifier() {
 	const version = packageJson.version
 		.replace(/\-/g, '.')
@@ -233,6 +237,28 @@ function getOrigin(address) {
 
 function getTearLine() {
 	return `--- ENiGMA 1/2 v{$packageJson.version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+}
+
+//
+//	Return a FRL-1005.001 "Via" line
+//	http://ftsc.org/docs/frl-1005.001
+//
+function getVia(address) {
+	/*
+		FRL-1005.001 states teh following format:
+
+		^AVia: <FTN Address> @YYYYMMDD.HHMMSS[.Precise][.Time Zone] 
+	    <Program Name> <Version> [Serial Number]<CR>
+	*/
+	const addrStr	= new Address(address).toString('5D');
+	const dateTime	= moment().utc().format('YYYYMMDD.HHmmSS.SSSS.UTC');
+
+	const version	= packageJson.version
+		.replace(/\-/g, '.')
+		.replace(/alpha/,'a')
+		.replace(/beta/,'b');
+
+	return `${addrStr} @${dateTime} ENiGMA1/2 ${version}`;
 }
 
 function getAbbreviatedNetNodeList(netNodes) {

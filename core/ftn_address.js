@@ -34,7 +34,7 @@ module.exports = class Address {
 			);
 	}
 
-	isMatch(pattern) {
+	getMatchAddr(pattern) {
 		const m = FTN_PATTERN_REGEXP.exec(pattern);
 		if(m) {
 			let addr = { };
@@ -81,6 +81,35 @@ module.exports = class Address {
 				addr.domain = '*';
 			}
 
+			return addr;
+		}
+	}
+
+	/*
+	getMatchScore(pattern) {
+		let score = 0;
+		const addr = this.getMatchAddr(pattern);
+		if(addr) {
+			const PARTS = [ 'net', 'node', 'zone', 'point', 'domain' ];
+			for(let i = 0; i < PARTS.length; ++i) {
+				const member = PARTS[i];
+				if(this[member] === addr[member]) {
+					score += 2;
+				} else if('*' === addr[member]) {
+					score += 1;
+				} else {
+					break;
+				}
+			}
+		}
+
+		return score;
+	}
+	*/
+
+	isMatch(pattern) {
+		const addr = this.getMatchAddr(pattern);
+		if(addr) {
 			return (
 				('*' === addr.net || this.net === addr.net) &&
 				('*' === addr.node || this.node === addr.node) &&

@@ -309,7 +309,7 @@ function FullScreenEditorModule(options) {
 						//	in NetRunner:
 						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 						
-						//self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
+						self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
 					}
 					callback(null);
 				},

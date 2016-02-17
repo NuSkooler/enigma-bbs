@@ -1,15 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-var msgDb			= require('./database.js').dbs.message;
-var Config			= require('./config.js').config;
-var Message			= require('./message.js');
-var Log				= require('./logger.js').log;
-var checkAcs        = require('./acs_util.js').checkAcs;
+let msgDb			= require('./database.js').dbs.message;
+let Config			= require('./config.js').config;
+let Message			= require('./message.js');
+let Log				= require('./logger.js').log;
+let checkAcs        = require('./acs_util.js').checkAcs;
+let msgNetRecord	= require('./msg_network.js').recordMessage;
 
-var async			= require('async');
-var _				= require('lodash');
-var assert			= require('assert');
+let async			= require('async');
+let _				= require('lodash');
+let assert			= require('assert');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -437,5 +438,19 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 			}
 			cb(err);
 		}
+	);
+}
+
+function persistMessage(message, cb) {
+	async.series(
+		[
+			function persistMessageToDisc(callback) {
+				message.persist(callback);
+			},
+			function recordToMessageNetworks(callback) {
+				msgNetRecord(message, callback);
+			}
+		],
+		cb
 	);
 }

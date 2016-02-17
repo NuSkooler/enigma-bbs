@@ -1,7 +1,6 @@
 /* jslint node: true */
 'use strict';
 
-//var MailPacket		= require('./mail_packet.js');
 let ftn				= require('./ftn_util.js');
 let Message			= require('./message.js');
 let sauce			= require('./sauce.js');
@@ -18,7 +17,6 @@ let iconv			= require('iconv-lite');
 let buffers			= require('buffers');
 let moment			= require('moment');
 
-exports.PacketHeader	= PacketHeader;
 exports.Packet			= Packet;
 
 /*
@@ -40,6 +38,117 @@ const FTN_MESSAGE_SAUCE_HEADER = new Buffer('SAUCE00');
 
 const FTN_MESSAGE_KLUDGE_PREFIX	= '\x01';
 
+class PacketHeader {
+	constructor(origAddr, destAddr, created, version) {
+		const EMPTY_ADDRESS = {
+			node	: 0,
+			net		: 0,
+			zone	: 0,
+			point	: 0,
+		};
+
+		this.packetVersion = version || '2+';
+
+		this.origAddress 	= origAddr || EMPTY_ADDRESS;
+		this.destAddress 	= destAddr || EMPTY_ADDRESS;
+		this.created		= created || moment();
+
+		//	uncommon to set the following explicitly
+		this.prodCodeLo		= 0xfe;	//	http://ftsc.org/docs/fta-1005.003
+		this.prodRevLo		= 0;
+		this.baud			= 0;
+		this.packetType		= FTN_PACKET_HEADER_TYPE;
+		this.password		= '';
+		this.prodData 		= 0x47694e45;	//	"ENiG"
+
+		this.capWord			= 0x0001;
+		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);
+	}
+
+	get origAddress() {
+		let addr = new Address({
+			node	: this.origNode,
+			zone	: this.origZone,
+		});
+
+		if(this.origPoint) {
+			addr.point	= this.origPoint;
+			addr.net	= this.auxNet;
+		} else {
+			addr.net	= this.origNet;
+		}
+
+		return addr;
+	}
+
+	set origAddress(address) {
+		if(_.isString(address)) {
+			address = Address.fromString(address);
+		}
+
+		this.origNode = address.node;
+
+		//	See FSC-48
+		if(address.point) {
+			this.origNet	= -1;
+			this.auxNet		= address.net;
+		} else {
+			this.origNet	= address.net;
+			this.auxNet		= 0;
+		}
+
+		this.origZone	= address.zone;
+		this.origZone2	= address.zone;
+		this.origPoint	= address.point || 0;
+	}
+
+	get destAddress() {
+		let addr = new Address({
+			node	: this.destNode,
+			net		: this.destNet,
+			zone	: this.destZone,
+		});
+
+		if(this.destPoint) {
+			addr.point = this.destPoint;
+		}
+
+		return addr;
+	}
+
+	set destAddress(address) {
+		if(_.isString(address)) {
+			address = Address.fromString(address);
+		}
+
+		this.destNode	= address.node;
+		this.destNet	= address.net;
+		this.destZone	= address.zone;
+		this.destZone2	= address.zone;
+		this.destPoint	= address.point || 0;
+	}
+
+	get created() {
+		return moment(this);	//	use year, month, etc. properties
+	}
+
+	set created(momentCreated) {
+		if(!moment.isMoment(momentCreated)) {
+			created = moment(momentCreated);
+		}
+
+		this.year	= momentCreated.year();
+		this.month	= momentCreated.month();
+		this.day	= momentCreated.day();
+		this.hour	= momentCreated.hour();
+		this.minute	= momentCreated.minute();
+		this.second	= momentCreated.second();
+	}
+}
+
+exports.PacketHeader = PacketHeader;
+
+/*
 function PacketHeader(options) {
 }
 
@@ -120,7 +229,7 @@ PacketHeader.prototype.setCreated = function(created) {
 PacketHeader.prototype.setPassword = function(password) {
 	this.password = password.substr(0, 8);
 }
-
+*/
 
 //
 //	Read/Write FTN packets with support for the following formats:
@@ -762,7 +871,7 @@ Packet.prototype.write = function(path, packetHeader, messages) {
 		);
 };
 
-
+/*
 const LOCAL_ADDRESS = {
 	zone	: 46,
 	net		: 1,
@@ -776,9 +885,8 @@ const REMOTE_ADDRESS = {
 	node : 218,
 };
 
-var packetHeader1 = new PacketHeader();
-packetHeader1.init(LOCAL_ADDRESS, REMOTE_ADDRESS);
-console.log(packetHeader1);
+
+var packetHeader1 = new PacketHeader(LOCAL_ADDRESS, REMOTE_ADDRESS);
 
 var packet = new Packet();
 var theHeader;
@@ -796,23 +904,13 @@ packet.read(
 
 			messagesToWrite.push(msg);
 
-			/*
-			if(!written) {
-				written = true;
-
-				let messages = [ msg ];
-				Packet.write('/home/nuskooler/Downloads/ftnout/test1.pkt', theHeader, messages, err => {
-
-				});
-
-			}*/
-
 			let address = {
 				zone	: 46,
 				net		: 1,
 				node	: 232,
 				domain	: 'l33t.codes',
 			};
+			
 			msg.areaTag = 'agn_bbs';
 			msg.messageId = 1234;
 			console.log(ftn.getMessageIdentifier(msg, address));
@@ -825,6 +923,9 @@ packet.read(
 				msg.meta.FtnProperty.ftn_seen_by, '1/107 4/22 4/25 4/10'));
 			console.log(ftn.getUpdatedPathEntries(
 				msg.meta.FtnKludge['PATH'], '1:365/50'))
+			console.log('Via: ' + ftn.getVia(address))
+			console.log(Address.fromString('46:1/232.4@l33t.codes').isMatch('*:1/232.*'))
+			//console.log(Address.fromString('46:1/232.4@l33t.codes').getMatchScore('46:1/232'))
 		}
 	},
 	function completion(err) {
@@ -837,3 +938,4 @@ packet.read(
 		});
 	}
 );
+*/

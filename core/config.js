@@ -228,12 +228,6 @@ function getDefaultConfig() {
 			}
 		},
 
-		messages : {
-			areas : [
-				{ name : 'private_mail', desc : 'Private Email', groups : [ 'users' ] }
-			]
-		},
-
 		networks : {
 			/*
 			networkName : {	//	e.g. fidoNet
@@ -246,6 +240,17 @@ function getDefaultConfig() {
 				}
 			}
 			*/
+		},
+		
+		scannerTossers : {
+			ftn_bso : {
+				paths : {
+
+				},
+
+				maxPacketByteSize : 256000,
+				maxBundleByteSize : 256000,
+			}
 		},
 
 		misc : {

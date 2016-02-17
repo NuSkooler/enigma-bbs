@@ -1,19 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-var Config		= require('./config.js').config;
-var miscUtil	= require('./misc_util.js');
+//	ENiGMA½
+let Config		= require('./config.js').config;
+let miscUtil	= require('./misc_util.js');
 
-var fs 			= require('fs');
-var paths		= require('path');
-var _			= require('lodash');
-var assert		= require('assert');
+//	standard/deps
+let fs 			= require('fs');
+let paths		= require('path');
+let _			= require('lodash');
+let assert		= require('assert');
+let async		= require('async');
 
 //	exports
 exports.loadModuleEx			= loadModuleEx;
 exports.loadModule				= loadModule;
 exports.loadModulesForCategory	= loadModulesForCategory;
-
 
 function loadModuleEx(options, cb) {
 	assert(_.isObject(options));
@@ -44,7 +46,7 @@ function loadModuleEx(options, cb) {
 		return;
 	}
 
-		//	Ref configuration, if any, for convience to the module
+	//	Ref configuration, if any, for convience to the module
 	mod.runtime = { config : modConfig };
 
 	cb(null, mod);
@@ -63,18 +65,27 @@ function loadModule(name, category, cb) {
 	});
 }
 
-function loadModulesForCategory(category, iterator) {
-	var path = Config.paths[category];
-
-	fs.readdir(path, function onFiles(err, files) {
+function loadModulesForCategory(category, iterator, complete) {
+	
+	fs.readdir(Config.paths[category], (err, files) => {
 		if(err) {
-			cb(err);
+			iterator(err);
 			return;
 		}
 
-		var filtered = files.filter(function onFilter(file) { return '.js' === paths.extname(file); });
-		filtered.forEach(function onFile(file) {
-			loadModule(paths.basename(file, '.js'), category, iterator);
+		const jsModules = files.filter(file => {
+			return '.js' === paths.extname(file);
+		});
+
+		async.each(jsModules, (file, next) => {
+			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
+				iterator(err, mod);
+				next();
+			});
+		}, err => {
+			if(complete) {
+				complete(err);
+			}
 		});
 	});
 }
