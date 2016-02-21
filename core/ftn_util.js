@@ -1,24 +1,26 @@
 /* jslint node: true */
 'use strict';
 
-var Config			= require('./config.js').config;
-var Address			= require('./ftn_address.js');
+let Config			= require('./config.js').config;
+let Address			= require('./ftn_address.js');
+let FNV1a			= require('./fnv1a.js');
 
-var _				= require('lodash');
-var assert			= require('assert');
-var binary			= require('binary');
-var fs				= require('fs');
-var util			= require('util');
-var iconv			= require('iconv-lite');
-var moment			= require('moment');
-var createHash		= require('crypto').createHash;
-var uuid			= require('node-uuid');
-var os				= require('os');
+let _				= require('lodash');
+let assert			= require('assert');
+let binary			= require('binary');
+let fs				= require('fs');
+let util			= require('util');
+let iconv			= require('iconv-lite');
+let moment			= require('moment');
+let createHash		= require('crypto').createHash;
+let uuid			= require('node-uuid');
+let os				= require('os');
 
-var packageJson 	= require('../package.json');
+let packageJson 	= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
+exports.getMessageSerialNumber		= getMessageSerialNumber;
 exports.createMessageUuid			= createMessageUuid;
 exports.getDateFromFtnDateTime		= getDateFromFtnDateTime;
 exports.getDateTimeString			= getDateTimeString;
@@ -33,6 +35,9 @@ exports.getAbbreviatedNetNodeList	= getAbbreviatedNetNodeList;
 exports.parseAbbreviatedNetNodeList	= parseAbbreviatedNetNodeList;
 exports.getUpdatedSeenByEntries		= getUpdatedSeenByEntries;
 exports.getUpdatedPathEntries		= getUpdatedPathEntries;
+
+exports.getCharacterSetIdentifierByEncoding		= getCharacterSetIdentifierByEncoding;
+exports.getEncodingFromCharacterSetIdentifier	= getEncodingFromCharacterSetIdentifier;
 
 exports.getQuotePrefix				= getQuotePrefix;
 
@@ -134,8 +139,11 @@ function createMessageUuid(ftnMsgId, ftnArea) {
 }
 
 function getMessageSerialNumber(message) {
-    return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
-    	message.messageId)).toString(16)).substr(-8);
+	const msSinceEnigmaEpoc = (Date.now() - Date.UTC(2016, 1, 1));
+	const hash				= Math.abs(new FNV1a(msSinceEnigmaEpoc + message.messageId).value).toString(16);
+	return `00000000${hash}`.substr(-8);
+ //   return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
+ //   	message.messageId)).toString(16)).substr(-8);
 }
 
 //
@@ -236,7 +244,8 @@ function getOrigin(address) {
 }
 
 function getTearLine() {
-	return `--- ENiGMA 1/2 v{$packageJson.version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
+	return `--- ENiGMA 1/2 v${packageJson.version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }
 
 //
@@ -362,4 +371,78 @@ function getUpdatedPathEntries(existingEntries, localAddress) {
 		parseAbbreviatedNetNodeList(localAddress)));
 
 	return existingEntries;
+}
+
+//
+//	Return FTS-5000.001 "CHRS" value
+//	http://ftsc.org/docs/fts-5003.001
+//
+const ENCODING_TO_FTS_5003_001_CHARS = {
+	//	level 1 - generally should not be used
+	ascii		: [ 'ASCII', 1 ],
+	'us-ascii'	: [ 'ASCII', 1 ],
+	
+	//	level 2 - 8 bit, ASCII based
+	cp437		: [ 'CP437', 2 ],
+	cp850		: [ 'CP850', 2 ],
+	
+	//	level 3 - reserved
+	
+	//	level 4
+	utf8		: [ 'UTF-8', 4 ],
+	'utf-8'		: [ 'UTF-8', 4 ],
+};
+
+
+function getCharacterSetIdentifierByEncoding(encodingName) {
+	const value = ENCODING_TO_FTS_5003_001_CHARS[encodingName.toLowerCase()];
+	return value ? `${value[0]} ${value[1]}` : encodingName.toUpperCase();
+}
+
+function getEncodingFromCharacterSetIdentifier(chrs) {
+	const ident = chrs.split(' ')[0].toUpperCase();
+	
+	//	:TODO: fill in the rest!!!
+	return {
+		//	level 1
+		'ASCII'		: 'iso-646-1',
+		'DUTCH'		: 'iso-646',
+		'FINNISH'	: 'iso-646-10',
+		'FRENCH'	: 'iso-646',
+		'CANADIAN'	: 'iso-646',
+		'GERMAN'	: 'iso-646',
+		'ITALIAN'	: 'iso-646',
+		'NORWEIG'	: 'iso-646',
+		'PORTU'		: 'iso-646',
+		'SPANISH'	: 'iso-656',
+		'SWEDISH'	: 'iso-646-10',
+		'SWISS'		: 'iso-646',
+		'UK'		: 'iso-646',
+		'ISO-10'	: 'iso-646-10',
+		
+		//	level 2
+		'CP437'		: 'cp437',
+		'CP850'		: 'cp850',
+		'CP852'		: 'cp852',
+		'CP866'		: 'cp866',
+		'CP848'		: 'cp848',
+		'CP1250'	: 'cp1250',
+		'CP1251'	: 'cp1251',
+		'CP1252'	: 'cp1252',
+		'CP10000'	: 'macroman',
+		'LATIN-1'	: 'iso-8859-1',
+		'LATIN-2'	: 'iso-8859-2',
+		'LATIN-5'	: 'iso-8859-9',
+		'LATIN-9'	: 'iso-8859-15',
+		
+		//	level 4
+		'UTF-8'		: 'utf8',
+		
+		//	deprecated stuff
+		'IBMPC'		: 'cp1250',		//	:TODO: validate 
+		'+7_FIDO'	: 'cp866',
+		'+7'		: 'cp866', 
+		'MAC'		: 'macroman',	//	:TODO: validate
+		
+	}[ident];
 }

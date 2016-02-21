@@ -20,6 +20,5 @@ MessageScanTossModule.prototype.shutdown = function(cb) {
 	cb(null);
 };
 
-MessageScanTossModule.prototype.record = function(message, cb) {
-	cb(null);
+MessageScanTossModule.prototype.record = function(message) {
 };

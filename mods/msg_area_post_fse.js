@@ -1,12 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-var FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
-var Message						= require('../core/message.js').Message;
-var user						= require('../core/user.js');
+let FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
+//var Message						= require('../core/message.js').Message;
+let persistMessage				= require('../core/message_area.js').persistMessage; 
+let user						= require('../core/user.js');
 
-var _							= require('lodash');
-var async					 	= require('async');
+let _							= require('lodash');
+let async					 	= require('async');
 
 exports.getModule				= AreaPostFSEModule;
 
@@ -36,9 +37,12 @@ function AreaPostFSEModule(options) {
 					});
 				},
 				function saveMessage(callback) {
+					persistMessage(msg, callback);
+					/*
 					msg.persist(function persisted(err) {
 						callback(err);
 					});
+					*/
 				}
 			],
 			function complete(err) {

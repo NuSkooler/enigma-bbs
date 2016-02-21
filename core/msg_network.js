@@ -51,9 +51,8 @@ function recordMessage(message, cb) {
 	//	choose to ignore it.
 	//
 	async.each(msgNetworkModules, (modInst, next) => {
-		modInst.record(message, err => {
-			next();
-		});
+		modInst.record(message);
+		next();		
 	}, err => {
 		cb(err);
 	});

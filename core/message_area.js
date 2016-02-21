@@ -26,6 +26,7 @@ exports.getMessageListForArea				= getMessageListForArea;
 exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
+exports.persistMessage						= persistMessage;
 
 const CONF_AREA_RW_ACS_DEFAULT  = 'GM[users]';
 const AREA_MANAGE_ACS_DEFAULT   = 'GM[sysops]';

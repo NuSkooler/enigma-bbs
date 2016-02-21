@@ -227,25 +227,13 @@ function getDefaultConfig() {
 				}
 			}
 		},
-
-		networks : {
-			/*
-			networkName : {	//	e.g. fidoNet
-				address : {
-					zone	: 0,
-					net		: 0,
-					node	: 0,
-					point 	: 0,
-					domain	: 'l33t.codes'
-				}
-			}
-			*/
-		},
 		
 		scannerTossers : {
 			ftn_bso : {
 				paths : {
-
+					outbound	: paths.join(__dirname, './../mail/out/'),
+					inbound		: paths.join(__dirname, './../mail/in/'),
+					secInbound	: paths.join(__dirname, './../mail/secin/'),
 				},
 
 				maxPacketByteSize : 256000,
