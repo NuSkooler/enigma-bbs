@@ -39,7 +39,7 @@ const FTN_MESSAGE_SAUCE_HEADER = new Buffer('SAUCE00');
 const FTN_MESSAGE_KLUDGE_PREFIX	= '\x01';
 
 class PacketHeader {
-	constructor(origAddr, destAddr, version, created) {
+	constructor(origAddr, destAddr, version, createdMoment) {
 		const EMPTY_ADDRESS = {
 			node	: 0,
 			net		: 0,
@@ -51,18 +51,21 @@ class PacketHeader {
 
 		this.origAddress 	= origAddr || EMPTY_ADDRESS;
 		this.destAddress 	= destAddr || EMPTY_ADDRESS;
-		this.created		= created || moment();
+		this.created		= createdMoment || moment();
 
 		//	uncommon to set the following explicitly
-		this.prodCodeLo		= 0xfe;	//	http://ftsc.org/docs/fta-1005.003
-		this.prodRevLo		= 0;
-		this.baud			= 0;
-		this.packetType		= FTN_PACKET_HEADER_TYPE;
-		this.password		= '';
-		this.prodData 		= 0x47694e45;	//	"ENiG"
+		this.prodCodeLo			= 0xfe;	//	http://ftsc.org/docs/fta-1005.003
+		this.prodRevLo			= 0;
+		this.baud				= 0;
+		this.packetType			= FTN_PACKET_HEADER_TYPE;
+		this.password			= '';
+		this.prodData 			= 0x47694e45;	//	"ENiG"
 
 		this.capWord			= 0x0001;
 		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);
+		
+		this.prodCodeHi			= 0xfe;	//	see above
+		this.prodRevHi			= 0;		
 	}
 
 	get origAddress() {
@@ -129,17 +132,24 @@ class PacketHeader {
 	}
 
 	get created() {
-		return moment(this);	//	use year, month, etc. properties
+		return moment({
+			year 	: this.year,
+			month	: this.month - 1,	//	moment uses 0 indexed months
+			date	: this.day,
+			hour	: this.hour,
+			minute	: this.minute,
+			second	: this.second
+		});
 	}
 
 	set created(momentCreated) {
 		if(!moment.isMoment(momentCreated)) {
-			created = moment(momentCreated);
+			momentCreated = moment(momentCreated);
 		}
 
 		this.year	= momentCreated.year();
-		this.month	= momentCreated.month();
-		this.day	= momentCreated.date();	//	day of month
+		this.month	= momentCreated.month() + 1;	//	moment uses 0 indexed months
+		this.day	= momentCreated.date();			//	day of month
 		this.hour	= momentCreated.hour();
 		this.minute	= momentCreated.minute();
 		this.second	= momentCreated.second();
@@ -254,19 +264,18 @@ function Packet() {
 						//	:TODO: should fill bytes be 0?
 					}
 				}
-				
+						
 				packetHeader.created = moment({
 					year 	: packetHeader.year,
-					month	: packetHeader.month,
+					month	: packetHeader.month - 1,	//	moment uses 0 indexed months
 					date	: packetHeader.day,
 					hour	: packetHeader.hour,
 					minute	: packetHeader.minute,
 					second	: packetHeader.second
 				});
-
+				
 				let ph = new PacketHeader();
 				_.assign(ph, packetHeader);
-
 
 				cb(null, ph);
 			});
@@ -277,12 +286,13 @@ function Packet() {
 
 		buffer.writeUInt16LE(packetHeader.origNode, 0);
 		buffer.writeUInt16LE(packetHeader.destNode, 2);
-		buffer.writeUInt16LE(packetHeader.created.year(), 4);
-		buffer.writeUInt16LE(packetHeader.created.month(), 6);
-		buffer.writeUInt16LE(packetHeader.created.date(), 8);	//	day of month
-		buffer.writeUInt16LE(packetHeader.created.hour(), 10);
-		buffer.writeUInt16LE(packetHeader.created.minute(), 12);
-		buffer.writeUInt16LE(packetHeader.created.second(), 14);
+		buffer.writeUInt16LE(packetHeader.year, 4);
+		buffer.writeUInt16LE(packetHeader.month, 6);	
+		buffer.writeUInt16LE(packetHeader.day, 8);
+		buffer.writeUInt16LE(packetHeader.hour, 10);
+		buffer.writeUInt16LE(packetHeader.minute, 12);
+		buffer.writeUInt16LE(packetHeader.second, 14);
+		
 		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
 		buffer.writeUInt16LE(packetHeader.origNet, 20);

@@ -212,11 +212,9 @@ function FTNMessageScanTossModule() {
 			//	When exporting messages, we should create/update SEEN-BY
 			//	with remote address(s) we are exporting to.
 			//
+			const seenByAdditions = [ options.network.localAddress ].concat(Config.messageNetworks.ftn.areas[message.areaTag].uplinks);
 			message.meta.FtnProperty.ftn_seen_by = 
-				ftnUtil.getUpdatedSeenByEntries(
-					message.meta.FtnProperty.ftn_seen_by,
-					Config.messageNetworks.ftn.areas[message.areaTag].uplinks
-				);
+				ftnUtil.getUpdatedSeenByEntries(message.meta.FtnProperty.ftn_seen_by, seenByAdditions);
 
 			//
 			//	And create/update PATH for ourself
