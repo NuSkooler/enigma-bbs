@@ -110,8 +110,6 @@ Message.FtnPropertyNames = {
 	FtnOrigNetwork		: 'ftn_orig_network',
 	FtnDestNetwork		: 'ftn_dest_network',
 	FtnAttrFlags		: 'ftn_attr_flags',
-	//FtnAttrFlags1		: 'ftn_attr_flags1',
-	//FtnAttrFlags2		: 'ftn_attr_flags2',
 	FtnCost				: 'ftn_cost',
 	FtnOrigZone			: 'ftn_orig_zone',
 	FtnDestZone			: 'ftn_dest_zone',

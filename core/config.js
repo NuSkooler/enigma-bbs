@@ -209,6 +209,18 @@ function getDefaultConfig() {
 			}
 		},
 
+		archivers : {
+			zip : {
+				name			: "PKZip",
+				sig				: "504b0304",
+				offset			: 0,
+				compressCmd		: "7z",
+				compressArgs	: [ "a", "-tzip", "{archivePath}", "{fileList}" ],
+				decompressCmd	: "7z",
+				decompressArgs	: [ "e", "-o{extractDir}", "{archivePath}" ]
+			}
+		},
+
 		messageConferences : {
 			system_internal : {
 				name 	: 'System Internal',
@@ -231,13 +243,13 @@ function getDefaultConfig() {
 		scannerTossers : {
 			ftn_bso : {
 				paths : {
-					outbound	: paths.join(__dirname, './../mail/out/'),
-					inbound		: paths.join(__dirname, './../mail/in/'),
-					secInbound	: paths.join(__dirname, './../mail/secin/'),
+					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
+					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
+					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
 				},
 
-				maxPacketByteSize : 256000,
-				maxBundleByteSize : 256000,
+				maxPacketByteSize : 512000,		//	512k, before placing messages in a new pkt
+				maxBundleByteSize : 2048000,	//	2M, before creating another archive
 			}
 		},
 

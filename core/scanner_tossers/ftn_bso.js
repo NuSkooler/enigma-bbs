@@ -8,11 +8,14 @@ let ftnMailPacket			= require('../ftn_mail_packet.js');
 let ftnUtil					= require('../ftn_util.js');
 let Address					= require('../ftn_address.js');
 let Log						= require('../logger.js').log;
+let ArchiveUtil				= require('../archive_util.js');
 
 let moment					= require('moment');
 let _						= require('lodash');
 let paths					= require('path');
 let mkdirp 					= require('mkdirp');
+let async					= require('async');
+let fs						= require('fs');
 
 exports.moduleInfo = {
 	name	: 'FTN',
@@ -35,6 +38,9 @@ exports.getModule = FTNMessageScanTossModule;
 function FTNMessageScanTossModule() {
 	MessageScanTossModule.call(this);
 
+	this.archUtil = new ArchiveUtil();
+	this.archUtil.init();
+
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
 		this.moduleConfig = Config.scannerTossers.ftn_bso;
 	}
@@ -43,10 +49,10 @@ function FTNMessageScanTossModule() {
 		return(networkName === this.moduleConfig.defaultNetwork && address.zone === this.moduleConfig.defaultZone);
 	}
 	
-	this.getOutgoingPacketDir = function(networkName, remoteAddress) {
+	this.getOutgoingPacketDir = function(networkName, destAddress) {
 		let dir = this.moduleConfig.paths.outbound;
-		if(!this.isDefaultDomainZone(networkName, remoteAddress)) {
-			const hexZone = `000${remoteAddress.zone.toString(16)}`.substr(-3);
+		if(!this.isDefaultDomainZone(networkName, destAddress)) {
+			const hexZone = `000${destAddress.zone.toString(16)}`.substr(-3);
 			dir = paths.join(dir, `${networkName.toLowerCase()}.${hexZone}`);
 		}
 		return dir;
@@ -75,6 +81,59 @@ function FTNMessageScanTossModule() {
 		return paths.join(basePath, `${name}.${ext}`);
 	};
 
+	this.getOutgoingFlowFileName = function(basePath, destAddress, exportType, extSuffix) {
+		if(destAddress.point) {
+
+		} else {
+			//
+			//	Use |destAddress| nnnnNNNN.??? where nnnn is dest net and NNNN is dest
+			//	node. This seems to match what Mystic does
+			//
+			return `${Math.abs(destAddress.net)}${Math.abs(destAddress.node)}.${exportType[1]}${extSuffix}`;
+		}
+	};
+	
+	this.getOutgoingBundleFileName = function(basePath, sourceAddress, destAddress, cb) {
+		//
+		//	Base filename is constructed as such:
+		//	*	If this |destAddress| is *not* a point address, we use NNNNnnnn where 
+		//		NNNN is 0 padded hex of dest net - source net and and nnnn is 0 padded 
+		//		hex of dest node - source node.
+		//	*	If |destAddress| is a point, NNNN becomes 0000 and nnnn becomes 'p' +
+		//		3 digit 0 padded hex point
+		//
+		//	Extension is dd? where dd is Su...Mo and ? is 0...Z as collisions arise
+		//
+		var basename;
+		if(destAddress.point) {
+			const pointHex = `000${destAddress.point}`.substr(-3);
+			basename = `0000p${pointHex}`;
+		} else {
+			basename = 
+				`0000${Math.abs(sourceAddress.net - destAddress.net).toString(16)}`.substr(-4) + 
+				`0000${Math.abs(sourceAddress.node - destAddress.node).toString(16)}`.substr(-4);			
+		}
+		
+		//
+		//	We need to now find the first entry that does not exist starting
+		//	with dd0 to ddz
+		//
+		const EXT_SUFFIXES = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');		
+		let fileName = `${basename}.${moment().format('dd').toLowerCase()}`;
+		async.detectSeries(EXT_SUFFIXES, (suffix, callback) => {
+			const checkFileName = fileName + suffix; 			
+			fs.stat(paths.join(basePath, checkFileName), (err, stats) => {
+				callback((err && 'ENOENT' === err.code) ? true : false);
+			});
+		}, finalSuffix => {
+			if(finalSuffix) {
+				cb(null, paths.join(basePath, fileName + finalSuffix));
+			} else {
+				cb(new Error('Could not acquire a bundle filename!'));
+			}
+		});
+	};
+
 	this.createMessagePacket = function(message, options) {
 		this.prepareMessage(message, options);
 
@@ -82,7 +141,7 @@ function FTNMessageScanTossModule() {
 
 		let packetHeader = new ftnMailPacket.PacketHeader(
 			options.network.localAddress,
-			options.remoteAddress,
+			options.destAddress,
 			options.nodeConfig.packetType);
 
 		packetHeader.password = options.nodeConfig.packetPassword || '';
@@ -90,12 +149,15 @@ function FTNMessageScanTossModule() {
 		if(message.isPrivate()) {
 			//	:TODO: this should actually be checking for isNetMail()!!
 		} else {
-			const outgoingDir = this.getOutgoingPacketDir(options.networkName, options.remoteAddress);
+			const outgoingDir = this.getOutgoingPacketDir(options.networkName, options.destAddress);
 			
 			mkdirp(outgoingDir, err => {
 				if(err) {
 					//	:TODO: Handle me!!
 				} else {
+					this.getOutgoingBundleFileName(outgoingDir, options.network.localAddress, options.destAddress, (err, path) => {
+						console.log(path);
+					});
 					packet.write(
 						this.getOutgoingPacketFileName(outgoingDir, message), 
 						packetHeader, 
@@ -116,16 +178,20 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnKludge = message.meta.FtnKludge || {};
 		
 		message.meta.FtnProperty.ftn_orig_node		= options.network.localAddress.node;
-		message.meta.FtnProperty.ftn_dest_node		= options.remoteAddress.node;
+		message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
 		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
-		message.meta.FtnProperty.ftn_dest_network	= options.remoteAddress.net;
+		message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
 		//	:TODO: attr1 & 2
 		message.meta.FtnProperty.ftn_cost			= 0;
 		
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();		
 
 		//	:TODO: Need an explicit isNetMail() check
+		let ftnAttribute = 0;
+		
 		if(message.isPrivate()) {
+			ftnAttribute |= ftnMailPacket.Packet.Attribute.Private;
+			
 			//
 			//	NetMail messages need a FRL-1005.001 "Via" line
 			//	http://ftsc.org/docs/frl-1005.001
@@ -158,6 +224,8 @@ function FTNMessageScanTossModule() {
 			message.meta.FtnKludge.PATH = 
 				ftnUtil.getUpdatedPathEntries(message.meta.FtnKludge.PATH, options.network.localAddress);
 		}
+		
+		message.meta.FtnProperty.ftn_attr_flags = ftnAttribute;
 		
 		//
 		//	Additional kludges
@@ -249,7 +317,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
 			const processOptions = {
 				nodeConfig		: this.moduleConfig.nodes[nodeKey],
 				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
-				remoteAddress	: Address.fromString(uplink),
+				destAddress		: Address.fromString(uplink),
 				networkName		: areaConfig.network,
 			};
 						

@@ -419,36 +419,34 @@ function Packet() {
 					//	Decode |messageBodyBuffer| using |encoding| defaulted or detected above
 					//
 					//	:TODO: Look into \xec thing more - document
-					const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/[\xec\n]/g, '').split(/\r/g);
-					let preOrigin = true;
+					const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+					let endOfMessage = true;
 
 					messageLines.forEach(line => {
 						if(0 === line.length) {
 							messageBodyData.message.push('');
 							return;
 						}
-
-						if(preOrigin) {
-							if(line.startsWith('AREA:')) {
-								messageBodyData.area = line.substring(line.indexOf(':') + 1).trim();
-							} else if(line.startsWith('--- ')) {
-								//	Tear Lines are tracked allowing for specialized display/etc.
-								messageBodyData.tearLine = line;
-							} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is "  * Origin: ..."
-								messageBodyData.originLine = line;
-								preOrigin = false;
-							} else if(FTN_MESSAGE_KLUDGE_PREFIX === line.charAt(0)) {
-								addKludgeLine(line.slice(1));
-							} else {
-								//	regular ol' message line
-								messageBodyData.message.push(line);
+						
+						if(line.startsWith('AREA:')) {
+							messageBodyData.area = line.substring(line.indexOf(':') + 1).trim();
+						} else if(line.startsWith('--- ')) {
+							//	Tear Lines are tracked allowing for specialized display/etc.
+							messageBodyData.tearLine = line;
+						} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is "  * Origin: ..."
+							messageBodyData.originLine = line;
+							endOfMessage = false;	//	Anything past origin is not part of the message body
+						} else if(line.startsWith('SEEN-BY:')) {
+							endOfMessage = true;	//	Anything past the first SEEN-BY is not part of the message body
+							messageBodyData.seenBy.push(line.substring(line.indexOf(':') + 1).trim());
+						} else if(FTN_MESSAGE_KLUDGE_PREFIX === line.charAt(0)) {
+							if('PATH:' === line.slice(1, 6)) {
+								endOfMessage = true;	//	Anything pats the first PATH is not part of the message body
 							}
-						} else {
-							if(line.startsWith('SEEN-BY:')) {
-								messageBodyData.seenBy.push(line.substring(line.indexOf(':') + 1).trim());
-							} else if(FTN_MESSAGE_KLUDGE_PREFIX === line.charAt(0)) {
-								addKludgeLine(line.slice(1));
-							} 
+							addKludgeLine(line.slice(1));
+						} else if(endOfMessage) {
+							//	regular ol' message line
+							messageBodyData.message.push(line);
 						}
 					});
 
@@ -486,7 +484,7 @@ function Packet() {
 				.scan('subject', NULL_TERM_BUFFER)		//	:TODO: 72 bytes max
 				.scan('message', NULL_TERM_BUFFER)
 				.tap(function tapped(msgData) {
-					if(!msgData.ftn_orig_node) {
+					if(!msgData.messageType) {
 						//	end marker -- no more messages
 						end();						
 						return;
