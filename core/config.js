@@ -211,7 +211,7 @@ function getDefaultConfig() {
 
 		archivers : {
 			zip : {
-				name			: "PKZip",
+				name			: "PKZip",	//	:TODO: Use key for this
 				sig				: "504b0304",
 				offset			: 0,
 				compressCmd		: "7z",
@@ -246,10 +246,16 @@ function getDefaultConfig() {
 					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
 					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
 					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
+					temp		: paths.join(__dirname, './../mail/ftn_temp'),
 				},
 
-				maxPacketByteSize : 512000,		//	512k, before placing messages in a new pkt
-				maxBundleByteSize : 2048000,	//	2M, before creating another archive
+				//
+				//	Packet and (ArcMail) bundle target sizes are just that: targets.
+				//	Actual sizes may be slightly larger when we must place a full
+				//	PKT contents *somewhere*
+				//
+				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
+				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
 			}
 		},
 

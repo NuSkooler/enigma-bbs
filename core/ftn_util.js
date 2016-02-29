@@ -138,9 +138,9 @@ function createMessageUuid(ftnMsgId, ftnArea) {
 	return uuid.unparse(u);	//	to string
 }
 
-function getMessageSerialNumber(message) {
+function getMessageSerialNumber(messageId) {
 	const msSinceEnigmaEpoc = (Date.now() - Date.UTC(2016, 1, 1));
-	const hash				= Math.abs(new FNV1a(msSinceEnigmaEpoc + message.messageId).value).toString(16);
+	const hash				= Math.abs(new FNV1a(msSinceEnigmaEpoc + messageId).value).toString(16);
 	return `00000000${hash}`.substr(-8);
  //   return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
  //   	message.messageId)).toString(16)).substr(-8);
@@ -183,7 +183,7 @@ function getMessageSerialNumber(message) {
 //
 function getMessageIdentifier(message, address) {
 	const addrStr = new Address(address).toString('5D');
-	return `${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message)}`;
+	return `${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message.messageId)}`;
 }
 
 //

@@ -28,7 +28,8 @@
     "ptyw.js": "^0.3.7",
     "sqlite3": "^3.1.1",
     "ssh2": "^0.4.13",
-    "string-format": "davidchambers/string-format#mini-language"
+    "string-format": "davidchambers/string-format#mini-language",
+    "later" : "1.2.0"
   },
   "engines": {
     "node": ">=0.12.2"

@@ -280,6 +280,44 @@ function Packet() {
 				cb(null, ph);
 			});
 	};
+	
+	this.getPacketHeaderBuffer = function(packetHeader) {
+		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
+
+		buffer.writeUInt16LE(packetHeader.origNode, 0);
+		buffer.writeUInt16LE(packetHeader.destNode, 2);
+		buffer.writeUInt16LE(packetHeader.year, 4);
+		buffer.writeUInt16LE(packetHeader.month, 6);	
+		buffer.writeUInt16LE(packetHeader.day, 8);
+		buffer.writeUInt16LE(packetHeader.hour, 10);
+		buffer.writeUInt16LE(packetHeader.minute, 12);
+		buffer.writeUInt16LE(packetHeader.second, 14);
+		
+		buffer.writeUInt16LE(packetHeader.baud, 16);
+		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
+		buffer.writeUInt16LE(packetHeader.origNet, 20);
+		buffer.writeUInt16LE(packetHeader.destNet, 22);
+		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
+		buffer.writeUInt8(packetHeader.prodRevHi, 25);
+		
+		const pass = ftn.stringToNullPaddedBuffer(packetHeader.password, 8);
+		pass.copy(buffer, 26);
+		
+		buffer.writeUInt16LE(packetHeader.origZone, 34);
+		buffer.writeUInt16LE(packetHeader.destZone, 36);
+		buffer.writeUInt16LE(packetHeader.auxNet, 38);
+		buffer.writeUInt16LE(packetHeader.capWordValidate, 40);
+		buffer.writeUInt8(packetHeader.prodCodeHi, 42);
+		buffer.writeUInt8(packetHeader.prodRevLo, 43);
+		buffer.writeUInt16LE(packetHeader.capWord, 44);
+		buffer.writeUInt16LE(packetHeader.origZone2, 46);
+		buffer.writeUInt16LE(packetHeader.destZone2, 48);
+		buffer.writeUInt16LE(packetHeader.origPoint, 50);
+		buffer.writeUInt16LE(packetHeader.destPoint, 52);
+		buffer.writeUInt32LE(packetHeader.prodData, 54);
+		
+		return buffer;
+	}
 
 	this.writePacketHeader = function(packetHeader, ws) {
 		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
@@ -317,6 +355,8 @@ function Packet() {
 		buffer.writeUInt32LE(packetHeader.prodData, 54);
 		
 		ws.write(buffer);
+		
+		return buffer.length;
 	};
 
 	this.processMessageBody = function(messageBodyBuffer, cb) {
@@ -577,6 +617,103 @@ function Packet() {
 				});
 		});
 	};
+	
+	this.getMessageEntryBuffer = function(message, options) {
+		let basicHeader = new Buffer(34);
+		
+		basicHeader.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_node, 4);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_network, 6);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_network, 8);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_attr_flags, 10);
+		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_cost, 12);
+
+		const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
+		dateTimeBuffer.copy(basicHeader, 14);
+
+		//	toUserName & fromUserName: up to 36 bytes in length, NULL term'd
+		//	:TODO: DRY...
+		let toUserNameBuf = iconv.encode(message.toUserName + '\0', 'CP437').slice(0, 36);
+		toUserNameBuf[toUserNameBuf.length - 1] = '\0';	//	ensure it's null term'd
+		
+		let fromUserNameBuf = iconv.encode(message.fromUserName + '\0', 'CP437').slice(0, 36);
+		fromUserNameBuf[fromUserNameBuf.length - 1] = '\0';	//	ensure it's null term'd
+		
+		//	subject: up to 72 bytes in length, NULL term'd
+		let subjectBuf = iconv.encode(message.subject + '\0', 'CP437').slice(0, 72);
+		subjectBuf[subjectBuf.length - 1] = '\0';	//	ensure it's null term'd
+
+		//
+		//	message: unbound length, NULL term'd
+		//	
+		//	We need to build in various special lines - kludges, area,
+		//	seen-by, etc.
+		//
+		//	:TODO: Put this in it's own method
+		let msgBody = '';
+
+		function appendMeta(k, m) {
+			if(m) {
+				let a = m;
+				if(!_.isArray(a)) {
+					a = [ a ];
+				}
+				a.forEach(v => {
+					msgBody += `${k}: ${v}\r`;
+				});
+			}
+		}
+
+		//
+		//	FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
+		//	AREA:CONFERENCE
+		//	Should be first line in a message
+		//
+		if(message.meta.FtnProperty.ftn_area) {
+			msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`;	//	note: no ^A (0x01)
+		}
+		
+		Object.keys(message.meta.FtnKludge).forEach(k => {
+			//	we want PATH to be last
+			if('PATH' !== k) {
+				appendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
+			}
+		});
+
+		msgBody += message.message + '\r';
+
+		//
+		//	FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
+		//	Tear line should be near the bottom of a message
+		//
+		if(message.meta.FtnProperty.ftn_tear_line) {
+			msgBody += `${message.meta.FtnProperty.ftn_tear_line}\r`;
+		}
+		
+		//		
+		//	Origin line should be near the bottom of a message
+		//
+		if(message.meta.FtnProperty.ftn_origin) {
+			msgBody += `${message.meta.FtnProperty.ftn_origin}\r`;
+		}
+
+		//
+		//	FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
+		//	SEEN-BY and PATH should be the last lines of a message
+		//
+		appendMeta('SEEN-BY', message.meta.FtnProperty.ftn_seen_by);	//	note: no ^A (0x01)
+
+		appendMeta('\x01PATH', message.meta.FtnKludge['PATH']);
+		
+		return Buffer.concat( [ 
+			basicHeader, 
+			toUserNameBuf, 
+			fromUserNameBuf, 
+			subjectBuf,
+			iconv.encode(msgBody + '\0', options.encoding) 
+		]);
+	};
 
 	this.writeMessage = function(message, ws, options) {
 		let basicHeader = new Buffer(34);
@@ -748,6 +885,24 @@ Packet.prototype.read = function(pathOrBuffer, iterator, cb) {
 			cb(err);
 		}
 	);
+};
+
+Packet.prototype.writeHeader = function(ws, packetHeader) {
+	return this.writePacketHeader(packetHeader, ws);
+};
+
+Packet.prototype.writeMessage = function(ws, message, options) {
+	
+}
+
+Packet.prototype.writeMessageEntry = function(ws, msgEntry) {
+	ws.write(msgEntry);
+	return msgEntry.length; 	
+};
+
+Packet.prototype.writeTerminator = function(ws) {
+	ws.write(new Buffer( [ 0 ] ));	//	final extra null term
+	return 1;
 };
 
 Packet.prototype.writeStream = function(ws, messages, options) {

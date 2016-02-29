@@ -50,6 +50,15 @@ module.exports = class ArchiveUtil {
 			});
 		}
 	}
+	
+	haveArchiver(archType) {
+		if(!archType) {
+			return false;
+		}
+		
+		archType = archType.toLowerCase();
+		return archType in this.archivers;
+	}
 
 	detectType(path, cb) {
 		fs.open(path, 'r', (err, fd) => {
@@ -83,7 +92,9 @@ module.exports = class ArchiveUtil {
 	}
 
 	compressTo(archType, archivePath, files, cb) {
+		archType = archType.toLowerCase();		
 		const archiver = this.archivers[archType];
+		
 		if(!archiver) {
 			cb(new Error('Unknown archive type: ' + archType));
 			return;
@@ -104,7 +115,7 @@ module.exports = class ArchiveUtil {
 		});
 
 		comp.on('exit', exitCode => {
-			cb(0 === exitCode ? null : new Error('Compression failed with exit code: ' + exitCode));
+			cb(exitCode ? new Error('Compression failed with exit code: ' + exitCode) : null);
 		});
 	}
 

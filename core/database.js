@@ -204,6 +204,7 @@ function createMessageBaseTables() {
 		');'
 	);
 
+	//	:TODO: Not currently used 
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS user_message_status ('	+
 		'	user_id		INTEGER NOT NULL,'					+
@@ -212,6 +213,15 @@ function createMessageBaseTables() {
 		'	UNIQUE(user_id, message_id, status),'			+
 		'	FOREIGN KEY(user_id) REFERENCES user(id)'		+
 		');'
+	);
+	
+	dbs.message.run(
+		`CREATE TABLE IF NOT EXISTS message_area_last_scan (
+				scan_toss		VARCHAR NOT NULL,
+				area_tag		VARCHAR NOT NULL,
+				message_id	INTEGER NOT NULL,
+				UNIQUE(scan_toss, area_tag)
+		);`	
 	);
 }
 
