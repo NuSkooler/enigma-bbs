@@ -333,6 +333,16 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
+	this.setAreaLastScanId = function(areaTag, lastScanId, cb) {
+		const sql =
+			`REPLACE INTO message_area_last_scan (scan_toss, area_tag, message_id)
+			VALUES ("ftn_bso", ?, ?);`;
+		
+		msgDb.run(sql, [ areaTag, lastScanId ], err => {
+			cb(err);
+		});
+	};
+	
 	this.getNodeConfigKeyForUplink = function(uplink) {
 		//	:TODO: sort by least # of '*' & take top?
 		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
@@ -619,10 +629,8 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 		return cb(new Error('No valid configurations for export'));
 	}
 	
-	//	:TODO: Block exporting (e.g. ignore timer) until export is finished
-	
 	const getNewUuidsSql = 
-		`SELECT message_uuid
+		`SELECT message_id, message_uuid
 		FROM message
 		WHERE area_tag = ? AND message_id > ?
 		ORDER BY message_id;`;
@@ -649,18 +657,24 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 						if(err) {
 							callback(err);
 						} else {
-							callback(null, rows.map(r => r.message_uuid));	//	convert to simple array of UUIDs
+							if(0 === rows.length) {
+								let nothingToDoErr = new Error('Nothing to do!');
+								nothingToDoErr.noRows = true;
+								callback(nothingToDoErr);
+							} else {
+								callback(null, rows);
+							}
 						}
 					});
 				},
-				function exportToConfiguredUplinks(msgUuids, callback) {
-					self.exportMessagesToUplinks(msgUuids, areaConfig, err => {
-						//	:TODO: Log/handle err
-						callback(null, msgUuids[msgUuids.length - 1]);
+				function exportToConfiguredUplinks(msgRows, callback) {
+					const uuidsOnly = msgRows.map(r => r.message_uuid);	//	conver to array of UUIDs only
+					self.exportMessagesToUplinks(uuidsOnly, areaConfig, err => {
+						callback(err, msgRows[msgRows.length - 1].message_id);
 					});					
 				},
 				function updateLastScanId(newLastScanId, callback) {
-					callback(null);
+					self.setAreaLastScanId(areaTag, newLastScanId, callback);
 				}
 			],
 			function complete(err) {
@@ -673,50 +687,6 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 };
 
 FTNMessageScanTossModule.prototype.record = function(message) {
-	/*
-	if(!_.has(this, 'moduleConfig.nodes') || 
-		!_.has(Config, [ 'messageNetworks', 'ftn', 'areas', message.areaTag ]))
-	{
-		return;
-	}
-
-	const areaConfig = Config.messageNetworks.ftn.areas[message.areaTag];
-	if(!this.isAreaConfigValid(areaConfig)) {
-		//	:TODO: should probably log a warning here
-		return;
-	}
-
 	//
-	//	For each uplink, find the best configuration match
-	//
-	areaConfig.uplinks.forEach(uplink => {
-		//	:TODO: sort by least # of '*' & take top?
-		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
-			return Address.fromString(addr).isMatch(uplink);
-		})[0];
-
-		if(nodeKey) {
-			const processOptions = {
-				nodeConfig		: this.moduleConfig.nodes[nodeKey],
-				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
-				destAddress		: Address.fromString(uplink),
-				networkName		: areaConfig.network,
-			};
-						
-			if(_.isString(processOptions.network.localAddress)) {
-				//	:TODO: move/cache this - e.g. @ startup(). Think about due to Config cache
-				processOptions.network.localAddress = Address.fromString(processOptions.network.localAddress);
-			}
-			
-			//	:TODO: Validate the rest of the matching config -- or do that elsewhere, e.g. startup()
-			
-			this.createMessagePacket(message, processOptions);	
-		}
-	});
-
-	
-	//	:TODO: should perhaps record in batches - e.g. start an event, record
-	//	to temp location until time is hit or N achieved such that if multiple
-	//	messages are being created a .FTN file is not made for each one
-	*/
+	//	:TODO: If @immediate, we should do something here!
 };
