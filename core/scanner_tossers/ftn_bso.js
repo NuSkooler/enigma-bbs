@@ -55,8 +55,20 @@ function FTNMessageScanTossModule() {
 		
 	}
 	
+	this.getDefaultNetworkName = function() {
+		if(this.moduleConfig.defaultNetwork) {
+			return this.moduleConfig.defaultNetwork;
+		}
+		
+		const networkNames = Object.keys(Config.messageNetworks.ftn.networks);
+		if(1 === networkNames.length) {
+			return networkNames[0];
+		}
+	};
+	
 	this.isDefaultDomainZone = function(networkName, address) {
-		return(networkName === this.moduleConfig.defaultNetwork && address.zone === this.moduleConfig.defaultZone);
+		const defaultNetworkName = this.getDefaultNetworkName();
+		return(networkName === defaultNetworkName && address.zone === this.moduleConfig.defaultZone);
 	}
 	
 	this.getOutgoingPacketDir = function(networkName, destAddress) {
@@ -288,6 +300,8 @@ function FTNMessageScanTossModule() {
 			return false;
 		}
 		
+		//	:TODO: need to check more!
+		
 		return true;
 	};
 	
@@ -316,9 +330,6 @@ function FTNMessageScanTossModule() {
 		if(!_.isEmpty(schedule)) {
 			return schedule;
 		} 
-	};
-	
-	this.performImport = function() {
 	};
 	
 	this.getAreaLastScanId = function(areaTag, cb) {
@@ -576,6 +587,43 @@ function FTNMessageScanTossModule() {
 			);			
 		}, cb);	//	complete
 	};
+	
+	this.importMessagesFromDirectory = function(importDir, cb) {
+		async.waterfall(
+			[
+				function getPossibleFiles(callback) {
+					fs.readdir(importDir, (err, files) => {
+						callback(err, files);
+					});
+				},
+				function identify(files, callback) {
+					async.map(files, (f, transform) => {
+						let entry = { file : f };
+						
+						if('.pkt' === paths.extname(f)) {
+							entry.type = 'packet';
+							transform(null, entry);
+						} else {
+							const fullPath = paths.join(importDir, f);
+							self.archUtil.detectType(fullPath, (err, archName) => {
+								entry.type = archName;
+								transform(null, entry);
+							});
+						}						
+					}, (err, identifiedFiles) => {
+						callback(err, identifiedFiles);
+					});
+				},
+				function importPacketFiles(identifiedFiles, callback) {
+					
+				}
+			], 
+			err => {
+				cb(err);
+			}	
+		);
+	};
+
 }
 
 require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
@@ -592,7 +640,7 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 					if(!exporting) {
 						exporting = true;
 						
-						Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message export...');
+						Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
 						
 						this.performExport(err => {
 							exporting = false;
@@ -603,6 +651,24 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 			
 			if(exportSchedule.watchFile) {
 				//	:TODO: monitor file for changes/existance with gaze
+			}
+		}
+		
+		const importSchedule = this.parseScheduleString(this.moduleConfig.schedule.import);
+		if(importSchedule) {
+			if(importSchedule.sched) {
+				let importing = false;
+				this.importTimer = later.setInterval( () => {
+					if(!importing) {
+						importing = true;
+						
+						Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message import/toss...');
+						
+						this.performImport(err => {
+							importing = false;
+						});
+					}
+				}, importSchedule.sched);
 			}
 		}
 	}
@@ -620,13 +686,28 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
 
+FTNMessageScanTossModule.prototype.performImport = function(cb) {
+	if(!this.hasValidConfiguration()) {
+		return cb(new Error('Missing or invalid configuration'));
+	}
+	
+	var self = this;
+	
+	async.each( [ 'inbound', 'secInbound' ], (importDir, nextDir) => {
+		self.importMessagesFromDirectory(self.moduleConfig.paths[importDir], err => {
+			
+			nextDir();
+		});
+	}, cb);
+};
+
 FTNMessageScanTossModule.prototype.performExport = function(cb) {
 	//
 	//	We're only concerned with areas related to FTN. For each area, loop though
 	//	and let's find out what messages need exported.
 	//
 	if(!this.hasValidConfiguration()) {
-		return cb(new Error('No valid configurations for export'));
+		return cb(new Error('Missing or invalid configuration'));
 	}
 	
 	const getNewUuidsSql = 
@@ -668,9 +749,15 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 					});
 				},
 				function exportToConfiguredUplinks(msgRows, callback) {
-					const uuidsOnly = msgRows.map(r => r.message_uuid);	//	conver to array of UUIDs only
+					const uuidsOnly = msgRows.map(r => r.message_uuid);	//	convert to array of UUIDs only
 					self.exportMessagesToUplinks(uuidsOnly, areaConfig, err => {
-						callback(err, msgRows[msgRows.length - 1].message_id);
+						const newLastScanId = msgRows[msgRows.length - 1].message_id; 
+						
+						Log.info(
+							{ messagesExported : msgRows.length, newLastScanId : newLastScanId }, 
+							'Export complete');
+							
+						callback(err, newLastScanId);
 					});					
 				},
 				function updateLastScanId(newLastScanId, callback) {

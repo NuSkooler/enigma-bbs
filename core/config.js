@@ -211,7 +211,6 @@ function getDefaultConfig() {
 
 		archivers : {
 			zip : {
-				name			: "PKZip",	//	:TODO: Use key for this
 				sig				: "504b0304",
 				offset			: 0,
 				compressCmd		: "7z",

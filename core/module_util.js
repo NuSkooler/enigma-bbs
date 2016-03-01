@@ -69,8 +69,7 @@ function loadModulesForCategory(category, iterator, complete) {
 	
 	fs.readdir(Config.paths[category], (err, files) => {
 		if(err) {
-			iterator(err);
-			return;
+			return iterator(err);
 		}
 
 		const jsModules = files.filter(file => {

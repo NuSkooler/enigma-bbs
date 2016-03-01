@@ -75,7 +75,7 @@ module.exports = class ArchiveUtil {
 				}
 
 				//	return first match
-				const detected = _.find(this.archivers, arch => {
+				const detected = _.findKey(this.archivers, arch => {
 					const lenNeeded = arch.offset + arch.sig.length;
 					
 					if(buf.length < lenNeeded) {
