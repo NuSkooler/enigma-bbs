@@ -245,6 +245,8 @@ function getDefaultConfig() {
 					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
 					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
 					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
+
+					//	:TODO: use general temp path - system temp by default...or just always system temp?
 					temp		: paths.join(__dirname, './../mail/ftn_temp'),
 				},
 

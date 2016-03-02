@@ -588,6 +588,10 @@ function FTNMessageScanTossModule() {
 		}, cb);	//	complete
 	};
 	
+	this.importMessagesFromPacketFile = function(path, packetFileName, cb) {
+		cb(null);
+	};
+	
 	this.importMessagesFromDirectory = function(importDir, cb) {
 		async.waterfall(
 			[
@@ -611,11 +615,27 @@ function FTNMessageScanTossModule() {
 							});
 						}						
 					}, (err, identifiedFiles) => {
-						callback(err, identifiedFiles);
+						if(err) {
+							return callback(err);
+						}
+						
+						const fileGroups = _.partition(identifiedFiles, entry => 'packet' === entry.type); 
+						callback(null, fileGroups[0], fileGroups[1]);
 					});
 				},
-				function importPacketFiles(identifiedFiles, callback) {
-					
+				function importPacketFiles(packetFiles, bundleFiles, callback) {
+					async.each(packetFiles, (packetFile, nextFile) => {
+						self.importMessagesFromPacketFile(importDir, packetFile.file, err => {
+							//	:TODO: check err!
+							nextFile();
+						});
+					}, err => {
+						//	:TODO: Handle err! we should try to keep going though...
+						callback(null, bundleFiles);	
+					});					
+				},
+				function importBundles(bundleFiles, callback) {
+					//	:TODO: for each bundle, extract to temp location -> process each packet
 				}
 			], 
 			err => {
