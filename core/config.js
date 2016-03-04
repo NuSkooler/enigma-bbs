@@ -216,7 +216,7 @@ function getDefaultConfig() {
 				compressCmd		: "7z",
 				compressArgs	: [ "a", "-tzip", "{archivePath}", "{fileList}" ],
 				decompressCmd	: "7z",
-				decompressArgs	: [ "e", "-o{extractDir}", "{archivePath}" ]
+				decompressArgs	: [ "e", "-o{extractPath}", "{archivePath}" ]
 			}
 		},
 
@@ -245,9 +245,6 @@ function getDefaultConfig() {
 					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
 					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
 					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
-
-					//	:TODO: use general temp path - system temp by default...or just always system temp?
-					temp		: paths.join(__dirname, './../mail/ftn_temp'),
 				},
 
 				//

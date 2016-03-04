@@ -51,13 +51,17 @@ module.exports = class ArchiveUtil {
 		}
 	}
 	
-	haveArchiver(archType) {
+	getArchiver(archType) {
 		if(!archType) {
-			return false;
+			return;
 		}
 		
 		archType = archType.toLowerCase();
-		return archType in this.archivers;
+		return this.archivers[archType];
+	}
+	
+	haveArchiver(archType) {
+		return this.getArchiver(archType) ? true : false;
 	}
 
 	detectType(path, cb) {
@@ -92,15 +96,13 @@ module.exports = class ArchiveUtil {
 	}
 
 	compressTo(archType, archivePath, files, cb) {
-		archType = archType.toLowerCase();		
-		const archiver = this.archivers[archType];
+		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
-			cb(new Error('Unknown archive type: ' + archType));
-			return;
+			return cb(new Error(`Unknown archive type: ${archType}`));
 		}
 
-		let args = _.clone(archiver.compressArgs);	//	don't much with orig
+		let args = _.clone(archiver.compressArgs);	//	don't muck with orig
 		for(let i = 0; i < args.length; ++i) {
 			args[i] = args[i].format({
 				archivePath	: archivePath,
@@ -108,18 +110,42 @@ module.exports = class ArchiveUtil {
 			});
 		}
 
-		let comp = pty.spawn(archiver.compressCmd, args, {
-			cols : 80,
-			rows : 24,
-			//	:TODO: cwd
-		});
+		let comp = pty.spawn(archiver.compressCmd, args, this.getPtyOpts());
 
-		comp.on('exit', exitCode => {
-			cb(exitCode ? new Error('Compression failed with exit code: ' + exitCode) : null);
+		comp.once('exit', exitCode => {
+			cb(exitCode ? new Error(`Compression failed with exit code: ${exitCode}`) : null);
 		});
 	}
 
 	extractTo(archivePath, extractPath, archType, cb) {
-
+		const archiver = this.getArchiver(archType);
+		
+		if(!archiver) {
+			return cb(new Error(`Unknown archive type: ${archType}`));
+		}
+		
+		let args = _.clone(archiver.decompressArgs);	//	don't muck with orig
+		for(let i = 0; i < args.length; ++i) {
+			args[i] = args[i].format({
+				archivePath		: archivePath,
+				extractPath		: extractPath,
+			});
+		}
+		
+		let comp = pty.spawn(archiver.decompressCmd, args, this.getPtyOpts());
+		
+		comp.once('exit', exitCode => {
+			cb(exitCode ? new Error(`Decompression failed with exit code: ${exitCode}`) : null);
+		});		
+	}
+	
+	getPtyOpts() {
+		return {
+			//	:TODO: cwd
+			name	: 'enigma-archiver',
+			cols	: 80,
+			rows	: 24,
+			env		: process.env,	
+		};
 	}
 }
