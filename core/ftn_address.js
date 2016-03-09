@@ -107,7 +107,7 @@ module.exports = class Address {
 	}
 	*/
 
-	isMatch(pattern) {
+	isPatternMatch(pattern) {
 		const addr = this.getMatchAddr(pattern);
 		if(addr) {
 			return (

@@ -62,22 +62,6 @@ function Message(options) {
 		ts = ts || new Date();
 		return ts.toISOString();
 	};
-
-	/*
-	Object.defineProperty(this, 'messageId', {
-		get : function() {
-			return messageId;
-		}
-	});
-
-	Object.defineProperty(this, 'areaId', {
-		get : function() { return areaId; },
-		set : function(i) {
-			areaId = i;
-		}
-	});
-
-	*/
 }
 
 Message.WellKnownAreaTags = {
@@ -115,9 +99,7 @@ Message.FtnPropertyNames = {
 	FtnDestZone			: 'ftn_dest_zone',
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
-	
-	
-	
+		
 	FtnAttribute		: 'ftn_attribute',
 
 	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
@@ -134,6 +116,118 @@ Message.prototype.setLocalToUserId = function(userId) {
 
 Message.prototype.setLocalFromUserId = function(userId) {
 	this.meta.System.local_from_user_id = userId;
+};
+
+Message.getMessageIdByUuid = function(uuid, cb) {
+	msgDb.get(
+		`SELECT message_id
+		FROM message
+		WHERE message_uuid = ?
+		LIMIT 1;`, 
+		[ uuid ], 
+		(err, row) => {
+			if(err) {
+				cb(err);
+			} else {
+				const success = (row && row.message_id);
+				cb(success ? null : new Error('No match'), success ? row.message_id : null);
+			}
+		}
+	);
+};
+
+Message.getMessageIdsByMetaValue = function(category, name, value, cb) {
+	msgDb.all(
+		`SELECT message_id
+		FROM message_meta
+		WHERE meta_category = ? AND meta_name = ? AND meta_value = ?;`,
+		[ category, name, value ],
+		(err, rows) => {
+			if(err) {
+				cb(err);
+			} else {
+				cb(null, rows.map(r => parseInt(r.message_id)));	//	return array of ID(s)
+			}
+		}
+	);
+};
+
+Message.loadMetaValueForCategegoryByMessageUuid = function(uuid, category, name, cb) {	
+	async.waterfall(
+		[
+			function getMessageId(callback) {
+				Message.getMessageIdByUuid(uuid, (err, messageId) => {
+					callback(err, messageId);
+				});
+			},
+			function getMetaValue(messageId, callback) {
+				const sql = 
+					`SELECT meta_value
+					FROM message_meta
+					WHERE message_id = ? AND message_category = ? AND meta_name = ?;`;
+					
+				msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
+					if(err) {
+						return callback(err);
+					}
+					
+					if(0 === rows.length) {
+						return callback(new Error('No value for category/name'));
+					}
+					
+					//	single values are returned without an array
+					if(1 === rows.length) {
+						return callback(null, rows[0].meta_value);
+					}
+					
+					callback(null, rows.map(r => r.meta_value));
+				});
+			}
+		],
+		(err, value) => {
+			cb(err, value);
+		}
+	);
+};
+
+Message.prototype.loadMeta = function(cb) {
+	/*
+		Example of loaded this.meta:
+		
+		meta: {
+			System: {
+				local_to_user_id: 1234,				
+			},
+			FtnProperty: {
+				ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
+			}
+		}					
+	*/	
+	
+	const sql = 
+		`SELECT meta_category, meta_name, meta_value
+		FROM message_meta
+		WHERE message_id = ?;`;
+		
+	let self = this;
+	msgDb.each(sql, [ this.messageId ], (err, row) => {
+		if(!(row.meta_category in self.meta)) {
+			self.meta[row.meta_category] = { };
+			self.meta[row.meta_category][row.meta_name] = row.meta_value;
+		} else {
+			if(!(row.meta_name in self.meta[row.meta_category])) {
+				self.meta[row.meta_category][row.meta_name] = row.meta_value; 
+			} else {
+				if(_.isString(self.meta[row.meta_category][row.meta_name])) {
+					self.meta[row.meta_category][row.meta_name] = [ self.meta[row.meta_category][row.meta_name] ];					
+				}
+				
+				self.meta[row.meta_category][row.meta_name].push(row.meta_value);
+			}
+		}
+	}, err => {
+		cb(err);
+	});
 };
 
 Message.prototype.load = function(options, cb) {
@@ -168,8 +262,9 @@ Message.prototype.load = function(options, cb) {
 				);
 			},
 			function loadMessageMeta(callback) {
-				//	:TODO:
-				callback(null);
+				self.loadMeta(err => {
+					callback(err);
+				});
 			},
 			function loadHashTags(callback) {
 				//	:TODO:
@@ -188,27 +283,59 @@ Message.prototype.load = function(options, cb) {
 	);
 };
 
+Message.prototype.persistMetaValue = function(category, name, value, cb) {
+	const metaStmt = msgDb.prepare(
+		`INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
+		VALUES (?, ?, ?, ?);`);
+		
+	if(!_.isArray(value)) {
+		value = [ value ];
+	}
+	
+	let self = this;
+	
+	async.each(value, (v, next) => {
+		metaStmt.run(self.messageId, category, name, v, err => {
+			next(err);
+		});
+	}, err => {
+		cb(err);
+	});
+};
+
+Message.startTransaction = function(cb) {
+	msgDb.run('BEGIN;', err => {
+		cb(err);
+	});
+};
+
+Message.endTransaction = function(hadError, cb) {
+	msgDb.run(hadError ? 'ROLLBACK;' : 'COMMIT;', err => {
+		cb(err);
+	});	
+};
+
 Message.prototype.persist = function(cb) {
 
 	if(!this.isValid()) {
-		cb(new Error('Cannot persist invalid message!'));
-		return;
+		return cb(new Error('Cannot persist invalid message!'));
 	}
 
-	var self = this;
-
+	let self = this;
+	
 	async.series(
 		[
 			function beginTransaction(callback) {
-				msgDb.run('BEGIN;', function transBegin(err) {
+				Message.startTransaction(err => {
 					callback(err);
 				});
 			},
 			function storeMessage(callback) {
 				msgDb.run(
-					'INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp) ' +
-					'VALUES (?, ?, ?, ?, ?, ?, ?, ?);', [ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
-					function msgInsert(err) {
+					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
+					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
+					function inserted(err) {	//	use for this scope
 						if(!err) {
 							self.messageId = this.lastID;
 						}
@@ -221,26 +348,30 @@ Message.prototype.persist = function(cb) {
 				if(!self.meta) {
 					callback(null);
 				} else {
-					//	:TODO: this should be it's own method such that meta can be updated
-					var metaStmt = msgDb.prepare(
-						'INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) ' + 
-						'VALUES (?, ?, ?, ?);');
-
-					for(var metaCategroy in self.meta) {
-						async.each(Object.keys(self.meta[metaCategroy]), function meta(metaName, next) {
-							metaStmt.run(self.messageId, Message.MetaCategories[metaCategroy], metaName, self.meta[metaCategroy][metaName], function inserted(err) {
-								next(err);
-							});
-						}, function complete(err) {
-							if(!err) {
-								metaStmt.finalize(function finalized() {
-									callback(null);
-								});
-							} else {
-								callback(err);
+					/*
+						Example of self.meta:
+						
+						meta: {
+							System: {
+								local_to_user_id: 1234,				
+							},
+							FtnProperty: {
+								ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
 							}
+						}					
+					*/
+					async.each(Object.keys(self.meta), (category, nextCat) => {
+						async.each(Object.keys(self.meta[category]), (name, nextName) => {
+							self.persistMetaValue(category, name, self.meta[category][name], err => {
+								nextName(err);
+							});
+						}, err => {
+							nextCat(err);
 						});
-					}
+						 
+					}, err => {
+						callback(err);
+					});					
 				}
 			},
 			function storeHashTags(callback) {
@@ -248,9 +379,9 @@ Message.prototype.persist = function(cb) {
 				callback(null);
 			}
 		],
-		function complete(err) {
-			msgDb.run(err ? 'ROLLBACK;' : 'COMMIT;', function transEnd(err) {
-				cb(err, self.messageId);
+		err => {
+			Message.endTransaction(err, transErr => {
+				cb(err ? err : transErr, self.messageId);
 			});
 		}
 	);

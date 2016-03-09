@@ -32,6 +32,7 @@ const FTN_PACKET_HEADER_SIZE	= 58;	//	fixed header size
 const FTN_PACKET_HEADER_TYPE	= 2;
 const FTN_PACKET_MESSAGE_TYPE	= 2;
 const FTN_PACKET_BAUD_TYPE_2_2	= 2;
+const NULL_TERM_BUFFER			= new Buffer( [ 0x00 ] );
 
 //	SAUCE magic header + version ("00")
 const FTN_MESSAGE_SAUCE_HEADER = new Buffer('SAUCE00');
@@ -171,7 +172,6 @@ exports.PacketHeader = PacketHeader;
 //		http://walon.org/pub/fidonet/FTSC-nodelists-etc./pkt-types.txt
 //
 function Packet() {
-
 	var self = this;
 
 	this.parsePacketHeader = function(packetBuffer, cb) {
@@ -509,115 +509,105 @@ function Packet() {
 			}
 		);
 	};
+	
+	this.parsePacketMessages = function(packetBuffer, iterator, cb) {
+		binary.parse(packetBuffer)
+			.word16lu('messageType')
+			.word16lu('ftn_orig_node')
+			.word16lu('ftn_dest_node')
+			.word16lu('ftn_orig_network')
+			.word16lu('ftn_dest_network')
+			.word16lu('ftn_attr_flags')
+			.word16lu('ftn_cost')
+			.scan('modDateTime', NULL_TERM_BUFFER)	//	:TODO: 20 bytes max
+			.scan('toUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
+			.scan('fromUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
+			.scan('subject', NULL_TERM_BUFFER)		//	:TODO: 72 bytes max6
+			.scan('message', NULL_TERM_BUFFER)
+			.tap(function tapped(msgData) {	//	no arrow function; want classic this
+				if(!msgData.messageType) {
+					//	end marker -- no more messages			
+					return cb(null);
+				}
+				
+				if(FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
+					return cb(new Error('Unsupported message type: ' + msgData.messageType));
+				}
+				
+				const read = 
+					14 +								//	fixed header size
+					msgData.modDateTime.length + 1 +
+					msgData.toUserName.length + 1 +
+					msgData.fromUserName.length + 1 +
+					msgData.subject.length + 1 +
+					msgData.message.length + 1;
+				
+				//
+				//	Convert null terminated arrays to strings
+				//
+				let convMsgData = {};
+				[ 'modDateTime', 'toUserName', 'fromUserName', 'subject' ].forEach(k => {
+					convMsgData[k] = iconv.decode(msgData[k], 'CP437');
+				});
 
-	this.parsePacketMessages = function(messagesBuffer, iterator, cb) {
-		const NULL_TERM_BUFFER = new Buffer( [ 0 ] );
-		
-		var count = 0;
+				//
+				//	The message body itself is a special beast as it may
+				//	contain an origin line, kludges, SAUCE in the case
+				//	of ANSI files, etc.
+				//
+				let msg = new Message( {
+					toUserName		: convMsgData.toUserName,
+					fromUserName	: convMsgData.fromUserName,
+					subject			: convMsgData.subject,
+					modTimestamp	: ftn.getDateFromFtnDateTime(convMsgData.modDateTime),
+				});
+									
+				msg.meta.FtnProperty = {};
+				msg.meta.FtnProperty.ftn_orig_node		= msgData.ftn_orig_node;
+				msg.meta.FtnProperty.ftn_dest_node		= msgData.ftn_dest_node;
+				msg.meta.FtnProperty.ftn_orig_network 	= msgData.ftn_orig_network;
+				msg.meta.FtnProperty.ftn_dest_network	= msgData.ftn_dest_network;
+				msg.meta.FtnProperty.ftn_attr_flags		= msgData.ftn_attr_flags;
+				msg.meta.FtnProperty.ftn_cost			= msgData.ftn_cost;
 
-		binary.stream(messagesBuffer).loop(function looper(end, vars) {
-			//
-			//	Some variable names used here match up directly with well known
-			//	meta data names used with FTN messages.
-			//
-			this
-				.word16lu('messageType')
-				.word16lu('ftn_orig_node')
-				.word16lu('ftn_dest_node')
-				.word16lu('ftn_orig_network')
-				.word16lu('ftn_dest_network')
-				.word16lu('ftn_attr_flags')
-				.word16lu('ftn_cost')
-				.scan('modDateTime', NULL_TERM_BUFFER)	//	:TODO: 20 bytes max
-				.scan('toUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
-				.scan('fromUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
-				.scan('subject', NULL_TERM_BUFFER)		//	:TODO: 72 bytes max
-				.scan('message', NULL_TERM_BUFFER)
-				.tap(function tapped(msgData) {
-					if(!msgData.messageType) {
-						//	end marker -- no more messages
-						end();						
-						return;
-					}
-
-					if(FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
-						end();
-						//	:TODO: This is probably a bug if we hit a bad message after at leats one iterate
-						cb(new Error('Unsupported message type: ' + msgData.messageType));
-						return;
+				self.processMessageBody(msgData.message, messageBodyData => {
+					msg.message 		= messageBodyData.message;
+					msg.meta.FtnKludge	= messageBodyData.kludgeLines;
+			
+					if(messageBodyData.tearLine) {
+						msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
 					}
 					
-					++count;
-
-					//
-					//	Convert null terminated arrays to strings
-					//
-					let convMsgData = {};
-					[ 'modDateTime', 'toUserName', 'fromUserName', 'subject' ].forEach(k => {
-						convMsgData[k] = iconv.decode(msgData[k], 'CP437');
-					});
-
-					//
-					//	The message body itself is a special beast as it may
-					//	contain special origin lines, kludges, SAUCE in the case
-					//	of ANSI files, etc.
-					//
-					let msg = new Message( {
-						toUserName		: convMsgData.toUserName,
-						fromUserName	: convMsgData.fromUserName,
-						subject			: convMsgData.subject,
-						modTimestamp	: ftn.getDateFromFtnDateTime(convMsgData.modDateTime),
-					});
-										
-					msg.meta.FtnProperty = {};
-					msg.meta.FtnProperty.ftn_orig_node		= msgData.ftn_orig_node;
-					msg.meta.FtnProperty.ftn_dest_node		= msgData.ftn_dest_node;
-					msg.meta.FtnProperty.ftn_orig_network 	= msgData.ftn_orig_network;
-					msg.meta.FtnProperty.ftn_dest_network	= msgData.ftn_dest_network;
-					msg.meta.FtnProperty.ftn_attr_flags		= msgData.ftn_attr_flags;
-					msg.meta.FtnProperty.ftn_cost			= msgData.ftn_cost;
-
-					self.processMessageBody(msgData.message, function processed(messageBodyData) {
-						msg.message = messageBodyData.message;
-						msg.meta.FtnKludge = messageBodyData.kludgeLines;
-				
-						if(messageBodyData.tearLine) {
-							msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
-						}
-						if(messageBodyData.seenBy.length > 0) {
-							msg.meta.FtnProperty.ftn_seen_by = messageBodyData.seenBy;
-						}
-						if(messageBodyData.area) {
-							msg.meta.FtnProperty.ftn_area = messageBodyData.area;
-						}
-						if(messageBodyData.originLine) {
-							msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
-						}
-
-						//
-						//	Update message UUID, if possible, based on MSGID and AREA
-						//
-						if(_.isString(msg.meta.FtnKludge.MSGID) &&
-							_.isString(msg.meta.FtnProperty.ftn_area) &&
-							msg.meta.FtnKludge.MSGID.length > 0 &&
-							msg.meta.FtnProperty.ftn_area.length > 0)
-						{
-							msg.uuid = ftn.createMessageUuid(
-								msg.meta.FtnKludge.MSGID,
-								msg.meta.FtnProperty.area);
-						}
-
-						iterator('message', msg);
+					if(messageBodyData.seenBy.length > 0) {
+						msg.meta.FtnProperty.ftn_seen_by = messageBodyData.seenBy;
+					}
+					
+					if(messageBodyData.area) {
+						msg.meta.FtnProperty.ftn_area = messageBodyData.area;
+					}
+					
+					if(messageBodyData.originLine) {
+						msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
+					}			
+					
+					const nextBuf = packetBuffer.slice(read);
+					if(nextBuf.length > 0) {
+						let next = function(e) {
+							if(e) {
+								cb(e);
+							} else {
+								self.parsePacketMessages(nextBuf, iterator, cb);
+							}
+						};
 						
-						--count;
-						if(0 === count) {
-							cb(null);
-						}
-					})					
-				});
-		});
+						iterator('message', msg, next);
+					} else {
+						cb(null);
+					}
+				});			
+			});
 	};
-	
+		
 	this.getMessageEntryBuffer = function(message, options) {
 		let basicHeader = new Buffer(34);
 		
@@ -664,7 +654,7 @@ function Packet() {
 				});
 			}
 		}
-
+		
 		//
 		//	FTN-0004.001 @ http://ftsc.org/docs/fts-0004.001
 		//	AREA:CONFERENCE
@@ -818,10 +808,15 @@ function Packet() {
 			[
 				function processHeader(callback) {
 					self.parsePacketHeader(packetBuffer, (err, header) => {
-						if(!err) {
-							iterator('header', header);
+						if(err) {
+							return callback(err);
 						}
-						callback(err);
+						
+						let next = function(e) {
+							callback(e);
+						};
+						
+						iterator('header', header, next);
 					});
 				},
 				function processMessages(callback) {
@@ -881,7 +876,7 @@ Packet.prototype.read = function(pathOrBuffer, iterator, cb) {
 				});
 			}
 		],
-		function complete(err) {
+		err => {
 			cb(err);
 		}
 	);

@@ -4,6 +4,7 @@
 let Config			= require('./config.js').config;
 let Address			= require('./ftn_address.js');
 let FNV1a			= require('./fnv1a.js');
+let createNamedUUID	= require('./uuid_util.js').createNamedUUID;
 
 let _				= require('lodash');
 let assert			= require('assert');
@@ -22,6 +23,7 @@ let packageJson 	= require('../package.json');
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
 exports.getMessageSerialNumber		= getMessageSerialNumber;
 exports.createMessageUuid			= createMessageUuid;
+exports.createMessageUuidAlternate	= createMessageUuidAlternate;
 exports.getDateFromFtnDateTime		= getDateFromFtnDateTime;
 exports.getDateTimeString			= getDateTimeString;
 
@@ -100,42 +102,43 @@ function getDateTimeString(m) {
 	return m.format('DD MMM YY  HH:mm:ss');
 }
 
+//
+//	Create a v5 named UUID given a message ID ("MSGID") and
+//	FTN area tag ("AREA").
+//
+//	This is similar to CrashMail
+//	See https://github.com/larsks/crashmail/blob/master/crashmail/dupe.c
+//
 function createMessageUuid(ftnMsgId, ftnArea) {
-	//
-	//	v5 UUID generation code based on the work here:
-	//	https://github.com/download13/uuidv5/blob/master/uuid.js
-	//
-	//	Note: CrashMail uses MSGID + AREA, so we go with that as well:
-	//	https://github.com/larsks/crashmail/blob/master/crashmail/dupe.c
-	//
-	if(!Buffer.isBuffer(ftnMsgId)) {
-		ftnMsgId = iconv.encode(ftnMsgId, 'CP437');
-	}
+	assert(_.isString(ftnMsgId));
+	assert(_.isString(ftnArea));
 
-	ftnArea = ftnArea || '';	//	AREA is optional
-	if(!Buffer.isBuffer(ftnArea)) {
-		ftnArea = iconv.encode(ftnArea, 'CP437');
-	}
+	ftnMsgId	= iconv.encode(ftnMsgId, 'CP437');
+	ftnArea		= iconv.encode(ftnArea.toUpperCase(), 'CP437');
 	
-	const ns = new Buffer(ENIGMA_FTN_MSGID_NAMESPACE);
+	return uuid.unparse(createNamedUUID(ENIGMA_FTN_MSGID_NAMESPACE, Buffer.concat( [ ftnMsgId, ftnArea ] )));
+};
 
-	let digest = createHash('sha1').update(
-		Buffer.concat([ ns, ftnMsgId, ftnArea ])).digest();
-
-	let u = new Buffer(16);
-
-	// bbbb - bb - bb - bb - bbbbbb
-	digest.copy(u, 0, 0, 4);			// time_low
-	digest.copy(u, 4, 4, 6);			// time_mid
-	digest.copy(u, 6, 6, 8);			// time_hi_and_version
-
-	u[6] = (u[6] & 0x0f) | 0x50;		// version, 4 most significant bits are set to version 5 (0101)
-	u[8] = (digest[8] & 0x3f) | 0x80;	// clock_seq_hi_and_reserved, 2msb are set to 10
-	u[9] = digest[9];
+//
+//	Create a v5 named UUID given a FTN area tag ("AREA"),
+//	create/modified date, subject, and message body
+//
+//	This method should be used as a backup for when a MSGID is
+//	not available in which createMessageUuid() above should be
+//	used instead.
+//
+function createMessageUuidAlternate(ftnArea, modTimestamp, subject, msgBody) {
+	assert(_.isString(ftnArea));
+	assert(_.isDate(modTimestamp) || moment.isMoment(modTimestamp));
+	assert(_.isString(subject));
+	assert(_.isString(msgBody));
+		
+	ftnArea			= iconv.encode(ftnArea.toUpperCase(), 'CP437');
+	modTimestamp	= iconv.encode(getDateTimeString(modTimestamp), 'CP437');
+	subject			= iconv.encode(subject.toUpperCase().trim(), 'CP437');
+	msgBody			= iconv.encode(msgBody.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
 	
-	digest.copy(u, 10, 10, 16);
-
-	return uuid.unparse(u);	//	to string
+	return uuid.unparse(createNamedUUID(ENIGMA_FTN_MSGID_NAMESPACE, Buffer.concat( [ ftnArea, modTimestamp, subject, msgBody ] )));
 }
 
 function getMessageSerialNumber(messageId) {
@@ -274,6 +277,9 @@ function getAbbreviatedNetNodeList(netNodes) {
 	let abbrList = '';
 	let currNet;
 	netNodes.forEach(netNode => {
+		if(_.isString(netNode)) {
+			netNode = Address.fromString(netNode);
+		}
 		if(currNet !== netNode.net) {
 			abbrList += `${netNode.net}/`;
 			currNet = netNode.net;
@@ -284,29 +290,24 @@ function getAbbreviatedNetNodeList(netNodes) {
 	return abbrList.trim();	//	remove trailing space
 }
 
+//
+//	Parse an abbreviated net/node list commonly used for SEEN-BY and PATH
+//
 function parseAbbreviatedNetNodeList(netNodes) {
-	//
-	//	Make sure we have an array of objects.
-	//	Allow for a single object or string(s)
-	//
-	if(!_.isArray(netNodes)) {
-		if(_.isString(netNodes)) {
-			netNodes = netNodes.split(' ');
-		} else {
-			netNodes = [ netNodes ];
-		}
-	}
-
-	//
-	//	Convert any strings to parsed address objects
-	//
-	return netNodes.map(a => {
-		if(_.isObject(a)) {
-			return a;			
-		} else {
-			return Address.fromString(a);
-		}
-	});
+    const re = /([0-9]+)\/([0-9]+)\s?|([0-9]+)\s?/g;
+    let net;
+    let m;
+    let results = [];	
+    while(null !== (m = re.exec(netNodes))) {
+        if(m[1] && m[2]) {
+            net = parseInt(m[1]);
+            results.push(new Address( { net : net, node : parseInt(m[2]) } ));
+        } else if(net) {
+            results.push(new Address( { net : net, node : parseInt(m[3]) } ));
+        }
+    }
+    
+    return results;
 }
 
 //
@@ -348,8 +349,12 @@ function getUpdatedSeenByEntries(existingEntries, additions) {
 	if(!_.isArray(existingEntries)) {
 		existingEntries = [ existingEntries ];
 	}
+	
+	if(!_.isString(additions)) {
+		additions = parseAbbreviatedNetNodeList(getAbbreviatedNetNodeList(additions)); 
+	}
 
-	additions = parseAbbreviatedNetNodeList(additions).sort(Address.getComparator());
+	additions = additions.sort(Address.getComparator());
 
 	//
 	//	For now, we'll just append a new SEEN-BY entry
