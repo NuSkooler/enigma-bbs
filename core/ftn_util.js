@@ -8,12 +8,8 @@ let createNamedUUID	= require('./uuid_util.js').createNamedUUID;
 
 let _				= require('lodash');
 let assert			= require('assert');
-let binary			= require('binary');
-let fs				= require('fs');
-let util			= require('util');
 let iconv			= require('iconv-lite');
 let moment			= require('moment');
-let createHash		= require('crypto').createHash;
 let uuid			= require('node-uuid');
 let os				= require('os');
 
@@ -48,9 +44,6 @@ exports.getQuotePrefix				= getQuotePrefix;
 //	FTN kludges MSGID + AREA
 //
 const ENIGMA_FTN_MSGID_NAMESPACE 	= uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
-
-//	Up to 5D FTN address RegExp
-const ENIGMA_FTN_ADDRESS_REGEXP		= /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
@@ -145,8 +138,6 @@ function getMessageSerialNumber(messageId) {
 	const msSinceEnigmaEpoc = (Date.now() - Date.UTC(2016, 1, 1));
 	const hash				= Math.abs(new FNV1a(msSinceEnigmaEpoc + messageId).value).toString(16);
 	return `00000000${hash}`.substr(-8);
- //   return ('00000000' + ((Math.floor((Date.now() - Date.UTC(2016, 1, 1)) / 1000) + 
- //   	message.messageId)).toString(16)).substr(-8);
 }
 
 //
@@ -205,16 +196,6 @@ function getProductIdentifier() {
 	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
 
 	return `ENiGMA1/2 ${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
-}
-
-//
-//	Return a FSC-0030.001 compliant (http://ftsc.org/docs/fsc-0030.001) MESSAGE-ID
-//
-//	<unique-part@domain-name>
-//	
-//	:TODO: not implemented to spec at all yet :)
-function getFTNMessageID(messageId, areaId) {
-    return messageId + '.' + areaId + '@' + getFTNAddress() + ' ' + getMessageSerialNumber(messageId)
 }
 
 //
@@ -294,20 +275,20 @@ function getAbbreviatedNetNodeList(netNodes) {
 //	Parse an abbreviated net/node list commonly used for SEEN-BY and PATH
 //
 function parseAbbreviatedNetNodeList(netNodes) {
-    const re = /([0-9]+)\/([0-9]+)\s?|([0-9]+)\s?/g;
-    let net;
-    let m;
-    let results = [];	
-    while(null !== (m = re.exec(netNodes))) {
-        if(m[1] && m[2]) {
-            net = parseInt(m[1]);
-            results.push(new Address( { net : net, node : parseInt(m[2]) } ));
-        } else if(net) {
-            results.push(new Address( { net : net, node : parseInt(m[3]) } ));
-        }
-    }
-    
-    return results;
+	const re = /([0-9]+)\/([0-9]+)\s?|([0-9]+)\s?/g;
+	let net;
+	let m;
+	let results = [];	
+	while(null !== (m = re.exec(netNodes))) {
+		if(m[1] && m[2]) {
+			net = parseInt(m[1]);
+			results.push(new Address( { net : net, node : parseInt(m[2]) } ));
+		} else if(net) {
+			results.push(new Address( { net : net, node : parseInt(m[3]) } ));
+		}
+	}
+
+	return results;
 }
 
 //

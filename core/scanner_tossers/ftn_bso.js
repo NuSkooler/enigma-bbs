@@ -184,7 +184,7 @@ function FTNMessageScanTossModule() {
 		let fileName = `${basename}.${moment().format('dd').toLowerCase()}`;
 		async.detectSeries(EXT_SUFFIXES, (suffix, callback) => {
 			const checkFileName = fileName + suffix; 			
-			fs.stat(paths.join(basePath, checkFileName), (err, stats) => {
+			fs.stat(paths.join(basePath, checkFileName), err => {
 				callback((err && 'ENOENT' === err.code) ? true : false);
 			});
 		}, finalSuffix => {
@@ -213,7 +213,8 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();		
 
 		//	:TODO: Need an explicit isNetMail() check
-		let ftnAttribute = 0;
+		let ftnAttribute = 
+			ftnMailPacket.Packet.Attribute.Local;	//	message from our system
 		
 		if(message.isPrivate()) {
 			ftnAttribute |= ftnMailPacket.Packet.Attribute.Private;
@@ -230,7 +231,7 @@ function FTNMessageScanTossModule() {
 		} else {
 			//
 			//	EchoMail requires some additional properties & kludges
-			//			
+			//		
 			message.meta.FtnProperty.ftn_origin		= ftnUtil.getOrigin(options.network.localAddress);
 			message.meta.FtnProperty.ftn_area		= Config.messageNetworks.ftn.areas[message.areaTag].tag;
 			
@@ -586,6 +587,10 @@ function FTNMessageScanTossModule() {
 									exportOpts.nodeConfig.archiveType, 
 									tempBundlePath,
 									exportedFileNames, err => {
+										if(err) {
+											return callback(err);
+										}
+										
 										//	:TODO: we need to delete the original input file(s)
 										fs.rename(tempBundlePath, bundlePath, err => {
 											callback(err, [ bundlePath ] );
@@ -614,10 +619,13 @@ function FTNMessageScanTossModule() {
 							Log.trace(
 								Object.assign(stats, { tempDir : exportOpts.tempDir }), 
 								'Temporary directory cleaned up');
+								
+							callback(null);
 						});
 					}
 				],
 				err => {
+					//	:TODO: do something with |err| ?
 					nextUplink();
 				}
 			);			
@@ -648,16 +656,8 @@ function FTNMessageScanTossModule() {
 	this.importNetMailToArea = function(localAreaTag, header, message, cb) {
 		async.series(
 			[
-				function validateDestinationAddress(callback) {
-					/*
-					const messageDestAddress = new Address({
-						node	: message.meta.FtnProperty.ftn_dest_node,
-						net		: message.meta.FtnProperty.ftn_dest_network,
-					});
-					*/
-					
-					const localNetworkPattern = `${message.meta.FtnProperty.ftn_dest_network}/${message.meta.FtnProperty.ftn_dest_node}`;
-					
+				function validateDestinationAddress(callback) {			
+					const localNetworkPattern = `${message.meta.FtnProperty.ftn_dest_network}/${message.meta.FtnProperty.ftn_dest_node}`;					
 					const localNetworkName = self.getNetworkNameByAddressPattern(localNetworkPattern);
 					
 					callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
@@ -698,7 +698,8 @@ function FTNMessageScanTossModule() {
 						callback(err);						
 					});
 				}
-			], err => {
+			], 
+			err => {
 				cb(err);	
 			}
 		);
@@ -1002,10 +1003,18 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 		return cb(new Error('Missing or invalid configuration'));
 	}
 	
+	//
+	//	Select all messages that have a message_id > our last scan ID.
+	//	Additionally exclude messages that have a ftn_attr_flags FtnProperty meta
+	//	as those came via import!
+	//	
 	const getNewUuidsSql = 
 		`SELECT message_id, message_uuid
-		FROM message
-		WHERE area_tag = ? AND message_id > ?
+		FROM message m
+		WHERE area_tag = ? AND message_id > ? AND
+			(SELECT COUNT(message_id) 
+			FROM message_meta 
+			WHERE message_id = m.message_id AND meta_category = 'FtnProperty' AND meta_name = 'ftn_attr_flags') = 0
 		ORDER BY message_id;`;
 		
 	var self = this;		

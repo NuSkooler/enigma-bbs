@@ -11,10 +11,8 @@ let _				= require('lodash');
 let assert			= require('assert');
 let binary			= require('binary');
 let fs				= require('fs');
-let util			= require('util');
 let async			= require('async');
 let iconv			= require('iconv-lite');
-let buffers			= require('buffers');
 let moment			= require('moment');
 
 exports.Packet			= Packet;
@@ -835,8 +833,11 @@ function Packet() {
 //	Message attributes defined in FTS-0001.016
 //	http://ftsc.org/docs/fts-0001.016
 //
+//	See also:
+//	* http://www.skepticfiles.org/aj/basics03.htm
+//
 Packet.Attribute = {
-	Private					: 0x0001,
+	Private					: 0x0001,	//	Private message / NetMail
 	Crash					: 0x0002,
 	Received				: 0x0004,
 	Sent					: 0x0008,
@@ -844,7 +845,7 @@ Packet.Attribute = {
 	InTransit				: 0x0020,
 	Orphan					: 0x0040,
 	KillSent				: 0x0080,
-	Local					: 0x0100,
+	Local					: 0x0100,	//	Message is from *this* system	
 	Hold					: 0x0200,
 	Reserved0				: 0x0400,
 	FileRequest				: 0x0800,
@@ -886,10 +887,6 @@ Packet.prototype.writeHeader = function(ws, packetHeader) {
 	return this.writePacketHeader(packetHeader, ws);
 };
 
-Packet.prototype.writeMessage = function(ws, message, options) {
-	
-}
-
 Packet.prototype.writeMessageEntry = function(ws, msgEntry) {
 	ws.write(msgEntry);
 	return msgEntry.length; 	
@@ -918,7 +915,7 @@ Packet.prototype.writeStream = function(ws, messages, options) {
 	if(true === options.terminatePacket) {
 		ws.write(new Buffer( [ 0 ] ));	//	final extra null term
 	}
-}
+};
 
 Packet.prototype.write = function(path, packetHeader, messages, options) {
 	if(!_.isArray(messages)) {
