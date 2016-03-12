@@ -93,6 +93,10 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
+	this.getExportType = function(nodeConfig) {
+		return _.isString(nodeConfig.exportType) ? nodeConfig.exportType.toLowerCase() : 'crash';	
+	};
+	
 	/*
 	this.getSeenByAddresses = function(messageSeenBy) {
 		if(!_.isArray(messageSeenBy)) {
@@ -143,7 +147,18 @@ function FTNMessageScanTossModule() {
 		return paths.join(basePath, `${name}.${ext}`);
 	};
 
-	this.getOutgoingFlowFileName = function(basePath, destAddress, exportType, extSuffix) {
+	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType) {
+		let basename;	
+		let ext;
+		
+		switch(flowType) {
+			case 'netmail'	: ext = `${exportType.toLowerCase()[0]}ut`; break;
+			case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
+			case 'busy'		: ext = 'bsy'; break;
+			case 'request'	: ext = 'req'; break;
+			case 'requests'	: ext = 'hrq'; break;
+		}
+		
 		if(destAddress.point) {
 
 		} else {
@@ -151,8 +166,22 @@ function FTNMessageScanTossModule() {
 			//	Use |destAddress| nnnnNNNN.??? where nnnn is dest net and NNNN is dest
 			//	node. This seems to match what Mystic does
 			//
-			return `${Math.abs(destAddress.net)}${Math.abs(destAddress.node)}.${exportType[1]}${extSuffix}`;
+			basename =
+				`0000${destAddress.net.toString(16)}`.substr(-4) + 
+				`0000${destAddress.node.toString(16)}`.substr(-4);			
 		}
+		
+		return paths.join(basePath, `${basename}.${ext}`);
+	};
+	
+	this.flowFileAppendRefs = function(filePath, fileRefs, directive, cb) {
+		const appendLines = fileRefs.reduce( (content, ref) => {
+			return content + `${directive}${ref}\n`;
+		}, '');
+		
+		fs.appendFile(filePath, appendLines, err => {
+			cb(err);
+		});
 	};
 	
 	this.getOutgoingBundleFileName = function(basePath, sourceAddress, destAddress, cb) {
@@ -166,7 +195,7 @@ function FTNMessageScanTossModule() {
 		//
 		//	Extension is dd? where dd is Su...Mo and ? is 0...Z as collisions arise
 		//
-		var basename;
+		let basename;
 		if(destAddress.point) {
 			const pointHex = `000${destAddress.point}`.substr(-3);
 			basename = `0000p${pointHex}`;
@@ -229,6 +258,15 @@ function FTNMessageScanTossModule() {
 			message.meta.FtnKludge.Via = message.meta.FtnKludge.Via || [];
 			message.meta.FtnKludge.Via.push(ftnUtil.getVia(options.network.localAddress));
 		} else {
+			//
+			//	Set appropriate attribute flag for export type
+			//
+			switch(this.getExportType(options.nodeConfig)) {
+				case 'crash'	: ftnAttribute |= ftnMailPacket.Packet.Attribute.Crash; break;
+				case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
+				//	:TODO: Others?
+			}
+			
 			//
 			//	EchoMail requires some additional properties & kludges
 			//		
@@ -587,14 +625,7 @@ function FTNMessageScanTossModule() {
 									exportOpts.nodeConfig.archiveType, 
 									tempBundlePath,
 									exportedFileNames, err => {
-										if(err) {
-											return callback(err);
-										}
-										
-										//	:TODO: we need to delete the original input file(s)
-										fs.rename(tempBundlePath, bundlePath, err => {
-											callback(err, [ bundlePath ] );
-										});
+										callback(err, [ tempBundlePath ] );
 									}
 								);	
 							});
@@ -610,7 +641,30 @@ function FTNMessageScanTossModule() {
 								fs.rename(oldPath, newPath, nextFile);
 							} else {
 								const newPath = paths.join(outgoingDir, paths.basename(oldPath));
-								fs.rename(oldPath, newPath, nextFile);
+								//fs.rename(oldPath, newPath, nextFile);
+								fs.rename(oldPath, newPath, err => {
+									if(err) {
+										//	:TODO: Log this - but move on to the next file
+										return nextFile();
+									}
+									
+									//
+									//	For bundles, we need to append to the appropriate flow file
+									//
+									const flowFilePath = self.getOutgoingFlowFileName(
+										outgoingDir, 
+										exportOpts.destAddress,
+										'ref',
+										self.getExportType(exportOpts.nodeConfig));
+										 
+									//	directive of '^' = delete file after transfer
+									self.flowFileAppendRefs(flowFilePath, [ newPath ], '^', err => {
+										if(err) {
+											//	:TODO: Log this!											
+										}
+										nextFile();
+									});
+								});
 							}
 						}, callback);
 					},
