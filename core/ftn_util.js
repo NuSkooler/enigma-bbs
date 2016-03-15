@@ -68,7 +68,8 @@ function getDateFromFtnDateTime(dateTime) {
 	//		"27 Feb 15  00:00:03"
 	//
 	//	:TODO: Use moment.js here
-	return (new Date(Date.parse(dateTime))).toISOString();
+	return moment(Date.parse(dateTime));	//	Date.parse() allows funky formats
+//	return (new Date(Date.parse(dateTime))).toISOString();
 }
 
 function getDateTimeString(m) {

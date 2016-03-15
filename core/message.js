@@ -1,14 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var msgDb			= require('./database.js').dbs.message;
-var wordWrapText	= require('./word_wrap.js').wordWrapText;
-var ftnUtil			= require('./ftn_util.js');
+let msgDb			= require('./database.js').dbs.message;
+let wordWrapText	= require('./word_wrap.js').wordWrapText;
+let ftnUtil			= require('./ftn_util.js');
 
-var uuid			= require('node-uuid');
-var async			= require('async');
-var _				= require('lodash');
-var assert			= require('assert');
+let uuid			= require('node-uuid');
+let async			= require('async');
+let _				= require('lodash');
+let assert			= require('assert');
+let moment			= require('moment');
 
 module.exports = Message;
 
@@ -24,10 +25,10 @@ function Message(options) {
 	this.subject		= options.subject || '';
 	this.message		= options.message || '';
 	
-	if(_.isDate(options.modTimestamp)) {
-		this.modTimestamp = options.modTimestamp;
+	if(_.isDate(options.modTimestamp) || moment.isMoment(options.modTimestamp)) {
+		this.modTimestamp = moment(options.modTimestamp);
 	} else if(_.isString(options.modTimestamp)) {
-		this.modTimestamp = new Date(options.modTimestamp);
+		this.modTimestamp = moment(options.modTimestamp);
 	}
 
 	this.viewCount		= options.viewCount || 0;
@@ -44,10 +45,7 @@ function Message(options) {
 		this.meta = options.meta;
 	}
 
-//	this.meta			= options.meta || {};
 	this.hashTags		= options.hashTags || [];
-
-	var self			= this;
 
 	this.isValid = function() {
 		//	:TODO: validate as much as possible
@@ -59,8 +57,8 @@ function Message(options) {
 	};
 
 	this.getMessageTimestampString = function(ts) {
-		ts = ts || new Date();
-		return ts.toISOString();
+		ts = ts || moment();
+		return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 	};
 }
 
@@ -70,13 +68,7 @@ Message.WellKnownAreaTags = {
 	Bulletin	: 'local_bulletin',
 };
 
-//	:TODO: This doesn't seem like a good way to go -- perhaps only for local/user2user, or just use
-//	a system similar to the "last read" for general areas
-Message.Status = {
-	New		: 0,
-	Read	: 1,
-};
-
+//	:TODO: FTN stuff really doesn't belong here - move it elsewhere and/or just use the names directly when needed
 Message.MetaCategories = {
 	System				: 1,			//	ENiGMA1/2 stuff
 	FtnProperty			: 2,			//	Various FTN network properties, ftn_cost, ftn_origin, ...
@@ -86,6 +78,13 @@ Message.MetaCategories = {
 Message.SystemMetaNames = {
 	LocalToUserID			: 'local_to_user_id',
 	LocalFromUserID			: 'local_from_user_id',
+	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
+};
+
+Message.StateFlags0 = {
+	None		: 0x00000000,
+	Imported	: 0x00000001,	//	imported from foreign system
+	Exported	: 0x00000002,	//	exported to foreign system
 };
 
 Message.FtnPropertyNames = {	
@@ -152,7 +151,31 @@ Message.getMessageIdsByMetaValue = function(category, name, value, cb) {
 	);
 };
 
-Message.loadMetaValueForCategegoryByMessageUuid = function(uuid, category, name, cb) {	
+Message.getMetaValuesByMessageId = function(messageId, category, name, cb) {
+	const sql = 
+		`SELECT meta_value
+		FROM message_meta
+		WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`;
+	
+	msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
+		if(err) {
+			return cb(err);
+		}
+		
+		if(0 === rows.length) {
+			return cb(new Error('No value for category/name'));
+		}
+		
+		//	single values are returned without an array
+		if(1 === rows.length) {
+			return cb(null, rows[0].meta_value);
+		}
+		
+		cb(null, rows.map(r => r.meta_value));	//	map to array of values only
+	});
+};
+
+Message.getMetaValuesByMessageUuid = function(uuid, category, name, cb) {	
 	async.waterfall(
 		[
 			function getMessageId(callback) {
@@ -160,32 +183,14 @@ Message.loadMetaValueForCategegoryByMessageUuid = function(uuid, category, name,
 					callback(err, messageId);
 				});
 			},
-			function getMetaValue(messageId, callback) {
-				const sql = 
-					`SELECT meta_value
-					FROM message_meta
-					WHERE message_id = ? AND message_category = ? AND meta_name = ?;`;
-					
-				msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
-					if(err) {
-						return callback(err);
-					}
-					
-					if(0 === rows.length) {
-						return callback(new Error('No value for category/name'));
-					}
-					
-					//	single values are returned without an array
-					if(1 === rows.length) {
-						return callback(null, rows[0].meta_value);
-					}
-					
-					callback(null, rows.map(r => r.meta_value));
+			function getMetaValues(messageId, callback) {
+				Message.getMetaValuesByMessageId(messageId, category, name, (err, values) => {
+					callback(err, values);
 				});
 			}
 		],
-		(err, value) => {
-			cb(err, value);
+		(err, values) => {
+			cb(err, values);
 		}
 	);
 };
@@ -254,7 +259,7 @@ Message.prototype.load = function(options, cb) {
 						self.fromUserName	= msgRow.from_user_name;
 						self.subject		= msgRow.subject;
 						self.message		= msgRow.message;
-						self.modTimestamp	= msgRow.modified_timestamp;
+						self.modTimestamp	= moment(msgRow.modified_timestamp);
 						self.viewCount		= msgRow.view_count;
 
 						callback(err);
@@ -268,12 +273,6 @@ Message.prototype.load = function(options, cb) {
 			},
 			function loadHashTags(callback) {
 				//	:TODO:
-				callback(null);
-			},
-			function loadMessageStatus(callback) {
-				if(options.user) {
-					//	:TODO: Load from user_message_status
-				}
 				callback(null);
 			}
 		],

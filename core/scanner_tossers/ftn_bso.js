@@ -29,13 +29,12 @@ exports.moduleInfo = {
 };
 
 /*
-	:TODO: 
-	* Add bundle timer (arcmail)
-	* Queue until time elapses / fixed time interval
-	* Pakcets append until >= max byte size
-	* [if arch type is not empty): Packets -> bundle until max byte size -> repeat process
-	* NetMail needs explicit isNetMail()  check
-	* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
+	:TODO:
+	* Support (approx) max bundle size 
+	* Support NetMail
+		* NetMail needs explicit isNetMail()  check
+		* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
+	
 */ 
 
 exports.getModule = FTNMessageScanTossModule;
@@ -242,9 +241,7 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
 		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
 		message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
-		//	:TODO: attr1 & 2
 		message.meta.FtnProperty.ftn_cost			= 0;
-		
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();		
 
 		//	:TODO: Need an explicit isNetMail() check
@@ -308,15 +305,15 @@ function FTNMessageScanTossModule() {
 		}
 			
 		message.meta.FtnKludge.TZUTC = ftnUtil.getUTCTimeZoneOffset();
-		
-		if(!message.meta.FtnKludge.PID) {
-			message.meta.FtnKludge.PID = ftnUtil.getProductIdentifier();
-		}
-		
-		if(!message.meta.FtnKludge.TID) {
-			//	:TODO: Create TID!!
-			//message.meta.FtnKludge.TID = 
-		}
+			
+		//
+		//	According to FSC-0046:
+		//	
+		//	"When a Conference Mail processor adds a TID to a message, it may not
+		//	add a PID. An existing TID should, however, be replaced. TIDs follow
+		//	the same format used for PIDs, as explained above."
+		//
+		message.meta.FtnKludge.TID = ftnUtil.getProductIdentifier(); 
 		
 		//
 		//	Determine CHRS and actual internal encoding name
@@ -331,13 +328,32 @@ function FTNMessageScanTossModule() {
 		
 		options.encoding = encoding;	//	save for later
 		message.meta.FtnKludge.CHRS = ftnUtil.getCharacterSetIdentifierByEncoding(encoding);
-		//	:TODO: FLAGS kludge? 
-		//	:TODO: Add REPLY kludge if appropriate
-		
+		//	:TODO: FLAGS kludge? 		
 	};
 	
+	this.setReplyKludgeFromReplyToMsgId = function(message, cb) {
+		//
+		//	Look up MSGID kludge for |message.replyToMsgId|, if any.
+		//	If found, we can create a REPLY kludge with the previously
+		//	discovered MSGID.
+		//
+		
+		if(0 === message.replyToMsgId) {
+			return cb(null);	//	nothing to do
+		}
+		
+		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {
+			assert(_.isString(msgIdVal));
+			
+			if(!err) {			
+				//	got a MSGID - create a REPLY
+				message.meta.FtnKludge.REPLY = msgIdVal;
+			}
+			
+			cb(null);	//	this method always passes
+		});	
+	};
 	
-	//	:TODO: change to something like isAreaConfigValid
 	//	check paths, Addresses, etc.
 	this.isAreaConfigValid = function(areaConfig) {
 		if(!_.isString(areaConfig.tag) || !_.isString(areaConfig.network)) {
@@ -415,7 +431,7 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
-	this.getNodeConfigKeyForUplink = function(uplink) {
+	this.getNodeConfigKeyByAddress = function(uplink) {
 		//	:TODO: sort by least # of '*' & take top?
 		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
 			return Address.fromString(addr).isPatternMatch(uplink);
@@ -453,14 +469,20 @@ function FTNMessageScanTossModule() {
 							});
 						} else {
 							callback(null);
-						}					
+						}
 					},
 					function loadMessage(callback) {
 						message.load( { uuid : msgUuid }, err => {
-							if(!err) {
-								self.prepareMessage(message, exportOpts);
+							if(err) {
+								return callback(err);
 							}
-							callback(err);
+							
+							//	General preperation
+							self.prepareMessage(message, exportOpts);
+							
+							self.setReplyKludgeFromReplyToMsgId(message, err => {
+								callback(err);
+							});
 						});
 					},
 					function createNewPacket(callback) {			
@@ -502,7 +524,12 @@ function FTNMessageScanTossModule() {
 						}
 						callback(null);
 					},
-					function updateStoredMeta(callback) {
+					function storeStateFlags0Meta(callback) {
+						message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), err => {
+							callback(err);
+						});
+					},
+					function storeMsgIdMeta(callback) {
 						//
 						//	We want to store some meta as if we had imported
 						//	this message for later reference
@@ -577,7 +604,7 @@ function FTNMessageScanTossModule() {
 		
 	this.exportMessagesToUplinks = function(messageUuids, areaConfig, cb) {
 		async.each(areaConfig.uplinks, (uplink, nextUplink) => {
-			const nodeConfigKey = self.getNodeConfigKeyForUplink(uplink);
+			const nodeConfigKey = self.getNodeConfigKeyByAddress(uplink);
 			if(!nodeConfigKey) {
 				return nextUplink();
 			}
@@ -657,7 +684,6 @@ function FTNMessageScanTossModule() {
 								const newPath = paths.join(outgoingDir, paths.basename(oldPath));
 								fs.rename(oldPath, newPath, err => {
 									if(err) {
-										//	:TODO: Log this - but move on to the next file
 										Log.warn(
 											{ oldPath : oldPath, newPath : newPath },
 											'Failed moving temporary bundle file!');
@@ -756,6 +782,10 @@ function FTNMessageScanTossModule() {
 					});
 				},
 				function persistImport(callback) {
+					//	mark as imported
+					message.meta.System.StateFlags0 = Message.StateFlags0.Imported.toString();
+					
+					//	save to disc
 					message.persist(err => {
 						callback(err);						
 					});
@@ -783,6 +813,8 @@ function FTNMessageScanTossModule() {
 				if(!_.isString(localNetworkName)) {
 					next(new Error('No configuration for this packet'));
 				} else {
+					
+					//	:TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!					
 					next(null);
 				}
 				
@@ -1011,6 +1043,10 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 				if(exportSchedule.watchFile) {
 					//	:TODO: monitor file for changes/existance with gaze
 				}
+				
+				if(_.isBoolean(exportSchedule.immediate)) {
+					this.exportImmediate = exportSchedule.immediate;
+				}
 			}
 			
 			const importSchedule = this.parseScheduleString(this.moduleConfig.schedule.import);
@@ -1041,6 +1077,10 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	
 	if(this.exportTimer) {
 		this.exportTimer.clear();
+	}
+	
+	if(this.importTimer) {
+		this.importTimer.clear();
 	}
 	
 	//
@@ -1087,7 +1127,8 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 	//	Select all messages that have a message_id > our last scan ID.
 	//	Additionally exclude messages that have a ftn_attr_flags FtnProperty meta
 	//	as those came via import!
-	//	
+	//
+	/*	
 	const getNewUuidsSql = 
 		`SELECT message_id, message_uuid
 		FROM message m
@@ -1095,6 +1136,23 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 			(SELECT COUNT(message_id) 
 			FROM message_meta 
 			WHERE message_id = m.message_id AND meta_category = 'FtnProperty' AND meta_name = 'ftn_attr_flags') = 0
+		ORDER BY message_id;`;
+	*/
+	
+	//
+	//	Select all messages with a |message_id| > |lastScanId|.
+	//	Additionally exclude messages with the System state_flags0 which will be present for
+	//	imported or already exported messages
+	//
+	//	NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
+	//
+	const getNewUuidsSql = 
+		`SELECT message_id, message_uuid
+		FROM message m
+		WHERE area_tag = ? AND message_id > ? AND
+			(SELECT COUNT(message_id) 
+			FROM message_meta 
+			WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
 		ORDER BY message_id;`;
 		
 	var self = this;		
@@ -1156,5 +1214,26 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 
 FTNMessageScanTossModule.prototype.record = function(message) {
 	//
-	//	:TODO: If @immediate, we should do something here!
+	//	This module works off schedules, but we do support @immediate for export
+	//
+	if(true !== this.exportImmediate || !this.hasValidConfiguration()) {
+		return;
+	}
+	
+	if(message.isPrivate()) {
+		//	:TODO: support NetMail
+	} else if(message.areaTag) {
+		const areaConfig = Config.messageNetworks.ftn.areas[message.areaTag];
+		if(!this.isAreaConfigValid(areaConfig)) {
+			return;
+		}
+		
+		//	:TODO: We must share a check to block export with schedule/timer when this is exporting...
+		//	:TODO: Messages must be marked as "exported" else we will export this particular message again later @ schedule/timer
+		//	...if getNewUuidsSql in performExport checks for MSGID existence also we can omit already-exported messages 
+		
+		this.exportMessagesToUplinks( [ message.uuid ], areaConfig, err => {
+		});
+		
+	}		
 };
