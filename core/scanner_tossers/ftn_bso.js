@@ -21,6 +21,7 @@ let fs						= require('fs');
 let later					= require('later');
 let temp					= require('temp').track();	//	track() cleans up temp dir/files for us
 let assert					= require('assert');
+let gaze					= require('gaze');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -1009,12 +1010,43 @@ function FTNMessageScanTossModule() {
 			});
 		});
 	};
+	
+	//	Starts an export block - returns true if we can proceed
+	this.exportingStart = function() {
+		if(!this.exportRunning) {
+			this.exportRunning = true;
+			return true;
+		}
+		
+		return false;
+	};
+	
+	//	ends an export block
+	this.exportingEnd = function() {
+		this.exportRunning = false;	
+	};
 }
 
 require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 
 FTNMessageScanTossModule.prototype.startup = function(cb) {
 	Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
+	
+	let importing = false;
+	
+	let self = this;
+				
+	function tryImportNow(reasonDesc) {
+		if(!importing) {
+			importing = true;
+			
+			Log.info( { module : exports.moduleInfo.name }, reasonDesc);
+			
+			self.performImport( () => {
+				importing = false;
+			});
+		}
+	}
 	
 	this.createTempDirectories(err => {
 		if(err) {
@@ -1025,23 +1057,15 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 		if(_.isObject(this.moduleConfig.schedule)) {
 			const exportSchedule = this.parseScheduleString(this.moduleConfig.schedule.export);
 			if(exportSchedule) {
-				if(exportSchedule.sched) {
-					let exporting = false;
+				if(exportSchedule.sched && this.exportingStart()) {
 					this.exportTimer = later.setInterval( () => {
-						if(!exporting) {
-							exporting = true;
-							
-							Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
-							
-							this.performExport( () => {
-								exporting = false;
-							});
-						}
+						
+						Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
+						
+						this.performExport( () => {
+							this.exportingEnd();
+						});
 					}, exportSchedule.sched);
-				}
-				
-				if(exportSchedule.watchFile) {
-					//	:TODO: monitor file for changes/existance with gaze
 				}
 				
 				if(_.isBoolean(exportSchedule.immediate)) {
@@ -1050,20 +1074,21 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 			}
 			
 			const importSchedule = this.parseScheduleString(this.moduleConfig.schedule.import);
-			if(importSchedule) {
-				if(importSchedule.sched) {
-					let importing = false;
+			if(importSchedule) {			
+				if(importSchedule.sched) {					
 					this.importTimer = later.setInterval( () => {
-						if(!importing) {
-							importing = true;
-							
-							Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message import/toss...');
-							
-							this.performImport( () => {
-								importing = false;
-							});
-						}
+						tryImportNow('Performing scheduled message import/toss...');						
 					}, importSchedule.sched);
+				}
+				
+				if(_.isString(importSchedule.watchFile)) {
+					gaze(importSchedule.watchFile, (err, watcher) => {
+						watcher.on('all', (event, watchedPath) => {
+							if(importSchedule.watchFile === watchedPath) {
+								tryImportNow(`Performing import/toss due to @watch: ${watchedPath} (${event})`);	
+							}
+						});
+					});
 				}
 			}
 		}
@@ -1227,13 +1252,19 @@ FTNMessageScanTossModule.prototype.record = function(message) {
 		if(!this.isAreaConfigValid(areaConfig)) {
 			return;
 		}
-		
-		//	:TODO: We must share a check to block export with schedule/timer when this is exporting...
-		//	:TODO: Messages must be marked as "exported" else we will export this particular message again later @ schedule/timer
-		//	...if getNewUuidsSql in performExport checks for MSGID existence also we can omit already-exported messages 
-		
-		this.exportMessagesToUplinks( [ message.uuid ], areaConfig, err => {
-		});
-		
+				
+		if(this.exportingStart()) {
+			this.exportMessagesToUplinks( [ message.uuid ], areaConfig, err => {
+				const info = { uuid : message.uuid, subject : message.subject };
+			
+				if(err) {
+					Log.warn(info, 'Failed exporting message');
+				} else {
+					Log.info(info, 'Message exported');
+				}
+				
+				this.exportingEnd();
+			});
+		}		
 	}		
 };
