@@ -1200,7 +1200,7 @@
 							{
 								value: { 1: 0 }
 								action: @method:prevMessage
-							}							
+							}
 							{
 								value: { 1: 1 }
 								action: @method:nextMessage
