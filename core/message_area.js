@@ -69,6 +69,8 @@ function getSortedAvailMessageConferences(client, options) {
 //  Return an *object* of available areas within |confTag|
 function getAvailableMessageAreasByConfTag(confTag, options) {
 	options = options || {};
+    
+    //  :TODO: confTag === "" then find default
 
 	if(_.has(Config.messageConferences, [ confTag, 'areas' ])) {
         const areas = Config.messageConferences[confTag].areas;
