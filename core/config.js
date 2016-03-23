@@ -192,7 +192,7 @@ function getDefaultConfig() {
 			},
 			ssh : {
 				port				: 8889,
-				enabled				: true,
+				enabled				: false,    //  defualt to false as PK/pass in config.hjson are required
 
 				//
 				//	Private key in PEM format
