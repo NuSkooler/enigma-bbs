@@ -357,7 +357,7 @@ function FTNMessageScanTossModule() {
 	
 	//	check paths, Addresses, etc.
 	this.isAreaConfigValid = function(areaConfig) {
-		if(!_.isString(areaConfig.tag) || !_.isString(areaConfig.network)) {
+		if(!areaConfig || !_.isString(areaConfig.tag) || !_.isString(areaConfig.network)) {
 			return false;
 		}
 		

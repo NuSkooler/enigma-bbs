@@ -25,7 +25,7 @@ function AreaPostFSEModule(options) {
 	//	we're posting, so always start with 'edit' mode
 	this.editorMode = 'edit';
 
-	this.menuMethods.editModeMenuSave = function(formData, extraArgs) {
+	this.menuMethods.editModeMenuSave = function() {
 
 		var msg;
 		async.series(
@@ -49,9 +49,13 @@ function AreaPostFSEModule(options) {
 				if(err) {
 					//	:TODO:... sooooo now what?
 				} else {
-					console.log(msg);	//	:TODO: remove me -- probably log that one was saved, however.
+					//	note: not logging 'from' here as it's part of client.log.xxxx()
+					self.client.log.info(
+						{ to : msg.toUserName, subject : msg.subject, uuid : msg.uuid },
+						'Message persisted'
+						);
 				}
-
+				
 				self.nextMenu();
 			}
 		);
