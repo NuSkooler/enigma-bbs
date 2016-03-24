@@ -200,7 +200,13 @@ function startListening(cb) {
 		}
 
 		const moduleInst	= new module.getModule();
-		const server		= moduleInst.createServer();
+        let server;
+        try {
+		    server		= moduleInst.createServer();
+        } catch(e) {
+            logger.log.warn(e, 'Exception caught creating server!');
+            return;
+        }
 
 		//	:TODO: handle maxConnections, e.g. conf.maxConnections
 

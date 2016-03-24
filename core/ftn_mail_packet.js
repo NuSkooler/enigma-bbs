@@ -169,8 +169,10 @@ exports.PacketHeader = PacketHeader;
 //	*	Writeup on differences between type 2, 2.2, and 2+:
 //		http://walon.org/pub/fidonet/FTSC-nodelists-etc./pkt-types.txt
 //
-function Packet() {
+function Packet(options) {
 	var self = this;
+    
+    this.options = options || {};
 
 	this.parsePacketHeader = function(packetBuffer, cb) {
 		assert(Buffer.isBuffer(packetBuffer));
@@ -574,6 +576,10 @@ function Packet() {
 			
 					if(messageBodyData.tearLine) {
 						msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
+                        
+                        if(self.options.keepTearAndOrigin) {
+                            msg.message += `\r\n${messageBodyData.tearLine}\r\n`;
+                        }
 					}
 					
 					if(messageBodyData.seenBy.length > 0) {
@@ -586,6 +592,10 @@ function Packet() {
 					
 					if(messageBodyData.originLine) {
 						msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
+                        
+                        if(self.options.keepTearAndOrigin) {
+                            msg.message += `${messageBodyData.originLine}\r\n`;
+                        }
 					}			
 					
 					const nextBuf = packetBuffer.slice(read);

@@ -806,7 +806,9 @@ function FTNMessageScanTossModule() {
 	this.importMessagesFromPacketFile = function(packetPath, password, cb) {
 		let packetHeader;
 				
-		new ftnMailPacket.Packet().read(packetPath, (entryType, entryData, next) => {
+        const packetOpts = { keepTearAndOrigin : true };
+        
+		new ftnMailPacket.Packet(packetOpts).read(packetPath, (entryType, entryData, next) => {
 			if('header' === entryType) {
 				packetHeader = entryData;
 				
