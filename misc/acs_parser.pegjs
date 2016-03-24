@@ -16,15 +16,13 @@
 					return !isNaN(value) && user.getAge() >= value;
 				},
 				AS	: function accountStatus() {
-					if(_.isNumber(value)) {
+					if(!_.isArray(value)) {
 						value = [ value ];
 					}
 
-					assert(_.isArray(value));
-						
-					return _.findIndex(value, function cmp(accStatus) {
-						return parseInt(accStatus, 10) === parseInt(user.properties.account_status, 10);
-					}) > -1;
+					const userAccountStatus = parseInt(user.properties.account_status, 10);
+					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+					return value.indexOf(userAccountStatus) > -1;
 				},
 				EC	: function isEncoding() {
 					switch(value) {
@@ -53,7 +51,7 @@
 					//	:TODO: implement me!!
 					return false;
 				},
-				SC 	: function isSecerConnection() {
+				SC 	: function isSecureConnection() {
 					return client.session.isSecure;
 				},
 				ML	: function minutesLeft() {
@@ -81,28 +79,20 @@
 					return !isNaN(value) && client.term.termWidth >= value;
 				},
 				ID	: function isUserId(value) {
-					if(_.isNumber(value)) {
+					if(!_.isArray(value)) {
 						value = [ value ];
 					}
 
-					assert(_.isArray(value));
-
-					return _.findIndex(value, function cmp(uid) {
-						return user.userId === parseInt(uid, 10);
-					}) > -1;
+					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+					return value.indexOf(user.userId) > -1;
 				},
 				WD	: function isOneOfDayOfWeek() {
-					if(_.isNumber(value)) {
+					if(!_.isArray(value)) {
 						value = [ value ];
 					}
 
-					assert(_.isArray(value));
-
-					var nowDayOfWeek = new Date().getDay();
-
-					return _.findIndex(value, function cmp(dow) {
-						return nowDayOfWeek === parseInt(dow, 10);
-					}) > -1;
+					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
+					return value.indexOf(new Date().getDay()) > -1;
 				},
 				MM	: function isMinutesPastMidnight() {
 					//	:TODO: return true if value is >= minutes past midnight sys time

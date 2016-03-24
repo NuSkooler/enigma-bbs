@@ -18,8 +18,8 @@ function StandardMenuModule(menuConfig) {
 require('util').inherits(StandardMenuModule, MenuModule);
 
 
-StandardMenuModule.prototype.enter = function(client) {
-	StandardMenuModule.super_.prototype.enter.call(this, client);
+StandardMenuModule.prototype.enter = function() {
+	StandardMenuModule.super_.prototype.enter.call(this);
 };
 
 StandardMenuModule.prototype.beforeArt = function() {

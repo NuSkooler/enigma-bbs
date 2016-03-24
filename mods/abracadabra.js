@@ -177,12 +177,6 @@ function AbracadabraModule(options) {
 
 require('util').inherits(AbracadabraModule, MenuModule);
 
-/*
-AbracadabraModule.prototype.enter = function(client) {
-	AbracadabraModule.super_.prototype.enter.call(this, client);
-};
-*/
-
 AbracadabraModule.prototype.leave = function() {
 	AbracadabraModule.super_.prototype.leave.call(this);
 

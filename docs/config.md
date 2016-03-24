@@ -21,5 +21,90 @@ general: {
 }
 ```
 
+#### A Sample Configuration
+Below is a **sample** `config.hjson` illustrating various (but not all!) elements that can be configured / tweaked.
+
+
+```hjson
+{
+	general: {
+		boardName: A Sample BBS
+	}
+
+	defaults: {
+		theme: super-fancy-theme
+	}
+
+	preLoginTheme: luciano_blocktronics
+
+	messageConferences: {
+		local_general: {
+			name: Local
+			desc: Local Discussions
+			default: true
+
+			areas: {
+				local_enigma_dev: {
+					name: ENiGMA 1/2 Development
+					desc: Discussion related to development and features of ENiGMA 1/2!
+					default: true
+				}
+			}
+		}
+
+		agoranet: {
+			name: Agoranet
+			desc: This network is for blatant exploitation of the greatest BBS scene art group ever.. ACiD.
+
+			areas: {
+				agoranet_bbs: {
+					name: BBS Discussion
+					desc: Discussion related to BBSs
+				}
+			}
+		}
+	}
+
+	messageNetworks: {
+		ftn: {
+			areas: {
+				agoranet_bbs: { /* hey kids, this matches above! */
+
+					// oh oh oh, and this one pairs up with a network below
+					network: agoranet
+					tag: AGN_BBS
+					uplinks: "46:1/100"
+				}
+			}
+
+			networks: {
+				agoranet: {
+					localAddress: "46:3/102"
+				}
+			}
+		}
+	}
+
+	scannerTossers: {
+		ftn_bso: {
+			schedule: {
+				import: every 1 hours or @watch:/home/enigma/bink/watchfile.txt
+				export: every 1 hours or @immediate
+			}
+
+			defaultZone: 46
+			defaultNetwork: agoranet
+
+			nodes: {
+				"46:*": {
+					archiveType: ZIP
+					encoding: utf8
+				}
+			}
+		}
+	}
+}
+```
+
 ### Menus
 TODO: Documentation on menu.hjson, etc.

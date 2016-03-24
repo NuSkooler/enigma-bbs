@@ -393,7 +393,7 @@
 				},
 				editorMode: edit
 				editorType: email
-				messageAreaName: private_mail
+				messageAreaTag: private_mail
 				toUserId: 1 /* always to +op */
 			}
 			form: {
@@ -806,7 +806,7 @@
 				},
 				editorMode: edit
 				editorType: email
-				messageAreaName: private_mail
+				messageAreaTag: private_mail
 				toUserId: 1 /* always to +op */
 			}
 			form: {
@@ -1020,6 +1020,10 @@
 					action: @menu:messageAreaNewPost
 				}
 				{
+					value: { command: "J" }
+					action: @menu:messageAreaChangeCurrentConference
+				}
+				{
 					value: { command: "C" }
 					action: @menu:messageAreaChangeCurrentArea
 				}
@@ -1041,7 +1045,39 @@
 				}				
 			]
 		}
+
+		messageAreaChangeCurrentConference: {
+			art: CCHANGE
+			module: msg_conf_list
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							submit: true
+							argName: conf
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { conf: null }
+								action: @method:changeConference
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
 		messageAreaChangeCurrentArea: {
+			//	:TODO: rename this art to ACHANGE
 			art: CHANGE
 			module: msg_area_list
 			form: {
@@ -1070,6 +1106,7 @@
 				}
 			}
 		}
+
 		messageAreaMessageList: {
 			module: msg_list
 			art: MSGLIST
@@ -1163,7 +1200,7 @@
 							{
 								value: { 1: 0 }
 								action: @method:prevMessage
-							}							
+							}
 							{
 								value: { 1: 1 }
 								action: @method:nextMessage

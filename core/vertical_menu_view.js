@@ -27,7 +27,7 @@ function VerticalMenuView(options) {
 			this.dimens.height = Math.min(self.dimens.height, self.client.term.termHeight - self.position.row);
 		}
 
-		if(this.autoScale.width) {
+		if(self.autoScale.width) {
 			var l = 0;
 			self.items.forEach(function item(i) {
 				if(i.text.length > l) {
@@ -148,6 +148,17 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 
 VerticalMenuView.prototype.setFocusItemIndex = function(index) {
 	VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+
+	//this.updateViewVisibleItems();
+	
+	//	:TODO: |viewWindow| must be updated to reflect position change --
+	//	if > visibile then += by diff, if < visible 
+	
+	if(this.focusedItemIndex > this.viewWindow.bottom) {
+	} else if (this.focusedItemIndex < this.viewWindow.top) {
+	//	this.viewWindow.top--;
+//		this.viewWindow.bottom--;
+	}
 	
 	this.redraw();
 };

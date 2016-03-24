@@ -203,13 +203,13 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
         }
     }
     
-    [ 'menus', 'prompts' ].forEach(function areaEntry(areaName) {
-        _.keys(mergedTheme[areaName]).forEach(function menuEntry(menuName) {
+    [ 'menus', 'prompts' ].forEach(function areaEntry(sectionName) {
+        _.keys(mergedTheme[sectionName]).forEach(function menuEntry(menuName) {
             var createdFormSection = false;
-            var mergedThemeMenu = mergedTheme[areaName][menuName];
+            var mergedThemeMenu = mergedTheme[sectionName][menuName];
             
-            if(_.has(theme, [ 'customization', areaName, menuName ])) {
-                var menuTheme = theme.customization[areaName][menuName];
+            if(_.has(theme, [ 'customization', sectionName, menuName ])) {
+                var menuTheme = theme.customization[sectionName][menuName];
                 
                 //	config block is direct assign/overwrite
                 //  :TODO: should probably be _.merge()
@@ -217,7 +217,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
                     mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
                 }
             
-                if('menus' === areaName) {
+                if('menus' === sectionName) {
                     if(_.isObject(mergedThemeMenu.form)) {
                         getFormKeys(mergedThemeMenu.form).forEach(function formKeyEntry(formKey) {
                             applyToForm(mergedThemeMenu.form[formKey], menuTheme, formKey);
@@ -233,7 +233,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
                             createdFormSection = true;
                         }
                     }
-                } else if('prompts' === areaName) {
+                } else if('prompts' === sectionName) {
                     //  no 'form' or form keys for prompts -- direct to mci
                     applyToForm(mergedThemeMenu, menuTheme);
                 }                
@@ -247,7 +247,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
             //  *   There is/was no explicit 'form' section
             //  *   There is no 'prompt' specified
             //
-            if('menus' === areaName && !_.isString(mergedThemeMenu.prompt) &&
+            if('menus' === sectionName && !_.isString(mergedThemeMenu.prompt) &&
                 (createdFormSection || !_.isObject(mergedThemeMenu.form)))
             {
                 mergedThemeMenu.runtime = _.merge(mergedThemeMenu.runtime || {}, { autoNext : true } );
@@ -523,7 +523,8 @@ function displayThemedPause(options, cb) {
 				if(options.clearPrompt) {
 					if(artInfo.startRow && artInfo.height) {
 						options.client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-						//	:TODO: This will not work with NetRunner:
+						
+						//	Note: Does not work properly in NetRunner < 2.0b17:
 						options.client.term.rawWrite(ansi.deleteLine(artInfo.height));
 					} else {
 						options.client.term.rawWrite(ansi.eraseLine(1))

@@ -2,7 +2,7 @@
 'use strict';
 
 var MenuModule			= require('../core/menu_module.js').MenuModule;
-var userDb				= require('../core/database.js').dbs.user;
+//var userDb				= require('../core/database.js').dbs.user;
 var getUserList			= require('../core/user.js').getUserList;
 var ViewController		= require('../core/view_controller.js').ViewController;
 

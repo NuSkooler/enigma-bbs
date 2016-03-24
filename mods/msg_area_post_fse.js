@@ -1,12 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-var FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
-var Message						= require('../core/message.js').Message;
-var user						= require('../core/user.js');
+let FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
+//var Message						= require('../core/message.js').Message;
+let persistMessage				= require('../core/message_area.js').persistMessage; 
+let user						= require('../core/user.js');
 
-var _							= require('lodash');
-var async					 	= require('async');
+let _							= require('lodash');
+let async					 	= require('async');
 
 exports.getModule				= AreaPostFSEModule;
 
@@ -24,7 +25,7 @@ function AreaPostFSEModule(options) {
 	//	we're posting, so always start with 'edit' mode
 	this.editorMode = 'edit';
 
-	this.menuMethods.editModeMenuSave = function(formData, extraArgs) {
+	this.menuMethods.editModeMenuSave = function() {
 
 		var msg;
 		async.series(
@@ -36,18 +37,25 @@ function AreaPostFSEModule(options) {
 					});
 				},
 				function saveMessage(callback) {
+					persistMessage(msg, callback);
+					/*
 					msg.persist(function persisted(err) {
 						callback(err);
 					});
+					*/
 				}
 			],
 			function complete(err) {
 				if(err) {
 					//	:TODO:... sooooo now what?
 				} else {
-					console.log(msg);	//	:TODO: remove me -- probably log that one was saved, however.
+					//	note: not logging 'from' here as it's part of client.log.xxxx()
+					self.client.log.info(
+						{ to : msg.toUserName, subject : msg.subject, uuid : msg.uuid },
+						'Message persisted'
+						);
 				}
-
+				
 				self.nextMenu();
 			}
 		);
@@ -56,11 +64,11 @@ function AreaPostFSEModule(options) {
 
 require('util').inherits(AreaPostFSEModule, FullScreenEditorModule);
 
-AreaPostFSEModule.prototype.enter = function(client) {	
+AreaPostFSEModule.prototype.enter = function() {	
 
-	if(_.isString(client.user.properties.message_area_name) && !_.isString(this.messageAreaName)) {
-		this.messageAreaName = client.user.properties.message_area_name;
+	if(_.isString(this.client.user.properties.message_area_tag) && !_.isString(this.messageAreaTag)) {
+		this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
 	
-	AreaPostFSEModule.super_.prototype.enter.call(this, client);
+	AreaPostFSEModule.super_.prototype.enter.call(this);
 };

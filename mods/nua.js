@@ -5,7 +5,7 @@ var user					= require('../core/user.js');
 var theme					= require('../core/theme.js');
 var login					= require('../core/system_menu_method.js').login;
 var Config					= require('../core/config.js').config;
-var getDefaultMessageArea	= require('../core/message_area.js').getDefaultMessageArea;
+var messageArea             = require('../core/message_area.js');
 
 var async					= require('async');
 
@@ -65,6 +65,16 @@ function NewUserAppModule(options) {
 
 			newUser.username = formData.value.username;
 
+			//
+			//	We have to disable ACS checks for initial default areas as the user is not yet ready
+			//            
+            var confTag     = messageArea.getDefaultMessageConferenceTag(self.client, true);				//	true=disableAcsCheck
+            var areaTag     = messageArea.getDefaultMessageAreaTagByConfTag(self.client, confTag, true);	//	true=disableAcsCheck
+            
+            //  can't store undefined!
+            confTag = confTag || '';
+            areaTag = areaTag || '';
+			
 			newUser.properties = {
 				real_name			: formData.value.realName,
 				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
@@ -74,14 +84,12 @@ function NewUserAppModule(options) {
 				email_address		: formData.value.email,
 				web_address			: formData.value.web,
 				account_created		: new Date().toISOString(),
-
-				message_area_name	: getDefaultMessageArea().name,
+                
+                message_conf_tag    : confTag,
+                message_area_tag    : areaTag,
 
 				term_height			: self.client.term.termHeight,
-				term_width			: self.client.term.termWidth,
-				
-				//	:TODO: This is set in User.create() -- proabbly don't need it here:
-				//account_status	: Config.users.requireActivation ? user.User.AccountStatus.inactive : user.User.AccountStatus.active,
+				term_width			: self.client.term.termWidth,				
 
 				//	:TODO: Other defaults
 				//	:TODO: should probably have a place to create defaults/etc.
@@ -92,8 +100,8 @@ function NewUserAppModule(options) {
 			} else {
 				newUser.properties.theme_id = Config.defaults.theme;
 			}
-
-			//	:TODO: .create() should also validate email uniqueness!
+			
+			//	:TODO: User.create() should validate email uniqueness!
 			newUser.create( { password : formData.value.password }, function created(err) {
 				if(err) {
 					self.client.log.info( { error : err, username : formData.value.username }, 'New user creation failed');

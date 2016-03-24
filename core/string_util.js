@@ -1,14 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-var miscUtil	= require('./misc_util.js');
+let miscUtil	= require('./misc_util.js');
 
+let iconv		= require('iconv-lite');
 
-exports.stylizeString		= stylizeString;
-exports.pad					= pad;
-exports.replaceAt			= replaceAt;
-exports.isPrintable			= isPrintable;
-exports.debugEscapedString	= debugEscapedString;
+exports.stylizeString				= stylizeString;
+exports.pad							= pad;
+exports.replaceAt					= replaceAt;
+exports.isPrintable					= isPrintable;
+exports.debugEscapedString			= debugEscapedString;
+exports.stringFromNullTermBuffer	= stringFromNullTermBuffer;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -174,6 +176,23 @@ function stringLength(s) {
 
 function debugEscapedString(s) {
 	return JSON.stringify(s).slice(1, -1);
+}
+
+function stringFromNullTermBuffer(buf, encoding) {
+	/*var nullPos = buf.length;
+	for(var i = 0; i < buf.length; ++i) {
+		if(0x00 === buf[i]) {
+			nullPos = i;
+			break;
+		}
+	}
+	*/
+	let nullPos = buf.indexOf(new Buffer( [ 0x00 ] ));
+	if(-1 === nullPos) {
+		nullPos = buf.length;
+	}
+
+	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
 }
 
 //

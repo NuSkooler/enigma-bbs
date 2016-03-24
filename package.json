@@ -16,10 +16,11 @@
     "async": "^1.5.1",
     "binary": "0.3.x",
     "buffers": "0.1.x",
-    "bunyan": "1.5.x",
+    "bunyan": "^1.7.1",
     "gaze": "^0.5.2",
     "hjson": "1.7.x",
     "iconv-lite": "^0.4.13",
+    "later": "1.2.0",
     "lodash": "^3.10.1",
     "minimist": "1.2.x",
     "mkdirp": "0.5.x",
@@ -28,7 +29,8 @@
     "ptyw.js": "^0.3.7",
     "sqlite3": "^3.1.1",
     "ssh2": "^0.4.13",
-    "string-format": "davidchambers/string-format#mini-language"
+    "string-format": "davidchambers/string-format#mini-language",
+    "temp": "^0.8.3"
   },
   "engines": {
     "node": ">=0.12.2"

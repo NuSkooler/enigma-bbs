@@ -235,7 +235,8 @@ SSHServerModule.prototype.createServer = function() {
 		privateKey	: fs.readFileSync(Config.servers.ssh.privateKeyPem),
 		passphrase	: Config.servers.ssh.privateKeyPass,
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
-		//	Note that sending 'banner' breaks at least EtherTerm!
+		
+        //	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: function debugSsh(dbgLine) { 
 			if(true === Config.servers.ssh.traceConnections) {
 				Log.trace('SSH: ' + dbgLine);

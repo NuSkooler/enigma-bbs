@@ -488,7 +488,6 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 	assert(_.isObject(options.mciMap));
 	
 	var self			= this;
-	var promptName		= _.isString(options.promptName) ? options.promptName : self.client.currentMenuModule.menuConfig.prompt;
 	var promptConfig	= _.isObject(options.config) ? options.config : self.client.currentMenuModule.menuConfig.promptConfig;
 	var initialFocusId	= 1;	//	default to first
 

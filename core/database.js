@@ -132,7 +132,7 @@ function createMessageBaseTables() {
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message ('						+
 		'	message_id				INTEGER PRIMARY KEY,'			+ 
-		'	area_name				VARCHAR NOT NULL,'				+
+		'	area_tag				VARCHAR NOT NULL,'				+
 		'	message_uuid			VARCHAR(36) NOT NULL,'			+ 
 		'	reply_to_message_id		INTEGER,'						+
 		'	to_user_name			VARCHAR NOT NULL,'				+
@@ -175,7 +175,7 @@ function createMessageBaseTables() {
 		'	meta_category	INTEGER NOT NULL,'							+
 		'	meta_name		VARCHAR NOT NULL,'							+
 		'	meta_value		VARCHAR NOT NULL,'							+
-		'	UNIQUE(message_id, meta_category, meta_name, meta_value),'	+
+		'	UNIQUE(message_id, meta_category, meta_name, meta_value),'	+	//	why unique here? 
 		'	FOREIGN KEY(message_id) REFERENCES message(message_id)'		+
 		');'
 	);
@@ -198,20 +198,19 @@ function createMessageBaseTables() {
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS user_message_area_last_read ('	+
 		'	user_id		INTEGER NOT NULL,'						+
-		'	area_name	VARCHAR NOT NULL,'						+
+		'	area_tag	VARCHAR NOT NULL,'						+
 		'	message_id	INTEGER NOT NULL,'						+
-		'	UNIQUE(user_id, area_name)'				+
+		'	UNIQUE(user_id, area_tag)'				+
 		');'
 	);
-
+	
 	dbs.message.run(
-		'CREATE TABLE IF NOT EXISTS user_message_status ('	+
-		'	user_id		INTEGER NOT NULL,'					+
-		'	message_id	INTEGER NOT NULL,'					+
-		'	status		INTEGER NOT NULL,'					+
-		'	UNIQUE(user_id, message_id, status),'			+
-		'	FOREIGN KEY(user_id) REFERENCES user(id)'		+
-		');'
+		`CREATE TABLE IF NOT EXISTS message_area_last_scan (
+				scan_toss		VARCHAR NOT NULL,
+				area_tag		VARCHAR NOT NULL,
+				message_id	INTEGER NOT NULL,
+				UNIQUE(scan_toss, area_tag)
+		);`	
 	);
 }
 
