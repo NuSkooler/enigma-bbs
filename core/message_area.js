@@ -60,7 +60,9 @@ function getSortedAvailMessageConferences(client, options) {
 	});
 	
 	sorted.sort((a, b) => {
-		return a.conf.name.localeCompare(b.conf.name);
+		const keyA = a.conf.sort ? a.conf.sort.toString() : a.conf.name;
+		const keyB = b.conf.sort ? b.conf.sort.toString() : b.conf.name;
+		return keyA.localeCompare(keyB);
 	});
 
 	return sorted;
@@ -89,15 +91,20 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
 }
 
 function getSortedAvailMessageAreasByConfTag(confTag, options) {
-    const areas = getAvailableMessageAreasByConfTag(confTag, options);
-    
-    //	:TODO: should probably be using localeCompare / sort
-    return _.sortBy(_.map(areas, (v, k) => {
-       return {
-           areaTag  : k,
-           area     : v,
-       };
-    }), o => o.area.name);  //  sort by name
+	const areas = _.map(getAvailableMessageAreasByConfTag(confTag, options), (v, k) => {
+		return  {
+			areaTag	: k,
+			area	: v,
+		}
+	});
+	
+	areas.sort((a, b) => {
+		const keyA = a.area.sort ? a.area.sort.toString() : a.area.name;
+		const keyB = b.area.sort ? b.area.sort.toString() : b.area.name;
+		return keyA.localeCompare(keyB);
+	});
+	
+	return areas;
 }
 
 function getDefaultMessageConferenceTag(client, disableAcsCheck) {
