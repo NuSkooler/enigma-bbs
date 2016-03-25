@@ -19,12 +19,12 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption
  * Door support including common dropfile formats and legacy DOS doors (See [Doors](docs/doors.md))
  * [Bunyan](https://github.com/trentm/node-bunyan) logging
+ * FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
 
 ## In the Works
-* Lots of code cleanup, ES6+ usage, and **documentation**!
-* FTN import & export
+* More ES6+ usage, and **documentation**!
 * File areas
-* Full access checking framework (ACS)
+* ACS support for more areas
 * SysOp dashboard (ye ol' WFC)
 * Missing functionality such as searching, pipe code support in message areas, etc.
 * String localization
