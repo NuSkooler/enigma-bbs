@@ -131,7 +131,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 				modInst.restoreSavedState(options.savedState);
 			}
 
-			modInst.enter(self.client);
+			modInst.enter();
 
 			self.client.log.trace(
 				{ stack : _.map(self.stack, function(si) { return si.name; } ) },

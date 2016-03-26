@@ -8,9 +8,36 @@ var paths				= require('path');
 var async				= require('async');
 var _					= require('lodash');
 var hjson				= require('hjson');
+var assert              = require('assert');
 
 exports.init				= init;
 exports.getDefaultPath		= getDefaultPath;
+
+function hasMessageConferenceAndArea(config) {
+    assert(_.isObject(config.messageConferences));  //  we create one ourself!
+    
+    const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
+       return 'system_internal' !== confTag; 
+    });
+    
+    if(0 === nonInternalConfs.length) {
+        return false;
+    }
+    
+    //  :TODO: there is likely a better/cleaner way of doing this
+    
+    var result = false;
+    _.forEach(nonInternalConfs, confTag => {
+        if(_.has(config.messageConferences[confTag], 'areas') &&
+            Object.keys(config.messageConferences[confTag].areas) > 0)
+        {            
+            result = true;
+            return false;   //  stop iteration
+        }
+    });
+    
+    return result;
+}
 
 function init(configPath, cb) {
 	async.waterfall(
@@ -48,18 +75,13 @@ function init(configPath, cb) {
 				//
 				//	Various sections must now exist in config
 				//
-				if(!_.has(mergedConfig, 'messages.areas.') ||
-					!_.isArray(mergedConfig.messages.areas) ||
-					0 === mergedConfig.messages.areas.length ||
-					!_.isString(mergedConfig.messages.areas[0].name))
-				{
-					var msgAreasErr = new Error('Please create at least one message area');
+                if(hasMessageConferenceAndArea(mergedConfig)) {
+                    var msgAreasErr = new Error('Please create at least one message conference and area!');
 					msgAreasErr.code = 'EBADCONFIG';
 					callback(msgAreasErr);
-					return;
-				}
-
-				callback(null, mergedConfig);
+                } else {
+                    callback(null, mergedConfig);
+                }
 			}
 		],
 		function complete(err, mergedConfig) {
@@ -150,6 +172,10 @@ function getDefaultConfig() {
 		paths		: {
 			mods				: paths.join(__dirname, './../mods/'),
 			servers				: paths.join(__dirname, './servers/'),
+
+			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
+			mailers				: paths.join(__dirname, './mailers/')		,
+
 			art					: paths.join(__dirname, './../mods/art/'),
 			themes				: paths.join(__dirname, './../mods/themes/'),
 			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
@@ -166,7 +192,7 @@ function getDefaultConfig() {
 			},
 			ssh : {
 				port				: 8889,
-				enabled				: true,
+				enabled				: false,    //  defualt to false as PK/pass in config.hjson are required
 
 				//
 				//	Private key in PEM format
@@ -183,24 +209,52 @@ function getDefaultConfig() {
 			}
 		},
 
-		messages : {
-			areas : [
-				{ name : 'private_mail', desc : 'Private Email', groups : [ 'users' ] }
-			]
+		archivers : {
+			zip : {
+				sig				: "504b0304",
+				offset			: 0,
+				compressCmd		: "7z",
+				compressArgs	: [ "a", "-tzip", "{archivePath}", "{fileList}" ],
+				decompressCmd	: "7z",
+				decompressArgs	: [ "e", "-o{extractPath}", "{archivePath}" ]
+			}
 		},
 
-		networks : {
-			/*
-			networkName : {	//	e.g. fidoNet
-				address : {
-					zone	: 0,
-					net		: 0,
-					node	: 0,
-					point 	: 0,
-					domain	: 'l33t.codes'
+		messageConferences : {
+			system_internal : {
+				name 	: 'System Internal',
+				desc 	: 'Built in conference for private messages, bulletins, etc.',
+				
+				areas : {
+					private_mail : {
+						name	: 'Private Mail',
+						desc	: 'Private user to user mail/email',
+					},
+
+					local_bulletin : {
+						name	: 'System Bulletins',
+						desc	: 'Bulletin messages for all users',
+					}
 				}
 			}
-			*/
+		},
+		
+		scannerTossers : {
+			ftn_bso : {
+				paths : {
+					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
+					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
+					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
+				},
+
+				//
+				//	Packet and (ArcMail) bundle target sizes are just that: targets.
+				//	Actual sizes may be slightly larger when we must place a full
+				//	PKT contents *somewhere*
+				//
+				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
+				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
+			}
 		},
 
 		misc : {

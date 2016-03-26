@@ -84,7 +84,6 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 					return listFormat.format(oe);
 				}));
 
-				//	:TODO: This is a hack until pipe codes are better implemented
 				onlineListView.focusItems = onlineListView.items;
 
 				onlineListView.redraw();

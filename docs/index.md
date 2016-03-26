@@ -5,8 +5,7 @@ ENiGMA½ is a modern from scratch BBS package written in Node.js.
 TL;DR? This should get you started...
 
 ## Prerequisites
-* [Node.js](https://nodejs.org/) version **v0.12.2 or higher** (v4.2+ is recommended)
-  * [io.js](https://iojs.org/) should also work, though I have not yet tested this.
+* [Node.js](https://nodejs.org/) version **v4.2.x or higher**
   * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
 * **Windows users will need additional dependencies installed** for the `npm install` step in order to compile native binaries:
   * A recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK)
@@ -16,9 +15,9 @@ TL;DR? This should get you started...
 If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type enviornments:
 
 ```bash
-curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.30.1/install.sh | bash
-nvm install 4.2.4
-nvm use 4.2.4
+curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh | bash
+nvm install 4.4.0
+nvm use 4.4.0
 ```
 
 
@@ -48,16 +47,27 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 general: {
   boardName: Super Awesome BBS
 }
+
 servers: {
   ssh: {
     privateKeyPass: YOUR_PK_PASS
     enabled: true /* set to false to disable the SSH server */
   }
 }
-messages: {
-  areas: [
-    { name: "local_enigma_discusssion", desc: "ENiGMA Discussion", groups: [ "users" ] }
-  ]
+
+messageConferences: {
+  local_general: {
+    name: Local
+    desc: Local Discussions
+    default: true
+
+    areas: {
+      local_music: {
+        name: Music Discussion
+        desc: Music, bands, etc.
+        default: true
+      }
+  }
 }
 ```
 

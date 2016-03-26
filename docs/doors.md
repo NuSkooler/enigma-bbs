@@ -1,5 +1,5 @@
 # Doors
-ENiGMA½ supports a variety of methods for interacting with doors not limited to:
+ENiGMA½ supports a variety of methods for interacting with doors — not limited to:
 * `abracadabra` module: Standard in/out (stdio) capture or temporary socket server that can be used with [DOSEMU](http://www.dosemu.org/), [DOSBox](http://www.dosbox.com/), [QEMU](http://wiki.qemu.org/Main_Page), etc.
 * `bbs_link` module for interaction with [BBSLink](http://www.bbslink.net/)
 
@@ -28,7 +28,7 @@ Variables for use in `args`:
 
 
 ### DOSEMU with abracadabra
-[DOSEMU](http://www.dosemu.org/) can provide a good solution for running legacy DOS doors when running on Linux systems. For this, we will a virtual serial port (COM1) that communicates with stdio.
+[DOSEMU](http://www.dosemu.org/) can provide a good solution for running legacy DOS doors when running on Linux systems. For this, we will create a virtual serial port (COM1) that communicates via stdio.
 
 As an example, here are the steps for setting up Pimp Wars:
 

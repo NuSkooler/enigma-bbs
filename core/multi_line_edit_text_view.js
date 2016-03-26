@@ -266,24 +266,21 @@ function MultiLineEditTextView(options) {
 		}
 		return lines;
  	};
-
-	this.getOutputText = function(startIndex, endIndex, includeEol) {
-		var lines = self.getTextLines(startIndex, endIndex);
-
-		//
-		//	Convert lines to contiguous string -- all expanded
-		//	tabs put back to single '\t' characters.
-		//
-		var text = '';
-		var re = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
-		for(var i = 0; i < lines.length; ++i) {
-			text += lines[i].text.replace(re, '\t');
-			if(includeEol && lines[i].eol) {
-				text += '\n';
-			}
-		}
-		return text;
-	};
+     
+    this.getOutputText = function(startIndex, endIndex, eolMarker) {
+        let lines   = self.getTextLines(startIndex, endIndex);
+        let text    = '';
+        var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+        
+        lines.forEach(line => {
+           text += line.text.replace(re, '\t');
+           if(eolMarker && line.eol) {
+               text += eolMarker;
+           } 
+        });
+        
+        return text;
+    }
 
 	this.getContiguousText = function(startIndex, endIndex, includeEol) {
 		var lines = self.getTextLines(startIndex, endIndex);
@@ -1018,7 +1015,7 @@ MultiLineEditTextView.prototype.addText = function(text) {
 };
 
 MultiLineEditTextView.prototype.getData = function() {
-	return this.getOutputText(0, this.textLines.length, true);
+	return this.getOutputText(0, this.textLines.length, '\r\n');
 };
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {

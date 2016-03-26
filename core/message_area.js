@@ -1,104 +1,290 @@
 /* jslint node: true */
 'use strict';
 
-var msgDb			= require('./database.js').dbs.message;
-var Config			= require('./config.js').config;
-var Message			= require('./message.js');
-var Log				= require('./logger.js').log;
+let msgDb			= require('./database.js').dbs.message;
+let Config			= require('./config.js').config;
+let Message			= require('./message.js');
+let Log				= require('./logger.js').log;
+let checkAcs        = require('./acs_util.js').checkAcs;
+let msgNetRecord	= require('./msg_network.js').recordMessage;
 
-var async			= require('async');
-var _				= require('lodash');
-var assert			= require('assert');
+let async			= require('async');
+let _				= require('lodash');
+let assert			= require('assert');
 
-exports.getAvailableMessageAreas			= getAvailableMessageAreas;
-exports.getDefaultMessageArea				= getDefaultMessageArea;
-exports.getMessageAreaByName				= getMessageAreaByName;
+exports.getAvailableMessageConferences      = getAvailableMessageConferences;
+exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
+exports.getAvailableMessageAreasByConfTag   = getAvailableMessageAreasByConfTag;
+exports.getSortedAvailMessageAreasByConfTag = getSortedAvailMessageAreasByConfTag;
+exports.getDefaultMessageConferenceTag      = getDefaultMessageConferenceTag;
+exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
+exports.getMessageConferenceByTag			= getMessageConferenceByTag;
+exports.getMessageAreaByTag					= getMessageAreaByTag;
+exports.changeMessageConference				= changeMessageConference;
 exports.changeMessageArea					= changeMessageArea;
 exports.getMessageListForArea				= getMessageListForArea;
 exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
+exports.persistMessage						= persistMessage;
 
-function getAvailableMessageAreas(options) {
-	//	example: [ { "name" : "local_music", "desc" : "Music Discussion", "groups" : ["somegroup"] }, ... ]
-	options = options || {};
+const CONF_AREA_RW_ACS_DEFAULT  = 'GM[users]';
+const AREA_MANAGE_ACS_DEFAULT   = 'GM[sysops]';
 
-	var areas = Config.messages.areas;
-	var avail = [];
-	for(var i = 0; i < areas.length; ++i) {
-		if(true !== options.includePrivate &&
-			Message.WellKnownAreaNames.Private === areas[i].name)
-		{
-			continue;
-		}
+const AREA_ACS_DEFAULT = {
+    read    : CONF_AREA_RW_ACS_DEFAULT,
+    write   : CONF_AREA_RW_ACS_DEFAULT,
+    manage  : AREA_MANAGE_ACS_DEFAULT,  
+};
 
-		avail.push(areas[i]);
-	}
-
-	return avail;
+function getAvailableMessageConferences(client, options) {
+    options = options || { includeSystemInternal : false };
+    
+    //	perform ACS check per conf & omit system_internal if desired
+    return _.omit(Config.messageConferences, (v, k) => {        
+        if(!options.includeSystemInternal && 'system_internal' === k) {
+            return true;
+        }
+        
+        const readAcs = v.acs || CONF_AREA_RW_ACS_DEFAULT;
+        return !checkAcs(client, readAcs);
+    });
 }
 
-function getDefaultMessageArea() {
-	//
-	//	Return first non-private/etc. area name. This will be from config.hjson
-	//
-	return getAvailableMessageAreas()[0];
-	/*
-	var avail = getAvailableMessageAreas();
-	for(var i = 0; i < avail.length; ++i) {
-		if(Message.WellKnownAreaNames.Private !== avail[i].name) {
-			return avail[i];
-		}
-	}
-	*/
-}
-
-function getMessageAreaByName(areaName) {
-	areaName = areaName.toLowerCase();
-
-	var availAreas	= getAvailableMessageAreas( { includePrivate : true } );
-	var index		= _.findIndex(availAreas, function pred(an) {
-		return an.name == areaName;
+function getSortedAvailMessageConferences(client, options) {
+	const sorted = _.map(getAvailableMessageConferences(client, options), (v, k) => {
+		return {
+			confTag : k,
+			conf	: v,
+		};
+	});
+	
+	sorted.sort((a, b) => {
+		const keyA = a.conf.sort ? a.conf.sort.toString() : a.conf.name;
+		const keyB = b.conf.sort ? b.conf.sort.toString() : b.conf.name;
+		return keyA.localeCompare(keyB);
 	});
 
-	if(index > -1) {
-		return availAreas[index];
-	}
+	return sorted;
 }
 
-function changeMessageArea(client, areaName, cb) {
+//  Return an *object* of available areas within |confTag|
+function getAvailableMessageAreasByConfTag(confTag, options) {
+	options = options || {};
+    
+    //  :TODO: confTag === "" then find default
+
+	if(_.has(Config.messageConferences, [ confTag, 'areas' ])) {
+        const areas = Config.messageConferences[confTag].areas;
+
+        if(!options.client || true === options.noAcsCheck) {
+            //	everything - no ACS checks
+            return areas;
+        } else {
+            //	perform ACS check per area
+            return _.omit(areas, (v, k) => {
+                const readAcs = _.has(v, 'acs.read') ? v.acs.read : CONF_AREA_RW_ACS_DEFAULT;
+                return !checkAcs(options.client, readAcs);
+            });
+        }
+    }
+}
+
+function getSortedAvailMessageAreasByConfTag(confTag, options) {
+	const areas = _.map(getAvailableMessageAreasByConfTag(confTag, options), (v, k) => {
+		return  {
+			areaTag	: k,
+			area	: v,
+		}
+	});
+	
+	areas.sort((a, b) => {
+		const keyA = a.area.sort ? a.area.sort.toString() : a.area.name;
+		const keyB = b.area.sort ? b.area.sort.toString() : b.area.name;
+		return keyA.localeCompare(keyB);
+	});
+	
+	return areas;
+}
+
+function getDefaultMessageConferenceTag(client, disableAcsCheck) {
+	//
+	//	Find the first conference marked 'default'. If found,
+	//	inspect |client| against *read* ACS using defaults if not
+	//	specified.
+	//	
+	//	If the above fails, just go down the list until we get one
+	//	that passes.
+	//
+	//	It's possible that we end up with nothing here!
+	//
+	//	Note that built in 'system_internal' is always ommited here
+	//
+    let defaultConf = _.findKey(Config.messageConferences, o => o.default);
+    if(defaultConf) {
+        const acs = Config.messageConferences[defaultConf].acs || CONF_AREA_RW_ACS_DEFAULT;
+        if(true === disableAcsCheck || checkAcs(client, acs)) {
+            return defaultConf;
+        } 
+    }
+    
+    //  just use anything we can
+    defaultConf = _.findKey(Config.messageConferences, (o, k) => {
+        const acs = o.acs || CONF_AREA_RW_ACS_DEFAULT;
+        return 'system_internal' !== k && (true === disableAcsCheck || checkAcs(client, acs));
+    });
+    
+    return defaultConf;
+}
+
+function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
+    //
+    //  Similar to finding the default conference:
+    //  Find the first entry marked 'default', if any. If found, check | client| against
+    //  *read* ACS. If this fails, just find the first one we can that passes checks.
+    //
+    //  It's possible that we end up with nothing!
+    //
+    confTag = confTag || getDefaultMessageConferenceTag(client);
+    
+    if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
+        const areaPool = Config.messageConferences[confTag].areas;        
+        let defaultArea = _.findKey(areaPool, o => o.default);
+        if(defaultArea) {
+            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+            if(true === disableAcsCheck || checkAcs(client, readAcs)) {
+                return defaultArea;
+            }            
+        }
+        
+        defaultArea = _.findKey(areaPool, (o, k) => {
+            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+            return (true === disableAcsCheck || checkAcs(client, readAcs));       
+        });
+        
+        return defaultArea;
+    }
+}
+
+function getMessageConferenceByTag(confTag) {
+	return Config.messageConferences[confTag];
+}
+
+function getMessageAreaByTag(areaTag, optionalConfTag) {
+    const confs = Config.messageConferences;
+    
+    if(_.isString(optionalConfTag)) {
+        if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
+            return confs[optionalConfTag].areas[areaTag];
+        }
+    } else {
+        //
+        //  No confTag to work with - we'll have to search through them all
+        //
+        var area;
+        _.forEach(confs, (v, k) => {
+            if(_.has(v, [ 'areas', areaTag ])) {
+                area = v.areas[areaTag];
+                return false;   //  stop iteration
+            } 
+        });
+        
+        return area;
+    }
+}
+
+function changeMessageConference(client, confTag, cb) {
+	async.waterfall(
+		[
+			function getConf(callback) {
+				const conf = getMessageConferenceByTag(confTag);
+				
+				if(conf) {
+					callback(null, conf);
+				} else {
+					callback(new Error('Invalid message conference tag'));
+				}
+			},
+			function getDefaultAreaInConf(conf, callback) {
+				const areaTag 	= getDefaultMessageAreaTagByConfTag(client, confTag);
+				const area		= getMessageAreaByTag(areaTag, confTag);
+				
+				if(area) {
+					callback(null, conf, { areaTag : areaTag, area : area } );
+				} else {
+					callback(new Error('No available areas for this user in conference'));
+				}
+			},
+			function validateAccess(conf, areaInfo, callback) {
+				const confAcs = conf.acs || CONF_AREA_RW_ACS_DEFAULT;				
+				
+				if(!checkAcs(client, confAcs)) {
+					callback(new Error('User does not have access to this conference'));
+				} else {
+					const areaAcs = _.has(areaInfo, 'area.acs.read') ? areaInfo.area.acs.read : CONF_AREA_RW_ACS_DEFAULT;
+					if(!checkAcs(client, areaAcs)) {
+						callback(new Error('User does not have access to default area in this conference'));
+					} else {
+						callback(null, conf, areaInfo);
+					}
+				}
+			},			
+			function changeConferenceAndArea(conf, areaInfo, callback) {
+				const newProps = {
+					message_conf_tag	: confTag,
+					message_area_tag	: areaInfo.areaTag,
+				};
+				client.user.persistProperties(newProps, err => {
+					callback(err, conf, areaInfo);
+				});
+			},
+		],
+		function complete(err, conf, areaInfo) {
+			if(!err) {
+				client.log.info( { confTag : confTag, confName : conf.name, areaTag : areaInfo.areaTag }, 'Current message conference changed');
+			} else {
+				client.log.warn( { confTag : confTag, error : err.message }, 'Could not change message conference');
+			}
+			cb(err);
+		}
+	);
+}
+
+function changeMessageArea(client, areaTag, cb) {
 	
 	async.waterfall(
 		[
 			function getArea(callback) {
-				var area = getMessageAreaByName(areaName);
+				const area = getMessageAreaByTag(areaTag);
 
 				if(area) {
 					callback(null, area);
 				} else {
-					callback(new Error('Invalid message area'));
+					callback(new Error('Invalid message area tag'));
 				}
 			},
 			function validateAccess(area, callback) {
-				if(_.isArray(area.groups) && !
-					client.user.isGroupMember(area.groups))
-				{
+                //
+                //  Need at least *read* to access the area
+                //
+                const readAcs = _.has(area, 'acs.read') ? area.acs.read : CONF_AREA_RW_ACS_DEFAULT;
+                if(!checkAcs(client, readAcs)) {                    
 					callback(new Error('User does not have access to this area'));
 				} else {
 					callback(null, area);
 				}
 			},
 			function changeArea(area, callback) {
-				client.user.persistProperty('message_area_name', area.name, function persisted(err) {
+				client.user.persistProperty('message_area_tag', areaTag, function persisted(err) {
 					callback(err, area);
 				});
 			}
 		],
 		function complete(err, area) {
 			if(!err) {
-				client.log.info( area, 'Current message area changed');
+				client.log.info( { areaTag : areaTag, area : area }, 'Current message area changed');
 			} else {
-				client.log.warn( { area : area, error : err.message }, 'Could not change message area');
+				client.log.warn( { areaTag : areaTag, area : area, error : err.message }, 'Could not change message area');
 			}
 
 			cb(err);
@@ -119,9 +305,9 @@ function getMessageFromRow(row) {
 	};
 }
 
-function getNewMessagesInAreaForUser(userId, areaName, cb) {
+function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 	//
-	//	If |areaName| is Message.WellKnownAreaNames.Private,
+	//	If |areaTag| is Message.WellKnownAreaTags.Private,
 	//	only messages addressed to |userId| should be returned.
 	//
 	//	Only messages > lastMessageId should be returned
@@ -131,7 +317,7 @@ function getNewMessagesInAreaForUser(userId, areaName, cb) {
 	async.waterfall(
 		[
 			function getLastMessageId(callback) {
-				getMessageAreaLastReadId(userId, areaName, function fetched(err, lastMessageId) {
+				getMessageAreaLastReadId(userId, areaTag, function fetched(err, lastMessageId) {
 					callback(null, lastMessageId || 0);	//	note: willingly ignoring any errors here!
 				});
 			},
@@ -139,9 +325,9 @@ function getNewMessagesInAreaForUser(userId, areaName, cb) {
 				var sql = 
 					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count ' +
 					'FROM message ' +
-					'WHERE area_name="' + areaName + '" AND message_id > ' + lastMessageId;
+					'WHERE area_tag ="' + areaTag + '" AND message_id > ' + lastMessageId;
 
-				if(Message.WellKnownAreaNames.Private === areaName) {
+				if(Message.WellKnownAreaTags.Private === areaTag) {
 					sql += 
 						' AND message_id in (' +
 						'SELECT message_id from message_meta where meta_category=' + Message.MetaCategories.System + 
@@ -150,8 +336,6 @@ function getNewMessagesInAreaForUser(userId, areaName, cb) {
 
 				sql += ' ORDER BY message_id;';
 
-				console.log(sql)
-								
 				msgDb.each(sql, function msgRow(err, row) {
 					if(!err) {
 						msgList.push(getMessageFromRow(row));
@@ -160,18 +344,17 @@ function getNewMessagesInAreaForUser(userId, areaName, cb) {
 			}
 		],
 		function complete(err) {
-			console.log(msgList)
 			cb(err, msgList);
 		}
 	);	
 }
 
-function getMessageListForArea(options, areaName, cb) {
+function getMessageListForArea(options, areaTag, cb) {
 	//
 	//	options.client (required)
 	//
 
-	options.client.log.debug( { areaName : areaName }, 'Fetching available messages');
+	options.client.log.debug( { areaTag : areaTag }, 'Fetching available messages');
 
 	assert(_.isObject(options.client));
 
@@ -193,9 +376,9 @@ function getMessageListForArea(options, areaName, cb) {
 				msgDb.each(
 					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count '	+
 					'FROM message '																													+
-					'WHERE area_name=? '																											+
+					'WHERE area_tag = ? '																											+
 					'ORDER BY message_id;',
-					[ areaName.toLowerCase() ],
+					[ areaTag.toLowerCase() ],
 					function msgRow(err, row) {
 						if(!err) {
 							msgList.push(getMessageFromRow(row));
@@ -214,24 +397,24 @@ function getMessageListForArea(options, areaName, cb) {
 	);
 }
 
-function getMessageAreaLastReadId(userId, areaName, cb) {
+function getMessageAreaLastReadId(userId, areaTag, cb) {
 	msgDb.get(
 		'SELECT message_id '					+
 		'FROM user_message_area_last_read '		+
-		'WHERE user_id = ? AND area_name = ?;',
-		[ userId, areaName ],
+		'WHERE user_id = ? AND area_tag = ?;',
+		[ userId, areaTag ],
 		function complete(err, row) {
 			cb(err, row ? row.message_id : 0);
 		}
 	);
 }
 
-function updateMessageAreaLastReadId(userId, areaName, messageId, cb) {
+function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 	//	:TODO: likely a better way to do this...
 	async.waterfall(
 		[
 			function getCurrent(callback) {
-				getMessageAreaLastReadId(userId, areaName, function result(err, lastId) {
+				getMessageAreaLastReadId(userId, areaTag, function result(err, lastId) {
 					lastId = lastId || 0;
 					callback(null, lastId);	//	ignore errors as we default to 0
 				});
@@ -239,27 +422,45 @@ function updateMessageAreaLastReadId(userId, areaName, messageId, cb) {
 			function update(lastId, callback) {
 				if(messageId > lastId) {
 					msgDb.run(
-						'REPLACE INTO user_message_area_last_read (user_id, area_name, message_id) '	+
+						'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) '	+
 						'VALUES (?, ?, ?);',
-						[ userId, areaName, messageId ],
-						callback
+						[ userId, areaTag, messageId ],
+						function written(err) {
+                            callback(err, true);    //  true=didUpdate
+                        }
 					);
 				} else {
 					callback(null);
 				}
 			}
 		],
-		function complete(err) {
+		function complete(err, didUpdate) {
 			if(err) {
 				Log.debug( 
-					{ error : err.toString(), userId : userId, areaName : areaName, messageId : messageId }, 
+					{ error : err.toString(), userId : userId, areaTag : areaTag, messageId : messageId }, 
 					'Failed updating area last read ID');
 			} else {
-				Log.trace( 
-					{ userId : userId, areaName : areaName, messageId : messageId },
-					'Area last read ID updated');
+                if(true === didUpdate) {
+                    Log.trace( 
+                        { userId : userId, areaTag : areaTag, messageId : messageId },
+                        'Area last read ID updated');
+                }
 			}
 			cb(err);
 		}
+	);
+}
+
+function persistMessage(message, cb) {
+	async.series(
+		[
+			function persistMessageToDisc(callback) {
+				message.persist(callback);
+			},
+			function recordToMessageNetworks(callback) {
+				msgNetRecord(message, callback);
+			}
+		],
+		cb
 	);
 }

@@ -1,44 +1,47 @@
 /* jslint node: true */
 'use strict';
 
+//var SegfaultHandler = require('segfault-handler');
+//SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
+
 //	ENiGMA½
-var conf		= require('./config.js');
-var logger		= require('./logger.js');
-var miscUtil	= require('./misc_util.js');
-var database	= require('./database.js');
-var clientConns	= require('./client_connections.js');
+let conf		= require('./config.js');
+let logger		= require('./logger.js');
+let miscUtil	= require('./misc_util.js');
+let database	= require('./database.js');
+let clientConns	= require('./client_connections.js');
 
-var paths		= require('path');
-var async		= require('async');
-var util		= require('util');
-var _			= require('lodash');
-var assert		= require('assert');
-var mkdirp 		= require('mkdirp');
+let paths		= require('path');
+let async		= require('async');
+let util		= require('util');
+let _			= require('lodash');
+let assert		= require('assert');
+let mkdirp 		= require('mkdirp');
 
-exports.bbsMain			= bbsMain;
+//	our main entry point
+exports.bbsMain	= bbsMain;
 
 function bbsMain() {
 	async.waterfall(
 		[
 			function processArgs(callback) {
-				var args = parseArgs();
+				const args = process.argv.slice(2);
 
 				var configPath;
 
 				if(args.indexOf('--help') > 0) {
 					//	:TODO: display help
 				} else {
-					var argCount = args.length;
-					for(var i = 0; i < argCount; ++i) {
-						var arg = args[i];
-						if('--config' == arg) {
+					let argCount = args.length;
+					for(let i = 0; i < argCount; ++i) {
+						const arg = args[i];
+						if('--config' === arg) {
 							configPath = args[i + 1];
 						}
 					}
 				}
 
-				var configPathSupplied = _.isString(configPath);
-				callback(null, configPath || conf.getDefaultPath(), configPathSupplied);
+				callback(null, configPath || conf.getDefaultPath(), _.isString(configPath));
 			},
 			function initConfig(configPath, configPathSupplied, callback) {
 				conf.init(configPath, function configInit(err) {
@@ -68,23 +71,17 @@ function bbsMain() {
 					}
 					callback(err);
 				});
+			},
+			function listenConnections(callback) {
+				startListening(callback);
 			}
 		],
 		function complete(err) {
-			if(!err) {
-				startListening();
+			if(err) {
+				logger.log.error(err);
 			}
 		}
 	);
-}
-
-function parseArgs() {
-	var args = [];
-	process.argv.slice(2).forEach(function(val, index, array) {
-		args.push(val);
-	});
-
-	return args;
 }
 
 function initialize(cb) {
@@ -117,7 +114,7 @@ function initialize(cb) {
 					
 					process.exit();
 				});
-				
+			
 				//	Init some extensions
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
 
@@ -169,6 +166,9 @@ function initialize(cb) {
 						});
 					}
 				});
+			},
+			function readyMessageNetworkSupport(callback) {
+				require('./msg_network.js').startup(callback);	
 			}
 		],
 		function onComplete(err) {
@@ -177,29 +177,36 @@ function initialize(cb) {
 	);
 }
 
-function startListening() {
+function startListening(cb) {
 	if(!conf.config.servers) {
 		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
-		logger.log.error('No servers configured');
-		return [];
+		//logger.log.error('No servers configured');
+		cb(new Error('No servers configured'));
+		return;
 	}
 
-	var moduleUtil = require('./module_util.js');	//	late load so we get Config
+	let moduleUtil = require('./module_util.js');	//	late load so we get Config
 
-	moduleUtil.loadModulesForCategory('servers', function onServerModule(err, module) {
+	moduleUtil.loadModulesForCategory('servers', (err, module) => {
 		if(err) {
 			logger.log.info(err);
 			return;
 		}
 
-		var port = parseInt(module.runtime.config.port);
+		const port = parseInt(module.runtime.config.port);
 		if(isNaN(port)) {
 			logger.log.error( { port : module.runtime.config.port, server : module.moduleInfo.name }, 'Cannot load server (Invalid port)');
 			return;
 		}
 
-		var moduleInst = new module.getModule();
-		var server = moduleInst.createServer();
+		const moduleInst	= new module.getModule();
+        let server;
+        try {
+		    server		= moduleInst.createServer();
+        } catch(e) {
+            logger.log.warn(e, 'Exception caught creating server!');
+            return;
+        }
 
 		//	:TODO: handle maxConnections, e.g. conf.maxConnections
 
@@ -260,7 +267,11 @@ function startListening() {
 		});
 
 		server.listen(port);
-		logger.log.info({ server : module.moduleInfo.name, port : port }, 'Listening for connections');
+
+		logger.log.info(
+			{ server : module.moduleInfo.name, port : port }, 'Listening for connections');
+	}, err => {
+		cb(err);
 	});
 }
 

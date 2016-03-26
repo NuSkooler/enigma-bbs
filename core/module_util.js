@@ -1,13 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-var Config		= require('./config.js').config;
-var miscUtil	= require('./misc_util.js');
+//	ENiGMA½
+let Config		= require('./config.js').config;
+let miscUtil	= require('./misc_util.js');
 
-var fs 			= require('fs');
-var paths		= require('path');
-var _			= require('lodash');
-var assert		= require('assert');
+//	standard/deps
+let fs 			= require('fs');
+let paths		= require('path');
+let _			= require('lodash');
+let assert		= require('assert');
+let async		= require('async');
 
 //	exports
 exports.loadModuleEx			= loadModuleEx;
@@ -19,33 +22,34 @@ function loadModuleEx(options, cb) {
 	assert(_.isString(options.name));
 	assert(_.isString(options.path));
 
-	var modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
+	const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
 	if(_.isObject(modConfig) && false === modConfig.enabled) {
 		cb(new Error('Module "' + options.name + '" is disabled'));
 		return;
 	}
 
+	var mod;
 	try {
-		var mod = require(paths.join(options.path, options.name + '.js'));
-
-		if(!_.isObject(mod.moduleInfo)) {
-			cb(new Error('Module is missing "moduleInfo" section'));
-			return;
-		}
-
-		if(!_.isFunction(mod.getModule)) {
-			cb(new Error('Invalid or missing "getModule" method for module!'));
-			return;
-		}
-
-		//	Safe configuration, if any, for convience to the module
-		mod.runtime = { config : modConfig };
-
-		cb(null, mod);
+		mod = require(paths.join(options.path, options.name + '.js'));
 	} catch(e) {
 		cb(e);
 	}
+
+	if(!_.isObject(mod.moduleInfo)) {
+		cb(new Error('Module is missing "moduleInfo" section'));
+		return;
+	}
+
+	if(!_.isFunction(mod.getModule)) {
+		cb(new Error('Invalid or missing "getModule" method for module!'));
+		return;
+	}
+
+	//	Ref configuration, if any, for convience to the module
+	mod.runtime = { config : modConfig };
+
+	cb(null, mod);
 }
 
 function loadModule(name, category, cb) {
@@ -61,19 +65,26 @@ function loadModule(name, category, cb) {
 	});
 }
 
-function loadModulesForCategory(category, cb) {
-	var path = Config.paths[category];
-
-	fs.readdir(path, function onFiles(err, files) {
+function loadModulesForCategory(category, iterator, complete) {
+	
+	fs.readdir(Config.paths[category], (err, files) => {
 		if(err) {
-			cb(err);
-			return;
+			return iterator(err);
 		}
 
-		var filtered = files.filter(function onFilter(file) { return '.js' === paths.extname(file); });
-		filtered.forEach(function onFile(file) {
-			var modName = paths.basename(file, '.js');
-			loadModule(paths.basename(file, '.js'), category, cb);
+		const jsModules = files.filter(file => {
+			return '.js' === paths.extname(file);
+		});
+
+		async.each(jsModules, (file, next) => {
+			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
+				iterator(err, mod);
+				next();
+			});
+		}, err => {
+			if(complete) {
+				complete(err);
+			}
 		});
 	});
 }

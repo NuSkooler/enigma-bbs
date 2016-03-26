@@ -7,7 +7,12 @@ var acsParser	= require('./acs_parser.js');
 var _			= require('lodash');
 var assert		= require('assert');
 
+exports.checkAcs                   = checkAcs;
 exports.getConditionalValue			= getConditionalValue;
+
+function checkAcs(client, acsString) {
+    return acsParser.parse(acsString, { client : client } );
+}
 
 function getConditionalValue(client, condArray, memberName) {
 	assert(_.isObject(client));

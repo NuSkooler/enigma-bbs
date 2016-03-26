@@ -52,15 +52,15 @@ function MessageListModule(options) {
 	var self	= this;
 	var config	= this.menuConfig.config;
 
-	this.messageAreaName = config.messageAreaName;
+	this.messageAreaTag = config.messageAreaTag;
 
 	if(options.extraArgs) {
 		//
-		//	|extraArgs| can override |messageAreaName| provided by config
+		//	|extraArgs| can override |messageAreaTag| provided by config
 		//	as well as supply a pre-defined message list
 		//
-		if(options.extraArgs.messageAreaName) {
-			this.messageAreaName = options.extraArgs.messageAreaName;
+		if(options.extraArgs.messageAreaTag) {
+			this.messageAreaTag = options.extraArgs.messageAreaTag;
 		}
 
 		if(options.extraArgs.messageList) {
@@ -73,7 +73,7 @@ function MessageListModule(options) {
 			if(1 === formData.submitId) {
 				var modOpts = {
 					extraArgs 	: {
-						messageAreaName		: self.messageAreaName,
+						messageAreaTag		: self.messageAreaTag,
 						messageList			: self.messageList,
 						messageIndex		: formData.value.message,
 					}
@@ -94,21 +94,23 @@ function MessageListModule(options) {
 
 require('util').inherits(MessageListModule, MenuModule);
 
-MessageListModule.prototype.enter = function(client) {
-	MessageListModule.super_.prototype.enter.call(this, client);
+MessageListModule.prototype.enter = function() {
+	MessageListModule.super_.prototype.enter.call(this);
 
 	//
-	//	Config can specify |messageAreaName| else it comes from
+	//	Config can specify |messageAreaTag| else it comes from
 	//	the user's current area
 	//
-	if(!this.messageAreaName) {
-		this.messageAreaName = client.user.properties.message_area_name;
+	if(!this.messageAreaTag) {
+		this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
 };
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
 	var self	= this;
 	var vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+
+	var firstNewEntryIndex;
 
 	async.series(
 		[
@@ -130,7 +132,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				if(_.isArray(self.messageList)) {
 					callback(0 === self.messageList.length ? new Error('No messages in area') : null);
 				} else {
-					messageArea.getMessageListForArea( { client : self.client }, self.messageAreaName, function msgs(err, msgList) {
+					messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
 						if(msgList && 0 === msgList.length) {
 							callback(new Error('No messages in area'));
 						} else {
@@ -141,7 +143,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				}
 			},
 			function getLastReadMesageId(callback) {
-				messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaName, function lastRead(err, lastReadId) {
+				messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaTag, function lastRead(err, lastReadId) {
 					self.lastReadId = lastReadId || 0;
 					callback(null);	//	ignore any errors, e.g. missing value
 				});
@@ -158,6 +160,13 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				var msgNum = 1;
 
 				function getMsgFmtObj(mle) {
+
+					if(_.isUndefined(firstNewEntryIndex) &&
+						mle.messageId > self.lastReadId)
+					{
+						firstNewEntryIndex = msgNum - 1;
+					}
+
 					return {
 						msgNum			: msgNum++, 
 						subj			: mle.subject,
@@ -180,14 +189,18 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				msgListView.on('index update', function indexUpdated(idx) {
 					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
 				});
-
+				
 				msgListView.redraw();
+				
+				if(firstNewEntryIndex > 0) {
+					msgListView.setFocusItemIndex(firstNewEntryIndex);
+				}
 
 				callback(null);
 			},
 			function populateOtherMciViews(callback) {
 
-				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByName(self.messageAreaName).desc);
+				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByTag(self.messageAreaTag).name);
 				self.setViewText(MciCodesIds.MsgSelNum, (vc.getView(MciCodesIds.MsgList).getData() + 1).toString());
 				self.setViewText(MciCodesIds.MsgTotal, self.messageList.length.toString());
 

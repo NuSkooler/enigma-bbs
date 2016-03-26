@@ -56,7 +56,7 @@ function userLogin(client, username, password, cb) {
 
 			//	update client logger with addition of username
 			client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
-			client.log.info('Successful login');
+			client.log.info('Successful login');            
 
 			async.parallel(
 				[
