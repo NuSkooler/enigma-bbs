@@ -52,7 +52,7 @@ function getAvailableMessageConferences(client, options) {
 }
 
 function getSortedAvailMessageConferences(client, options) {
-	var sorted = _.map(getAvailableMessageConferences(client, options), (v, k) => {
+	const sorted = _.map(getAvailableMessageConferences(client, options), (v, k) => {
 		return {
 			confTag : k,
 			conf	: v,

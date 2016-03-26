@@ -1,5 +1,5 @@
 # Message Networks
-Message networks are configured in `messageNetworks` section of `config.hjson`. Each network type has it's own sub section such as `ftn` for FidoNet Technology Network (FTN) style networks.
+Message networks are configured in `messageNetworks` section of `config.hjson`. Each network type has it's own sub section such as `ftn` for FidoNet Technology Network (FTN) style networks. Message Networks tie directly with [Message Areas](msg_conf_area.md) that are also defined in `config.hjson`.
 
 ## FidoNet Technology Network (FTN)
 FTN networks are configured under the `messageNetworks::ftn` section of `config.hjson`.
