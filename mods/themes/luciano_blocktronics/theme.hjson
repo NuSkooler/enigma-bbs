@@ -170,6 +170,19 @@
 				}
 			}
 
+			messageAreaChangeCurrentConference: {
+				config: {
+					listFormat: "|00|15{index} |07- |03{name}"
+					focusListFormat: "|00|19|15{index} - {name}"
+				}
+				mci: {
+					VM1: {
+						width: 26
+						height: 19
+					}
+				}
+			}
+
 			messageAreaChangeCurrentArea: {
 				config: {
 					listFormat: "|00|15{index} |07- |03{name}"
