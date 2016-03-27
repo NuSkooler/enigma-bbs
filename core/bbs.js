@@ -78,7 +78,7 @@ function bbsMain() {
 		],
 		function complete(err) {
 			if(err) {
-				logger.log.error(err);
+				console.error('Error initializing: ' + util.inspect(err));
 			}
 		}
 	);
