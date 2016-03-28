@@ -15,13 +15,13 @@ let Message					= require('../message.js');
 let moment					= require('moment');
 let _						= require('lodash');
 let paths					= require('path');
-let mkdirp 					= require('mkdirp');
 let async					= require('async');
 let fs						= require('fs');
 let later					= require('later');
 let temp					= require('temp').track();	//	track() cleans up temp dir/files for us
 let assert					= require('assert');
 let gaze					= require('gaze');
+let fse						= require('fs-extra');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -627,7 +627,7 @@ function FTNMessageScanTossModule() {
 			async.waterfall(
 				[
 					function createOutgoingDir(callback) {
-						mkdirp(outgoingDir, err => {
+						fse.mkdirs(outgoingDir, err => {
 							callback(err);
 						});
 					},
@@ -680,13 +680,13 @@ function FTNMessageScanTossModule() {
 									outgoingDir, 
 									`${paths.basename(oldPath, 'pk_')}${ext}`);
 																		
-								fs.rename(oldPath, newPath, nextFile);
+								fse.move(oldPath, newPath, nextFile);
 							} else {
 								const newPath = paths.join(outgoingDir, paths.basename(oldPath));
-								fs.rename(oldPath, newPath, err => {
+								fse.move(oldPath, newPath, err => {
 									if(err) {
 										Log.warn(
-											{ oldPath : oldPath, newPath : newPath },
+											{ oldPath : oldPath, newPath : newPath, error : err.toString() },
 											'Failed moving temporary bundle file!');
 											
 										return nextFile();
