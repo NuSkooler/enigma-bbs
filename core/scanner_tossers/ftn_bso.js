@@ -742,7 +742,7 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
-	this.importNetMailToArea = function(localAreaTag, header, message, cb) {
+	this.importEchoMailToArea = function(localAreaTag, header, message, cb) {
 		async.series(
 			[
 				function validateDestinationAddress(callback) {			
@@ -807,6 +807,12 @@ function FTNMessageScanTossModule() {
 		let packetHeader;
 				
         const packetOpts = { keepTearAndOrigin : true };
+		
+		let importStats = {
+			areaSuccess	: {},	//	areaTag->count
+			areaFail	: {},	//	areaTag->count
+			otherFail	: 0,
+		};
         
 		new ftnMailPacket.Packet(packetOpts).read(packetPath, (entryType, entryData, next) => {
 			if('header' === entryType) {
@@ -831,15 +837,21 @@ function FTNMessageScanTossModule() {
 					//
 					const localAreaTag = self.getLocalAreaTagByFtnAreaTag(areaTag);
 					if(localAreaTag) {
-						self.importNetMailToArea(localAreaTag, packetHeader, message, err => {
+						self.importEchoMailToArea(localAreaTag, packetHeader, message, err => {
 							if(err) {
+								//	bump area fail stats
+								importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
+								
 								if('SQLITE_CONSTRAINT' === err.code) {
 									Log.info(
-										{ subject : message.subject, uuid : message.uuid }, 
+										{ area : localAreaTag, subject : message.subject, uuid : message.uuid }, 
 										'Not importing non-unique message');
 									
 									return next(null);
 								}
+							} else {
+								//	bump area success
+								importStats.areaSuccess[localAreaTag] = (importStats.areaSuccess[localAreaTag] || 0) + 1;
 							}
 															
 							next(err);
@@ -849,14 +861,25 @@ function FTNMessageScanTossModule() {
 						//	No local area configured for this import
 						//
 						//	:TODO: Handle the "catch all" case, if configured 
+						Log.warn( { areaTag : areaTag }, 'No local area configured for this packet file!');
+						
+						//	bump generic failure
+						importStats.otherFail += 1;
+						
+						return next(null);
 					}
 				} else {
 					//
 					//	NetMail
 					//
+					Log.warn('NetMail import not yet implemented!');
+					return next(null);
 				}
 			}
 		}, err => {
+			const finalStats = Object.assign(importStats, { packetPath : packetPath } );
+			Log.info(finalStats, 'Import complete');
+			
 			cb(err);
 		});
 	};
@@ -1070,6 +1093,15 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 		if(_.isObject(this.moduleConfig.schedule)) {
 			const exportSchedule = this.parseScheduleString(this.moduleConfig.schedule.export);
 			if(exportSchedule) {
+				Log.debug(
+					{ 
+						schedule	: this.moduleConfig.schedule.export,
+						schedOK		: -1 === exportSchedule.sched.error,
+						immediate	: exportSchedule.immediate ? true : false,
+					},
+					'Export schedule loaded'
+				);
+				
 				if(exportSchedule.sched && this.exportingStart()) {
 					this.exportTimer = later.setInterval( () => {
 						
@@ -1087,7 +1119,16 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 			}
 			
 			const importSchedule = this.parseScheduleString(this.moduleConfig.schedule.import);
-			if(importSchedule) {			
+			if(importSchedule) {
+				Log.debug(
+					{
+						schedule	: this.moduleConfig.schedule.import,
+						schedOK		: -1 === importSchedule.sched.error,
+						watchFile	: _.isString(importSchedule.watchFile) ? importSchedule.watchFile : 'None',
+					},
+					'Import schedule loaded'
+				);
+				
 				if(importSchedule.sched) {					
 					this.importTimer = later.setInterval( () => {
 						tryImportNow('Performing scheduled message import/toss...');						
@@ -1162,22 +1203,6 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 	}
 	
 	//
-	//	Select all messages that have a message_id > our last scan ID.
-	//	Additionally exclude messages that have a ftn_attr_flags FtnProperty meta
-	//	as those came via import!
-	//
-	/*	
-	const getNewUuidsSql = 
-		`SELECT message_id, message_uuid
-		FROM message m
-		WHERE area_tag = ? AND message_id > ? AND
-			(SELECT COUNT(message_id) 
-			FROM message_meta 
-			WHERE message_id = m.message_id AND meta_category = 'FtnProperty' AND meta_name = 'ftn_attr_flags') = 0
-		ORDER BY message_id;`;
-	*/
-	
-	//
 	//	Select all messages with a |message_id| > |lastScanId|.
 	//	Additionally exclude messages with the System state_flags0 which will be present for
 	//	imported or already exported messages
@@ -1193,7 +1218,7 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 			WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
 		ORDER BY message_id;`;
 		
-	var self = this;		
+	let self = this;		
 		
 	async.each(Object.keys(Config.messageNetworks.ftn.areas), (areaTag, nextArea) => {
 		const areaConfig = Config.messageNetworks.ftn.areas[areaTag];

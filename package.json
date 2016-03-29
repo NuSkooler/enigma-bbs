@@ -23,7 +23,6 @@
     "later": "1.2.0",
     "lodash": "^3.10.1",
     "minimist": "1.2.x",
-    "mkdirp": "0.5.x",
     "moment": "^2.11.0",
     "node-uuid": "^1.4.7",
     "ptyw.js": "^0.3.7",

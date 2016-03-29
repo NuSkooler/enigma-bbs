@@ -1,26 +1,26 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var DropFile			= require('../core/dropfile.js').DropFile;
-var door				= require('../core/door.js');
-var theme				= require('../core/theme.js');
-var ansi				= require('../core/ansi_term.js');
+let MenuModule			= require('../core/menu_module.js').MenuModule;
+let DropFile			= require('../core/dropfile.js').DropFile;
+let door				= require('../core/door.js');
+let theme				= require('../core/theme.js');
+let ansi				= require('../core/ansi_term.js');
 
-var async				= require('async');
-var assert				= require('assert');
-var mkdirp 				= require('mkdirp');
-var paths				= require('path');
-var _					= require('lodash');
-var net					= require('net');
+let async				= require('async');
+let assert				= require('assert');
+let paths				= require('path');
+let _					= require('lodash');
+let net					= require('net');
+let mkdirs				= require('fs-extra').mkdirs;
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
 
 exports.getModule		= AbracadabraModule;
 
-var activeDoorNodeInstances = {};
+let activeDoorNodeInstances = {};
 
-var doorInstances = {};	//	name -> { count : <instCount>, { <nodeNum> : <inst> } }
+let doorInstances = {};	//	name -> { count : <instCount>, { <nodeNum> : <inst> } }
 
 exports.moduleInfo = {
 	name	: 'Abracadabra',
@@ -66,7 +66,7 @@ exports.moduleInfo = {
 function AbracadabraModule(options) {
 	MenuModule.call(this, options);
 
-	var self = this;
+	let self = this;
 
 	this.config = options.menuConfig.config;
 
@@ -128,7 +128,7 @@ function AbracadabraModule(options) {
 					self.dropFile	= new DropFile(self.client, self.config.dropFileType);
 					var fullPath	= self.dropFile.fullPath;
 
-					mkdirp(paths.dirname(fullPath), function dirCreated(err) {
+					mkdirs(paths.dirname(fullPath), function dirCreated(err) {
 						if(err) {
 							callback(err);
 						} else {
@@ -153,7 +153,7 @@ function AbracadabraModule(options) {
 
 	this.runDoor = function() {
 
-		var exeInfo = {
+		const exeInfo = {
 			cmd			: self.config.cmd,
 			args		: self.config.args,
 			io			: self.config.io || 'stdio',
@@ -163,9 +163,9 @@ function AbracadabraModule(options) {
 			//inhSocket	: self.client.output._handle.fd,
 		};
 
-		var doorInstance = new door.Door(self.client, exeInfo);
+		const doorInstance = new door.Door(self.client, exeInfo);
 
-		doorInstance.on('finished', function doorFinished() {
+		doorInstance.on('finished', () => {
 			self.prevMenu();
 		});
 
