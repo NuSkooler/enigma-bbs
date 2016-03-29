@@ -734,7 +734,7 @@ function FTNMessageScanTossModule() {
 		}
 		
 		Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.REPLY, (err, msgIds) => {
-			if(!err) {
+			if(msgIds && msgIds.length > 0) {
 				assert(1 === msgIds.length);
 				message.replyToMsgId = msgIds[0];
 			}
@@ -874,10 +874,13 @@ function FTNMessageScanTossModule() {
 				},
 				function importPacketFiles(packetFiles, callback) {
 					let rejects = [];
-					async.each(packetFiles, (packetFile, nextFile) => {
-						self.importMessagesFromPacketFile(paths.join(importDir, packetFile), '', err => {
-							//	:TODO: check err -- log / track rejects, etc.
+					async.eachSeries(packetFiles, (packetFile, nextFile) => {
+						self.importMessagesFromPacketFile(paths.join(importDir, packetFile), '', err => {							
 							if(err) {
+								Log.debug( 
+									{ path : paths.join(importDir, packetFile), error : err.toString() }, 
+									'Failed to import packet file');
+								
 								rejects.push(packetFile);
 							}
 							nextFile();
@@ -920,7 +923,15 @@ function FTNMessageScanTossModule() {
 				},
 				function discoverBundles(callback) {
 					fs.readdir(importDir, (err, files) => {
-						files = files.filter(f => '.pkt' !== paths.extname(f));
+						//	:TODO: Need to be explicit about files to attempt an extract, e.g. *.su?, *.mo?, ...
+						//	:TODO: if we do much more of this, probably just use the glob module
+						//files = files.filter(f => '.pkt' !== paths.extname(f));
+						
+						const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9A-Za-z]/;
+						files = files.filter(f => {
+							const fext = paths.extname(f);
+							return bundleRegExp.test(fext);
+						});
 						
 						async.map(files, (file, transform) => {
 							const fullPath = paths.join(importDir, file);
