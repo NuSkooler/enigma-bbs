@@ -1,6 +1,10 @@
 # Message Networks
 Message networks are configured in `messageNetworks` section of `config.hjson`. Each network type has it's own sub section such as `ftn` for FidoNet Technology Network (FTN) style networks. Message Networks tie directly with [Message Areas](msg_conf_area.md) that are also defined in `config.hjson`.
 
+**Members**:
+  * `ftn`: Configure FTN networks (described below)
+  * `originLine` (optional): Overrwrite the default origin line for networks that support it. For example: `originLine: Xibalba - xibalba.l33t.codes:44510`
+
 ## FidoNet Technology Network (FTN)
 FTN networks are configured under the `messageNetworks::ftn` section of `config.hjson`.
 
