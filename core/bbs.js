@@ -16,7 +16,7 @@ let async		= require('async');
 let util		= require('util');
 let _			= require('lodash');
 let assert		= require('assert');
-let mkdirp 		= require('mkdirp');
+let mkdirs		= require('fs-extra').mkdirs;
 
 //	our main entry point
 exports.bbsMain	= bbsMain;
@@ -78,7 +78,7 @@ function bbsMain() {
 		],
 		function complete(err) {
 			if(err) {
-				logger.log.error(err);
+				console.error('Error initializing: ' + util.inspect(err));
 			}
 		}
 	);
@@ -89,7 +89,7 @@ function initialize(cb) {
 		[
 			function createMissingDirectories(callback) {
 				async.each(Object.keys(conf.config.paths), function entry(pathKey, next) {
-					mkdirp(conf.config.paths[pathKey], function dirCreated(err) {
+					mkdirs(conf.config.paths[pathKey], function dirCreated(err) {
 						if(err) {
 							console.error('Could not create path: ' + conf.config.paths[pathKey] + ': ' + err.toString());
 						}

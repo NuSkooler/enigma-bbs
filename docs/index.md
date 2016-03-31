@@ -35,7 +35,7 @@ npm install
 ```
 
 ## Generate a SSH Private Key
-To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if desired by disabling the SSH server in `config.hjson`.
+To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if you do not wish to enable SSH access.
 ```bash
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
@@ -44,30 +44,33 @@ openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
 ```hjson
-general: {
-  boardName: Super Awesome BBS
-}
+{
+	general: {
+		boardName: Super Awesome BBS
+	}
 
-servers: {
-  ssh: {
-    privateKeyPass: YOUR_PK_PASS
-    enabled: true /* set to false to disable the SSH server */
-  }
-}
+	servers: {
+		ssh: {
+	    	privateKeyPass: YOUR_PK_PASS
+	    	enabled: true /* set to false to disable the SSH server */
+	    }
+	}
 
-messageConferences: {
-  local_general: {
-    name: Local
-    desc: Local Discussions
-    default: true
+	messageConferences: {
+		local_general: {
+			name: Local
+			desc: Local Discussions
+			default: true
 
-    areas: {
-      local_music: {
-        name: Music Discussion
-        desc: Music, bands, etc.
-        default: true
-      }
-  }
+		    areas: {
+		    	local_music: {
+					name: Music Discussion
+					desc: Music, bands, etc.
+					default: true
+	        	}
+	        }
+	    }
+	}
 }
 ```
 

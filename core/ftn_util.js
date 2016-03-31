@@ -220,8 +220,8 @@ function getQuotePrefix(name) {
 //	http://ftsc.org/docs/fts-0004.001
 //
 function getOrigin(address) {
-	const origin = _.has(Config.messageNetworks.originName) ? 
-		Config.messageNetworks.originName : 
+	const origin = _.has(Config, 'messageNetworks.originLine') ? 
+		Config.messageNetworks.originLine : 
 		Config.general.boardName;
 
 	const addrStr = new Address(address).toString('5D');
