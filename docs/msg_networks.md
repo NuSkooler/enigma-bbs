@@ -119,3 +119,6 @@ See [Later text parsing documentation](http://bunkat.github.io/later/parsers.htm
   }
 }
 ```
+
+## More Information
+* [ENiGMA 1/2 + Binkd on CentOS 7](https://www.l33t.codes/enigma-12-binkd-on-centos-7/)
