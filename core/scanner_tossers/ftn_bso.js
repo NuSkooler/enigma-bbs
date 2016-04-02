@@ -707,7 +707,7 @@ function FTNMessageScanTossModule() {
 					},
 					function moveFilesToOutgoing(exportedFileNames, callback) {
 						async.each(exportedFileNames, (oldPath, nextFile) => {
-							const ext = paths.extname(oldPath);
+							const ext = paths.extname(oldPath).toLowerCase();
 							if('.pk_' === ext) {
 								//
 								//	For a given temporary .pk_ file, we need to move it to the outoing
@@ -934,7 +934,7 @@ function FTNMessageScanTossModule() {
 						if(err) {
 							return callback(err);
 						}
-						callback(null, files.filter(f => '.pkt' === paths.extname(f)));
+						callback(null, files.filter(f => '.pkt' === paths.extname(f).toLowerCase()));
 					});
 				},
 				function importPacketFiles(packetFiles, callback) {
@@ -988,11 +988,8 @@ function FTNMessageScanTossModule() {
 				},
 				function discoverBundles(callback) {
 					fs.readdir(importDir, (err, files) => {
-						//	:TODO: Need to be explicit about files to attempt an extract, e.g. *.su?, *.mo?, ...
 						//	:TODO: if we do much more of this, probably just use the glob module
-						//files = files.filter(f => '.pkt' !== paths.extname(f));
-						
-						const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9A-Za-z]/;
+						const bundleRegExp = /\.(su|mo|tu|we|th|fr|sa)[0-9a-z]/i;
 						files = files.filter(f => {
 							const fext = paths.extname(f);
 							return bundleRegExp.test(fext);
