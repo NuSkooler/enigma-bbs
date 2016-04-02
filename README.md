@@ -24,9 +24,9 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 ## In the Works
 * More ES6+ usage, and **documentation**!
 * File areas
-* ACS support for more areas
+* More ACS support coverage
 * SysOp dashboard (ye ol' WFC)
-* Missing functionality such as searching, pipe code support in message areas, etc.
+* Missing functionality such as searching, message area coloring, etc.
 * String localization
 * A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 
@@ -61,6 +61,9 @@ Please see the [Quickstart](docs/index.md#quickstart)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
 * [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html) BBS
 * Luciano Ayres of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
+* Sudndeath for Xibalba ANSI work!
+* Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
+* Avon of [Agency BBS](http://bbs.geek.nz/) and fsxNet
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:

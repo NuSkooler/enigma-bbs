@@ -59,19 +59,35 @@ function FTNMessageScanTossModule() {
 	
 	this.getDefaultNetworkName = function() {
 		if(this.moduleConfig.defaultNetwork) {
-			return this.moduleConfig.defaultNetwork;
+			return this.moduleConfig.defaultNetwork.toLowerCase();
 		}
 		
 		const networkNames = Object.keys(Config.messageNetworks.ftn.networks);
 		if(1 === networkNames.length) {
-			return networkNames[0];
+			return networkNames[0].toLowerCase();
 		}
 	};
 	
+	
+	this.getDefaultZone = function(networkName) {
+		if(_.isNumber(Config.messageNetworks.ftn.networks[networkName].defaultZone)) {
+			return Config.messageNetworks.ftn.networks[networkName].defaultZone;
+		}
+		
+		//	non-explicit: default to local address zone
+		const networkLocalAddress = Config.messageNetworks.ftn.networks[networkName].localAddress;
+		if(networkLocalAddress) {
+			const addr = Address.fromString(networkLocalAddress);
+			return addr.zone;
+		}
+	};
+	
+	/*
 	this.isDefaultDomainZone = function(networkName, address) {
-		const defaultNetworkName = this.getDefaultNetworkName();
+		const defaultNetworkName 	= this.getDefaultNetworkName();		 
 		return(networkName === defaultNetworkName && address.zone === this.moduleConfig.defaultZone);
 	};
+	*/
 	
 	this.getNetworkNameByAddress = function(remoteAddress) {
 		return _.findKey(Config.messageNetworks.ftn.networks, network => {
@@ -115,12 +131,38 @@ function FTNMessageScanTossModule() {
 		return _.isString(msg.meta.FtnKludge.MSGID) && msg.meta.FtnKludge.MSGID.length > 0;	
 	};
 	
+	/*
 	this.getOutgoingPacketDir = function(networkName, destAddress) {
 		let dir = this.moduleConfig.paths.outbound;
 		if(!this.isDefaultDomainZone(networkName, destAddress)) {
 			const hexZone = `000${destAddress.zone.toString(16)}`.substr(-3);
 			dir = paths.join(dir, `${networkName.toLowerCase()}.${hexZone}`);
 		}
+		return dir;
+	};
+	*/
+	
+	this.getOutgoingPacketDir = function(networkName, destAddress) {
+		networkName = networkName.toLowerCase();
+		
+		let dir = this.moduleConfig.paths.outbound;
+		
+		const defaultNetworkName 	= this.getDefaultNetworkName();	
+		const defaultZone			= this.getDefaultZone(networkName);
+		
+		let zoneExt;
+		if(defaultZone !== destAddress.zone) {
+			zoneExt = '.' + `000${destAddress.zone.toString(16)}`.substr(-3);
+		} else {
+			zoneExt = '';
+		}
+		
+		if(defaultNetworkName === networkName) {
+			dir = paths.join(dir, `outbound${zoneExt}`);
+		} else {
+			dir = paths.join(dir, `${networkName}${zoneExt}`);
+		}
+		
 		return dir;
 	};
 	

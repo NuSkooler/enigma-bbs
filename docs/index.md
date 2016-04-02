@@ -35,7 +35,7 @@ npm install
 ```
 
 ## Generate a SSH Private Key
-To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if desired by disabling the SSH server in `config.hjson`.
+To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if you do not wish to enable SSH access.
 ```bash
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
