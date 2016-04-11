@@ -469,7 +469,14 @@ function Packet(options) {
 					//	Decode |messageBodyBuffer| using |encoding| defaulted or detected above
 					//
 					//	:TODO: Look into \xec thing more - document
-					const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+					let decoded;
+					try {
+						decoded = iconv.decode(messageBodyBuffer, encoding);
+					} catch(e) {
+						decoded = iconv.decode(messageBodyBuffer, 'ascii');
+					}
+					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+					const messageLines = decoded.replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 					let endOfMessage = true;
 
 					messageLines.forEach(line => {
