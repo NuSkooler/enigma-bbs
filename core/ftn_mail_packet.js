@@ -604,7 +604,15 @@ function Packet(options) {
                         if(self.options.keepTearAndOrigin) {
                             msg.message += `${messageBodyData.originLine}\r\n`;
                         }
-					}			
+					}
+					
+					//
+					//	If we have a UTC offset kludge (e.g. TZUTC) then update
+					//	modDateTime with it
+					//
+					if(_.isString(msg.meta.FtnKludge.TZUTC) && msg.meta.FtnKludge.TZUTC.length > 0) {
+						msg.modDateTime = msg.modTimestamp.utcOffset(msg.meta.FtnKludge.TZUTC);
+					}
 					
 					const nextBuf = packetBuffer.slice(read);
 					if(nextBuf.length > 0) {
