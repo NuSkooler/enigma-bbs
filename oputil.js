@@ -128,7 +128,7 @@ function getAnswers(questions, cb) {
 }
 
 function getDefaultConfigPath() {
-	return resolvePath('~/.config/enigma-bbs/config2.hjson');
+	return resolvePath('~/.config/enigma-bbs/config.hjson');
 }
 
 const QUESTIONS = {
