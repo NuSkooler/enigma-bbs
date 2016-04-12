@@ -473,6 +473,7 @@ function Packet(options) {
 					try {
 						decoded = iconv.decode(messageBodyBuffer, encoding);
 					} catch(e) {
+						//	:TODO: add log warning here including failure reason
 						decoded = iconv.decode(messageBodyBuffer, 'ascii');
 					}
 					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
