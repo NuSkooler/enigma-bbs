@@ -97,7 +97,7 @@ function loadMenu(options, cb) {
 							menuName	: options.name,
 							menuConfig	: modData.config, 
 							extraArgs	: options.extraArgs,
-                            client      : options.client,
+							client      : options.client,
 						});
 					callback(null, moduleInstance);
 				} catch(e) {

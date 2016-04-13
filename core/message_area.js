@@ -32,23 +32,23 @@ const CONF_AREA_RW_ACS_DEFAULT  = 'GM[users]';
 const AREA_MANAGE_ACS_DEFAULT   = 'GM[sysops]';
 
 const AREA_ACS_DEFAULT = {
-    read    : CONF_AREA_RW_ACS_DEFAULT,
-    write   : CONF_AREA_RW_ACS_DEFAULT,
-    manage  : AREA_MANAGE_ACS_DEFAULT,  
+	read    : CONF_AREA_RW_ACS_DEFAULT,
+	write   : CONF_AREA_RW_ACS_DEFAULT,
+	manage  : AREA_MANAGE_ACS_DEFAULT,  
 };
 
 function getAvailableMessageConferences(client, options) {
-    options = options || { includeSystemInternal : false };
+	options = options || { includeSystemInternal : false };
     
     //	perform ACS check per conf & omit system_internal if desired
-    return _.omit(Config.messageConferences, (v, k) => {        
-        if(!options.includeSystemInternal && 'system_internal' === k) {
-            return true;
-        }
-        
-        const readAcs = v.acs || CONF_AREA_RW_ACS_DEFAULT;
-        return !checkAcs(client, readAcs);
-    });
+	return _.omit(Config.messageConferences, (v, k) => {        
+		if(!options.includeSystemInternal && 'system_internal' === k) {
+			return true;
+		}
+
+		const readAcs = v.acs || CONF_AREA_RW_ACS_DEFAULT;
+		return !checkAcs(client, readAcs);
+	});
 }
 
 function getSortedAvailMessageConferences(client, options) {
@@ -75,19 +75,19 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
     //  :TODO: confTag === "" then find default
 
 	if(_.has(Config.messageConferences, [ confTag, 'areas' ])) {
-        const areas = Config.messageConferences[confTag].areas;
+		const areas = Config.messageConferences[confTag].areas;
 
-        if(!options.client || true === options.noAcsCheck) {
-            //	everything - no ACS checks
-            return areas;
-        } else {
-            //	perform ACS check per area
-            return _.omit(areas, (v, k) => {
-                const readAcs = _.has(v, 'acs.read') ? v.acs.read : CONF_AREA_RW_ACS_DEFAULT;
-                return !checkAcs(options.client, readAcs);
-            });
-        }
-    }
+		if(!options.client || true === options.noAcsCheck) {
+			//	everything - no ACS checks
+			return areas;
+		} else {
+			//	perform ACS check per area
+			return _.omit(areas, v => {
+				const readAcs = _.has(v, 'acs.read') ? v.acs.read : CONF_AREA_RW_ACS_DEFAULT;
+				return !checkAcs(options.client, readAcs);
+			});
+		}
+	}
 }
 
 function getSortedAvailMessageAreasByConfTag(confTag, options) {
@@ -95,7 +95,7 @@ function getSortedAvailMessageAreasByConfTag(confTag, options) {
 		return  {
 			areaTag	: k,
 			area	: v,
-		}
+		};
 	});
 	
 	areas.sort((a, b) => {
@@ -322,16 +322,16 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 				});
 			},
 			function getMessages(lastMessageId, callback) {
-				var sql = 
-					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count ' +
-					'FROM message ' +
-					'WHERE area_tag ="' + areaTag + '" AND message_id > ' + lastMessageId;
+				let sql = 
+					`SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count
+					FROM message
+					WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
 
 				if(Message.WellKnownAreaTags.Private === areaTag) {
 					sql += 
-						' AND message_id in (' +
-						'SELECT message_id from message_meta where meta_category=' + Message.MetaCategories.System + 
-						' AND meta_name="' + Message.SystemMetaNames.LocalToUserID + '" and meta_value=' + userId + ')';
+						` AND message_id in (
+						SELECT message_id from message_meta where meta_category ="System" 
+						AND meta_name ="${Message.SystemMetaNames.LocalToUserID}" AND meta_value =${userId})`;
 				}
 
 				sql += ' ORDER BY message_id;';
