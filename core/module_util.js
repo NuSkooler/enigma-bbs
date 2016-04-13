@@ -2,15 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-let Config		= require('./config.js').config;
-let miscUtil	= require('./misc_util.js');
+const Config	= require('./config.js').config;
 
-//	standard/deps
-let fs 			= require('fs');
-let paths		= require('path');
-let _			= require('lodash');
-let assert		= require('assert');
-let async		= require('async');
+//	deps
+const fs 		= require('fs');
+const paths		= require('path');
+const _			= require('lodash');
+const assert	= require('assert');
+const async		= require('async');
 
 //	exports
 exports.loadModuleEx			= loadModuleEx;
@@ -25,25 +24,22 @@ function loadModuleEx(options, cb) {
 	const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
 	if(_.isObject(modConfig) && false === modConfig.enabled) {
-		cb(new Error('Module "' + options.name + '" is disabled'));
-		return;
+		return cb(new Error('Module "' + options.name + '" is disabled'));
 	}
 
-	var mod;
-	try {
+	let mod;
+	try {		
 		mod = require(paths.join(options.path, options.name + '.js'));
 	} catch(e) {
-		cb(e);
+		return cb(e);
 	}
 
 	if(!_.isObject(mod.moduleInfo)) {
-		cb(new Error('Module is missing "moduleInfo" section'));
-		return;
+		return cb(new Error('Module is missing "moduleInfo" section'));
 	}
 
 	if(!_.isFunction(mod.getModule)) {
-		cb(new Error('Invalid or missing "getModule" method for module!'));
-		return;
+		return cb(new Error('Invalid or missing "getModule" method for module!'));
 	}
 
 	//	Ref configuration, if any, for convience to the module
@@ -53,11 +49,10 @@ function loadModuleEx(options, cb) {
 }
 
 function loadModule(name, category, cb) {
-	var path = Config.paths[category];
+	const path = Config.paths[category];
 
 	if(!_.isString(path)) {
-		cb(new Error('Not sure where to look for "' + name + '" of category "' + category + '"'));
-		return;
+		return cb(new Error(`Not sure where to look for "${name}" of category "${category}"`));
 	}
 
 	loadModuleEx( { name : name, path : path, category : category }, function loaded(err, mod) {

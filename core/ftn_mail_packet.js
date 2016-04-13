@@ -473,6 +473,7 @@ function Packet(options) {
 					try {
 						decoded = iconv.decode(messageBodyBuffer, encoding);
 					} catch(e) {
+						//	:TODO: add log warning here including failure reason
 						decoded = iconv.decode(messageBodyBuffer, 'ascii');
 					}
 					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
@@ -603,7 +604,15 @@ function Packet(options) {
                         if(self.options.keepTearAndOrigin) {
                             msg.message += `${messageBodyData.originLine}\r\n`;
                         }
-					}			
+					}
+					
+					//
+					//	If we have a UTC offset kludge (e.g. TZUTC) then update
+					//	modDateTime with it
+					//
+					if(_.isString(msg.meta.FtnKludge.TZUTC) && msg.meta.FtnKludge.TZUTC.length > 0) {
+						msg.modDateTime = msg.modTimestamp.utcOffset(msg.meta.FtnKludge.TZUTC);
+					}
 					
 					const nextBuf = packetBuffer.slice(read);
 					if(nextBuf.length > 0) {

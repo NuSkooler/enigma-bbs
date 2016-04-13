@@ -176,7 +176,7 @@ function ANSIEscapeParser(options) {
 					id		: id ? parseInt(id, 10) : null,
 					args	: args, 
 					SGR		: ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
-					});
+				});
 
 				if(self.mciReplaceChar.length > 0) {
 					self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));

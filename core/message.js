@@ -68,13 +68,6 @@ Message.WellKnownAreaTags = {
 	Bulletin	: 'local_bulletin',
 };
 
-//	:TODO: FTN stuff really doesn't belong here - move it elsewhere and/or just use the names directly when needed
-Message.MetaCategories = {
-	System				: 1,			//	ENiGMA1/2 stuff
-	FtnProperty			: 2,			//	Various FTN network properties, ftn_cost, ftn_origin, ...
-	FtnKludge			: 3,			//	FTN kludges -- PATH, MSGID, ...
-};
-
 Message.SystemMetaNames = {
 	LocalToUserID			: 'local_to_user_id',
 	LocalFromUserID			: 'local_from_user_id',

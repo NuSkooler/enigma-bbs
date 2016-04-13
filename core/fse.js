@@ -665,13 +665,12 @@ function FullScreenEditorModule(options) {
 		//	We want to prefix the subject with "RE: " only if it's not already
 		//	that way -- avoid RE: RE: RE: RE: ...
 		//
-		var newSubj = self.replyToMessage.subject;
-		if(!_.startsWith(self.replyToMessage.subject, 'RE:')) {
-			newSubj = 'RE: ' + newSubj;
+		let newSubj = self.replyToMessage.subject;
+		if(false === /^RE:\s+/i.test(newSubj)) {
+			newSubj = `RE: ${newSubj}`;
 		}
 
 		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	newSubj);
-
 	};
 
 	this.initFooterViewMode = function() {
