@@ -383,10 +383,9 @@ function FTNMessageScanTossModule() {
 			return cb(null);	//	nothing to do
 		}
 		
-		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {
-			assert(_.isString(msgIdVal));
-			
-			if(!err) {			
+		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {			
+			if(!err) {
+				assert(_.isString(msgIdVal), 'Expected string but got ' + (typeof msgIdVal) + ' (' + msgIdVal + ')');			
 				//	got a MSGID - create a REPLY
 				message.meta.FtnKludge.REPLY = msgIdVal;
 			}
