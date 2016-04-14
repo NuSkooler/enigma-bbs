@@ -2,26 +2,26 @@
 'use strict';
 
 //	ENiGMA½
-let MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
-let Config					= require('../config.js').config;
-let ftnMailPacket			= require('../ftn_mail_packet.js');
-let ftnUtil					= require('../ftn_util.js');
-let Address					= require('../ftn_address.js');
-let Log						= require('../logger.js').log;
-let ArchiveUtil				= require('../archive_util.js');
-let msgDb					= require('../database.js').dbs.message;
-let Message					= require('../message.js');
+const MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
+const Config				= require('../config.js').config;
+const ftnMailPacket			= require('../ftn_mail_packet.js');
+const ftnUtil				= require('../ftn_util.js');
+const Address				= require('../ftn_address.js');
+const Log					= require('../logger.js').log;
+const ArchiveUtil			= require('../archive_util.js');
+const msgDb					= require('../database.js').dbs.message;
+const Message				= require('../message.js');
 
-let moment					= require('moment');
-let _						= require('lodash');
-let paths					= require('path');
-let async					= require('async');
-let fs						= require('fs');
-let later					= require('later');
-let temp					= require('temp').track();	//	track() cleans up temp dir/files for us
-let assert					= require('assert');
-let gaze					= require('gaze');
-let fse						= require('fs-extra');
+const moment				= require('moment');
+const _						= require('lodash');
+const paths					= require('path');
+const async					= require('async');
+const fs					= require('fs');
+const later					= require('later');
+const temp					= require('temp').track();	//	track() cleans up temp dir/files for us
+const assert				= require('assert');
+const gaze					= require('gaze');
+const fse					= require('fs-extra');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -52,9 +52,7 @@ function FTNMessageScanTossModule() {
 	
 
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
-		this.moduleConfig = Config.scannerTossers.ftn_bso;
-		
-		
+		this.moduleConfig = Config.scannerTossers.ftn_bso;	
 	}
 	
 	this.getDefaultNetworkName = function() {
@@ -926,6 +924,23 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
+	this.archivePacketFile = function(type, origPath, label, cb) {
+		if('import' === type && _.isString(self.moduleConfig.retainImportPacketPath)) {
+			const archivePath = paths.join(
+				self.moduleConfig.retainImportPacketPath, 
+				`${label}-${moment().format('YYYY-MM-DDTHH.mm.ss.SSS')}-${paths.basename(origPath)}`);
+				
+			fse.copy(origPath, archivePath, err => {
+				if(err) {
+					Log.warn( { origPath : origPath, archivePath : archivePath }, 'Failed to archive packet file');
+				}
+				cb(null);	//	non-fatal always
+			});
+		} else {
+			cb(null);	//	NYI
+		}
+	}
+	
 	this.importPacketFilesFromDirectory = function(importDir, password, cb) {
 		async.waterfall(
 			[
@@ -958,12 +973,24 @@ function FTNMessageScanTossModule() {
 				function handleProcessedFiles(packetFiles, rejects, callback) {
 					async.each(packetFiles, (packetFile, nextFile) => {
 						const fullPath = paths.join(importDir, packetFile);
+						
+						//
+						//	If scannerTossers::ftn_bso::reainImportPacketPath is set,
+						//	copy each packet file over in the following format:
+						//
+						//	<good|bad>-<msSinceEpoc>-<origPacketFileName.pkt>
+						//
 						if(rejects.indexOf(packetFile) > -1) {
-							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
-							nextFile();					
-						} else {
-							fs.unlink(fullPath, err => {
+							self.archivePacketFile('import', fullPath, 'reject', () => {
 								nextFile();
+							});
+							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
+							//nextFile();					
+						} else {
+							self.archivePacketFile('import', fullPath, 'imported', () => {
+								fs.unlink(fullPath, err => {
+									nextFile();
+								});
 							});
 						}
 					}, err => {
