@@ -53,9 +53,7 @@ function FTNMessageScanTossModule() {
 	
 
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
-		this.moduleConfig = Config.scannerTossers.ftn_bso;
-		
-		
+		this.moduleConfig = Config.scannerTossers.ftn_bso;	
 	}
 	
 	this.getDefaultNetworkName = function() {
@@ -395,10 +393,9 @@ function FTNMessageScanTossModule() {
 			return cb(null);	//	nothing to do
 		}
 		
-		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {
-			assert(_.isString(msgIdVal));
-			
-			if(!err) {			
+		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {			
+			if(!err) {
+				assert(_.isString(msgIdVal), 'Expected string but got ' + (typeof msgIdVal) + ' (' + msgIdVal + ')');			
 				//	got a MSGID - create a REPLY
 				message.meta.FtnKludge.REPLY = msgIdVal;
 			}
@@ -936,6 +933,23 @@ function FTNMessageScanTossModule() {
 		});
 	};
 	
+	this.archivePacketFile = function(type, origPath, label, cb) {
+		if('import' === type && _.isString(self.moduleConfig.retainImportPacketPath)) {
+			const archivePath = paths.join(
+				self.moduleConfig.retainImportPacketPath, 
+				`${label}-${moment().format('YYYY-MM-DDTHH.mm.ss.SSS')}-${paths.basename(origPath)}`);
+				
+			fse.copy(origPath, archivePath, err => {
+				if(err) {
+					Log.warn( { origPath : origPath, archivePath : archivePath }, 'Failed to archive packet file');
+				}
+				cb(null);	//	non-fatal always
+			});
+		} else {
+			cb(null);	//	NYI
+		}
+	}
+	
 	this.importPacketFilesFromDirectory = function(importDir, password, cb) {
 		async.waterfall(
 			[
@@ -968,12 +982,24 @@ function FTNMessageScanTossModule() {
 				function handleProcessedFiles(packetFiles, rejects, callback) {
 					async.each(packetFiles, (packetFile, nextFile) => {
 						const fullPath = paths.join(importDir, packetFile);
+						
+						//
+						//	If scannerTossers::ftn_bso::reainImportPacketPath is set,
+						//	copy each packet file over in the following format:
+						//
+						//	<good|bad>-<msSinceEpoc>-<origPacketFileName.pkt>
+						//
 						if(rejects.indexOf(packetFile) > -1) {
-							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
-							nextFile();					
-						} else {
-							fs.unlink(fullPath, err => {
+							self.archivePacketFile('import', fullPath, 'reject', () => {
 								nextFile();
+							});
+							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
+							//nextFile();					
+						} else {
+							self.archivePacketFile('import', fullPath, 'imported', () => {
+								fs.unlink(fullPath, () => {
+									nextFile();
+								});
 							});
 						}
 					}, err => {
