@@ -833,7 +833,7 @@ function FTNMessageScanTossModule() {
 				},
 				function persistImport(callback) {
 					//	mark as imported
-					message.meta.System.StateFlags0 = Message.StateFlags0.Imported.toString();
+					message.meta.System.state_flags0 = Message.StateFlags0.Imported.toString();
 					
 					//	save to disc
 					message.persist(err => {
@@ -855,7 +855,7 @@ function FTNMessageScanTossModule() {
 	this.importMessagesFromPacketFile = function(packetPath, password, cb) {
 		let packetHeader;
 				
-        const packetOpts = { keepTearAndOrigin : true };
+		const packetOpts = { keepTearAndOrigin : true };
 		
 		let importStats = {
 			areaSuccess	: {},	//	areaTag->count
