@@ -1,19 +1,20 @@
 /* jslint node: true */
 'use strict';
 
-let ftn				= require('./ftn_util.js');
-let Message			= require('./message.js');
-let sauce			= require('./sauce.js');
-let Address			= require('./ftn_address.js');
-let strUtil			= require('./string_util.js');
+const ftn			= require('./ftn_util.js');
+const Message		= require('./message.js');
+const sauce			= require('./sauce.js');
+const Address		= require('./ftn_address.js');
+const strUtil		= require('./string_util.js');
+const Log			= require('./logger.js').log;
 
-let _				= require('lodash');
-let assert			= require('assert');
-let binary			= require('binary');
-let fs				= require('fs');
-let async			= require('async');
-let iconv			= require('iconv-lite');
-let moment			= require('moment');
+const _				= require('lodash');
+const assert		= require('assert');
+const binary		= require('binary');
+const fs			= require('fs');
+const async			= require('async');
+const iconv			= require('iconv-lite');
+const moment		= require('moment');
 
 exports.Packet			= Packet;
 
@@ -473,7 +474,7 @@ function Packet(options) {
 					try {
 						decoded = iconv.decode(messageBodyBuffer, encoding);
 					} catch(e) {
-						//	:TODO: add log warning here including failure reason
+						Log.debug( { encoding : encoding, error : e.toString() }, 'Error decoding. Falling back to ASCII');
 						decoded = iconv.decode(messageBodyBuffer, 'ascii');
 					}
 					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
@@ -720,12 +721,19 @@ function Packet(options) {
 
 		appendMeta('\x01PATH', message.meta.FtnKludge['PATH']);
 		
+		let msgBodyEncoded;
+		try {
+			msgBodyEncoded = iconv.encode(msgBody + '\0', options.encoding);
+		} catch(e) {
+			msgBodyEncoded = iconv.encode(msgBody + '\0', 'ascii');
+		}
+		
 		return Buffer.concat( [ 
 			basicHeader, 
 			toUserNameBuf, 
 			fromUserNameBuf, 
 			subjectBuf,
-			iconv.encode(msgBody + '\0', options.encoding) 
+			msgBodyEncoded 
 		]);
 	};
 

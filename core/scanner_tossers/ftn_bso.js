@@ -22,6 +22,7 @@ const temp					= require('temp').track();	//	track() cleans up temp dir/files fo
 const assert				= require('assert');
 const gaze					= require('gaze');
 const fse					= require('fs-extra');
+const iconv					= require('iconv-lite');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -359,6 +360,7 @@ function FTNMessageScanTossModule() {
 		//
 		//	Determine CHRS and actual internal encoding name
 		//	Try to preserve anything already here
+		//
 		let encoding = options.nodeConfig.encoding || 'utf8';
 		if(message.meta.FtnKludge.CHRS) {
 			const encFromChars = ftnUtil.getEncodingFromCharacterSetIdentifier(message.meta.FtnKludge.CHRS);
@@ -366,6 +368,14 @@ function FTNMessageScanTossModule() {
 				encoding = encFromChars;
 			}
 		}
+		
+		//
+		//	Ensure we ended up with something useable. If not, back to utf8!
+		//
+		if(!iconv.encodingExists(encoding)) {
+			Log.debug( { encoding : encoding }, 'Unknown encoding. Falling back to utf8');
+			encoding = 'utf8';
+		} 
 		
 		options.encoding = encoding;	//	save for later
 		message.meta.FtnKludge.CHRS = ftnUtil.getCharacterSetIdentifierByEncoding(encoding);
@@ -987,7 +997,7 @@ function FTNMessageScanTossModule() {
 							//nextFile();					
 						} else {
 							self.archivePacketFile('import', fullPath, 'imported', () => {
-								fs.unlink(fullPath, err => {
+								fs.unlink(fullPath, () => {
 									nextFile();
 								});
 							});
