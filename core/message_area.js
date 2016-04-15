@@ -331,7 +331,7 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 					sql += 
 						` AND message_id in (
 						SELECT message_id from message_meta where meta_category ="System" 
-						AND meta_name ="${Message.SystemMetaNames.LocalToUserID}" AND meta_value =${userId})`;
+						AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${userId})`;
 				}
 
 				sql += ' ORDER BY message_id;';

@@ -2,26 +2,27 @@
 'use strict';
 
 //	ENiGMA½
-let MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
-let Config					= require('../config.js').config;
-let ftnMailPacket			= require('../ftn_mail_packet.js');
-let ftnUtil					= require('../ftn_util.js');
-let Address					= require('../ftn_address.js');
-let Log						= require('../logger.js').log;
-let ArchiveUtil				= require('../archive_util.js');
-let msgDb					= require('../database.js').dbs.message;
-let Message					= require('../message.js');
+const MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
+const Config				= require('../config.js').config;
+const ftnMailPacket			= require('../ftn_mail_packet.js');
+const ftnUtil				= require('../ftn_util.js');
+const Address				= require('../ftn_address.js');
+const Log					= require('../logger.js').log;
+const ArchiveUtil			= require('../archive_util.js');
+const msgDb					= require('../database.js').dbs.message;
+const Message				= require('../message.js');
 
-let moment					= require('moment');
-let _						= require('lodash');
-let paths					= require('path');
-let async					= require('async');
-let fs						= require('fs');
-let later					= require('later');
-let temp					= require('temp').track();	//	track() cleans up temp dir/files for us
-let assert					= require('assert');
-let gaze					= require('gaze');
-let fse						= require('fs-extra');
+const moment				= require('moment');
+const _						= require('lodash');
+const paths					= require('path');
+const async					= require('async');
+const fs					= require('fs');
+const later					= require('later');
+const temp					= require('temp').track();	//	track() cleans up temp dir/files for us
+const assert				= require('assert');
+const gaze					= require('gaze');
+const fse					= require('fs-extra');
+const iconv					= require('iconv-lite');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -361,6 +362,7 @@ function FTNMessageScanTossModule() {
 		//
 		//	Determine CHRS and actual internal encoding name
 		//	Try to preserve anything already here
+		//
 		let encoding = options.nodeConfig.encoding || 'utf8';
 		if(message.meta.FtnKludge.CHRS) {
 			const encFromChars = ftnUtil.getEncodingFromCharacterSetIdentifier(message.meta.FtnKludge.CHRS);
@@ -368,6 +370,14 @@ function FTNMessageScanTossModule() {
 				encoding = encFromChars;
 			}
 		}
+		
+		//
+		//	Ensure we ended up with something useable. If not, back to utf8!
+		//
+		if(!iconv.encodingExists(encoding)) {
+			Log.debug( { encoding : encoding }, 'Unknown encoding. Falling back to utf8');
+			encoding = 'utf8';
+		} 
 		
 		options.encoding = encoding;	//	save for later
 		message.meta.FtnKludge.CHRS = ftnUtil.getCharacterSetIdentifierByEncoding(encoding);
