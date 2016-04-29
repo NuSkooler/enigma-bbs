@@ -1,22 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-var miscUtil	= require('./misc_util.js');
-var ansi		= require('./ansi_term.js');
+const miscUtil	= require('./misc_util.js');
+const ansi		= require('./ansi_term.js');
 
-var events		= require('events');
-var util		= require('util');
-var _			= require('lodash');
+const events	= require('events');
+const util		= require('util');
+const _			= require('lodash');
 
 exports.ANSIEscapeParser		= ANSIEscapeParser;
 
-var CR = 0x0d;
-var LF = 0x0a;
-
-//
-//	Resources, Specs, etc.
-//
-//	* https://github.com/M-griffin/EtherTerm/blob/master/ansiParser.cpp
+const CR = 0x0d;
+const LF = 0x0a;
 
 function ANSIEscapeParser(options) {
 	var self = this;
@@ -43,14 +38,6 @@ function ANSIEscapeParser(options) {
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
 	this.trailingLF			= miscUtil.valueWithDefault(options.trailingLF, 'default');
-
-	function getArgArray(array) {
-		var i = array.length;
-		while(i--) {
-			array[i] = parseInt(array[i], 10);
-		}
-		return array;
-	}
 
 	self.moveCursor = function(cols, rows) {
 		self.column	+= cols;
@@ -235,7 +222,7 @@ function ANSIEscapeParser(options) {
 				}
 
 				opCode	= match[2];
-				args	= getArgArray(match[1].split(';'));
+				args	= match[1].split(';').map(v => parseInt(v, 10));	//	convert to array of ints
 
 				escape(opCode, args);
 
