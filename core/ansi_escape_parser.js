@@ -110,7 +110,8 @@ function ANSIEscapeParser(options) {
 			}
 		}
 
-		self.emit('chunk', text);
+		//self.emit('chunk', text);
+		self.emit('literal', text);
 	}
 
 	function getProcessedMCI(mci) {
@@ -166,7 +167,10 @@ function ANSIEscapeParser(options) {
 				});
 
 				if(self.mciReplaceChar.length > 0) {
-					self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
+					//self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
+					const sgrCtrl = ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase);
+					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[\;m]/).slice(0, 3));
+					//self.emit('control', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase)); 
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -226,7 +230,8 @@ function ANSIEscapeParser(options) {
 
 				escape(opCode, args);
 
-				self.emit('chunk', match[0]);
+				//self.emit('chunk', match[0]);
+				self.emit('control', match[0], opCode, args);
 			}
 		} while(0 !== re.lastIndex);
 
@@ -480,3 +485,4 @@ ANSIEscapeParser.styles = {
 	28		: 'invisibleOff',		//	Not supported by most BBS-like terminals
 };
 Object.freeze(ANSIEscapeParser.styles);
+

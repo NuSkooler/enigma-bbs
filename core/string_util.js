@@ -11,6 +11,7 @@ exports.replaceAt					= replaceAt;
 exports.isPrintable					= isPrintable;
 exports.debugEscapedString			= debugEscapedString;
 exports.stringFromNullTermBuffer	= stringFromNullTermBuffer;
+exports.cleanControlCodes			= cleanControlCodes;
 
 //	:TODO: create Unicode verison of this
 var VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -179,14 +180,6 @@ function debugEscapedString(s) {
 }
 
 function stringFromNullTermBuffer(buf, encoding) {
-	/*var nullPos = buf.length;
-	for(var i = 0; i < buf.length; ++i) {
-		if(0x00 === buf[i]) {
-			nullPos = i;
-			break;
-		}
-	}
-	*/
 	let nullPos = buf.indexOf(new Buffer( [ 0x00 ] ));
 	if(-1 === nullPos) {
 		nullPos = buf.length;
@@ -232,3 +225,103 @@ var stringFormatExtensions = {
 };
 
 exports.stringFormatExtensions = stringFormatExtensions;
+
+//	:TODO: See notes in word_wrap.js about need to consolidate the various ANSI related RegExp's
+//const REGEXP_ANSI_CONTROL_CODES		= /(\x1b\x5b)([\?=;0-9]*?)([0-9A-ORZcf-npsu=><])/g;
+const REGEXP_ANSI_CONTROL_CODES		= /(?:\x1b\x5b)([\?=;0-9]*?)([A-ORZcf-npsu=><])/g;
+const ANSI_OPCODES_ALLOWED_CLEAN	= [
+	'C', 'm' , 
+	'A', 'B', 'D'
+];
+
+function cleanControlCodes(input) {
+	let m;
+	let pos;
+	let cleaned = '';
+	
+	//
+	//	Loop through |input| adding only allowed ESC
+	//	sequences and literals to |cleaned|
+	//	
+	do {
+		pos	= REGEXP_ANSI_CONTROL_CODES.lastIndex;
+		m	= REGEXP_ANSI_CONTROL_CODES.exec(input);
+		
+		if(null !== m) {
+			if(m.index > pos) {
+				cleaned += input.slice(pos, m.index);
+			}
+
+			if(ANSI_OPCODES_ALLOWED_CLEAN.indexOf(m[2].charAt(0)) > -1) {
+				cleaned += m[0];
+			}
+		}
+		
+	} while(0 !== REGEXP_ANSI_CONTROL_CODES.lastIndex);
+	
+	//	remainder
+	if(pos < input.length) {
+		cleaned += input.slice(pos);
+	}
+	
+	return cleaned;
+}
+
+function getCleanAnsi(input) {
+	//
+	//	Process |input| and produce |cleaned|, an array
+	//	of lines with "clean" ANSI.
+	//
+	//	Clean ANSI:
+	//	* Contains only color/SGR sequences
+	//	* All movement (up/down/left/right) removed but positioning
+	//	  left intact via spaces/etc.
+	//
+	//	Temporary processing will occur in a grid. Each cell
+	//	containing a character (defaulting to space) possibly a SGR
+	//
+	
+	let m;
+	let pos;
+	let grid = [];
+	let gridPos = { row : 0, col : 0 };
+	
+	function updateGrid(data, dataType) {
+		//	
+		//	Start at to grid[row][col] and populate val[0]...val[N]
+		//	creating cells as necessary
+		//
+		if(!grid[gridPos.row]) {
+			grid[gridPos.row] = [];
+		}
+		
+		if('literal' === dataType) {
+			data.forEach(c => {
+				grid[gridPos.row][gridPos.col] = (grid[gridPos.row][gridPos.col] || '') + c;	//	append to existing SGR
+				gridPos.col++; 
+			});
+		} else if('sgr' === dataType) {
+			grid[gridPos.row][gridPos.col] = (grid[gridPos.row][gridPos.col] || '') + data;
+		}
+	}
+	
+	function literal(s) {
+		let charCode;
+		const len = s.length;
+		for(let i = 0; i < len; ++i) {
+			charCode = s.charCodeAt(i) & 0xff;
+
+		}
+	}
+	
+	do {
+		pos	= REGEXP_ANSI_CONTROL_CODES.lastIndex;
+		m 	= REGEXP_ANSI_CONTROL_CODES.exec(input);
+		
+		if(null !== m) {
+			if(m.index > pos) {
+				updateGrid(input.slice(pos, m.index), 'literal');
+			}
+		}
+	} while(0 !== REGEXP_ANSI_CONTROL_CODES.lastIndex);
+}

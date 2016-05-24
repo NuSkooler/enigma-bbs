@@ -1,20 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule					= require('../core/menu_module.js').MenuModule;
-var ViewController				= require('../core/view_controller.js').ViewController;
-var ansi						= require('../core/ansi_term.js');
-var theme						= require('../core/theme.js');
-var MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-var Message						= require('../core/message.js');
-var getMessageAreaByTag		= require('../core/message_area.js').getMessageAreaByTag;
-var updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
-var getUserIdAndName			= require('../core/user.js').getUserIdAndName;
+const MenuModule					= require('../core/menu_module.js').MenuModule;
+const ViewController				= require('../core/view_controller.js').ViewController;
+const ansi							= require('../core/ansi_term.js');
+const theme							= require('../core/theme.js');
+const MultiLineEditTextView			= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const Message						= require('../core/message.js');
+const getMessageAreaByTag			= require('../core/message_area.js').getMessageAreaByTag;
+const updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
+const getUserIdAndName				= require('../core/user.js').getUserIdAndName;
+const cleanControlCodes				= require('../core/string_util.js').cleanControlCodes;
 
-var async					= require('async');
-var assert					= require('assert');
-var _						= require('lodash');
-var moment					= require('moment');
+const async							= require('async');
+const assert						= require('assert');
+const _								= require('lodash');
+const moment						= require('moment');
 
 exports.FullScreenEditorModule	= FullScreenEditorModule;
 
@@ -229,25 +230,32 @@ function FullScreenEditorModule(options) {
 
 		self.message = new Message(msgOpts);
 	};
+	
+	/*
+	this.setBodyMessageViewText = function() {
+		self.bodyMessageView.setText(cleanControlCodes(self.message.message));	
+	};
+	*/
 
 	this.setMessage = function(message) {
 		self.message = message;
 
 		updateMessageAreaLastReadId(
-			self.client.user.userId, self.messageAreaTag, self.message.messageId,
-			function lastReadUpdated() {
+			self.client.user.userId, self.messageAreaTag, self.message.messageId, () => {
 
-			if(self.isReady) {
-				self.initHeaderViewMode();
-				self.initFooterViewMode();
+				if(self.isReady) {
+					self.initHeaderViewMode();
+					self.initFooterViewMode();
 
-				var bodyMessageView = self.viewControllers.body.getView(1);
-				if(bodyMessageView && _.has(self, 'message.message')) {
-					bodyMessageView.setText(self.message.message);
-					//bodyMessageView.redraw();
+					var bodyMessageView = self.viewControllers.body.getView(1);
+					if(bodyMessageView && _.has(self, 'message.message')) {
+						//self.setBodyMessageViewText();
+						bodyMessageView.setText(cleanControlCodes(self.message.message));
+						//bodyMessageView.redraw();
+					}
 				}
 			}
-		});
+		);
 	};
 
 	this.getMessage = function(cb) {
@@ -533,7 +541,8 @@ function FullScreenEditorModule(options) {
 
 								var bodyMessageView = self.viewControllers.body.getView(1);
 								if(bodyMessageView && _.has(self, 'message.message')) {
-									bodyMessageView.setText(self.message.message);
+									//self.setBodyMessageViewText();
+									bodyMessageView.setText(cleanControlCodes(self.message.message));
 								}
 							}
 							break;

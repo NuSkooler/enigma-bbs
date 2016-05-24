@@ -360,9 +360,19 @@ function display(options, cb) {
 		}
 	});
 
+	/*
 	parser.on('chunk', function onChunk(chunk) {
 		options.client.term.write(chunk, false);
 	});
+	*/
+	parser.on('literal', literal => {
+		options.client.term.write(literal, false);
+	});
+	
+	parser.on('control', control => {
+		options.client.term.write(control, false);
+	});
+	
 
 	parser.on('complete', function onComplete() {
 		parseComplete = true;
