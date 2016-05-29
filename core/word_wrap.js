@@ -237,6 +237,7 @@ function wordWrapText(text, options) {
 //const input = 'Hello, |04World! This |08i|02s a test it is \x1b[20Conly a test of the emergency broadcast system. What you see is not a joke!';
 //const input = "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five enturies, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.";
 
+/*
 const iconv = require('iconv-lite');
 const input = iconv.decode(require('fs').readFileSync('/home/nuskooler/Downloads/msg_out.txt'), 'cp437');
 
@@ -245,3 +246,4 @@ const opts = {
 };
 
 console.log(wordWrapText2(input, opts).wrapped, 'utf8')
+*/
