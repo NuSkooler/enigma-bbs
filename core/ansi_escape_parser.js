@@ -1,22 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-var miscUtil	= require('./misc_util.js');
-var ansi		= require('./ansi_term.js');
+const miscUtil	= require('./misc_util.js');
+const ansi		= require('./ansi_term.js');
 
-var events		= require('events');
-var util		= require('util');
-var _			= require('lodash');
+const events	= require('events');
+const util		= require('util');
+const _			= require('lodash');
 
 exports.ANSIEscapeParser		= ANSIEscapeParser;
 
-var CR = 0x0d;
-var LF = 0x0a;
-
-//
-//	Resources, Specs, etc.
-//
-//	* https://github.com/M-griffin/EtherTerm/blob/master/ansiParser.cpp
+const CR = 0x0d;
+const LF = 0x0a;
 
 function ANSIEscapeParser(options) {
 	var self = this;
@@ -43,14 +38,6 @@ function ANSIEscapeParser(options) {
 	this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
 	this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
 	this.trailingLF			= miscUtil.valueWithDefault(options.trailingLF, 'default');
-
-	function getArgArray(array) {
-		var i = array.length;
-		while(i--) {
-			array[i] = parseInt(array[i], 10);
-		}
-		return array;
-	}
 
 	self.moveCursor = function(cols, rows) {
 		self.column	+= cols;
@@ -123,7 +110,8 @@ function ANSIEscapeParser(options) {
 			}
 		}
 
-		self.emit('chunk', text);
+		//self.emit('chunk', text);
+		self.emit('literal', text);
 	}
 
 	function getProcessedMCI(mci) {
@@ -179,7 +167,10 @@ function ANSIEscapeParser(options) {
 				});
 
 				if(self.mciReplaceChar.length > 0) {
-					self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
+					//self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
+					const sgrCtrl = ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase);
+					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[\;m]/).slice(0, 3));
+					//self.emit('control', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase)); 
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -235,11 +226,12 @@ function ANSIEscapeParser(options) {
 				}
 
 				opCode	= match[2];
-				args	= getArgArray(match[1].split(';'));
+				args	= match[1].split(';').map(v => parseInt(v, 10));	//	convert to array of ints
 
 				escape(opCode, args);
 
-				self.emit('chunk', match[0]);
+				//self.emit('chunk', match[0]);
+				self.emit('control', match[0], opCode, args);
 			}
 		} while(0 !== re.lastIndex);
 
@@ -493,3 +485,4 @@ ANSIEscapeParser.styles = {
 	28		: 'invisibleOff',		//	Not supported by most BBS-like terminals
 };
 Object.freeze(ANSIEscapeParser.styles);
+

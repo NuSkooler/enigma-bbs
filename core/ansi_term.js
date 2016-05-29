@@ -12,11 +12,8 @@
 //	* http://www.inwap.com/pdp10/ansicode.txt
 //
 
-var assert		= require('assert');
-var binary		= require('binary');
-var miscUtil	= require('./misc_util.js');
-
-var _			= require('lodash');
+const assert	= require('assert');
+const miscUtil	= require('./misc_util.js');
 
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
