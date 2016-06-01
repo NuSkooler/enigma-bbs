@@ -28,8 +28,7 @@ function DoorPartyModule(options) {
 	this.config	= options.menuConfig.config;
 	this.config.host		= this.config.host || 'dp.throwbackbbs.com';
 	this.config.sshPort 	= this.config.sshPort || 22;
-	this.config.rloginPort	= this.config.rloginPort || 513;
-	
+	this.config.rloginPort	= this.config.rloginPort || 513;	
 	
 	this.initSequence = function() {
 		let clientTerminated;
@@ -42,6 +41,9 @@ function DoorPartyModule(options) {
 					}
 					if(!_.isString(self.config.password)) {
 						return callback(new Error('Config requires "password"!'));
+					}
+					if(!_.isString(self.config.bbsTag)) {
+						return callback(new Error('Config requires "bbsTag"!'));
 					}
 					return callback(null);
 				},
@@ -74,8 +76,12 @@ function DoorPartyModule(options) {
 								return callback(new Error('Failed to establish tunnel'));
 							}
 
-							//	send rlogin
-							const rlogin = `\x00${self.config.username}\x00${self.config.username}\x00${self.client.term.termType}\x00`; 
+							//
+							//	Send rlogin
+							//	DoorParty wants the "server username" portion to be in the format of [BBS_TAG]USERNAME, e.g.
+							//	[XA]nuskooler
+							//
+							const rlogin = `\x00${self.client.user.username}\x00[${self.config.bbsTag}]${self.client.user.username}\x00${self.client.term.termType}\x00`; 
 							stream.write(rlogin);
 							
 							pipedStream = stream;	//	:TODO: this is hacky...
