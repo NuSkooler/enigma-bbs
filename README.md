@@ -64,6 +64,7 @@ Please see the [Quickstart](docs/index.md#quickstart)
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.geek.nz/) and fsxNet
+* Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
