@@ -243,7 +243,14 @@ Message.prototype.load = function(options, cb) {
 					'WHERE message_uuid=? '																						+
 					'LIMIT 1;',
 					[ options.uuid ],
-					function row(err, msgRow) {
+					(err, msgRow) => {
+						if(err) {
+							return callback(err);
+						}
+						if(!msgRow) {
+							return callback(new Error('Message (no longer) available'));
+						}
+						
 						self.messageId		= msgRow.message_id;
 						self.areaTag		= msgRow.area_tag;
 						self.messageUuid	= msgRow.message_uuid;
