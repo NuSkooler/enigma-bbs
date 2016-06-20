@@ -1,18 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule		= require('../core/menu_module.js').MenuModule;
-var Log				= require('../core/logger.js').log;
-var resetScreen		= require('../core/ansi_term.js').resetScreen;
+const MenuModule	= require('../core/menu_module.js').MenuModule;
+const resetScreen	= require('../core/ansi_term.js').resetScreen;
 
-var async			= require('async');
-var _				= require('lodash');
-var http			= require('http');
-var net				= require('net');
-var crypto			= require('crypto');
-var buffers			= require('buffers');
+const async			= require('async');
+const _				= require('lodash');
+const http			= require('http');
+const net			= require('net');
+const crypto		= require('crypto');
 
-var packageJson 	= require('../package.json');
+const packageJson 	= require('../package.json');
 
 /*
 	Expected configuration block:
