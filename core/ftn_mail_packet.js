@@ -492,7 +492,7 @@ function Packet(options) {
 						} else if(line.startsWith('--- ')) {
 							//	Tear Lines are tracked allowing for specialized display/etc.
 							messageBodyData.tearLine = line;
-						} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is "  * Origin: ..."
+						} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is " * Origin: ..."
 							messageBodyData.originLine = line;
 							endOfMessage = false;	//	Anything past origin is not part of the message body
 						} else if(line.startsWith('SEEN-BY:')) {

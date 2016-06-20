@@ -225,7 +225,7 @@ function getOrigin(address) {
 		Config.general.boardName;
 
 	const addrStr = new Address(address).toString('5D');
-	return `  * Origin: ${origin} (${addrStr})`;
+	return ` * Origin: ${origin} (${addrStr})`;
 }
 
 function getTearLine() {
