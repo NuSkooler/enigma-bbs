@@ -192,7 +192,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
 			
 			Log.debug(
 				{ 
-					evetnName	: schedEvent.name,
+					eventName	: schedEvent.name,
 					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
 					action		: schedEvent.action,
 				},
