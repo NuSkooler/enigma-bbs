@@ -73,11 +73,11 @@ Door.prototype.run = function() {
 								
 								conn.on('data', doorData);
 
-								conn.on('end', function ended() {
+								conn.once('end', function ended() {
 									restore(conn);									
 								});
 
-								conn.on('error', function error(err) {
+								conn.once('error', function error(err) {
 									self.client.log.info('Door socket server connection error: ' + err.message);
 									restore(conn);
 								});
@@ -120,7 +120,7 @@ Door.prototype.run = function() {
 
 					door.on('data', doorData);
 
-					door.on('close', function closed() {
+					door.once('close', function closed() {
 						restore(door);
 					});
 				} else if('socket' === self.exeInfo.io) {
@@ -129,7 +129,7 @@ Door.prototype.run = function() {
 						'Using temporary socket server for door I/O');
 				}
 
-				door.on('exit', function exited(code) {
+				door.once('exit', function exited(code) {
 					self.client.log.info( { code : code }, 'Door exited');
 
 					if(sockServer) {
