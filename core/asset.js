@@ -13,7 +13,7 @@ exports.getModuleAsset			= getModuleAsset;
 exports.resolveConfigAsset		= resolveConfigAsset;
 exports.getViewPropertyAsset	= getViewPropertyAsset;
 
-var ALL_ASSETS = [
+const ALL_ASSETS = [
 	'art',
 	'menu',
 	'method',

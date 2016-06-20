@@ -27,6 +27,7 @@ exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 exports.persistMessage						= persistMessage;
+exports.trimMessageAreasScheduledEvent		= trimMessageAreasScheduledEvent;
 
 const CONF_AREA_RW_ACS_DEFAULT  = 'GM[users]';
 const AREA_MANAGE_ACS_DEFAULT   = 'GM[sysops]';
@@ -120,50 +121,50 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
 	//
 	//	Note that built in 'system_internal' is always ommited here
 	//
-    let defaultConf = _.findKey(Config.messageConferences, o => o.default);
-    if(defaultConf) {
-        const acs = Config.messageConferences[defaultConf].acs || CONF_AREA_RW_ACS_DEFAULT;
-        if(true === disableAcsCheck || checkAcs(client, acs)) {
-            return defaultConf;
-        } 
-    }
+	let defaultConf = _.findKey(Config.messageConferences, o => o.default);
+	if(defaultConf) {
+		const acs = Config.messageConferences[defaultConf].acs || CONF_AREA_RW_ACS_DEFAULT;
+		if(true === disableAcsCheck || checkAcs(client, acs)) {
+			return defaultConf;
+		} 
+	}
+
+	//  just use anything we can
+	defaultConf = _.findKey(Config.messageConferences, (o, k) => {
+		const acs = o.acs || CONF_AREA_RW_ACS_DEFAULT;
+		return 'system_internal' !== k && (true === disableAcsCheck || checkAcs(client, acs));
+	});
     
-    //  just use anything we can
-    defaultConf = _.findKey(Config.messageConferences, (o, k) => {
-        const acs = o.acs || CONF_AREA_RW_ACS_DEFAULT;
-        return 'system_internal' !== k && (true === disableAcsCheck || checkAcs(client, acs));
-    });
-    
-    return defaultConf;
+	return defaultConf;
 }
 
 function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
-    //
-    //  Similar to finding the default conference:
-    //  Find the first entry marked 'default', if any. If found, check | client| against
-    //  *read* ACS. If this fails, just find the first one we can that passes checks.
-    //
-    //  It's possible that we end up with nothing!
-    //
-    confTag = confTag || getDefaultMessageConferenceTag(client);
-    
-    if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
-        const areaPool = Config.messageConferences[confTag].areas;        
-        let defaultArea = _.findKey(areaPool, o => o.default);
-        if(defaultArea) {
-            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
-            if(true === disableAcsCheck || checkAcs(client, readAcs)) {
-                return defaultArea;
-            }            
-        }
-        
-        defaultArea = _.findKey(areaPool, (o, k) => {
-            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
-            return (true === disableAcsCheck || checkAcs(client, readAcs));       
-        });
-        
-        return defaultArea;
-    }
+	//
+	//  Similar to finding the default conference:
+	//  Find the first entry marked 'default', if any. If found, check | client| against
+	//  *read* ACS. If this fails, just find the first one we can that passes checks.
+	//
+	//  It's possible that we end up with nothing!
+	//
+	confTag = confTag || getDefaultMessageConferenceTag(client);
+
+	if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
+		const areaPool = Config.messageConferences[confTag].areas;        
+		let defaultArea = _.findKey(areaPool, o => o.default);
+		if(defaultArea) {
+			const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+			if(true === disableAcsCheck || checkAcs(client, readAcs)) {
+				return defaultArea;
+			}            
+		}
+		
+		defaultArea = _.findKey(areaPool, (o, k) => {
+			const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+			return (true === disableAcsCheck || checkAcs(client, readAcs));       
+		});
+		
+		return defaultArea;
+	}
 }
 
 function getMessageConferenceByTag(confTag) {
@@ -171,26 +172,26 @@ function getMessageConferenceByTag(confTag) {
 }
 
 function getMessageAreaByTag(areaTag, optionalConfTag) {
-    const confs = Config.messageConferences;
-    
-    if(_.isString(optionalConfTag)) {
-        if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
-            return confs[optionalConfTag].areas[areaTag];
-        }
-    } else {
-        //
-        //  No confTag to work with - we'll have to search through them all
-        //
-        var area;
-        _.forEach(confs, (v, k) => {
-            if(_.has(v, [ 'areas', areaTag ])) {
-                area = v.areas[areaTag];
-                return false;   //  stop iteration
-            } 
-        });
-        
-        return area;
-    }
+	const confs = Config.messageConferences;
+
+	if(_.isString(optionalConfTag)) {
+		if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
+			return confs[optionalConfTag].areas[areaTag];
+		}
+	} else {
+		//
+		//  No confTag to work with - we'll have to search through them all
+		//
+		var area;
+		_.forEach(confs, (v) => {
+			if(_.has(v, [ 'areas', areaTag ])) {
+				area = v.areas[areaTag];
+				return false;   //  stop iteration
+			} 
+		});
+		
+		return area;
+	}
 }
 
 function changeMessageConference(client, confTag, cb) {
@@ -463,4 +464,112 @@ function persistMessage(message, cb) {
 		],
 		cb
 	);
+}
+
+function trimMessagesToMax(areaTag, maxMessages, archivePath, cb) {
+	async.waterfall(
+		[
+			function getRemoteCount(callback) {
+				let removeCount = 0;
+				msgDb.get(
+					`SELECT COUNT(area_tag) AS msgCount
+					FROM message
+					WHERE area_tag = ?`,
+					[ areaTag ],
+					(err, row) => {
+						if(!err) {
+							if(row.msgCount >= maxMessages) {
+								removeCount = row.msgCount - maxMessages; 
+							}
+						}
+						return callback(err, removeCount);
+					}
+				);
+			},
+			function trimMessages(removeCount, callback) {
+				if(0 === removeCount) {
+					return callback(null);
+				}
+
+				if(archivePath) {
+
+				} else {
+					//	just delete 'em
+				}
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
+//	method exposed for event scheduler
+function trimMessageAreasScheduledEvent(args, cb) {
+	//
+	//	Available args:
+	//	- archive:/path/to/archive/dir/
+	//
+	let archivePath;
+	if(args) {
+		args.forEach(a => {
+			if(a.startsWith('archive:')) {
+				archivePath = a.split(':')[1]; 
+			}
+		});
+	}
+	
+	//
+	//	Find all area_tag's in message. We don't rely on user configurations
+	//	in case one is no longer available. From there we can trim messages
+	//	that meet the criteria (too old, too many, ...) and optionally archive
+	//	them via moving them to a new DB with the same layout
+	//
+	async.waterfall(
+		[
+			function getAreaTags(callback) {
+				let areaTags = [];
+				msgDb.each(
+					`SELECT DISTINCT area_tag
+					FROM message;`,
+					(err, row) => {
+						if(err) {
+							return callback(err);
+						}
+						areaTags.push(row.area_tag);
+					},
+					err => {
+						return callback(err, areaTags);
+					}
+				);
+			},
+			function trimAreas(areaTags, callback) {
+				areaTags.forEach(areaTag => {
+					
+					let maxMessages = Config.messageAreaDefaults.maxMessages;
+					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
+					
+					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf
+					if(area) {
+						if(area.maxMessages) {
+							maxMessages = area.maxMessages;
+						}
+						if(area.maxAgeDays) {
+							maxAgeDays = area.maxAgeDays;
+						}
+					}
+					
+					if(maxMessages) {
+						trimMessagesToMax(areaTag, maxMessages, archivePath, err => {
+
+						});
+					}
+					
+				});
+			}
+		]	
+	);
+	
+	console.log('trimming messages from scheduled event')	//	:TODO: remove me!!!
+	
 }
