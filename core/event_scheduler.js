@@ -100,6 +100,34 @@ class ScheduledEvent {
 			}			
 		}	
 	}
+
+	executeAction(cb) {
+		Log.info( { eventName : this.name, action : this.action }, 'Executing scheduled action...');
+
+		if('method' === this.action.type) {
+			const modulePath = path.join(__dirname, '../', this.action.location);	//	enigma-bbs base + supplied location (path/file.js')
+			try {
+				const methodModule = require(modulePath);
+				methodModule[this.action.what](this.action.args, err => {
+					if(err) {
+						Log.debug(
+							{ error : err.toString(), eventName : this.name, action : this.action },
+							'Error while performing scheduled event action');
+					}
+					
+					return cb(err);
+				});
+			} catch(e) {
+				Log.warn(
+					{ error : e.toString(), eventName : this.name, action : this.action },
+					'Failed to perform scheduled event action');
+				
+				return cb(e);
+			}
+		} else if('execute' === this.action.type) {
+			//	:TODO: implement execute!
+		}
+	}
 }
 
 function EventSchedulerModule(options) {
@@ -118,28 +146,10 @@ function EventSchedulerModule(options) {
 		} 
 		
 		self.runningActions.add(schedEvent.name);
-		
-		if('method' === schedEvent.action.type) {
-			const modulePath = path.join(__dirname, '../', schedEvent.action.location);	//	enigma-bbs base + supplied location (path/file.js')
-			try {
-				const methodModule = require(modulePath);
-				methodModule[schedEvent.action.what](schedEvent.action.args, err => {
-					if(err) {
-						Log.debug(
-							{ error : err.toString(), eventName : schedEvent.name, action : schedEvent.action },
-							'Error while performing scheduled event action');
-					}
-					
-					self.runningActions.delete(schedEvent.name);	
-				});
-			} catch(e) {
-				Log.warn(
-					{ error : e.toString(), eventName : schedEvent.name, action : schedEvent.action },
-					'Failed to perform scheduled event action');
-				
-				self.runningActions.delete(schedEvent.name);
-			}
-		}
+
+		schedEvent.executeAction( () => {
+			self.runningActions.delete(schedEvent.name);
+		});		
 	};
 }
 
@@ -180,6 +190,15 @@ EventSchedulerModule.prototype.startup = function(cb) {
 				return;
 			}
 			
+			Log.debug(
+				{ 
+					evetnName	: schedEvent.name,
+					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
+					action		: schedEvent.action,
+				},
+				'Scheduled event loaded'
+			);
+
 			if(schedEvent.schedule.sched) {			
 				this.eventTimers.push(later.setInterval( () => {
 					self.performAction(schedEvent);	
