@@ -272,8 +272,7 @@ function getDefaultConfig() {
 			events : {
 				trimMessageAreas : {
 					//	may optionally use [or ]@watch:/path/to/file
-					//schedule 	: 'every 24 hours after 3:30 am',
-					schedule : 'every 1 minutes',
+					schedule 	: 'every 24 hours after 3:30 am',					
 					
 					//	action:
 					//	- @method:path/to/module.js:theMethodName
