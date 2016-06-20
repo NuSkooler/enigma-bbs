@@ -1,16 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-let msgDb			= require('./database.js').dbs.message;
-let Config			= require('./config.js').config;
-let Message			= require('./message.js');
-let Log				= require('./logger.js').log;
-let checkAcs        = require('./acs_util.js').checkAcs;
-let msgNetRecord	= require('./msg_network.js').recordMessage;
+const msgDb			= require('./database.js').dbs.message;
+const Config		= require('./config.js').config;
+const Message		= require('./message.js');
+const Log			= require('./logger.js').log;
+const checkAcs		= require('./acs_util.js').checkAcs;
+const msgNetRecord	= require('./msg_network.js').recordMessage;
 
-let async			= require('async');
-let _				= require('lodash');
-let assert			= require('assert');
+const async			= require('async');
+const _				= require('lodash');
+const assert		= require('assert');
+const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -427,8 +428,8 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 						'VALUES (?, ?, ?);',
 						[ userId, areaTag, messageId ],
 						function written(err) {
-                            callback(err, true);    //  true=didUpdate
-                        }
+							callback(err, true);    //  true=didUpdate
+						}
 					);
 				} else {
 					callback(null);
@@ -441,11 +442,11 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 					{ error : err.toString(), userId : userId, areaTag : areaTag, messageId : messageId }, 
 					'Failed updating area last read ID');
 			} else {
-                if(true === didUpdate) {
-                    Log.trace( 
-                        { userId : userId, areaTag : areaTag, messageId : messageId },
-                        'Area last read ID updated');
-                }
+				if(true === didUpdate) {
+					Log.trace( 
+						{ userId : userId, areaTag : areaTag, messageId : messageId },
+						'Area last read ID updated');
+				}
 			}
 			cb(err);
 		}
@@ -466,67 +467,60 @@ function persistMessage(message, cb) {
 	);
 }
 
-function trimMessagesToMax(areaTag, maxMessages, archivePath, cb) {
-	async.waterfall(
-		[
-			function getRemoteCount(callback) {
-				let removeCount = 0;
-				msgDb.get(
-					`SELECT COUNT(area_tag) AS msgCount
-					FROM message
-					WHERE area_tag = ?`,
-					[ areaTag ],
-					(err, row) => {
-						if(!err) {
-							if(row.msgCount >= maxMessages) {
-								removeCount = row.msgCount - maxMessages; 
-							}
-						}
-						return callback(err, removeCount);
-					}
-				);
-			},
-			function trimMessages(removeCount, callback) {
-				if(0 === removeCount) {
-					return callback(null);
-				}
-
-				if(archivePath) {
-
-				} else {
-					//	just delete 'em
-				}
-			}
-		],
-		err => {
-			return cb(err);
-		}
-	);
-}
-
 //	method exposed for event scheduler
 function trimMessageAreasScheduledEvent(args, cb) {
-	//
-	//	Available args:
-	//	- archive:/path/to/archive/dir/
-	//
-	let archivePath;
-	if(args) {
-		args.forEach(a => {
-			if(a.startsWith('archive:')) {
-				archivePath = a.split(':')[1]; 
+	
+	function trimMessageAreaByMaxMessages(areaInfo, cb) {
+		if(0 === areaInfo.maxMessages) {
+			return cb(null);
+		}
+
+		msgDb.run(
+			`DELETE FROM message
+			WHERE message_id IN
+				(SELECT message_id
+				FROM message
+				WHERE area_tag = ?
+				ORDER BY message_id
+				LIMIT (MAX(0, (SELECT COUNT()
+					FROM message
+					WHERE area_tag = ?) - ${areaInfo.maxMessages}
+					))
+				);`,
+			[ areaInfo.areaTag, areaInfo.areaTag],
+			err => {
+				if(err) {
+					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxMessages' }, 'Error trimming message area');
+				} else {
+					Log.debug( { areaInfo : areaInfo, type : 'maxMessages' }, 'Area trimmed successfully');
+				}
+				return cb(err);
+			}	
+		);
+	}
+
+	function trimMessageAreaByMaxAgeDays(areaInfo, cb) {
+		if(0 === areaInfo.maxAgeDays) {
+			return cb(null);
+		}
+
+		msgDb.run(
+			`DELETE FROM message
+			WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
+			[ areaInfo.areaTag ],
+			err => {
+				if(err) {
+					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxAgeDays' }, 'Error trimming message area');
+				} else {
+					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays' }, 'Area trimmed successfully');
+				}
+				return cb(err);
 			}
-		});
+		);
 	}
 	
-	//
-	//	Find all area_tag's in message. We don't rely on user configurations
-	//	in case one is no longer available. From there we can trim messages
-	//	that meet the criteria (too old, too many, ...) and optionally archive
-	//	them via moving them to a new DB with the same layout
-	//
 	async.waterfall(
-		[
+		[			
 			function getAreaTags(callback) {
 				let areaTags = [];
 				msgDb.each(
@@ -543,13 +537,16 @@ function trimMessageAreasScheduledEvent(args, cb) {
 					}
 				);
 			},
-			function trimAreas(areaTags, callback) {
+			function prepareAreaInfo(areaTags, callback) {
+				let areaInfos = [];
+
+				//	determine maxMessages & maxAgeDays per area
 				areaTags.forEach(areaTag => {
 					
 					let maxMessages = Config.messageAreaDefaults.maxMessages;
 					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
 					
-					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf
+					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf here
 					if(area) {
 						if(area.maxMessages) {
 							maxMessages = area.maxMessages;
@@ -558,18 +555,37 @@ function trimMessageAreasScheduledEvent(args, cb) {
 							maxAgeDays = area.maxAgeDays;
 						}
 					}
-					
-					if(maxMessages) {
-						trimMessagesToMax(areaTag, maxMessages, archivePath, err => {
 
-						});
-					}
-					
+					areaInfos.push( {
+						areaTag		: areaTag,
+						maxMessages	: maxMessages,
+						maxAgeDays	: maxAgeDays,
+					} );					
 				});
-			}
-		]	
+
+				return callback(null, areaInfos);
+			},
+			function trimAreas(areaInfos, callback) {
+				async.each(
+					areaInfos,
+					(areaInfo, next) => {
+						trimMessageAreaByMaxMessages(areaInfo, err => {
+							if(err) {
+								return next(err);
+							}
+
+							trimMessageAreaByMaxAgeDays(areaInfo, err => {
+								return next(err);
+							});							
+						});
+					},
+					callback
+				);
+			}			
+		],
+		err => {
+			return cb(err);
+		}
 	);
-	
-	console.log('trimming messages from scheduled event')	//	:TODO: remove me!!!
 	
 }
