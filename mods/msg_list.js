@@ -133,7 +133,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					callback(0 === self.messageList.length ? new Error('No messages in area') : null);
 				} else {
 					messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
-						if(msgList && 0 === msgList.length) {
+						if(!msgList || 0 === msgList.length) {
 							callback(new Error('No messages in area'));
 						} else {
 							self.messageList = msgList;
@@ -210,6 +210,7 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 		function complete(err) {
 			if(err) {
 				self.client.log.error( { error : err.toString() }, 'Error loading message list');
+				
 			}
 			cb(err);
 		}

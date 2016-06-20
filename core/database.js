@@ -169,17 +169,19 @@ function createMessageBaseTables() {
 		'END;'
 	);
 
+	//	:TODO: need SQL to ensure cleaned up if delete from message?
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message_meta ('						+
 		'	message_id		INTEGER NOT NULL,'							+
 		'	meta_category	INTEGER NOT NULL,'							+
 		'	meta_name		VARCHAR NOT NULL,'							+
 		'	meta_value		VARCHAR NOT NULL,'							+
-		'	UNIQUE(message_id, meta_category, meta_name, meta_value),'	+	//	why unique here? 
+		'	UNIQUE(message_id, meta_category, meta_name, meta_value),'	+	//	:TODO:why unique here? 
 		'	FOREIGN KEY(message_id) REFERENCES message(message_id)'		+
 		');'
 	);
 
+	//	:TODO: need SQL to ensure cleaned up if delete from message?
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS hash_tag ('		+
 		'	hash_tag_id		INTEGER PRIMARY KEY,'	+
@@ -188,6 +190,7 @@ function createMessageBaseTables() {
 		');'
 	);
 
+	//	:TODO: need SQL to ensure cleaned up if delete from message?
 	dbs.message.run(
 		'CREATE TABLE IF NOT EXISTS message_hash_tag ('	+
 		'	hash_tag_id	INTEGER NOT NULL,'				+

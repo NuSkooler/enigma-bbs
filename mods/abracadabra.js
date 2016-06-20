@@ -165,7 +165,7 @@ function AbracadabraModule(options) {
 
 		const doorInstance = new door.Door(self.client, exeInfo);
 
-		doorInstance.on('finished', () => {
+		doorInstance.once('finished', () => {
 			self.prevMenu();
 		});
 

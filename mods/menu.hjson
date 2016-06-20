@@ -939,6 +939,10 @@
 					value: { command: "DL" }
 					action: @menu:doorDarkLands
 				}
+				{
+					value: { command: "DP" }
+					action: @menu:doorParty
+				}
 			]
 		}
 
@@ -1004,6 +1008,16 @@
 				authCode: XXXXXXXX
 				schemeCode: XXXXXXXX
 				door: tw
+			}
+		}
+
+		doorParty: {
+			desc: Using DoorParty!
+			module: @systemModule:door_party
+			config: {
+				username: XXXXXXXX
+				password: XXXXXXXX
+				bbsTag: XX
 			}
 		}
 		///////////////////////////////////////////////////////////////////////

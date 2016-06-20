@@ -1140,6 +1140,8 @@ function FTNMessageScanTossModule() {
 
 require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 
+//	:TODO: *scheduled* portion of this stuff should probably use event_scheduler - @immediate would still use record().
+
 FTNMessageScanTossModule.prototype.startup = function(cb) {
 	Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
 	

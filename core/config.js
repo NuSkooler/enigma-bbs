@@ -211,16 +211,25 @@ function getDefaultConfig() {
 
 		archivers : {
 			zip : {
-				sig				: "504b0304",
+				sig				: '504b0304',
 				offset			: 0,
-				compressCmd		: "7z",
-				compressArgs	: [ "a", "-tzip", "{archivePath}", "{fileList}" ],
-				decompressCmd	: "7z",
-				decompressArgs	: [ "e", "-o{extractPath}", "{archivePath}" ]
+				compressCmd		: '7z',
+				compressArgs	: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
+				decompressCmd	: '7z',
+				decompressArgs	: [ 'e', '-o{extractPath}', '{archivePath}' ]
 			}
 		},
+		
+		
+		messageAreaDefaults : {
+			//
+			//	The following can be override per-area as well
+			//
+			maxMessages		: 1024,	//	0 = unlimited
+			maxAgeDays		: 0,	//	0 = unlimited
+		},
 
-		messageConferences : {
+		messageConferences : {		
 			system_internal : {
 				name 	: 'System Internal',
 				desc 	: 'Built in conference for private messages, bulletins, etc.',
@@ -255,6 +264,25 @@ function getDefaultConfig() {
 				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
 				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
 			}
+		},
+		
+		eventScheduler : {
+			
+			
+			events : {
+				trimMessageAreas : {
+					//	may optionally use [or ]@watch:/path/to/file
+					schedule 	: 'every 24 hours after 3:30 am',					
+					
+					//	action:
+					//	- @method:path/to/module.js:theMethodName
+					//	  (path is relative to engima base dir)
+					//
+					//	- @execute:/path/to/something/executable.sh 
+					//	
+					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',	//	see method for avail args
+				}
+			}	
 		},
 
 		misc : {

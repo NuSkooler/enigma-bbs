@@ -132,6 +132,7 @@ function MenuModule(options) {
 				if(err) {
 					console.log(err)
 					//	:TODO: what to do exactly?????
+					return self.prevMenu();
 				}
 
 				self.finishedLoading();

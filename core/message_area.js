@@ -1,16 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-let msgDb			= require('./database.js').dbs.message;
-let Config			= require('./config.js').config;
-let Message			= require('./message.js');
-let Log				= require('./logger.js').log;
-let checkAcs        = require('./acs_util.js').checkAcs;
-let msgNetRecord	= require('./msg_network.js').recordMessage;
+const msgDb			= require('./database.js').dbs.message;
+const Config		= require('./config.js').config;
+const Message		= require('./message.js');
+const Log			= require('./logger.js').log;
+const checkAcs		= require('./acs_util.js').checkAcs;
+const msgNetRecord	= require('./msg_network.js').recordMessage;
 
-let async			= require('async');
-let _				= require('lodash');
-let assert			= require('assert');
+const async			= require('async');
+const _				= require('lodash');
+const assert		= require('assert');
+const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -27,6 +28,7 @@ exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 exports.persistMessage						= persistMessage;
+exports.trimMessageAreasScheduledEvent		= trimMessageAreasScheduledEvent;
 
 const CONF_AREA_RW_ACS_DEFAULT  = 'GM[users]';
 const AREA_MANAGE_ACS_DEFAULT   = 'GM[sysops]';
@@ -120,50 +122,50 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
 	//
 	//	Note that built in 'system_internal' is always ommited here
 	//
-    let defaultConf = _.findKey(Config.messageConferences, o => o.default);
-    if(defaultConf) {
-        const acs = Config.messageConferences[defaultConf].acs || CONF_AREA_RW_ACS_DEFAULT;
-        if(true === disableAcsCheck || checkAcs(client, acs)) {
-            return defaultConf;
-        } 
-    }
+	let defaultConf = _.findKey(Config.messageConferences, o => o.default);
+	if(defaultConf) {
+		const acs = Config.messageConferences[defaultConf].acs || CONF_AREA_RW_ACS_DEFAULT;
+		if(true === disableAcsCheck || checkAcs(client, acs)) {
+			return defaultConf;
+		} 
+	}
+
+	//  just use anything we can
+	defaultConf = _.findKey(Config.messageConferences, (o, k) => {
+		const acs = o.acs || CONF_AREA_RW_ACS_DEFAULT;
+		return 'system_internal' !== k && (true === disableAcsCheck || checkAcs(client, acs));
+	});
     
-    //  just use anything we can
-    defaultConf = _.findKey(Config.messageConferences, (o, k) => {
-        const acs = o.acs || CONF_AREA_RW_ACS_DEFAULT;
-        return 'system_internal' !== k && (true === disableAcsCheck || checkAcs(client, acs));
-    });
-    
-    return defaultConf;
+	return defaultConf;
 }
 
 function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
-    //
-    //  Similar to finding the default conference:
-    //  Find the first entry marked 'default', if any. If found, check | client| against
-    //  *read* ACS. If this fails, just find the first one we can that passes checks.
-    //
-    //  It's possible that we end up with nothing!
-    //
-    confTag = confTag || getDefaultMessageConferenceTag(client);
-    
-    if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
-        const areaPool = Config.messageConferences[confTag].areas;        
-        let defaultArea = _.findKey(areaPool, o => o.default);
-        if(defaultArea) {
-            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
-            if(true === disableAcsCheck || checkAcs(client, readAcs)) {
-                return defaultArea;
-            }            
-        }
-        
-        defaultArea = _.findKey(areaPool, (o, k) => {
-            const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
-            return (true === disableAcsCheck || checkAcs(client, readAcs));       
-        });
-        
-        return defaultArea;
-    }
+	//
+	//  Similar to finding the default conference:
+	//  Find the first entry marked 'default', if any. If found, check | client| against
+	//  *read* ACS. If this fails, just find the first one we can that passes checks.
+	//
+	//  It's possible that we end up with nothing!
+	//
+	confTag = confTag || getDefaultMessageConferenceTag(client);
+
+	if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
+		const areaPool = Config.messageConferences[confTag].areas;        
+		let defaultArea = _.findKey(areaPool, o => o.default);
+		if(defaultArea) {
+			const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+			if(true === disableAcsCheck || checkAcs(client, readAcs)) {
+				return defaultArea;
+			}            
+		}
+		
+		defaultArea = _.findKey(areaPool, (o, k) => {
+			const readAcs = _.has(areaPool, [ defaultArea, 'acs', 'read' ]) ? areaPool[defaultArea].acs.read : AREA_ACS_DEFAULT.read;
+			return (true === disableAcsCheck || checkAcs(client, readAcs));       
+		});
+		
+		return defaultArea;
+	}
 }
 
 function getMessageConferenceByTag(confTag) {
@@ -171,26 +173,26 @@ function getMessageConferenceByTag(confTag) {
 }
 
 function getMessageAreaByTag(areaTag, optionalConfTag) {
-    const confs = Config.messageConferences;
-    
-    if(_.isString(optionalConfTag)) {
-        if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
-            return confs[optionalConfTag].areas[areaTag];
-        }
-    } else {
-        //
-        //  No confTag to work with - we'll have to search through them all
-        //
-        var area;
-        _.forEach(confs, (v, k) => {
-            if(_.has(v, [ 'areas', areaTag ])) {
-                area = v.areas[areaTag];
-                return false;   //  stop iteration
-            } 
-        });
-        
-        return area;
-    }
+	const confs = Config.messageConferences;
+
+	if(_.isString(optionalConfTag)) {
+		if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
+			return confs[optionalConfTag].areas[areaTag];
+		}
+	} else {
+		//
+		//  No confTag to work with - we'll have to search through them all
+		//
+		var area;
+		_.forEach(confs, (v) => {
+			if(_.has(v, [ 'areas', areaTag ])) {
+				area = v.areas[areaTag];
+				return false;   //  stop iteration
+			} 
+		});
+		
+		return area;
+	}
 }
 
 function changeMessageConference(client, confTag, cb) {
@@ -426,8 +428,8 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 						'VALUES (?, ?, ?);',
 						[ userId, areaTag, messageId ],
 						function written(err) {
-                            callback(err, true);    //  true=didUpdate
-                        }
+							callback(err, true);    //  true=didUpdate
+						}
 					);
 				} else {
 					callback(null);
@@ -440,11 +442,11 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 					{ error : err.toString(), userId : userId, areaTag : areaTag, messageId : messageId }, 
 					'Failed updating area last read ID');
 			} else {
-                if(true === didUpdate) {
-                    Log.trace( 
-                        { userId : userId, areaTag : areaTag, messageId : messageId },
-                        'Area last read ID updated');
-                }
+				if(true === didUpdate) {
+					Log.trace( 
+						{ userId : userId, areaTag : areaTag, messageId : messageId },
+						'Area last read ID updated');
+				}
 			}
 			cb(err);
 		}
@@ -463,4 +465,127 @@ function persistMessage(message, cb) {
 		],
 		cb
 	);
+}
+
+//	method exposed for event scheduler
+function trimMessageAreasScheduledEvent(args, cb) {
+	
+	function trimMessageAreaByMaxMessages(areaInfo, cb) {
+		if(0 === areaInfo.maxMessages) {
+			return cb(null);
+		}
+
+		msgDb.run(
+			`DELETE FROM message
+			WHERE message_id IN
+				(SELECT message_id
+				FROM message
+				WHERE area_tag = ?
+				ORDER BY message_id
+				LIMIT (MAX(0, (SELECT COUNT()
+					FROM message
+					WHERE area_tag = ?) - ${areaInfo.maxMessages}
+					))
+				);`,
+			[ areaInfo.areaTag, areaInfo.areaTag],
+			err => {
+				if(err) {
+					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxMessages' }, 'Error trimming message area');
+				} else {
+					Log.debug( { areaInfo : areaInfo, type : 'maxMessages' }, 'Area trimmed successfully');
+				}
+				return cb(err);
+			}	
+		);
+	}
+
+	function trimMessageAreaByMaxAgeDays(areaInfo, cb) {
+		if(0 === areaInfo.maxAgeDays) {
+			return cb(null);
+		}
+
+		msgDb.run(
+			`DELETE FROM message
+			WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
+			[ areaInfo.areaTag ],
+			err => {
+				if(err) {
+					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxAgeDays' }, 'Error trimming message area');
+				} else {
+					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays' }, 'Area trimmed successfully');
+				}
+				return cb(err);
+			}
+		);
+	}
+	
+	async.waterfall(
+		[			
+			function getAreaTags(callback) {
+				let areaTags = [];
+				msgDb.each(
+					`SELECT DISTINCT area_tag
+					FROM message;`,
+					(err, row) => {
+						if(err) {
+							return callback(err);
+						}
+						areaTags.push(row.area_tag);
+					},
+					err => {
+						return callback(err, areaTags);
+					}
+				);
+			},
+			function prepareAreaInfo(areaTags, callback) {
+				let areaInfos = [];
+
+				//	determine maxMessages & maxAgeDays per area
+				areaTags.forEach(areaTag => {
+					
+					let maxMessages = Config.messageAreaDefaults.maxMessages;
+					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
+					
+					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf here
+					if(area) {
+						if(area.maxMessages) {
+							maxMessages = area.maxMessages;
+						}
+						if(area.maxAgeDays) {
+							maxAgeDays = area.maxAgeDays;
+						}
+					}
+
+					areaInfos.push( {
+						areaTag		: areaTag,
+						maxMessages	: maxMessages,
+						maxAgeDays	: maxAgeDays,
+					} );					
+				});
+
+				return callback(null, areaInfos);
+			},
+			function trimAreas(areaInfos, callback) {
+				async.each(
+					areaInfos,
+					(areaInfo, next) => {
+						trimMessageAreaByMaxMessages(areaInfo, err => {
+							if(err) {
+								return next(err);
+							}
+
+							trimMessageAreaByMaxAgeDays(areaInfo, err => {
+								return next(err);
+							});							
+						});
+					},
+					callback
+				);
+			}			
+		],
+		err => {
+			return cb(err);
+		}
+	);
+	
 }

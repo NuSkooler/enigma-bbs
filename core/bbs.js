@@ -169,6 +169,10 @@ function initialize(cb) {
 			},
 			function readyMessageNetworkSupport(callback) {
 				require('./msg_network.js').startup(callback);	
+			},
+			function readyEventScheduler(callback) {
+				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
+				EventSchedulerModule.loadAndStart(callback);
 			}
 		],
 		function onComplete(err) {
