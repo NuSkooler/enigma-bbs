@@ -2,7 +2,6 @@
 'use strict';
 
 const events		= require('events');
-
 const _				= require('lodash');
 const pty			= require('ptyw.js');
 const decode 		= require('iconv-lite').decode;
@@ -80,6 +79,10 @@ function Door(client, exeInfo) {
 			return cb(null);
 		}
 	};
+
+	this.doorExited = function() {
+		self.emit('finished');
+	};
 }
 
 require('util').inherits(Door, events.EventEmitter);
@@ -90,7 +93,7 @@ Door.prototype.run = function() {
 	this.prepareSocketIoServer( (err, sockServer) => {
 		if(err) {
 			this.client.log.warn( { error : err.toString() }, 'Failed executing door');
-			return self.emit('finished');
+			return self.doorExited();
 		}
 
 		//	Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
@@ -140,7 +143,7 @@ Door.prototype.run = function() {
 
 			door.removeAllListeners();
 
-			self.emit('finished');
+			return self.doorExited();
 		});
 	});
 };

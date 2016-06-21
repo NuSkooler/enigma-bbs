@@ -11,7 +11,6 @@ let async				= require('async');
 let assert				= require('assert');
 let paths				= require('path');
 let _					= require('lodash');
-let net					= require('net');
 let mkdirs				= require('fs-extra').mkdirs;
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
@@ -19,8 +18,6 @@ let mkdirs				= require('fs-extra').mkdirs;
 exports.getModule		= AbracadabraModule;
 
 let activeDoorNodeInstances = {};
-
-let doorInstances = {};	//	name -> { count : <instCount>, { <nodeNum> : <inst> } }
 
 exports.moduleInfo = {
 	name	: 'Abracadabra',
@@ -166,6 +163,18 @@ function AbracadabraModule(options) {
 		const doorInstance = new door.Door(self.client, exeInfo);
 
 		doorInstance.once('finished', () => {
+			//
+			//	Try to clean up various settings such as scroll regions that may
+			//	have been set within the door
+			//
+			self.client.term.rawWrite(
+				ansi.normal() +
+				ansi.goto(self.client.term.termHeight, self.client.term.termWidth) +
+				ansi.setScrollRegion() +
+				ansi.goto(self.client.term.termHeight, 0) +
+				'\r\n\r\n'
+			);
+
 			self.prevMenu();
 		});
 
