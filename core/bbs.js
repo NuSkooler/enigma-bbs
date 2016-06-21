@@ -5,21 +5,21 @@
 //SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
 
 //	ENiGMA½
-let conf		= require('./config.js');
-let logger		= require('./logger.js');
-let miscUtil	= require('./misc_util.js');
-let database	= require('./database.js');
-let clientConns	= require('./client_connections.js');
+const conf			= require('./config.js');
+const logger		= require('./logger.js');
+const database		= require('./database.js');
+const clientConns	= require('./client_connections.js');
 
-let paths		= require('path');
-let async		= require('async');
-let util		= require('util');
-let _			= require('lodash');
-let assert		= require('assert');
-let mkdirs		= require('fs-extra').mkdirs;
+const async			= require('async');
+const util			= require('util');
+const _				= require('lodash');
+const mkdirs		= require('fs-extra').mkdirs;
 
 //	our main entry point
 exports.bbsMain	= bbsMain;
+
+//	object with various services we want to de-init/shutdown cleanly if possible
+const initServices = {};
 
 function bbsMain() {
 	async.waterfall(
@@ -84,6 +84,34 @@ function bbsMain() {
 	);
 }
 
+function shutdownSystem() {
+	logger.log.info('Process interrupted, shutting down...');
+
+	async.series(
+		[
+			function closeConnections(callback) {
+				const activeConnections = clientConns.getActiveConnections();
+				let i = activeConnections.length;
+				while(i--) {
+					activeConnections[i].term.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
+					clientConns.removeClient(activeConnections[i]);
+				}
+				callback(null);
+			},
+			function stopEventScheduler(callback) {
+				if(initServices.eventScheduler) {
+					return initServices.eventScheduler.shutdown(callback);
+				} else {
+					return callback(null);
+				}
+			} 
+		],
+		() => {
+			process.exit();
+		}
+	);
+}
+
 function initialize(cb) {
 	async.series(
 		[
@@ -102,18 +130,7 @@ function initialize(cb) {
 			function basicInit(callback) {
 				logger.init();
 
-				process.on('SIGINT', function onSigInt() {
-					logger.log.info('Process interrupted, shutting down...');
-
-					var activeConnections = clientConns.getActiveConnections();
-					var i = activeConnections.length;
-					while(i--) {
-						activeConnections[i].term.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
-						clientConns.removeClient(activeConnections[i]);
-					}
-					
-					process.exit();
-				});
+				process.on('SIGINT', shutdownSystem);
 			
 				//	Init some extensions
 				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
@@ -172,7 +189,10 @@ function initialize(cb) {
 			},
 			function readyEventScheduler(callback) {
 				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
-				EventSchedulerModule.loadAndStart(callback);
+				EventSchedulerModule.loadAndStart( (err, modInst) => {
+					initServices.eventScheduler = modInst;
+					return callback(err);
+				});
 			}
 		],
 		function onComplete(err) {
