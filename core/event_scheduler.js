@@ -9,6 +9,7 @@ const Log					= require('./logger.js').log;
 const _						= require('lodash');
 const later					= require('later');
 const path					= require('path');
+const pty					= require('ptyw.js');
 
 exports.getModule				= EventSchedulerModule;
 exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
@@ -102,7 +103,7 @@ class ScheduledEvent {
 	}
 
 	executeAction(cb) {
-		Log.info( { eventName : this.name, action : this.action }, 'Executing scheduled action...');
+		Log.info( { eventName : this.name, action : this.action }, 'Executing scheduled event action...');
 
 		if('method' === this.action.type) {
 			const modulePath = path.join(__dirname, '../', this.action.location);	//	enigma-bbs base + supplied location (path/file.js')
@@ -112,7 +113,7 @@ class ScheduledEvent {
 					if(err) {
 						Log.debug(
 							{ error : err.toString(), eventName : this.name, action : this.action },
-							'Error while performing scheduled event action');
+							'Error performing scheduled event action');
 					}
 					
 					return cb(err);
@@ -125,7 +126,24 @@ class ScheduledEvent {
 				return cb(e);
 			}
 		} else if('execute' === this.action.type) {
-			//	:TODO: implement execute!
+			const opts = {
+				//	:TODO: cwd
+				name	: this.name,
+				cols	: 80,
+				rows	: 24,
+				env		: process.env,	
+			};
+
+			const proc = pty.spawn(this.action.what, this.action.args, opts);
+
+			proc.once('exit', exitCode => {				
+				if(exitCode) {
+					Log.warn(
+						{ eventName : this.name, action : this.action, exitCode : exitCode },
+						'Bad exit code while performing scheduled event action');
+				}
+				return cb(exitCode ? new Error(`Bad exit code while performing scheduled event action: ${exitCode}`) : null); 
+			});
 		}
 	}
 }
