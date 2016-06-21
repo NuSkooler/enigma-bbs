@@ -9,6 +9,8 @@ const Log					= require('./logger.js').log;
 const _						= require('lodash');
 const later					= require('later');
 const path					= require('path');
+const pty					= require('ptyw.js');
+const gaze					= require('gaze');
 
 exports.getModule				= EventSchedulerModule;
 exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
@@ -101,8 +103,8 @@ class ScheduledEvent {
 		}	
 	}
 
-	executeAction(cb) {
-		Log.info( { eventName : this.name, action : this.action }, 'Executing scheduled action...');
+	executeAction(reason, cb) {
+		Log.info( { eventName : this.name, action : this.action, reason : reason }, 'Executing scheduled event action...');
 
 		if('method' === this.action.type) {
 			const modulePath = path.join(__dirname, '../', this.action.location);	//	enigma-bbs base + supplied location (path/file.js')
@@ -112,7 +114,7 @@ class ScheduledEvent {
 					if(err) {
 						Log.debug(
 							{ error : err.toString(), eventName : this.name, action : this.action },
-							'Error while performing scheduled event action');
+							'Error performing scheduled event action');
 					}
 					
 					return cb(err);
@@ -125,7 +127,24 @@ class ScheduledEvent {
 				return cb(e);
 			}
 		} else if('execute' === this.action.type) {
-			//	:TODO: implement execute!
+			const opts = {
+				//	:TODO: cwd
+				name	: this.name,
+				cols	: 80,
+				rows	: 24,
+				env		: process.env,	
+			};
+
+			const proc = pty.spawn(this.action.what, this.action.args, opts);
+
+			proc.once('exit', exitCode => {				
+				if(exitCode) {
+					Log.warn(
+						{ eventName : this.name, action : this.action, exitCode : exitCode },
+						'Bad exit code while performing scheduled event action');
+				}
+				return cb(exitCode ? new Error(`Bad exit code while performing scheduled event action: ${exitCode}`) : null); 
+			});
 		}
 	}
 }
@@ -140,14 +159,14 @@ function EventSchedulerModule(options) {
 	const self = this;
 	this.runningActions = new Set();
 	
-	this.performAction = function(schedEvent) {
+	this.performAction = function(schedEvent, reason) {
 		if(self.runningActions.has(schedEvent.name)) {
 			return;	//	already running
 		} 
 		
 		self.runningActions.add(schedEvent.name);
 
-		schedEvent.executeAction( () => {
+		schedEvent.executeAction(reason, () => {
 			self.runningActions.delete(schedEvent.name);
 		});		
 	};
@@ -169,14 +188,14 @@ EventSchedulerModule.loadAndStart = function(cb) {
 		
 		const modInst = new mod.getModule();
 		modInst.startup( err => {
-			return cb(err);
+			return cb(err, modInst);
 		});		
 	});
 };
 
 EventSchedulerModule.prototype.startup = function(cb) {
 	
-	this.eventTimers = [];
+	this.eventTimers	= [];
 	const self = this;
 	
 	if(this.moduleConfig && _.has(this.moduleConfig, 'events')) {
@@ -192,7 +211,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
 			
 			Log.debug(
 				{ 
-					evetnName	: schedEvent.name,
+					eventName	: schedEvent.name,
 					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
 					action		: schedEvent.action,
 				},
@@ -201,11 +220,20 @@ EventSchedulerModule.prototype.startup = function(cb) {
 
 			if(schedEvent.schedule.sched) {			
 				this.eventTimers.push(later.setInterval( () => {
-					self.performAction(schedEvent);	
+					self.performAction(schedEvent, 'Schedule');	
 				}, schedEvent.schedule.sched));
 			}
-			
-			//	:TODO: handle watchfile -> performAction
+
+			if(schedEvent.schedule.watchFile) {				
+				gaze(schedEvent.schedule.watchFile, (err, watcher) => {
+					//	:TODO: should track watched files & stop watching @ shutdown
+					watcher.on('all', (watchEvent, watchedPath) => {
+						if(schedEvent.schedule.watchFile === watchedPath) {
+							self.performAction(schedEvent, `Watch file: ${watchedPath}`);
+						}
+					});
+				});
+			}
 		});
 	}
 	
@@ -216,6 +244,6 @@ EventSchedulerModule.prototype.shutdown = function(cb) {
 	if(this.eventTimers) {
 		this.eventTimers.forEach( et => et.clear() );
 	}
-	
+		
 	cb(null);
 };
