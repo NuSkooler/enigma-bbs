@@ -5,9 +5,9 @@
 let loadModulesForCategory	= require('./module_util.js').loadModulesForCategory;
 
 //	standard/deps
-let async					= require('async');
+let async				= require('async');
 
-exports.startup			= startup
+exports.startup			= startup;
 exports.shutdown		= shutdown;
 exports.recordMessage	= recordMessage;
 
@@ -36,12 +36,19 @@ function startup(cb) {
 	);
 }
 
-function shutdown() {
-	msgNetworkModules.forEach(mod => {
-		mod.shutdown();
-	});
-
-	msgNetworkModules = [];
+function shutdown(cb) {
+	async.each(
+		msgNetworkModules, 
+		(msgNetModule, next) => {
+			msgNetModule.shutdown( () => {
+				return next();
+			});
+		}, 
+		() => {
+			msgNetworkModules = [];
+			return cb(null);
+		}
+	);	
 }
 
 function recordMessage(message, cb) {

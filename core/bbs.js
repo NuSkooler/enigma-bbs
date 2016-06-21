@@ -100,10 +100,15 @@ function shutdownSystem() {
 			},
 			function stopEventScheduler(callback) {
 				if(initServices.eventScheduler) {
-					return initServices.eventScheduler.shutdown(callback);
+					return initServices.eventScheduler.shutdown( () => {
+						callback(null);	// ignore err
+					});
 				} else {
 					return callback(null);
 				}
+			},
+			function stopMsgNetwork(callback) {
+				require('./msg_network.js').shutdown(callback);
 			} 
 		],
 		() => {
