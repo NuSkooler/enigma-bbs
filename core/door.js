@@ -138,7 +138,7 @@ Door.prototype.run = function() {
 
 			//	we may not get a close
 			if('stdio' === self.exeInfo.io) {
-				return self.restoreIo(door);
+				self.restoreIo(door);
 			}
 
 			door.removeAllListeners();

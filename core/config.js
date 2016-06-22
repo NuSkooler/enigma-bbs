@@ -272,7 +272,7 @@ function getDefaultConfig() {
 			events : {
 				trimMessageAreas : {
 					//	may optionally use [or ]@watch:/path/to/file
-					schedule 	: 'every 24 hours after 3:30 am',					
+					schedule	: 'every 24 hours',
 					
 					//	action:
 					//	- @method:path/to/module.js:theMethodName
@@ -280,7 +280,7 @@ function getDefaultConfig() {
 					//
 					//	- @execute:/path/to/something/executable.sh 
 					//	
-					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',	//	see method for avail args
+					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
 				}
 			}	
 		},
