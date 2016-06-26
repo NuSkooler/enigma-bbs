@@ -1,25 +1,23 @@
 /* jslint node: true */
 'use strict';
 
-var theme				= require('./theme.js');
-var removeClient		= require('./client_connections.js').removeClient;
-var ansi				= require('./ansi_term.js');
-var userDb				= require('./database.js').dbs.user;
-var sysProp				= require('./system_property.js');
-var userLogin			= require('./user_login.js').userLogin;
+//	ENiGMA½
+const removeClient		= require('./client_connections.js').removeClient;
+const ansiNormal		= require('./ansi_term.js').normal;
+const userLogin			= require('./user_login.js').userLogin;
 
-var async				= require('async');
-var _					= require('lodash');
-var iconv				= require('iconv-lite');
+//	deps
+const _					= require('lodash');
+const iconv				= require('iconv-lite');
 
 exports.login			= login;
 exports.logoff			= logoff;
 exports.prevMenu		= prevMenu;
+exports.nextMenu		= nextMenu;
 
-function login(callingMenu, formData, extraArgs) {
-	var client = callingMenu.client;
+function login(callingMenu, formData) {
 
-	userLogin(callingMenu.client, formData.value.username, formData.value.password, function authResult(err) {
+	userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
 		if(err) {
 			//	login failure
 			if(err.existingConn && _.has(callingMenu, 'menuConfig.config.tooNodeMenu')) {
@@ -36,32 +34,41 @@ function login(callingMenu, formData, extraArgs) {
 	});
 }
 
-function logoff(callingMenu, formData, extraArgs) {
+function logoff(callingMenu) {
 	//
 	//	Simple logoff. Note that recording of @ logoff properties/stats
 	//	occurs elsewhere!
 	//
-	var client = callingMenu.client;
+	const client = callingMenu.client;
 
-	setTimeout(function timeout() {
+	setTimeout( () => {
 		//
 		//	For giggles...
 		//
 		client.term.write(
-			ansi.normal() +	'\n' +
+			ansiNormal() +	'\n' +
 			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) + 
-			'NO CARRIER', null, function written() {
+			'NO CARRIER', null, () => {
 
 				//	after data is written, disconnect & remove the client
-				removeClient(client);
-			});
+				return removeClient(client);
+			}
+		);
 	}, 500);
 }
 
-function prevMenu(callingMenu, formData, extraArgs) {
-	callingMenu.prevMenu(function result(err) {
+function prevMenu(callingMenu) {
+	callingMenu.prevMenu( err => {
 		if(err) {
 			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to fallback!');
+		}
+	});
+}
+
+function nextMenu(callingMenu) {
+	callingMenu.nextMenu( err => {
+		if(err) {
+			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to go to next menu!');
 		}
 	});
 }
