@@ -72,7 +72,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 
 function prepareTerminal(term) {
 	term.rawWrite(ansi.normal());
-	term.rawWrite(ansi.disableVT100LineWrapping());
+	//term.rawWrite(ansi.disableVT100LineWrapping());
 	//	:TODO: set xterm stuff -- see x84/others
 }
 
