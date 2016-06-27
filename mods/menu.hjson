@@ -1,4 +1,4 @@
-{	
+{
 	/*
 		ENiGMA½ Menu Configuration
 
@@ -29,7 +29,7 @@
 
 		//
 		//	Another SSH specialization: If the user logs in with a new user
-		//	name (e.g. "new", "apply", ...) they will be directed to the 
+		//	name (e.g. "new", "apply", ...) they will be directed to the
 		//	application process.
 		//
 		sshConnectedNewUser: {
@@ -157,7 +157,7 @@
 			}
 		}
 
-		logoff: {			
+		logoff: {
 			art: LOGOFF
 			desc: Logging Off
 			next: @systemMethod:logoff
@@ -264,7 +264,7 @@
 							action: @systemMethod:prevMenu
 						}
 					]
-				}				
+				}
 			}
 		}
 
@@ -361,7 +361,7 @@
 							action: @systemMethod:prevMenu
 						}
 					]
-				}				
+				}
 			}
 		}
 
@@ -375,10 +375,10 @@
 			status: Feedback to SysOp
 			module: msg_area_post_fse
 			next: [
-				{ 
+				{
 					acs: AS2
 					next: fullLoginSequenceLoginArt
-				}				
+				}
 				{
 					next: newUserInactiveDone
 				}
@@ -510,7 +510,7 @@
 			module: last_callers
 			art: LASTCALL
 			options: { pause: true }
-			next: fullLoginSequenceWhosOnline			
+			next: fullLoginSequenceWhosOnline
 		}
 		fullLoginSequenceWhosOnline: {
 			desc: Who's Online
@@ -645,6 +645,10 @@
 					action: @menu:mainMenuFeedbackToSysOp
 				}
 				{
+					value: { command: "CHAT"}
+					action: @menu:ercClient
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
@@ -665,7 +669,7 @@
 		mainMenuUserStats: {
 			desc: User Stats
 			art: STATUS
-			options: { pause: true }			
+			options: { pause: true }
 		}
 		mainMenuSystemStats: {
 			desc: System Stats
@@ -907,6 +911,58 @@
 			}
 		}
 
+		ercClient: {
+			art: erc
+			module: erc_client
+			config: {
+				host: 192.168.1.171
+        port: 5001
+				bbsTag: SUPER
+      }
+
+			form: {
+				0: {
+					mci: {
+						MT1: {
+							width: 79
+							height: 21
+							mode: preview
+							autoScroll: true
+						}
+						ET3: {
+							autoScale: false
+							width: 77
+							argName: chattxt
+							focus: true
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { chattxt: null }
+								action: @method:processInput
+								}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "tab" ]
+						}
+						{
+							keys: [ "up arrow" ]
+							action: @method:scrollDown
+						}
+						{
+							keys: [ "down arrow" ]
+							action: @method:scrollUp
+						}
+					]
+				}
+			}
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	Doors Menu
 		///////////////////////////////////////////////////////////////////////
@@ -948,12 +1004,12 @@
 
 		doorPimpWars: {
 			desc: Playing PimpWars
-			module: abracadabra			
+			module: abracadabra
 			config: {
 				name: PimpWars
 				dropFileType: DORINFO
 				cmd: /home/nuskooler/DOS/scripts/pimpwars.sh
-				args: [ 
+				args: [
 					"{node}",
 					"{dropFile}",
 					"{srvPort}",
@@ -966,12 +1022,12 @@
 
 		doorDarkLands: {
 			desc: Playing Dark Lands
-			module: abracadabra			
+			module: abracadabra
 			config: {
 				name: DARKLANDS
 				dropFileType: DOOR
 				cmd: /home/nuskooler/dev/enigma-bbs/doors/darklands/start.sh
-				args: [ 
+				args: [
 					"{node}",
 					"{dropFile}",
 					"{srvPort}",
@@ -981,7 +1037,7 @@
 				io: socket
 			}
 		}
-		
+
 		doorLORD: {
 			desc: Playing L.O.R.D.
 			module: abracadabra
@@ -1056,7 +1112,7 @@
 				{
 					value: 1
 					action: @menu:messageArea
-				}				
+				}
 			]
 		}
 
@@ -1244,7 +1300,7 @@
 						{
 							keys: [ "n", "shift + n" ]
 							action: @method:nextMessage
-						}				
+						}
 						{
 							keys:	[ "r", "shift + r" ]
 							action: @method:replyMessage
@@ -1259,7 +1315,7 @@
 						{
 							keys: [ "?" ]
 							action: @method:viewModeMenuHelp
-						}						
+						}
 						{
 							keys: [ "down arrow", "up arrow", "page up", "page down" ]
 							action: @method:movementKeyPressed
@@ -1295,7 +1351,7 @@
 							validate: @systemMethod:validateNonEmpty
 						}
 						ET3: {
-							argName: subject							
+							argName: subject
 							maxLength: 72
 							submit: true
 							validate: @systemMethod:validateNonEmpty
@@ -1395,7 +1451,7 @@
 							width: 79
 							height: 4
 							argName: quote
-						}						
+						}
 					}
 
 					submit: {
@@ -1552,7 +1608,7 @@
 						"mci" : {
 							"VM1" : {
 								"items" : [
-									"Single Line Text Editing Views", 
+									"Single Line Text Editing Views",
 									"Spinner & Toggle Views",
 									"Mask Edit Views",
 									"Multi Line Text Editor",
@@ -1735,7 +1791,7 @@
 			"form" : {
 				"0" : {
 					"BTMT" : {
-						"mci" : { 
+						"mci" : {
 							"MT1" : {
 								"width"		: 70,
 								"height"	: 17,
@@ -2019,6 +2075,6 @@
 					}
 				}
 			}
-		}		
+		}
 	}
 }
