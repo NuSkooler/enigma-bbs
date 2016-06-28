@@ -1,67 +1,22 @@
 /* jslint node: true */
 'use strict';
-var MenuModule	= require('../core/menu_module.js').MenuModule;
 
+var MenuModule		= require('../core/menu_module.js').MenuModule;
+
+//	deps
 const async			= require('async');
 const _				= require('lodash');
 const net			= require('net');
 
-const packageJson 	= require('../package.json');
-
 /*
-	Expected configuration block:
+	Expected configuration block example:
 
-	ercClient: {
-		art: erc
-		module: erc_client
-		config: {
-			host: 192.168.1.171
-			port: 5001
-			bbsTag: SUPER
-		}
-
-		form: {
-			0: {
-				mci: {
-					MT1: {
-						width: 79
-						height: 21
-						mode: preview
-						autoScroll: true
-					}
-					ET3: {
-						autoScale: false
-						width: 77
-						argName: chattxt
-						focus: true
-						submit: true
-					}
-				}
-
-				submit: {
-					*: [
-						{
-							value: { chattxt: null }
-							action: @method:processInput
-							}
-					]
-				}
-				actionKeys: [
-					{
-						keys: [ "tab" ]
-					}
-					{
-						keys: [ "up arrow" ]
-						action: @method:scrollDown
-					}
-					{
-						keys: [ "down arrow" ]
-						action: @method:scrollUp
-					}
-				]
-			}
-		}
+	config: {
+		host: 192.168.1.171
+		port: 5001
+		bbsTag: SOME_TAG
 	}
+
 */
 
 exports.getModule	= ErcClientModule;
@@ -73,55 +28,81 @@ exports.moduleInfo = {
 };
 
 var MciViewIds = {
-  chatDisplay : 1,
-  inputArea : 3,
+	ChatDisplay : 1,
+	InputArea 	: 3,
 };
 
 function ErcClientModule(options) {
-  MenuModule.call(this, options);
+	MenuModule.call(this, options);
 
-  var self	= this;
-  this.config = options.menuConfig.config;
-	this.chatConnection = null;
-  this.finishedLoading = function() {
-		async.series(
+	const self			= this;  
+	this.config			= options.menuConfig.config;
+
+	this.chatEntryFormat	= this.config.chatEntryFormat || '[{bbsTag}] {userName}: {message}';
+	this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';	
+	
+	this.finishedLoading = function() {
+		async.waterfall(
 			[
 				function validateConfig(callback) {
 					if(_.isString(self.config.host) &&
 						_.isNumber(self.config.port) &&
 						_.isString(self.config.bbsTag))
 					{
-						callback(null);
+						return callback(null);
 					} else {
-						callback(new Error('Configuration is missing required option(s)'));
+						return callback(new Error('Configuration is missing required option(s)'));
 					}
 				},
-        function connectToServer(callback) {
-          const connectOpts = {
+				function connectToServer(callback) {
+					const connectOpts = {
 						port	: self.config.port,
 						host	: self.config.host,
 					};
 
-
-					var chatMessageView = self.viewControllers.menu.getView(MciViewIds.chatDisplay);
-					chatMessageView.setText("Connecting to server...");
+					const chatMessageView = self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
+					
+					chatMessageView.setText('Connecting to server...');
 					chatMessageView.redraw();
-					self.viewControllers.menu.switchFocus(MciViewIds.inputArea);
+					
+					self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
+					
 					self.chatConnection = net.createConnection(connectOpts.port, connectOpts.host);
 
 					self.chatConnection.on('data', data => {
-						var chatMessageView = self.viewControllers.menu.getView(MciViewIds.chatDisplay);
+						data = data.toString();
 
-						if (data.toString().substring(0, 12) == "ERCHANDSHAKE") {
-							self.chatConnection.write("ERCMAGIC|" + self.config.bbsTag + "|" + self.client.user.username + "\r\n");
-						} else {
-							chatMessageView.addText(data.toString());
-							if (chatMessageView.getLineCount() > 30) {
+						if(data.startsWith('ERCHANDSHAKE')) {
+							self.chatConnection.write(`ERCMAGIC|${self.config.bbsTag}|${self.client.user.username}\r\n`);
+						} else if(data.startsWith('{')) {
+							try {
+								data = JSON.parse(data);
+							} catch(e) {
+								return self.client.log.warn( { error : e.message }, 'ERC: Error parsing ERC data from server');
+							}
+
+							let text;
+							try {
+								if(data.userName) {
+									//	user message
+									text = self.chatEntryFormat.format(data);
+								} else {
+									//	system message
+									text = self.systemEntryFormat.format(data);
+								}
+							} catch(e) {
+								return self.client.log.warn( { error : e.message }, 'ERC: chatEntryFormat error');
+							}
+
+							chatMessageView.addText(text);
+					
+							if(chatMessageView.getLineCount() > 30) {	//	:TODO: should probably be ChatDisplay.height?
 								chatMessageView.deleteLine(0);
 								chatMessageView.scrollDown();
 							}
+							
 							chatMessageView.redraw();
-							self.viewControllers.menu.switchFocus(MciViewIds.inputArea);
+							self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
 						}
 					});
 
@@ -130,13 +111,13 @@ function ErcClientModule(options) {
 					});
 
 					self.chatConnection.once('error', err => {
-						self.client.log.info(`Telnet bridge connection error: ${err.message}`);
+						self.client.log.info(`ERC connection error: ${err.message}`);
 					});
-        }
+				}
 			],
 			err => {
 				if(err) {
-					self.client.log.warn( { error : err.message }, 'Telnet connection error');
+					self.client.log.warn( { error : err.message }, 'ERC error');
 				}
 
 				self.prevMenu();
@@ -144,37 +125,44 @@ function ErcClientModule(options) {
 		);
 	};
 
+	this.scrollHandler = function(keyName) {
+		const inputAreaView 	= self.viewControllers.menu.getView(MciViewIds.InputArea);
+		const chatDisplayView	= self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
 
-  this.menuMethods = {
-      processInput : function(data, cb) {
-        let chatInput = self.viewControllers.menu.getView(MciViewIds.inputArea);
-        let chatData = chatInput.getData();
-        if (chatData[0] === '/') {
-          if (chatData[1] === 'q' || chatInput[1] === 'Q') {
-            self.chatConnection.end();
-          }
-        } else {
-          self.chatConnection.write(chatData + "\r\n");
-					chatInput.clearText();
-        }
-      },
-			scrollUp : function(data, cb) {
-				let chatInput = self.viewControllers.menu.getView(MciViewIds.inputArea);
-				let chatMessageView = self.viewControllers.menu.getView(MciViewIds.chatDisplay);
-				chatMessageView.scrollUp();
-				chatMessageView.redraw();
-				chatInput.setFocus(true);
-			},
-			scrollDown : function(data, cb) {
-				let chatInput = self.viewControllers.menu.getView(MciViewIds.inputArea);
-				let chatMessageView = self.viewControllers.menu.getView(MciViewIds.chatDisplay);
-				chatMessageView.scrollDown();
-				chatMessageView.redraw();
-				chatInput.setFocus(true);
+		if('up arrow' === keyName) {
+			chatDisplayView.scrollUp();
+		} else {
+			chatDisplayView.scrollDown();
+		}
+
+		chatDisplayView.redraw();
+		inputAreaView.setFocus(true);
+	};
+
+
+	this.menuMethods = {
+		inputAreaSubmit : function() {
+			const inputAreaView = self.viewControllers.menu.getView(MciViewIds.InputArea);
+			const inputData		= inputAreaView.getData();
+
+			if('/quit' === inputData.toLowerCase()) {
+				self.chatConnection.end();
+			} else {
+				try {
+					self.chatConnection.write(`${inputData}\r\n`);
+				} catch(e) {
+					self.client.log.warn( { error : e.message }, 'ERC error');
+				}
+				inputAreaView.clearText();
 			}
-  };
-
-
+		},
+		scrollUp : function(formData) {
+			self.scrollHandler(formData.key.name);
+		},
+		scrollDown : function(formData) {
+			self.scrollHandler(formData.key.name);			
+		}
+	};
 }
 
 require('util').inherits(ErcClientModule, MenuModule);
