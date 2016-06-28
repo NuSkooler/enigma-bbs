@@ -67,6 +67,7 @@ function ErcClientModule(options) {
 					
 					self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
 					
+					//	:TODO: Track actual client->enig connection for optional prevMenu @ final CB
 					self.chatConnection = net.createConnection(connectOpts.port, connectOpts.host);
 
 					self.chatConnection.on('data', data => {
@@ -112,6 +113,7 @@ function ErcClientModule(options) {
 
 					self.chatConnection.once('error', err => {
 						self.client.log.info(`ERC connection error: ${err.message}`);
+						return callback(new Error('Failed connecting to ERC server!'));
 					});
 				}
 			],
