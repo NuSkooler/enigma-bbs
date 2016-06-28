@@ -27,7 +27,6 @@ exports.clearScreen					= clearScreen;
 exports.resetScreen					= resetScreen;
 exports.normal						= normal;
 exports.goHome						= goHome;
-//exports.deleteLine					= deleteLine;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
@@ -419,32 +418,6 @@ function normal() {
 function goHome() {
 	return exports.goto();	//	no params = home = 1,1
 }
-
-//
-//	Delete line(s)
-//	This method acts like ESC[ p1 M but should work
-//	for all terminals via using eraseLine and movement
-//
-/*
-function deleteLine(count) {
-	count = count || 1;
-
-	console.log(exports.eraseLine)
-	var seq = exports.eraseLine(2);	// 2 = entire line
-	var i;
-	for(i = 1; i < count; ++i) {
-		seq += 
-			'\n' + 					//	down a line
-			exports.eraseLine(2);	//	erase it
-	}
-	
-	//	now, move back up any we lines we went down
-	if(count > 1) {
-		seq += exports.up(count - 1);
-	}
-	return seq;
-}
-*/
 
 //
 //	Disable auto line wraping @ termWidth
