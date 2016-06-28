@@ -1,15 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var View			= require('./view.js').View;
-var miscUtil		= require('./misc_util.js');
-var strUtil			= require('./string_util.js');
-var ansi			= require('./ansi_term.js');
-var colorCodes		= require('./color_codes.js');
-var wordWrapText	= require('./word_wrap.js').wordWrapText;
+const View			= require('./view.js').View;
+const strUtil		= require('./string_util.js');
+const ansi			= require('./ansi_term.js');
+const colorCodes	= require('./color_codes.js');
+const wordWrapText	= require('./word_wrap.js').wordWrapText;
 
-var assert			= require('assert');
-var _				= require('lodash');
+const assert		= require('assert');
+const _				= require('lodash');
 
 //	:TODO: Determine CTRL-* keys for various things
 	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
@@ -114,10 +113,10 @@ function MultiLineEditTextView(options) {
 	this.topVisibleIndex	= 0;
 	this.mode				= options.mode || 'edit';	//	edit | preview | read-only
 
-	if (this.mode == 'edit') {
-		this.autoScroll = options.autoScroll || 'true';
+	if ('preview' === this.mode) {
+		this.autoScroll = options.autoScroll || true;
 	} else {
-		this.autoScroll = options.autoScroll || 'false';
+		this.autoScroll = options.autoScroll || false;
 	}
 	//
 	//	cursorPos represents zero-based row, col positions
@@ -1012,7 +1011,7 @@ MultiLineEditTextView.prototype.setText = function(text) {
 MultiLineEditTextView.prototype.addText = function(text) {
 	this.insertRawText(text);
 
-	if(this.autoScroll) {
+	if(this.isEditMode() || this.autoScroll) {
 		this.cursorEndOfDocument();
 	} else {
 		this.cursorStartOfDocument();
@@ -1025,7 +1024,8 @@ MultiLineEditTextView.prototype.getData = function() {
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'mode'		: this.mode = value; break;
+	case 'mode'			: this.mode = value; break;
+	case 'autoScroll'	: this.autoScroll = value; break;
 	}
 
 	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
@@ -1075,19 +1075,19 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 
 MultiLineEditTextView.prototype.scrollUp = function() {
 	this.scrollDocumentUp();
-}
+};
 
 MultiLineEditTextView.prototype.scrollDown = function() {
 	this.scrollDocumentDown();
-}
+};
 
 MultiLineEditTextView.prototype.deleteLine = function(line) {
 	this.textLines.splice(line, 1);
-}
+};
 
 MultiLineEditTextView.prototype.getLineCount = function() {
 	return this.textLines.length;
-}
+};
 
 MultiLineEditTextView.prototype.getTextEditMode = function() {
 	return this.overtypeMode ? 'overtype' : 'insert';
