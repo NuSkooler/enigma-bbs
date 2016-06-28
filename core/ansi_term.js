@@ -354,13 +354,14 @@ function sgr() {
 	let result	= [];
 	const args	= Array.isArray(arguments[0]) ? arguments[0] : arguments;
 
-	args.forEach(arg => {
+	for(let i = 0; i < args.length; ++i) {
+		const arg = args[i];
 		if(_.isString(arg) && arg in SGRValues) {
 			result.push(SGRValues[arg]);
 		} else if(_.isNumber(arg)) {
 			result.push(arg);
 		}
-	});
+	}
 
 	return `${ESC_CSI}${result.join(';')}m`;
 }
