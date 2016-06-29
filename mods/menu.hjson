@@ -649,6 +649,10 @@
 					action: @menu:ercClient
 				}
 				{
+					value: { command: "BBS"}
+					action: @menu:bbsList
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
@@ -925,7 +929,7 @@
 					mci: {
 						MT1: {
 							width: 79
-							height: 21
+							height: 20
 							mode: preview
 							autoScroll: true
 						}
@@ -959,6 +963,114 @@
 							action: @method:scrollUp
 						}
 					]
+				}
+			}
+		}
+
+		bbsList: {
+			art: BBSLIST
+			module: bbs_list
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							width: 28
+							height: 22
+						}
+						TL2: {
+							width: 31
+						}
+						TL3: {
+							width: 31
+						}
+						TL4: {
+							width: 31
+						}
+						TL5: {
+							width: 31
+						}
+						TL6: {
+							width: 31
+						}
+						TL7: {
+							width: 31
+						}
+						TL8: {
+							width: 24
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "a" ]
+							action: @method:addBBS
+						}
+						{
+							keys: [ "d" ]
+							action: @method:deleteBBS
+						}
+						{
+							keys: [ "q" ]
+							action: @method:quitBBSList
+						}
+					]
+				}
+			}
+		}
+
+		bbsListSubmission: {
+			art: BBSLISTENTRY
+			module: bbs_list_submission
+			form: {
+				0:{
+					mci: {
+						ET1: {
+							width: 31
+							argName: name
+							maxLength: 31
+						}
+						ET2: {
+							width: 31
+							argName: sysop
+							maxLength: 31
+						}
+						ET3: {
+							width: 31
+							argName: telnet
+							maxLength: 31
+						}
+						ET4: {
+							width: 31
+							argName: www
+							maxLength: 31
+						}
+						ET5: {
+							width: 31
+							argName: location
+							maxLength: 31
+						}
+						ET6: {
+							width: 31
+							argName: software
+							maxLength: 31
+						}
+						TM17: {
+							argName: submission
+							items: [ "save", "cancel" ]
+							submit: true
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { "submission" : 0 }
+								action: @method:submitBBS
+							}
+							{
+								value: { "submission" : 1 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
 				}
 			}
 		}
