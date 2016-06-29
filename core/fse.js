@@ -317,7 +317,7 @@ function FullScreenEditorModule(options) {
 						//	in NetRunner:
 						self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 						
-						self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2))
+						self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
 					}
 					callback(null);
 				},
@@ -424,8 +424,7 @@ function FullScreenEditorModule(options) {
 		async.series(
 			[
 				function beforeDisplayArt(callback) {
-					self.beforeArt();
-					callback(null);
+					self.beforeArt(callback);
 				},
 				function displayHeaderAndBodyArt(callback) {
 					assert(_.isString(art.header));
