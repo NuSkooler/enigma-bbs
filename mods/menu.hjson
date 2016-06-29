@@ -75,7 +75,8 @@
 
 		login: {
 			art: USERLOG
-			next: fullLoginSequenceLoginArt
+			//next: fullLoginSequenceLoginArt
+			next: loginOnelinerz
 			config: {
 				tooNodeMenu: loginAttemptTooNode
 			}
@@ -108,6 +109,67 @@
 							action: @systemMethod:prevMenu
 						}
 					]
+				}
+			}
+		}
+
+		loginOnelinerz: {
+			desc: Viewing Onelinerz
+			module: onelinerz
+			next: fullLoginSequenceLoginArt
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: ONELINER
+					add: ONEADD
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: false
+						}
+						TM2: {
+							argName: wantAdd
+							items: [ "hell yeah!", "nah" ]
+							submit: true
+							focus: true
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { wantAdd: 0 }
+								action: @method:addPromptYes
+							}
+							{
+								value: { wantAdd: null }
+								action: @systemMethod:nextMenu
+							}
+						]
+					}
+				},
+				1: {
+					mci: {
+						ET1: {
+							focus: true
+							//	:TODO: fix this length
+							maxLength: 30
+							width: 30
+							argName: oneliner
+						}
+						TL2: {
+							width: 20
+						}
+						TM3: {
+							argName: wantAdd
+							items: [ "add", "cancel" ]
+							submit: true
+						}
+					}
 				}
 			}
 		}
@@ -915,10 +977,10 @@
 			art: erc
 			module: erc_client
 			config: {
-				host: 192.168.1.171
-        port: 5001
-				bbsTag: SUPER
-      }
+				host: localhost
+        		port: 5001
+				bbsTag: CHANGEME
+      		}
 
 			form: {
 				0: {
@@ -932,7 +994,7 @@
 						ET3: {
 							autoScale: false
 							width: 77
-							argName: chattxt
+							argName: inputArea
 							focus: true
 							submit: true
 						}
@@ -941,9 +1003,9 @@
 					submit: {
 						*: [
 							{
-								value: { chattxt: null }
-								action: @method:processInput
-								}
+								value: { inputArea: null }
+								action: @method:inputAreaSubmit
+							}
 						]
 					}
 					actionKeys: [
@@ -998,6 +1060,10 @@
 				{
 					value: { command: "DP" }
 					action: @menu:doorParty
+				}
+				{
+					value: { command: "HL" }
+					action: @menu:telnetBridgeHappyLand
 				}
 			]
 		}
@@ -1076,6 +1142,18 @@
 				bbsTag: XX
 			}
 		}
+
+		telnetBridgeHappyLand: {
+			desc: Connected to HappyLand BBS
+			module: telnet_bridge
+			config: {
+				host: andrew.homeunix.org
+				port: 2023
+				//host: agency.bbs.geek.nz
+				//port: 23
+			}
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	Message Area Menu
 		///////////////////////////////////////////////////////////////////////
