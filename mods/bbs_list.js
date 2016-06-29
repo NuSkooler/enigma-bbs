@@ -1,17 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule		= require('../core/menu_module.js').MenuModule;
-var sqlite3			= require('sqlite3').verbose();
-var db			= require('../core/database.js');
-var entry = require('./bbs_list_entry.js');
-var async = require('async');
-var _					= require('lodash');
-var ViewController		= require('../core/view_controller.js').ViewController;
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const sqlite3			= require('sqlite3').verbose();
+const getModDatabasePath			= require('../core/database.js').getModDatabasePath;
+const async = require('async');
+const _					= require('lodash');
+const ViewController		= require('../core/view_controller.js').ViewController;
+const ansi	= require('../core/ansi_term.js');
+const theme	= require('../core/theme.js');
 
 exports.getModule	= BBSListModule;
 
-let moduleInfo = {
+const moduleInfo = {
 	name	: 'BBS List',
 	desc	: 'List of other BBSes',
 	author	: 'Andrew Pamment',
@@ -20,67 +21,219 @@ let moduleInfo = {
 
 exports.moduleInfo = moduleInfo;
 
-var MciViewIds = {
-	BBSList : 1,
-	SelectedBBSName : 2,
-	SelectedBBSSysOp : 3,
-	SelectedBBSTelnet : 4,
-	SelectedBBSWww : 5,
-	SelectedBBSLoc : 6,
-	SelectedBBSSoftware : 7,
-	SelectedBBSSubmitter : 8
+const MciViewIds = {
+	view : {
+		BBSList : 1,
+		SelectedBBSName : 2,
+		SelectedBBSSysOp : 3,
+		SelectedBBSTelnet : 4,
+		SelectedBBSWww : 5,
+		SelectedBBSLoc : 6,
+		SelectedBBSSoftware : 7,
+		SelectedBBSSubmitter : 8
+	},
+	add : {
+		BBSName : 1,
+		Sysop : 2,
+		Telnet : 3,
+		Www : 4,
+		Location : 5,
+		Software : 6
+	}
+};
+
+const FormIds = {
+	View	: 0,
+	Add		: 1,
 };
 
 function BBSListModule(options) {
-	const self	= this;
-	this.selectedBBS = -1;
-	this.database = new sqlite3.Database(db.getModDatabasePath(moduleInfo));
-	this.bbsListContent = [];
-
 	MenuModule.call(this, options);
 
-	this.populateList = function() {
-		let bbsListView = self.viewControllers.allViews.getView(MciViewIds.BBSList);
+	const self	= this;
+	const config	= this.menuConfig.config;
 
-		bbsListView.setItems(_.map(self.bbsListContent, function formatBBSListEntry(ble) {
-			return '|02' + ble.name;
-		}));
+	let entries = [];
 
-		bbsListView.setFocusItems(_.map(self.bbsListContent, function formatBBSListEntry(ble) {
-			return '|00|18|15' + ble.name;
-		}));
-
-		bbsListView.on('index update', function indexUpdated(idx) {
-			if (self.bbsListContent.length === 0 || idx > self.bbsListContent.length) {
-				self.setViewText(MciViewIds.SelectedBBSName, '');
-				self.setViewText(MciViewIds.SelectedBBSSysOp, '');
-				self.setViewText(MciViewIds.SelectedBBSTelnet, '');
-				self.setViewText(MciViewIds.SelectedBBSWww, '');
-				self.setViewText(MciViewIds.SelectedBBSLoc, '');
-				self.setViewText(MciViewIds.SelectedBBSSoftware, '');
-				self.setViewText(MciViewIds.SelectedBBSSubmitter, '');
-
-				self.selectedBBS = -1;
-			} else {
-				self.setViewText(MciViewIds.SelectedBBSName, self.bbsListContent[idx].name);
-				self.setViewText(MciViewIds.SelectedBBSSysOp, self.bbsListContent[idx].sysop);
-				self.setViewText(MciViewIds.SelectedBBSTelnet, self.bbsListContent[idx].telnet);
-				self.setViewText(MciViewIds.SelectedBBSWww, self.bbsListContent[idx].www);
-				self.setViewText(MciViewIds.SelectedBBSLoc, self.bbsListContent[idx].location);
-				self.setViewText(MciViewIds.SelectedBBSSoftware, self.bbsListContent[idx].software);
-				if (self.bbsListContent[idx].submitter === self.client.user.userId) {
-					self.setViewText(MciViewIds.SelectedBBSSubmitter, 'YOU SUBMITTED THIS ENTRY');
-				} else {
-					self.setViewText(MciViewIds.SelectedBBSSubmitter, '');
+	this.initSequence = function() {
+		async.series(
+			[
+				function beforeDisplayArt(callback) {
+					self.beforeArt(callback);
+				},
+				function display(callback) {
+					self.displayBBSList(false, callback);
 				}
-				self.selectedBBS = idx;
+			],
+			err => {
+				if(err) {
+					//	:TODO: Handle me -- initSequence() should really take a completion callback
+				}
+				self.finishedLoading();
 			}
-		});
+		);
+	};
 
-		if (self.selectedBBS >= 0) {
-			bbsListView.setFocusItemIndex(self.selectedBBS);
-		}
-		bbsListView.redraw();
+	this.displayBBSList = function(clearScreen, cb) {
+		async.waterfall(
+			[
+				function clearAndDisplayArt(callback) {
+					if(self.viewControllers.add) {
+						self.viewControllers.add.setFocus(false);
+					}
+					if (clearScreen) {
+						self.client.term.rawWrite(ansi.resetScreen());
+					}
+					theme.displayThemedAsset(
+						config.art.entries,
+						self.client,
+						{ font : self.menuConfig.font, trailingLF : false },
+						(err, artData) => {
+							return callback(err, artData);
+						}
+					);
+				},
+				function initOrRedrawViewController(artData, callback) {
+					if(_.isUndefined(self.viewControllers.add)) {
+						const vc = self.addViewController(
+							'view',
+							new ViewController( { client : self.client, formId : FormIds.View } )
+						);
+
+						const loadOpts = {
+							callingMenu		: self,
+							mciMap			: artData.mciMap,
+							formId			: FormIds.View,
+						};
+
+						return vc.loadFromMenuConfig(loadOpts, callback);
+					} else {
+						self.viewControllers.view.setFocus(true);
+						self.viewControllers.view.getView(MciViewIds.view.BBSList).redraw();
+						return callback(null);
+					}
+				},
+				function fetchEntries(callback) {
+					const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
+					self.entries = [];
+
+					self.database.each(
+						'SELECT id, bbsname, sysop, telnet, www, location, software, submitter FROM bbses',
+						(err, row) => {
+							if (!err) {
+								self.entries.push(row);
+							}
+						},
+						err => {
+							return callback(err, entriesView, entries);
+						}
+					);
+				},
+				function populateEntries(entriesView, entries, callback) {
+					entriesView.setItems(self.entries.map( e => {
+						return '|02' + e.bbsname;
+					}));
+					entriesView.setFocusItems(self.entries.map( e => {
+						return '|00|18|15' + e.bbsname;
+					}));
+
+					entriesView.on('index update', function indexUpdated(idx) {
+						if (self.entries.length === 0 || idx > self.entries.length) {
+							self.setViewText(MciViewIds.view.SelectedBBSName, '');
+							self.setViewText(MciViewIds.view.SelectedBBSSysOp, '');
+							self.setViewText(MciViewIds.view.SelectedBBSTelnet, '');
+							self.setViewText(MciViewIds.view.SelectedBBSWww, '');
+							self.setViewText(MciViewIds.view.SelectedBBSLoc, '');
+							self.setViewText(MciViewIds.view.SelectedBBSSoftware, '');
+							self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
+
+							self.selectedBBS = -1;
+						} else {
+							self.setViewText(MciViewIds.view.SelectedBBSName, self.entries[idx].bbsname);
+							self.setViewText(MciViewIds.view.SelectedBBSSysOp, self.entries[idx].sysop);
+							self.setViewText(MciViewIds.view.SelectedBBSTelnet, self.entries[idx].telnet);
+							self.setViewText(MciViewIds.view.SelectedBBSWww, self.entries[idx].www);
+							self.setViewText(MciViewIds.view.SelectedBBSLoc, self.entries[idx].location);
+							self.setViewText(MciViewIds.view.SelectedBBSSoftware, self.entries[idx].software);
+							if (self.entries[idx].submitter === self.client.user.userId) {
+								self.setViewText(MciViewIds.view.SelectedBBSSubmitter, 'YOU SUBMITTED THIS ENTRY');
+							} else {
+								self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
+							}
+							self.selectedBBS = idx;
+						}
+					});
+
+					if (self.selectedBBS >= 0) {
+						entriesView.setFocusItemIndex(self.selectedBBS);
+					} else if (self.entries.length > 0) {
+						entriesView.setFocusItemIndex(0);
+					}
+					entriesView.redraw();
+					return callback(null);
+				}
+			],
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
+		);
+	};
+
+	this.displayAddScreen = function(cb) {
+		async.waterfall(
+			[
+				function clearAndDisplayArt(callback) {
+					self.viewControllers.view.setFocus(false);
+					self.client.term.rawWrite(ansi.resetScreen());
+
+					theme.displayThemedAsset(
+						config.art.add,
+						self.client,
+						{ font : self.menuConfig.font },
+						(err, artData) => {
+							return callback(err, artData);
+						}
+					);
+				},
+				function initOrRedrawViewController(artData, callback) {
+					if(_.isUndefined(self.viewControllers.add)) {
+						const vc = self.addViewController(
+							'add',
+							new ViewController( { client : self.client, formId : FormIds.Add } )
+						);
+
+						const loadOpts = {
+							callingMenu		: self,
+							mciMap			: artData.mciMap,
+							formId			: FormIds.Add,
+						};
+
+						return vc.loadFromMenuConfig(loadOpts, callback);
+					} else {
+						self.viewControllers.add.setFocus(true);
+						self.viewControllers.add.redrawAll();
+						self.viewControllers.add.switchFocus(MciViewIds.add.BBSName);
+						return callback(null);
+					}
+				}
+			],
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
+		);
+	};
+
+	this.clearAddForm = function() {
+		self.viewControllers.add.getView(MciViewIds.add.BBSName).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Sysop).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Telnet).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Www).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Location).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Software).setText('');
 	};
 
 	this.menuMethods = {
@@ -88,116 +241,124 @@ function BBSListModule(options) {
 			self.prevMenu();
 		},
 		addBBS : function() {
-			self.gotoMenu('bbsListSubmission');
+			self.displayAddScreen();
 		},
 		deleteBBS : function() {
-			let bbsListView = self.viewControllers.allViews.getView(MciViewIds.BBSList);
+			const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
 
-			if (self.selectedBBS > -1 && self.selectedBBS < self.bbsListContent.length) {
-				if (self.bbsListContent[self.selectedBBS].submitter === self.client.user.userId) {
+			if (self.selectedBBS > -1 && self.selectedBBS < self.entries.length) {
+				if (self.entries[self.selectedBBS].submitter === self.client.user.userId || self.client.user.isSysOp()) {
 					self.database.run(
 						'DELETE FROM bbses WHERE id=?',
-						[self.bbsListContent[self.selectedBBS].id],
+						[self.entries[self.selectedBBS].id],
 						function done(err) {
 							if (err) {
 								self.client.log.error( { error : err.toString() }, 'Error deleting from BBS list');
 							} else {
-								self.bbsListContent.splice(self.selectedBBS, 1);
-								self.populateList();
-								bbsListView.focusNext();
+								self.entries.splice(self.selectedBBS, 1);
+
+								entriesView.setItems(self.entries.map( e => {
+									return '|02' + e.bbsname;
+								}));
+								entriesView.setFocusItems(self.entries.map( e => {
+									return '|00|18|15' + e.bbsname;
+								}));
+
+								entriesView.on('index update', function indexUpdated(idx) {
+									if (self.entries.length === 0 || idx > self.entries.length) {
+										self.setViewText(MciViewIds.view.SelectedBBSName, '');
+										self.setViewText(MciViewIds.view.SelectedBBSSysOp, '');
+										self.setViewText(MciViewIds.view.SelectedBBSTelnet, '');
+										self.setViewText(MciViewIds.view.SelectedBBSWww, '');
+										self.setViewText(MciViewIds.view.SelectedBBSLoc, '');
+										self.setViewText(MciViewIds.view.SelectedBBSSoftware, '');
+										self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
+
+										self.selectedBBS = -1;
+									} else {
+										self.setViewText(MciViewIds.view.SelectedBBSName, self.entries[idx].bbsname);
+										self.setViewText(MciViewIds.view.SelectedBBSSysOp, self.entries[idx].sysop);
+										self.setViewText(MciViewIds.view.SelectedBBSTelnet, self.entries[idx].telnet);
+										self.setViewText(MciViewIds.view.SelectedBBSWww, self.entries[idx].www);
+										self.setViewText(MciViewIds.view.SelectedBBSLoc, self.entries[idx].location);
+										self.setViewText(MciViewIds.view.SelectedBBSSoftware, self.entries[idx].software);
+										if (self.entries[idx].submitter === self.client.user.userId) {
+											self.setViewText(MciViewIds.view.SelectedBBSSubmitter, 'YOU SUBMITTED THIS ENTRY');
+										} else {
+											self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
+										}
+										self.selectedBBS = idx;
+									}
+								});
+								if (self.entries.length > 0) {
+									entriesView.focusPrevious();
+								}
+								self.viewControllers.view.redrawAll();
 							}
 						}
 					);
 				}
 			}
+		},
+		submitBBS : function(formData) {
+			self.database.run(
+				'INSERT INTO bbses (bbsname, sysop, telnet, www, location, software, submitter) VALUES(?, ?, ?, ?, ?, ?, ?)',
+				[formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId],
+				err => {
+					if (err) {
+						self.client.log.error( { error : err.toString() }, 'Error adding to BBS list');
+					}
+					self.clearAddForm();
+					self.displayBBSList(true);
+				}
+			);
+		},
+		cancelSubmit : function() {
+			self.clearAddForm();
+			self.displayBBSList(true);
 		}
 	};
 	this.setViewText = function(id, text) {
-		var v = self.viewControllers.allViews.getView(id);
+		var v = self.viewControllers.view.getView(id);
 		if(v) {
 			v.setText(text);
 		}
+	};
+	this.initDatabase = function(cb) {
+		async.series(
+			[
+				function openDatabase(callback) {
+					self.database = new sqlite3.Database(
+						getModDatabasePath(moduleInfo),
+						callback
+					);
+				},
+				function createTables(callback) {
+					self.database.serialize( () => {
+						self.database.run(
+							'CREATE TABLE IF NOT EXISTS bbses(' +
+							'id INTEGER PRIMARY KEY AUTOINCREMENT,' +
+							'bbsname TEXT,' +
+							'sysop TEXT,' +
+							'telnet TEXT,' +
+							'www TEXT,' +
+							'location TEXT,' +
+							'software TEXT,' +
+							'submitter INTEGER);'
+						);
+					});
+					callback(null);
+				}
+			],
+			cb
+		);
 	};
 }
 
 require('util').inherits(BBSListModule, MenuModule);
 
-BBSListModule.prototype.mciReady = function(mciData, cb) {
-	const self	= this;
-	let vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
-
-	async.series(
-		[
-			function createDatabase(callback) {
-				self.database.run(
-					'CREATE TABLE IF NOT EXISTS bbses(' +
-					'id INTEGER PRIMARY KEY AUTOINCREMENT,' +
-					'bbsname TEXT,' +
-					'sysop TEXT,' +
-					'telnet TEXT,' +
-					'www TEXT,' +
-					'location TEXT,' +
-					'software TEXT,' +
-					'submitter INTEGER);',
-					function done(err) {
-						if (err) {
-							callback(err);
-						} else {
-							callback(null);
-						}
-					}
-				);
-			},
-			function loadBBSListing(callback) {
-				self.database.all(
-					'SELECT id, bbsname, sysop, telnet, www, location, software, submitter FROM bbses',
-					[],
-					function onResults(err, rows) {
-						if (err) {
-							callback(err);
-						} else {
-
-							if (rows.length > 0) {
-								for (var i = 0; i < rows.length; i++) {
-									let bbsEntry = new entry();
-									bbsEntry.name = rows[i].bbsname;
-									bbsEntry.sysop = rows[i].sysop;
-									bbsEntry.telnet = rows[i].telnet;
-									bbsEntry.www = rows[i].www;
-									bbsEntry.location = rows[i].location;
-									bbsEntry.software = rows[i].software;
-									bbsEntry.submitter = rows[i].submitter;
-									bbsEntry.id = rows[i].id;
-									self.bbsListContent.push(bbsEntry);
-								}
-							}
-							callback(null);
-						}
-					}
-				);
-			},
-			function callParentMciReady(callback) {
-				BBSListModule.super_.prototype.mciReady.call(self, mciData, callback);
-			},
-			function loadFromConfig(callback) {
-				var loadOpts = {
-					callingMenu		: self,
-					mciMap			: mciData.menu
-				};
-
-				vc.loadFromMenuConfig(loadOpts, callback);
-			},
-			function populateList(callback) {
-				self.populateList();
-
-				callback(null);
-			},
-		],
-		function complete(err) {
-			if (err) {
-				self.client.log.error( { error : err.toString() }, 'Error loading BBS list');
-			}
-			cb(err);
-		}
-	);
+BBSListModule.prototype.beforeArt = function(cb) {
+	BBSListModule.super_.prototype.beforeArt.call(this, err => {
+		return err ? cb(err) : this.initDatabase(cb);
+	});
 };
