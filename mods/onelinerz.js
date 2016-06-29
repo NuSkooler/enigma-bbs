@@ -12,6 +12,7 @@ const ansi					= require('../core/ansi_term.js');
 const sqlite3				= require('sqlite3');
 const async					= require('async');
 const _						= require('lodash');
+const moment				= require('moment');
 
 exports.moduleInfo = {
 	name		: 'Onelinerz',
@@ -28,7 +29,9 @@ const MciCodeIds = {
 		AddPrompt	: 2,
 	},
 	AddForm : {
-
+		NewEntry		: 1,
+		EntryPreview	: 2,
+		AddPrompt		: 3,
 	}
 };
 
@@ -114,6 +117,7 @@ function OnelinerzModule(options) {
 						LIMIT ${limit};`,
 						(err, row) => {
 							if(!err) {
+								row.timestamp = moment(row.timestamp);	//	convert -> moment
 								entries.push(row);
 							}
 						},
@@ -126,16 +130,16 @@ function OnelinerzModule(options) {
 					const listFormat = config.listFormat || '{username}: {oneliner}';
 
 					//	:TODO: remove meh:
-					entries = [
-						{ user_id : 1, user_name : 'NuSkooler', oneliner : 'Boojahhhh!!!', timestamp : '2016-06-04' }
-					]
+					//entries = [
+					//	{ user_id : 1, user_name : 'NuSkooler', oneliner : 'Boojahhhh!!!', timestamp : '2016-06-04' }
+					//]
 
 					entriesView.setItems(entries.map( e => {
 						return listFormat.format( {
 							userId		: e.user_id,
 							username	: e.user_name,
 							oneliner	: e.oneliner,
-							ts			: e.timestamp,
+							ts			: e.timestamp.toString(),	//	:TODO: allow custom TS formatting - see e.g. last_callers.js
 						} );
 					}));
 
@@ -145,7 +149,11 @@ function OnelinerzModule(options) {
 					return callback(null);
 				}
 			],
-			cb
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
 		);
 	};
 
@@ -180,20 +188,52 @@ function OnelinerzModule(options) {
 
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					} else {
+						self.viewControllers.add.setFocus(true);
 						self.viewControllers.add.redrawAll();
+						self.viewControllers.add.switchFocus(MciCodeIds.AddForm.NewEntry);
 						return callback(null);
 					}
 				}
 			],
-			cb
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
 		);
 	};
 
-	this.menuMethods = {
-		addPromptYes : function(formData, extraArgs) {
-			self.displayAddScreen(err => {
+	this.clearAddForm = function() {
+		const newEntryView	= self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
+		const previewView	= self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
 
-			});
+		newEntryView.setText('');
+		previewView.setText('');
+	};
+
+	this.menuMethods = {
+		viewAddScreen : function() {
+			self.displayAddScreen();
+		},
+
+		addEntry : function(formData) {
+			if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
+				const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
+
+				self.storeNewOneliner(oneliner, err => {
+					self.clearAddForm(); 
+					self.displayViewScreen(true);	//	true=cls
+				});
+
+			} else {
+				//	empty message - treat as if cancel was hit
+				self.displayViewScreen(true);	//	true=cls
+			}
+		},
+
+		cancelAdd : function() {
+			self.clearAddForm();
+			self.displayViewScreen(true);	//	true=cls
 		}
 	};
 
@@ -224,6 +264,21 @@ function OnelinerzModule(options) {
 			cb
 		);
 	};
+
+	this.storeNewOneliner = function(oneliner, cb) {
+		const ts = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+
+		//	:TODO: Keep max of N (e.g. 25) & change retrieval to show most recent N (height)
+		
+		self.db.run(
+			`INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
+			VALUES (?, ?, ?, ?);`,
+			[ self.client.user.userId, self.client.user.username, oneliner, ts ],
+			err => {
+				return cb(err);
+			}
+		);
+	};
 }
 
 require('util').inherits(OnelinerzModule, MenuModule);
@@ -233,68 +288,3 @@ OnelinerzModule.prototype.beforeArt = function(cb) {
 		return err ? cb(err) : this.initDatabase(cb);				
 	});
 };
-
-/*
-OnelinerzModule.prototype.mciReady = function(mciData, cb) {
-	const self	= this;
-	const vc	= self.addViewController(
-		'entries', 
-		new ViewController( { client : self.client, formId : FormIds.AddPrompt } )
-	);
-
-	let entries = [];
-	let entriesView;
-
-	async.series(
-		[
-			function loadFromConfig(callback) {
-				const loadOpts = {
-					callingMenu		: self,
-					mciMap			: mciData.entries.mciMap,
-				};
-
-				vc.loadFromMenuConfig(loadOpts, callback);
-			},
-			function fetchEntries(callback) {
-				entriesView = vc.getView(MciCodeIds.ViewScreen.Entries);
-				const limit = entriesView.dimens.height;
-
-				self.db.each(
-					`SELECT user_id, user_name, oneliner, timestamp
-					FROM onelinerz
-					LIMIT ${limit};`,
-					(err, row) => {
-						if(!err) {
-							entries.push(row);
-						}
-					},
-					callback
-				);
-			},
-			function populateEntries(callback) {
-				const listFormat = self.menuConfig.config.listFormat || '{username}: {oneliner}';
-
-				//	:TODO: remove meh:
-				entries = [
-					{ user_id : 1, user_name : 'NuSkooler', oneliner : 'Boojahhhh!!!', timestamp : '2016-06-04' }
-				]
-
-				entriesView.setItems(entries.map( e => {
-					return listFormat.format( {
-						userId		: e.user_id,
-						username	: e.user_name,
-						oneliner	: e.oneliner,
-						ts			: e.timestamp,
-					} );
-				}));
-
-				entriesView.focusItems = entriesView.items;	//	:TODO: this is a hack
-				entriesView.redraw();
-
-				return callback(null);
-			}
-		],
-		cb
-	);
-};
-*/

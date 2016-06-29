@@ -75,8 +75,8 @@
 
 		login: {
 			art: USERLOG
-			//next: fullLoginSequenceLoginArt
-			next: loginOnelinerz
+			next: fullLoginSequenceLoginArt
+			//next: loginOnelinerz
 			config: {
 				tooNodeMenu: loginAttemptTooNode
 			}
@@ -131,9 +131,10 @@
 					mci: {
 						VM1: {
 							focus: false
+							height: 10
 						}
 						TM2: {
-							argName: wantAdd
+							argName: addOrExit
 							items: [ "hell yeah!", "nah" ]
 							submit: true
 							focus: true
@@ -142,11 +143,11 @@
 					submit: {
 						*: [
 							{
-								value: { wantAdd: 0 }
-								action: @method:addPromptYes
+								value: { addOrExit: 0 }
+								action: @method:viewAddScreen
 							}
 							{
-								value: { wantAdd: null }
+								value: { addOrExit: null }
 								action: @systemMethod:nextMenu
 							}
 						]
@@ -165,10 +166,23 @@
 							width: 20
 						}
 						TM3: {
-							argName: wantAdd
+							argName: addOrCancel
 							items: [ "add", "cancel" ]
 							submit: true
 						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { addOrCancel: 0 }
+								action: @method:addEntry
+							}
+							{
+								value: { addOrCancel: 1 }
+								action: @method:cancelAdd
+							}
+						]
 					}
 				}
 			}
