@@ -12,7 +12,7 @@ let moduleInfo = {
 	name	: 'BBS List Submission',
 	desc	: 'List of other BBSes (Submission Part)',
 	author	: 'Andrew Pamment',
-	packageName: 'com.magicka.enigma.bbslist'
+	packageName: 'com.magickabbs.enigma.bbslist'
 };
 
 exports.moduleInfo = moduleInfo;
