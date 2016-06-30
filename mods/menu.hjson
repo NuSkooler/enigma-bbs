@@ -135,7 +135,7 @@
 						}
 						TM2: {
 							argName: addOrExit
-							items: [ "hell yeah!", "nah" ]
+							items: [ "yeah!", "nah" ]
 							submit: true
 							focus: true
 						}
@@ -152,18 +152,22 @@
 							}
 						]
 					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:nextMenu
+						}
+					]
 				},
 				1: {
 					mci: {
 						ET1: {
 							focus: true
-							//	:TODO: fix this length
-							maxLength: 30
-							width: 30
+							maxLength: 70
 							argName: oneliner
 						}
 						TL2: {
-							width: 20
+							width: 60
 						}
 						TM3: {
 							argName: addOrCancel
@@ -184,6 +188,12 @@
 							}
 						]
 					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelAdd
+						}
+					]
 				}
 			}
 		}

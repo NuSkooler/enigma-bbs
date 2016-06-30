@@ -112,9 +112,14 @@ function OnelinerzModule(options) {
 					let entries = [];
 
 					self.db.each(
-						`SELECT user_id, user_name, oneliner, timestamp
-						FROM onelinerz
-						LIMIT ${limit};`,
+						`SELECT *
+						FROM (
+							SELECT * 
+							FROM onelinerz
+							ORDER BY timestamp DESC
+							LIMIT ${limit}
+							)
+						ORDER BY timestamp ASC;`,
 						(err, row) => {
 							if(!err) {
 								row.timestamp = moment(row.timestamp);	//	convert -> moment
@@ -127,19 +132,15 @@ function OnelinerzModule(options) {
 					);
 				},
 				function populateEntries(entriesView, entries, callback) {
-					const listFormat = config.listFormat || '{username}: {oneliner}';
-
-					//	:TODO: remove meh:
-					//entries = [
-					//	{ user_id : 1, user_name : 'NuSkooler', oneliner : 'Boojahhhh!!!', timestamp : '2016-06-04' }
-					//]
+					const listFormat	= config.listFormat || '{username}@{ts}: {oneliner}';//	:TODO: should be userName to be consistent
+					const tsFormat		= config.timestampFormat || 'ddd h:mma';
 
 					entriesView.setItems(entries.map( e => {
 						return listFormat.format( {
 							userId		: e.user_id,
 							username	: e.user_name,
 							oneliner	: e.oneliner,
-							ts			: e.timestamp.toString(),	//	:TODO: allow custom TS formatting - see e.g. last_callers.js
+							ts			: e.timestamp.format(tsFormat),
 						} );
 					}));
 
@@ -221,6 +222,10 @@ function OnelinerzModule(options) {
 				const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
 
 				self.storeNewOneliner(oneliner, err => {
+					if(err) {
+						self.client.log.warn( { error : err.message }, 'Failed saving oneliner');
+					}
+
 					self.clearAddForm(); 
 					self.displayViewScreen(true);	//	true=cls
 				});
@@ -268,16 +273,32 @@ function OnelinerzModule(options) {
 	this.storeNewOneliner = function(oneliner, cb) {
 		const ts = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 
-		//	:TODO: Keep max of N (e.g. 25) & change retrieval to show most recent N (height)
-		
-		self.db.run(
-			`INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
-			VALUES (?, ?, ?, ?);`,
-			[ self.client.user.userId, self.client.user.username, oneliner, ts ],
-			err => {
-				return cb(err);
-			}
-		);
+		async.series(
+			[
+				function addRec(callback) {
+					self.db.run(
+						`INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
+						VALUES (?, ?, ?, ?);`,
+						[ self.client.user.userId, self.client.user.username, oneliner, ts ],
+						callback
+					);
+				},
+				function removeOld(callback) {
+					//	keep 25 max most recent items - remove the older ones
+					self.db.run(
+						`DELETE FROM onelinerz
+						WHERE id IN (
+							SELECT id
+							FROM onelinerz
+							ORDER BY id DESC
+							LIMIT -1 OFFSET 25
+						);`,
+						callback
+					);
+				}
+			],
+			cb
+		);		
 	};
 }
 
