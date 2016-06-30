@@ -139,14 +139,9 @@ function BBSListModule(options) {
 
 					entriesView.on('index update', function indexUpdated(idx) {
 						if (self.entries.length === 0 || idx > self.entries.length) {
-							self.setViewText(MciViewIds.view.SelectedBBSName, '');
-							self.setViewText(MciViewIds.view.SelectedBBSSysOp, '');
-							self.setViewText(MciViewIds.view.SelectedBBSTelnet, '');
-							self.setViewText(MciViewIds.view.SelectedBBSWww, '');
-							self.setViewText(MciViewIds.view.SelectedBBSLoc, '');
-							self.setViewText(MciViewIds.view.SelectedBBSSoftware, '');
-							self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
-
+							[ 'BBSName', 'BBSSysOp', 'BBSTelnet', 'BBSWww', 'BBSLoc', 'BBSSoftware', 'BBSSubmitter'].forEach( n => {
+								self.setViewText(MciViewIds.view['Selected' + n], '');
+							});
 							self.selectedBBS = -1;
 						} else {
 							self.setViewText(MciViewIds.view.SelectedBBSName, self.entries[idx].bbsname);
@@ -266,13 +261,9 @@ function BBSListModule(options) {
 
 								entriesView.on('index update', function indexUpdated(idx) {
 									if (self.entries.length === 0 || idx > self.entries.length) {
-										self.setViewText(MciViewIds.view.SelectedBBSName, '');
-										self.setViewText(MciViewIds.view.SelectedBBSSysOp, '');
-										self.setViewText(MciViewIds.view.SelectedBBSTelnet, '');
-										self.setViewText(MciViewIds.view.SelectedBBSWww, '');
-										self.setViewText(MciViewIds.view.SelectedBBSLoc, '');
-										self.setViewText(MciViewIds.view.SelectedBBSSoftware, '');
-										self.setViewText(MciViewIds.view.SelectedBBSSubmitter, '');
+										[ 'BBSName', 'BBSSysOp', 'BBSTelnet', 'BBSWww', 'BBSLoc', 'BBSSoftware', 'BBSSubmitter'].forEach( n => {
+											self.setViewText(MciViewIds.view['Selected' + n], '');
+										});
 
 										self.selectedBBS = -1;
 									} else {
