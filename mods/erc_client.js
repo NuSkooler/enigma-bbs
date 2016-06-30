@@ -15,6 +15,7 @@ const net			= require('net');
 		host: 192.168.1.171
 		port: 5001
 		bbsTag: SOME_TAG
+		password: password
 	}
 
 */
@@ -35,12 +36,12 @@ var MciViewIds = {
 function ErcClientModule(options) {
 	MenuModule.call(this, options);
 
-	const self			= this;  
+	const self			= this;
 	this.config			= options.menuConfig.config;
 
 	this.chatEntryFormat	= this.config.chatEntryFormat || '[{bbsTag}] {userName}: {message}';
-	this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';	
-	
+	this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';
+
 	this.finishedLoading = function() {
 		async.waterfall(
 			[
@@ -61,12 +62,12 @@ function ErcClientModule(options) {
 					};
 
 					const chatMessageView = self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
-					
+
 					chatMessageView.setText('Connecting to server...');
 					chatMessageView.redraw();
-					
+
 					self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
-					
+
 					//	:TODO: Track actual client->enig connection for optional prevMenu @ final CB
 					self.chatConnection = net.createConnection(connectOpts.port, connectOpts.host);
 
@@ -74,7 +75,7 @@ function ErcClientModule(options) {
 						data = data.toString();
 
 						if(data.startsWith('ERCHANDSHAKE')) {
-							self.chatConnection.write(`ERCMAGIC|${self.config.bbsTag}|${self.client.user.username}\r\n`);
+							self.chatConnection.write(`ERCMAGIC|${self.config.bbsTag}|${self.client.user.username}|${self.config.password}\r\n`);
 						} else if(data.startsWith('{')) {
 							try {
 								data = JSON.parse(data);
@@ -96,12 +97,12 @@ function ErcClientModule(options) {
 							}
 
 							chatMessageView.addText(text);
-					
+
 							if(chatMessageView.getLineCount() > 30) {	//	:TODO: should probably be ChatDisplay.height?
 								chatMessageView.deleteLine(0);
 								chatMessageView.scrollDown();
 							}
-							
+
 							chatMessageView.redraw();
 							self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
 						}
@@ -162,7 +163,7 @@ function ErcClientModule(options) {
 			self.scrollHandler(formData.key.name);
 		},
 		scrollDown : function(formData) {
-			self.scrollHandler(formData.key.name);			
+			self.scrollHandler(formData.key.name);
 		}
 	};
 }

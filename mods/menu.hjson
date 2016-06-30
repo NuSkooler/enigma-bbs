@@ -996,8 +996,9 @@
 			module: erc_client
 			config: {
 				host: localhost
-        		port: 5001
+        			port: 5001
 				bbsTag: CHANGEME
+				password: supersecret 
       		}
 
 			form: {
