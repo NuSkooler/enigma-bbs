@@ -1,10 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-var Config		= require('./config.js').config;
+//	ENiGMA½
+const Config	= require('./config.js').config;
 
-var _			= require('lodash');
-var assert		= require('assert');
+//	deps
+const _			= require('lodash');
+const assert	= require('assert');
 
 exports.parseAsset				= parseAsset;
 exports.getAssetWithShorthand	= getAssetWithShorthand;
@@ -17,19 +19,20 @@ const ALL_ASSETS = [
 	'art',
 	'menu',
 	'method',
+	'module',
 	'systemMethod',
 	'systemModule',
 	'prompt',
 	'config',
 ];
 
-var ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
+const ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
 
 function parseAsset(s) {	
-	var m = ASSET_RE.exec(s);
+	const m = ASSET_RE.exec(s);
 
 	if(m) {
-		var result = { type : m[1] };
+		let result = { type : m[1] };
 
 		if(m[3]) {
 			result.location = m[2];
@@ -48,7 +51,7 @@ function getAssetWithShorthand(spec, defaultType) {
 	}
 
 	if('@' === spec[0]) {
-		var asset = parseAsset(spec);
+		const asset = parseAsset(spec);
 		assert(_.isString(asset.type));
 
 		return asset;
@@ -56,63 +59,48 @@ function getAssetWithShorthand(spec, defaultType) {
 		return {
 			type	: defaultType,
 			asset	: spec,
-		}
-	}
-}
-
-//	:TODO: Convert these to getAssetWithShorthand()
-function getArtAsset(art) {
-	if(!_.isString(art)) {
-		return null;
-	}
-
-	if('@' === art[0]) {
-		var artAsset = parseAsset(art);
-		assert('art' === artAsset.type || 'method' === artAsset.type);
-
-		return artAsset;
-	} else {
-		return {
-			type	: 'art',
-			asset	: art,
 		};
 	}
 }
 
-function getModuleAsset(module) {
-	if(!_.isString(module)) {
+function getArtAsset(spec) {
+	const asset = getAssetWithShorthand(spec, 'art');
+	
+	if(!asset) {
 		return null;
 	}
 
-	if('@' === module[0]) {
-		var modAsset = parseAsset(module);
-		assert('module' === modAsset.type || 'systemModule' === modAsset.type);
-
-		return modAsset;
-	} else {
-		return {
-			type	: 'module',
-			asset	: module,
-		}
-	}
+	assert( ['art', 'method' ].indexOf(asset.type) > -1);
+	return asset;
 }
 
-function resolveConfigAsset(from) {
-	var asset = parseAsset(from);
+function getModuleAsset(spec) {
+	const asset = getAssetWithShorthand(spec, 'module');
+	
+	if(!asset) {
+		return null;
+	}
+
+	assert( ['module', 'systemModule' ].indexOf(asset.type) > -1);
+	return asset;
+}
+
+function resolveConfigAsset(spec) {
+	const asset = parseAsset(spec);
 	if(asset) {
 		assert('config' === asset.type);
 
-		var path = asset.asset.split('.');
-		var conf = Config;
-		for(var i = 0; i < path.length; ++i) {
+		const path	= asset.asset.split('.');
+		let conf	= Config;
+		for(let i = 0; i < path.length; ++i) {
 			if(_.isUndefined(conf[path[i]])) {
-				return from;
+				return spec;
 			}
 			conf = conf[path[i]];
 		}
 		return conf;
 	} else {
-		return from;
+		return spec;
 	}
 }
 
@@ -122,4 +110,4 @@ function getViewPropertyAsset(src) {
 	}
 
 	return parseAsset(src);
-};
+}

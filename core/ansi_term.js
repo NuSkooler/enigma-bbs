@@ -12,8 +12,12 @@
 //	* http://www.inwap.com/pdp10/ansicode.txt
 //
 
-const assert	= require('assert');
+//	ENiGMA½
 const miscUtil	= require('./misc_util.js');
+
+//	deps
+const assert	= require('assert');
+const _			= require('lodash');
 
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
@@ -23,7 +27,6 @@ exports.clearScreen					= clearScreen;
 exports.resetScreen					= resetScreen;
 exports.normal						= normal;
 exports.goHome						= goHome;
-//exports.deleteLine					= deleteLine;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
@@ -35,9 +38,9 @@ exports.setEmulatedBaudRate			= setEmulatedBaudRate;
 //	See also
 //	https://github.com/TooTallNate/ansi.js/blob/master/lib/ansi.js
 
-var ESC_CSI 	= '\u001b[';
+const ESC_CSI 	= '\u001b[';
 
-var CONTROL = {
+const CONTROL = {
 	up				: 'A',
 	down			: 'B',
 
@@ -124,7 +127,7 @@ var CONTROL = {
 //	Select Graphics Rendition
 //	See http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt
 //
-var SGRValues = {
+const SGRValues = {
 	reset			: 0,
 	bold			: 1,
 	dim				: 2,
@@ -180,7 +183,7 @@ function getBGColorValue(name) {
 //
 //	See https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
 //
-var SYNCTERM_FONT_AND_ENCODING_TABLE = [
+const SYNCTERM_FONT_AND_ENCODING_TABLE = [
 	'cp437',
 	'cp1251', 
 	'koi8_r', 
@@ -233,7 +236,7 @@ var SYNCTERM_FONT_AND_ENCODING_TABLE = [
 //	This table contains lowercased entries with any spaces
 //	replaced with '_' for lookup purposes.
 //
-var FONT_ALIAS_TO_SYNCTERM_MAP = {
+const FONT_ALIAS_TO_SYNCTERM_MAP = {
 	'cp437'					: 'cp437',
 	'ibm_vga'				: 'cp437',
 	'ibmpc'					: 'cp437',
@@ -267,8 +270,8 @@ var FONT_ALIAS_TO_SYNCTERM_MAP = {
 	'amiga_p0t-noodle'		: 'pot_noodle',
 
 	'mo_soul'				: 'mo_soul',
-    'mosoul'				: 'mo_soul',
-    'mO\'sOul'				: 'mo_soul',
+	'mosoul'				: 'mo_soul',
+	'mO\'sOul'				: 'mo_soul',
 
 	'amiga_microknight'		: 'microknight',
 	'amiga_microknight+'	: 'microknight_plus',
@@ -280,13 +283,13 @@ var FONT_ALIAS_TO_SYNCTERM_MAP = {
 };
 
 function setSyncTERMFont(name, fontPage) {
-	var p1 = miscUtil.valueWithDefault(fontPage, 0);
+	const p1 = miscUtil.valueWithDefault(fontPage, 0);
 
 	assert(p1 >= 0 && p1 <= 3);
 
-	var p2 = SYNCTERM_FONT_AND_ENCODING_TABLE.indexOf(name);
+	const p2 = SYNCTERM_FONT_AND_ENCODING_TABLE.indexOf(name);
 	if(p2 > -1) {
-		return ESC_CSI + p1 + ';' + p2 + ' D';
+		return `${ESC_CSI}${p1};${p2} D`;
 	}
 
 	return '';
@@ -296,20 +299,20 @@ function getSyncTERMFontFromAlias(alias) {
 	return FONT_ALIAS_TO_SYNCTERM_MAP[alias.toLowerCase().replace(/ /g, '_')];
 }
 
-var DEC_CURSOR_STYLE = {
-	'blinking block'	: 0,
-	'default'			: 1,
-	'steady block'		: 2,
+const DEC_CURSOR_STYLE = {
+	'blinking block'		: 0,
+	'default'				: 1,
+	'steady block'			: 2,
 	'blinking underline'	: 3,
-	'steady underline'	: 4,
-	'blinking bar'		: 5,
-	'steady bar'		: 6,
+	'steady underline'		: 4,
+	'blinking bar'			: 5,
+	'steady bar'			: 6,
 };
 
 function setCursorStyle(cursorStyle) {
-	var ps = DEC_CURSOR_STYLE[cursorStyle];
+	const ps = DEC_CURSOR_STYLE[cursorStyle];
 	if(ps) {
-		return ESC_CSI + ps + ' q';
+		return `${ESC_CSI}${ps} q`;
 	}
 	return '';
 	
@@ -317,24 +320,24 @@ function setCursorStyle(cursorStyle) {
 
 //	Create methods such as up(), nextLine(),...
 Object.keys(CONTROL).forEach(function onControlName(name) {
-	var code = CONTROL[name];
+	const code = CONTROL[name];
 
 	exports[name] = function() {
-		var c = code;
+		let c = code;
 		if(arguments.length > 0) {
 			//	arguments are array like -- we want an array
 			c = Array.prototype.slice.call(arguments).map(Math.round).join(';') + code;
 		}
-		return ESC_CSI + c;
+		return `${ESC_CSI}${c}`;
 	};
 });
 
 //	Create various color methods such as white(), yellowBG(), reset(), ...
-Object.keys(SGRValues).forEach(function onSgrName(name) {
-	var code = SGRValues[name];
+Object.keys(SGRValues).forEach( name => {
+	const code = SGRValues[name];
 
 	exports[name] = function() {
-		return ESC_CSI + code + 'm';
+		return `${ESC_CSI}${code}m`;
 	};
 });
 
@@ -347,28 +350,20 @@ function sgr() {
 	if(arguments.length <= 0) {
 		return '';
 	}
-	
-	var result = '';
 
-	//	:TODO: this method needs a lot of cleanup!
+	let result	= [];
+	const args	= Array.isArray(arguments[0]) ? arguments[0] : arguments;
 
-	var args = Array.isArray(arguments[0]) ? arguments[0] : arguments;
-	for(var i = 0; i < args.length; i++) {
-		if(typeof args[i] === 'string') {
-			if(args[i] in SGRValues) {
-				if(result.length > 0) {
-					result += ';';
-				}
-				result += SGRValues[args[i]];
-			}
-		} else if(typeof args[i] === 'number') {			
-			if(result.length > 0) {
-				result += ';';
-			}
-			result += args[i];
+	for(let i = 0; i < args.length; ++i) {
+		const arg = args[i];
+		if(_.isString(arg) && arg in SGRValues) {
+			result.push(SGRValues[arg]);
+		} else if(_.isNumber(arg)) {
+			result.push(arg);
 		}
 	}
-	return ESC_CSI + result + 'm';
+
+	return `${ESC_CSI}${result.join(';')}m`;
 }
 
 //
@@ -376,10 +371,10 @@ function sgr() {
 //	to a ANSI SGR sequence.
 //
 function getSGRFromGraphicRendition(graphicRendition, initialReset) {
-	var sgrSeq = [];
+	let sgrSeq		= [];
+	let styleCount	= 0;
 
-	var styleCount = 0;
-	[ 'intensity', 'underline', 'blink', 'negative', 'invisible' ].forEach(function style(s) {
+	[ 'intensity', 'underline', 'blink', 'negative', 'invisible' ].forEach( s => {
 		if(graphicRendition[s]) {
 			sgrSeq.push(graphicRendition[s]);
 			++styleCount;
@@ -414,11 +409,11 @@ function clearScreen() {
 }
 
 function resetScreen() {
-	return exports.reset() + exports.eraseData(2) + exports.goHome();
+	return `${exports.reset()}${exports.eraseData(2)}${exports.goHome()}`;
 }
 
 function normal() {
-	return sgr(['normal', 'reset']);
+	return sgr( [ 'normal', 'reset' ] );
 }
 
 function goHome() {
@@ -426,40 +421,23 @@ function goHome() {
 }
 
 //
-//	Delete line(s)
-//	This method acts like ESC[ p1 M but should work
-//	for all terminals via using eraseLine and movement
+//	Disable auto line wraping @ termWidth
 //
-/*
-function deleteLine(count) {
-	count = count || 1;
-
-	console.log(exports.eraseLine)
-	var seq = exports.eraseLine(2);	// 2 = entire line
-	var i;
-	for(i = 1; i < count; ++i) {
-		seq += 
-			'\n' + 					//	down a line
-			exports.eraseLine(2);	//	erase it
-	}
-	
-	//	now, move back up any we lines we went down
-	if(count > 1) {
-		seq += exports.up(count - 1);
-	}
-	return seq;
-}
-*/
-
+//	See:
+//	http://stjarnhimlen.se/snippets/vt100.txt
+//	https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
 //
-//	See http://www.termsys.demon.co.uk/vtANSI_BBS.htm
+//	WARNING:
+//	* Not honored by all clients
+//	* If it is honored, ANSI's that rely on this (e.g. do not have \r\n endings
+//	  and use term width -- generally 80 columns -- will display garbled!
 //
 function disableVT100LineWrapping() {
-	return ESC_CSI + '7l';
+	return `${ESC_CSI}?7l`;
 }
 
 function setEmulatedBaudRate(rate) {
-	var speed = {
+	const speed = {
 		unlimited	: 0,
 		off			: 0,
 		0			: 0,

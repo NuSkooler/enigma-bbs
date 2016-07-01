@@ -22,8 +22,8 @@ StandardMenuModule.prototype.enter = function() {
 	StandardMenuModule.super_.prototype.enter.call(this);
 };
 
-StandardMenuModule.prototype.beforeArt = function() {
-	StandardMenuModule.super_.prototype.beforeArt.call(this);
+StandardMenuModule.prototype.beforeArt = function(cb) {
+	StandardMenuModule.super_.prototype.beforeArt.call(this, cb);
 };
 
 StandardMenuModule.prototype.mciReady = function(mciData, cb) {

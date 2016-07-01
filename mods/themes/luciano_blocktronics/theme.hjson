@@ -84,6 +84,29 @@
 				}
 			}
 
+			fullLoginSequenceOnelinerz: {
+				config: {
+					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+				}
+				0: {
+					mci: {
+						VM1: { height: 10 }
+						TM2: {
+							focusTextStyle: first lower
+						}						
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
 			mainMenuUserStats: {
 				mci: {
 					UN1: { width: 17 }
@@ -153,6 +176,30 @@
 				1: {
 					mci: {
 						MT1: { height: 14 }
+					}
+				}
+			}
+
+			mainMenuOnelinerz: {
+				//	:TODO: Need way to just duplicate entry here & in menu.hjson, e.g. use: someName + must supply next/etc. in menu
+				config: {
+					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+				}
+				0: {
+					mci: {
+						VM1: { height: 10 }
+						TM2: {
+							focusTextStyle: first lower
+						}						
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: first lower
+						}
 					}
 				}
 			}
@@ -334,6 +381,12 @@
 					VM1: {
 						height: 14
 					}
+				}
+			}
+
+			ercClient: {
+				config: {
+					//chatEntryFormat: "|00|08[|03{bbsTag}|08] |10{userName}|08: |02{message}"
 				}
 			}
 		}

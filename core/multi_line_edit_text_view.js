@@ -1,15 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var View			= require('./view.js').View;
-var miscUtil		= require('./misc_util.js');
-var strUtil			= require('./string_util.js');
-var ansi			= require('./ansi_term.js');
-var colorCodes		= require('./color_codes.js');
-var wordWrapText	= require('./word_wrap.js').wordWrapText;
+const View			= require('./view.js').View;
+const strUtil		= require('./string_util.js');
+const ansi			= require('./ansi_term.js');
+const colorCodes	= require('./color_codes.js');
+const wordWrapText	= require('./word_wrap.js').wordWrapText;
 
-var assert			= require('assert');
-var _				= require('lodash');
+const assert		= require('assert');
+const _				= require('lodash');
 
 //	:TODO: Determine CTRL-* keys for various things
 	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
@@ -34,7 +33,7 @@ var _				= require('lodash');
 //
 //	Editors - BBS
 //	*	https://github.com/M-griffin/Enthral/blob/master/src/msg_fse.cpp
-//	
+//
 //
 //	Editors - Other
 //	*	http://joe-editor.sourceforge.net/
@@ -55,12 +54,12 @@ var _				= require('lodash');
 
 //
 //	To-Do
-//	
+//
 //	* Index pos % for emit scroll events
 //	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
 //	* Fix backspace when col=0 (e.g. bs to prev line)
 //	* Add back word delete
-//	* 
+//	*
 
 
 var SPECIAL_KEY_MAP_DEFAULT = {
@@ -114,6 +113,11 @@ function MultiLineEditTextView(options) {
 	this.topVisibleIndex	= 0;
 	this.mode				= options.mode || 'edit';	//	edit | preview | read-only
 
+	if ('preview' === this.mode) {
+		this.autoScroll = options.autoScroll || true;
+	} else {
+		this.autoScroll = options.autoScroll || false;
+	}
 	//
 	//	cursorPos represents zero-based row, col positions
 	//	within the editor itself
@@ -179,7 +183,7 @@ function MultiLineEditTextView(options) {
 
 	this.eraseRows = function(startRow, endRow) {
 		self.client.term.rawWrite(self.getSGRFor('text') + ansi.hideCursor());
-	
+
 		var absPos		= self.getAbsolutePosition(startRow, 0);
 		var absPosEnd	= self.getAbsolutePosition(endRow, 0);
 		var eraseFiller	= new Array(self.dimens.width).join(' ');
@@ -216,7 +220,7 @@ function MultiLineEditTextView(options) {
 		if(!_.isNumber(index)) {
 			index = self.getTextLinesIndex();
 		}
-		return self.textLines[index].text.replace(/\t/g, ' ');	
+		return self.textLines[index].text.replace(/\t/g, ' ');
 	};
 
 	this.getText = function(index) {
@@ -266,19 +270,19 @@ function MultiLineEditTextView(options) {
 		}
 		return lines;
  	};
-     
+
     this.getOutputText = function(startIndex, endIndex, eolMarker) {
         let lines   = self.getTextLines(startIndex, endIndex);
         let text    = '';
         var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
-        
+
         lines.forEach(line => {
            text += line.text.replace(re, '\t');
            if(eolMarker && line.eol) {
                text += eolMarker;
-           } 
+           }
         });
-        
+
         return text;
     }
 
@@ -302,7 +306,7 @@ function MultiLineEditTextView(options) {
 	/*
 	this.editTextAtPosition = function(editAction, text, index, col) {
 		switch(editAction) {
-			case 'insert' : 
+			case 'insert' :
 				self.insertCharactersInText(text, index, col);
 				break;
 
@@ -329,7 +333,7 @@ function MultiLineEditTextView(options) {
 		newLines[newLines.length - 1].eol = true;
 
 		Array.prototype.splice.apply(
-			self.textLines, 
+			self.textLines,
 			[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
 		return wrapped.firstWrapRange;
@@ -337,7 +341,7 @@ function MultiLineEditTextView(options) {
 
 	this.removeCharactersFromText = function(index, col, operation, count) {
 		if('right' === operation) {
-			self.textLines[index].text = 
+			self.textLines[index].text =
 				self.textLines[index].text.slice(col, count) +
 				self.textLines[index].text.slice(col + count);
 
@@ -354,11 +358,11 @@ function MultiLineEditTextView(options) {
 		} else if ('backspace' === operation) {
 			//	:TODO: method for splicing text
 			self.textLines[index].text =
-				self.textLines[index].text.slice(0, col - (count - 1)) + 
+				self.textLines[index].text.slice(0, col - (count - 1)) +
 				self.textLines[index].text.slice(col + 1);
 
 			self.cursorPos.col -= (count - 1);
-			
+
 			self.updateTextWordWrap(index);
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
@@ -405,9 +409,9 @@ function MultiLineEditTextView(options) {
 
 	this.insertCharactersInText = function(c, index, col) {
 		self.textLines[index].text = [
-				self.textLines[index].text.slice(0, col), 
-				c, 
-				self.textLines[index].text.slice(col)				
+				self.textLines[index].text.slice(0, col),
+				c,
+				self.textLines[index].text.slice(col)
 			].join('');
 
 		//self.cursorPos.col++;
@@ -443,13 +447,13 @@ function MultiLineEditTextView(options) {
 			//
 			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 			self.client.term.write(
-				ansi.hideCursor() + 
-				self.getSGRFor('text') +  
+				ansi.hideCursor() +
+				self.getSGRFor('text') +
 				self.getRenderText(index).slice(self.cursorPos.col - c.length) +
 				ansi.goto(absPos.row, absPos.col) +
 				ansi.showCursor(), false
 				);
-		}			
+		}
 	};
 
 	this.getRemainingTabWidth = function(col) {
@@ -541,7 +545,7 @@ function MultiLineEditTextView(options) {
 			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
 		var wrapped;
-		
+
 		for(var i = 0; i < text.length; ++i) {
 			wrapped = self.wordWrapSingleLine(
 				text[i], 	//	input
@@ -556,7 +560,7 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.getAbsolutePosition = function(row, col) {
-		return { 
+		return {
 			row : self.position.row + row,
 			col : self.position.col + col,
 		};
@@ -610,7 +614,7 @@ function MultiLineEditTextView(options) {
 
 	this.keyPressDown = function() {
 		var lastVisibleRow = Math.min(
-			self.dimens.height, 
+			self.dimens.height,
 			(self.textLines.length - self.topVisibleIndex)) - 1;
 
 		if(self.cursorPos.row < lastVisibleRow) {
@@ -714,7 +718,7 @@ function MultiLineEditTextView(options) {
 		var nextEolIndex	= self.getNextEndOfLineIndex(index);
 		var text			= self.getContiguousText(index, nextEolIndex);
 		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
-		
+
 		newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
 		for(var i = 1; i < newLines.length; ++i) {
 			newLines[i] = { text : newLines[i] };
@@ -722,7 +726,7 @@ function MultiLineEditTextView(options) {
 		newLines[newLines.length - 1].eol = true;
 
 		Array.prototype.splice.apply(
-			self.textLines, 
+			self.textLines,
 			[ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
 		//	redraw from current row to end of visible area
@@ -844,9 +848,9 @@ function MultiLineEditTextView(options) {
 					self.client.term.rawWrite(ansi.left(move));
 					break;
 
-				case 'up' : 
+				case 'up' :
 				case 'down' :
-					//	
+					//
 					//	Jump to the tabstop nearest the cursor
 					//
 					var newCol = self.tabStops.reduce(function r(prev, curr) {
@@ -890,7 +894,7 @@ function MultiLineEditTextView(options) {
 	this.cursorBeginOfNextLine = function() {
 		//	e.g. when scrolling right past eol
 		var linesBelow = self.getRemainingLinesBelowRow();
-	
+
 		if(linesBelow > 0) {
 			var lastVisibleRow	= Math.min(self.dimens.height, self.textLines.length) - 1;
 			if(self.cursorPos.row < lastVisibleRow) {
@@ -1007,9 +1011,9 @@ MultiLineEditTextView.prototype.setText = function(text) {
 MultiLineEditTextView.prototype.addText = function(text) {
 	this.insertRawText(text);
 
-	if(this.isEditMode()) {
+	if(this.isEditMode() || this.autoScroll) {
 		this.cursorEndOfDocument();
-	} else if(this.isPreviewMode()) {
+	} else {
 		this.cursorStartOfDocument();
 	}
 };
@@ -1020,14 +1024,15 @@ MultiLineEditTextView.prototype.getData = function() {
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'mode'		: this.mode = value; break;
+	case 'mode'			: this.mode = value; break;
+	case 'autoScroll'	: this.autoScroll = value; break;
 	}
 
 	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 
 var HANDLED_SPECIAL_KEYS = [
-	'up', 'down', 'left', 'right', 
+	'up', 'down', 'left', 'right',
 	'home', 'end',
 	'page up', 'page down',
 	'line feed',
@@ -1045,7 +1050,7 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 	var self = this;
 	var handled;
 
-	if(key) {		
+	if(key) {
 		HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
 			if(self.isKeyMapped(specialKey, key.name)) {
 
@@ -1068,6 +1073,22 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 	}
 };
 
+MultiLineEditTextView.prototype.scrollUp = function() {
+	this.scrollDocumentUp();
+};
+
+MultiLineEditTextView.prototype.scrollDown = function() {
+	this.scrollDocumentDown();
+};
+
+MultiLineEditTextView.prototype.deleteLine = function(line) {
+	this.textLines.splice(line, 1);
+};
+
+MultiLineEditTextView.prototype.getLineCount = function() {
+	return this.textLines.length;
+};
+
 MultiLineEditTextView.prototype.getTextEditMode = function() {
 	return this.overtypeMode ? 'overtype' : 'insert';
 };
@@ -1075,11 +1096,10 @@ MultiLineEditTextView.prototype.getTextEditMode = function() {
 MultiLineEditTextView.prototype.getEditPosition = function() {
 	var currentIndex = this.getTextLinesIndex() + 1;
 
-	return { 
-		row		: this.getTextLinesIndex(this.cursorPos.row), 
+	return {
+		row		: this.getTextLinesIndex(this.cursorPos.row),
 		col 	: this.cursorPos.col,
 		percent	: Math.floor(((currentIndex / this.textLines.length) * 100)),
 		below	: this.getRemainingLinesBelowRow(),
 	};
 };
-

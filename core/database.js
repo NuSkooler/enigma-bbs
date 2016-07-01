@@ -7,15 +7,42 @@ var sqlite3			= require('sqlite3');
 var paths			= require('path');
 var async			= require('async');
 
+const _				= require('lodash');
+const assert		= require('assert');
+
 //	database handles
 var dbs = {};
 
+exports.getModDatabasePath			= getModDatabasePath;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
 
 function getDatabasePath(name) {
-	return paths.join(conf.config.paths.db, name + '.sqlite3');
+	return paths.join(conf.config.paths.db, `${name}.sqlite3`);
+}
+
+function getModDatabasePath(moduleInfo, suffix) {
+	//
+	//	Mods that use a database are stored in Config.paths.modsDb (e.g. enigma-bbs/db/mods)
+	//	We expect that moduleInfo defines packageName which will be the base of the modules
+	//	filename. An optional suffix may be supplied as well.
+	//	
+	const HOST_RE = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
+
+	assert(_.isObject(moduleInfo));
+	assert(_.isString(moduleInfo.packageName), 'moduleInfo must define "packageName"!');
+	
+	let full = moduleInfo.packageName;
+	if(suffix) {
+		full += `.${suffix}`;
+	}
+
+	assert(
+		(full.split('.').length > 1 && HOST_RE.test(full)),
+		'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation');
+
+	return paths.join(conf.config.paths.modsDb, `${full}.sqlite3`);
 }
 
 function initializeDatabases(cb) {

@@ -46,8 +46,7 @@ function MenuModule(options) {
 		async.series(
 			[
 				function beforeDisplayArt(callback) {
-					self.beforeArt();
-					callback(null);
+					self.beforeArt(callback);
 				},
 				function displayMenuArt(callback) {
 					if(_.isString(self.menuConfig.art)) {
@@ -247,7 +246,7 @@ MenuModule.prototype.leave = function() {
 	this.detachViewControllers();
 };
 
-MenuModule.prototype.beforeArt = function() {	
+MenuModule.prototype.beforeArt = function(cb) {	
 	if(this.cls) {
 		this.client.term.write(ansi.resetScreen());
 	}
@@ -255,6 +254,8 @@ MenuModule.prototype.beforeArt = function() {
 	if(_.isNumber(this.menuConfig.options.baudRate)) {
 		this.client.term.write(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
 	}
+
+	return cb(null);
 };
 
 MenuModule.prototype.mciReady = function(mciData, cb) {
