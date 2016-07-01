@@ -76,7 +76,6 @@
 		login: {
 			art: USERLOG
 			next: fullLoginSequenceLoginArt
-			//next: loginOnelinerz
 			config: {
 				tooNodeMenu: loginAttemptTooNode
 			}
@@ -107,91 +106,6 @@
 						{
 							keys: [ "escape" ]
 							action: @systemMethod:prevMenu
-						}
-					]
-				}
-			}
-		}
-
-		loginOnelinerz: {
-			desc: Viewing Onelinerz
-			module: onelinerz
-			next: fullLoginSequenceLoginArt
-			options: {
-				cls: true
-			}
-			config: {
-				art: {
-					entries: ONELINER
-					add: ONEADD
-				}
-			}
-			form: {
-				0: {
-					mci: {
-						VM1: {
-							focus: false
-							height: 10
-						}
-						TM2: {
-							argName: addOrExit
-							items: [ "yeah!", "nah" ]
-							submit: true
-							focus: true
-						}
-					}
-					submit: {
-						*: [
-							{
-								value: { addOrExit: 0 }
-								action: @method:viewAddScreen
-							}
-							{
-								value: { addOrExit: null }
-								action: @systemMethod:nextMenu
-							}
-						]
-					}
-					actionKeys: [
-						{
-							keys: [ "escape" ]
-							action: @systemMethod:nextMenu
-						}
-					]
-				},
-				1: {
-					mci: {
-						ET1: {
-							focus: true
-							maxLength: 70
-							argName: oneliner
-						}
-						TL2: {
-							width: 60
-						}
-						TM3: {
-							argName: addOrCancel
-							items: [ "add", "cancel" ]
-							submit: true
-						}
-					}
-
-					submit: {
-						*: [
-							{
-								value: { addOrCancel: 0 }
-								action: @method:addEntry
-							}
-							{
-								value: { addOrCancel: 1 }
-								action: @method:cancelAdd
-							}
-						]
-					}
-					actionKeys: [
-						{
-							keys: [ "escape" ]
-							action: @method:cancelAdd
 						}
 					]
 				}
@@ -603,8 +517,95 @@
 			module: whos_online
 			art: WHOSON
 			options: { pause: true }
-			next: fullLoginSequenceNewScanConfirm
+			next: fullLoginSequenceOnelinerz
 		}
+
+		fullLoginSequenceOnelinerz: {
+			desc: Viewing Onelinerz
+			module: onelinerz
+			next: fullLoginSequenceNewScanConfirm
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: ONELINER
+					add: ONEADD
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: false
+							height: 10
+						}
+						TM2: {
+							argName: addOrExit
+							items: [ "yeah!", "nah" ]
+							"hotKeys"	: { "Y" : 0, "N" : 1, "Q" : 1 }
+							submit: true
+							focus: true
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { addOrExit: 0 }
+								action: @method:viewAddScreen
+							}
+							{
+								value: { addOrExit: null }
+								action: @systemMethod:nextMenu
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:nextMenu
+						}
+					]
+				},
+				1: {
+					mci: {
+						ET1: {
+							focus: true
+							maxLength: 70
+							argName: oneliner
+						}
+						TL2: {
+							width: 60
+						}
+						TM3: {
+							argName: addOrCancel
+							items: [ "add", "cancel" ]
+							"hotKeys"	: { "A" : 0, "C" : 1, "Q" : 1 }
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { addOrCancel: 0 }
+								action: @method:addEntry
+							}
+							{
+								value: { addOrCancel: 1 }
+								action: @method:cancelAdd
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelAdd
+						}
+					]
+				}
+			}
+		}	
 
 		fullLoginSequenceNewScanConfirm: {
 			desc: Logging In
@@ -729,6 +730,10 @@
 				{
 					value: { command: "K" }
 					action: @menu:mainMenuFeedbackToSysOp
+				}
+				{
+					value: { command: "O" }
+					action: @menu:mainMenuOnelinerz
 				}
 				{
 					value: { command: "CHAT"}
@@ -993,6 +998,92 @@
 							}
 						]
 					}
+				}
+			}
+		}
+
+		mainMenuOnelinerz: {
+			desc: Viewing Onelinerz
+			module: onelinerz
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: ONELINER
+					add: ONEADD
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: false
+							height: 10
+						}
+						TM2: {
+							argName: addOrExit
+							items: [ "yeah!", "nah" ]
+							"hotKeys"	: { "Y" : 0, "N" : 1, "Q" : 1 }
+							submit: true
+							focus: true
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { addOrExit: 0 }
+								action: @method:viewAddScreen
+							}
+							{
+								value: { addOrExit: null }
+								action: @systemMethod:nextMenu
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:nextMenu
+						}
+					]
+				},
+				1: {
+					mci: {
+						ET1: {
+							focus: true
+							maxLength: 70
+							argName: oneliner
+						}
+						TL2: {
+							width: 60
+						}
+						TM3: {
+							argName: addOrCancel
+							items: [ "add", "cancel" ]
+							"hotKeys"	: { "A" : 0, "C" : 1, "Q" : 1 }
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { addOrCancel: 0 }
+								action: @method:addEntry
+							}
+							{
+								value: { addOrCancel: 1 }
+								action: @method:cancelAdd
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelAdd
+						}
+					]
 				}
 			}
 		}

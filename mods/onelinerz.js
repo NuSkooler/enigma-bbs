@@ -209,7 +209,11 @@ function OnelinerzModule(options) {
 		const previewView	= self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
 
 		newEntryView.setText('');
-		previewView.setText('');
+		
+		//	preview is optional
+		if(previewView) {
+			previewView.setText('');
+		}
 	};
 
 	this.menuMethods = {
