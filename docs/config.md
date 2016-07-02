@@ -6,6 +6,9 @@ The main system configuration file, `config.hjson` both overrides defaults and p
 
 **Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern installations, e.g. *C:\Users\NuSkooler\\.config\enigma-bbs\config.hjson*
 
+### oputil.js
+Please see `oputil.js config` for configuration generation options.
+
 ### Example: System Name
 `core/config.js` provides the default system name as follows:
 ```javascript

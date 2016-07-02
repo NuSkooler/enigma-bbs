@@ -43,6 +43,15 @@ openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ## Create a Minimal Config
 The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
+### Via oputil.js
+`oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
+
+    optutil.js config --new
+
+You wil be asked a series of basic questions.
+
+### Example Starting Configuration
+
 ```hjson
 {
 	general: {
