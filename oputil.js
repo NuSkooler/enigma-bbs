@@ -27,30 +27,38 @@ const ExitCodes = {
 	BAD_ARGS	: -3,
 }
 
+const USAGE_HELP = {
+	General :
+`usage: optutil.js [--version] [--help]
+                   <command> [<args>]
+
+global args:
+  --config PATH         : specify config path (${getDefaultConfigPath()})
+
+commands:
+  user                  : user utilities
+  config                : config file management
+
+`,
+	User : 
+`usage: optutil.js user --user USERNAME <args>
+
+valid args:
+  --user USERNAME       : specify username
+  -- password PASS      : specify password (to reset)
+`,
+}
+
 function printUsage(command) {
-	var usage;
+	let usage;
 
 	switch(command) {
 		case '' :
-			usage = 
-				'usage: oputil.js [--version] [--help]\n' +
-				'                 <command> [<args>]' + 
-				'\n\n' + 
-				'global args:\n' +
-				'  --config PATH        : specify config path' +
-				'\n\n' +
-				'commands:\n' +
-				'  user                 : User utilities' +
-				'\n';
+			usage = USAGE_HELP.General;
 			break;
 
 		case 'user' :
-			usage = 
-				'usage: optutil.js user --user USERNAME <args>\n'	+
-				'\n' +
-				'valid args:\n'	+
-				'  --user USERNAME      : specify username\n' 	+
-				'  --password PASS      : reset password to PASS';
+			usage = USAGE_HELP.User;
 			break;
 	}
 
@@ -142,7 +150,7 @@ const QUESTIONS = {
 		{
 			name	: 'configPath',
 			message	: 'Configuration path:',
-			default	: getDefaultConfigPath(),
+			default	: argv.config ? argv.config : getDefaultConfigPath(),
 			when	: answers => answers.createNewConfig
 		},	
 	],
