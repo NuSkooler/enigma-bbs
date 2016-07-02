@@ -130,11 +130,17 @@ function BBSListModule(options) {
 					);
 				},
 				function populateEntries(entriesView, entries, callback) {
+					const listFormat = config.listFormat || '{bbsname}';
+					const focusListFormat = config.focusListFormat || '{bbsname}';
 					entriesView.setItems(self.entries.map( e => {
-						return '|02' + e.bbsname;
+						return listFormat.format({
+							bbsname : e.bbsname
+						});
 					}));
 					entriesView.setFocusItems(self.entries.map( e => {
-						return '|00|18|15' + e.bbsname;
+						return focusListFormat.format({
+							bbsname : e.bbsname
+						});
 					}));
 
 					entriesView.on('index update', function indexUpdated(idx) {
