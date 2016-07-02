@@ -47,22 +47,17 @@ valid args:
   --user USERNAME       : specify username
   -- password PASS      : specify password (to reset)
 `,
+
+	Config : 
+`usage: optutil.js config <args>
+
+valid args:
+  --new                 : generate a new/initial configuration
+`
 }
 
 function printUsage(command) {
-	let usage;
-
-	switch(command) {
-		case '' :
-			usage = USAGE_HELP.General;
-			break;
-
-		case 'user' :
-			usage = USAGE_HELP.User;
-			break;
-	}
-
-	console.error(usage);
+	console.error(USAGE_HELP[command]);
 }
 
 function initConfig(cb) {
@@ -74,7 +69,7 @@ function initConfig(cb) {
 function handleUserCommand() {
 	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
 		process.exitCode = ExitCodes.ERROR;
-		return printUsage('user');
+		return printUsage('User');
 	}
 
 	if(_.isString(argv.password)) {
@@ -342,21 +337,30 @@ function askQuestions(cb) {
 }
 
 function handleConfigCommand() {
-	askQuestions( (err, configPath, config) => {
-		if(err) {
-			return;
-		}
-		
-		config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t' } );
-		
-		try {
-			fs.writeFileSync(configPath, config, 'utf8');
-			console.info('Configuration generated');
-		} catch(e) {
-			console.error('Exception attempting to create config: ' + e.toString());
-		}
-	});
-	
+	if(true === argv.help) {
+		process.exitCode = ExitCodes.ERROR;
+		return printUsage('Config');
+	}
+
+	if(argv.new) {
+		askQuestions( (err, configPath, config) => {
+			if(err) {
+				return;
+			}
+			
+			config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t' } );
+			
+			try {
+				fs.writeFileSync(configPath, config, 'utf8');
+				console.info('Configuration generated');
+			} catch(e) {
+				console.error('Exception attempting to create config: ' + e.toString());
+			}
+		});		
+	} else {
+		process.exitCode = ExitCodes.ERROR;
+		return printUsage('Config');	
+	}	
 }
 
 function main() {
@@ -370,7 +374,7 @@ function main() {
 	if(0 === argv._.length ||
 		'help' === argv._[0])
 	{
-		printUsage('');
+		printUsage('General');
 		process.exit(ExitCodes.SUCCESS);
 	}
 
