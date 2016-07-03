@@ -1,13 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var View			= require('./view.js').View;
-var ansi			= require('./ansi_term.js');
-var miscUtil		= require('./misc_util.js');
+//	ENiGMA½
+const View			= require('./view.js').View;
+const miscUtil		= require('./misc_util.js');
 
-var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+//	deps
+const util			= require('util');
+const assert		= require('assert');
+const _				= require('lodash');
 
 exports.MenuView	= MenuView;
 
@@ -17,7 +18,7 @@ function MenuView(options) {
 
 	View.call(this, options);
 
-	var self = this;
+	const self = this;
 
 	if(options.items) {
 		this.setItems(options.items);
@@ -47,7 +48,7 @@ function MenuView(options) {
 
 	this.getHotKeyItemIndex = function(ch) {
 		if(ch && self.hotKeys) {
-			var keyIndex = self.hotKeys[self.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
+			const keyIndex = self.hotKeys[self.caseInsensitiveHotKeys ? ch.toLowerCase() : ch];
 			if(_.isNumber(keyIndex)) {
 				return keyIndex;
 			}
@@ -59,10 +60,11 @@ function MenuView(options) {
 util.inherits(MenuView, View);
 
 MenuView.prototype.setItems = function(items) {
-	var self = this;
+	const self = this;
+
 	if(items) {	
-		this.items = [];	//	:TODO: better way?
-		items.forEach(function item(itemText) {
+		this.items = [];
+		items.forEach( itemText => {
 			self.items.push( { text : itemText } );
 		});
 	}
@@ -72,9 +74,9 @@ MenuView.prototype.getCount = function() {
 	return this.items.length;
 };
 
-MenuView.prototype.getItems = function() {
-	return _.map(this.items, function itemIter(i) {
-		return i.text;
+MenuView.prototype.getItems = function() {	
+	return this.items.map( item => {
+		return item.text;
 	});
 };
 
@@ -97,7 +99,7 @@ MenuView.prototype.setFocusItemIndex = function(index) {
 };
 
 MenuView.prototype.onKeyPress = function(ch, key) {
-	var itemIndex = this.getHotKeyItemIndex(ch);
+	const itemIndex = this.getHotKeyItemIndex(ch);
 	if(itemIndex >= 0) {
 		this.setFocusItemIndex(itemIndex);
 
@@ -110,11 +112,11 @@ MenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 MenuView.prototype.setFocusItems = function(items) {
-	var self = this;
+	const self = this;
 
 	if(items) {
 		this.focusItems = [];
-		items.forEach(function item(itemText) {
+		items.forEach( itemText => {
 			self.focusItems.push( { text : itemText } );
 		});
 	}
@@ -130,11 +132,11 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
 
 MenuView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'itemSpacing' 	: this.setItemSpacing(value); break;
-		case 'items'		: this.setItems(value); break;
-		case 'focusItems'	: this.setFocusItems(value); break;
-		case 'hotKeys'		: this.setHotKeys(value); break;
-		case 'hotKeySubmit'	: this.hotKeySubmit = value; break;
+	case 'itemSpacing' 	: this.setItemSpacing(value); break;
+	case 'items'		: this.setItems(value); break;
+	case 'focusItems'	: this.setFocusItems(value); break;
+	case 'hotKeys'		: this.setHotKeys(value); break;
+	case 'hotKeySubmit'	: this.hotKeySubmit = value; break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
