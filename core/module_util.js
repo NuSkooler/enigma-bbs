@@ -24,14 +24,29 @@ function loadModuleEx(options, cb) {
 	const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
 	if(_.isObject(modConfig) && false === modConfig.enabled) {
-		return cb(new Error('Module "' + options.name + '" is disabled'));
+		return cb(new Error(`Module "${options.name}" is disabled`));
 	}
 
+	//
+	//	Modules are allowed to live in /path/to/<moduleName>/<moduleName>.js or
+	//	simply in /path/to/<moduleName>.js. This allows for more advanced modules
+	//	to have their own containing folder, package.json & dependencies, etc.
+	//
 	let mod;
+	let modPath = paths.join(options.path, `${options.name}.js`);	//	general case first
 	try {		
-		mod = require(paths.join(options.path, options.name + '.js'));
+		mod = require(modPath);
 	} catch(e) {
-		return cb(e);
+		if('MODULE_NOT_FOUND' === e.code) {
+			modPath = paths.join(options.path, options.name, `${options.name}.js`);
+			try {
+				mod = require(modPath);
+			} catch(e) {
+				return cb(e);
+			}
+		} else {
+			return cb(e);
+		}		
 	}
 
 	if(!_.isObject(mod.moduleInfo)) {
@@ -45,7 +60,7 @@ function loadModuleEx(options, cb) {
 	//	Ref configuration, if any, for convience to the module
 	mod.runtime = { config : modConfig };
 
-	cb(null, mod);
+	return cb(null, mod);
 }
 
 function loadModule(name, category, cb) {
@@ -56,7 +71,7 @@ function loadModule(name, category, cb) {
 	}
 
 	loadModuleEx( { name : name, path : path, category : category }, function loaded(err, mod) {
-		cb(err, mod);
+		return cb(err, mod);
 	});
 }
 
@@ -74,11 +89,11 @@ function loadModulesForCategory(category, iterator, complete) {
 		async.each(jsModules, (file, next) => {
 			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
 				iterator(err, mod);
-				next();
+				return next();
 			});
 		}, err => {
 			if(complete) {
-				complete(err);
+				return complete(err);
 			}
 		});
 	});
