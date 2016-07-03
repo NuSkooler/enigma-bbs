@@ -60,12 +60,10 @@ function MenuView(options) {
 util.inherits(MenuView, View);
 
 MenuView.prototype.setItems = function(items) {
-	const self = this;
-
 	if(items) {	
 		this.items = [];
 		items.forEach( itemText => {
-			self.items.push( { text : itemText } );
+			this.items.push( { text : itemText } );
 		});
 	}
 };
@@ -112,12 +110,10 @@ MenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 MenuView.prototype.setFocusItems = function(items) {
-	const self = this;
-
 	if(items) {
 		this.focusItems = [];
 		items.forEach( itemText => {
-			self.focusItems.push( { text : itemText } );
+			this.focusItems.push( { text : itemText } );
 		});
 	}
 };
