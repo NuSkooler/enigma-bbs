@@ -605,7 +605,7 @@
 					]
 				}
 			}
-		}	
+		}
 
 		fullLoginSequenceNewScanConfirm: {
 			desc: Logging In
@@ -744,11 +744,51 @@
 					action: @menu:bbsList
 				}
 				{
+					value: { command: "RSS"}
+					action: @menu:mainMenuRSSFeed
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
 			]
 		}
+
+		mainMenuRSSFeed: {
+			desc: Viewing an RSS feed
+			module: rss_view
+			art: RSSVIEW.ANS
+			config: {
+				rssUrl: http://quinn-os.com/index.php/feed/
+			}
+			form: {
+				0: {
+					mci: {
+						VM2: {
+							height: 7
+							width: 79
+						}
+						MT3: {
+							mode: preview
+							autoScroll: false
+							height: 12
+							width: 79
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "tab" ]
+							action: @method:tabPressed
+						},
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
 		mainMenuLastCallers: {
 			desc: Last Callers
 			module: last_callers
@@ -1099,7 +1139,7 @@
 				host: localhost
         			port: 5001
 				bbsTag: CHANGEME
-				password: supersecret 
+				password: supersecret
       		}
 
 			form: {
@@ -1386,8 +1426,6 @@
 			config: {
 				host: andrew.homeunix.org
 				port: 2023
-				//host: agency.bbs.geek.nz
-				//port: 23
 			}
 		}
 
