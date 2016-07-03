@@ -5,7 +5,7 @@
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
 
-## Feature Available Now
+## Features Available Now
  * Multi platform: Anywhere Node.js runs likely works (tested under Linux and OS X)
  * Multi node support
  * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based mods
@@ -51,6 +51,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## Boards
 * WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
 * Support board: &#x2620; BLACK ƒlag &#x2620; (**telnet://blackflag.acid.org:2425**)
+* HappyLand (**telnet://andrew.homeunix.org:2023**)
 
 
 ## Installation
@@ -65,6 +66,7 @@ Please see the [Quickstart](docs/index.md#quickstart)
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.geek.nz/) and fsxNet
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
+* [Apam](https://github.com/apamment) of HappyLand BBS
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
