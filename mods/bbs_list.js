@@ -38,7 +38,8 @@ const MciViewIds = {
 		Telnet : 3,
 		Www : 4,
 		Location : 5,
-		Software : 6
+		Software : 6,
+		Error : 7
 	}
 };
 
@@ -235,6 +236,8 @@ function BBSListModule(options) {
 		self.viewControllers.add.getView(MciViewIds.add.Www).setText('');
 		self.viewControllers.add.getView(MciViewIds.add.Location).setText('');
 		self.viewControllers.add.getView(MciViewIds.add.Software).setText('');
+		self.viewControllers.add.getView(MciViewIds.add.Error).setText('');
+
 	};
 
 	this.menuMethods = {
@@ -298,6 +301,19 @@ function BBSListModule(options) {
 			}
 		},
 		submitBBS : function(formData) {
+			if (self.viewControllers.add.getView(MciViewIds.add.BBSName).getData() === '') {
+				self.viewControllers.add.getView(MciViewIds.add.Error).setText('BBS name can not be empty.');
+				return;
+			}
+			if (self.viewControllers.add.getView(MciViewIds.add.Sysop).getData() === '') {
+				self.viewControllers.add.getView(MciViewIds.add.Error).setText('Sysop name can not be empty.');
+				return;
+			}
+			if (self.viewControllers.add.getView(MciViewIds.add.Telnet).getData() === '') {
+				self.viewControllers.add.getView(MciViewIds.add.Error).setText('Telnet address can not be empty.');
+				return;
+			}
+
 			self.database.run(
 				'INSERT INTO bbses (bbsname, sysop, telnet, www, location, software, submitter) VALUES(?, ?, ?, ?, ?, ?, ?)',
 				[formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId],

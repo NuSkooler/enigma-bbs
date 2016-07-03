@@ -1208,19 +1208,16 @@
 							width: 31
 							argName: name
 							maxLength: 31
-							validate: @systemMethod:validateNonEmpty
 						}
 						ET2: {
 							width: 31
 							argName: sysop
 							maxLength: 31
-							validate: @systemMethod:validateNonEmpty
 						}
 						ET3: {
 							width: 31
 							argName: telnet
 							maxLength: 31
-							validate: @systemMethod:validateNonEmpty
 						}
 						ET4: {
 							width: 31
@@ -1231,7 +1228,6 @@
 							width: 31
 							argName: location
 							maxLength: 31
-							validate: @systemMethod:validateNonEmpty
 						}
 						ET6: {
 							width: 31
