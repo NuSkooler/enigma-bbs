@@ -1,15 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuView		= require('./menu_view.js').MenuView;
-var ansi			= require('./ansi_term.js');
-var strUtil			= require('./string_util.js');
-var miscUtil		= require('./misc_util.js');
-var colorCodes		= require('./color_codes.js');
+//	ENiGMA½
+const MenuView		= require('./menu_view.js').MenuView;
+const ansi			= require('./ansi_term.js');
+const strUtil		= require('./string_util.js');
+const colorCodes	= require('./color_codes.js');
 
-var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+//	deps
+const util			= require('util');
 
 exports.VerticalMenuView		= VerticalMenuView;
 
@@ -19,7 +18,7 @@ function VerticalMenuView(options) {
 
 	MenuView.call(this, options);
 
-	var self = this;
+	const self = this;
 
 	this.performAutoScale = function() {
 		if(this.autoScale.height) {
@@ -28,13 +27,13 @@ function VerticalMenuView(options) {
 		}
 
 		if(self.autoScale.width) {
-			var l = 0;
-			self.items.forEach(function item(i) {
-				if(i.text.length > l) {
-					l = Math.min(i.text.length, self.client.term.termWidth - self.position.col);
+			let maxLen = 0;
+			self.items.forEach( item => {
+				if(item.text.length > maxLen) {
+					maxLen = Math.min(item.text.length, self.client.term.termWidth - self.position.col);
 				}
 			});
-			self.dimens.width = l + 1;
+			self.dimens.width = maxLen + 1;
 		}
 	};
 
@@ -66,14 +65,14 @@ function VerticalMenuView(options) {
 	*/
 
 	this.drawItem = function(index) {
-		var item = self.items[index];
+		const item = self.items[index];
 		
 		if(!item) {
 			return;
 		}
 
-		var focusItem;
-		var text;
+		let focusItem;
+		let text;
 
 		if(self.hasFocusItems()) {
 			focusItem = self.focusItems[index];
@@ -109,7 +108,7 @@ function VerticalMenuView(options) {
 util.inherits(VerticalMenuView, MenuView);
 
 VerticalMenuView.prototype.redraw = function() {
-	VerticalMenuView.super_.prototype.redraw.call(this);
+	VerticalMenuView.super_.prototype.redraw.call(this);	
 
 	//	:TODO: rename positionCacheExpired to something that makese sense; combine methods for such
 	if(this.positionCacheExpired) {
@@ -119,8 +118,24 @@ VerticalMenuView.prototype.redraw = function() {
 		this.positionCacheExpired = false;
 	}
 
-	var row = this.position.row;
-	for(var i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
+	//	erase old items
+	//	:TODO: optimize this: only needed if a item is removed or new max width < old.
+	if(this.oldDimens) {
+		const blank 	= new Array(Math.max(this.oldDimens.width, this.dimens.width)).join(' ');
+		let seq			= ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
+		let row			= this.position.row + 1;
+		const endRow	= (row + this.oldDimens.height) - 2;
+		
+		while(row < endRow) {
+			seq += ansi.goto(row, this.position.col) + blank;
+			row += 1;
+		}
+		this.client.term.write(seq);
+		delete this.oldDimens;
+	}	
+
+	let row = this.position.row;
+	for(let i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
 		this.items[i].row = row;
 		row += this.itemSpacing + 1;
 		this.items[i].focused = this.focusedItemIndex === i;
@@ -181,6 +196,11 @@ VerticalMenuView.prototype.getData = function() {
 };
 
 VerticalMenuView.prototype.setItems = function(items) {
+	//	if we have items already, save off their drawing area so we don't leave fragments at redraw
+	if(this.items && this.items.length) {
+		this.oldDimens = this.dimens;
+	}
+
 	VerticalMenuView.super_.prototype.setItems.call(this, items);
 
 	this.positionCacheExpired = true;
