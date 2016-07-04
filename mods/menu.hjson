@@ -759,13 +759,13 @@
 			module: rss_view
 			art: RSSVIEW.ANS
 			config: {
-				rssUrl: http://quinn-os.com/index.php/feed/
+				rssUrl: https://github.com/NuSkooler/enigma-bbs/commits/master.atom
 			}
 			form: {
 				0: {
 					mci: {
 						VM2: {
-							height: 7
+							height: 8
 							width: 79
 						}
 						MT3: {

@@ -1,13 +1,86 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule		= require('../core/menu_module.js').MenuModule;
+/*
+
+--- Instructions:
+To install this module, you will need to run npm install inside the
+mods/rss_view directory.
+
+To configure this module, it is intended that you might create a NEWS menu, then
+from that menu each RSS feed would have an option.
+
+You would then create a Menu Block for each RSS feed you want to display.
+
+Next, to fetch the articles, you add a list of rss feeds to config.hjson and
+an event block that will fetch all of the listed rss feeds.
+
+--- Example RSS fetcher configuration (Goes in  ~/.config/enigma-bbs/config.hjson):
+
+rssFeeds: [
+	https://github.com/NuSkooler/enigma-bbs/commits/master.atom
+]
+
+
+--- Example Event Block (Goes in ~/.config/enigma-bbs/config.hjson):
+
+eventScheduler : {
+				events: {
+								fetchRSSFeeds: {
+												schedule: every 30 minutes
+												action: @method:mods/rss_view/rss_view.js:fetchRSSFeedsEvent
+								}
+				}
+}
+
+
+--- Example Menu Block (Goes in menu.hjson, Need one for each RSS feed):
+
+mainMenuRSSFeed: {
+	desc: Viewing an RSS feed
+	module: rss_view
+	art: RSSVIEW.ANS
+	config: {
+		rssUrl: https://github.com/NuSkooler/enigma-bbs/commits/master.atom
+	}
+	form: {
+		0: {
+			mci: {
+				VM2: {
+					height: 8
+					width: 79
+				}
+				MT3: {
+					mode: preview
+					autoScroll: false
+					height: 12
+					width: 79
+				}
+			}
+			actionKeys: [
+				{
+					keys: [ "tab" ]
+					action: @method:tabPressed
+				},
+				{
+					keys: [ "escape", "q", "shift + q" ]
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+	}
+}
+
+*/
+
+
+const MenuModule		= require('../../core/menu_module.js').MenuModule;
 
 //	deps
 const async			= require('async');
 const sqlite3			= require('sqlite3').verbose();
-const getModDatabasePath			= require('../core/database.js').getModDatabasePath;
-const Config		= require('../core/config.js').config;
+const getModDatabasePath			= require('../../core/database.js').getModDatabasePath;
+const Config		= require('../../core/config.js').config;
 const feedRead = require('feed-read');
 const moment				= require('moment');
 var htmlToText = require('html-to-text');
@@ -76,8 +149,7 @@ function RSSViewModule(options) {
 										'id INTEGER PRIMARY KEY AUTOINCREMENT,' +
 										'rss_url TEXT,' +
 										'feed_title TEXT,' +
-										'article_author TEXT,' +
-										'feed_description TEXT,' +
+										'feed_source TEXT,' +
 										'feed_link TEXT);'
 									);
 								});
@@ -107,7 +179,7 @@ function RSSViewModule(options) {
 						self.database.all(
 							'SELECT article_title, article_description, article_date, article_link, article_author ' +
 							'FROM articles WHERE rss_url LIKE ? ' +
-							'ORDER BY article_date DESC',
+							'ORDER BY article_date DESC LIMIT 30',
 							[ self.config.rssUrl ],
 							(err, rows) => {
 								if (!err) {
@@ -122,12 +194,17 @@ function RSSViewModule(options) {
 				},
 				function displayArticleList(callback) {
 					const titleView = self.viewControllers.menu.getView(MciViewIds.ArticleTitles);
-
+					const listFormat = self.config.listFormat || '|00|10{title:<79.78}';
+					const focusFormat = self.config.focusFormat || '|00|15|18{title:<79.78}';
 					titleView.setItems(self.entries.map( e => {
-						return '|00|13' + e.article_title;
+						return listFormat.format({
+							title : e.article_title
+						});
 					}));
 					titleView.setFocusItems(self.entries.map( e => {
-						return '|00|15|18' + e.article_title;
+						return focusFormat.format({
+							title : e.article_title
+						});
 					}));
 
 					titleView.on('index update', function indexUpdated(idx) {
@@ -143,6 +220,15 @@ function RSSViewModule(options) {
 						}
 						self.viewControllers.menu.getView(MciViewIds.ArticleView).redraw();
 					});
+
+					if (self.entries.length > 0) {
+						self.viewControllers.menu.getView(MciViewIds.ArticleView).setText(
+							' > BY ' + self.entries[0].article_author + '\r\n' +
+							' > ' + self.entries[0].article_link + '\r\n' +
+							' > ' + self.entries[0].article_date + '\r\n\r\n' +
+							self.entries[0].article_description
+						);
+					}
 
 					titleView.redraw();
 					self.viewControllers.menu.switchFocus(MciViewIds.ArticleTitles);
@@ -273,7 +359,7 @@ function fetchRSSFeedsEvent(args, cb) {
 										database.serialize(() => {
 											database.run(
 												'INSERT INTO articles (rss_url, article_title, article_link, article_author, article_description, article_date) VALUES(?, ?, ?, ?, ?, ?)',
-												[feed, article.title, article.link, article.author, htmlToText.fromString(article.content, {word_wrap: 79}), ts]
+												[feed, article.title, article.link, article.author, htmlToText.fromString(article.content, {word_wrap: 75}), ts]
 											);
 										});
 									}
