@@ -14,6 +14,15 @@ const async					= require('async');
 const _						= require('lodash');
 const moment				= require('moment');
 
+/* 
+	Module :TODO:
+	* Add pipe code support
+		- override max length & monitor *display* len as user types in order to allow for actual display len with color
+	* Add preview control: Shows preview with pipe codes resolved
+	* Add ability to at least alternate formatStrings -- every other
+*/
+
+
 exports.moduleInfo = {
 	name		: 'Onelinerz',
 	desc		: 'Standard local onelinerz',
@@ -147,6 +156,11 @@ function OnelinerzModule(options) {
 					entriesView.focusItems = entriesView.items;	//	:TODO: this is a hack
 					entriesView.redraw();
 
+					return callback(null);
+				},
+				function finalPrep(callback) {
+					const promptView = self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt);
+					promptView.setFocusItemIndex(1);	//	default to NO
 					return callback(null);
 				}
 			],
