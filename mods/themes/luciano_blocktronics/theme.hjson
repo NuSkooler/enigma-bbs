@@ -32,7 +32,7 @@
 					ET2: { width: 23 }
 					ET5: { width: 23 }
 					ET6: { width: 23 }
-					
+
 					ET7: { width: 23 }
 					ET8: { width: 23 }
 					ET9: { width: 23 }
@@ -43,14 +43,14 @@
 					}
 				}
 			}
-			
+
 			newUserApplicationSsh: {
 				mci: {
 					ET1: { width: 23 }
 					ET2: { width: 23 }
 					ET5: { width: 23 }
 					ET6: { width: 23 }
-					
+
 					ET7: { width: 23 }
 					ET8: { width: 23 }
 					ET9: { width: 23 }
@@ -83,7 +83,12 @@
 					ET2: { width: 14 }
 				}
 			}
-
+			bbsList: {
+				config: {
+					listFormat: "|00|10{bbsname}"
+					focusListFormat: "|07|18{bbsname}"
+				}
+			}
 			fullLoginSequenceOnelinerz: {
 				config: {
 					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
@@ -93,7 +98,7 @@
 						VM1: { height: 10 }
 						TM2: {
 							focusTextStyle: first lower
-						}						
+						}
 					}
 				}
 				1: {
@@ -190,7 +195,7 @@
 						VM1: { height: 10 }
 						TM2: {
 							focusTextStyle: first lower
-						}						
+						}
 					}
 				}
 				1: {
@@ -246,19 +251,19 @@
 			messageAreaViewPost: {
 				0: {
 					mci: {
-						TL1: { 
+						TL1: {
 							width: 19
-							textOverflow: ... 
+							textOverflow: ...
 						}
 						TL2: {
 							width: 19
 							textOverflow: ...
 						}
-						TL3: { 
+						TL3: {
 							width: 19
 							textOverflow: ...
 						}
-						TL5: { 
+						TL5: {
 							width: 19
 							textOverflow: ...
 						}

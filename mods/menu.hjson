@@ -605,7 +605,7 @@
 					]
 				}
 			}
-		}	
+		}
 
 		fullLoginSequenceNewScanConfirm: {
 			desc: Logging In
@@ -740,11 +740,55 @@
 					action: @menu:ercClient
 				}
 				{
+					value: { command: "BBS"}
+					action: @menu:bbsList
+				}
+				{
+					value: { command: "RSS"}
+					action: @menu:mainMenuRSSFeed
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
 			]
 		}
+
+		mainMenuRSSFeed: {
+			desc: Viewing an RSS feed
+			module: rss_view
+			art: RSSVIEW.ANS
+			config: {
+				rssUrl: https://github.com/NuSkooler/enigma-bbs/commits/master.atom
+			}
+			form: {
+				0: {
+					mci: {
+						VM2: {
+							height: 8
+							width: 79
+						}
+						MT3: {
+							mode: preview
+							autoScroll: false
+							height: 12
+							width: 79
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "tab" ]
+							action: @method:tabPressed
+						},
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
 		mainMenuLastCallers: {
 			desc: Last Callers
 			module: last_callers
@@ -1093,8 +1137,9 @@
 			module: erc_client
 			config: {
 				host: localhost
-        		port: 5001
+        			port: 5001
 				bbsTag: CHANGEME
+				password: supersecret
       		}
 
 			form: {
@@ -1102,7 +1147,7 @@
 					mci: {
 						MT1: {
 							width: 79
-							height: 21
+							height: 20
 							mode: preview
 							autoScroll: true
 						}
@@ -1136,6 +1181,123 @@
 							action: @method:scrollUp
 						}
 					]
+				}
+			}
+		}
+
+		bbsList: {
+			desc: Viewing BBS List
+			module: bbs_list
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: BBSLIST
+					add: BBSLISTENTRY
+				}
+			}
+
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							width: 28
+							height: 22
+						}
+						TL2: {
+							width: 31
+						}
+						TL3: {
+							width: 31
+						}
+						TL4: {
+							width: 31
+						}
+						TL5: {
+							width: 31
+						}
+						TL6: {
+							width: 31
+						}
+						TL7: {
+							width: 31
+						}
+						TL8: {
+							width: 24
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "a" ]
+							action: @method:addBBS
+						}
+						{
+							keys: [ "d" ]
+							action: @method:deleteBBS
+						}
+						{
+							keys: [ "q" ]
+							action: @method:quitBBSList
+						}
+					]
+				}
+				1: {
+					mci: {
+						ET1: {
+							width: 31
+							argName: name
+							maxLength: 31
+						}
+						ET2: {
+							width: 31
+							argName: sysop
+							maxLength: 31
+						}
+						ET3: {
+							width: 31
+							argName: telnet
+							maxLength: 31
+						}
+						ET4: {
+							width: 31
+							argName: www
+							maxLength: 31
+						}
+						ET5: {
+							width: 31
+							argName: location
+							maxLength: 31
+						}
+						ET6: {
+							width: 31
+							argName: software
+							maxLength: 31
+						}
+						TM17: {
+							argName: submission
+							items: [ "save", "cancel" ]
+							submit: true
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelSubmit
+						}
+						]
+					submit: {
+						*: [
+							{
+								value: { "submission" : 0 }
+								action: @method:submitBBS
+							}
+							{
+								value: { "submission" : 1 }
+								action: @method:cancelSubmit
+							}
+						]
+					}
 				}
 			}
 		}
@@ -1264,8 +1426,6 @@
 			config: {
 				host: andrew.homeunix.org
 				port: 2023
-				//host: agency.bbs.geek.nz
-				//port: 23
 			}
 		}
 

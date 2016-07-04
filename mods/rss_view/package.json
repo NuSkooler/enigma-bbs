@@ -1,0 +1,23 @@
+{
+  "name": "rss_view",
+  "version": "0.0.1-alpha",
+  "description": "RSS Viewer for ENiGMA½",
+  "author": "Andrew Pamment <apamment@yandex.com>",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NuSkooler/enigma-bbs.git"
+  },
+  "keywords": [
+		"rss",
+    "bbs",
+    "telnet"
+  ],
+  "dependencies": {
+    "feed-read": "0.0.1",
+    "html-to-text": "2.1.3"
+  },
+  "engines": {
+    "node": ">=0.12.2"
+  }
+}
