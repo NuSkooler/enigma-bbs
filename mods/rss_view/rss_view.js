@@ -287,7 +287,7 @@ function fetchRSSFeedsEvent(args, cb) {
 
 	initDatabase();
 
-	feeds.forEach( feed => {
+	async.each(feeds, (feed, feCb) => {
 		async.waterfall(
 			[
 				function readArticles(callback) {
@@ -334,7 +334,7 @@ function fetchRSSFeedsEvent(args, cb) {
 					}
 				},
 				function saveArticles(articles, callback) {
-					articles.forEach( article => {
+					async.each( articles, (article, feCb2) => {
 						async.waterfall(
 							[
 								function checkIfArticleExists(callback){
@@ -365,12 +365,12 @@ function fetchRSSFeedsEvent(args, cb) {
 									}
 									callback(null);
 								}
-							]
+							], feCb2
 						);
 					});
 					callback(null);
 				}
-			]
+			],feCb
 		);
 	});
 
