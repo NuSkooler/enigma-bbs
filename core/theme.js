@@ -384,7 +384,29 @@ function getThemeArt(options, cb) {
 	//
 	async.waterfall(
 		[
-			function fromSuppliedTheme(callback) {
+			function fromPath(callback) {
+				//
+				//	We allow relative (to enigma-bbs) or full paths
+				//
+				if('/' === options.name[0]) {
+					//	just take the path as-is
+					options.basePath = paths.dirname(options.name);					
+				} else if(options.name.indexOf('/') > -1) {
+					//	make relative to base BBS dir
+					options.basePath = paths.join(__dirname, '../', paths.dirname(options.name));
+				} else {
+					return callback(null, null);
+				}
+
+				art.getArt(options.name, options, (err, artInfo) => {
+					return callback(null, artInfo);
+				});
+			},
+			function fromSuppliedTheme(artInfo, callback) {
+				if(artInfo) {
+					return callback(null, artInfo);
+				}
+
 				options.basePath = paths.join(Config.paths.themes, options.themeId);
 
 				art.getArt(options.name, options, function artLoaded(err, artInfo) {
@@ -563,10 +585,9 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 		options = {};
 	}
 
-	var artAsset = asset.getArtAsset(assetSpec);
+	const artAsset = asset.getArtAsset(assetSpec);
 	if(!artAsset) {
-		cb(new Error('Asset not found: ' + assetSpec));
-		return;
+		return cb(new Error('Asset not found: ' + assetSpec));
 	}
 
 	//	:TODO: just use simple merge of options -> displayOptions
@@ -578,24 +599,23 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 	};
 
 	switch(artAsset.type) {
-		case 'art' :
-			displayThemeArt(dispOpts, function displayed(err, artData) {
-				cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
-			});
-			break;
+	case 'art' :
+		displayThemeArt(dispOpts, function displayed(err, artData) {
+			return cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
+		});
+		break;
 
-		case 'method' : 
-			//	:TODO: fetch & render via method
-			break;
+	case 'method' : 
+		//	:TODO: fetch & render via method
+		break;
 
-		case 'inline ' :
-			//	:TODO: think about this more in relation to themes, etc. How can this come
-			//	from a theme (with override from menu.json) ???
-			//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
-			break;
+	case 'inline ' :
+		//	:TODO: think about this more in relation to themes, etc. How can this come
+		//	from a theme (with override from menu.json) ???
+		//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
+		break;
 
-		default :
-			cb(new Error('Unsupported art asset type: ' + artAsset.type));
-			break;
+	default :
+		return cb(new Error('Unsupported art asset type: ' + artAsset.type));
 	}
 }
