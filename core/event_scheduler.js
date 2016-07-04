@@ -30,7 +30,7 @@ class ScheduledEvent {
 		this.schedule 	= this.parseScheduleString(events[name].schedule);
 		this.action		= this.parseActionSpec(events[name].action);
 		if(this.action) {
-			this.action.args = events[name].args;
+			this.action.args = events[name].args || [];
 		}	
 	}
 	
