@@ -30,7 +30,8 @@
     "ssh2": "^0.4.13",
     "string-format": "davidchambers/string-format#mini-language",
     "temp": "^0.8.3",
-	"fs-extra" : "0.26.x"
+    "inquirer" : "^1.1.0",
+    "fs-extra" : "0.26.x"
   },
   "engines": {
     "node": ">=0.12.2"

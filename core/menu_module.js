@@ -246,13 +246,18 @@ MenuModule.prototype.leave = function() {
 	this.detachViewControllers();
 };
 
-MenuModule.prototype.beforeArt = function(cb) {	
-	if(this.cls) {
-		this.client.term.write(ansi.resetScreen());
-	}
-
+MenuModule.prototype.beforeArt = function(cb) {
+	//
+	//	Set emulated baud rate - note that some terminals will display
+	//	part of the ESC sequence here (generally a single 'r') if they 
+	//	do not support cterm style baud rates
+	//
 	if(_.isNumber(this.menuConfig.options.baudRate)) {
 		this.client.term.write(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
+	}
+
+	if(this.cls) {
+		this.client.term.write(ansi.resetScreen());
 	}
 
 	return cb(null);

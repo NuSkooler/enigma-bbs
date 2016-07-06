@@ -4,21 +4,30 @@
 let msgDb			= require('./database.js').dbs.message;
 let wordWrapText	= require('./word_wrap.js').wordWrapText;
 let ftnUtil			= require('./ftn_util.js');
+let createNamedUUID	= require('./uuid_util.js').createNamedUUID;
 
 let uuid			= require('node-uuid');
 let async			= require('async');
 let _				= require('lodash');
 let assert			= require('assert');
 let moment			= require('moment');
+const iconvEncode	= require('iconv-lite').encode;
 
 module.exports = Message;
+
+const ENIGMA_MESSAGE_UUID_NAMESPACE 	= uuid.parse('154506df-1df8-46b9-98f8-ebb5815baaf8');
 
 function Message(options) {
 	options = options || {};
 
 	this.messageId		= options.messageId || 0;	//	always generated @ persist
 	this.areaTag		= options.areaTag || Message.WellKnownAreaTags.Invalid;
-	this.uuid			= options.uuid || uuid.v1();
+
+	if(options.uuid) {
+		//	note: new messages have UUID generated @ time of persist. See also Message.createMessageUUID()
+		this.uuid = options.uuid;
+	}
+
 	this.replyToMsgId	= options.replyToMsgId || 0;
 	this.toUserName		= options.toUserName || '';
 	this.fromUserName	= options.fromUserName || '';
@@ -109,6 +118,24 @@ Message.prototype.setLocalToUserId = function(userId) {
 Message.prototype.setLocalFromUserId = function(userId) {
 	this.meta.System.local_from_user_id = userId;
 };
+
+Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
+	assert(_.isString(areaTag));
+	assert(_.isDate(modTimestamp) || moment.isMoment(modTimestamp));
+	assert(_.isString(subject));
+	assert(_.isString(body));
+
+	if(!moment.isMoment(modTimestamp)) {
+		modTimestamp = moment(modTimestamp);
+	}
+		
+	areaTag			= iconvEncode(areaTag.toUpperCase(), 'CP437');
+	modTimestamp	= iconvEncode(modTimestamp.format('DD MMM YY  HH:mm:ss'), 'CP437');
+	subject			= iconvEncode(subject.toUpperCase().trim(), 'CP437');
+	body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
+	
+	return uuid.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
+}
 
 Message.getMessageIdByUuid = function(uuid, cb) {
 	msgDb.get(
@@ -330,10 +357,20 @@ Message.prototype.persist = function(cb) {
 				});
 			},
 			function storeMessage(callback) {
+				//	generate a UUID for this message if required (general case)
+				const msgTimestamp = moment();
+				if(!self.uuid) {
+					self.uuid = Message.createMessageUUID(
+						self.areaTag,
+						msgTimestamp,
+						self.subject,
+						self.message);
+				}
+
 				msgDb.run(
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
-					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(self.modTimestamp) ],
+					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(msgTimestamp) ],
 					function inserted(err) {	//	use for this scope
 						if(!err) {
 							self.messageId = this.lastID;

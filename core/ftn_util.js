@@ -4,10 +4,8 @@
 let Config			= require('./config.js').config;
 let Address			= require('./ftn_address.js');
 let FNV1a			= require('./fnv1a.js');
-let createNamedUUID	= require('./uuid_util.js').createNamedUUID;
 
 let _				= require('lodash');
-let assert			= require('assert');
 let iconv			= require('iconv-lite');
 let moment			= require('moment');
 let uuid			= require('node-uuid');
@@ -18,8 +16,6 @@ let packageJson 	= require('../package.json');
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
 exports.getMessageSerialNumber		= getMessageSerialNumber;
-exports.createMessageUuid			= createMessageUuid;
-exports.createMessageUuidAlternate	= createMessageUuidAlternate;
 exports.getDateFromFtnDateTime		= getDateFromFtnDateTime;
 exports.getDateTimeString			= getDateTimeString;
 
@@ -94,45 +90,6 @@ function getDateTimeString(m) {
 	}
 
 	return m.format('DD MMM YY  HH:mm:ss');
-}
-
-//
-//	Create a v5 named UUID given a message ID ("MSGID") and
-//	FTN area tag ("AREA").
-//
-//	This is similar to CrashMail
-//	See https://github.com/larsks/crashmail/blob/master/crashmail/dupe.c
-//
-function createMessageUuid(ftnMsgId, ftnArea) {
-	assert(_.isString(ftnMsgId));
-	assert(_.isString(ftnArea));
-
-	ftnMsgId	= iconv.encode(ftnMsgId, 'CP437');
-	ftnArea		= iconv.encode(ftnArea.toUpperCase(), 'CP437');
-	
-	return uuid.unparse(createNamedUUID(ENIGMA_FTN_MSGID_NAMESPACE, Buffer.concat( [ ftnMsgId, ftnArea ] )));
-};
-
-//
-//	Create a v5 named UUID given a FTN area tag ("AREA"),
-//	create/modified date, subject, and message body
-//
-//	This method should be used as a backup for when a MSGID is
-//	not available in which createMessageUuid() above should be
-//	used instead.
-//
-function createMessageUuidAlternate(ftnArea, modTimestamp, subject, msgBody) {
-	assert(_.isString(ftnArea));
-	assert(_.isDate(modTimestamp) || moment.isMoment(modTimestamp));
-	assert(_.isString(subject));
-	assert(_.isString(msgBody));
-		
-	ftnArea			= iconv.encode(ftnArea.toUpperCase(), 'CP437');
-	modTimestamp	= iconv.encode(getDateTimeString(modTimestamp), 'CP437');
-	subject			= iconv.encode(subject.toUpperCase().trim(), 'CP437');
-	msgBody			= iconv.encode(msgBody.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
-	
-	return uuid.unparse(createNamedUUID(ENIGMA_FTN_MSGID_NAMESPACE, Buffer.concat( [ ftnArea, modTimestamp, subject, msgBody ] )));
 }
 
 function getMessageSerialNumber(messageId) {

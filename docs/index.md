@@ -43,6 +43,15 @@ openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ## Create a Minimal Config
 The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
+### Via oputil.js
+`oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
+
+    optutil.js config --new
+
+You wil be asked a series of basic questions.
+
+### Example Starting Configuration
+
 ```hjson
 {
 	general: {
@@ -79,13 +88,18 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 ./main.js
 ```
 
+## Monitoring Logs
+Logs are produced by Bunyan which outputs each entry as a JSON object. To tail logs in a colorized and pretty pretty format, issue the following command:
+    
+    tail -F /path/to/enigma-bbs/logs/enigma-bbs.log | /path/to/enigma-bbs/node_modules/bunyan/bin/bunyan
+
 ENiGMA½ does not produce much to standard out. See below for tailing the log file to see what's going on.
 
 ### Points of Interest
 * Default ports are 8888 (Telnet) and 8889 (SSH)
   * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
-* The first user you create via applying is the SysOp (aka root)
-* You may want to tail the logfile with Bunyan: `tail -F ./logs/enigma-bbs.log | ./node_modules/bunyan/bin/bunyan`
+* **The first user you create via applying is the SysOp** (aka root)
+* You may want to tail the logfile with Bunyan. See Monitoring Logs above.
 
 # Advanced Installation
 If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation may be in order. 

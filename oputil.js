@@ -27,34 +27,37 @@ const ExitCodes = {
 	BAD_ARGS	: -3,
 }
 
+const USAGE_HELP = {
+	General :
+`usage: optutil.js [--version] [--help]
+                   <command> [<args>]
+
+global args:
+  --config PATH         : specify config path (${getDefaultConfigPath()})
+
+commands:
+  user                  : user utilities
+  config                : config file management
+
+`,
+	User : 
+`usage: optutil.js user --user USERNAME <args>
+
+valid args:
+  --user USERNAME       : specify username
+  -- password PASS      : specify password (to reset)
+`,
+
+	Config : 
+`usage: optutil.js config <args>
+
+valid args:
+  --new                 : generate a new/initial configuration
+`
+}
+
 function printUsage(command) {
-	var usage;
-
-	switch(command) {
-		case '' :
-			usage = 
-				'usage: oputil.js [--version] [--help]\n' +
-				'                 <command> [<args>]' + 
-				'\n\n' + 
-				'global args:\n' +
-				'  --config PATH        : specify config path' +
-				'\n\n' +
-				'commands:\n' +
-				'  user                 : User utilities' +
-				'\n';
-			break;
-
-		case 'user' :
-			usage = 
-				'usage: optutil.js user --user USERNAME <args>\n'	+
-				'\n' +
-				'valid args:\n'	+
-				'  --user USERNAME      : specify username\n' 	+
-				'  --password PASS      : reset password to PASS';
-			break;
-	}
-
-	console.error(usage);
+	console.error(USAGE_HELP[command]);
 }
 
 function initConfig(cb) {
@@ -66,7 +69,7 @@ function initConfig(cb) {
 function handleUserCommand() {
 	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
 		process.exitCode = ExitCodes.ERROR;
-		return printUsage('user');
+		return printUsage('User');
 	}
 
 	if(_.isString(argv.password)) {
@@ -142,7 +145,7 @@ const QUESTIONS = {
 		{
 			name	: 'configPath',
 			message	: 'Configuration path:',
-			default	: getDefaultConfigPath(),
+			default	: argv.config ? argv.config : getDefaultConfigPath(),
 			when	: answers => answers.createNewConfig
 		},	
 	],
@@ -334,21 +337,30 @@ function askQuestions(cb) {
 }
 
 function handleConfigCommand() {
-	askQuestions( (err, configPath, config) => {
-		if(err) {
-			return;
-		}
-		
-		config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t' } );
-		
-		try {
-			fs.writeFileSync(configPath, config, 'utf8');
-			console.info('Configuration generated');
-		} catch(e) {
-			console.error('Exception attempting to create config: ' + e.toString());
-		}
-	});
-	
+	if(true === argv.help) {
+		process.exitCode = ExitCodes.ERROR;
+		return printUsage('Config');
+	}
+
+	if(argv.new) {
+		askQuestions( (err, configPath, config) => {
+			if(err) {
+				return;
+			}
+			
+			config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t' } );
+			
+			try {
+				fs.writeFileSync(configPath, config, 'utf8');
+				console.info('Configuration generated');
+			} catch(e) {
+				console.error('Exception attempting to create config: ' + e.toString());
+			}
+		});		
+	} else {
+		process.exitCode = ExitCodes.ERROR;
+		return printUsage('Config');	
+	}	
 }
 
 function main() {
@@ -362,7 +374,7 @@ function main() {
 	if(0 === argv._.length ||
 		'help' === argv._[0])
 	{
-		printUsage('');
+		printUsage('General');
 		process.exit(ExitCodes.SUCCESS);
 	}
 

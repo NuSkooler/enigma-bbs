@@ -23,6 +23,7 @@ const assert				= require('assert');
 const gaze					= require('gaze');
 const fse					= require('fs-extra');
 const iconv					= require('iconv-lite');
+const uuid					= require('node-uuid');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -192,11 +193,11 @@ function FTNMessageScanTossModule() {
 		let ext;
 		
 		switch(flowType) {
-			case 'mail'		: ext = `${exportType.toLowerCase()[0]}ut`; break;
-			case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
-			case 'busy'		: ext = 'bsy'; break;
-			case 'request'	: ext = 'req'; break;
-			case 'requests'	: ext = 'hrq'; break;
+		case 'mail'		: ext = `${exportType.toLowerCase()[0]}ut`; break;
+		case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
+		case 'busy'		: ext = 'bsy'; break;
+		case 'request'	: ext = 'req'; break;
+		case 'requests'	: ext = 'hrq'; break;
 		}
 		
 		return ext;	
@@ -307,8 +308,8 @@ function FTNMessageScanTossModule() {
 			//	Set appropriate attribute flag for export type
 			//
 			switch(this.getExportType(options.nodeConfig)) {
-				case 'crash'	: ftnAttribute |= ftnMailPacket.Packet.Attribute.Crash; break;
-				case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
+			case 'crash'	: ftnAttribute |= ftnMailPacket.Packet.Attribute.Crash; break;
+			case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
 				//	:TODO: Others?
 			}
 			
@@ -783,9 +784,13 @@ function FTNMessageScanTossModule() {
 		}
 		
 		Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.REPLY, (err, msgIds) => {
-			if(msgIds && msgIds.length > 0) {
-				assert(1 === msgIds.length);
-				message.replyToMsgId = msgIds[0];
+			if(msgIds) {
+				//	expect a single match, but dupe checking is not perfect - warn otherwise
+				if(1 === msgIds.length) {
+					message.replyToMsgId = msgIds[0];	
+				} else {
+					Log.warn( { msgIds : msgIds, replyKludge :  message.meta.FtnKludge.REPLY }, 'Found 2:n MSGIDs matching REPLY kludge!');
+				}
 			}
 			cb();
 		});
@@ -800,28 +805,35 @@ function FTNMessageScanTossModule() {
 					
 					callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
 				},
+				function checkForDupeMSGID(callback) {
+					//
+					//	If we have a MSGID, don't allow a dupe
+					//
+					if(!_.has(message.meta, 'FtnKludge.MSGID')) {
+						return callback(null);
+					}
+
+					Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.MSGID, (err, msgIds) => {
+						if(msgIds && msgIds.length > 0) {
+							const err = new Error('Duplicate MSGID');
+							err.code = 'DUPE_MSGID';
+							return callback(err);
+						}
+
+						return callback(null);
+					});
+				},
 				function basicSetup(callback) {
 					message.areaTag = localAreaTag;
 					
 					//
-					//	If duplicates are NOT allowed in the area (the default), we need to update
-					//	the message UUID using data available to us. Duplicate UUIDs are internally
-					//	not allowed in our local database.
-	 				//
-					if(!Config.messageNetworks.ftn.areas[localAreaTag].allowDupes) {
-						if(self.messageHasValidMSGID(message)) {
-							//	Update UUID with our preferred generation method
-							message.uuid = ftnUtil.createMessageUuid(
-								message.meta.FtnKludge.MSGID,
-								message.meta.FtnProperty.ftn_area);
-						} else {
-							//	Update UUID with alternate/backup generation method
-							message.uuid = ftnUtil.createMessageUuidAlternate(
-								message.meta.FtnProperty.ftn_area, 
-								message.modTimestamp,
-								message.subject,
-								message.message);
-						}
+					//	If we *allow* dupes (disabled by default), then just generate
+					//	a random UUID. Otherwise, don't assign the UUID just yet. It will be
+					//	generated at persist() time and should be consistent across import/exports
+					//
+					if(Config.messageNetworks.ftn.areas[localAreaTag].allowDupes) {
+						//	just generate a UUID & therefor always allow for dupes
+						message.uuid = uuid.v1();
 					}
 					
 					callback(null);	
@@ -846,6 +858,16 @@ function FTNMessageScanTossModule() {
 			}
 		);
 	};
+
+	this.appendTearAndOrigin = function(message) {
+		if(message.meta.FtnProperty.ftn_tear_line) {
+			message.message += `\r\n${message.meta.FtnProperty.ftn_tear_line}\r\n`;
+		}
+
+		if(message.meta.FtnProperty.ftn_origin) {
+			message.message += `${message.meta.FtnProperty.ftn_origin}\r\n`;
+		}
+	};
 	
 	//
 	//	Ref. implementations on import: 
@@ -855,7 +877,7 @@ function FTNMessageScanTossModule() {
 	this.importMessagesFromPacketFile = function(packetPath, password, cb) {
 		let packetHeader;
 				
-		const packetOpts = { keepTearAndOrigin : true };
+		const packetOpts = { keepTearAndOrigin : false };	//	needed so we can calc message UUID without these; we'll add later
 		
 		let importStats = {
 			areaSuccess	: {},	//	areaTag->count
@@ -879,21 +901,30 @@ function FTNMessageScanTossModule() {
 			} else if('message' === entryType) {
 				const message = entryData;
 				const areaTag = message.meta.FtnProperty.ftn_area;
-				
+
 				if(areaTag) {
 					//
 					//	EchoMail
 					//
 					const localAreaTag = self.getLocalAreaTagByFtnAreaTag(areaTag);
 					if(localAreaTag) {
+						message.uuid = Message.createMessageUUID(
+							localAreaTag,
+							message.modTimestamp,
+							message.subject,
+							message.message);
+
+						self.appendTearAndOrigin(message);
+						
 						self.importEchoMailToArea(localAreaTag, packetHeader, message, err => {
 							if(err) {
 								//	bump area fail stats
 								importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
 								
-								if('SQLITE_CONSTRAINT' === err.code) {
+								if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
+									const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
 									Log.info(
-										{ area : localAreaTag, subject : message.subject, uuid : message.uuid }, 
+										{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId }, 
 										'Not importing non-unique message');
 									
 									return next(null);
