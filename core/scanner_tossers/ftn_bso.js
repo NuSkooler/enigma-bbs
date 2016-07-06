@@ -805,6 +805,24 @@ function FTNMessageScanTossModule() {
 					
 					callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
 				},
+				function checkForDupeMSGID(callback) {
+					//
+					//	If we have a MSGID, don't allow a dupe
+					//
+					if(!_.has(message.meta, 'FtnKludge.MSGID')) {
+						return callback(null);
+					}
+
+					Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.MSGID, (err, msgIds) => {
+						if(msgIds && msgIds.length > 0) {
+							const err = new Error('Duplicate MSGID');
+							err.code = 'DUPE_MSGID';
+							return callback(err);
+						}
+
+						return callback(null);
+					});
+				},
 				function basicSetup(callback) {
 					message.areaTag = localAreaTag;
 					
@@ -903,9 +921,10 @@ function FTNMessageScanTossModule() {
 								//	bump area fail stats
 								importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
 								
-								if('SQLITE_CONSTRAINT' === err.code) {
+								if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
+									const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
 									Log.info(
-										{ area : localAreaTag, subject : message.subject, uuid : message.uuid }, 
+										{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId }, 
 										'Not importing non-unique message');
 									
 									return next(null);
