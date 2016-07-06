@@ -205,7 +205,6 @@ function createMessageBaseTables() {
 		END;`
 	);
 
-	//	:TODO: need SQL to ensure cleaned up if delete from message?
 	dbs.message.run(
 		`CREATE TABLE IF NOT EXISTS message_meta (
 			message_id		INTEGER NOT NULL,
@@ -213,11 +212,12 @@ function createMessageBaseTables() {
 			meta_name		VARCHAR NOT NULL,
 			meta_value		VARCHAR NOT NULL,
 			UNIQUE(message_id, meta_category, meta_name, meta_value), 
-			FOREIGN KEY(message_id) REFERENCES message(message_id)
+			FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
 		);`
 	);
 
 	//	:TODO: need SQL to ensure cleaned up if delete from message?
+	/*
 	dbs.message.run(
 		`CREATE TABLE IF NOT EXISTS hash_tag (
 			hash_tag_id		INTEGER PRIMARY KEY,
@@ -230,9 +230,10 @@ function createMessageBaseTables() {
 	dbs.message.run(
 		`CREATE TABLE IF NOT EXISTS message_hash_tag (
 			hash_tag_id	INTEGER NOT NULL,
-			message_id	INTEGER NOT NULL
+			message_id	INTEGER NOT NULL,
 		);`
 	);
+	*/
 
 	dbs.message.run(
 		`CREATE TABLE IF NOT EXISTS user_message_area_last_read (
