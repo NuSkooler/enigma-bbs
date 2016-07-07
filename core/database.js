@@ -97,6 +97,9 @@ function initializeDatabases(cb) {
 }
 
 function createSystemTables() {
+
+	dbs.system.run('PRAGMA foreign_keys = ON;');
+
 	dbs.system.run(
 		'CREATE TABLE IF NOT EXISTS system_property ('		+
 		'	prop_name		VARCHAR PRIMARY KEY NOT NULL,'	+
@@ -120,6 +123,8 @@ function createSystemTables() {
 }
 
 function createUserTables() {
+	dbs.user.run('PRAGMA foreign_keys = ON;');
+
 	dbs.user.run(
 		`CREATE TABLE IF NOT EXISTS user ( 
 			id			INTEGER PRIMARY KEY,
@@ -158,6 +163,9 @@ function createUserTables() {
 }
 
 function createMessageBaseTables() {
+
+	dbs.message.run('PRAGMA foreign_keys = ON;');
+
 	dbs.message.run(
 		`CREATE TABLE IF NOT EXISTS message (
 			message_id				INTEGER PRIMARY KEY, 

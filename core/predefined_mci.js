@@ -1,17 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var Config					= require('./config.js').config;
-var Log						= require('./logger.js').log;
-var getMessageAreaByTag	= require('./message_area.js').getMessageAreaByTag;
-var clientConnections		= require('./client_connections.js');
-var sysProp					= require('./system_property.js');
+//	ENiGMA½
+const Config				= require('./config.js').config;
+const Log					= require('./logger.js').log;
+const getMessageAreaByTag	= require('./message_area.js').getMessageAreaByTag;
+const clientConnections		= require('./client_connections.js');
+const sysProp				= require('./system_property.js');
 
-var packageJson 			= require('../package.json');
-var assert					= require('assert');
-var os						= require('os');
-var _						= require('lodash');
-var moment					= require('moment');
+//	deps
+const packageJson 			= require('../package.json');
+const os					= require('os');
+const _						= require('lodash');
+const moment				= require('moment');
 
 exports.getPredefinedMCIValue	= getPredefinedMCIValue;
 
@@ -68,10 +69,10 @@ function getPredefinedMCIValue(client, code) {
 				return area ? area.name : '';
 			},
             
-            ML  : function messageAreaDescription() {
-                const area = getMessageAreaByTag(client.user.properties.message_area_tag);
-                return area ? area.desc : '';
-            },
+			ML  : function messageAreaDescription() {
+				const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+				return area ? area.desc : '';
+			},
 
 			SH	: function termHeight() { return client.term.termHeight.toString(); },
 			SW	: function termWidth() { return client.term.termWidth.toString(); },
@@ -113,6 +114,11 @@ function getPredefinedMCIValue(client, code) {
 			AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
 			TC	: function totalCalls() { return sysProp.getSystemProperty('login_count').toString(); },
+
+			//
+			//	Special handling for XY
+			//
+			XY	: function xyHack() { return; /* nothing */ },
 			
 		}[code]();	//	:TODO: Just call toString() here and remove above - DRY
 
