@@ -27,7 +27,7 @@ function DoorPartyModule(options) {
 	//	establish defaults
 	this.config	= options.menuConfig.config;
 	this.config.host		= this.config.host || 'dp.throwbackbbs.com';
-	this.config.sshPort 	= this.config.sshPort || 22;
+	this.config.sshPort 	= this.config.sshPort || 2022;
 	this.config.rloginPort	= this.config.rloginPort || 513;	
 	
 	this.initSequence = function() {
