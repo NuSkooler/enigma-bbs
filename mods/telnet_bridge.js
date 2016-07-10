@@ -7,6 +7,7 @@ const resetScreen	= require('../core/ansi_term.js').resetScreen;
 const async			= require('async');
 const _				= require('lodash');
 const net			= require('net');
+const EventEmitter	= require('events');
 
 /*
 	Expected configuration block:
@@ -31,6 +32,50 @@ exports.moduleInfo = {
 	desc	: 'Connect to other Telnet Systems',
 	author	: 'Andrew Pamment',
 };
+
+class TelnetClientConnection extends EventEmitter {
+	constructor(client) {
+		super();
+
+		this.client		= client;
+	}
+
+	restorePipe() {
+		this.client.term.output.unpipe(this.bridgeConnection);
+		this.client.term.output.resume();
+	}
+
+	connect(connectOpts) {
+		this.bridgeConnection = net.createConnection(connectOpts, () => {
+			this.emit('connected');
+
+			this.client.term.output.pipe(this.bridgeConnection);
+		});
+
+		this.bridgeConnection.on('data', data => {
+			//	:TODO: The idea here is that we can handle |data| as if we're the client & respond to commands (cont.)
+			//	...the normal telnet *server* would not.
+			return this.client.term.rawWrite(data);
+		});
+
+		this.bridgeConnection.once('end', () => {
+			this.restorePipe();
+			this.emit('end');
+		});
+
+		this.bridgeConnection.once('error', err => {
+			this.restorePipe();
+			this.emit('end', err);
+		});
+	}
+
+	disconnect() {
+		if(this.bridgeConnection) {
+			this.bridgeConnection.end();
+		}
+	}
+
+}
 
 
 function TelnetBridgeModule(options) {
@@ -64,39 +109,27 @@ function TelnetBridgeModule(options) {
 					self.client.term.write(resetScreen());
 					self.client.term.write(`  Connecting to ${connectOpts.host}, please wait...\n`);
 
-					let bridgeConnection = net.createConnection(connectOpts, () => {
+					const telnetConnection = new TelnetClientConnection(self.client);
+					
+					telnetConnection.on('connected', () => {
 						self.client.log.info(connectOpts, 'Telnet bridge connection established');
-
-						self.client.term.output.pipe(bridgeConnection);
 
 						self.client.once('end', () => {
 							self.client.log.info('Connection ended. Terminating connection');
 							clientTerminated = true;
-							return bridgeConnection.end();
+							telnetConnection.disconnect();
 						});
 					});
 
-					const restorePipe = function() {
-						self.client.term.output.unpipe(bridgeConnection);
-						self.client.term.output.resume();
-					};
+					telnetConnection.on('end', err => {
+						if(err) {
+							self.client.log.info(`Telnet bridge connection error: ${err.message}`);
+						}
 
-					bridgeConnection.on('data', data => {
-						//	pass along
-						//	:TODO: just pipe this as well
-						return self.client.term.rawWrite(data);
+						callback(clientTerminated ? new Error('Client connection terminated') : null);
 					});
 
-					bridgeConnection.once('end', () => {
-						restorePipe();
-						return callback(clientTerminated ? new Error('Client connection terminated') : null);
-					});
-
-					bridgeConnection.once('error', err => {
-						self.client.log.info(`Telnet bridge connection error: ${err.message}`);
-						restorePipe();
-						return callback(err);
-					});
+					telnetConnection.connect(connectOpts);
 				}
 			],
 			err => {

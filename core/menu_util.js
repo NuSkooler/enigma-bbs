@@ -38,7 +38,7 @@ function getMenuConfig(client, name, cb) {
 				if(_.isString(menuConfig.prompt)) {
 					if(_.has(client.currentTheme, [ 'prompts', menuConfig.prompt ])) {
 						menuConfig.promptConfig = client.currentTheme.prompts[menuConfig.prompt];
-                        callback(null);
+						callback(null);
 					} else {
 						callback(new Error('No prompt entry for \'' + menuConfig.prompt + '\''));
 					}
@@ -213,7 +213,8 @@ function handleNext(client, nextSpec, conf) {
 	}
 	
 	var nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
-
+	//	:TODO: getAssetWithShorthand() can return undefined - handle it!
+	
 	conf = conf || {};
 	var extraArgs = conf.extraArgs || {};
 

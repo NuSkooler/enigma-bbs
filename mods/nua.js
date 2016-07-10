@@ -77,16 +77,16 @@ function NewUserAppModule(options) {
 			
 			newUser.properties = {
 				real_name			: formData.value.realName,
-				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
+				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(), 	//	:TODO: Use moment & explicit ISO string format
 				sex					: formData.value.sex,
 				location			: formData.value.location,
 				affiliation			: formData.value.affils,
 				email_address		: formData.value.email,
 				web_address			: formData.value.web,
-				account_created		: new Date().toISOString(),
+				account_created		: new Date().toISOString(),	//	:TODO: Use moment & explicit ISO string format
                 
-                message_conf_tag    : confTag,
-                message_area_tag    : areaTag,
+				message_conf_tag    : confTag,
+				message_area_tag    : areaTag,
 
 				term_height			: self.client.term.termHeight,
 				term_width			: self.client.term.termWidth,				
