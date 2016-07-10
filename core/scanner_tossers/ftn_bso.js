@@ -784,7 +784,7 @@ function FTNMessageScanTossModule() {
 		}
 		
 		Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.REPLY, (err, msgIds) => {
-			if(msgIds) {
+			if(msgIds && msgIds.length > 0) {
 				//	expect a single match, but dupe checking is not perfect - warn otherwise
 				if(1 === msgIds.length) {
 					message.replyToMsgId = msgIds[0];	
