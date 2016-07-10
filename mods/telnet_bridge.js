@@ -53,6 +53,8 @@ class TelnetClientConnection extends EventEmitter {
 		});
 
 		this.bridgeConnection.on('data', data => {
+			//	:TODO: The idea here is that we can handle |data| as if we're the client & respond to commands (cont.)
+			//	...the normal telnet *server* would not.
 			return this.client.term.rawWrite(data);
 		});
 
@@ -128,43 +130,6 @@ function TelnetBridgeModule(options) {
 					});
 
 					telnetConnection.connect(connectOpts);
-
-					/*
-
-					let bridgeConnection = net.createConnection(connectOpts, () => {
-						self.client.log.info(connectOpts, 'Telnet bridge connection established');
-
-						self.client.term.output.pipe(bridgeConnection);
-
-						self.client.once('end', () => {
-							self.client.log.info('Connection ended. Terminating connection');
-							clientTerminated = true;
-							return bridgeConnection.end();
-						});
-					});
-
-					const restorePipe = function() {
-						self.client.term.output.unpipe(bridgeConnection);
-						self.client.term.output.resume();
-					};
-
-					bridgeConnection.on('data', data => {
-						//	pass along
-						//	:TODO: just pipe this as well
-						return self.client.term.rawWrite(data);
-					});
-
-					bridgeConnection.once('end', () => {
-						restorePipe();
-						return callback(clientTerminated ? new Error('Client connection terminated') : null);
-					});
-
-					bridgeConnection.once('error', err => {
-						self.client.log.info(`Telnet bridge connection error: ${err.message}`);
-						restorePipe();
-						return callback(err);
-					});
-					*/
 				}
 			],
 			err => {
