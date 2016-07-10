@@ -2,17 +2,17 @@
 'use strict';
 
 //	ENiGMA½
-var baseClient		= require('../client.js');
-var Log				= require('../logger.js').log;
-var ServerModule	= require('../server_module.js').ServerModule;
-var Config			= require('../config.js').config;
+const baseClient	= require('../client.js');
+const Log			= require('../logger.js').log;
+const ServerModule	= require('../server_module.js').ServerModule;
+const Config		= require('../config.js').config;
 
-var net 			= require('net');
-var buffers			= require('buffers');
-var binary			= require('binary');
-var stream			= require('stream');
-var assert			= require('assert');
-var util			= require('util');
+//	deps
+const net 			= require('net');
+const buffers		= require('buffers');
+const binary		= require('binary');
+const assert		= require('assert');
+const util			= require('util');
 
 //var debug	= require('debug')('telnet');
 
@@ -116,11 +116,11 @@ var OPTIONS = {
 	SEND_LOCATION			: 23,	//	RFC 779
 	TERMINAL_TYPE			: 24,	//	aka 'TTYPE': RFC 1091 @ http://tools.ietf.org/html/rfc1091
 	//END_OF_RECORD			: 25,	//	RFC 885
- 	//TACACS_USER_ID		: 26,	//	RFC 927
- 	//OUTPUT_MARKING		: 27,	//	RFC 933
- 	//TERMINCAL_LOCATION_NUMBER	: 28,	//	RFC 946
- 	//TELNET_3270_REGIME	: 29,	//	RFC 1041
-  	WINDOW_SIZE				: 31,	//	aka 'NAWS': RFC 1073 @ http://tools.ietf.org/html/rfc1073
+	//TACACS_USER_ID		: 26,	//	RFC 927
+	//OUTPUT_MARKING		: 27,	//	RFC 933
+	//TERMINCAL_LOCATION_NUMBER	: 28,	//	RFC 946
+	//TELNET_3270_REGIME	: 29,	//	RFC 1041
+	WINDOW_SIZE				: 31,	//	aka 'NAWS': RFC 1073 @ http://tools.ietf.org/html/rfc1073
 	TERMINAL_SPEED			: 32,	//	RFC 1079 @ http://tools.ietf.org/html/rfc1079
 	REMOTE_FLOW_CONTROL		: 33,	//	RFC 1072 @ http://tools.ietf.org/html/rfc1372
 	LINEMODE				: 34,	//	RFC 1184 @ http://tools.ietf.org/html/rfc1184
@@ -155,19 +155,19 @@ var NEW_ENVIRONMENT_COMMANDS = {
 	USERVAR	: 3,
 };
 
-var IAC_BUF 	= new Buffer([ COMMANDS.IAC ]);
-var SB_BUF		= new Buffer([ COMMANDS.SB ]);
-var SE_BUF		= new Buffer([ COMMANDS.SE ]);
-var IAC_SE_BUF	= new Buffer([ COMMANDS.IAC, COMMANDS.SE ]);
+const IAC_BUF 		= new Buffer([ COMMANDS.IAC ]);
+//var SB_BUF		= new Buffer([ COMMANDS.SB ]);
+//var SE_BUF		= new Buffer([ COMMANDS.SE ]);
+const IAC_SE_BUF	= new Buffer([ COMMANDS.IAC, COMMANDS.SE ]);
 
-var COMMAND_NAMES = Object.keys(COMMANDS).reduce(function(names, name) {
+const COMMAND_NAMES = Object.keys(COMMANDS).reduce(function(names, name) {
 	names[COMMANDS[name]] = name.toLowerCase();
 	return names;
 }, {});
 
-var COMMAND_IMPLS = {};
-['do', 'dont', 'will', 'wont', 'sb'].forEach(function(command) {
-	var code = COMMANDS[command.toUpperCase()];
+const COMMAND_IMPLS = {};
+[ 'do', 'dont', 'will', 'wont', 'sb' ].forEach(function(command) {
+	const code = COMMANDS[command.toUpperCase()];
 	COMMAND_IMPLS[code] = function(bufs, i, event) {
 		if(bufs.length < (i + 1)) {
 			return MORE_DATA_REQUIRED;
@@ -429,9 +429,6 @@ function TelnetClient(input, output) {
 	
 	var bufs	= buffers();
 	this.bufs	= bufs;
-
-	var readyFired = false;
-	var encodingSet = false;
 
 	this.setInputOutput(input, output);
 
