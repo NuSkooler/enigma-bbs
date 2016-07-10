@@ -740,6 +740,10 @@
 					action: @menu:ercClient
 				}
 				{
+					value: { command: "BBS"}
+					action: @menu:bbsList
+				}
+				{
 					value: 1
 					action: @menu:mainMenu
 				}
@@ -1136,6 +1140,109 @@
 							action: @method:scrollUp
 						}
 					]
+				}
+			}
+		}
+
+		bbsList: {
+			desc: Viewing BBS List
+			module: bbs_list
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: BBSLIST
+					add: BBSADD
+				}
+			}
+
+			form: {
+				0: {
+					mci: {
+						VM1: { maxLength: 32 }
+						TL2: { maxLength: 32 }
+						TL3: { maxLength: 32 }
+						TL4: { maxLength: 32 }
+						TL5: { maxLength: 32 }
+						TL6: { maxLength: 32 }
+						TL7: { maxLength: 32 }
+						TL8: { maxLength: 32 }
+						TL9: { maxLength: 32 }
+					}
+					actionKeys: [
+						{
+							keys: [ "a" ]
+							action: @method:addBBS
+						}
+						{
+							//	:TODO: add delete key
+							keys: [ "d" ]
+							action: @method:deleteBBS
+						}
+						{
+							keys: [ "q", "escape" ]
+							action: @method:quitBBSList
+						}
+					]
+				}
+				1: {
+					mci: {
+						ET1: {
+							argName: name
+							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
+						}
+						ET2: {
+							argName: sysop
+							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
+						}
+						ET3: {
+							argName: telnet
+							maxLength: 32
+							validate: @systemMethod:validateNonEmpty
+						}
+						ET4: {
+							argName: www
+							maxLength: 32
+						}
+						ET5: {
+							argName: location
+							maxLength: 32
+						}
+						ET6: {
+							argName: software
+							maxLength: 32
+						}
+						ET7:  {
+							argName: notes
+							maxLength: 32
+						}
+						TM17: {
+							argName: submission
+							items: [ "save", "cancel" ]
+							submit: true
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelSubmit
+						}
+						]
+					submit: {
+						*: [
+							{
+								value: { "submission" : 0 }
+								action: @method:submitBBS
+							}
+							{
+								value: { "submission" : 1 }
+								action: @method:cancelSubmit
+							}
+						]
+					}
 				}
 			}
 		}

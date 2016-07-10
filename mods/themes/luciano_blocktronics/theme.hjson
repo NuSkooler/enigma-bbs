@@ -243,6 +243,43 @@
 				}
 			}
 
+			bbsList: {
+				0: {
+					mci: {
+						VM1: {
+							height: 11
+							width: 22
+							focusTextStyle: first upper
+						}
+						TL2: { width: 28 }
+						TL3: { width: 28 }
+						TL4: { width: 28 }
+						TL5: { width: 28 }
+						TL6: { width: 28 }
+						TL7: { width: 28 }
+						TL8: { width: 28 }
+						TL9: { width: 28 }						
+					}
+				},
+				1: {
+					mci: {
+						ET1: { width: 32 }
+						ET2: { width: 32 }
+						ET3: { width: 32 }
+						ET4: { width: 32 }
+						ET5: { width: 32 }
+						ET6: { width: 32 }
+						ET7: { width: 32 }
+						ET8: { width: 32 }
+
+						TM17: {
+							focusTextStyle: first upper
+						}
+					}
+				}
+			}
+
+
 			messageAreaViewPost: {
 				0: {
 					mci: {
