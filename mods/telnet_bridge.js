@@ -7,6 +7,7 @@ const resetScreen	= require('../core/ansi_term.js').resetScreen;
 const async			= require('async');
 const _				= require('lodash');
 const net			= require('net');
+const EventEmitter	= require('events');
 
 /*
 	Expected configuration block:
@@ -31,6 +32,48 @@ exports.moduleInfo = {
 	desc	: 'Connect to other Telnet Systems',
 	author	: 'Andrew Pamment',
 };
+
+class TelnetClientConnection extends EventEmitter {
+	constructor(client) {
+		super();
+
+		this.client		= client;
+	}
+
+	restorePipe() {
+		this.client.term.output.unpipe(this.bridgeConnection);
+		this.client.term.output.resume();
+	}
+
+	connect(connectOpts) {
+		this.bridgeConnection = net.createConnection(connectOpts, () => {
+			this.emit('connected');
+
+			this.client.term.output.pipe(this.bridgeConnection);
+		});
+
+		this.bridgeConnection.on('data', data => {
+			return this.client.term.rawWrite(data);
+		});
+
+		this.bridgeConnection.once('end', () => {
+			this.restorePipe();
+			this.emit('end');
+		});
+
+		this.bridgeConnection.once('error', err => {
+			this.restorePipe();
+			this.emit('end', err);
+		});
+	}
+
+	disconnect() {
+		if(this.bridgeConnection) {
+			this.bridgeConnection.end();
+		}
+	}
+
+}
 
 
 function TelnetBridgeModule(options) {
@@ -63,6 +106,30 @@ function TelnetBridgeModule(options) {
 
 					self.client.term.write(resetScreen());
 					self.client.term.write(`  Connecting to ${connectOpts.host}, please wait...\n`);
+
+					const telnetConnection = new TelnetClientConnection(self.client);
+					
+					telnetConnection.on('connected', () => {
+						self.client.log.info(connectOpts, 'Telnet bridge connection established');
+
+						self.client.once('end', () => {
+							self.client.log.info('Connection ended. Terminating connection');
+							clientTerminated = true;
+							telnetConnection.disconnect();
+						});
+					});
+
+					telnetConnection.on('end', err => {
+						if(err) {
+							self.client.log.info(`Telnet bridge connection error: ${err.message}`);
+						}
+
+						callback(clientTerminated ? new Error('Client connection terminated') : null);
+					});
+
+					telnetConnection.connect(connectOpts);
+
+					/*
 
 					let bridgeConnection = net.createConnection(connectOpts, () => {
 						self.client.log.info(connectOpts, 'Telnet bridge connection established');
@@ -97,6 +164,7 @@ function TelnetBridgeModule(options) {
 						restorePipe();
 						return callback(err);
 					});
+					*/
 				}
 			],
 			err => {
