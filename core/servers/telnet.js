@@ -538,7 +538,11 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 };
 
 TelnetClient.prototype.handleWontCommand = function(evt) {
-	this.connectionDebug(evt, 'WONT');
+	if('new environment' === evt.option) {
+		this.dont.new_environment();
+	} else {
+		this.connectionDebug(evt, 'WONT');
+	}
 };
 
 TelnetClient.prototype.handleDoCommand = function(evt) {
