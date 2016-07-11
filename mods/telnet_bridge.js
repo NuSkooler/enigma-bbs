@@ -1,13 +1,16 @@
 /* jslint node: true */
 'use strict';
 
+//	ENiGMA½
 const MenuModule	= require('../core/menu_module.js').MenuModule;
 const resetScreen	= require('../core/ansi_term.js').resetScreen;
 
+//	deps
 const async			= require('async');
 const _				= require('lodash');
 const net			= require('net');
 const EventEmitter	= require('events');
+const buffers		= require('buffers');
 
 /*
 	Expected configuration block:
@@ -22,7 +25,6 @@ const EventEmitter	= require('events');
 	}
 */
 
-//	:TODO: BUG: When a client disconnects, it's not handled very well -- the log is spammed with tons of errors
 //	:TODO: ENH: Support nodeMax and tooManyArt
 
 exports.getModule	= TelnetBridgeModule;
@@ -33,6 +35,8 @@ exports.moduleInfo = {
 	author	: 'Andrew Pamment',
 };
 
+const IAC_DO_TERM_TYPE = new Buffer( [ 255, 253, 24 ] );
+
 class TelnetClientConnection extends EventEmitter {
 	constructor(client) {
 		super();
@@ -40,22 +44,36 @@ class TelnetClientConnection extends EventEmitter {
 		this.client		= client;
 	}
 
+	
 	restorePipe() {
-		this.client.term.output.unpipe(this.bridgeConnection);
-		this.client.term.output.resume();
+		if(!this.pipeRestored) {
+			this.pipeRestored = true;
+
+			this.client.term.output.unpipe(this.bridgeConnection);
+			this.client.term.output.resume();
+		}
 	}
 
 	connect(connectOpts) {
 		this.bridgeConnection = net.createConnection(connectOpts, () => {
 			this.emit('connected');
 
+			this.pipeRestored = false;
 			this.client.term.output.pipe(this.bridgeConnection);
 		});
 
 		this.bridgeConnection.on('data', data => {
-			//	:TODO: The idea here is that we can handle |data| as if we're the client & respond to commands (cont.)
-			//	...the normal telnet *server* would not.
-			return this.client.term.rawWrite(data);
+			this.client.term.rawWrite(data);
+
+			//	
+			//	Wait for a terminal type request, and send it eactly once.
+			//	This is enough (in additional to other negotiations handled in telnet.js)
+			//	to get us in on most systems
+			//
+			if(!this.termSent && data.indexOf(IAC_DO_TERM_TYPE) > -1) {
+				this.termSent = true;
+				this.bridgeConnection.write(this.getTermTypeNegotiationBuffer());				
+			}
 		});
 
 		this.bridgeConnection.once('end', () => {
@@ -73,6 +91,30 @@ class TelnetClientConnection extends EventEmitter {
 		if(this.bridgeConnection) {
 			this.bridgeConnection.end();
 		}
+	}
+
+	getTermTypeNegotiationBuffer() {
+		//
+		//	Create a TERMINAL-TYPE sub negotiation buffer using the
+		//	actual/current terminal type.
+		//
+		let bufs = buffers();
+		
+		bufs.push(new Buffer(
+			[ 
+				255,	//	IAC
+				250,	//	SB
+				24,		//	TERMINAL-TYPE
+				0,		//	IS
+			]
+		));
+
+		bufs.push(
+			new Buffer(this.client.term.termType),	//	e.g. "ansi" 
+			new Buffer( [ 255, 240 ] )				//	IAC, SE
+		); 
+
+		return bufs.toBuffer();
 	}
 
 }
