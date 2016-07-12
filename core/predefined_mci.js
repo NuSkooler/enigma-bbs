@@ -5,6 +5,7 @@
 const Config				= require('./config.js').config;
 const Log					= require('./logger.js').log;
 const getMessageAreaByTag	= require('./message_area.js').getMessageAreaByTag;
+const getMessageConferenceByTag       = require('./message_area.js').getMessageConferenceByTag;
 const clientConnections		= require('./client_connections.js');
 const sysProp				= require('./system_property.js');
 
@@ -35,7 +36,7 @@ function getPredefinedMCIValue(client, code) {
 
 			//	:TODO: SysOp username
 			//	:TODO: SysOp real name
-			
+
 
 			//
 			//	Current user / session
@@ -59,16 +60,20 @@ function getPredefinedMCIValue(client, code) {
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },
-			
+
 			MD	: function currentMenuDescription() {
 				return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
 			},
 
-			MA	: function messageAreaName() { 
+			MA	: function messageAreaName() {
 				const area = getMessageAreaByTag(client.user.properties.message_area_tag);
 				return area ? area.name : '';
 			},
-            
+			MC  : function messageConfName() {
+				const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+				return conf ? conf.name : '';
+			},
+
 			ML  : function messageAreaDescription() {
 				const area = getMessageAreaByTag(client.user.properties.message_area_tag);
 				return area ? area.desc : '';
@@ -119,7 +124,7 @@ function getPredefinedMCIValue(client, code) {
 			//	Special handling for XY
 			//
 			XY	: function xyHack() { return; /* nothing */ },
-			
+
 		}[code]();	//	:TODO: Just call toString() here and remove above - DRY
 
 	} catch(e) {
