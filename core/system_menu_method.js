@@ -89,6 +89,9 @@ function prevConf(callingMenu) {
 				}
 				return;
 			});
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
 			return;
 		} else {
 			prev_tag = confs[i].confTag;
@@ -102,13 +105,16 @@ function nextConf(callingMenu) {
 
 	if (confs.length > 1) {
 		for (var i=1;i<confs.length;i++) {
-			if (prev_tag.confTag === callingMenu.client.user.properties.message_conf_tag) {
+			if (prev_tag === callingMenu.client.user.properties.message_conf_tag) {
 				messageArea.changeMessageConference(callingMenu.client, confs[i].confTag, err => {
 					if (err) {
 						//...
 					}
 					return;
 				});
+				let prevMenu = callingMenu.client.menuStack.pop();
+				prevMenu.instance.leave();
+				callingMenu.client.menuStack.goto(prevMenu.name);
 				return;
 			} else {
 				prev_tag = confs[i].confTag;
@@ -118,6 +124,9 @@ function nextConf(callingMenu) {
 			if (err) {
 				//...
 			}
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
 			return;
 		});
 	}
@@ -134,9 +143,12 @@ function prevArea(callingMenu) {
 				}
 				return;
 			});
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
 			return;
 		} else {
-			prev_tag = areas[i].confTag;
+			prev_tag = areas[i].areaTag;
 		}
 	}
 }
@@ -147,22 +159,28 @@ function nextArea(callingMenu) {
 
 	if (areas.length > 1) {
 		for (var i=1;i<areas.length;i++) {
-			if (prev_tag.areaTag === callingMenu.client.user.properties.message_area_tag) {
+			if (prev_tag === callingMenu.client.user.properties.message_area_tag) {
 				messageArea.changeMessageArea(callingMenu.client, areas[i].areaTag, err => {
 					if (err) {
 						//...
 					}
 					return;
 				});
+				let prevMenu = callingMenu.client.menuStack.pop();
+				prevMenu.instance.leave();
+				callingMenu.client.menuStack.goto(prevMenu.name);
 				return;
 			} else {
-				prev_tag = areas[i].confTag;
+				prev_tag = areas[i].areaTag;
 			}
 		}
 		messageArea.changeMessageArea(callingMenu.client, areas[0].areaTag, err => {
 			if (err) {
 				//...
 			}
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
 			return;
 		});
 	}
