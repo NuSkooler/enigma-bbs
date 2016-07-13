@@ -5,6 +5,7 @@
 const removeClient		= require('./client_connections.js').removeClient;
 const ansiNormal		= require('./ansi_term.js').normal;
 const userLogin			= require('./user_login.js').userLogin;
+const messageArea			= require('./message_area.js');
 
 //	deps
 const _					= require('lodash');
@@ -14,6 +15,10 @@ exports.login			= login;
 exports.logoff			= logoff;
 exports.prevMenu		= prevMenu;
 exports.nextMenu		= nextMenu;
+exports.prevConf		= prevConf;
+exports.nextConf		= nextConf;
+exports.prevArea		= prevArea;
+exports.nextArea		= nextArea;
 
 function login(callingMenu, formData) {
 
@@ -47,7 +52,7 @@ function logoff(callingMenu) {
 		//
 		client.term.write(
 			ansiNormal() +	'\n' +
-			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) + 
+			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) +
 			'NO CARRIER', null, () => {
 
 				//	after data is written, disconnect & remove the client
@@ -71,4 +76,112 @@ function nextMenu(callingMenu) {
 			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to go to next menu!');
 		}
 	});
+}
+
+function prevConf(callingMenu) {
+	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+	let prev_tag = confs[confs.length - 1].confTag;
+	for (var i=0;i<confs.length;i++) {
+		if (confs[i].confTag === callingMenu.client.user.properties.message_conf_tag) {
+			messageArea.changeMessageConference(callingMenu.client, prev_tag, err => {
+				if (err) {
+					//...
+				}
+				return;
+			});
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
+			return;
+		} else {
+			prev_tag = confs[i].confTag;
+		}
+	}
+}
+
+function nextConf(callingMenu) {
+	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+	let prev_tag = confs[0].confTag;
+
+	if (confs.length > 1) {
+		for (var i=1;i<confs.length;i++) {
+			if (prev_tag === callingMenu.client.user.properties.message_conf_tag) {
+				messageArea.changeMessageConference(callingMenu.client, confs[i].confTag, err => {
+					if (err) {
+						//...
+					}
+					return;
+				});
+				let prevMenu = callingMenu.client.menuStack.pop();
+				prevMenu.instance.leave();
+				callingMenu.client.menuStack.goto(prevMenu.name);
+				return;
+			} else {
+				prev_tag = confs[i].confTag;
+			}
+		}
+		messageArea.changeMessageConference(callingMenu.client, confs[0].confTag, err => {
+			if (err) {
+				//...
+			}
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
+			return;
+		});
+	}
+}
+
+function prevArea(callingMenu) {
+	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	let prev_tag = areas[areas.length - 1].areaTag;
+	for (var i=0;i<areas.length;i++) {
+		if (areas[i].areaTag === callingMenu.client.user.properties.message_area_tag) {
+			messageArea.changeMessageArea(callingMenu.client, prev_tag, err => {
+				if (err) {
+					//...
+				}
+				return;
+			});
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
+			return;
+		} else {
+			prev_tag = areas[i].areaTag;
+		}
+	}
+}
+
+function nextArea(callingMenu) {
+	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	let prev_tag = areas[0].areaTag;
+
+	if (areas.length > 1) {
+		for (var i=1;i<areas.length;i++) {
+			if (prev_tag === callingMenu.client.user.properties.message_area_tag) {
+				messageArea.changeMessageArea(callingMenu.client, areas[i].areaTag, err => {
+					if (err) {
+						//...
+					}
+					return;
+				});
+				let prevMenu = callingMenu.client.menuStack.pop();
+				prevMenu.instance.leave();
+				callingMenu.client.menuStack.goto(prevMenu.name);
+				return;
+			} else {
+				prev_tag = areas[i].areaTag;
+			}
+		}
+		messageArea.changeMessageArea(callingMenu.client, areas[0].areaTag, err => {
+			if (err) {
+				//...
+			}
+			let prevMenu = callingMenu.client.menuStack.pop();
+			prevMenu.instance.leave();
+			callingMenu.client.menuStack.goto(prevMenu.name);
+			return;
+		});
+	}
 }
