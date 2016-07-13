@@ -8,7 +8,7 @@ TL;DR? This should get you started...
 * [Node.js](https://nodejs.org/) version **v4.2.x or higher**
   * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
 * **Windows users will need additional dependencies installed** for the `npm install` step in order to compile native binaries:
-  * A recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK)
+  * A recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK). Note that you **should only need Visual C++**.
   * [Python](https://www.python.org/downloads/) 2.7.x
  
 ## New to Node
@@ -51,6 +51,7 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 You wil be asked a series of basic questions.
 
 ### Example Starting Configuration
+Below is an _example_ configuration. It is recommended that you at least **start with a generated configuration using oputil.js described above**.
 
 ```hjson
 {
