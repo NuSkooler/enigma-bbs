@@ -80,108 +80,99 @@ function nextMenu(callingMenu) {
 
 function prevConf(callingMenu) {
 	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-	let prev_tag = confs[confs.length - 1].confTag;
-	for (var i=0;i<confs.length;i++) {
-		if (confs[i].confTag === callingMenu.client.user.properties.message_conf_tag) {
-			messageArea.changeMessageConference(callingMenu.client, prev_tag, err => {
-				if (err) {
-					//...
-				}
-				return;
-			});
-			let prevMenu = callingMenu.client.menuStack.pop();
-			prevMenu.instance.leave();
-			callingMenu.client.menuStack.goto(prevMenu.name);
-			return;
-		} else {
-			prev_tag = confs[i].confTag;
+
+	let curr_idx = confs.findIndex((e) => {
+		if (e.confTag === callingMenu.client.user.properties.message_conf_tag) {
+			return true;
 		}
+		return false;
+	});
+
+	if (curr_idx === 0) {
+		curr_idx = confs.length;
 	}
+	messageArea.changeMessageConference(callingMenu.client, confs[curr_idx - 1].confTag, err => {
+		if (err) {
+			//...
+		}
+		return;
+	});
+	
+	let prevMenu = callingMenu.client.menuStack.pop();
+	prevMenu.instance.leave();
+	callingMenu.client.menuStack.goto(prevMenu.name);
 }
 
 function nextConf(callingMenu) {
 	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-	let prev_tag = confs[0].confTag;
 
-	if (confs.length > 1) {
-		for (var i=1;i<confs.length;i++) {
-			if (prev_tag === callingMenu.client.user.properties.message_conf_tag) {
-				messageArea.changeMessageConference(callingMenu.client, confs[i].confTag, err => {
-					if (err) {
-						//...
-					}
-					return;
-				});
-				let prevMenu = callingMenu.client.menuStack.pop();
-				prevMenu.instance.leave();
-				callingMenu.client.menuStack.goto(prevMenu.name);
-				return;
-			} else {
-				prev_tag = confs[i].confTag;
-			}
+	let curr_idx = confs.findIndex((e) => {
+		if (e.confTag === callingMenu.client.user.properties.message_conf_tag) {
+			return true;
 		}
-		messageArea.changeMessageConference(callingMenu.client, confs[0].confTag, err => {
-			if (err) {
-				//...
-			}
-			let prevMenu = callingMenu.client.menuStack.pop();
-			prevMenu.instance.leave();
-			callingMenu.client.menuStack.goto(prevMenu.name);
-			return;
-		});
+		return false;
+	});
+
+	if (curr_idx === confs.length - 1) {
+		curr_idx = -1;
 	}
+	messageArea.changeMessageConference(callingMenu.client, confs[curr_idx + 1].confTag, err => {
+		if (err) {
+			//...
+		}
+		return;
+	});
+	let prevMenu = callingMenu.client.menuStack.pop();
+	prevMenu.instance.leave();
+	callingMenu.client.menuStack.goto(prevMenu.name);
 }
 
 function prevArea(callingMenu) {
 	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
-	let prev_tag = areas[areas.length - 1].areaTag;
-	for (var i=0;i<areas.length;i++) {
-		if (areas[i].areaTag === callingMenu.client.user.properties.message_area_tag) {
-			messageArea.changeMessageArea(callingMenu.client, prev_tag, err => {
-				if (err) {
-					//...
-				}
-				return;
-			});
-			let prevMenu = callingMenu.client.menuStack.pop();
-			prevMenu.instance.leave();
-			callingMenu.client.menuStack.goto(prevMenu.name);
-			return;
-		} else {
-			prev_tag = areas[i].areaTag;
+
+	let curr_idx = areas.findIndex((e) => {
+		if (e.areaTag === callingMenu.client.user.properties.message_area_tag) {
+			return true;
 		}
+		return false;
+	});
+
+	if (curr_idx === 0) {
+		curr_idx = areas.length;
 	}
+	messageArea.changeMessageArea(callingMenu.client, areas[curr_idx - 1].areaTag, err => {
+		if (err) {
+			//...
+		}
+		return;
+	});
+
+	let prevMenu = callingMenu.client.menuStack.pop();
+	prevMenu.instance.leave();
+	callingMenu.client.menuStack.goto(prevMenu.name);
 }
 
 function nextArea(callingMenu) {
 	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
-	let prev_tag = areas[0].areaTag;
 
-	if (areas.length > 1) {
-		for (var i=1;i<areas.length;i++) {
-			if (prev_tag === callingMenu.client.user.properties.message_area_tag) {
-				messageArea.changeMessageArea(callingMenu.client, areas[i].areaTag, err => {
-					if (err) {
-						//...
-					}
-					return;
-				});
-				let prevMenu = callingMenu.client.menuStack.pop();
-				prevMenu.instance.leave();
-				callingMenu.client.menuStack.goto(prevMenu.name);
-				return;
-			} else {
-				prev_tag = areas[i].areaTag;
-			}
+	let curr_idx = areas.findIndex((e) => {
+		if (e.areaTag === callingMenu.client.user.properties.message_area_tag) {
+			return true;
 		}
-		messageArea.changeMessageArea(callingMenu.client, areas[0].areaTag, err => {
-			if (err) {
-				//...
-			}
-			let prevMenu = callingMenu.client.menuStack.pop();
-			prevMenu.instance.leave();
-			callingMenu.client.menuStack.goto(prevMenu.name);
-			return;
-		});
+		return false;
+	});
+
+	if (curr_idx === areas.length - 1) {
+		curr_idx = -1;
 	}
+	messageArea.changeMessageArea(callingMenu.client, areas[curr_idx + 1].areaTag, err => {
+		if (err) {
+			//...
+		}
+		return;
+	});
+
+	let prevMenu = callingMenu.client.menuStack.pop();
+	prevMenu.instance.leave();
+	callingMenu.client.menuStack.goto(prevMenu.name);
 }
