@@ -78,101 +78,69 @@ function nextMenu(callingMenu) {
 	});
 }
 
-function prevConf(callingMenu) {
-	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-
-	let curr_idx = confs.findIndex((e) => {
-		if (e.confTag === callingMenu.client.user.properties.message_conf_tag) {
-			return true;
-		}
-		return false;
-	});
-
-	if (curr_idx === 0) {
-		curr_idx = confs.length;
-	}
-	messageArea.changeMessageConference(callingMenu.client, confs[curr_idx - 1].confTag, err => {
-		if (err) {
-			//...
-		}
-		return;
-	});
-	
-	let prevMenu = callingMenu.client.menuStack.pop();
+//	:TODO: prev/nextConf, prev/nextArea should use a NYI MenuModule.redraw() or such -- avoid pop/goto() hack!
+function reloadMenu(menu) {
+	const prevMenu = menu.client.menuStack.pop();
 	prevMenu.instance.leave();
-	callingMenu.client.menuStack.goto(prevMenu.name);
+	menu.client.menuStack.goto(prevMenu.name);
+}
+
+function prevConf(callingMenu) {
+	const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
+	const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag) || confs.length;
+
+	messageArea.changeMessageConference(callingMenu.client, confs[currIndex - 1].confTag, err => {
+		if(err) {
+			return;	//	logged within changeMessageConference() 
+		}
+
+		reloadMenu(callingMenu);
+	});
 }
 
 function nextConf(callingMenu) {
-	const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+	const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
+	let currIndex	= confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag);
 
-	let curr_idx = confs.findIndex((e) => {
-		if (e.confTag === callingMenu.client.user.properties.message_conf_tag) {
-			return true;
-		}
-		return false;
-	});
-
-	if (curr_idx === confs.length - 1) {
-		curr_idx = -1;
+	if(currIndex === confs.length - 1) {
+		currIndex = -1;
 	}
-	messageArea.changeMessageConference(callingMenu.client, confs[curr_idx + 1].confTag, err => {
-		if (err) {
-			//...
+
+	messageArea.changeMessageConference(callingMenu.client, confs[currIndex + 1].confTag, err => {
+		if(err) {
+			return;	//	logged within changeMessageConference()
 		}
-		return;
+		
+		reloadMenu(callingMenu);
 	});
-	let prevMenu = callingMenu.client.menuStack.pop();
-	prevMenu.instance.leave();
-	callingMenu.client.menuStack.goto(prevMenu.name);
 }
 
 function prevArea(callingMenu) {
-	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag) || areas.length;
 
-	let curr_idx = areas.findIndex((e) => {
-		if (e.areaTag === callingMenu.client.user.properties.message_area_tag) {
-			return true;
+	messageArea.changeMessageArea(callingMenu.client, areas[currIndex - 1].areaTag, err => {
+		if(err) {
+			return;	//	logged within changeMessageArea()
 		}
-		return false;
+		
+		reloadMenu(callingMenu);
 	});
-
-	if (curr_idx === 0) {
-		curr_idx = areas.length;
-	}
-	messageArea.changeMessageArea(callingMenu.client, areas[curr_idx - 1].areaTag, err => {
-		if (err) {
-			//...
-		}
-		return;
-	});
-
-	let prevMenu = callingMenu.client.menuStack.pop();
-	prevMenu.instance.leave();
-	callingMenu.client.menuStack.goto(prevMenu.name);
 }
 
 function nextArea(callingMenu) {
-	const areas = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+	let currIndex	= areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag);
 
-	let curr_idx = areas.findIndex((e) => {
-		if (e.areaTag === callingMenu.client.user.properties.message_area_tag) {
-			return true;
-		}
-		return false;
-	});
-
-	if (curr_idx === areas.length - 1) {
-		curr_idx = -1;
+	if(currIndex === areas.length - 1) {
+		currIndex = -1;
 	}
-	messageArea.changeMessageArea(callingMenu.client, areas[curr_idx + 1].areaTag, err => {
-		if (err) {
-			//...
-		}
-		return;
-	});
 
-	let prevMenu = callingMenu.client.menuStack.pop();
-	prevMenu.instance.leave();
-	callingMenu.client.menuStack.goto(prevMenu.name);
+	messageArea.changeMessageArea(callingMenu.client, areas[currIndex + 1].areaTag, err => {
+		if(err) {
+			return;	//	logged within changeMessageArea()
+		}
+
+		reloadMenu(callingMenu);
+	});
 }
