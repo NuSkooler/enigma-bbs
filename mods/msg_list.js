@@ -1,16 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var ViewController		= require('../core/view_controller.js').ViewController;
-var messageArea			= require('../core/message_area.js');
-var Message				= require('../core/message.js');
+//	ENiGMA½
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const ViewController	= require('../core/view_controller.js').ViewController;
+const messageArea		= require('../core/message_area.js');
 
-//var moment				= require('moment');
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
-var moment				= require('moment');
+//	deps
+const async				= require('async');
+const _					= require('lodash');
+const moment			= require('moment');
 
 /*
 	Available listFormat/focusListFormat members (VM1):
@@ -29,6 +28,8 @@ var moment				= require('moment');
 	TL4			: Message selected #
 	TL5			: Total messages in area
 */
+
+//	:TODO: We need a way to update |initialFocusIndex| after next/prev in actual message viewing -- e.g. from child menu!!
 
 exports.getModule		= MessageListModule;
 
@@ -49,8 +50,8 @@ var MciCodesIds = {
 function MessageListModule(options) {
 	MenuModule.call(this, options);
 
-	var self	= this;
-	var config	= this.menuConfig.config;
+	const self		= this;
+	const config	= this.menuConfig.config;
 
 	this.messageAreaTag = config.messageAreaTag;
 
@@ -69,9 +70,11 @@ function MessageListModule(options) {
 	}
 
 	this.menuMethods = {
-		selectMessage : function(formData, extraArgs) {
+		selectMessage : function(formData) {
 			if(1 === formData.submitId) {
-				var modOpts = {
+				self.initialFocusIndex = formData.value.message;
+
+				const modOpts = {
 					extraArgs 	: {
 						messageAreaTag		: self.messageAreaTag,
 						messageList			: self.messageList,
@@ -85,7 +88,7 @@ function MessageListModule(options) {
 	};
 
 	this.setViewText = function(id, text) {
-		var v = self.viewControllers.allViews.getView(id);
+		const v = self.viewControllers.allViews.getView(id);
 		if(v) {
 			v.setText(text);
 		}
@@ -107,10 +110,8 @@ MessageListModule.prototype.enter = function() {
 };
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
-	var self	= this;
-	var vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
-
-	var firstNewEntryIndex;
+	const self	= this;
+	const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
 
 	async.series(
 		[
@@ -148,58 +149,53 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					callback(null);	//	ignore any errors, e.g. missing value
 				});
 			},
+			function updateMessageListObjects(callback) {
+				const dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM Do';
+				const newIndicator		= self.menuConfig.config.newIndicator || '*';
+				const regIndicator		= new Array(newIndicator.length + 1).join(' ');	//	fill with space to avoid draw issues
+
+				let msgNum = 1;
+				self.messageList.forEach( (listItem, index) => {
+					listItem.msgNum			= msgNum++;
+					listItem.ts				= moment(listItem.modTimestamp).format(dateTimeFormat);
+					listItem.newIndicator	= listItem.messageId > self.lastReadId ? newIndicator : regIndicator;
+
+					if(_.isUndefined(self.initialFocusIndex) && listItem.messageId > self.lastReadId) {
+						self.initialFocusIndex = index;
+					}					
+				});
+				return callback(null);
+			},
 			function populateList(callback) {
-				var msgListView = vc.getView(MciCodesIds.MsgList);
+				const msgListView		= vc.getView(MciCodesIds.MsgList);	
+				const listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';				
+				const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
 
-				//	:TODO: fix default format
-				var listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subj} - {to}';
-				var focusListFormat = self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
-				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM Do';
-				var newIndicator		= self.menuConfig.config.newIndicator || '*';
+				//	:TODO: This can take a very long time to load large lists. What we need is to implement the "owner draw" concept in
+				//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
 
-				var msgNum = 1;
-
-				function getMsgFmtObj(mle) {
-
-					if(_.isUndefined(firstNewEntryIndex) &&
-						mle.messageId > self.lastReadId)
-					{
-						firstNewEntryIndex = msgNum - 1;
-					}
-
-					return {
-						msgNum			: msgNum++, 
-						subj			: mle.subject,
-						from			: mle.fromUserName,
-						to				: mle.toUserName,
-						ts				: moment(mle.modTimestamp).format(dateTimeFormat),
-						newIndicator	: mle.messageId > self.lastReadId ? newIndicator : '',
-					};
-				}
-
-				msgListView.setItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-					return listFormat.format(getMsgFmtObj(mle));
+				msgListView.setItems(_.map(self.messageList, listEntry => {
+					return listFormat.format(listEntry);
 				}));
 
-				msgNum = 1;
-				msgListView.setFocusItems(_.map(self.messageList, function formatMsgListEntry(mle) {
-					return focusListFormat.format(getMsgFmtObj(mle));
+				msgListView.setFocusItems(_.map(self.messageList, listEntry => {
+					return focusListFormat.format(listEntry);
 				}));
 
 				msgListView.on('index update', function indexUpdated(idx) {
 					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
 				});
 				
-				msgListView.redraw();
-				
-				if(firstNewEntryIndex > 0) {
-					msgListView.setFocusItemIndex(firstNewEntryIndex);
+				if(self.initialFocusIndex > 0) {
+					//	note: causes redraw()
+					msgListView.setFocusItemIndex(self.initialFocusIndex);
+				} else {
+					msgListView.redraw();
 				}
 
 				callback(null);
 			},
 			function populateOtherMciViews(callback) {
-
 				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByTag(self.messageAreaTag).name);
 				self.setViewText(MciCodesIds.MsgSelNum, (vc.getView(MciCodesIds.MsgList).getData() + 1).toString());
 				self.setViewText(MciCodesIds.MsgTotal, self.messageList.length.toString());
@@ -209,11 +205,19 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 		],
 		function complete(err) {
 			if(err) {
-				self.client.log.error( { error : err.toString() }, 'Error loading message list');
-				
+				self.client.log.error( { error : err.message }, 'Error loading message list');				
 			}
 			cb(err);
 		}
 	);
 };
 
+MessageListModule.prototype.getSaveState = function() {
+	return { initialFocusIndex : this.initialFocusIndex };
+};
+
+MessageListModule.prototype.restoreSavedState = function(savedState) {
+	if(savedState) {
+		this.initialFocusIndex = savedState.initialFocusIndex;
+	}
+};
