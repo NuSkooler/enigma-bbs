@@ -206,8 +206,8 @@
 
 			messageAreaMessageList: {
 				config: {
-					listFormat: "|00|15{msgNum:>4}  |03{subj:<29.29} |11{from:<20.20} |03{ts} |01|31{newIndicator}"
-					focusListFormat: "|00|19|15{msgNum:>4}  {subj:<29.29} {from:<20.20} {ts} {newIndicator}"
+					listFormat: "|00|15{msgNum:>4}  |03{subject:<29.29} |11{fromUserName:<20.20} |03{ts} |01|31{newIndicator}"
+					focusListFormat: "|00|19|15{msgNum:>4}  {subject:<29.29} {fromUserName:<20.20} {ts} {newIndicator}"
 					dateTimeFormat: ddd MMM Do
 				}
 				mci: {
@@ -410,8 +410,8 @@
 
 			newScanMessageList: {
 				config: {
-					listFormat: "|00|15  {msgNum:<5.5}|03{subj:<29.29} |15{from:<20.20} {ts}"
-					focusListFormat: "|00|19> |15{msgNum:<5.5}{subj:<29.29} {from:<20.20} {ts}"
+					listFormat: "|00|15  {msgNum:<5.5}|03{subject:<29.29} |15{fromUserName:<20.20} {ts}"
+					focusListFormat: "|00|19> |15{msgNum:<5.5}{subject:<29.29} {fromUserName:<20.20} {ts}"
 					dateTimeFormat: ddd MMM Do
 				}
 				mci: {
