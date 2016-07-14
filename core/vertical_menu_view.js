@@ -164,17 +164,21 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 VerticalMenuView.prototype.setFocusItemIndex = function(index) {
 	VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
 
-	//this.updateViewVisibleItems();
-	
-	//	:TODO: |viewWindow| must be updated to reflect position change --
-	//	if > visibile then += by diff, if < visible 
-	
-	if(this.focusedItemIndex > this.viewWindow.bottom) {
-	} else if (this.focusedItemIndex < this.viewWindow.top) {
-	//	this.viewWindow.top--;
-//		this.viewWindow.bottom--;
+	const remainAfterFocus = this.items.length - index;
+	if(remainAfterFocus >= this.maxVisibleItems) {
+		this.viewWindow = {
+			top		: this.focusedItemIndex,
+			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+		};
+	} else {
+		this.viewWindow = {
+			top		: 0,
+			bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
+		};
 	}
 	
+	this.positionCacheExpired = false;	//	skip standard behavior
+	this.performAutoScale();
 	this.redraw();
 };
 
