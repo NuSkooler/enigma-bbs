@@ -6,6 +6,14 @@ ENiGMA½ can run under your Linux / RPi installation! The following instructions
 ###Model A
 Works, but fairly slow (Node itself is not the fastest on this device). May work better overlocked, etc.
 
+###v2 Model B
+Works well with default rasbian, follow the normal quickstart install procedure, except for installing nodejs. To install nodejs do the following: 
+    
+    curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+
+Keep in mind, compiling the dependencies with `npm install` will take some time and appear to hang. Just be patient.
+
 ##Example Configuration: RPi Model A + Minibian
 
 ### Basic Instructions
@@ -30,3 +38,4 @@ c. `sudo swapon tmpswap`
 9. Clone enigma-bbs.git
 10. Install dependencies. Here we will force GCC 4.9 for compilation: `CC=gcc-4.9 npm install`
 11. Follow generic setup for creating a config.hjson, etc. and you should be ready to go!
+
