@@ -129,7 +129,7 @@ function getDefaultConfig() {
 			emailMax			: 255,
 			webMax				: 255,
 
-			requireActivation	: true,	//	require SysOp activation?
+			requireActivation	: false,	//	require SysOp activation? false = auto-activate
 			invalidUsernames	: [],
 
 			groups				: [ 'users', 'sysops' ],		//	built in groups
