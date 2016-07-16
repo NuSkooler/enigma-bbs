@@ -165,11 +165,30 @@ function NewScanModule(options) {
 				},
 				function displayMessageList(msgList) {
 					if(msgList && msgList.length > 0) {
-						var nextModuleOpts = {
+						const nextModuleOpts = {
 							extraArgs: {
 								messageAreaTag  : currentArea.areaTag,
 								messageList		: msgList,
 							}
+						};
+
+						//
+						//	provide a serializer so we don't dump *huge* bits of information to the log
+						//	due to the size of |messageList|
+						//	https://github.com/trentm/node-bunyan/issues/189
+						//
+						nextModuleOpts.extraArgs.toJSON = function() {
+							let logMsgList;
+							if(this.messageList.length <= 4) {
+								logMsgList = this.messageList;
+							} else {
+								logMsgList = this.messageList.slice(0, 2).concat(this.messageList.slice(-2)); 
+							}
+
+							return {
+								messageAreaTag		: this.messageAreaTag,
+								partialMessageList	: logMsgList,
+							};
 						};
 						
 						self.gotoMenu(config.newScanMessageList || 'newScanMessageList', nextModuleOpts);
@@ -221,13 +240,13 @@ NewScanModule.prototype.mciReady = function(mciData, cb) {
 			},
 			function performCurrentStepScan(callback) {
 				switch(self.currentStep) {
-					case 'messageConferences' :
-						self.newScanMessageConference( () => {
-							callback(null); //  finished
-						});
+				case 'messageConferences' :
+					self.newScanMessageConference( () => {
+						callback(null); //  finished
+					});
 					break;	
-						
-					default : return callback(null);
+					
+				default : return callback(null);
 				}
 			}
 		],

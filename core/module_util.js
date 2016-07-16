@@ -24,7 +24,9 @@ function loadModuleEx(options, cb) {
 	const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
 	if(_.isObject(modConfig) && false === modConfig.enabled) {
-		return cb(new Error(`Module "${options.name}" is disabled`));
+		const err	= new Error(`Module "${options.name}" is disabled`);
+		err.code	= 'EENIGMODDISABLED'; 
+		return cb(err);
 	}
 
 	//

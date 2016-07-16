@@ -218,7 +218,11 @@ function startListening(cb) {
 
 	moduleUtil.loadModulesForCategory('servers', (err, module) => {
 		if(err) {
-			logger.log.info(err);
+			if('EENIGMODDISABLED' === err.code) {
+				logger.log.debug(err.message);
+			} else {
+				logger.log.info( { err : err }, 'Failed loading module');
+			}
 			return;
 		}
 
@@ -228,14 +232,14 @@ function startListening(cb) {
 			return;
 		}
 
-		const moduleInst	= new module.getModule();
-        let server;
-        try {
-		    server		= moduleInst.createServer();
-        } catch(e) {
-            logger.log.warn(e, 'Exception caught creating server!');
-            return;
-        }
+		const moduleInst = new module.getModule();
+		let server;
+		try {
+			server = moduleInst.createServer();
+		} catch(e) {
+			logger.log.warn(e, 'Exception caught creating server!');
+			return;
+		}
 
 		//	:TODO: handle maxConnections, e.g. conf.maxConnections
 

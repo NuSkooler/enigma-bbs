@@ -2,7 +2,6 @@
 'use strict';
 
 var bunyan		= require('bunyan');
-var miscUtil	= require('./misc_util.js');
 var paths		= require('path');
 var fs			= require('fs');
 
@@ -57,7 +56,8 @@ module.exports	= {
 					stream	: ringBuffer,
 					level	: 'trace'
 				}*/
-			]
+			],
+			serializers: { err : bunyan.stdSerializers.err }	//	handle 'err' fields with stack/etc.
 		});
 	}
 };
