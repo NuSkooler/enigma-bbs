@@ -56,7 +56,7 @@ function MenuModule(options) {
 							self.menuConfig.options,	//	can include .font, .trailingLF, etc.
 							function displayed(err, artData) {
 								if(err) {
-									self.client.log.debug( { art : self.menuConfig.art, err : err }, 'Could not display art');
+									self.client.log.trace( { art : self.menuConfig.art, error : err.message }, 'Could not display art');
 								} else {
 									mciData.menu = artData.mciMap;
 								}
