@@ -350,7 +350,7 @@ function BBSListModule(options) {
 				[ entry.id ],
 				err => {
 					if (err) {
-						self.client.log.error( { error : err.message }, 'Error deleting from BBS list');
+						self.client.log.error( { err : err }, 'Error deleting from BBS list');
 					} else {
 						self.entries.splice(self.selectedBBS, 1);
 
@@ -384,7 +384,7 @@ function BBSListModule(options) {
 				[ formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes ],
 				err => {
 					if(err) {
-						self.client.log.error( { error : err.message }, 'Error adding to BBS list');
+						self.client.log.error( { err : err }, 'Error adding to BBS list');
 					}
 
 					self.clearAddForm();
