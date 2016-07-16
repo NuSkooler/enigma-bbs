@@ -7,7 +7,6 @@ var strUtil			= require('./string_util.js');
 var ansi			= require('./ansi_term.js');
 
 var util			= require('util');
-var assert			= require('assert');
 var _				= require('lodash');
 
 exports.TextView			= TextView;
@@ -51,6 +50,8 @@ function TextView(options) {
 		var textToDraw = _.isString(this.textMaskChar) ? 
 			new Array(s.length + 1).join(this.textMaskChar) : 
 			strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+		
+		//	:TODO: Add pipe code support
 
 		if(textToDraw.length > this.dimens.width) {
 			//	XXXXXXXXXXXXXXXXX
@@ -117,6 +118,10 @@ TextView.prototype.getData = function() {
 };
 
 TextView.prototype.setText = function(text) {
+	if(!_.isString(text)) {
+		text = text.toString();
+	}	
+
 	var widthDelta = 0;
 	if(this.text && this.text !== text) {
 		widthDelta = Math.abs(this.text.length - text.length);
@@ -148,14 +153,14 @@ TextView.prototype.clearText = function() {
 
 TextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'textMaskChar' : this.textMaskChar = value.substr(0, 1); break;
-		case 'textOverflow'	: this.textOverflow = value; break;
-		case 'maxLength'	: this.maxLength = parseInt(value, 10); break;
-		case 'password'		:
-			if(true === value) {
-				this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
-			}
-			break;
+	case 'textMaskChar' : this.textMaskChar = value.substr(0, 1); break;
+	case 'textOverflow'	: this.textOverflow = value; break;
+	case 'maxLength'	: this.maxLength = parseInt(value, 10); break;
+	case 'password'		:
+		if(true === value) {
+			this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
+		}
+		break;
 	}
 
 	TextView.super_.prototype.setPropertyValue.call(this, propName, value);
