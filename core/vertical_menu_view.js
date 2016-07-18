@@ -170,15 +170,11 @@ VerticalMenuView.prototype.setFocusItemIndex = function(index) {
 			top		: this.focusedItemIndex,
 			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
 		};
-	} else {
-		this.viewWindow = {
-			top		: 0,
-			bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
-		};
+
+		this.positionCacheExpired = false;	//	skip standard behavior
+		this.performAutoScale();
 	}
 	
-	this.positionCacheExpired = false;	//	skip standard behavior
-	this.performAutoScale();
 	this.redraw();
 };
 
@@ -218,7 +214,7 @@ VerticalMenuView.prototype.focusNext = function() {
 		
 		this.viewWindow = {
 			top		: 0,
-			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+			bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
 		};
 	} else {
 		this.focusedItemIndex++;
@@ -250,6 +246,12 @@ VerticalMenuView.prototype.focusPrevious = function() {
 		if(this.focusedItemIndex < this.viewWindow.top) {
 			this.viewWindow.top--;
 			this.viewWindow.bottom--;
+
+			//	adjust for focus index being set & window needing expansion as we scroll up
+			const rem = (this.viewWindow.bottom - this.viewWindow.top) + 1;
+			if(rem < this.maxVisibleItems && (this.items.length - 1) > this.focusedItemIndex) {
+				this.viewWindow.bottom = this.items.length - 1;
+			}
 		}
 	}
 
