@@ -370,18 +370,18 @@ function getMessageListForArea(options, areaTag, cb) {
 		]
 	*/
 
-	var msgList = [];
+	let msgList = [];
 
 	async.series(
 		[
 			function fetchMessages(callback) {
 				msgDb.each(
-					'SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count '	+
-					'FROM message '																													+
-					'WHERE area_tag = ? '																											+
-					'ORDER BY message_id;',
+					`SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count
+					FROM message
+					WHERE area_tag = ?
+					ORDER BY message_id;`,
 					[ areaTag.toLowerCase() ],
-					function msgRow(err, row) {
+					(err, row) => {
 						if(!err) {
 							msgList.push(getMessageFromRow(row));
 						}
@@ -477,20 +477,17 @@ function trimMessageAreasScheduledEvent(args, cb) {
 
 		msgDb.run(
 			`DELETE FROM message
-			WHERE message_id IN
-				(SELECT message_id
+			WHERE message_id IN(
+				SELECT message_id
 				FROM message
 				WHERE area_tag = ?
-				ORDER BY message_id
-				LIMIT (MAX(0, (SELECT COUNT()
-					FROM message
-					WHERE area_tag = ?) - ${areaInfo.maxMessages}
-					))
-				);`,
-			[ areaInfo.areaTag, areaInfo.areaTag],
+				ORDER BY message_id DESC
+				LIMIT -1 OFFSET ${areaInfo.maxMessages}
+			);`,
+			[ areaInfo.areaTag],
 			err => {
 				if(err) {
-					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxMessages' }, 'Error trimming message area');
+					Log.error( { areaInfo : areaInfo, err : err, type : 'maxMessages' }, 'Error trimming message area');
 				} else {
 					Log.debug( { areaInfo : areaInfo, type : 'maxMessages' }, 'Area trimmed successfully');
 				}
@@ -510,7 +507,7 @@ function trimMessageAreasScheduledEvent(args, cb) {
 			[ areaInfo.areaTag ],
 			err => {
 				if(err) {
-					Log.warn( { areaInfo : areaInfo, error : err.toString(), type : 'maxAgeDays' }, 'Error trimming message area');
+					Log.warn( { areaInfo : areaInfo, err : err, type : 'maxAgeDays' }, 'Error trimming message area');
 				} else {
 					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays' }, 'Area trimmed successfully');
 				}
