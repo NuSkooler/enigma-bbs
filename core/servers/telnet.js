@@ -54,7 +54,7 @@ exports.getModule	= TelnetServerModule;
 
 */
 
-var COMMANDS = {
+const COMMANDS = {
 	SE		: 240,	//	End of Sub-Negotation Parameters
 	NOP		: 241,	//	No Operation
 	DM		: 242,	//	Data Mark
@@ -77,7 +77,7 @@ var COMMANDS = {
 //	Resources:
 //		* http://www.faqs.org/rfcs/rfc1572.html
 //
-var SB_COMMANDS = {
+const SB_COMMANDS = {
 	IS		: 0,
 	SEND	: 1,
 	INFO	: 2,
@@ -89,7 +89,7 @@ var SB_COMMANDS = {
 //	Resources
 //		* http://mars.netanya.ac.il/~unesco/cdrom/booklet/HTML/NETWORKING/node300.html
 //
-var OPTIONS = {
+const OPTIONS = {
 	TRANSMIT_BINARY			: 0,	// http://tools.ietf.org/html/rfc856
 	ECHO					: 1,	//	http://tools.ietf.org/html/rfc857
 	//	RECONNECTION : 2
@@ -148,7 +148,7 @@ var OPTIONS = {
 };
 
 //	Commands used within NEW_ENVIRONMENT[_DEP]
-var NEW_ENVIRONMENT_COMMANDS = {
+const NEW_ENVIRONMENT_COMMANDS = {
 	VAR		: 0,
 	VALUE	: 1,
 	ESC		: 2,
@@ -156,8 +156,6 @@ var NEW_ENVIRONMENT_COMMANDS = {
 };
 
 const IAC_BUF 		= new Buffer([ COMMANDS.IAC ]);
-//var SB_BUF		= new Buffer([ COMMANDS.SB ]);
-//var SE_BUF		= new Buffer([ COMMANDS.SE ]);
 const IAC_SE_BUF	= new Buffer([ COMMANDS.IAC, COMMANDS.SE ]);
 
 const COMMAND_NAMES = Object.keys(COMMANDS).reduce(function(names, name) {
@@ -179,12 +177,12 @@ const COMMAND_IMPLS = {};
 //	:TODO: See TooTallNate's telnet.js: Handle COMMAND_IMPL for IAC in binary mode
 
 //	Create option names such as 'transmit binary' -> OPTIONS.TRANSMIT_BINARY
-var OPTION_NAMES = Object.keys(OPTIONS).reduce(function(names, name) {
+const OPTION_NAMES = Object.keys(OPTIONS).reduce(function(names, name) {
 	names[OPTIONS[name]] = name.toLowerCase().replace(/_/g, ' ');
 	return names;
 }, {});
 
-var OPTION_IMPLS = {};
+const OPTION_IMPLS = {};
 //	:TODO: fill in the rest...
 OPTION_IMPLS.NO_ARGS						=
 OPTION_IMPLS[OPTIONS.ECHO]					= 
@@ -211,45 +209,46 @@ OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		var end = bufs.indexOf(IAC_SE_BUF, 5);	//	look past header bytes
+		let end = bufs.indexOf(IAC_SE_BUF, 5);	//	look past header bytes
 		if(-1 === end) {
 			return MORE_DATA_REQUIRED;
 		}
 
 		//	eat up and process the header
-		var buf = bufs.splice(0, 4).toBuffer();
+		let buf = bufs.splice(0, 4).toBuffer();
 		binary.parse(buf)
-	 		.word8('iac1')
-	 		.word8('sb')
-	 		.word8('ttype')
-	 		.word8('is')
-	 		.tap(function(vars) {
-	 			assert(vars.iac1 === COMMANDS.IAC);
+			.word8('iac1')
+			.word8('sb')
+			.word8('ttype')
+			.word8('is')
+			.tap(function(vars) {
+				assert(vars.iac1 === COMMANDS.IAC);
 				assert(vars.sb === COMMANDS.SB);
 				assert(vars.ttype === OPTIONS.TERMINAL_TYPE);
 				assert(vars.is === SB_COMMANDS.IS);
-	 		});
+			});
 
-	 	//	eat up the rest
-	 	end -= 4;
-	 	buf = bufs.splice(0, end).toBuffer();
+		//	eat up the rest
+		end -= 4;
+		buf = bufs.splice(0, end).toBuffer();
 
-	 	//
-	 	//	From this point -> |end| is our ttype
-	 	//
-	 	//	Look for trailing NULL(s). Client such as Netrunner do this.
-	 	//
-	 	var trimAt = 0;
-	 	for(; trimAt < buf.length; ++trimAt) {
-	 		if(0x00 === buf[trimAt]) {
-	 			break;
-	 		}
-	 	}
+		//
+		//	From this point -> |end| is our ttype
+		//
+		//	Look for trailing NULL(s). Clients such as NetRunner do this.
+		//	If none is found, we take the entire buffer
+		//
+		let trimAt = 0;
+		for(; trimAt < buf.length; ++trimAt) {
+			if(0x00 === buf[trimAt]) {
+				break;
+			}
+		}
 
-	 	event.ttype = buf.toString('ascii', 0, trimAt);
+		event.ttype = buf.toString('ascii', 0, trimAt);
 
-	 	//	pop off the terminating IAC SE
-	 	bufs.splice(0, 2);
+		//	pop off the terminating IAC SE
+		bufs.splice(0, 2);
 	}
 
 	return event;
@@ -288,7 +287,7 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 };
 
 //	Build an array of delimiters for parsing NEW_ENVIRONMENT[_DEP]
-var NEW_ENVIRONMENT_DELIMITERS = [];
+const NEW_ENVIRONMENT_DELIMITERS = [];
 Object.keys(NEW_ENVIRONMENT_COMMANDS).forEach(function onKey(k) {
 	NEW_ENVIRONMENT_DELIMITERS.push(NEW_ENVIRONMENT_COMMANDS[k]);
 });
@@ -308,20 +307,20 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		var end = bufs.indexOf(IAC_SE_BUF, 4);	//	look past header bytes
+		let end = bufs.indexOf(IAC_SE_BUF, 4);	//	look past header bytes
 		if(-1 === end) {
 			return MORE_DATA_REQUIRED;
 		}
 
 		//	eat up and process the header
-		var buf = bufs.splice(0, 4).toBuffer();
+		let buf = bufs.splice(0, 4).toBuffer();
 		binary.parse(buf)
-	 		.word8('iac1')
-	 		.word8('sb')
-	 		.word8('newEnv')
-	 		.word8('isOrInfo')	//	initial=IS, updates=INFO
-	 		.tap(function(vars) {
-	 			assert(vars.iac1 === COMMANDS.IAC);
+			.word8('iac1')
+			.word8('sb')
+			.word8('newEnv')
+			.word8('isOrInfo')	//	initial=IS, updates=INFO
+			.tap(function(vars) {
+				assert(vars.iac1 === COMMANDS.IAC);
 				assert(vars.sb === COMMANDS.SB);
 				assert(vars.newEnv === OPTIONS.NEW_ENVIRONMENT || vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP);
 				assert(vars.isOrInfo === SB_COMMANDS.IS || vars.isOrInfo === SB_COMMANDS.INFO);
@@ -332,65 +331,65 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 					//	:TODO: bring all this into Telnet class
 					Log.log.warn('Handling deprecated RFC 1408 NEW-ENVIRON');
 				}
-	 		});
+			});
 
-	 	//	eat up the rest
-	 	end -= 4;
-	 	buf = bufs.splice(0, end).toBuffer();
+		//	eat up the rest
+		end -= 4;
+		buf = bufs.splice(0, end).toBuffer();
 
-	 	//
-	 	//	This part can become messy. The basic spec is:
-	 	//	IAC SB NEW-ENVIRON IS type ... [ VALUE ... ] [ type ... [ VALUE ... ] [ ... ] ] IAC SE
-	 	//
-	 	//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
-	 	//
-	 	//	Start by splitting up the remaining buffer. Keep the delimiters
-	 	//	as prefixes we can use for processing.
-	 	//
-	 	//	:TODO: Currently not supporting ESCaped values (ESC + <type>). Probably not really in the wild, but we should be compliant
-	 	//	:TODO: Could probably just convert this to use a regex & handle delims + escaped values... in any case, this is sloppy...
-	 	var params = [];
-	 	var p = 0;
-	 	var j;
-	 	var l;
-	 	for(j = 0, l = buf.length; j < l; ++j) {
-	 		if(NEW_ENVIRONMENT_DELIMITERS.indexOf(buf[j]) === -1) {
-	 			continue;
-	 		}
+		//
+		//	This part can become messy. The basic spec is:
+		//	IAC SB NEW-ENVIRON IS type ... [ VALUE ... ] [ type ... [ VALUE ... ] [ ... ] ] IAC SE
+		//
+		//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
+		//
+		//	Start by splitting up the remaining buffer. Keep the delimiters
+		//	as prefixes we can use for processing.
+		//
+		//	:TODO: Currently not supporting ESCaped values (ESC + <type>). Probably not really in the wild, but we should be compliant
+		//	:TODO: Could probably just convert this to use a regex & handle delims + escaped values... in any case, this is sloppy...
+		const params = [];
+		let p = 0;
+		let j;
+		let l;
+		for(j = 0, l = buf.length; j < l; ++j) {
+			if(NEW_ENVIRONMENT_DELIMITERS.indexOf(buf[j]) === -1) {
+				continue;
+			}
 
-	 		params.push(buf.slice(p, j));
-	 		p = j;
-	 	}
+			params.push(buf.slice(p, j));
+			p = j;
+		}
 
-	 	//	remainder
-	 	if(p < l) {
-	 		params.push(buf.slice(p, l));
-	 	}
+		//	remainder
+		if(p < l) {
+			params.push(buf.slice(p, l));
+		}
 
-	 	var varName;
-	 	event.envVars = {};
-	 	//	:TODO: handle cases where a variable was present in a previous exchange, but missing here...e.g removed
-	 	for(j = 0; j < params.length; ++j) {
-	 		if(params[j].length < 2) {
-	 			continue;	 			
-	 		}
+		let varName;
+		event.envVars = {};
+		//	:TODO: handle cases where a variable was present in a previous exchange, but missing here...e.g removed
+		for(j = 0; j < params.length; ++j) {
+			if(params[j].length < 2) {
+				continue;	 			
+			}
 
-	 		var cmd = params[j].readUInt8();
-	 		if(cmd === NEW_ENVIRONMENT_COMMANDS.VAR || cmd === NEW_ENVIRONMENT_COMMANDS.USERVAR) {
-	 			varName = params[j].slice(1).toString('utf8');	//	:TODO: what encoding should this really be?
-	 		} else {
-	 			event.envVars[varName] = params[j].slice(1).toString('utf8');	//	:TODO: again, what encoding?
-	 		}
-	 	}
+			let cmd = params[j].readUInt8();
+			if(cmd === NEW_ENVIRONMENT_COMMANDS.VAR || cmd === NEW_ENVIRONMENT_COMMANDS.USERVAR) {
+				varName = params[j].slice(1).toString('utf8');	//	:TODO: what encoding should this really be?
+			} else {
+				event.envVars[varName] = params[j].slice(1).toString('utf8');	//	:TODO: again, what encoding?
+			}
+		}
 
-	 	//	pop off remaining IAC SE
-	 	bufs.splice(0, 2);
+		//	pop off remaining IAC SE
+		bufs.splice(0, 2);
 	}
 
 	return event;
 };
 
-var MORE_DATA_REQUIRED	= 0xfeedface;
+const MORE_DATA_REQUIRED	= 0xfeedface;
 
 function parseBufs(bufs) {
 	assert(bufs.length >= 2);
@@ -399,23 +398,25 @@ function parseBufs(bufs) {
 }
 
 function parseCommand(bufs, i, event) {
-	var command			= bufs.get(i);	//	:TODO: fix deprecation... [i] is not the same
+	const command		= bufs.get(i);	//	:TODO: fix deprecation... [i] is not the same
 	event.commandCode	= command;
 	event.command		= COMMAND_NAMES[command];
 
-	var handler = COMMAND_IMPLS[command];
+	const handler = COMMAND_IMPLS[command];
 	if(handler) {
-		//return COMMAND_IMPLS[command](bufs, i + 1, event);
 		return handler(bufs, i + 1, event);
 	} else {
-		assert(2 == bufs.length, 'Expected bufs length of 2, got ' + bufs.length); //	IAC + COMMAND
+		if(2 !== bufs.length) {
+			Log.warn( { bufsLength : bufs.length }, 'Expected bufs length of 2');	//	expected: IAC + COMMAND
+		}
+
 		event.buf = bufs.splice(0, 2).toBuffer();
 		return event;		
 	}
 }
 
 function parseOption(bufs, i, event) {
-	var option			= bufs.get(i);	//	:TODO: fix deprecation... [i] is not the same
+	const option		= bufs.get(i);	//	:TODO: fix deprecation... [i] is not the same
 	event.optionCode	= option;
 	event.option		= OPTION_NAMES[option];
 	return OPTION_IMPLS[option](bufs, i + 1, event);
@@ -425,9 +426,9 @@ function parseOption(bufs, i, event) {
 function TelnetClient(input, output) {
 	baseClient.Client.apply(this, arguments);
 
-	var self	= this;
-	
-	var bufs	= buffers();
+	const self	= this;
+
+	let bufs	= buffers();
 	this.bufs	= bufs;
 
 	this.setInputOutput(input, output);
@@ -439,10 +440,10 @@ function TelnetClient(input, output) {
 		newEnvironRequested	: false,
 	};
 
-	this.input.on('data', function onData(b) {
+	this.input.on('data', b => {
 		bufs.push(b);
 
-		var i;
+		let i;
 		while((i = bufs.indexOf(IAC_BUF)) >= 0) {
 
 			//
@@ -486,16 +487,16 @@ function TelnetClient(input, output) {
 
 	});
 
-	this.input.on('end', function() {
+	this.input.on('end', () => {
 		self.emit('end');
 	});
 
-	this.input.on('error', function sockError(err) {
-		self.log.debug(err);	//	:TODO: probably something better...
+	this.input.on('error', err => {
+		self.log.debug( { err : err }, 'Socket error');
 		self.emit('end');
 	});
 
-	this.connectionDebug = function(info, msg) {
+	this.connectionDebug = (info, msg) => {
 		if(Config.servers.telnet.traceConnections) {
 			self.log.trace(info, 'Telnet: ' + msg);
 		}
@@ -509,7 +510,8 @@ util.inherits(TelnetClient, baseClient.Client);
 ///////////////////////////////////////////////////////////////////////////////
 TelnetClient.prototype.handleTelnetEvent = function(evt) {
 	//	handler name e.g. 'handleWontCommand'
-	var handlerName = 'handle' + evt.command.charAt(0).toUpperCase() + evt.command.substr(1) + 'Command';
+	//const handlerName = 'handle' + evt.command.charAt(0).toUpperCase() + evt.command.substr(1) + 'Command';
+	const handlerName = `handle${evt.command.charAt(0).toUpperCase()}${evt.command.substr(1)}Command`;
 
 	if(this[handlerName]) {
 		//	specialized
@@ -568,17 +570,8 @@ TelnetClient.prototype.handleDontCommand = function(evt) {
 	this.connectionDebug(evt, 'dont');
 };
 
-/*
-TelnetClient.prototype.setTermType = function(ttype) {
-	this.term.env.TERM		= ttype;
-	this.term.termType		= ttype;
-
-	this.log.debug( { termType : ttype }, 'Set terminal type');
-};
-*/
-
 TelnetClient.prototype.handleSbCommand = function(evt) {
-	var self = this;
+	const self = this;
 
 	if('terminal type' === evt.option) {
 		//
@@ -650,7 +643,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 	}
 };
 
-var IGNORED_COMMANDS = [];
+const IGNORED_COMMANDS = [];
 [ COMMANDS.EL, COMMANDS.GA, COMMANDS.NOP, COMMANDS.DM, COMMANDS.BRK ].forEach(function onCommandCode(cc) {
 	IGNORED_COMMANDS.push(cc);
 });
@@ -680,7 +673,7 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 };
 
 TelnetClient.prototype.requestTerminalType = function() {
-	var buf = new Buffer( [
+	const buf = new Buffer( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
 		OPTIONS.TERMINAL_TYPE, 
@@ -690,7 +683,7 @@ TelnetClient.prototype.requestTerminalType = function() {
 	this.output.write(buf);
 };
 
-var WANTED_ENVIRONMENT_VAR_BUFS = [
+const WANTED_ENVIRONMENT_VAR_BUFS = [
 	new Buffer( 'LINES' ),
 	new Buffer( 'COLUMNS' ),
 	new Buffer( 'TERM' ),
@@ -704,9 +697,9 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 		return;
 	}
 
-	var self = this;	
+	const self = this;	
 
-	var bufs = buffers();
+	const bufs = buffers();
 	bufs.push(new Buffer( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
@@ -714,7 +707,7 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 		SB_COMMANDS.SEND ]
 		));
 
-	for(var i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
+	for(let i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
 		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
 	}
 
@@ -726,10 +719,6 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 };
 
 TelnetClient.prototype.banner = function() {
-
-	//	:TODO: See x84 implementation here. 
-	//	First, we should probably buffer then send.
-
 	this.will.echo();
 
 	this.will.suppress_go_ahead();
@@ -751,10 +740,10 @@ function Command(command, client) {
 
 //	Create Command objects with echo, transmit_binary, ...
 Object.keys(OPTIONS).forEach(function(name) {
-	var code = OPTIONS[name];
+	const code = OPTIONS[name];
 
 	Command.prototype[name.toLowerCase()] = function() {
-		var buf = new Buffer(3);
+		const buf = new Buffer(3);
 		buf[0]	= COMMANDS.IAC;
 		buf[1]	= this.command;
 		buf[2]	= code;
@@ -764,7 +753,7 @@ Object.keys(OPTIONS).forEach(function(name) {
 
 //	Create do, dont, etc. methods on Client
 ['do', 'dont', 'will', 'wont'].forEach(function(command) {
-	var get = function() {
+	const get = function() {
 		return new Command(command, this);
 	};
 
@@ -784,13 +773,12 @@ util.inherits(TelnetServerModule, ServerModule);
 TelnetServerModule.prototype.createServer = function() {
 	TelnetServerModule.super_.prototype.createServer.call(this);
 
-	var server = net.createServer(function onConnection(sock) {
-		var self = this;
-		var client = new TelnetClient(sock, sock);
+	const server = net.createServer( (sock) => {
+		const client = new TelnetClient(sock, sock);
 		
 		client.banner();
 
-		self.emit('client', client, sock);
+		server.emit('client', client, sock);
 	});
 
 	return server;
