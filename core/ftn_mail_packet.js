@@ -478,8 +478,8 @@ function Packet(options) {
 						decoded = iconv.decode(messageBodyBuffer, 'ascii');
 					}
 					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
-					const messageLines = decoded.replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
-					let endOfMessage = true;
+					const messageLines	= decoded.replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+					let endOfMessage	= false;
 
 					messageLines.forEach(line => {
 						if(0 === line.length) {
@@ -492,9 +492,9 @@ function Packet(options) {
 						} else if(line.startsWith('--- ')) {
 							//	Tear Lines are tracked allowing for specialized display/etc.
 							messageBodyData.tearLine = line;
-						} else if(/[ ]{1,2}(\* )?Origin\: /.test(line)) {	//	To spec is " * Origin: ..."
+						} else if(/^[ ]{1,2}\* Origin\: /.test(line)) {	//	To spec is " * Origin: ..."
 							messageBodyData.originLine = line;
-							endOfMessage = false;	//	Anything past origin is not part of the message body
+							endOfMessage = true;	//	Anything past origin is not part of the message body
 						} else if(line.startsWith('SEEN-BY:')) {
 							endOfMessage = true;	//	Anything past the first SEEN-BY is not part of the message body
 							messageBodyData.seenBy.push(line.substring(line.indexOf(':') + 1).trim());
@@ -503,18 +503,18 @@ function Packet(options) {
 								endOfMessage = true;	//	Anything pats the first PATH is not part of the message body
 							}
 							addKludgeLine(line.slice(1));
-						} else if(endOfMessage) {
+						} else if(!endOfMessage) {
 							//	regular ol' message line
 							messageBodyData.message.push(line);
 						}
 					});
 
-					callback(null);
+					return callback(null);
 				}
 			],
-			function complete(err) {
+			() => {
 				messageBodyData.message = messageBodyData.message.join('\n');
-				cb(messageBodyData);
+				return cb(messageBodyData);
 			}
 		);
 	};
