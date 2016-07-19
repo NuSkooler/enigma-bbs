@@ -1,6 +1,7 @@
 /* jslint node: true */
 'use strict';
 
+//	ENiGMA½
 const msgDb			= require('./database.js').dbs.message;
 const Config		= require('./config.js').config;
 const Message		= require('./message.js');
@@ -8,10 +9,10 @@ const Log			= require('./logger.js').log;
 const checkAcs		= require('./acs_util.js').checkAcs;
 const msgNetRecord	= require('./msg_network.js').recordMessage;
 
+//	deps
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
-const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -39,6 +40,29 @@ const AREA_ACS_DEFAULT = {
 	manage  : AREA_MANAGE_ACS_DEFAULT,  
 };
 
+//
+//	Method for sorting Message areas and conferences
+//	If the sort key is present and is a number, sort in numerical order;
+//	Otherwise, use a locale comparison on the sort key or name as a fallback
+// 
+function sortAreasOrConfs(areasOrConfs, type) {
+	let entryA;
+	let entryB;
+
+	areasOrConfs.sort((a, b) => {
+		entryA = a[type];
+		entryB = b[type];
+
+		if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
+			return entryA - entryB;
+		} else {
+			const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
+			const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
+			return keyA.localeCompare(keyB);
+		}
+	});
+}
+
 function getAvailableMessageConferences(client, options) {
 	options = options || { includeSystemInternal : false };
     
@@ -54,20 +78,16 @@ function getAvailableMessageConferences(client, options) {
 }
 
 function getSortedAvailMessageConferences(client, options) {
-	const sorted = _.map(getAvailableMessageConferences(client, options), (v, k) => {
+	const confs = _.map(getAvailableMessageConferences(client, options), (v, k) => {
 		return {
 			confTag : k,
 			conf	: v,
 		};
 	});
-	
-	sorted.sort((a, b) => {
-		const keyA = a.conf.sort ? a.conf.sort.toString() : a.conf.name;
-		const keyB = b.conf.sort ? b.conf.sort.toString() : b.conf.name;
-		return keyA.localeCompare(keyB);
-	});
 
-	return sorted;
+	sortAreasOrConfs(confs, 'conf');
+	
+	return confs;
 }
 
 //  Return an *object* of available areas within |confTag|
@@ -100,11 +120,7 @@ function getSortedAvailMessageAreasByConfTag(confTag, options) {
 		};
 	});
 	
-	areas.sort((a, b) => {
-		const keyA = a.area.sort ? a.area.sort.toString() : a.area.name;
-		const keyB = b.area.sort ? b.area.sort.toString() : b.area.name;
-		return keyA.localeCompare(keyB);
-	});
+	sortAreasOrConfs(areas, 'area');
 	
 	return areas;
 }
@@ -183,7 +199,7 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
 		//
 		//  No confTag to work with - we'll have to search through them all
 		//
-		var area;
+		let area;
 		_.forEach(confs, (v) => {
 			if(_.has(v, [ 'areas', areaTag ])) {
 				area = v.areas[areaTag];
@@ -314,7 +330,7 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 	//
 	//	Only messages > lastMessageId should be returned
 	//
-	var msgList = [];
+	let msgList = [];
 
 	async.waterfall(
 		[
