@@ -54,7 +54,7 @@ function sortAreasOrConfs(areasOrConfs, type) {
 		entryB = b[type];
 
 		if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
-			return entryA - entryB;
+			return entryA.sort - entryB.sort;
 		} else {
 			const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
 			const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
