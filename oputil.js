@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 /* jslint node: true */
+/* eslint-disable no-console */
 'use strict';
 
 //	ENiGMA½
@@ -18,14 +19,14 @@ const fs			= require('fs');
 const hjson			= require('hjson');
 const paths			= require('path');
 
-var argv 	= require('minimist')(process.argv.slice(2));
+const argv 			= require('minimist')(process.argv.slice(2));
 
 const ExitCodes = {
 	SUCCESS		: 0,
 	ERROR		: -1,
 	BAD_COMMAND	: -2,
 	BAD_ARGS	: -3,
-}
+};
 
 const USAGE_HELP = {
 	General :
@@ -45,7 +46,7 @@ commands:
 
 valid args:
   --user USERNAME       : specify username
-  -- password PASS      : specify password (to reset)
+  --password PASS       : specify password (to reset)
 `,
 
 	Config : 
@@ -54,7 +55,7 @@ valid args:
 valid args:
   --new                 : generate a new/initial configuration
 `
-}
+};
 
 function printUsage(command) {
 	console.error(USAGE_HELP[command]);
@@ -127,7 +128,9 @@ function handleUserCommand() {
 }
 
 function getAnswers(questions, cb) {
-	inq.prompt(questions, cb);
+	inq.prompt(questions).then( answers => {
+		return cb(answers);
+	});
 }
 
 function getDefaultConfigPath() {
@@ -212,7 +215,7 @@ function makeMsgConfAreaName(s) {
 	return s.toLowerCase().replace(/\s+/g, '_');
 }
 
-function askQuestions(cb) {
+function askNewConfigQuestions(cb) {
 	
 	const ui = new inq.ui.BottomBar();
 	
@@ -250,7 +253,7 @@ function askQuestions(cb) {
 					});
 				});
 			},
-			function promptOverwrite(needPrompt, callback) {				
+			function promptOverwrite(needPrompt, callback) {		
 				if(needPrompt) {
 					getAnswers(QUESTIONS.OverwriteConfig, answers => {
 						callback(answers.overwriteConfig ? null : 'exit');
@@ -343,8 +346,8 @@ function handleConfigCommand() {
 	}
 
 	if(argv.new) {
-		askQuestions( (err, configPath, config) => {
-			if(err) {
+		askNewConfigQuestions( (err, configPath, config) => {
+			if(err) {								
 				return;
 			}
 			
