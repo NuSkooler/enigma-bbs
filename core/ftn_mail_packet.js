@@ -173,7 +173,7 @@ exports.PacketHeader = PacketHeader;
 function Packet(options) {
 	var self = this;
     
-    this.options = options || {};
+	this.options = options || {};
 
 	this.parsePacketHeader = function(packetBuffer, cb) {
 		assert(Buffer.isBuffer(packetBuffer));
