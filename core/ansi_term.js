@@ -30,6 +30,7 @@ exports.goHome						= goHome;
 exports.disableVT100LineWrapping	= disableVT100LineWrapping;
 exports.setSyncTERMFont				= setSyncTERMFont;
 exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
+exports.setSyncTermFontWithAlias	= setSyncTermFontWithAlias;
 exports.setCursorStyle				= setCursorStyle;
 exports.setEmulatedBaudRate			= setEmulatedBaudRate;
 
@@ -297,6 +298,11 @@ function setSyncTERMFont(name, fontPage) {
 
 function getSyncTERMFontFromAlias(alias) {
 	return FONT_ALIAS_TO_SYNCTERM_MAP[alias.toLowerCase().replace(/ /g, '_')];
+}
+
+function setSyncTermFontWithAlias(nameOrAlias) {
+	nameOrAlias = getSyncTERMFontFromAlias(nameOrAlias) || nameOrAlias;
+	return setSyncTERMFont(nameOrAlias);
 }
 
 const DEC_CURSOR_STYLE = {
