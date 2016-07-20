@@ -134,6 +134,9 @@ function initialize(cb) {
 			},
 			function basicInit(callback) {
 				logger.init();
+				logger.log.info(
+					{ version : require('../package.json').version },
+					'**** ENiGMA½ Bulletin Board System Starting Up! ****');
 
 				process.on('SIGINT', shutdownSystem);
 			
