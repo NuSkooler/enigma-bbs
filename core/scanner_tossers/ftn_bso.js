@@ -891,11 +891,11 @@ function FTNMessageScanTossModule() {
 				
 				const localNetworkName = self.getNetworkNameByAddress(packetHeader.destAddress);
 				if(!_.isString(localNetworkName)) {
-					next(new Error('No configuration for this packet'));
+					return next(new Error('No configuration for this packet'));
 				} else {
 					
 					//	:TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!					
-					next(null);
+					return next(null);
 				}
 				
 			} else if('message' === entryType) {
@@ -934,7 +934,7 @@ function FTNMessageScanTossModule() {
 								importStats.areaSuccess[localAreaTag] = (importStats.areaSuccess[localAreaTag] || 0) + 1;
 							}
 															
-							next(err);
+							return next(err);
 						});
 					} else {
 						//
