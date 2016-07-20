@@ -2,8 +2,9 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule	= require('../core/menu_module.js').MenuModule;
-const resetScreen	= require('../core/ansi_term.js').resetScreen;
+const MenuModule				= require('../core/menu_module.js').MenuModule;
+const resetScreen				= require('../core/ansi_term.js').resetScreen;
+const setSyncTermFontWithAlias	= require('../core/ansi_term.js').setSyncTermFontWithAlias;
 
 //	deps
 const async			= require('async');
@@ -125,6 +126,9 @@ function TelnetBridgeModule(options) {
 
 	const self	= this;
 	this.config = options.menuConfig.config;
+	
+	//	defaults
+	this.config.port = this.config.port || 23; 
 
 	this.initSequence = function() {
 		let clientTerminated;
@@ -155,6 +159,10 @@ function TelnetBridgeModule(options) {
 					
 					telnetConnection.on('connected', () => {
 						self.client.log.info(connectOpts, 'Telnet bridge connection established');
+
+						if(self.config.font) {
+							self.client.term.rawWrite(setSyncTermFontWithAlias(self.config.font));
+						}
 
 						self.client.once('end', () => {
 							self.client.log.info('Connection ended. Terminating connection');
