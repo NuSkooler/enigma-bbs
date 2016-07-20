@@ -71,10 +71,18 @@ MenuStack.prototype.next = function(cb) {
 
 MenuStack.prototype.prev = function(cb) {
 	this.pop().instance.leave();			//	leave & remove current
-	var previousModuleInfo = this.pop();	//	get previous
+	
+	const previousModuleInfo = this.pop();	//	get previous
 
 	if(previousModuleInfo) {
-		this.goto(previousModuleInfo.name, { extraArgs : previousModuleInfo.extraArgs, savedState : previousModuleInfo.savedState }, cb);
+		this.goto(
+			previousModuleInfo.name, 
+			{ 
+				extraArgs	: previousModuleInfo.extraArgs, 
+				savedState	: previousModuleInfo.savedState
+			}, 
+			cb
+		);
 	} else {
 		cb(new Error('No previous menu available!'));
 	}
@@ -87,7 +95,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 		cb = options;
 	}
 
-	var self = this;
+	const self = this;
 
 	if(currentModuleInfo && name === currentModuleInfo.name) {
 		if(cb) {
@@ -96,7 +104,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 		return;
 	}
 
-	var loadOpts = {
+	const loadOpts = {
 		name		: name,
 		client		: self.client, 
 	};
@@ -107,7 +115,7 @@ MenuStack.prototype.goto = function(name, options, cb) {
 
 	loadMenu(loadOpts, function menuLoaded(err, modInst) {
 		if(err) {
-			var errCb = cb || self.client.defaultHandlerMissingMod();
+			const errCb = cb || self.client.defaultHandlerMissingMod();
 			errCb(err);
 		} else {
 			//	:TODO: Move this log to caller
