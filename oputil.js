@@ -45,8 +45,11 @@ commands:
 `usage: optutil.js user --user USERNAME <args>
 
 valid args:
-  --user USERNAME       : specify username
-  --password PASS       : specify password (to reset)
+  --user USERNAME       : specify username for further actions
+  --password PASS       : set new password 
+  --delete              : delete user
+  --activate            : activate user
+  --deactivate          : deactivate user
 `,
 
 	Config : 
@@ -67,6 +70,79 @@ function initConfig(cb) {
 	config.init(configPath, cb);
 }
 
+function initConfigAndDatabases(cb) {
+	async.series(
+		[
+			function init(callback) {
+				initConfig(callback);
+			},
+			function initDb(callback) {
+				db.initializeDatabases(callback);
+			},
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
+function getUser(userName, cb) {
+	const user = require('./core/user.js');
+	user.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
+		if(err) {
+			process.exitCode = ExitCodes.BAD_ARGS;
+			return cb(new Error('Failed to retrieve user'));
+		} else {
+			let u = new user.User();
+			u.userId = userId;
+			return cb(null, u);
+		}
+	});	
+}
+
+function initAndGetUser(userName, cb) {
+	async.waterfall(
+		[
+			function init(callback) {
+				initConfigAndDatabases(callback);
+			},
+			function getUserObject(callback) {
+				getUser(argv.user, (err, user) => {
+					if(err) {
+						process.exitCode = ExitCodes.BAD_ARGS;
+						return callback(err);
+					}
+					return callback(null, user);
+				});
+			} 
+		],
+		(err, user) => {
+			return cb(err, user);
+		}
+	);
+}
+
+function setAccountStatus(userName, active) {
+	async.waterfall(
+		[
+			function init(callback) {
+				initAndGetUser(argv.user, callback);
+			},
+			function activateUser(user, callback) {
+				const AccountStatus = require('./core/user.js').User.AccountStatus;
+				user.persistProperty('account_status', active ? AccountStatus.active : AccountStatus.inactive, callback);
+			}
+		],
+		err => {
+			if(err) {
+				console.error(err.message);
+			} else {
+				console.info('User ' + ((true === active) ? 'activated' : 'deactivated'));
+			}
+		}
+	);	
+}
+
 function handleUserCommand() {
 	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
 		process.exitCode = ExitCodes.ERROR;
@@ -79,34 +155,13 @@ function handleUserCommand() {
 			return console.error('Invalid password');
 		}
 
-		var user;
 		async.waterfall(
 			[
 				function init(callback) {
-					initConfig(callback);
+					initAndGetUser(argv.user, callback);
 				},
-				function initDb(callback) {
-					db.initializeDatabases(callback);
-				},
-				function getUser(callback) {					
-					user = require('./core/user.js');
-					user.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
-						if(err) {
-							process.exitCode = ExitCodes.BAD_ARGS;
-							callback(new Error('Failed to retrieve user'));
-						} else {
-							callback(null, userId);
-						}
-					});
-				},
-				function setNewPass(userId, callback) {
-					assert(_.isNumber(userId));
-					assert(userId > 0);
-
-					let u = new user.User();
-					u.userId = userId;
-
-					u.setNewAuthCredentials(argv.password, function credsSet(err) {
+				function setNewPass(user, callback) {
+					user.setNewAuthCredentials(argv.password, function credsSet(err) {
 						if(err) {
 							process.exitCode = ExitCodes.ERROR;
 							callback(new Error('Failed setting password'));
@@ -124,6 +179,10 @@ function handleUserCommand() {
 				}
 			}
 		);
+	} else if(argv.activate) {
+		setAccountStatus(argv.user, true);		
+	} else if(argv.deactivate) {
+		setAccountStatus(argv.user, false);
 	}
 }
 
