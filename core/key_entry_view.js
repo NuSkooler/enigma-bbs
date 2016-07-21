@@ -27,7 +27,7 @@ module.exports = class KeyEntryView extends View {
 			this.client.term.write(stylizeString(ch, this.textStyle));
 		}
 
-		if(this.caseInsensitive) {
+		if(ch && this.caseInsensitive) {
 			ch = ch.toUpperCase();
 		}
 
