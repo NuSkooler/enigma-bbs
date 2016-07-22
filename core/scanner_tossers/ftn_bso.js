@@ -104,8 +104,9 @@ function FTNMessageScanTossModule() {
 	};
 	
 	this.getLocalAreaTagByFtnAreaTag = function(ftnAreaTag) {
+		ftnAreaTag = ftnAreaTag.toUpperCase();	//	always compare upper
 		return _.findKey(Config.messageNetworks.ftn.areas, areaConf => {
-			return areaConf.tag === ftnAreaTag;
+			return areaConf.tag.toUpperCase() === ftnAreaTag;
 		});
 	};
 	
@@ -1374,12 +1375,12 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 					self.setAreaLastScanId(areaTag, newLastScanId, callback);
 				}
 			],
-			function complete(err) {
-				nextArea();
+			() => {
+				return nextArea();
 			}
 		);
 	}, err => {
-		cb(err);
+		return cb(err);
 	});
 };
 
