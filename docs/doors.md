@@ -177,6 +177,23 @@ doorTradeWars2002BBSLink: {
 
 Fill in your credentials in `sysCode`, `authCode`, and `schemeCode` and that's it!
 
+## The door_party Module
+The module `door_party` provides native support for [DoorParty!](http://www.throwbackbbs.com/) Configuration is quite easy:
+
+```hjson
+doorParty: {
+    desc: Using DoorParty!
+    module: @systemModule:door_party
+    config: {
+        username: XXXXXXXX
+        password: XXXXXXXX
+        bbsTag: XX
+    }
+}
+```
+
+Fill in `username`, `password`, and `bbsTag` with credentials provided to you and you should be in business!
+
 # Resources
 
 ### DOSBox
