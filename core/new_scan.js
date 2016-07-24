@@ -138,63 +138,35 @@ function NewScanModule(options) {
 					//	Advance to next area if possible
 					if(sortedAreas.length >= self.currentScanAux.area + 1) {
 						self.currentScanAux.area += 1;
-						callback(null);
+						return callback(null);
 					} else {
 						self.updateScanStatus(self.scanCompleteMsg);
-						callback(new Error('No more areas'));
+						return callback(new Error('No more areas'));	//	this will stop our scan
 					}
 				},
 				function updateStatusScanStarted(callback) {
 					self.updateScanStatus(self.scanStartFmt.format(getFormatObj()));
-					callback(null);
+					return callback(null);
 				},
-				function newScanAreaAndGetMessages(callback) {
-					msgArea.getNewMessagesInAreaForUser(
-						self.client.user.userId, currentArea.areaTag, function msgs(err, msgList) {
-							if(!err) {
-								if(0 === msgList.length) {
-									self.updateScanStatus(self.scanFinishNoneFmt.format(getFormatObj()));
-								} else {
-									const formatObj = Object.assign(getFormatObj(), { count : msgList.length } );
-									self.updateScanStatus(self.scanFinishNewFmt.format(formatObj));
-								}
-							}
-							callback(err, msgList);
+				function getNewMessagesCountInArea(callback) {
+					msgArea.getNewMessageCountInAreaForUser(
+						self.client.user.userId, currentArea.areaTag, (err, newMessageCount) => {
+							callback(err, newMessageCount);
 						}
 					);
 				},
-				function displayMessageList(msgList) {
-					if(msgList && msgList.length > 0) {
-						const nextModuleOpts = {
-							extraArgs: {
-								messageAreaTag  : currentArea.areaTag,
-								messageList		: msgList,
-							}
-						};
-
-						//
-						//	provide a serializer so we don't dump *huge* bits of information to the log
-						//	due to the size of |messageList|
-						//	https://github.com/trentm/node-bunyan/issues/189
-						//
-						nextModuleOpts.extraArgs.toJSON = function() {
-							let logMsgList;
-							if(this.messageList.length <= 4) {
-								logMsgList = this.messageList;
-							} else {
-								logMsgList = this.messageList.slice(0, 2).concat(this.messageList.slice(-2)); 
-							}
-
-							return {
-								messageAreaTag		: this.messageAreaTag,
-								partialMessageList	: logMsgList,
-							};
-						};
-						
-						self.gotoMenu(config.newScanMessageList || 'newScanMessageList', nextModuleOpts);
-					} else {
-						self.newScanMessageArea(conf, cb);
+				function displayMessageList(newMessageCount) {
+					if(newMessageCount <= 0) {
+						return self.newScanMessageArea(conf, cb);	//	next area, if any
 					}
+
+					const nextModuleOpts = {
+						extraArgs: {
+							messageAreaTag  : currentArea.areaTag,
+						}
+					};
+
+					return self.gotoMenu(config.newScanMessageList || 'newScanMessageList', nextModuleOpts);
 				}
 			],
 			cb // no more areas

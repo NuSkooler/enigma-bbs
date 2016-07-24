@@ -3,7 +3,6 @@
 
 //	ENiGMA½
 var loadMenu	= require('./menu_util.js').loadMenu;
-var acsUtil		= require('./acs_util.js');
 
 var _			= require('lodash');
 var assert		= require('assert');
@@ -49,7 +48,7 @@ MenuStack.prototype.next = function(cb) {
 	var next;
 
 	if(_.isArray(menuConfig.next)) {
-		next = acsUtil.getConditionalValue(this.client, menuConfig.next, 'next');
+		next = this.client.acs.getConditionalValue(menuConfig.next, 'next');
 		if(!next) {
 			cb(new Error('No matching condition for \'next\'!'));
 			return;

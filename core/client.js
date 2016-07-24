@@ -40,6 +40,7 @@ var moduleUtil	= require('./module_util.js');
 var menuUtil	= require('./menu_util.js');
 var Config		= require('./config.js').config;
 var MenuStack	= require('./menu_stack.js');
+const ACS		= require('./acs.js');
 
 var stream		= require('stream');
 var assert		= require('assert');
@@ -54,7 +55,7 @@ exports.Client	= Client;
 //	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
 //
 
-//	:TODO: put this in a common area!!!!
+//	:TODO: put this in a common area!!!!...actually, just replace it with more modern code - see ansi_term.js
 function getIntArgArray(array) {
 	var i = array.length;
 	while(i--) {
@@ -68,19 +69,19 @@ var RE_DEV_ATTR_RESPONSE_ANYWHERE	= /(?:\u001b\[)[\=\?]([0-9a-zA-Z\;]+)(c)/;
 var RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
 var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
 var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
-		'(\\d+)(?:;(\\d+))?([~^$])',
-		'(?:M([@ #!a`])(.)(.))',		// mouse stuff
-		'(?:1;)?(\\d+)?([a-zA-Z@])'
-	].join('|') + ')');
+	'(\\d+)(?:;(\\d+))?([~^$])',
+	'(?:M([@ #!a`])(.)(.))',		// mouse stuff
+	'(?:1;)?(\\d+)?([a-zA-Z@])'
+].join('|') + ')');
 
 var RE_FUNCTION_KEYCODE				= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
 var RE_ESC_CODE_ANYWHERE			= new RegExp( [
-		RE_FUNCTION_KEYCODE_ANYWHERE.source, 
-		RE_META_KEYCODE_ANYWHERE.source, 
-		RE_DSR_RESPONSE_ANYWHERE.source,
-		RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
-		/\u001b./.source
-	].join('|'));
+	RE_FUNCTION_KEYCODE_ANYWHERE.source, 
+	RE_META_KEYCODE_ANYWHERE.source, 
+	RE_DSR_RESPONSE_ANYWHERE.source,
+	RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
+	/\u001b./.source
+].join('|'));
 
 
 function Client(input, output) {
@@ -95,6 +96,7 @@ function Client(input, output) {
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
 	this.menuStack			= new MenuStack(this);
+	this.acs				= new ACS(this);
 
 	Object.defineProperty(this, 'node', {
 		get : function() {

@@ -82,6 +82,23 @@ function MessageListModule(options) {
 					}
 				};
 
+				//
+				//	Provide a serializer so we don't dump *huge* bits of information to the log
+				//	due to the size of |messageList|. See https://github.com/trentm/node-bunyan/issues/189
+				//
+				modOpts.extraArgs.toJSON = function() {
+					const logMsgList = (this.messageList.length <= 4) ? 
+						this.messageList : 
+						this.messageList.slice(0, 2).concat(this.messageList.slice(-2)); 
+
+					return {
+						messageAreaTag		: this.messageAreaTag,
+						apprevMessageList	: logMsgList,
+						messageCount		: this.messageList.length,
+						messageIndex		: formData.value.message,
+					};
+				};
+
 				self.gotoMenu(config.menuViewPost || 'messageAreaViewPost', modOpts);
 			}
 		}
@@ -104,9 +121,26 @@ MessageListModule.prototype.enter = function() {
 	//	Config can specify |messageAreaTag| else it comes from
 	//	the user's current area
 	//
-	if(!this.messageAreaTag) {
-		this.messageAreaTag = this.client.user.properties.message_area_tag;
+	if(this.messageAreaTag) {
+		this.prevMessageConfAndArea = {
+			confTag	: this.client.user.properties.message_conf_tag,
+			areaTag	: this.client.user.properties.message_area_tag,		
+		};
+		if(!messageArea.tempChangeMessageConfAndArea(this.client, this.messageAreaTag)) {
+			//	:TODO: Really, checks should have been done & failed before this, but log here!
+		}
+	} else {
+		this.messageAreaTag = this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
+};
+
+MessageListModule.prototype.leave = function() {
+	if(this.prevMessageConfAndArea) {
+		this.client.user.properties.message_conf_tag = this.prevMessageConfAndArea.confTag;
+		this.client.user.properties.message_area_tag = this.prevMessageConfAndArea.areaTag;		
+	}
+
+	MessageListModule.super_.prototype.leave.call(this);
 };
 
 MessageListModule.prototype.mciReady = function(mciData, cb) {
