@@ -507,7 +507,7 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
 		'SELECT message_id '					+
 		'FROM user_message_area_last_read '		+
 		'WHERE user_id = ? AND area_tag = ?;',
-		[ userId, areaTag ],
+		[ userId, areaTag.toLowerCase() ],
 		function complete(err, row) {
 			cb(err, row ? row.message_id : 0);
 		}
@@ -587,7 +587,7 @@ function trimMessageAreasScheduledEvent(args, cb) {
 				ORDER BY message_id DESC
 				LIMIT -1 OFFSET ${areaInfo.maxMessages}
 			);`,
-			[ areaInfo.areaTag],
+			[ areaInfo.areaTag.toLowerCase() ],
 			err => {
 				if(err) {
 					Log.error( { areaInfo : areaInfo, err : err, type : 'maxMessages' }, 'Error trimming message area');
