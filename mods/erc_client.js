@@ -143,7 +143,7 @@ function ErcClientModule(options) {
 
 
 	this.menuMethods = {
-		inputAreaSubmit : function() {
+		inputAreaSubmit : function(formData, extraArgs, cb) {
 			const inputAreaView = self.viewControllers.menu.getView(MciViewIds.InputArea);
 			const inputData		= inputAreaView.getData();
 
@@ -157,12 +157,15 @@ function ErcClientModule(options) {
 				}
 				inputAreaView.clearText();
 			}
+			return cb(null);
 		},
-		scrollUp : function(formData) {
+		scrollUp : function(formData, extraArgs, cb) {
 			self.scrollHandler(formData.key.name);
+			return cb(null);
 		},
-		scrollDown : function(formData) {
-			self.scrollHandler(formData.key.name);			
+		scrollDown : function(formData, extraArgs, cb) {
+			self.scrollHandler(formData.key.name);
+			return cb(null);
 		}
 	};
 }

@@ -325,23 +325,20 @@ function BBSListModule(options) {
 		//
 		//	Key & submit handlers
 		//
-		quitBBSList : function() {
-			self.prevMenu();
+		addBBS : function(formData, extraArgs, cb) {
+			self.displayAddScreen(cb);
 		},
-		addBBS : function() {
-			self.displayAddScreen();
-		},
-		deleteBBS : function() {
+		deleteBBS : function(formData, extraArgs, cb) {
 			const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
 
 			if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
 				//	must be owner or +op
-				return;
+				return cb(null);
 			}
 
 			const entry = self.entries[self.selectedBBS];
 			if(!entry) {
-				return;
+				return cb(null);
 			}
 
 			self.database.run(
@@ -362,10 +359,12 @@ function BBSListModule(options) {
 
 						self.viewControllers.view.redrawAll();
 					}
+
+					return cb(null);
 				}
 			);
 		},
-		submitBBS : function(formData) {
+		submitBBS : function(formData, extraArgs, cb) {
 
 			let ok = true;
 			[ 'BBSName', 'Sysop', 'Telnet' ].forEach( mciName => {
@@ -375,7 +374,7 @@ function BBSListModule(options) {
 			});
 			if(!ok) {
 				//	validators should prevent this!
-				return;
+				return cb(null);
 			}
 
 			self.database.run(
@@ -388,13 +387,13 @@ function BBSListModule(options) {
 					}
 
 					self.clearAddForm();
-					self.displayBBSList(true);
+					self.displayBBSList(true, cb);
 				}
 			);
 		},
-		cancelSubmit : function() {
+		cancelSubmit : function(formData, extraArgs, cb) {
 			self.clearAddForm();
-			self.displayBBSList(true);
+			self.displayBBSList(true, cb);
 		}
 	};
 

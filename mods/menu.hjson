@@ -1198,7 +1198,7 @@
 						}
 						{
 							keys: [ "q", "escape" ]
-							action: @method:quitBBSList
+							action: @systemMethod:prevMenu
 						}
 					]
 				}

@@ -231,11 +231,11 @@ function OnelinerzModule(options) {
 	};
 
 	this.menuMethods = {
-		viewAddScreen : function() {
-			self.displayAddScreen();
+		viewAddScreen : function(formData, extraArgs, cb) {
+			return self.displayAddScreen(cb);
 		},
 
-		addEntry : function(formData) {
+		addEntry : function(formData, extraArgs, cb) {
 			if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
 				const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
 
@@ -245,18 +245,18 @@ function OnelinerzModule(options) {
 					}
 
 					self.clearAddForm(); 
-					self.displayViewScreen(true);	//	true=cls
+					return self.displayViewScreen(true, cb);	//	true=cls
 				});
 
 			} else {
 				//	empty message - treat as if cancel was hit
-				self.displayViewScreen(true);	//	true=cls
+				return self.displayViewScreen(true, cb);	//	true=cls
 			}
 		},
 
-		cancelAdd : function() {
+		cancelAdd : function(formData, extraArgs, cb) {
 			self.clearAddForm();
-			self.displayViewScreen(true);	//	true=cls
+			return self.displayViewScreen(true, cb);	//	true=cls
 		}
 	};
 

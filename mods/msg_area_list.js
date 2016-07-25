@@ -1,14 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var ViewController		= require('../core/view_controller.js').ViewController;
-var messageArea			= require('../core/message_area.js');
-var strUtil				= require('../core/string_util.js');
+//	ENiGMA½
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const ViewController	= require('../core/view_controller.js').ViewController;
+const messageArea		= require('../core/message_area.js');
 
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+//	deps
+const async				= require('async');
+const _					= require('lodash');
 
 exports.getModule			= MessageAreaListModule;
 
@@ -32,9 +32,8 @@ exports.moduleInfo = {
           |TI      Current time
 */
 
-var MciCodesIds = {
+const MCICodesIDs = {
 	AreaList	: 1,
-	CurrentArea	: 2,
 };
 
 function MessageAreaListModule(options) {
@@ -42,27 +41,29 @@ function MessageAreaListModule(options) {
 
 	var self = this;
 
-    this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
+	this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
          self.client.user.properties.message_conf_tag,
         { client : self.client }
     );
 
 	this.menuMethods = {
-		changeArea : function(formData, extraArgs) {
+		changeArea : function(formData, extraArgs, cb) {
 			if(1 === formData.submitId) {
 				const areaTag = self.messageAreas[formData.value.area].areaTag;
 
-                messageArea.changeMessageArea(self.client, areaTag, function areaChanged(err) {
-                    if(err) {
-                        self.client.term.pipeWrite('\n|00Cannot change area: ' + err.message + '\n');
+				messageArea.changeMessageArea(self.client, areaTag, err => {
+					if(err) {
+						self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
 
-                        setTimeout(function timeout() {
-                            self.prevMenu();
-                        }, 1000);
-                    } else {
-                        self.prevMenu();
-                    }
-                });
+						setTimeout( () => {
+							return self.prevMenu(cb);
+						}, 1000);
+					} else {
+						return self.prevMenu(cb);
+					}
+				});
+			} else {
+				return cb(null);
 			}
 		}
 	};
@@ -79,7 +80,7 @@ function MessageAreaListModule(options) {
 require('util').inherits(MessageAreaListModule, MenuModule);
 
 MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
-	var self	= this;
+	const self	= this;
 	const vc	= self.viewControllers.areaList = new ViewController( { client : self.client } );
 
 	async.series(
@@ -90,7 +91,7 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 				});
 			},
 			function loadFromConfig(callback) {
-				var loadOpts = {
+				const loadOpts = {
 					callingMenu	: self,
 					mciMap		: mciData.menu,
 					formId		: 0,
@@ -104,40 +105,34 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 				const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
 				const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
                 
-                const areaListView = vc.getView(1);
-                let i = 1;
-                areaListView.setItems(_.map(self.messageAreas, v => {
-                    return listFormat.format({
-                        index   : i++,
-                        areaTag : v.area.areaTag,
-                        name    : v.area.name,
-                        desc    : v.area.desc, 
-                    });
-                }));
-                
-                i = 1;
-                areaListView.setFocusItems(_.map(self.messageAreas, v => {
-                    return focusListFormat.format({
-                        index   : i++,
-                        areaTag : v.area.areaTag,
-                        name    : v.area.name,
-                        desc    : v.area.desc, 
-                    })
-                }));
+				const areaListView = vc.getView(MCICodesIDs.AreaList);
+				let i = 1;
+				areaListView.setItems(_.map(self.messageAreas, v => {
+					return listFormat.format({
+						index   : i++,
+						areaTag : v.area.areaTag,
+						name    : v.area.name,
+						desc    : v.area.desc, 
+					});
+				}));
+
+				i = 1;
+				areaListView.setFocusItems(_.map(self.messageAreas, v => {
+					return focusListFormat.format({
+						index   : i++,
+						areaTag : v.area.areaTag,
+						name    : v.area.name,
+						desc    : v.area.desc, 
+					});
+				}));
 
 				areaListView.redraw();
-
-				callback(null);
-			},
-			function populateTextViews(callback) {
-				//	:TODO: populate current message area desc!
-				//self.setViewText(MciCodesIds.CurrentArea, 
 
 				callback(null);
 			}
 		],
 		function complete(err) {
-			cb(null);
+			return cb(err);
 		}
 	);
 };

@@ -1,13 +1,13 @@
 /* jslint node: true */
 'use strict';
-var MenuModule				= require('../core/menu_module.js').MenuModule;
-var user					= require('../core/user.js');
-var theme					= require('../core/theme.js');
-var login					= require('../core/system_menu_method.js').login;
-var Config					= require('../core/config.js').config;
-var messageArea             = require('../core/message_area.js');
 
-var async					= require('async');
+//	ENiGMA½
+const MenuModule	= require('../core/menu_module.js').MenuModule;
+const user			= require('../core/user.js');
+const theme			= require('../core/theme.js');
+const login			= require('../core/system_menu_method.js').login;
+const Config		= require('../core/config.js').config;
+const messageArea	= require('../core/message_area.js');
 
 exports.getModule	= NewUserAppModule;
 
@@ -16,7 +16,7 @@ exports.moduleInfo = {
 	desc	: 'New User Application',
 };
 
-var MciViewIds = {
+const MciViewIds = {
 	userName	: 1,
 	password	: 9,
 	confirm		: 10,
@@ -26,54 +26,54 @@ var MciViewIds = {
 function NewUserAppModule(options) {
 	MenuModule.call(this, options);
 
-	var self = this;
+	const self = this;
 
 	this.menuMethods = {
 		//
 		//	Validation stuff
 		//
 		validatePassConfirmMatch : function(data, cb) {
-			var passwordView = self.viewControllers.menu.getView(MciViewIds.password);
-			cb(passwordView.getData() === data ? null : new Error('Passwords do not match'));
+			const passwordView = self.viewControllers.menu.getView(MciViewIds.password);
+			return cb(passwordView.getData() === data ? null : new Error('Passwords do not match'));
 		},
 
 		viewValidationListener : function(err, cb) {
-			var errMsgView = self.viewControllers.menu.getView(MciViewIds.errMsg);
-			var newFocusId;
+			const errMsgView = self.viewControllers.menu.getView(MciViewIds.errMsg);
+			let newFocusId;
+			
 			if(err) {
 				errMsgView.setText(err.message);
 				err.view.clearText();
 
 				if(err.view.getId() === MciViewIds.confirm) {
 					newFocusId = MciViewIds.password;
-					var passwordView = self.viewControllers.menu.getView(MciViewIds.password);
-					passwordView.clearText();
+					self.viewControllers.menu.getView(MciViewIds.password).clearText();
 				}
 			} else {
 				errMsgView.clearText();
 			}
 
-			cb(newFocusId);
+			return cb(newFocusId);
 		},
 
 
 		//
 		//	Submit handlers
 		//
-		submitApplication : function(formData, extraArgs) {
-			var newUser = new user.User();
+		submitApplication : function(formData, extraArgs, cb) {
+			const newUser = new user.User();
 
 			newUser.username = formData.value.username;
 
 			//
 			//	We have to disable ACS checks for initial default areas as the user is not yet ready
 			//            
-            var confTag     = messageArea.getDefaultMessageConferenceTag(self.client, true);				//	true=disableAcsCheck
-            var areaTag     = messageArea.getDefaultMessageAreaTagByConfTag(self.client, confTag, true);	//	true=disableAcsCheck
-            
-            //  can't store undefined!
-            confTag = confTag || '';
-            areaTag = areaTag || '';
+			let confTag     = messageArea.getDefaultMessageConferenceTag(self.client, true);				//	true=disableAcsCheck
+			let areaTag     = messageArea.getDefaultMessageAreaTagByConfTag(self.client, confTag, true);	//	true=disableAcsCheck
+
+			//  can't store undefined!
+			confTag = confTag || '';
+			areaTag = areaTag || '';
 			
 			newUser.properties = {
 				real_name			: formData.value.realName,
@@ -102,14 +102,15 @@ function NewUserAppModule(options) {
 			}
 			
 			//	:TODO: User.create() should validate email uniqueness!
-			newUser.create( { password : formData.value.password }, function created(err) {
+			newUser.create( { password : formData.value.password }, err => {
 				if(err) {
 					self.client.log.info( { error : err, username : formData.value.username }, 'New user creation failed');
 
-					self.gotoMenu(extraArgs.error, function result(err) {
+					self.gotoMenu(extraArgs.error, err => {
 						if(err) {
-							self.prevMenu();
+							return self.prevMenu(cb);
 						}
+						return cb(null);
 					});
 				} else {
 					self.client.log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
@@ -124,12 +125,12 @@ function NewUserAppModule(options) {
 					}
 
 					if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
-						self.gotoMenu(extraArgs.inactive);
+						return self.gotoMenu(extraArgs.inactive, cb);
 					} else {
 						//
 						//	If active now, we need to call login() to authenticate
 						//
-						login(self, formData, extraArgs);
+						return login(self, formData, extraArgs, cb);
 					}
 				}
 			});

@@ -5,7 +5,6 @@ const MenuModule					= require('../core/menu_module.js').MenuModule;
 const ViewController				= require('../core/view_controller.js').ViewController;
 const ansi							= require('../core/ansi_term.js');
 const theme							= require('../core/theme.js');
-const MultiLineEditTextView			= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const Message						= require('../core/message.js');
 const getMessageAreaByTag			= require('../core/message_area.js').getMessageAreaByTag;
 const updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
@@ -694,14 +693,16 @@ function FullScreenEditorModule(options) {
 		setFooterText(MCICodeIds.ViewModeFooter.MsgTotal,		self.messageTotal.toString());
 	};
 
-	this.displayHelp = function() {
+	this.displayHelp = function(cb) {
 		self.client.term.rawWrite(ansi.resetScreen());
 
-		theme.displayThemeArt( { name : self.menuConfig.config.art.help, client	: self.client },
-			function helpDisplayed(err, artData) {
-				self.client.waitForKeyPress(function keyPress(ch, key) {
-					self.redrawScreen(function redrawn(err) {
+		theme.displayThemeArt(
+			{ name : self.menuConfig.config.art.help, client : self.client },
+			() => {
+				self.client.waitForKeyPress( () => {
+					self.redrawScreen( () => {
 						self.viewControllers[self.getFooterName()].setFocus(true);
+						return cb(null);
 					});
 				});
 			}
@@ -867,10 +868,11 @@ function FullScreenEditorModule(options) {
 			cb(newFocusViewId);
 		},
 		
-		headerSubmit : function(formData, extraArgs) {
+		headerSubmit : function(formData, extraArgs, cb) {
 			self.switchToBody();
+			return cb(null);
 		},
-		editModeEscPressed : function(formData, extraArgs) {
+		editModeEscPressed : function(formData, extraArgs, cb) {
 			self.footerMode = 'editor' === self.footerMode ? 'editorMenu' : 'editor';
 
 			self.switchFooter(function next(err) {
@@ -879,38 +881,40 @@ function FullScreenEditorModule(options) {
 					console.log(err)
 				} else {
 					switch(self.footerMode) {
-						case 'editor' :
-							if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
-								//self.viewControllers.footerEditorMenu.setFocus(false);
-								self.viewControllers.footerEditorMenu.detachClientEvents();
-							}
-							self.viewControllers.body.switchFocus(1);
-							self.observeEditorEvents();
-							break;
+					case 'editor' :
+						if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
+							//self.viewControllers.footerEditorMenu.setFocus(false);
+							self.viewControllers.footerEditorMenu.detachClientEvents();
+						}
+						self.viewControllers.body.switchFocus(1);
+						self.observeEditorEvents();
+						break;
 
-						case 'editorMenu' :
-							self.viewControllers.body.setFocus(false);
-							self.viewControllers.footerEditorMenu.switchFocus(1);
-							break;
+					case 'editorMenu' :
+						self.viewControllers.body.setFocus(false);
+						self.viewControllers.footerEditorMenu.switchFocus(1);
+						break;
 
-						default : throw new Error('Unexpected mode');
+					default : throw new Error('Unexpected mode');
 					}
-					
 				}
+
+				return cb(null);
 			});
 		},
-		editModeMenuQuote : function(formData, extraArgs) {
+		editModeMenuQuote : function(formData, extraArgs, cb) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
 			self.displayQuoteBuilder();
+			return cb(null);
 		},
-		appendQuoteEntry: function(formData, extraArgs) {
+		appendQuoteEntry: function(formData, extraArgs, cb) {
 			//	:TODO: Dont' use magic # ID's here			
 			var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
 
 			if(self.newQuoteBlock) {
 				self.newQuoteBlock = false;
 				
-				//	:TODO: Make date/time format avail as FSE config
+				//	:TODO: Make date/time format avail as FSE config -- also the line itself!
 				var dtFormat = self.client.currentTheme.helpers.getDateTimeFormat();
 				quoteMsgView.addText(
 					'On {0} {1} said...'.format(
@@ -932,9 +936,12 @@ function FullScreenEditorModule(options) {
 			} else {
 				self.quoteBuilderFinalize();
 			}
+
+			return cb(null);
 		},
-		quoteBuilderEscPressed : function(formData, extraArgs) {
+		quoteBuilderEscPressed : function(formData, extraArgs, cb) {
 			self.quoteBuilderFinalize();
+			return cb(null);
 		},
 		/*
 		replyDiscard : function(formData, extraArgs) {
@@ -943,22 +950,16 @@ function FullScreenEditorModule(options) {
 			self.prevMenu();
 		},
 		*/
-		editModeMenuHelp : function(formData, extraArgs) {
+		editModeMenuHelp : function(formData, extraArgs, cb) {
 			self.viewControllers.footerEditorMenu.setFocus(false);
-			self.displayHelp();
+			return self.displayHelp(cb);
 		},
 		///////////////////////////////////////////////////////////////////////
 		//	View Mode
 		///////////////////////////////////////////////////////////////////////
-		viewModeEscPressed : function(formData, extraArgs) {
-			//
-			//	MLTEV won't get key events -- we need to handle them all here?
-			//	...up/down, page up/page down... both should go by pages
-			//	...Next/Prev/Etc. here
-		},
-		viewModeMenuHelp : function(formData, extraArgs) {
+		viewModeMenuHelp : function(formData, extraArgs, cb) {
 			self.viewControllers.footerView.setFocus(false);
-			self.displayHelp();
+			return self.displayHelp(cb);
 		}
 	};
 

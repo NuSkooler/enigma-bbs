@@ -1,13 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var ViewController		= require('../core/view_controller.js').ViewController;
-var messageArea			= require('../core/message_area.js');
+//	ENiGMA½
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const ViewController	= require('../core/view_controller.js').ViewController;
+const messageArea		= require('../core/message_area.js');
 
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+//	deps
+const async				= require('async');
+const _					= require('lodash');
 
 exports.getModule		= MessageConfListModule;
 
@@ -17,12 +18,11 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
-var MciCodesIds = {
+const MCICodeIDs = {
 	ConfList	: 1,
-	CurrentConf	: 2,
 	
 	//	:TODO:
-	//	# areas in con
+	//	# areas in conf .... see Obv/2, iNiQ, ...
 	//	
 };
 
@@ -34,7 +34,7 @@ function MessageConfListModule(options) {
 	this.messageConfs = messageArea.getSortedAvailMessageConferences(self.client);
 
 	this.menuMethods = {
-		changeConference : function(formData, extraArgs) {
+		changeConference : function(formData, extraArgs, cb) {
 			if(1 === formData.submitId) {
 				const confTag = self.messageConfs[formData.value.conf].confTag;
 
@@ -42,13 +42,15 @@ function MessageConfListModule(options) {
 					if(err) {						
 						self.client.term.pipeWrite(`\n|00Cannot change conference: ${err.message}\n`);
 
-						setTimeout(function timeout() {
-                            self.prevMenu();
-                        }, 1000);
+						setTimeout( () => {
+							return self.prevMenu(cb);
+						}, 1000);
 					} else {
-						self.prevMenu();
+						return self.prevMenu(cb);
 					}
 				});
+			} else {
+				return cb(null);
 			}
 		}
 	};
@@ -85,26 +87,26 @@ MessageConfListModule.prototype.mciReady = function(mciData, cb) {
 				const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
 				const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
                 
-                const confListView = vc.getView(1);
-                let i = 1;
-                confListView.setItems(_.map(self.messageConfs, v => {
-                    return listFormat.format({
-                        index   : i++,
-                        confTag : v.conf.confTag,
-                        name    : v.conf.name,
-                        desc    : v.conf.desc, 
-                    });
-                }));
-                
-                i = 1;
-                confListView.setFocusItems(_.map(self.messageConfs, v => {
-                    return focusListFormat.format({
-                        index   : i++,
-                        confTag : v.conf.confTag,
-                        name    : v.conf.name,
-                        desc    : v.conf.desc, 
-                    })
-                }));
+				const confListView = vc.getView(MCICodeIDs.ConfList);
+				let i = 1;
+				confListView.setItems(_.map(self.messageConfs, v => {
+					return listFormat.format({
+						index   : i++,
+						confTag : v.conf.confTag,
+						name    : v.conf.name,
+						desc    : v.conf.desc, 
+					});
+				}));
+
+				i = 1;
+				confListView.setFocusItems(_.map(self.messageConfs, v => {
+					return focusListFormat.format({
+						index   : i++,
+						confTag : v.conf.confTag,
+						name    : v.conf.name,
+						desc    : v.conf.desc, 
+					});
+				}));
 
 				confListView.redraw();
 

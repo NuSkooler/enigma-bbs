@@ -70,7 +70,7 @@ function MessageListModule(options) {
 	}
 
 	this.menuMethods = {
-		selectMessage : function(formData) {
+		selectMessage : function(formData, extraArgs, cb) {
 			if(1 === formData.submitId) {
 				self.initialFocusIndex = formData.value.message;
 
@@ -99,7 +99,9 @@ function MessageListModule(options) {
 					};
 				};
 
-				self.gotoMenu(config.menuViewPost || 'messageAreaViewPost', modOpts);
+				return self.gotoMenu(config.menuViewPost || 'messageAreaViewPost', modOpts, cb);
+			} else {
+				return cb(null);
 			}
 		}
 	};

@@ -25,7 +25,7 @@ function AreaPostFSEModule(options) {
 	//	we're posting, so always start with 'edit' mode
 	this.editorMode = 'edit';
 
-	this.menuMethods.editModeMenuSave = function() {
+	this.menuMethods.editModeMenuSave = function(formData, extraArgs, cb) {
 
 		var msg;
 		async.series(
@@ -33,16 +33,11 @@ function AreaPostFSEModule(options) {
 				function getMessageObject(callback) {
 					self.getMessage(function gotMsg(err, msgObj) {
 						msg = msgObj;
-						callback(err);
+						return callback(err);
 					});
 				},
 				function saveMessage(callback) {
-					persistMessage(msg, callback);
-					/*
-					msg.persist(function persisted(err) {
-						callback(err);
-					});
-					*/
+					return persistMessage(msg, callback);
 				}
 			],
 			function complete(err) {
@@ -56,7 +51,7 @@ function AreaPostFSEModule(options) {
 						);
 				}
 				
-				self.nextMenu();
+				return self.nextMenu(cb);
 			}
 		);
 	};

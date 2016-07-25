@@ -4,11 +4,10 @@
 //	ENiGMA½
 var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
-//var Log				= require('./logger.js').log;
-var Config			= require('./config.js').config;
 var asset			= require('./asset.js');
 var ansi			= require('./ansi_term.js');
 
+//	deps
 var events			= require('events');
 var util			= require('util');
 var assert			= require('assert');
@@ -37,6 +36,26 @@ function ViewController(options) {
 
 	this.actionKeyMap	= {};
 
+	//
+	//	Small wrapper/proxy around handleAction() to ensure we do not allow
+	//	input/additional actions queued while performing an action
+	//
+	this.handleActionWrapper = function(formData, actionBlock) {
+		if(self.waitActionCompletion) {
+			return;	//	ignore until this is finished!
+		}
+
+		self.waitActionCompletion = true;
+		menuUtil.handleAction(self.client, formData, actionBlock, (err) => {
+			if(err) {
+				//	:TODO: What can we really do here?
+				self.client.log.warn( { err : err }, 'Error during handleAction()');
+			}
+			
+			self.waitActionCompletion = false;
+		});
+	};
+
 	this.clientKeyPressHandler = function(ch, key) {
 		//
 		//	Process key presses treating form submit mapped	keys special. 
@@ -51,10 +70,9 @@ function ViewController(options) {
 				self.switchFocus(actionForKey.viewId);
 				self.submitForm(key);
 			} else if(_.isString(actionForKey.action)) {
-				menuUtil.handleAction(
-					self.client, 
-					{ ch : ch, key : key },		//	formData
-					actionForKey);		//	action block
+				self.handleActionWrapper(
+					{ ch : ch, key : key },	//	formData
+					actionForKey);			//	actionBlock
 			}
 		} else {
 			if(self.focusedView && self.focusedView.acceptsInput) {
@@ -65,28 +83,28 @@ function ViewController(options) {
 
 	this.viewActionListener = function(action, key) {
 		switch(action) {
-			case 'next' :
-				self.emit('action', { view : this, action : action, key : key });
-				self.nextFocus();
-				break;
+		case 'next' :
+			self.emit('action', { view : this, action : action, key : key });
+			self.nextFocus();
+			break;
 
-			case 'accept' :			
-				if(self.focusedView && self.focusedView.submit) {
-					//	:TODO: need to do validation here!!!
-					var focusedView = self.focusedView;
-					self.validateView(focusedView, function validated(err, newFocusedViewId) {
-						if(err) {
-							var newFocusedView = self.getView(newFocusedViewId) || focusedView;
-							self.setViewFocusWithEvents(newFocusedView, true);
-						} else {
-							self.submitForm(key);
-						}
-					});
-					//self.submitForm(key);
-				} else {
-					self.nextFocus();
-				}
-				break;
+		case 'accept' :			
+			if(self.focusedView && self.focusedView.submit) {
+				//	:TODO: need to do validation here!!!
+				var focusedView = self.focusedView;
+				self.validateView(focusedView, function validated(err, newFocusedViewId) {
+					if(err) {
+						var newFocusedView = self.getView(newFocusedViewId) || focusedView;
+						self.setViewFocusWithEvents(newFocusedView, true);
+					} else {
+						self.submitForm(key);
+					}
+				});
+				//self.submitForm(key);
+			} else {
+				self.nextFocus();
+			}
+			break;
 		}
 	};
 
@@ -159,48 +177,48 @@ function ViewController(options) {
 			propAsset = asset.getViewPropertyAsset(conf[propName]);
 			if(propAsset) {
 				switch(propAsset.type) {
-					case 'config' :
-						propValue = asset.resolveConfigAsset(conf[propName]); 
-						break;
+				case 'config' :
+					propValue = asset.resolveConfigAsset(conf[propName]); 
+					break;
 
-						//	:TODO: handle @art (e.g. text : @art ...)
+					//	:TODO: handle @art (e.g. text : @art ...)
 
-					case 'method' : 
-					case 'systemMethod' :
-						if('validate' === propName) {						
-							//	:TODO: handle propAsset.location for @method script specification
-							if('systemMethod' === propAsset.type) {
-								//	:TODO: implementation validation @systemMethod handling!
-								var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
-								if(_.isFunction(methodModule[propAsset.asset])) {
-									propValue = methodModule[propAsset.asset];
-								}
-							} else {
-								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
-									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
-								}
+				case 'method' : 
+				case 'systemMethod' :
+					if('validate' === propName) {						
+						//	:TODO: handle propAsset.location for @method script specification
+						if('systemMethod' === propAsset.type) {
+							//	:TODO: implementation validation @systemMethod handling!
+							var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
+							if(_.isFunction(methodModule[propAsset.asset])) {
+								propValue = methodModule[propAsset.asset];
 							}
 						} else {
-							if(_.isString(propAsset.location)) {
+							if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
+								propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
+							}
+						}
+					} else {
+						if(_.isString(propAsset.location)) {
 
+						} else {
+							if('systemMethod' === propAsset.type) {
+								//	:TODO:
 							} else {
-								if('systemMethod' === propAsset.type) {
-									//	:TODO:
-								} else {
-									//	local to current module
-									var currentModule = self.client.currentMenuModule;
-									if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-										//	:TODO: Fix formData & extraArgs... this all needs general processing
-										propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
-									}
+								//	local to current module
+								var currentModule = self.client.currentMenuModule;
+								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+									//	:TODO: Fix formData & extraArgs... this all needs general processing
+									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
 								}
 							}
 						}
-						break;
+					}
+					break;
 
-					default : 
-						propValue = propValue = conf[propName];
-						break;
+				default : 
+					propValue = propValue = conf[propName];
+					break;
 				}
 			} else {
 				propValue = conf[propName];
@@ -287,6 +305,13 @@ function ViewController(options) {
 				return false;
 			}
 		} else {
+			/*
+				:TODO: support:
+				value: {
+					someArgName: [ "key1", "key2", ... ],
+					someOtherArg: [ "key1, ... ]
+				}
+			*/
 			var actionValueKeys = Object.keys(actionValue);
 			for(var i = 0; i < actionValueKeys.length; ++i) {
 				var viewId = actionValueKeys[i];
@@ -510,11 +535,12 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 			},
 			function prepareFormSubmission(callback) {				
 				if(false === self.noInput) {
+
 					self.on('submit', function promptSubmit(formData) {
 						self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
 						if(_.isString(self.client.currentMenuModule.menuConfig.action)) {
-							menuUtil.handleAction(self.client, formData, self.client.currentMenuModule.menuConfig);
+							self.handleActionWrapper(formData, self.client.currentMenuModule.menuConfig);
 						} else {
 							//
 							//	Menus that reference prompts can have a sepcial "submit" block without the
@@ -538,7 +564,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 								var actionBlock = menuSubmit[c];
 
 								if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
-									menuUtil.handleAction(self.client, formData, actionBlock);
+									self.handleActionWrapper(formData, actionBlock);
 									break;	//	there an only be one...
 								}
 							}
@@ -666,7 +692,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 						var actionBlock = confForFormId[c];
 
 						if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
-							menuUtil.handleAction(self.client, formData, actionBlock);
+							self.handleActionWrapper(formData, actionBlock);
 							break;	//	there an only be one...
 						}
 					}

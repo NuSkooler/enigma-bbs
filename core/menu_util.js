@@ -171,10 +171,6 @@ function handleAction(client, formData, conf, cb) {
 	assert(_.isObject(conf));
 	assert(_.isString(conf.action));
 
-	cb = function() {
-		//	nothing -- remove me!
-	};
-
 	const actionAsset = asset.parseAsset(conf.action);
 	assert(_.isObject(actionAsset));
 

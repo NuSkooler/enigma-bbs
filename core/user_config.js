@@ -106,10 +106,13 @@ function UserConfigModule(options) {
 			cb(newFocusId);
 		},
 		
-		saveChanges : function(formData, extraArgs) {
+		//
+		//	Handlers
+		//
+		saveChanges : function(formData, extraArgs, cb) {
 			assert(formData.value.password === formData.value.passwordConfirm);
 			
-			var newProperties = {
+			const newProperties = {
 				real_name			: formData.value.realName,
 				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
 				sex					: formData.value.sex,
@@ -122,33 +125,31 @@ function UserConfigModule(options) {
 			};
             
             //  runtime set theme
-            theme.setClientTheme(self.client, newProperties.theme_id);
+			theme.setClientTheme(self.client, newProperties.theme_id);
 			
             //  persist all changes
-			self.client.user.persistProperties(newProperties, function persisted(err) {			
+			self.client.user.persistProperties(newProperties, err => {			
 				if(err) {
 					self.client.log.warn( { error : err.toString() }, 'Failed persisting updated properties');
 					//	:TODO: warn end user!
-					self.prevMenu();
+					return self.prevMenu(cb);
+				}
+				//
+				//	New password if it's not empty
+				//
+				self.client.log.info('User updated properties');
+				
+				if(formData.value.password.length > 0) {
+					self.client.user.setNewAuthCredentials(formData.value.password, err => {
+						if(err) {
+							self.client.log.error( { err : err }, 'Failed storing new authentication credentials');
+						} else {
+							self.client.log.info('User changed authentication credentials');
+						}
+						return self.prevMenu(cb);
+					});
 				} else {
-					//
-					//	New password if it's not empty
-					//
-					self.client.log.info('User updated properties');
-					
-					if(formData.value.password.length > 0) {
-						self.client.user.setNewAuthCredentials(formData.value.password, function newAuthStored(err) {
-							if(err) {
-								//	:TODO: warn the end user!
-								self.client.log.warn( { error : err.toString() }, 'Failed storing new authentication credentials');
-							} else {
-								self.client.log.info('User changed authentication credentials');
-							}
-							self.prevMenu();
-						});
-					} else {
-						self.prevMenu();
-					}
+					return self.prevMenu(cb);
 				}
 			});
 		},

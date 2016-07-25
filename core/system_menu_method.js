@@ -20,26 +20,25 @@ exports.nextConf		= nextConf;
 exports.prevArea		= prevArea;
 exports.nextArea		= nextArea;
 
-function login(callingMenu, formData) {
+function login(callingMenu, formData, extraArgs, cb) {
 
 	userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
 		if(err) {
 			//	login failure
 			if(err.existingConn && _.has(callingMenu, 'menuConfig.config.tooNodeMenu')) {
-				callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu);
+				return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
 			} else {
 				//	Other error
-				callingMenu.prevMenu();
+				return callingMenu.prevMenu(cb);
 			}
-
-		} else {
-			//	success!
-			callingMenu.nextMenu();
 		}
+		
+		//	success!
+		return callingMenu.nextMenu(cb);
 	});
 }
 
-function logoff(callingMenu) {
+function logoff(callingMenu, formData, extraArgs, cb) {
 	//
 	//	Simple logoff. Note that recording of @ logoff properties/stats
 	//	occurs elsewhere!
@@ -56,49 +55,52 @@ function logoff(callingMenu) {
 			'NO CARRIER', null, () => {
 
 				//	after data is written, disconnect & remove the client
-				return removeClient(client);
+				removeClient(client);
+				return cb(null);
 			}
 		);
 	}, 500);
 }
 
-function prevMenu(callingMenu) {
+function prevMenu(callingMenu, formData, extraArgs, cb) {
 	callingMenu.prevMenu( err => {
 		if(err) {
-			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to fallback!');
+			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to fallback!');			
 		}
+		return cb(err);
 	});
 }
 
-function nextMenu(callingMenu) {
+function nextMenu(callingMenu, formData, extraArgs, cb) {
 	callingMenu.nextMenu( err => {
 		if(err) {
 			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to go to next menu!');
 		}
+		return cb(err);
 	});
 }
 
 //	:TODO: prev/nextConf, prev/nextArea should use a NYI MenuModule.redraw() or such -- avoid pop/goto() hack!
-function reloadMenu(menu) {
+function reloadMenu(menu, cb) {
 	const prevMenu = menu.client.menuStack.pop();
 	prevMenu.instance.leave();
-	menu.client.menuStack.goto(prevMenu.name);
+	menu.client.menuStack.goto(prevMenu.name, cb);
 }
 
-function prevConf(callingMenu) {
+function prevConf(callingMenu, formData, extraArgs, cb) {
 	const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
 	const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag) || confs.length;
 
 	messageArea.changeMessageConference(callingMenu.client, confs[currIndex - 1].confTag, err => {
 		if(err) {
-			return;	//	logged within changeMessageConference() 
+			return cb(err);	//	logged within changeMessageConference()
 		}
 
-		reloadMenu(callingMenu);
+		return reloadMenu(callingMenu, cb);
 	});
 }
 
-function nextConf(callingMenu) {
+function nextConf(callingMenu, formData, extraArgs, cb) {
 	const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
 	let currIndex	= confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag);
 
@@ -108,27 +110,27 @@ function nextConf(callingMenu) {
 
 	messageArea.changeMessageConference(callingMenu.client, confs[currIndex + 1].confTag, err => {
 		if(err) {
-			return;	//	logged within changeMessageConference()
+			return cb(err);	//	logged within changeMessageConference()
 		}
 		
-		reloadMenu(callingMenu);
+		return reloadMenu(callingMenu, cb);
 	});
 }
 
-function prevArea(callingMenu) {
+function prevArea(callingMenu, formData, extraArgs, cb) {
 	const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
 	const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag) || areas.length;
 
 	messageArea.changeMessageArea(callingMenu.client, areas[currIndex - 1].areaTag, err => {
 		if(err) {
-			return;	//	logged within changeMessageArea()
+			return cb(err);	//	logged within changeMessageArea()
 		}
 		
-		reloadMenu(callingMenu);
+		return reloadMenu(callingMenu, cb);
 	});
 }
 
-function nextArea(callingMenu) {
+function nextArea(callingMenu, formData, extraArgs, cb) {
 	const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
 	let currIndex	= areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag);
 
@@ -138,9 +140,9 @@ function nextArea(callingMenu) {
 
 	messageArea.changeMessageArea(callingMenu.client, areas[currIndex + 1].areaTag, err => {
 		if(err) {
-			return;	//	logged within changeMessageArea()
+			return cb(err);	//	logged within changeMessageArea()
 		}
 
-		reloadMenu(callingMenu);
+		return reloadMenu(callingMenu, cb);
 	});
 }

@@ -125,17 +125,21 @@ function MenuModule(options) {
 					} else {
 						callback(null);
 					}
+				},
+				function finishAndNext(callback) {
+					self.finishedLoading();
+
+					self.autoNextMenu(callback);	
 				}
 			],
 			function complete(err) {
 				if(err) {
 					console.log(err)
 					//	:TODO: what to do exactly?????
-					return self.prevMenu();
+					return self.prevMenu( () => {
+						//	dummy
+					});
 				}
-
-				self.finishedLoading();
-				self.autoNextMenu();
 			}
 		);
 	};
@@ -148,16 +152,16 @@ function MenuModule(options) {
 		return _.isNumber(self.menuConfig.options.nextTimeout);
 	};
 
-	this.autoNextMenu = function() {
+	this.autoNextMenu = function(cb) {
 		function goNext() {
 			if(_.isString(self.menuConfig.next) || _.isArray(self.menuConfig.next)) {
-				menuUtil.handleNext(self.client, self.menuConfig.next);	
+				return menuUtil.handleNext(self.client, self.menuConfig.next, {}, cb);
 			} else {
-				self.prevMenu();
+				return self.prevMenu(cb);
 			}
 		}
         
-        if(_.has(self.menuConfig, 'runtime.autoNext') && true === self.menuConfig.runtime.autoNext) {
+		if(_.has(self.menuConfig, 'runtime.autoNext') && true === self.menuConfig.runtime.autoNext) {
 			/*
 				If 'next' is supplied, we'll use it. Otherwise, utlize fallback which
 				may be explicit (supplied) or non-explicit (previous menu)
@@ -175,8 +179,8 @@ function MenuModule(options) {
 				}
 			*/			
 			if(self.hasNextTimeout()) {
-				setTimeout(function nextTimeout() {
-					goNext();
+				setTimeout( () => {
+					return goNext();
 				}, this.menuConfig.options.nextTimeout);
 			} else {
 				goNext();
@@ -208,7 +212,7 @@ MenuModule.prototype.getSaveState = function() {
 	//	nothing in base
 };
 
-MenuModule.prototype.restoreSavedState = function(savedState) {
+MenuModule.prototype.restoreSavedState = function(/*savedState*/) {
 	//	nothing in base
 };
 
@@ -217,20 +221,9 @@ MenuModule.prototype.nextMenu = function(cb) {
 	//	If we don't actually have |next|, we'll go previous
 	//
 	if(!this.haveNext()) {
-		this.prevMenu(cb);
-		return;
+		return this.prevMenu(cb);
 	}
-
-	//	:TODO: this, prevMenu(), and gotoMenu() need a default |cb| handler if none is supplied.
-	//	...if the error is that we do not meet ACS requirements and did not get a match, then what?
-	if(!cb) {
-		cb = function(err) {
-			if(err) {
-				//	:TODO: Don't console.log() here!
-				console.log(err)
-			}
-		}
-	}
+	
 	this.client.menuStack.next(cb);
 };
 
