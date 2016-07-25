@@ -372,7 +372,7 @@ function getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, what)
 		FROM message
 		WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
 
-	if(Message.WellKnownAreaTags.Private === areaTag) {
+	if(Message.isPrivateAreaTag(areaTag)) {
 		sql += 
 			` AND message_id in (
 				SELECT message_id 
@@ -426,21 +426,6 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 				});
 			},
 			function getMessages(lastMessageId, callback) {
-				/*
-				let sql = 
-					`SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count
-					FROM message
-					WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
-
-				if(Message.WellKnownAreaTags.Private === areaTag) {
-					sql += 
-						` AND message_id in (
-						SELECT message_id from message_meta where meta_category ="System" 
-						AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${userId})`;
-				}
-
-				sql += ' ORDER BY message_id;';
-				*/
 				const sql = getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, 'messages');
 
 				msgDb.each(sql, function msgRow(err, row) {
@@ -480,11 +465,24 @@ function getMessageListForArea(options, areaTag, cb) {
 	async.series(
 		[
 			function fetchMessages(callback) {
-				msgDb.each(
+				let sql = 
 					`SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count
 					FROM message
-					WHERE area_tag = ?
-					ORDER BY message_id;`,
+					WHERE area_tag = ?`;
+
+				if(Message.isPrivateAreaTag(areaTag)) {
+					sql += 
+						` AND message_id IN (
+							SELECT message_id 
+							FROM message_meta 
+							WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${options.client.user.userId}
+						)`;
+				}
+
+				sql += ' ORDER BY message_id;'; 
+
+				msgDb.each(
+					sql,
 					[ areaTag.toLowerCase() ],
 					(err, row) => {
 						if(!err) {
