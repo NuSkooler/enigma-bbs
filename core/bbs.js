@@ -1,4 +1,5 @@
 /* jslint node: true */
+/* eslint-disable no-console */
 'use strict';
 
 //var SegfaultHandler = require('segfault-handler');
@@ -213,11 +214,10 @@ function startListening(cb) {
 	if(!conf.config.servers) {
 		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
 		//logger.log.error('No servers configured');
-		cb(new Error('No servers configured'));
-		return;
+		return cb(new Error('No servers configured'));
 	}
 
-	let moduleUtil = require('./module_util.js');	//	late load so we get Config
+	const moduleUtil = require('./module_util.js');	//	late load so we get Config
 
 	moduleUtil.loadModulesForCategory('servers', (err, module) => {
 		if(err) {
@@ -279,8 +279,8 @@ function startListening(cb) {
 			});
 
 			client.on('close', function onClientClose(hadError) {
-				var l = hadError ? logger.log.info : logger.log.debug;
-				l( { clientId : client.session.id }, 'Connection closed');
+				const logFunc = hadError ? logger.log.info : logger.log.debug;
+				logFunc( { clientId : client.session.id }, 'Connection closed');
 				
 				clientConns.removeClient(client);
 			});
@@ -312,7 +312,7 @@ function startListening(cb) {
 }
 
 function prepareClient(client, cb) {
-	var theme = require('./theme.js');
+	const theme = require('./theme.js');
 
 	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
 
@@ -322,6 +322,6 @@ function prepareClient(client, cb) {
 		client.user.properties.theme_id = conf.config.preLoginTheme;
 	}
     
-    theme.setClientTheme(client, client.user.properties.theme_id);
-    cb(null);   //  note: currently useless to use cb here - but this may change...again...
+	theme.setClientTheme(client, client.user.properties.theme_id);
+	return cb(null);   //  note: currently useless to use cb here - but this may change...again...
 }
