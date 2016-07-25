@@ -69,6 +69,6 @@ matrix: {
 }
 ```
 
-In the above entry, you'll notice `form`. This defines a form(s) object. In this case, a single form by ID of `0`. The system is then told to use a block only when the resulting art provides a `VM` (*VerticalMenuView*) MCI entry. `VM1` is then setup to to `submit` and start focused via `focus: true` as well as have some menu entries ("login", "apply", ...) defined.
+In the above entry, you'll notice `form`. This defines a form(s) object. In this case, a single form by ID of `0`. The system is then told to use a block only when the resulting art provides a `VM` (*VerticalMenuView*) MCI entry. `VM1` is then setup to `submit` and start focused via `focus: true` as well as have some menu entries ("login", "apply", ...) defined.
 
 The `submit` object tells the system to attempt to apply provided match entries from any view ID (`*`). Upon submit, the first match will be executed. For example, if the user selects "login", the first entry with a value of `{ 1: 0 }` or view ID 1, value 0 will match causing `action` of `@menu:login` to be executed (go to `login` menu).
