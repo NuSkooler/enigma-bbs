@@ -41,6 +41,7 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 * IRC: **#enigma-bbs** on **chat.freenode.net**
 * Email: bryan -at- l33t.codes
 * Facebook ENiGMA½ group
+* ENiGMA discussion on [HappyNet](http://andrew.homeunix.org/doku.php?id=happynet)
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
@@ -66,7 +67,7 @@ Please see the [Quickstart](docs/index.md#quickstart)
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
 * Avon of [Agency BBS](http://bbs.geek.nz/) and fsxNet
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
-* [Apam](https://github.com/apamment) of HappyLand BBS
+* [Apam](https://github.com/apamment) of HappyLand BBS and [HappyNet](http://andrew.homeunix.org/doku.php?id=happynet)!
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
