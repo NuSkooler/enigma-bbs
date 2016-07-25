@@ -106,7 +106,7 @@ function Client(input, output) {
 
 	Object.defineProperty(this, 'currentMenuModule', {
 		get : function() {
-			return self.menuStack.getCurrentModule();
+			return self.menuStack.currentModule;
 		}
 	});
 
@@ -423,7 +423,7 @@ Client.prototype.end = function () {
 		this.term.disconnect();
 	}
 
-	var currentModule = this.menuStack.getCurrentModule();
+	var currentModule = this.menuStack.getCurrentModule;
 
 	if(currentModule) {
 		currentModule.leave();
