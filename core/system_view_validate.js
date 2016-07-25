@@ -4,6 +4,7 @@ var Config				= require('./config.js').config;
 exports.validateNonEmpty		= validateNonEmpty;
 exports.validateMessageSubject	= validateMessageSubject;
 exports.validateUserNameAvail 	= validateUserNameAvail;
+exports.validateUserNameExists	= validateUserNameExists;
 exports.validateEmailAvail		= validateEmailAvail;
 exports.validateBirthdate		= validateBirthdate;
 exports.validatePasswordSpec	= validatePasswordSpec;
@@ -40,6 +41,18 @@ function validateUserNameAvail(data, cb) {
 			});
 		}
 	}
+}
+
+function validateUserNameExists(data, cb) {
+	const invalidUserNameError = new Error('Invalid username');
+
+	if(0 === data.length) {
+		return cb(invalidUserNameError);
+	}
+
+	user.getUserIdAndName(data, (err) => {
+		return cb(err ? invalidUserNameError : null);
+	});
 }
 
 function validateEmailAvail(data, cb) {
