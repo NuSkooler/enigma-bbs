@@ -88,10 +88,6 @@ function Client(input, output) {
 	stream.call(this);
 
 	var self	= this;
-
-	//this.input				= input;
-	//this.output				= output;
-	//this.term				= new term.ClientTerminal(this.output);
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
@@ -149,12 +145,12 @@ function Client(input, output) {
 
 	this.isMouseInput = function(data) {
 		return /\x1b\[M/.test(data) ||
-		/\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) || 
-		/\u001b\[(\d+;\d+;\d+)M/.test(data) ||
-		/\u001b\[<(\d+;\d+;\d+)([mM])/.test(data) ||
-		/\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(data) || 
-		/\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(data) ||
-		/\u001b\[(O|I)/.test(data);
+			/\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) || 
+			/\u001b\[(\d+;\d+;\d+)M/.test(data) ||
+			/\u001b\[<(\d+;\d+;\d+)([mM])/.test(data) ||
+			/\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(data) || 
+			/\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(data) ||
+			/\u001b\[(O|I)/.test(data);
 	};
 
 	this.getKeyComponentsFromCode = function(code) {
@@ -174,26 +170,26 @@ function Client(input, output) {
 			'OH' : { name : 'home' },
 			
 			//	xterm/rxvt
-        	'[11~'	: { name : 'f1' },
-        	'[12~'	: { name : 'f2' },
-        	'[13~'	: { name : 'f3' },
-        	'[14~'	: { name : 'f4' },
+			'[11~'	: { name : 'f1' },
+			'[12~'	: { name : 'f2' },
+			'[13~'	: { name : 'f3' },
+			'[14~'	: { name : 'f4' },
 
-        	'[1~'	: { name : 'home' },
-        	'[2~'	: { name : 'insert' },
-        	'[3~'	: { name : 'delete' },
-        	'[4~'	: { name : 'end' },
-        	'[5~'	: { name : 'page up' },
-        	'[6~'	: { name : 'page down' },
+			'[1~'	: { name : 'home' },
+			'[2~'	: { name : 'insert' },
+			'[3~'	: { name : 'delete' },
+			'[4~'	: { name : 'end' },
+			'[5~'	: { name : 'page up' },
+			'[6~'	: { name : 'page down' },
 
-        	//	Cygwin & libuv
-        	'[[A'	: { name : 'f1' },
-        	'[[B'	: { name : 'f2' },
-        	'[[C'	: { name : 'f3' },
-        	'[[D'	: { name : 'f4' },
-        	'[[E'	: { name : 'f5' },
+			//	Cygwin & libuv
+			'[[A'	: { name : 'f1' },
+			'[[B'	: { name : 'f2' },
+			'[[C'	: { name : 'f3' },
+			'[[D'	: { name : 'f4' },
+			'[[E'	: { name : 'f5' },
 
-        	//	Common impls
+			//	Common impls
 			'[15~'	: { name : 'f5' },
 			'[17~'	: { name : 'f6' },
 			'[18~'	: { name : 'f7' },
@@ -217,7 +213,7 @@ function Client(input, output) {
 			'[[6~'	: { name : 'page down' },
 
 			//	rvxt
-        	'[7~'	: { name : 'home' },
+			'[7~'	: { name : 'home' },
 			'[8~'	: { name : 'end' },
 
 			//	rxvt with modifiers
@@ -340,10 +336,11 @@ function Client(input, output) {
 			} else if((parts = RE_FUNCTION_KEYCODE.exec(s))) {
 				var code = 
 					(parts[1] || '') + (parts[2] || '') +
-                 	(parts[4] || '') + (parts[9] || '');
-                var modifier = (parts[3] || parts[8] || 1) - 1;
+					(parts[4] || '') + (parts[9] || '');
+				
+				var modifier = (parts[3] || parts[8] || 1) - 1;
 
-                key.ctrl	= !!(modifier & 4);
+				key.ctrl	= !!(modifier & 4);
 				key.meta	= !!(modifier & 10);
 				key.shift	= !!(modifier & 1);
 				key.code	= code;
@@ -379,7 +376,9 @@ function Client(input, output) {
 
 				self.lastKeyPressMs = Date.now();
 
-				self.emit('key press', ch, key);
+				if(!self.ignoreInput) {
+					self.emit('key press', ch, key);
+				}
 			}
 		});
 	});
