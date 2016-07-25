@@ -372,7 +372,7 @@
 		}
 
 		newUserFeedbackToSysOp: {
-			status: Feedback to SysOp
+			desc: Feedback to SysOp
 			module: msg_area_post_fse
 			next: [
 				{
@@ -509,7 +509,10 @@
 			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
-			options: { pause: true }
+			options: {
+				pause: true
+				font: cp437
+			}
 			next: fullLoginSequenceWhosOnline
 		}
 		fullLoginSequenceWhosOnline: {
@@ -686,6 +689,9 @@
 			art: MMENU
 			desc: Main Menu
 			prompt: menuCommand
+			options: {
+				font: cp437
+			}
 			submit: [
 				{
 					value: { command: "G" }
@@ -714,6 +720,10 @@
 				{
 					value: { command: "M" }
 					action: @menu:messageArea
+				}
+				{
+					value: { command: "E" }
+					action: @menu:mailMenu
 				}
 				{
 					value: { command: "C" }
@@ -893,7 +903,7 @@
 		}
 
 		mainMenuFeedbackToSysOp: {
-			status: Feedback to SysOp
+			desc: Feedback to SysOp
 			module: msg_area_post_fse
 			config: {
 				art: {
@@ -1380,7 +1390,6 @@
 		//	Message Area Menu
 		///////////////////////////////////////////////////////////////////////
 		messageArea: {
-			module: msg_area
 			art: MSGMNU
 			desc: Message Area
 			prompt: menuCommand
@@ -1407,7 +1416,23 @@
 				}
 				{
 					value: { command: "G" }
-					action: @menu:logoff
+					action: @menu:fullLogoffSequence
+				}
+				{
+					value: { command: "<" }
+					action: @systemMethod:prevConf
+				}
+				{
+					value: { command: ">" }
+					action: @systemMethod:nextConf
+				}
+				{
+					value: { command: "[" }
+					action: @systemMethod:prevArea
+				}
+				{
+					value: { command: "]" }
+					action: @systemMethod:nextArea
 				}
 				{
 					value: 1
@@ -1774,7 +1799,7 @@
 		}
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		messageAreaNewPost: {
-			status: Posting message,
+			desc: Posting message,
 			module: msg_area_post_fse
 			config: {
 				art: {
@@ -1889,6 +1914,191 @@
 				}
 			}
 		}
+
+
+		//
+		//	User to User mail aka Email Menu
+		//
+		mailMenu: {
+			art: MAILMNU
+			desc: Mail Menu
+			prompt: menuCommand
+			submit: [
+				{
+					value: { command: "C" }
+					action: @menu:mailMenuCreateMessage
+				}
+				{
+					value: { command: "I" }
+					action: @menu:mailMenuInbox
+				}
+				{
+					value: { command: "Q" }
+					action: @systemMethod:prevMenu
+				}
+				{
+					value: { command: "G" }
+					action: @menu:fullLogoffSequence
+				}				
+				{
+					value: 1
+					action: @menu:mailMenu
+				}
+			]
+		}
+
+		mailMenuCreateMessage: {
+			desc: Mailing Someone
+			module: msg_area_post_fse
+			config: {
+				art: {
+					header:				MSGEHDR
+					body:				MSGBODY
+					footerEditor:		MSGEFTR
+					footerEditorMenu:	MSGEMFT
+					help:				MSGEHLP
+				},
+				editorMode: edit
+				editorType: email
+				messageAreaTag: private_mail
+			}
+			form: {
+				0: {
+					mci: {
+						TL1: {
+							argName: 	from
+						}
+						ET2: {
+							argName: to
+							focus: true
+							validate: @systemMethod:validateUserNameExists
+						}
+						ET3: {
+							argName: subject
+							maxLength: 72
+							submit: true
+							validate: @systemMethod:validateMessageSubject
+						}
+					}
+					submit: {
+						3: [
+							{
+								value: { subject: null }
+								action: @method:headerSubmit
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+				1: {
+					mci: {
+						MT1: {
+							width: 79
+							argName: message
+							mode: edit
+						}
+					}
+
+					submit: {
+						*: [ { value: "message", action: "@method:editModeEscPressed" } ]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							viewId: 1
+						}
+					]
+				},
+				2: {
+					TLTL:  {
+						mci: {
+							TL1: {
+								width: 5
+							}
+							TL2: {
+								width: 4
+							}
+						}
+					}
+				}
+				3: {
+					HM: {
+						mci: {
+							HM1: {
+								//	:TODO: clear
+								items: [ "save", "discard", "help" ]
+							}
+						}
+						submit: {
+							*: [
+								{
+									value: { 1: 0 }
+									action: @method:editModeMenuSave
+								}
+								{
+									value: { 1: 1 }
+									action: @systemMethod:prevMenu
+								}
+								{
+									value: { 1: 2 }
+									action: @method:editModeMenuHelp
+								}
+							]
+						}
+						actionKeys: [
+							{
+								keys: [ "escape" ]
+								action: @method:editModeEscPressed
+							}
+							{
+								keys: [ "?" ]
+								action: @method:editModeMenuHelp
+							}
+						]
+					}
+				}
+			}
+		}
+
+		mailMenuInbox: {
+			module: msg_list
+			art: MSGLIST
+			config: {
+				menuViewPost: messageAreaViewPost
+				messageAreaTag: private_mail
+			}
+			form: {
+				0: {
+					mci:  {
+						VM1: {
+							focus: true
+							submit: true
+							argName: message
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { message: null }
+								action: @method:selectMessage
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
 		////////////////////////////////////////////////////////////////////////
 		//	Required entries
 		////////////////////////////////////////////////////////////////////////
