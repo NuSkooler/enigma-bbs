@@ -46,7 +46,7 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 ### Via oputil.js
 `oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
 
-    optutil.js config --new
+   ./oputil.js config --new
 
 You wil be asked a series of basic questions.
 

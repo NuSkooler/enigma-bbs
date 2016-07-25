@@ -533,7 +533,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 							//
 							//	Locate matching action block
 							//
-							//	:TODO: this is bacially the same as for menus -- DRY it up!
+							//	:TODO: this is basically the same as for menus -- DRY it up!
 							for(var c = 0; c < menuSubmit.length; ++c) {
 								var actionBlock = menuSubmit[c];
 
