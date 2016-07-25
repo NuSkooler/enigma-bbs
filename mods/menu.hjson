@@ -945,6 +945,12 @@
 							}
 						]
 					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
 				}
 				1: {
 					mci: {
@@ -1235,12 +1241,14 @@
 							submit: true
 						}
 					}
+
 					actionKeys: [
 						{
 							keys: [ "escape" ]
 							action: @method:cancelSubmit
 						}
-						]
+					]
+
 					submit: {
 						*: [
 							{
@@ -1648,7 +1656,8 @@
 					]
 				}
 			}
-		},
+		}
+
 		messageAreaReplyPost: {
 			module: msg_area_post_fse
 			config: {
@@ -1688,8 +1697,19 @@
 						}
 					}
 					submit: {
-						3: [ { "value" : { "subject" : null }, "action"	: "@method:headerSubmit" } ]
+						3: [
+							{
+								value: { subject: null }
+								action: @method:headerSubmit
+							}
+						]
 					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
 				}
 				1: {
 					mci: {
@@ -1840,6 +1860,13 @@
 							}
 						]
 					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
 				}
 
 				1: {
