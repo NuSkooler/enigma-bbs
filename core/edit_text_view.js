@@ -1,14 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-var TextView		= require('./text_view.js').TextView;
-var miscUtil		= require('./misc_util.js');
-var strUtil			= require('./string_util.js');
-//var ansi			= require('./ansi_term.js');
+//	ENiGMA½
+const TextView		= require('./text_view.js').TextView;
+const miscUtil		= require('./misc_util.js');
+const strUtil		= require('./string_util.js');
 
-//var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+//	deps
+const _				= require('lodash');
 
 exports.EditTextView	= EditTextView;
 
@@ -23,8 +22,8 @@ function EditTextView(options) {
 	this.cursorPos = { row : 0, col : 0 };
 
 	this.clientBackspace = function() {
-		var fillCharSGR = this.getStyleSGR(1) || this.getSGR();
-		this.client.term.write('\b' + fillCharSGR + this.fillChar + '\b' + this.getFocusSGR());
+		const fillCharSGR = this.getStyleSGR(1) || this.getSGR();
+		this.client.term.write(`\b${fillCharSGR}${this.fillChar}\b${this.getFocusSGR()}`);
 	};
 }
 
@@ -69,8 +68,9 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 				this.cursorPos.col += 1;
 
 				if(_.isString(this.textMaskChar)) {
-					if(this.textMaskChar.length > 0)
+					if(this.textMaskChar.length > 0) {
 						this.client.term.write(this.textMaskChar);
+					}
 				} else {
 					this.client.term.write(ch);
 				}
