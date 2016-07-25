@@ -68,8 +68,9 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 			} else {
 				this.cursorPos.col += 1;
 
-				if(this.textMaskChar) {
-					this.client.term.write(this.textMaskChar);
+				if(_.isString(this.textMaskChar)) {
+					if(this.textMaskChar.length > 0)
+						this.client.term.write(this.textMaskChar);
 				} else {
 					this.client.term.write(ch);
 				}
