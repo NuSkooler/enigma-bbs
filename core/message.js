@@ -62,7 +62,7 @@ function Message(options) {
 	};
 
 	this.isPrivate = function() {
-		return this.areaTag === Message.WellKnownAreaTags.Private ? true : false;
+		return Message.isPrivateAreaTag(this.areaTag);
 	};
 
 	this.getMessageTimestampString = function(ts) {
@@ -75,6 +75,10 @@ Message.WellKnownAreaTags = {
 	Invalid		: '',
 	Private		: 'private_mail',
 	Bulletin	: 'local_bulletin',
+};
+
+Message.isPrivateAreaTag = function(areaTag) {
+	return areaTag.toLowerCase() === Message.WellKnownAreaTags.Private;
 };
 
 Message.SystemMetaNames = {
