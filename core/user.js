@@ -358,28 +358,6 @@ User.prototype.persistAllProperties = function(cb) {
 	assert(this.userId > 0);
 
 	this.persistProperties(this.properties, cb);
-
-	/*
-	var self = this;
-
-	var stmt = userDb.prepare(
-		'REPLACE INTO user_property (user_id, prop_name, prop_value) ' + 
-		'VALUES (?, ?, ?);');
-
-	async.each(Object.keys(this.properties), function property(propName, callback) {
-		stmt.run(self.userId, propName, self.properties[propName], function onRun(err) {
-			callback(err);
-		});
-	}, function complete(err) {
-		if(err) {
-			cb(err);
-		} else {
-			stmt.finalize(function finalized() {
-				cb(null);
-			});
-		}
-	});
-*/
 };
 
 User.prototype.setNewAuthCredentials = function(password, cb) {

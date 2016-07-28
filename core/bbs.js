@@ -149,49 +149,58 @@ function initialize(cb) {
 			function initDatabases(callback) {
 				database.initializeDatabases(callback);
 			},
-			function initSystemProperties(callback) {
-				require('./system_property.js').loadSystemProperties(callback);
+			function initStatLog(callback) {
+				require('./stat_log.js').init(callback);
 			},
 			function initThemes(callback) {
 				//	Have to pull in here so it's after Config init
-				var theme = require('./theme.js');
-				theme.initAvailableThemes(function onThemesInit(err, themeCount) {
+				require('./theme.js').initAvailableThemes(function onThemesInit(err, themeCount) {
 					logger.log.info({ themeCount : themeCount }, 'Themes initialized');
 					callback(err);
 				});
 			},
-			function loadSysOpInformation(callback) {
+			function loadSysOpInformation2(callback) {
 				//
-				//	If user 1 has been created, we have a SysOp. Cache some information
-				//	into Config.
-				//
-				var user = require('./user.js');	//	must late load
+				//	Copy over some +op information from the user DB -> system propertys.
+				//	* Makes this accessible for MCI codes, easy non-blocking access, etc.
+				//	* We do this every time as the op is free to change this information just
+				//	  like any other user
+				//				
+				const user		= require('./user.js');
 
-				user.getUserName(1, function unLoaded(err, sysOpUsername) {
-					if(err) {
-						callback(null);	//	non-fatal here
-					} else {
-						//
-						//	Load some select properties to cache
-						//
-						var propLoadOpts = {
-							userId	: 1,
-							names	: [ 'real_name', 'sex', 'email_address' ],
-						};
+				async.waterfall(
+					[
+						function getOpUserName(next) {
+							return user.getUserName(1, next);
+						},
+						function getOpProps(opUserName, next) {
+							const propLoadOpts = {
+								userId	: 1,
+								names	: [ 'real_name', 'sex', 'email_address', 'location', 'affiliation' ],
+							};
+							user.loadProperties(propLoadOpts, (err, opProps) => {
+								return next(err, opUserName, opProps);
+							});
+						}
+					],
+					(err, opUserName, opProps) => {
+						const StatLog = require('./stat_log.js');
 
-						user.loadProperties(propLoadOpts, function propsLoaded(err, props) {
-							if(!err) {
-								conf.config.general.sysOp = {
-									username	: sysOpUsername,
-									properties	: props,
-								};
+						if(err) {
+							[ 'username', 'real_name', 'sex', 'email_address', 'location', 'affiliation' ].forEach(v => {
+								StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
+							});
+						} else {
+							opProps.username = opUserName;
 
-								logger.log.info( { sysOp : conf.config.general.sysOp }, 'System Operator information cached');
-							}
-							callback(null);	//	any error is again, non-fatal here
-						});
+							_.each(opProps, (v, k) => {
+								StatLog.setNonPeristentSystemStat(`sysop_${k}`, v); 
+							});
+						}
+
+						return callback(null);
 					}
-				});
+				);
 			},
 			function readyMessageNetworkSupport(callback) {
 				require('./msg_network.js').startup(callback);	

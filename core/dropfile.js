@@ -2,11 +2,11 @@
 'use strict';
 
 var Config			= require('./config.js').config;
+const StatLog		= require('./stat_log.js');
 
 var fs				= require('fs');
 var paths			= require('path');
 var _				= require('lodash');
-var async			= require('async');
 var moment			= require('moment');
 var iconv			= require('iconv-lite');
 
@@ -121,7 +121,7 @@ function DropFile(client, fileType) {
 			moment(up.birthdate).format('MM/DD/YY'),			//	"Caller's Birthdate"
 			'X:\\MAIN\\',										//	"Path to the MAIN directory (where User File is)"
 			'X:\\GEN\\',										//	"Path to the GEN directory"
-			Config.general.sysOp.username,						//	"Sysop's Name (name BBS refers to Sysop as)"
+			StatLog.getSystemStat('sysop_username'),			//	"Sysop's Name (name BBS refers to Sysop as)"
 			self.client.user.username,							//	"Alias name"
 			'00:05',											//	"Event time                        (hh:mm)" (note: wat?)
 			'Y',												//	"If its an error correcting connection (Y/N)"
@@ -143,7 +143,7 @@ function DropFile(client, fileType) {
 			'0',												//	"Total Doors Opened"
 			'0',												//	"Total Messages Left"
 
-			].join('\r\n') + '\r\n', 'cp437');
+		].join('\r\n') + '\r\n', 'cp437');
 	};
 
 	this.getDoor32Buffer = function() {
@@ -178,7 +178,7 @@ function DropFile(client, fileType) {
 		//
 		//	Note that usernames are just used for first/last names here
 		//
-		var opUn		= /[^\s]*/.exec(Config.general.sysOp.username)[0];
+		var opUn		= /[^\s]*/.exec(StatLog.getSystemStat('sysop_username'))[0];
 		var un			= /[^\s]*/.exec(self.client.user.username)[0];
 		var secLevel	= self.client.user.getLegacySecurityLevel().toString();
 

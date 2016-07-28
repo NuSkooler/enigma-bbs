@@ -2,12 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const Config				= require('./config.js').config;
-const Log					= require('./logger.js').log;
-const getMessageAreaByTag	= require('./message_area.js').getMessageAreaByTag;
-const getMessageConferenceByTag       = require('./message_area.js').getMessageConferenceByTag;
-const clientConnections		= require('./client_connections.js');
-const sysProp				= require('./system_property.js');
+const Config							= require('./config.js').config;
+const Log								= require('./logger.js').log;
+const getMessageAreaByTag				= require('./message_area.js').getMessageAreaByTag;
+const getMessageConferenceByTag			= require('./message_area.js').getMessageConferenceByTag;
+const clientConnections					= require('./client_connections.js');
+const StatLog							= require('./stat_log.js');
 
 //	deps
 const packageJson 			= require('../package.json');
@@ -34,9 +34,14 @@ function getPredefinedMCIValue(client, code) {
 			VL	: function versionLabel() { return 'ENiGMA½ v' + packageJson.version; },
 			VN	: function version() { return packageJson.version; },
 
-			//	:TODO: SysOp username
-			//	:TODO: SysOp real name
-
+			//	+op info
+			SN	: function opUserName() { return StatLog.getSystemStat('sysop_username'); },
+			SR	: function opRealName() { return StatLog.getSystemStat('sysop_real_name'); },
+			SL	: function opLocation() { return StatLog.getSystemStat('sysop_location'); },
+			SA	: function opAffils() { return StatLog.getSystemStat('sysop_affiliation'); },
+			SS	: function opSex() { return StatLog.getSystemStat('sysop_sex'); },
+			SE	: function opEmail() { return StatLog.getSystemStat('sysop_email_address'); },
+			//	:TODO: op age, web, ?????
 
 			//
 			//	Current user / session
@@ -60,6 +65,16 @@ function getPredefinedMCIValue(client, code) {
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },
+			PS	: function userPostCount() {
+				const postCount = client.user.properties.post_count || 0; 
+				return postCount.toString();
+			},
+			PC	: function userPostCallRatio() {
+				const postCount = client.user.properties.post_count || 0;
+				const callCount	= client.user.properties.login_count;
+				const ratio		= ~~((postCount / callCount) * 100);
+				return `${ratio}%`;
+			},
 
 			MD	: function currentMenuDescription() {
 				return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
@@ -73,10 +88,13 @@ function getPredefinedMCIValue(client, code) {
 				const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
 				return conf ? conf.name : '';
 			},
-
 			ML  : function messageAreaDescription() {
 				const area = getMessageAreaByTag(client.user.properties.message_area_tag);
 				return area ? area.desc : '';
+			},
+			CM	: function messageConfDescription() {
+				const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+				return conf ? conf.desc : '';
 			},
 
 			SH	: function termHeight() { return client.term.termHeight.toString(); },
@@ -103,7 +121,7 @@ function getPredefinedMCIValue(client, code) {
 			},
 
 			OA	: function systemArchitecture() { return os.arch(); },
-			SC		: function systemCpuModel() {
+			SC	: function systemCpuModel() {
 				//
 				//	Clean up CPU strings a bit for better display
 				//
@@ -114,11 +132,11 @@ function getPredefinedMCIValue(client, code) {
 			//	:TODO: MCI for core count, e.g. os.cpus().length
 
 			//	:TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
-			//	:TODO: Node version/info
+			NV	: function nodeVersion() { return process.version; },
 
 			AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
-			TC	: function totalCalls() { return sysProp.getSystemProperty('login_count').toString(); },
+			TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toString(); },
 
 			//
 			//	Special handling for XY

@@ -1,16 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var setClientTheme		= require('./theme.js').setClientTheme;
-var clientConnections	= require('./client_connections.js').clientConnections;
-var userDb				= require('./database.js').dbs.user;
-var sysProp				= require('./system_property.js');
-var logger				= require('./logger.js');
-var Config				= require('./config.js').config;
+//	ENiGMA½
+const setClientTheme	= require('./theme.js').setClientTheme;
+const clientConnections	= require('./client_connections.js').clientConnections;
+const userDb			= require('./database.js').dbs.user;
+const StatLog			= require('./stat_log.js');
+const logger			= require('./logger.js');
 
-var async				= require('async');
-var _					= require('lodash');
-var assert				= require('assert');
+//	deps
+const async				= require('async');
 
 exports.userLogin		= userLogin;
 
@@ -24,8 +23,8 @@ function userLogin(client, username, password, cb) {
 
 			cb(err);
 		} else {
-			var now		= new Date();
-			var user	= client.user;
+			const now	= new Date();
+			const user	= client.user;
 
 			//
 			//	Ensure this user is not already logged in.
@@ -60,46 +59,21 @@ function userLogin(client, username, password, cb) {
 
 			async.parallel(
 				[
-                    function setTheme(callback) {
-                        setClientTheme(client, user.properties.theme_id);
-                        callback(null);
-                    },
+					function setTheme(callback) {
+						setClientTheme(client, user.properties.theme_id);
+						callback(null);
+					},
 					function updateSystemLoginCount(callback) {
-						var sysLoginCount = sysProp.getSystemProperty('login_count') || 0;
-						sysLoginCount = parseInt(sysLoginCount, 10) + 1;
-						sysProp.persistSystemProperty('login_count', sysLoginCount, callback);
+						StatLog.incrementSystemStat('login_count', 1, callback);
 					},
 					function recordLastLogin(callback) {
-						user.persistProperty('last_login_timestamp', now.toISOString(), function persisted(err) {
-							callback(err);
-						});
+						StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
 					},
 					function updateUserLoginCount(callback) {
-						if(!user.properties.login_count) {
-							user.properties.login_count = 1;
-						} else {
-							user.properties.login_count++;
-						}
-						
-						user.persistProperty('login_count', user.properties.login_count, function persisted(err) {
-							callback(err);
-						});
+						StatLog.incrementUserStat(user, 'login_count', 1, callback);						
 					},
 					function recordLoginHistory(callback) {
-						userDb.serialize(function serialized() {
-							userDb.run(
-								'INSERT INTO user_login_history (user_id, user_name, timestamp) ' +
-								'VALUES(?, ?, ?);', [ user.userId, user.username, now.toISOString() ]
-							);
-
-							//	keep 30 days of records
-							userDb.run(
-								'DELETE FROM user_login_history '	+
-								'WHERE timestamp <= DATETIME("now", "-30 day");'
-								);
-						});
-
-						callback(null);
+						StatLog.appendSystemLogEntry('user_login_history', user.userId, 30, callback);
 					}
 				],
 				function complete(err) {

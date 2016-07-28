@@ -38,6 +38,9 @@ function AreaPostFSEModule(options) {
 				},
 				function saveMessage(callback) {
 					return persistMessage(msg, callback);
+				},
+				function updateStats(callback) {
+					self.updateUserStats(callback);
 				}
 			],
 			function complete(err) {

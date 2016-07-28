@@ -1,15 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('../core/menu_module.js').MenuModule;
-var userDb				= require('../core/database.js').dbs.user;
-var ViewController		= require('../core/view_controller.js').ViewController;
-var getSystemLoginHistory	= require('../core/stats.js').getSystemLoginHistory;
+//	ENiGMA½
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const ViewController	= require('../core/view_controller.js').ViewController;
+const StatLog			= require('../core/stat_log.js');
+const getUserName		= require('../core/user.js').getUserName;
+const loadProperties	= require('../core/user.js').loadProperties;
 
-var moment				= require('moment');
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+//	deps
+const moment			= require('moment');
+const async				= require('async');
+const _					= require('lodash');
 
 /*
 	Available listFormat object members:
@@ -41,11 +43,11 @@ function LastCallersModule(options) {
 require('util').inherits(LastCallersModule, MenuModule);
 
 LastCallersModule.prototype.mciReady = function(mciData, cb) {
-	var self		= this;
-	var vc			= self.viewControllers.allViews = new ViewController( { client : self.client } );
+	const self		= this;
+	const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
 
-	var loginHistory;
-	var callersView;
+	let loginHistory;
+	let callersView;
 
 	async.series(
 		[
@@ -53,7 +55,7 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 				LastCallersModule.super_.prototype.mciReady.call(self, mciData, callback);
 			},
 			function loadFromConfig(callback) {
-				var loadOpts = {
+				const loadOpts = {
 					callingMenu		: self,
 					mciMap			: mciData.menu,
 					noInput			: true,
@@ -64,51 +66,53 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 			function fetchHistory(callback) {
 				callersView = vc.getView(MciCodeIds.CallerList);
 
-				getSystemLoginHistory(callersView.dimens.height, function historyRetrieved(err, lh) {
+				StatLog.getSystemLogEntries('user_login_history', 'timestamp_desc', callersView.dimens.height, (err, lh) => {
 					loginHistory = lh;
-					callback(err);
+					return callback(err);
 				});
 			},
-			function fetchUserProperties(callback) {
-				async.each(loginHistory, function entry(histEntry, next) {
-					userDb.each(
-						'SELECT prop_name, prop_value '	+ 
-						'FROM user_property '			+
-						'WHERE user_id=? AND (prop_name="location" OR prop_name="affiliation");',
-						[ histEntry.userId ],
-						function propRow(err, propEntry) {
-							histEntry[propEntry.prop_name] = propEntry.prop_value;
-						},
-						function complete(err) {
-							next();
-						}
-					);
-				}, function complete(err) {
-					callback(err);
-				});
+			function getUserNamesAndProperties(callback) {
+				const getPropOpts = {
+					names		: [ 'location', 'affiliation' ]
+				};
+
+				const dateTimeFormat = self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
+
+				async.each(
+					loginHistory, 
+					(item, next) => {
+						item.userId = parseInt(item.log_value);
+						item.ts		= moment(item.timestamp).format(dateTimeFormat);						
+
+						getUserName(item.userId, (err, userName) => {
+							item.userName		= userName;
+							getPropOpts.userId	= item.userId;
+
+							loadProperties(getPropOpts, (err, props) => {
+								if(!err) {
+									item.location 		= props.location;
+									item.affiliation	= item.affils = props.affiliation;
+								} 
+								return next();
+							});
+						});
+					},
+					callback
+				);
 			},
 			function populateList(callback) {
-				var listFormat 	= self.menuConfig.config.listFormat || '{userName} - {location} - {affils} - {ts}';
-				var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
+				const listFormat = self.menuConfig.config.listFormat || '{userName} - {location} - {affils} - {ts}';
 
-				callersView.setItems(_.map(loginHistory, function formatCallEntry(ce) {
-					return listFormat.format({
-						userId		: ce.userId,
-						userName	: ce.userName,
-						ts			: moment(ce.timestamp).format(dateTimeFormat),
-						location	: ce.location,
-						affils		: ce.affiliation,
-					});
-				}));
+				callersView.setItems(_.map(loginHistory, ce => listFormat.format(ce) ) );
 
 				//	:TODO: This is a hack until pipe codes are better implemented
 				callersView.focusItems = callersView.items;
 
 				callersView.redraw();
-				callback(null);
+				return callback(null);
 			}
 		],
-		function complete(err) {
+		(err) => {
 			if(err) {
 				self.client.log.error( { error : err.toString() }, 'Error loading last callers');
 			}

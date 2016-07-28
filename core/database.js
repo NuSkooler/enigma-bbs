@@ -100,26 +100,36 @@ function createSystemTables() {
 
 	dbs.system.run('PRAGMA foreign_keys = ON;');
 
+	//	Various stat/event logging - see stat_log.js
 	dbs.system.run(
-		'CREATE TABLE IF NOT EXISTS system_property ('		+
-		'	prop_name		VARCHAR PRIMARY KEY NOT NULL,'	+
-		'	prop_value		VARCHAR NOT NULL'				+
-		');'
-		);
+		`CREATE TABLE IF NOT EXISTS system_stat (
+			stat_name		VARCHAR PRIMARY KEY NOT NULL,
+			stat_value		VARCHAR NOT NULL
+		);`
+	);
 
-	//
-	//	system_log can round log_timestamp for daily, monthly, etc.
-	//	statistics as well as unique entries.
-	//
-/*
 	dbs.system.run(
-		'CREATE TABLE IF NOT EXISTS system_log ('					+
-			'	log_timestamp	DATETIME PRIMARY KEY NOT NULL (	'	+
-			'	log_name		VARCHARNOT NULL,'					+
-			'	log_value		VARCHAR NOT NULL,'					+
-			'	UNIQUE(log_timestamp, log_name)'					+
-			');'
-		);*/
+		`CREATE TABLE IF NOT EXISTS system_event_log (
+			id				INTEGER PRIMARY KEY,
+			timestamp		DATETIME NOT NULL,
+			log_name		VARCHAR NOT NULL,
+			log_value		VARCHAR NOT NULL,
+
+			UNIQUE(timestamp, log_name)
+		);`
+	);
+
+	dbs.system.run(
+		`CREATE TABLE IF NOT EXISTS user_event_log (
+			id				INTEGER PRIMARY KEY,
+			timestamp		DATETIME NOT NULL,
+			user_id			INTEGER NOT NULL,
+			log_name		VARCHAR NOT NULL,
+			log_value		VARCHAR NOT NULL,
+
+			UNIQUE(timestamp, user_id, log_name)
+		);`
+	);
 }
 
 function createUserTables() {

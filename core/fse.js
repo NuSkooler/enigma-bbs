@@ -1,6 +1,7 @@
 /* jslint node: true */
 'use strict';
 
+//	ENiGMA½
 const MenuModule					= require('../core/menu_module.js').MenuModule;
 const ViewController				= require('../core/view_controller.js').ViewController;
 const ansi							= require('../core/ansi_term.js');
@@ -10,7 +11,10 @@ const getMessageAreaByTag			= require('../core/message_area.js').getMessageAreaB
 const updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
 const getUserIdAndName				= require('../core/user.js').getUserIdAndName;
 const cleanControlCodes				= require('../core/string_util.js').cleanControlCodes;
+const StatLog						= require('./stat_log.js');
 
+
+//	deps
 const async							= require('async');
 const assert						= require('assert');
 const _								= require('lodash');
@@ -292,6 +296,21 @@ function FullScreenEditorModule(options) {
 			function complete(err) {
 				cb(err, self.message);
 			}
+		);
+	};
+
+	this.updateUserStats = function(cb) {
+		if(Message.isPrivateAreaTag(this.message.areaTag)) {
+			if(cb) {
+				return cb(null);
+			}
+		}
+
+		StatLog.incrementUserStat(
+			self.client.user,
+			'post_count',
+			1,
+			cb
 		);
 	};
 
