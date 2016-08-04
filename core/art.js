@@ -1,19 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var fs			= require('fs');
-var paths		= require('path');
-var assert		= require('assert');
-var iconv		= require('iconv-lite');
+//	ENiGMA½
 var conf		= require('./config.js');
 var miscUtil	= require('./misc_util.js');
-var binary		= require('binary');
-var events		= require('events');
-var util		= require('util');
 var ansi		= require('./ansi_term.js');
 var aep			= require('./ansi_escape_parser.js');
 var sauce		= require('./sauce.js');
 
+//	deps
+var fs			= require('fs');
+var paths		= require('path');
+var assert		= require('assert');
+var iconv		= require('iconv-lite');
 var _			= require('lodash');
 
 exports.getArt							= getArt;
@@ -190,7 +189,7 @@ function getArt(name, options, cb) {
 			}
 			return true;
 		});
-	  
+
 		if(filtered.length > 0) {
 			//
 			//  We should now have:
@@ -207,7 +206,7 @@ function getArt(name, options, cb) {
 
 			getArtFromPath(readPath, options, cb);
 		} else {
-			cb(new Error('No matching art for supplied criteria'));
+			return cb(new Error(`No matching art for supplied criteria: ${name}`));
 		}
 	});
 }
