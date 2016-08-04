@@ -72,6 +72,24 @@
 				}
 			}
 		},
+
+		messageMenuCommand: {
+			art: MSGPMPT
+			mci:  {
+				TL1: {
+					//	theme me!
+				}
+				ET2: {
+					argName: command
+					width: 20
+					maxLength: 20
+					submit: true
+					textStyle: upper
+					focus: true
+				}
+			}
+		},
+
 		"newAreaPostPrompt" : {
 			"art"	: "message_area_new_post",
 			"mci"	: {

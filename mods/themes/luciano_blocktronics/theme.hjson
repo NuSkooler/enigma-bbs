@@ -455,5 +455,15 @@
 				}
 			}
 		}
+
+		prompts: {
+			messageMenuCommand: {
+				mci: {
+					TL1: {
+						text: "|00|15|MD|08: |03|MC|08>>|11|MA"
+					}
+				}
+			}
+		}
 	}
 }

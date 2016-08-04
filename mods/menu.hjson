@@ -1400,7 +1400,7 @@
 		messageArea: {
 			art: MSGMNU
 			desc: Message Area
-			prompt: menuCommand
+			prompt: messageMenuCommand
 			submit: [
 				{
 					value: { command: "P" }
