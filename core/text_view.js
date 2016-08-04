@@ -1,13 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-var View			= require('./view.js').View;
-var miscUtil		= require('./misc_util.js');
-var strUtil			= require('./string_util.js');
-var ansi			= require('./ansi_term.js');
+//	ENiGMA½
+const View					= require('./view.js').View;
+const miscUtil				= require('./misc_util.js');
+const ansi					= require('./ansi_term.js');
+const padStr				= require('./string_util.js').pad;
+const stylizeString			= require('./string_util.js').stylizeString;
+const renderSubstr			= require('./string_util.js').renderSubstr;
+const renderStringLength	= require('./string_util.js').renderStringLength;
+const pipeToAnsi			= require('./color_codes.js').pipeToAnsi;
 
-var util			= require('util');
-var _				= require('lodash');
+//	deps
+const util			= require('util');
+const _				= require('lodash');
 
 exports.TextView			= TextView;
 
@@ -39,6 +45,7 @@ function TextView(options) {
 		this.textMaskChar = options.textMaskChar;
 	}
 
+	/*
 	this.drawText = function(s) {
 
 		//             
@@ -47,16 +54,11 @@ function TextView(options) {
 		//	|ABCDEFG|  ^_ this.text.length
 		//	        ^-- this.dimens.width
 		//
-		var textToDraw = _.isString(this.textMaskChar) ? 
+		let textToDraw = _.isString(this.textMaskChar) ? 
 			new Array(s.length + 1).join(this.textMaskChar) : 
-			strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+			stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
 		
-		//	:TODO: Add pipe code support
-
 		if(textToDraw.length > this.dimens.width) {
-			//	XXXXXXXXXXXXXXXXX
-			//	this is the text but too long
-			//	text but too long
 			if(this.hasFocus) {
 				if(this.horizScroll) {
 					textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
@@ -75,7 +77,52 @@ function TextView(options) {
 			}
 		}
 
-		this.client.term.write(strUtil.pad(
+		this.client.term.write(padStr(
+			textToDraw,
+			this.dimens.width + 1,
+			this.fillChar,
+			this.justify,
+			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
+			this.getStyleSGR(1) || this.getSGR()
+			), false);
+	};
+	*/
+	this.drawText = function(s) {
+
+		//             
+		//                     |<- this.maxLength
+		//	 ABCDEFGHIJK
+		//	|ABCDEFG|  ^_ this.text.length
+		//	        ^-- this.dimens.width
+		//
+		let renderLength = renderStringLength(s);	//	initial; may be adjusted below:
+
+		let textToDraw = _.isString(this.textMaskChar) ? 
+			new Array(renderLength + 1).join(this.textMaskChar) : 
+			stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+		
+		renderLength = renderStringLength(textToDraw);
+		
+		if(renderLength > this.dimens.width) {
+			if(this.hasFocus) {
+				if(this.horizScroll) {
+					textToDraw = renderSubstr(textToDraw, renderLength - this.dimens.width, renderLength);
+				}
+			} else {
+				if(renderLength > this.dimens.width) {
+					if(this.textOverflow && 
+						this.dimens.width > this.textOverflow.length &&
+						renderLength - this.textOverflow.length >= this.textOverflow.length)
+					{
+						textToDraw = renderSubstr(textToDraw, 0, this.dimens.width - this.textOverflow.length) + this.textOverflow;						
+					} else {
+						textToDraw = renderSubstr(textToDraw, 0, this.dimens.width);
+					}
+				}				
+			}
+		}
+
+		this.client.term.write(padStr(
 			textToDraw,
 			this.dimens.width + 1,
 			this.fillChar,
@@ -120,6 +167,36 @@ TextView.prototype.getData = function() {
 TextView.prototype.setText = function(text) {
 	if(!_.isString(text)) {
 		text = text.toString();
+	}
+
+	text = pipeToAnsi(text, this.client);	//	expand MCI/etc.	
+
+	var widthDelta = 0;
+	if(this.text && this.text !== text) {
+		widthDelta = Math.abs(this.text.length - text.length);
+	}
+
+	this.text = text;
+
+	if(this.maxLength > 0) {
+		this.text = renderSubstr(this.text, 0, this.maxLength);
+		//this.text = this.text.substr(0, this.maxLength);
+	}
+
+	//	:TODO: it would be nice to be able to stylize strings with MCI and {special} MCI syntax, e.g. "|BN {UN!toUpper}"
+	this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
+
+	if(this.autoScale.width) {
+		this.dimens.width = this.text.length + widthDelta;
+	}
+
+	this.redraw();
+};
+
+/*
+TextView.prototype.setText = function(text) {
+	if(!_.isString(text)) {
+		text = text.toString();
 	}	
 
 	var widthDelta = 0;
@@ -133,18 +210,26 @@ TextView.prototype.setText = function(text) {
 		this.text = this.text.substr(0, this.maxLength);
 	}
 
-	this.text = strUtil.stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
+	this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
 
-	/*
-	if(this.resizable) {
-		this.dimens.width = this.text.length + widthDelta;
-	}
-	*/
+	//if(this.resizable) {
+	//	this.dimens.width = this.text.length + widthDelta;
+	//}
+
 	if(this.autoScale.width) {
 		this.dimens.width = this.text.length + widthDelta;
 	}
 
 	this.redraw();
+};
+*/
+
+TextView.prototype.setFormatObject = function(obj) {
+	if(!_.isObject(obj) || !this.text) {
+		return;
+	}
+
+	this.setText(this.text.format(obj));
 };
 
 TextView.prototype.clearText = function() {
@@ -160,8 +245,9 @@ TextView.prototype.setPropertyValue = function(propName, value) {
 		if(true === value) {
 			this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
 		}
-		break;
+		break;	
 	}
+	
 
 	TextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };

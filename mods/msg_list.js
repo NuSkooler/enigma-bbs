@@ -116,6 +116,8 @@ function MessageListModule(options) {
 
 require('util').inherits(MessageListModule, MenuModule);
 
+require('../core/mod_mixins.js').MessageAreaConfTempSwitcher.call(MessageListModule.prototype);
+
 MessageListModule.prototype.enter = function() {
 	MessageListModule.super_.prototype.enter.call(this);
 
@@ -124,23 +126,14 @@ MessageListModule.prototype.enter = function() {
 	//	the user's current area
 	//
 	if(this.messageAreaTag) {
-		this.prevMessageConfAndArea = {
-			confTag	: this.client.user.properties.message_conf_tag,
-			areaTag	: this.client.user.properties.message_area_tag,		
-		};
-		if(!messageArea.tempChangeMessageConfAndArea(this.client, this.messageAreaTag)) {
-			//	:TODO: Really, checks should have been done & failed before this, but log here!
-		}
+		this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
 	} else {
 		this.messageAreaTag = this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
 };
 
 MessageListModule.prototype.leave = function() {
-	if(this.prevMessageConfAndArea) {
-		this.client.user.properties.message_conf_tag = this.prevMessageConfAndArea.confTag;
-		this.client.user.properties.message_area_tag = this.prevMessageConfAndArea.areaTag;		
-	}
+	this.tempMessageConfAndAreaRestore();
 
 	MessageListModule.super_.prototype.leave.call(this);
 };

@@ -7,10 +7,10 @@ var getPredefinedMCIValue	= require('./predefined_mci.js').getPredefinedMCIValue
 var assert					= require('assert');
 var _						= require('lodash');
 
-exports.enigmaToAnsi	= enigmaToAnsi;
-exports.stripPipeCodes	= exports.stripEnigmaCodes		= stripEnigmaCodes;
-exports.pipeStrLen		= exports.enigmaStrLen			= enigmaStrLen;
-exports.pipeToAnsi		= exports.renegadeToAnsi		= renegadeToAnsi;
+exports.enigmaToAnsi		= enigmaToAnsi;
+exports.stripPipeCodes		= exports.stripEnigmaCodes		= stripEnigmaCodes;
+exports.pipeStrLen			= exports.enigmaStrLen			= enigmaStrLen;
+exports.pipeToAnsi			= exports.renegadeToAnsi		= renegadeToAnsi;
 
 //	:TODO: Not really happy with the module name of "color_codes". Would like something better
 
@@ -91,7 +91,7 @@ function renegadeToAnsi(s, client) {
 	var result	= '';
 	var re		= /\|([A-Z\d]{2}|\|)/g;
 	var m;
-    var lastIndex = 0;
+	var lastIndex = 0;
 	while((m = re.exec(s))) {
 		var val = m[1];
 
@@ -141,10 +141,8 @@ function renegadeToAnsi(s, client) {
 			result += s.substr(lastIndex, m.index - lastIndex) + attr;
 		}
 
-        lastIndex = re.lastIndex;
+		lastIndex = re.lastIndex;
 	}
 
-    result = (0 === result.length ? s : result + s.substr(lastIndex));
-    
-    return result;	
+	return (0 === result.length ? s : result + s.substr(lastIndex));	
 }

@@ -71,7 +71,7 @@ var MCICodeIds = {
 		From			: 1,
 		To				: 2,
 		Subject			: 3,
-		AreaName		: 4,
+		
 		DateTime		: 5,
 		MsgNum			: 6,
 		MsgTotal		: 7,
@@ -196,10 +196,9 @@ function FullScreenEditorModule(options) {
 
 		if(self.isViewMode()) {
 			return {
-				from	: vc.getView(1),
-				to		: vc.getView(2),
-				subject	: vc.getView(3),
-				areaName	: vc.getView(4),
+				from		: vc.getView(1),
+				to			: vc.getView(2),
+				subject		: vc.getView(3),
 
 				dateTime	: vc.getView(5),
 				msgNum		: vc.getView(7),
@@ -551,28 +550,26 @@ function FullScreenEditorModule(options) {
 				function setInitialData(callback) {
 
 					switch(self.editorMode) {						
-						case 'view' :
-							if(self.message) {
-								self.initHeaderViewMode();
-								self.initFooterViewMode();
+					case 'view' :
+						if(self.message) {
+							self.initHeaderViewMode();
+							self.initFooterViewMode();
 
-								var bodyMessageView = self.viewControllers.body.getView(1);
-								if(bodyMessageView && _.has(self, 'message.message')) {
-									//self.setBodyMessageViewText();
-									bodyMessageView.setText(cleanControlCodes(self.message.message));
-								}
+							var bodyMessageView = self.viewControllers.body.getView(1);
+							if(bodyMessageView && _.has(self, 'message.message')) {
+								//self.setBodyMessageViewText();
+								bodyMessageView.setText(cleanControlCodes(self.message.message));
 							}
-							break;
-							
-						case 'edit' :
-							self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
+						}
+						break;
+						
+					case 'edit' :
+						self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
 
-							if(self.replyToMessage) {
-								self.initHeaderReplyEditMode();
-							} else {
-								self.initHeaderNewEditMode();
-							}
-							break;
+						if(self.replyToMessage) {
+							self.initHeaderReplyEditMode();
+						}
+						break;
 					}
 
 					callback(null);
@@ -580,14 +577,14 @@ function FullScreenEditorModule(options) {
 				function setInitialFocus(callback) {
 					
 					switch(self.editorMode) {
-						case 'edit' :							
-							self.switchToHeader();
-							break;
+					case 'edit' :							
+						self.switchToHeader();
+						break;
 
-						case 'view' :
-							self.switchToFooter();
-							//self.observeViewPosition();
-							break;
+					case 'view' :
+						self.switchToFooter();
+						//self.observeViewPosition();
+						break;
 					}
 
 					callback(null);
@@ -655,20 +652,14 @@ function FullScreenEditorModule(options) {
 		}
 	};
 
-	this.initHeaderGeneric = function() {
-		self.setHeaderText(MCICodeIds.ViewModeHeader.AreaName,		getMessageAreaByTag(self.messageAreaTag).name);
-	};
-
 	this.initHeaderViewMode = function() {
 		assert(_.isObject(self.message));
-
-		self.initHeaderGeneric();
 		
 		self.setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.To,				self.message.toUserName);
+		self.setHeaderText(MCICodeIds.ViewModeHeader.To,			self.message.toUserName);
 		self.setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
 		self.setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,			(self.messageIndex + 1).toString());
+		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,		(self.messageIndex + 1).toString());
 		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
 		self.setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
 		self.setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
@@ -676,14 +667,8 @@ function FullScreenEditorModule(options) {
 		self.setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
 	};
 
-	this.initHeaderNewEditMode = function() {
-		self.initHeaderGeneric();
-	};
-
 	this.initHeaderReplyEditMode = function() {
 		assert(_.isObject(self.replyToMessage));
-
-		self.initHeaderGeneric();
 
 		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
 
@@ -991,8 +976,20 @@ function FullScreenEditorModule(options) {
 
 require('util').inherits(FullScreenEditorModule, MenuModule);
 
-FullScreenEditorModule.prototype.enter = function() {	
+require('./mod_mixins.js').MessageAreaConfTempSwitcher.call(FullScreenEditorModule.prototype);
+
+FullScreenEditorModule.prototype.enter = function() {
+
+	if(this.messageAreaTag) {
+		this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
+	}
+
 	FullScreenEditorModule.super_.prototype.enter.call(this);
+};
+
+FullScreenEditorModule.prototype.leave = function() {
+	this.tempMessageConfAndAreaRestore();
+	FullScreenEditorModule.super_.prototype.leave.call(this);
 };
 
 FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {

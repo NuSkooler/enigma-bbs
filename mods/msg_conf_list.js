@@ -2,9 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule		= require('../core/menu_module.js').MenuModule;
-const ViewController	= require('../core/view_controller.js').ViewController;
-const messageArea		= require('../core/message_area.js');
+const MenuModule			= require('../core/menu_module.js').MenuModule;
+const ViewController		= require('../core/view_controller.js').ViewController;
+const messageArea			= require('../core/message_area.js');
+const displayThemeArt		= require('../core/theme.js').displayThemeArt;
+const displayThemedPause	= require('../core/theme.js').displayThemedPause;
+const resetScreen			= require('../core/ansi_term.js').resetScreen;
 
 //	deps
 const async				= require('async');
@@ -33,10 +36,18 @@ function MessageConfListModule(options) {
 
 	this.messageConfs = messageArea.getSortedAvailMessageConferences(self.client);
 
+	this.prevMenuOnTimeout = function(timeout, cb) {
+		setTimeout( () => {
+			self.prevMenu(cb);
+		}, timeout);
+	};
+
 	this.menuMethods = {
 		changeConference : function(formData, extraArgs, cb) {
 			if(1 === formData.submitId) {
-				const confTag = self.messageConfs[formData.value.conf].confTag;
+				let conf		= self.messageConfs[formData.value.conf];
+				const confTag	= conf.confTag;
+				conf = conf.conf;	//	what we want is embedded 
 
 				messageArea.changeMessageConference(self.client, confTag, err => {
 					if(err) {						
@@ -46,7 +57,27 @@ function MessageConfListModule(options) {
 							return self.prevMenu(cb);
 						}, 1000);
 					} else {
-						return self.prevMenu(cb);
+						if(_.isString(conf.art)) {
+							const dispOptions = {
+								client	: self.client,
+								name	: conf.art,
+							};
+
+							self.client.term.rawWrite(resetScreen());
+
+							displayThemeArt(dispOptions, () => {
+								//	pause by default, unless explicitly told not to
+								if(_.has(conf, 'options.pause') && false === conf.options.pause) { 
+									return self.prevMenuOnTimeout(1000, cb);
+								} else {
+									displayThemedPause( { client : self.client }, () => {
+										return self.prevMenu(cb);
+									});
+								}
+							});
+						} else {
+							return self.prevMenu(cb);
+						}
 					}
 				});
 			} else {

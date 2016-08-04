@@ -8,28 +8,6 @@ const _			= require('lodash');
 const moment	= require('moment');
 
 /*
-System Log & Stats
-
-Purpose
-	* Timestamped log entries of events
-		=> name=user_login, val=username, user_id=X (allows history of per-user or system wide)
-		=> name=
-		=> Replaces stats.js (last callers)
-		=> timestamp, user_id, log_name, log_value
-
-	* Some entries should be "system" (user_id=0) while others are per-user
-	* Aggregate/totals entries such as total login, & other system-wide totals
-		=> login_count, post_count, ...
-		=> Live table is a) init @ load time, b) kept up to date with same name=value pairs
-		=> Replaces system_property.js (mostly the same functionality)
-		=> User properties are kept for user-specfic
-	* 
-*/
-
-//	:TODO: Load & use config for how many day(s) to keep event log entries per type: system/user & logName combinations (cont.)
-//	...defaults for login_history, and so on
-
-/*
 	System Event Log & Stats
 	------------------------
 	

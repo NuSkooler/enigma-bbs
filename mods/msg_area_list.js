@@ -2,9 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule		= require('../core/menu_module.js').MenuModule;
-const ViewController	= require('../core/view_controller.js').ViewController;
-const messageArea		= require('../core/message_area.js');
+const MenuModule			= require('../core/menu_module.js').MenuModule;
+const ViewController		= require('../core/view_controller.js').ViewController;
+const messageArea			= require('../core/message_area.js');
+const displayThemeArt		= require('../core/theme.js').displayThemeArt;
+const displayThemedPause	= require('../core/theme.js').displayThemedPause;
+const resetScreen			= require('../core/ansi_term.js').resetScreen;
 
 //	deps
 const async				= require('async');
@@ -33,7 +36,9 @@ exports.moduleInfo = {
 */
 
 const MCICodesIDs = {
-	AreaList	: 1,
+	AreaList		: 1,
+	SelAreaInfo1	: 2,
+	SelAreaInfo2	: 3, 
 };
 
 function MessageAreaListModule(options) {
@@ -46,20 +51,46 @@ function MessageAreaListModule(options) {
         { client : self.client }
     );
 
+	this.prevMenuOnTimeout = function(timeout, cb) {
+		setTimeout( () => {
+			self.prevMenu(cb);
+		}, timeout);
+	};
+
 	this.menuMethods = {
 		changeArea : function(formData, extraArgs, cb) {
 			if(1 === formData.submitId) {
-				const areaTag = self.messageAreas[formData.value.area].areaTag;
+				let area 		= self.messageAreas[formData.value.area];
+				const areaTag	=  area.areaTag;
+				area = area.area;	//	what we want is actually embedded
 
 				messageArea.changeMessageArea(self.client, areaTag, err => {
 					if(err) {
 						self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
 
-						setTimeout( () => {
+						self.prevMenuOnTimeout(1000, cb);
+					} else {						
+						if(_.isString(area.art)) {
+							const dispOptions = {
+								client	: self.client,
+								name	: area.art,
+							};
+
+							self.client.term.rawWrite(resetScreen());
+
+							displayThemeArt(dispOptions, () => {
+								//	pause by default, unless explicitly told not to
+								if(_.has(area, 'options.pause') && false === area.options.pause) { 
+									return self.prevMenuOnTimeout(1000, cb);
+								} else {
+									displayThemedPause( { client : self.client }, () => {
+										return self.prevMenu(cb);
+									});
+								}
+							});
+						} else {
 							return self.prevMenu(cb);
-						}, 1000);
-					} else {
-						return self.prevMenu(cb);
+						}
 					}
 				});
 			} else {
@@ -73,6 +104,19 @@ function MessageAreaListModule(options) {
 		if(v) {
 			v.setText(text);
 		}
+	};
+
+	this.updateGeneralAreaInfoViews = function(areaIndex) {
+		/* experimental: not yet avail
+		const areaInfo = self.messageAreas[areaIndex];
+
+		[ MCICodesIDs.SelAreaInfo1, MCICodesIDs.SelAreaInfo2 ].forEach(mciId => {
+			const v = self.viewControllers.areaList.getView(mciId);
+			if(v) {
+				v.setFormatObject(areaInfo.area);
+			}
+		});
+		*/
 	};
 
 }
@@ -125,6 +169,10 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 						desc    : v.area.desc, 
 					});
 				}));
+
+				areaListView.on('index update', areaIndex => {
+					self.updateGeneralAreaInfoViews(areaIndex);
+				});
 
 				areaListView.redraw();
 
