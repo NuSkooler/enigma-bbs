@@ -78,126 +78,126 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 	//
 	switch(mci.code) {
 		//	Text Label (Text View)
-	case 'TL' : 
-		setOption(0,	'textStyle');
-		setOption(1,	'justify');
-		setWidth(2);
+		case 'TL' : 
+			setOption(0,	'textStyle');
+			setOption(1,	'justify');
+			setWidth(2);
 
-		view = new TextView(options);
-		break;
+			view = new TextView(options);
+			break;
 
-	//	Edit Text
-	case 'ET' :
-		setWidth(0);
+		//	Edit Text
+		case 'ET' :
+			setWidth(0);
 
-		setOption(1, 		'textStyle');
-		setFocusOption(0,	'focusTextStyle');
+			setOption(1, 		'textStyle');
+			setFocusOption(0,	'focusTextStyle');
 
-		view = new EditTextView(options);
-		break;
+			view = new EditTextView(options);
+			break;
 
-	//	Masked Edit Text
-	case 'ME' :
-		setOption(0,		'textStyle');
-		setFocusOption(0,	'focusTextStyle');
+		//	Masked Edit Text
+		case 'ME' :
+			setOption(0,		'textStyle');
+			setFocusOption(0,	'focusTextStyle');
 
-		view = new MaskEditTextView(options);
-		break;
+			view = new MaskEditTextView(options);
+			break;
 
-	//	Multi Line Edit Text
-	case 'MT' : 
-		//	:TODO: apply params
-		view = new MultiLineEditTextView(options);
-		break;
+		//	Multi Line Edit Text
+		case 'MT' : 
+			//	:TODO: apply params
+			view = new MultiLineEditTextView(options);
+			break;
 
-	//	Pre-defined Label (Text View)
-	//	:TODO: Currently no real point of PL -- @method replaces this pretty much... probably remove
-	case 'PL' : 
-		if(mci.args.length > 0) {
-			options.text = getPredefinedMCIValue(this.client, mci.args[0]);
-			if(options.text) {
-				setOption(1, 'textStyle');
-				setOption(2, 'justify');
-				setWidth(3);
+		//	Pre-defined Label (Text View)
+		//	:TODO: Currently no real point of PL -- @method replaces this pretty much... probably remove
+		case 'PL' : 
+			if(mci.args.length > 0) {
+				options.text = getPredefinedMCIValue(this.client, mci.args[0]);
+				if(options.text) {
+					setOption(1, 'textStyle');
+					setOption(2, 'justify');
+					setWidth(3);
+
+					view = new TextView(options);
+				}
+			}
+			break;
+
+		//	Button
+		case 'BT' : 
+			if(mci.args.length > 0) {
+				options.dimens = { width : parseInt(mci.args[0], 10) };
+			}
+
+			setOption(1, 'textStyle');
+			setOption(2, 'justify');
+
+			setFocusOption(0, 'focusTextStyle');
+
+			view = new ButtonView(options);
+			break;
+
+		//	Vertial Menu
+		case 'VM' :
+			setOption(0,		'itemSpacing');
+			setOption(1, 		'justify');
+			setOption(2, 		'textStyle');
+			
+			setFocusOption(0,	'focusTextStyle');
+
+			view = new VerticalMenuView(options);
+			break;
+
+		//	Horizontal Menu
+		case 'HM' : 
+			setOption(0,		'itemSpacing');
+			setOption(1,		'textStyle');
+
+			setFocusOption(0,	'focusTextStyle');
+
+			view = new HorizontalMenuView(options);
+			break;
+
+		case 'SM' :
+			setOption(0,		'textStyle');
+			setOption(1, 		'justify');
+
+			setFocusOption(0,	'focusTextStyle');
+			
+			view = new SpinnerMenuView(options);
+			break;
+
+		case 'TM' :
+			if(mci.args.length > 0) {
+				var styleSG1 = { fg : parseInt(mci.args[0], 10) };
+				if(mci.args.length > 1) {
+					styleSG1.bg = parseInt(mci.args[1], 10);
+				}
+				options.styleSG1 = ansi.getSGRFromGraphicRendition(styleSG1, true);
+			}
+
+			setFocusOption(0,	'focusTextStyle');
+
+			view = new ToggleMenuView(options);
+			break;
+
+		case 'KE' :
+			view = new KeyEntryView(options);
+			break;
+
+		default :
+			options.text = getPredefinedMCIValue(this.client, mci.code);
+			if(_.isString(options.text)) {
+				setWidth(0);
+
+				setOption(1,	'textStyle');
+				setOption(2,	'justify');
 
 				view = new TextView(options);
 			}
-		}
-		break;
-
-	//	Button
-	case 'BT' : 
-		if(mci.args.length > 0) {
-			options.dimens = { width : parseInt(mci.args[0], 10) };
-		}
-
-		setOption(1, 'textStyle');
-		setOption(2, 'justify');
-
-		setFocusOption(0, 'focusTextStyle');
-
-		view = new ButtonView(options);
-		break;
-
-	//	Vertial Menu
-	case 'VM' :
-		setOption(0,		'itemSpacing');
-		setOption(1, 		'justify');
-		setOption(2, 		'textStyle');
-		
-		setFocusOption(0,	'focusTextStyle');
-
-		view = new VerticalMenuView(options);
-		break;
-
-	//	Horizontal Menu
-	case 'HM' : 
-		setOption(0,		'itemSpacing');
-		setOption(1,		'textStyle');
-
-		setFocusOption(0,	'focusTextStyle');
-
-		view = new HorizontalMenuView(options);
-		break;
-
-	case 'SM' :
-		setOption(0,		'textStyle');
-		setOption(1, 		'justify');
-
-		setFocusOption(0,	'focusTextStyle');
-		
-		view = new SpinnerMenuView(options);
-		break;
-
-	case 'TM' :
-		if(mci.args.length > 0) {
-			var styleSG1 = { fg : parseInt(mci.args[0], 10) };
-			if(mci.args.length > 1) {
-				styleSG1.bg = parseInt(mci.args[1], 10);
-			}
-			options.styleSG1 = ansi.getSGRFromGraphicRendition(styleSG1, true);
-		}
-
-		setFocusOption(0,	'focusTextStyle');
-
-		view = new ToggleMenuView(options);
-		break;
-
-	case 'KE' :
-		view = new KeyEntryView(options);
-		break;
-
-	default :
-		options.text = getPredefinedMCIValue(this.client, mci.code);
-		if(_.isString(options.text)) {
-			setWidth(0);
-
-			setOption(1,	'textStyle');
-			setOption(2,	'justify');
-
-			view = new TextView(options);
-		}
-		break;
+			break;
 	}
 
 	return view;

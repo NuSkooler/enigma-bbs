@@ -212,13 +212,13 @@ NewScanModule.prototype.mciReady = function(mciData, cb) {
 			},
 			function performCurrentStepScan(callback) {
 				switch(self.currentStep) {
-				case 'messageConferences' :
-					self.newScanMessageConference( () => {
-						callback(null); //  finished
-					});
-					break;	
-					
-				default : return callback(null);
+					case 'messageConferences' :
+						self.newScanMessageConference( () => {
+							callback(null); //  finished
+						});
+						break;	
+						
+					default : return callback(null);
 				}
 			}
 		],

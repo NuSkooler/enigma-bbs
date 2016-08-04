@@ -194,11 +194,11 @@ function FTNMessageScanTossModule() {
 		let ext;
 		
 		switch(flowType) {
-		case 'mail'		: ext = `${exportType.toLowerCase()[0]}ut`; break;
-		case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
-		case 'busy'		: ext = 'bsy'; break;
-		case 'request'	: ext = 'req'; break;
-		case 'requests'	: ext = 'hrq'; break;
+			case 'mail'		: ext = `${exportType.toLowerCase()[0]}ut`; break;
+			case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
+			case 'busy'		: ext = 'bsy'; break;
+			case 'request'	: ext = 'req'; break;
+			case 'requests'	: ext = 'hrq'; break;
 		}
 		
 		return ext;	
@@ -309,8 +309,8 @@ function FTNMessageScanTossModule() {
 			//	Set appropriate attribute flag for export type
 			//
 			switch(this.getExportType(options.nodeConfig)) {
-			case 'crash'	: ftnAttribute |= ftnMailPacket.Packet.Attribute.Crash; break;
-			case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
+				case 'crash'	: ftnAttribute |= ftnMailPacket.Packet.Attribute.Crash; break;
+				case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
 				//	:TODO: Others?
 			}
 			
