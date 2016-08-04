@@ -175,40 +175,40 @@ function handleAction(client, formData, conf, cb) {
 	assert(_.isObject(actionAsset));
 
 	switch(actionAsset.type) {
-	case 'method' :
-	case 'systemMethod' : 
-		if(_.isString(actionAsset.location)) {
-			return callModuleMenuMethod(
-				client, 
-				actionAsset, 
-				paths.join(Config.paths.mods, actionAsset.location), 
-				formData, 
-				conf.extraArgs, 
-				cb);
-		} else if('systemMethod' === actionAsset.type) {
-			//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
-			//	:TODO: Probably better as system_method.js
-			return callModuleMenuMethod(
-				client, 
-				actionAsset, 
-				paths.join(__dirname, 'system_menu_method.js'), 
-				formData, 
-				conf.extraArgs, 
-				cb);
-		} else {
-			//	local to current module
-			const currentModule = client.currentMenuModule;
-			if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
-				return currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs, cb);
+		case 'method' :
+		case 'systemMethod' : 
+			if(_.isString(actionAsset.location)) {
+				return callModuleMenuMethod(
+					client, 
+					actionAsset, 
+					paths.join(Config.paths.mods, actionAsset.location), 
+					formData, 
+					conf.extraArgs, 
+					cb);
+			} else if('systemMethod' === actionAsset.type) {
+				//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
+				//	:TODO: Probably better as system_method.js
+				return callModuleMenuMethod(
+					client, 
+					actionAsset, 
+					paths.join(__dirname, 'system_menu_method.js'), 
+					formData, 
+					conf.extraArgs, 
+					cb);
+			} else {
+				//	local to current module
+				const currentModule = client.currentMenuModule;
+				if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
+					return currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs, cb);
+				}
+				
+				const err = new Error('Method does not exist');
+				client.log.warn( { method : actionAsset.asset }, err.message);
+				return cb(err);
 			}
-			
-			const err = new Error('Method does not exist');
-			client.log.warn( { method : actionAsset.asset }, err.message);
-			return cb(err);
-		}
 
-	case 'menu' :
-		return client.currentMenuModule.gotoMenu(actionAsset.asset, { formData : formData, extraArgs : conf.extraArgs }, cb );
+		case 'menu' :
+			return client.currentMenuModule.gotoMenu(actionAsset.asset, { formData : formData, extraArgs : conf.extraArgs }, cb );
 	}
 }
 
@@ -227,28 +227,28 @@ function handleNext(client, nextSpec, conf, cb) {
 
 	//	:TODO: DRY this with handleAction()
 	switch(nextAsset.type) {
-	case 'method' :
-	case 'systemMethod' :
-		if(_.isString(nextAsset.location)) {
-			return callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, nextAsset.location), {}, extraArgs, cb);
-		} else if('systemMethod' === nextAsset.type) {
-			//	:TODO: see other notes about system_menu_method.js here
-			return callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'), {}, extraArgs, cb);
-		} else {
-			//	local to current module
-			const currentModule = client.currentMenuModule;
-			if(_.isFunction(currentModule.menuMethods[nextAsset.asset])) {
-				const formData = {};	//	 we don't have any
-				return currentModule.menuMethods[nextAsset.asset]( formData, extraArgs, cb );
+		case 'method' :
+		case 'systemMethod' :
+			if(_.isString(nextAsset.location)) {
+				return callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, nextAsset.location), {}, extraArgs, cb);
+			} else if('systemMethod' === nextAsset.type) {
+				//	:TODO: see other notes about system_menu_method.js here
+				return callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'), {}, extraArgs, cb);
+			} else {
+				//	local to current module
+				const currentModule = client.currentMenuModule;
+				if(_.isFunction(currentModule.menuMethods[nextAsset.asset])) {
+					const formData = {};	//	 we don't have any
+					return currentModule.menuMethods[nextAsset.asset]( formData, extraArgs, cb );
+				}
+
+				const err = new Error('Method does not exist');
+				client.log.warn( { method : nextAsset.asset }, err.message);
+				return cb(err);	
 			}
 
-			const err = new Error('Method does not exist');
-			client.log.warn( { method : nextAsset.asset }, err.message);
-			return cb(err);	
-		}
-
-	case 'menu' :
-		return client.currentMenuModule.gotoMenu(nextAsset.asset, { extraArgs : extraArgs }, cb );
+		case 'menu' :
+			return client.currentMenuModule.gotoMenu(nextAsset.asset, { extraArgs : extraArgs }, cb );
 	}
 
 	const err = new Error('Invalid asset type for "next"');

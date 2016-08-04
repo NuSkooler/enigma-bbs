@@ -205,7 +205,7 @@ function wordWrapText(text, options) {
 		switch(m[0].charAt(0)) {
 			case ' ' :
 				word += m[0];
-			break;
+				break;
 
 			case '\t' :
 				//
@@ -218,7 +218,7 @@ function wordWrapText(text, options) {
 				} else {
 					word += m[0];
 				}
-			break;
+				break;
 		}
 
 		addWord();

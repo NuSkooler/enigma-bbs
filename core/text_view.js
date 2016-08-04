@@ -238,14 +238,14 @@ TextView.prototype.clearText = function() {
 
 TextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-	case 'textMaskChar' : this.textMaskChar = value.substr(0, 1); break;
-	case 'textOverflow'	: this.textOverflow = value; break;
-	case 'maxLength'	: this.maxLength = parseInt(value, 10); break;
-	case 'password'		:
-		if(true === value) {
-			this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
-		}
-		break;	
+		case 'textMaskChar' : this.textMaskChar = value.substr(0, 1); break;
+		case 'textOverflow'	: this.textOverflow = value; break;
+		case 'maxLength'	: this.maxLength = parseInt(value, 10); break;
+		case 'password'		:
+			if(true === value) {
+				this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
+			}
+			break;	
 	}
 	
 

@@ -599,23 +599,23 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 	};
 
 	switch(artAsset.type) {
-	case 'art' :
-		displayThemeArt(dispOpts, function displayed(err, artData) {
-			return cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
-		});
-		break;
+		case 'art' :
+			displayThemeArt(dispOpts, function displayed(err, artData) {
+				return cb(err, err ? null : { mciMap : artData.mciMap, height : artData.extraInfo.height } );
+			});
+			break;
 
-	case 'method' : 
-		//	:TODO: fetch & render via method
-		break;
+		case 'method' : 
+			//	:TODO: fetch & render via method
+			break;
 
-	case 'inline ' :
-		//	:TODO: think about this more in relation to themes, etc. How can this come
-		//	from a theme (with override from menu.json) ???
-		//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
-		break;
+		case 'inline ' :
+			//	:TODO: think about this more in relation to themes, etc. How can this come
+			//	from a theme (with override from menu.json) ???
+			//	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
+			break;
 
-	default :
-		return cb(new Error('Unsupported art asset type: ' + artAsset.type));
+		default :
+			return cb(new Error('Unsupported art asset type: ' + artAsset.type));
 	}
 }

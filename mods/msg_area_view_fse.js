@@ -58,10 +58,10 @@ function AreaViewFSEModule(options) {
 
 		//	:TODO: Create methods for up/down vs using keyPressXXXXX
 		switch(formData.key.name) {
-		case 'down arrow'	: bodyView.scrollDocumentUp(); break;
-		case 'up arrow'		: bodyView.scrollDocumentDown(); break;
-		case 'page up'		: bodyView.keyPressPageUp(); break;
-		case 'page down'	: bodyView.keyPressPageDown(); break;			
+			case 'down arrow'	: bodyView.scrollDocumentUp(); break;
+			case 'up arrow'		: bodyView.scrollDocumentDown(); break;
+			case 'page up'		: bodyView.keyPressPageUp(); break;
+			case 'page down'	: bodyView.keyPressPageDown(); break;			
 		}
 
 		//	:TODO: need to stop down/page down if doing so would push the last

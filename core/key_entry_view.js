@@ -43,17 +43,17 @@ module.exports = class KeyEntryView extends View {
 
 	setPropertyValue(propName, propValue) {
 		switch(propName) {
-		case 'eatTabKey' :
-			if(_.isBoolean(propValue)) {
-				this.eatTabKey = propValue;
-			}
-			break;
+			case 'eatTabKey' :
+				if(_.isBoolean(propValue)) {
+					this.eatTabKey = propValue;
+				}
+				break;
 
-		case 'caseInsensitive' :
-			if(_.isBoolean(propValue)) {
-				this.caseInsensitive = propValue;
-			}
-			break;
+			case 'caseInsensitive' :
+				if(_.isBoolean(propValue)) {
+					this.caseInsensitive = propValue;
+				}
+				break;
 		}
 		
 		super.setPropertyValue(propName, propValue);

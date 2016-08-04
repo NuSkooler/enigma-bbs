@@ -550,26 +550,26 @@ function FullScreenEditorModule(options) {
 				function setInitialData(callback) {
 
 					switch(self.editorMode) {						
-					case 'view' :
-						if(self.message) {
-							self.initHeaderViewMode();
-							self.initFooterViewMode();
+						case 'view' :
+							if(self.message) {
+								self.initHeaderViewMode();
+								self.initFooterViewMode();
 
-							var bodyMessageView = self.viewControllers.body.getView(1);
-							if(bodyMessageView && _.has(self, 'message.message')) {
-								//self.setBodyMessageViewText();
-								bodyMessageView.setText(cleanControlCodes(self.message.message));
+								var bodyMessageView = self.viewControllers.body.getView(1);
+								if(bodyMessageView && _.has(self, 'message.message')) {
+									//self.setBodyMessageViewText();
+									bodyMessageView.setText(cleanControlCodes(self.message.message));
+								}
 							}
-						}
-						break;
-						
-					case 'edit' :
-						self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
+							break;
+							
+						case 'edit' :
+							self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
 
-						if(self.replyToMessage) {
-							self.initHeaderReplyEditMode();
-						}
-						break;
+							if(self.replyToMessage) {
+								self.initHeaderReplyEditMode();
+							}
+							break;
 					}
 
 					callback(null);
@@ -577,14 +577,14 @@ function FullScreenEditorModule(options) {
 				function setInitialFocus(callback) {
 					
 					switch(self.editorMode) {
-					case 'edit' :							
-						self.switchToHeader();
-						break;
+						case 'edit' :							
+							self.switchToHeader();
+							break;
 
-					case 'view' :
-						self.switchToFooter();
-						//self.observeViewPosition();
-						break;
+						case 'view' :
+							self.switchToFooter();
+							//self.observeViewPosition();
+							break;
 					}
 
 					callback(null);
@@ -885,21 +885,21 @@ function FullScreenEditorModule(options) {
 					console.log(err)
 				} else {
 					switch(self.footerMode) {
-					case 'editor' :
-						if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
-							//self.viewControllers.footerEditorMenu.setFocus(false);
-							self.viewControllers.footerEditorMenu.detachClientEvents();
-						}
-						self.viewControllers.body.switchFocus(1);
-						self.observeEditorEvents();
-						break;
+						case 'editor' :
+							if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
+								//self.viewControllers.footerEditorMenu.setFocus(false);
+								self.viewControllers.footerEditorMenu.detachClientEvents();
+							}
+							self.viewControllers.body.switchFocus(1);
+							self.observeEditorEvents();
+							break;
 
-					case 'editorMenu' :
-						self.viewControllers.body.setFocus(false);
-						self.viewControllers.footerEditorMenu.switchFocus(1);
-						break;
+						case 'editorMenu' :
+							self.viewControllers.body.setFocus(false);
+							self.viewControllers.footerEditorMenu.switchFocus(1);
+							break;
 
-					default : throw new Error('Unexpected mode');
+						default : throw new Error('Unexpected mode');
 					}
 				}
 

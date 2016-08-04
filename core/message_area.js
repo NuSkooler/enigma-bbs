@@ -564,7 +564,7 @@ function persistMessage(message, cb) {
 			},
 			function recordToMessageNetworks(callback) {
 				msgNetRecord(message, callback);
-			}
+			}			
 		],
 		cb
 	);
