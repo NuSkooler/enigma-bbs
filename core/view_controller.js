@@ -180,6 +180,10 @@ function ViewController(options) {
 				case 'config' :
 					propValue = asset.resolveConfigAsset(conf[propName]); 
 					break;
+				
+				case 'sysStat' :
+					propValue = asset.resolveSystemStatAsset(conf[propName]);
+					break;
 
 					//	:TODO: handle @art (e.g. text : @art ...)
 

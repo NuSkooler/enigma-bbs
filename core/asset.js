@@ -3,6 +3,7 @@
 
 //	ENiGMA½
 const Config	= require('./config.js').config;
+const StatLog	= require('./stat_log.js');
 
 //	deps
 const _			= require('lodash');
@@ -13,6 +14,7 @@ exports.getAssetWithShorthand	= getAssetWithShorthand;
 exports.getArtAsset				= getArtAsset;
 exports.getModuleAsset			= getModuleAsset;
 exports.resolveConfigAsset		= resolveConfigAsset;
+exports.resolveSystemStatAsset	= resolveSystemStatAsset;
 exports.getViewPropertyAsset	= getViewPropertyAsset;
 
 const ALL_ASSETS = [
@@ -24,6 +26,7 @@ const ALL_ASSETS = [
 	'systemModule',
 	'prompt',
 	'config',
+	'sysStat',
 ];
 
 const ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
@@ -101,7 +104,18 @@ function resolveConfigAsset(spec) {
 		return conf;
 	} else {
 		return spec;
+	}	
+}
+
+function resolveSystemStatAsset(spec) {
+	const asset = parseAsset(spec);
+	if(!asset) {
+		return spec;
 	}
+
+	assert('sysStat' === asset.type);
+
+	return StatLog.getSystemStat(asset.asset) || spec;
 }
 
 function getViewPropertyAsset(src) {

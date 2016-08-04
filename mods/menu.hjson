@@ -405,7 +405,7 @@
 						ET2: {
 							argName: to
 							focus: true
-							text: @config:general.sysOp.username
+							text: @sysStat:sysop_username
 							//	:TODO: readOnly: true
 						}
 						ET3: {
@@ -927,7 +927,7 @@
 						ET2: {
 							argName: to
 							focus: true
-							text: @config:general.sysOp.username
+							text: @sysStat:sysop_username
 							//	:TODO: readOnly: true
 						}
 						ET3: {
