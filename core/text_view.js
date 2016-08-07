@@ -24,8 +24,6 @@ function TextView(options) {
 
 	View.call(this, options);
 
-	var self = this;
-
 	if(options.maxLength) {
 		this.maxLength = options.maxLength;
 	} else {
@@ -36,6 +34,7 @@ function TextView(options) {
 	this.justify			= options.justify || 'right';
 	this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
 	this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
+	this.text				= options.text || '';
 	
 	if(_.isString(options.textOverflow)) {
 		this.textOverflow = options.textOverflow;
@@ -45,7 +44,7 @@ function TextView(options) {
 		this.textMaskChar = options.textMaskChar;
 	}
 
-	/*
+/*
 	this.drawText = function(s) {
 
 		//             
@@ -86,7 +85,8 @@ function TextView(options) {
 			this.getStyleSGR(1) || this.getSGR()
 			), false);
 	};
-	*/
+*/
+
 	this.drawText = function(s) {
 
 		//             
@@ -109,16 +109,14 @@ function TextView(options) {
 					textToDraw = renderSubstr(textToDraw, renderLength - this.dimens.width, renderLength);
 				}
 			} else {
-				if(renderLength > this.dimens.width) {
-					if(this.textOverflow && 
-						this.dimens.width > this.textOverflow.length &&
-						renderLength - this.textOverflow.length >= this.textOverflow.length)
-					{
-						textToDraw = renderSubstr(textToDraw, 0, this.dimens.width - this.textOverflow.length) + this.textOverflow;						
-					} else {
-						textToDraw = renderSubstr(textToDraw, 0, this.dimens.width);
-					}
-				}				
+				if(this.textOverflow && 
+					this.dimens.width > this.textOverflow.length &&
+					renderLength - this.textOverflow.length >= this.textOverflow.length)
+				{
+					textToDraw = renderSubstr(textToDraw, 0, this.dimens.width - this.textOverflow.length) + this.textOverflow;						
+				} else {
+					textToDraw = renderSubstr(textToDraw, 0, this.dimens.width);
+				}			
 			}
 		}
 
@@ -132,18 +130,31 @@ function TextView(options) {
 			), false);
 	};
 
+
 	this.getEndOfTextColumn = function() {
 		var offset = Math.min(this.text.length, this.dimens.width);
 		return this.position.col + offset;	
 	};
 
 	//	:TODO: Whatever needs init here should be done separately from setText() since it redraws/etc.
-	this.setText(options.text || '');
+//	this.setText(options.text || '');
 }
 
 util.inherits(TextView, View);
 
 TextView.prototype.redraw = function() {
+	//
+	//	A lot of views will get an initial redraw() with empty text (''). We can short
+	//	circuit this by NOT doing any of the work if this is the initial drawText
+	//	and there is no actual text (e.g. save SGR's and processing)
+	//
+	if(!this.hasDrawnOnce) {
+		if(!this.text) {
+			return;
+		}
+	}
+	this.hasDrawnOnce = true;
+
 	TextView.super_.prototype.redraw.call(this);
 
 	if(_.isString(this.text)) {
