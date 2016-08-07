@@ -892,7 +892,8 @@ function FTNMessageScanTossModule() {
 				
 				const localNetworkName = self.getNetworkNameByAddress(packetHeader.destAddress);
 				if(!_.isString(localNetworkName)) {
-					return next(new Error('No configuration for this packet'));
+					const addrString = new Address(packetHeader.destAddress).toString();
+					return next(new Error(`No local configuration for packet addressed to ${addrString}`));
 				} else {
 					
 					//	:TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!					
@@ -958,8 +959,19 @@ function FTNMessageScanTossModule() {
 				}
 			}
 		}, err => {
+			//
+			//	try to produce something helpful in the log
+			//
 			const finalStats = Object.assign(importStats, { packetPath : packetPath } );
-			Log.info(finalStats, 'Import complete');
+			if(err || Object.keys(finalStats.areaFail).length > 0) {
+				if(err) {
+					Object.assign(finalStats, { error : err.message } );
+				}
+
+				Log.warn(finalStats, 'Import completed with error(s)');
+			} else {
+				Log.info(finalStats, 'Import complete');
+			}
 			
 			cb(err);
 		});
