@@ -256,7 +256,8 @@ function renderSubstr(str, start, length) {
 
 		if(match) {
 			if(match.index > pos) {				
-				const s = str.slice(pos, match.index - (Math.min(0, length - renderLen)));
+				const s = str.slice(pos + start, match.index - (Math.min(0, length - renderLen)));
+				start		= 0;	//	start offset applies only once
 				out			+= s;
 				renderLen	+= s.length;
 			}
@@ -266,8 +267,8 @@ function renderSubstr(str, start, length) {
 	} while(renderLen < length && 0 !== re.lastIndex);
 
 	//	remainder
-	if(pos < str.length && renderLen < length) {
-		out += str.slice(pos, pos + Math.max(0, length - renderLen));
+	if(pos + start < str.length && renderLen < length) {
+		out += str.slice(pos + start, pos + Math.max(0, length - renderLen));
 	}
 
 	return out;
