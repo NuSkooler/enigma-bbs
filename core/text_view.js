@@ -119,14 +119,17 @@ function TextView(options) {
 			}
 		}
 
-		this.client.term.write(padStr(
-			textToDraw,
-			this.dimens.width + 1,
-			this.fillChar,
-			this.justify,
-			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
-			this.getStyleSGR(1) || this.getSGR()
-			), false);
+		this.client.term.write(
+			padStr(
+				textToDraw,
+				this.dimens.width + 1,
+				this.fillChar,
+				this.justify,
+				this.hasFocus ? this.getFocusSGR() : this.getSGR(),
+				this.getStyleSGR(1) || this.getSGR()
+			), 
+			false	//	no converting CRLF needed
+		);
 	};
 
 
@@ -184,7 +187,7 @@ TextView.prototype.setText = function(text, redraw) {
 
 	var widthDelta = 0;
 	if(this.text && this.text !== text) {
-		widthDelta = Math.abs(this.text.length - text.length);
+		widthDelta = Math.abs(renderStringLength(this.text) - renderStringLength(text));
 	}
 
 	this.text = text;
@@ -198,7 +201,7 @@ TextView.prototype.setText = function(text, redraw) {
 	this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);	
 
 	if(this.autoScale.width) {
-		this.dimens.width = this.text.length + widthDelta;
+		this.dimens.width = renderStringLength(this.text) + widthDelta;
 	}
 
 	if(redraw) {

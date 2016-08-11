@@ -45,13 +45,13 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 				}
 			}
 			
-			return;
+			return EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 		} else if(this.isKeyMapped('clearLine', key.name)) {
 			this.text			= '';
 			this.cursorPos.col	= 0;
 			this.setFocus(true);	//	resetting focus will redraw & adjust cursor
 
-			return;
+			return EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 		}
 	}
 

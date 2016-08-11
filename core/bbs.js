@@ -159,7 +159,7 @@ function initialize(cb) {
 					callback(err);
 				});
 			},
-			function loadSysOpInformation2(callback) {
+			function loadSysOpInformation(callback) {
 				//
 				//	Copy over some +op information from the user DB -> system propertys.
 				//	* Makes this accessible for MCI codes, easy non-blocking access, etc.
@@ -201,6 +201,9 @@ function initialize(cb) {
 						return callback(null);
 					}
 				);
+			},
+			function initMCI(callback) {
+				require('./predefined_mci.js').init(callback);
 			},
 			function readyMessageNetworkSupport(callback) {
 				require('./msg_network.js').startup(callback);	
