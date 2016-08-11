@@ -34,7 +34,6 @@ function TextView(options) {
 	this.justify			= options.justify || 'right';
 	this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
 	this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
-	this.text				= options.text || '';
 	
 	if(_.isString(options.textOverflow)) {
 		this.textOverflow = options.textOverflow;
@@ -136,8 +135,7 @@ function TextView(options) {
 		return this.position.col + offset;	
 	};
 
-	//	:TODO: Whatever needs init here should be done separately from setText() since it redraws/etc.
-//	this.setText(options.text || '');
+	this.setText(options.text || '', false);	//	false=do not redraw now
 }
 
 util.inherits(TextView, View);
@@ -175,7 +173,9 @@ TextView.prototype.getData = function() {
 	return this.text;
 };
 
-TextView.prototype.setText = function(text) {
+TextView.prototype.setText = function(text, redraw) {
+	redraw = _.isBoolean(redraw) ? redraw : true;
+
 	if(!_.isString(text)) {
 		text = text.toString();
 	}
@@ -201,7 +201,9 @@ TextView.prototype.setText = function(text) {
 		this.dimens.width = this.text.length + widthDelta;
 	}
 
-	this.redraw();
+	if(redraw) {
+		this.redraw();
+	}
 };
 
 /*

@@ -15,7 +15,7 @@ exports.VerticalMenuView		= VerticalMenuView;
 function VerticalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
 	options.justify = options.justify || 'right';	//	:TODO: default to center
-
+	
 	MenuView.call(this, options);
 
 	const self = this;
@@ -48,60 +48,33 @@ function VerticalMenuView(options) {
 		};
 	};
 
-	/*
-	this.drawItem = function(index) {
-		var item = self.items[index];
-		if(!item) {
-			return;
-		}
-
-		var text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
-		self.client.term.write(
-			ansi.goto(item.row, self.position.col) +
-			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
-			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
-			);
-	};
-	*/
-
 	this.drawItem = function(index) {
 		const item = self.items[index];
-		
 		if(!item) {
 			return;
 		}
 
-		let focusItem;
 		let text;
-
-		if(self.hasFocusItems()) {
-			focusItem = self.focusItems[index];
-		}	
-
-		if(focusItem) {
-			if(item.focused) {
-				text = strUtil.stylizeString(focusItem.text, self.focusTextStyle);
-			} else {
-				text = strUtil.stylizeString(item.text, self.textStyle);
-			}
-
-			//	:TODO: Need to support pad()
-			//	:TODO: shoudl we detect if pipe codes are used?
-			self.client.term.write(
-				ansi.goto(item.row, self.position.col) +				
-				colorCodes.pipeToAnsi(text, self.client)
-				);
-
+		let sgr;
+		if(item.focused && self.hasFocusItems()) {
+			const focusItem = self.focusItems[index];
+			text = strUtil.stylizeString(
+				focusItem ? focusItem.text : item.text,
+				self.textStyle
+			);
+			sgr = '';
 		} else {
-			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
-			
-			self.client.term.write(
-				ansi.goto(item.row, self.position.col) +
-				(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
-				strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
-				);
+			text = strUtil.stylizeString(item.text, self.textStyle);
+			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		}
 
+		text += self.getSGR();
+
+		self.client.term.write(
+			ansi.goto(item.row, self.position.col) +
+			sgr + 
+			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
+		);
 	};
 }
 
@@ -174,7 +147,7 @@ VerticalMenuView.prototype.setFocusItemIndex = function(index) {
 		this.positionCacheExpired = false;	//	skip standard behavior
 		this.performAutoScale();
 	}
-	
+
 	this.redraw();
 };
 

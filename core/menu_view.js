@@ -4,6 +4,7 @@
 //	ENiGMA½
 const View			= require('./view.js').View;
 const miscUtil		= require('./misc_util.js');
+const pipeToAnsi	= require('./color_codes.js').pipeToAnsi;
 
 //	deps
 const util			= require('util');
@@ -15,8 +16,10 @@ exports.MenuView	= MenuView;
 function MenuView(options) {
 	options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-
+	
 	View.call(this, options);
+
+	this.disablePipe = options.disablePipe || false;
 
 	const self = this;
 
@@ -60,10 +63,16 @@ function MenuView(options) {
 util.inherits(MenuView, View);
 
 MenuView.prototype.setItems = function(items) {
+	const self = this;
+
 	if(items) {	
 		this.items = [];
 		items.forEach( itemText => {
-			this.items.push( { text : itemText } );
+			this.items.push(
+				{ 
+					text : self.disablePipe ? itemText : pipeToAnsi(itemText, self.client)
+				}
+			);
 		});
 	}
 };
@@ -110,10 +119,16 @@ MenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 MenuView.prototype.setFocusItems = function(items) {
+	const self = this;
+	
 	if(items) {
 		this.focusItems = [];
 		items.forEach( itemText => {
-			this.focusItems.push( { text : itemText } );
+			this.focusItems.push(
+				{
+					text : self.disablePipe ? itemText : pipeToAnsi(itemText, self.client)
+				}
+			);
 		});
 	}
 };

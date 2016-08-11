@@ -44,6 +44,21 @@ class StatLog {
 		);
 	}
 
+	get KeepDays() {
+		return {
+			Forever : -1,
+		};
+	}
+
+	get Order() {
+		return {
+			Timestamp		: 'timestamp_asc',
+			TimestampAsc	: 'timestamp_asc',
+			TimestampDesc	: 'timestamp_desc',
+			Random			: 'random',
+		};
+	}
+
 	setNonPeristentSystemStat(statName, statValue) {
 		this.systemStats[statName] = statValue;
 	}
@@ -123,6 +138,13 @@ class StatLog {
 				//
 				//	Handle keepDays
 				//
+				if(-1 === keepDays) {
+					if(cb) {
+						return cb(null);
+					}
+					return;
+				}
+
 				sysDb.run(
 					`DELETE FROM system_event_log
 					WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
@@ -145,9 +167,17 @@ class StatLog {
 			WHERE log_name = ?`;
 
 		switch(order) {
-		case 'timestamp' :
-		case 'timestamp_desc' :
-			sql += ' ORDER BY timestamp DESC';
+			case 'timestamp' :
+			case 'timestamp_asc' :
+				sql += ' ORDER BY timestamp ASC';
+				break;
+
+			case 'timestamp_desc' :
+				sql += ' ORDER BY timestamp DESC';
+				break;
+
+			case 'random'	: 
+				sql += ' ORDER BY RANDOM()';
 		}
 
 		if(!cb && _.isFunction(limit)) {
@@ -177,6 +207,13 @@ class StatLog {
 				//
 				//	Handle keepDays
 				//
+				if(-1 === keepDays) {
+					if(cb) {
+						return cb(null);
+					}
+					return;
+				}
+
 				sysDb.run(
 					`DELETE FROM user_event_log
 					WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,

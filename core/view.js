@@ -254,7 +254,7 @@ View.prototype.setFocus = function(focused) {
 
 View.prototype.onKeyPress = function(ch, key) {
 	if(false === this.hasFocus) {
-		console.log('doh!');
+		console.log('doh!');	//	:TODO: fix me -- assert here?
 	}
 	assert(this.hasFocus,		'View does not have focus');
 	assert(this.acceptsInput,	'View does not accept input');
@@ -272,6 +272,8 @@ View.prototype.onKeyPress = function(ch, key) {
 	if(ch) {
 		assert(1 === ch.length);
 	}
+
+	this.emit('key press', ch, key);
 };
 
 View.prototype.getData = function() {

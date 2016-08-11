@@ -117,21 +117,11 @@ function BBSListModule(options) {
 	};
 
 	this.setEntries = function(entriesView) {
-		/* 
-			:TODO: This is currently disabled until VerticalMenuView 'justify' works properly with pipe code strings
-		
 		const listFormat		= config.listFormat || '{bbsName}';
 		const focusListFormat	= config.focusListFormat || '{bbsName}';
 
-		entriesView.setItems(self.entries.map( e => {
-			return listFormat.format(e);
-		}));
-		
-		entriesView.setFocusItems(self.entries.map( e => {
-			return focusListFormat.format(e);
-		}));
-		*/
-		entriesView.setItems(self.entries.map(e => e.bbsName));
+		entriesView.setItems(self.entries.map( e => listFormat.format(e) ) );
+		entriesView.setFocusItems(self.entries.map( e => focusListFormat.format(e) ) );
 	};
 
 	this.displayBBSList = function(clearScreen, cb) {

@@ -40,110 +40,6 @@ function MenuModule(options) {
 
 	this.initViewControllers();
 
-	this.initSequence = function() {
-		var mciData = { };
-
-		async.series(
-			[
-				function beforeDisplayArt(callback) {
-					self.beforeArt(callback);
-				},
-				function displayMenuArt(callback) {
-					if(_.isString(self.menuConfig.art)) {
-						theme.displayThemedAsset(
-							self.menuConfig.art, 
-							self.client, 
-							self.menuConfig.options,	//	can include .font, .trailingLF, etc.
-							function displayed(err, artData) {
-								if(err) {
-									self.client.log.trace( { art : self.menuConfig.art, error : err.message }, 'Could not display art');
-								} else {
-									mciData.menu = artData.mciMap;
-								}
-								callback(null);	//	non-fatal
-							}
-						);
-					} else {						
-						callback(null);
-					}
-				},
-				function moveToPromptLocation(callback) {												
-					if(self.menuConfig.prompt) {
-						//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
-					}
-
-					callback(null);
-				},
-				function displayPromptArt(callback) {
-					if(_.isString(self.menuConfig.prompt)) {
-						//	If a prompt is specified, we need the configuration
-						if(!_.isObject(self.menuConfig.promptConfig)) {
-							callback(new Error('Prompt specified but configuraiton not found!'));
-							return;
-						}
-
-						//	Prompts *must* have art. If it's missing it's an error
-						//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
-						var promptConfig = self.menuConfig.promptConfig;
-						theme.displayThemedAsset(
-							promptConfig.art, 
-							self.client, 
-							self.menuConfig.options,	//	can include .font, .trailingLF, etc.
-							function displayed(err, artData) {
-								if(!err) {
-									mciData.prompt = artData.mciMap;
-								}
-								callback(err);
-							});
-					} else {						
-						callback(null);
-					}
-				},
-				function recordCursorPosition(callback) {
-					if(self.shouldPause()) {
-						self.client.once('cursor position report', function cpr(pos) {
-							self.afterArtPos = pos;
-							self.client.log.trace( { position : pos }, 'After art position recorded');
-							callback(null);
-						});
-						self.client.term.write(ansi.queryPos());
-					} else {
-						callback(null);
-					}
-				},
-				function afterArtDisplayed(callback) {
-					self.mciReady(mciData, callback);
-				},
-				function displayPauseIfRequested(callback) {
-					if(self.shouldPause()) {
-						self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
-
-						//	:TODO: really need a client.term.pause() that uses the correct art/etc.
-						theme.displayThemedPause( { client : self.client }, function keyPressed() {
-							callback(null);
-						});
-					} else {
-						callback(null);
-					}
-				},
-				function finishAndNext(callback) {
-					self.finishedLoading();
-
-					self.autoNextMenu(callback);	
-				}
-			],
-			function complete(err) {
-				if(err) {
-					console.log(err)
-					//	:TODO: what to do exactly?????
-					return self.prevMenu( () => {
-						//	dummy
-					});
-				}
-			}
-		);
-	};
-
 	this.shouldPause = function() {
 		return 'end' === self.menuConfig.options.pause || true === self.menuConfig.options.pause;
 	};
@@ -199,13 +95,118 @@ require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 
 
 MenuModule.prototype.enter = function() {
-	if(_.isString(this.menuConfig.status)) {
-		this.client.currentStatus = this.menuConfig.status;
+	if(_.isString(this.menuConfig.desc)) {
+		this.client.currentStatus = this.menuConfig.desc;
 	} else {
 		this.client.currentStatus = 'Browsing menus';
 	}
 
 	this.initSequence();
+};
+
+MenuModule.prototype.initSequence = function() {
+	var mciData = { };
+	const self = this;
+
+	async.series(
+		[
+			function beforeDisplayArt(callback) {
+				self.beforeArt(callback);
+			},
+			function displayMenuArt(callback) {
+				if(_.isString(self.menuConfig.art)) {
+					theme.displayThemedAsset(
+						self.menuConfig.art, 
+						self.client, 
+						self.menuConfig.options,	//	can include .font, .trailingLF, etc.
+						function displayed(err, artData) {
+							if(err) {
+								self.client.log.trace( { art : self.menuConfig.art, error : err.message }, 'Could not display art');
+							} else {
+								mciData.menu = artData.mciMap;
+							}
+							callback(null);	//	non-fatal
+						}
+					);
+				} else {						
+					callback(null);
+				}
+			},
+			function moveToPromptLocation(callback) {												
+				if(self.menuConfig.prompt) {
+					//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
+				}
+
+				callback(null);
+			},
+			function displayPromptArt(callback) {
+				if(_.isString(self.menuConfig.prompt)) {
+					//	If a prompt is specified, we need the configuration
+					if(!_.isObject(self.menuConfig.promptConfig)) {
+						callback(new Error('Prompt specified but configuraiton not found!'));
+						return;
+					}
+
+					//	Prompts *must* have art. If it's missing it's an error
+					//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
+					var promptConfig = self.menuConfig.promptConfig;
+					theme.displayThemedAsset(
+						promptConfig.art, 
+						self.client, 
+						self.menuConfig.options,	//	can include .font, .trailingLF, etc.
+						function displayed(err, artData) {
+							if(!err) {
+								mciData.prompt = artData.mciMap;
+							}
+							callback(err);
+						});
+				} else {						
+					callback(null);
+				}
+			},
+			function recordCursorPosition(callback) {
+				if(self.shouldPause()) {
+					self.client.once('cursor position report', function cpr(pos) {
+						self.afterArtPos = pos;
+						self.client.log.trace( { position : pos }, 'After art position recorded');
+						callback(null);
+					});
+					self.client.term.write(ansi.queryPos());
+				} else {
+					callback(null);
+				}
+			},
+			function afterArtDisplayed(callback) {
+				self.mciReady(mciData, callback);
+			},
+			function displayPauseIfRequested(callback) {
+				if(self.shouldPause()) {
+					self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
+
+					//	:TODO: really need a client.term.pause() that uses the correct art/etc.
+					theme.displayThemedPause( { client : self.client }, function keyPressed() {
+						callback(null);
+					});
+				} else {
+					callback(null);
+				}
+			},
+			function finishAndNext(callback) {
+				self.finishedLoading();
+
+				self.autoNextMenu(callback);	
+			}
+		],
+		function complete(err) {
+			if(err) {
+				console.log(err)
+				//	:TODO: what to do exactly?????
+				return self.prevMenu( () => {
+					//	dummy
+				});
+			}
+		}
+	);
 };
 
 MenuModule.prototype.getSaveState = function() {

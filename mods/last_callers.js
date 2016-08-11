@@ -66,7 +66,7 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 			function fetchHistory(callback) {
 				callersView = vc.getView(MciCodeIds.CallerList);
 
-				StatLog.getSystemLogEntries('user_login_history', 'timestamp_desc', callersView.dimens.height, (err, lh) => {
+				StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, callersView.dimens.height, (err, lh) => {
 					loginHistory = lh;
 					return callback(err);
 				});

@@ -236,7 +236,8 @@ exports.stringFormatExtensions = stringFormatExtensions;
 
 //	:TODO: Add other codes from ansi_escape_parser
 const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
-const ANSI_OR_PIPE_REGEXP	= new RegExp(ANSI_REGEXP.source + '\\|[A-Z\d]{2}', 'g');
+const PIPE_REGEXP			= /\|[A-Z\d]{2}/g;
+const ANSI_OR_PIPE_REGEXP	= new RegExp(ANSI_REGEXP.source + '|' + PIPE_REGEXP.source, 'g');
 
 //
 //	Similar to substr() but works with ANSI/Pipe code strings
@@ -279,10 +280,8 @@ function renderSubstr(str, start, length) {
 //	Pipe and ANSI color codes. Note that currently ANSI *movement* 
 //	codes are not considred!
 //
-//	:TODO: consolidate ANSI code RegExp's and such
-const PIPE_AND_ANSI_RE = ANSI_OR_PIPE_REGEXP;// /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]|\|[A-Z\d]{2}/g
 function renderStringLength(str) {
-	return str.replace(PIPE_AND_ANSI_RE, '').length;
+	return str.replace(ANSI_OR_PIPE_REGEXP, '').length;
 }
 
 

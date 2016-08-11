@@ -16,6 +16,24 @@ const _						= require('lodash');
 const moment				= require('moment');
 
 exports.getPredefinedMCIValue	= getPredefinedMCIValue;
+exports.init					= init;
+
+function init(cb) {
+	setNextRandomRumor(cb);
+}
+
+function setNextRandomRumor(cb) {
+	StatLog.getSystemLogEntries('system_rumorz', StatLog.Order.Random, 1, (err, entry) => {
+		if(entry) {
+			entry = entry[0];
+		}
+		const randRumor = entry && entry.log_value ? entry.log_value : '';
+		StatLog.setNonPeristentSystemStat('random_rumor', randRumor);
+		if(cb) {
+			return cb(null);
+		}
+	});
+}
 
 function getPredefinedMCIValue(client, code) {
 
@@ -137,6 +155,13 @@ function getPredefinedMCIValue(client, code) {
 			AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
 			TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toString(); },
+
+			RR	: function randomRumor() {
+				//	start the process of picking another random one
+				setNextRandomRumor();
+
+				return StatLog.getSystemStat('random_rumor');
+			},
 
 			//
 			//	Special handling for XY

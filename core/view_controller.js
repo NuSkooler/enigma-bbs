@@ -23,7 +23,6 @@ function ViewController(options) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.client));
 	
-
 	events.EventEmitter.call(this);
 
 	var self			= this;
@@ -83,28 +82,28 @@ function ViewController(options) {
 
 	this.viewActionListener = function(action, key) {
 		switch(action) {
-		case 'next' :
-			self.emit('action', { view : this, action : action, key : key });
-			self.nextFocus();
-			break;
-
-		case 'accept' :			
-			if(self.focusedView && self.focusedView.submit) {
-				//	:TODO: need to do validation here!!!
-				var focusedView = self.focusedView;
-				self.validateView(focusedView, function validated(err, newFocusedViewId) {
-					if(err) {
-						var newFocusedView = self.getView(newFocusedViewId) || focusedView;
-						self.setViewFocusWithEvents(newFocusedView, true);
-					} else {
-						self.submitForm(key);
-					}
-				});
-				//self.submitForm(key);
-			} else {
+			case 'next' :
+				self.emit('action', { view : this, action : action, key : key });
 				self.nextFocus();
-			}
-			break;
+				break;
+
+			case 'accept' :			
+				if(self.focusedView && self.focusedView.submit) {
+					//	:TODO: need to do validation here!!!
+					var focusedView = self.focusedView;
+					self.validateView(focusedView, function validated(err, newFocusedViewId) {
+						if(err) {
+							var newFocusedView = self.getView(newFocusedViewId) || focusedView;
+							self.setViewFocusWithEvents(newFocusedView, true);
+						} else {
+							self.submitForm(key);
+						}
+					});
+					//self.submitForm(key);
+				} else {
+					self.nextFocus();
+				}
+				break;
 		}
 	};
 
