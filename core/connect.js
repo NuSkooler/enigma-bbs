@@ -1,36 +1,36 @@
 /* jslint node: true */
 'use strict';
 
-var ansi		= require('./ansi_term.js');
-
-var assert		= require('assert');
+//	ENiGMA½
+const ansi		= require('./ansi_term.js');
 
 exports.connectEntry	= connectEntry;
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
 	if(client.term.termHeight > 0 || client.term.termWidth > 0) {
-		cb(true);
-		return;
+		return cb(null);
 	}
 
-	var done = function(res) {
+	const done = function(err) {
 		client.removeListener('cursor position report', cprListener);
 		clearTimeout(giveUpTimer);
-		cb(res);
+		return cb(err);
 	};
 
-	var cprListener = function(pos) {
+	const cprListener = function(pos) {
 		//
 		//	If we've already found out, disregard
 		//
 		if(client.term.termHeight > 0 || client.term.termWidth > 0) {
-			done(true);
-			return;
+			return done(null);
 		}
 
-		assert(2 === pos.length);
-		var h = pos[0];
-		var w = pos[1];
+		if(2 !== pos.length) {
+			client.log.warn( { cprPosition : pos }, 'Unexpected CPR format');
+		}	
+		
+		const h = pos[0] || 0;
+		const w = pos[1] || 0;
 
 		//
 		//	Netrunner for example gives us 1x1 here. Not really useful. Ignore
@@ -40,8 +40,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			client.log.warn(
 				{ height : h, width : w }, 
 				'Ignoring ANSI CPR screen size query response due to very small values');
-			done(false);
-			return;
+			return done(new Error('Term size <= 10 considered invalid'));
 		}
 
 		client.term.termHeight	= h;
@@ -56,17 +55,17 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			'Window size updated'
 			);
 
-		done(true);
+		return done(null);
 	};
 
 	client.once('cursor position report', cprListener);
 
 	//	give up after 2s
-	var giveUpTimer = setTimeout(function onTimeout() {
-		done(false);
+	const giveUpTimer = setTimeout( () => {
+		return done(new Error('No term size established by CPR within timeout'));
 	}, 2000);
 
-	//	This causes 
+	//	Start the process: Query for CPR 
 	client.term.rawWrite(ansi.queryScreenSize());
 }
 
@@ -85,7 +84,7 @@ function displayBanner(term) {
 }
 
 function connectEntry(client, nextMenu) {
-	var term = client.term;
+	const term = client.term;
 
 	//	:TODO: Enthral for example queries cursor position & checks if it worked. This might be good
 	//	:TODO: How to detect e.g. if show/hide cursor can work? Probably can if CPR is avail
@@ -101,18 +100,23 @@ function connectEntry(client, nextMenu) {
 	//	If we don't yet know the client term width/height,
 	//	try with a nonstandard ANSI DSR type request.
 	//
-	ansiQueryTermSizeIfNeeded(client, function ansiCprResult(result) {
+	ansiQueryTermSizeIfNeeded(client, err => {
 
-		if(!result) {
+		if(err) {
 			//
-			//	We still don't have something good for term height/width.
-			//	Default to DOS size 80x25. 
+			//	Check again; We may have got via NAWS/similar before CPR completed.
 			//
-			//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
-			client.log.warn('Failed to negotiate term size; Defaulting to 80x25!');
-			
-			term.termHeight	= 25;
-			term.termWidth	= 80;
+			if(0 === term.termHeight || 0 === term.termWidth) {
+				//
+				//	We still don't have something good for term height/width.
+				//	Default to DOS size 80x25. 
+				//
+				//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
+				client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
+				
+				term.termHeight	= 25;
+				term.termWidth	= 80;
+			}
 		}
 
 		prepareTerminal(term);
@@ -122,8 +126,8 @@ function connectEntry(client, nextMenu) {
 		//
 		displayBanner(term);
 
-		setTimeout(function onTimeout() {
-			client.menuStack.goto(nextMenu);
+		setTimeout( () => {
+			return client.menuStack.goto(nextMenu);
 		}, 500);
 	});	
 }
