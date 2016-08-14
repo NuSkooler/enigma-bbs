@@ -31,20 +31,18 @@
 	THE SOFTWARE.
 	----/snip/----------------------
 */
-var term		= require('./client_term.js');
-var miscUtil	= require('./misc_util.js');
-var ansi		= require('./ansi_term.js');
-var Log			= require('./logger.js').log;
-var user		= require('./user.js');
-var moduleUtil	= require('./module_util.js');
-var menuUtil	= require('./menu_util.js');
-var Config		= require('./config.js').config;
-var MenuStack	= require('./menu_stack.js');
+//	ENiGMA½
+const term		= require('./client_term.js');
+const ansi		= require('./ansi_term.js');
+const user		= require('./user.js');
+const Config	= require('./config.js').config;
+const MenuStack	= require('./menu_stack.js');
 const ACS		= require('./acs.js');
 
-var stream		= require('stream');
-var assert		= require('assert');
-var _			= require('lodash');
+//	deps
+const stream	= require('stream');
+const assert	= require('assert');
+const _			= require('lodash');
 
 exports.Client	= Client;
 
@@ -54,28 +52,18 @@ exports.Client	= Client;
 //	Resources & Standards:
 //	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
 //
-
-//	:TODO: put this in a common area!!!!...actually, just replace it with more modern code - see ansi_term.js
-function getIntArgArray(array) {
-	var i = array.length;
-	while(i--) {
-		array[i] = parseInt(array[i], 10);
-	}
-	return array;
-}
-
-var RE_DSR_RESPONSE_ANYWHERE		= /(?:\u001b\[)([0-9\;]+)(R)/;
-var RE_DEV_ATTR_RESPONSE_ANYWHERE	= /(?:\u001b\[)[\=\?]([0-9a-zA-Z\;]+)(c)/;
-var RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
-var RE_META_KEYCODE					= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
-var RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
+const RE_DSR_RESPONSE_ANYWHERE		= /(?:\u001b\[)([0-9\;]+)(R)/;
+const RE_DEV_ATTR_RESPONSE_ANYWHERE	= /(?:\u001b\[)[\=\?]([0-9a-zA-Z\;]+)(c)/;
+const RE_META_KEYCODE_ANYWHERE		= /(?:\u001b)([a-zA-Z0-9])/;
+const RE_META_KEYCODE				= new RegExp('^' + RE_META_KEYCODE_ANYWHERE.source + '$');
+const RE_FUNCTION_KEYCODE_ANYWHERE	= new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:' + [
 	'(\\d+)(?:;(\\d+))?([~^$])',
 	'(?:M([@ #!a`])(.)(.))',		// mouse stuff
 	'(?:1;)?(\\d+)?([a-zA-Z@])'
 ].join('|') + ')');
 
-var RE_FUNCTION_KEYCODE				= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
-var RE_ESC_CODE_ANYWHERE			= new RegExp( [
+const RE_FUNCTION_KEYCODE			= new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
+const RE_ESC_CODE_ANYWHERE			= new RegExp( [
 	RE_FUNCTION_KEYCODE_ANYWHERE.source, 
 	RE_META_KEYCODE_ANYWHERE.source, 
 	RE_DSR_RESPONSE_ANYWHERE.source,
@@ -87,7 +75,8 @@ var RE_ESC_CODE_ANYWHERE			= new RegExp( [
 function Client(input, output) {
 	stream.call(this);
 
-	var self	= this;
+	const self	= this;
+	
 	this.user				= new user.User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
@@ -118,7 +107,7 @@ function Client(input, output) {
 	//	*	Christopher Jeffrey's Blessed library @ https://github.com/chjj/blessed/
 	//
 	this.getTermClient = function(deviceAttr) {
-		var termClient = {
+		let termClient = {
 			//
 			//	See http://www.fbl.cz/arctel/download/techman.pdf
 			//
@@ -289,9 +278,13 @@ function Client(input, output) {
 			var parts;
 
 			if((parts = RE_DSR_RESPONSE_ANYWHERE.exec(s))) {
-				if('R' === parts[2]) {	//	:TODO: this should be a assert -- currently only looking for R, unless we start to handle 'n', or others
-					var cprArgs = getIntArgArray(parts[1].split(';'));
+				if('R' === parts[2]) {
+					const cprArgs = parts[1].split(';').map(v => (parseInt(v, 10) || 0) );
 					if(2 === cprArgs.length) {
+						if(self.cprOffset) {
+							cprArgs[0] = cprArgs[0] + self.cprOffset;
+							cprArgs[1] = cprArgs[1] + self.cprOffset;
+						}				
 						self.emit('cursor position report', cprArgs);
 					}
 				}

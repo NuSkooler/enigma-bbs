@@ -4,7 +4,55 @@
 //	ENiGMA½
 const ansi		= require('./ansi_term.js');
 
+//	deps
+const async		= require('async');
+
 exports.connectEntry	= connectEntry;
+
+function ansiDiscoverHomePosition(client, cb) {
+	//
+	//	We want to find the home position. ANSI-BBS and most terminals
+	//	utilize 1,1 as home. However, some terminals such as ConnectBot
+	//	think of home as 0,0. If this is the case, we need to offset
+	//	our positioning to accomodate for such.
+	//
+	const done = function(err) {
+		client.removeListener('cursor position report', cprListener);
+		clearTimeout(giveUpTimer);
+		return cb(err);
+	};
+
+	const cprListener = function(pos) {
+		const h = pos[0];
+		const w = pos[1];
+
+		//
+		//	We expect either 0,0, or 1,1. Anything else will be filed as bad data
+		//
+		if(h > 1 || w > 1) {
+			client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
+			return done(new Error('Home position CPR expected to be 0,0, or 1,1'));
+		}
+
+		if(0 === h & 0 === w) {
+			//
+			//	Store a CPR offset in the client. All CPR's from this point on will offset by this amount
+			//
+			client.log.info('Setting CPR offset to 1');
+			client.cprOffset = 1;
+		}
+
+		return done(null);
+	};
+
+	client.once('cursor position report', cprListener);
+
+	const giveUpTimer = setTimeout( () => {
+		return done(new Error('Giving up on home position CPR'));
+	}, 3000);	//	3s
+
+	client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);	//	go home, query pos
+}
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
 	if(client.term.termHeight > 0 || client.term.termWidth > 0) {
@@ -25,12 +73,8 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 			return done(null);
 		}
 
-		if(2 !== pos.length) {
-			client.log.warn( { cprPosition : pos }, 'Unexpected CPR format');
-		}	
-		
-		const h = pos[0] || 0;
-		const w = pos[1] || 0;
+		const h = pos[0];
+		const w = pos[1];
 
 		//
 		//	Netrunner for example gives us 1x1 here. Not really useful. Ignore
@@ -76,59 +120,64 @@ function prepareTerminal(term) {
 }
 
 function displayBanner(term) {
-	term.pipeWrite(
-		'|06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN\n'	+
-		'|06Copyright (c) 2014-2016 Bryan Ashby |14- |12http://l33t.codes/\n'	+ 
-		'|06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/\n'			+
-		'|00');
+	//	note: intentional formatting:
+	term.pipeWrite(`
+  |06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN
+  |06Copyright (c) 2014-2016 Bryan Ashby |14- |12http://l33t.codes/ 
+  |06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/
+  |00`
+	);
 }
 
 function connectEntry(client, nextMenu) {
 	const term = client.term;
 
-	//	:TODO: Enthral for example queries cursor position & checks if it worked. This might be good
-	//	:TODO: How to detect e.g. if show/hide cursor can work? Probably can if CPR is avail
+	async.series(
+		[
+			function basicPrepWork(callback) {
+				term.rawWrite(ansi.queryDeviceAttributes(0));
+				return callback(null);
+			},
+			function discoverHomePosition(callback) {
+				ansiDiscoverHomePosition(client, () => {
+					//	:TODO: If CPR for home fully fails, we should bail out on the connection with an error, e.g. ANSI support required
+					return callback(null);	//	we try to continue anyway
+				});
+			},
+			function queryTermSizeByNonStandardAnsi(callback) {
+				ansiQueryTermSizeIfNeeded(client, err => {
+					if(err) {
+						//
+						//	Check again; We may have got via NAWS/similar before CPR completed.
+						//
+						if(0 === term.termHeight || 0 === term.termWidth) {
+							//
+							//	We still don't have something good for term height/width.
+							//	Default to DOS size 80x25. 
+							//
+							//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
+							client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
+							
+							term.termHeight	= 25;
+							term.termWidth	= 80;
+						}
+					}
 
-	//
-	//	Some terminal clients can be detected using a nonstandard ANSI DSR
-	//
-	term.rawWrite(ansi.queryDeviceAttributes(0));
+					return callback(null);
+				});
+			},			
+		], 
+		() => {
+			prepareTerminal(term);
 
-	//	:TODO: PuTTY will apparently respond with "PuTTY" if a CTRL-E is sent to it. Add in detection.
-
-	//	
-	//	If we don't yet know the client term width/height,
-	//	try with a nonstandard ANSI DSR type request.
-	//
-	ansiQueryTermSizeIfNeeded(client, err => {
-
-		if(err) {
 			//
-			//	Check again; We may have got via NAWS/similar before CPR completed.
+			//	Always show an ENiGMA½ banner
 			//
-			if(0 === term.termHeight || 0 === term.termWidth) {
-				//
-				//	We still don't have something good for term height/width.
-				//	Default to DOS size 80x25. 
-				//
-				//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
-				client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
-				
-				term.termHeight	= 25;
-				term.termWidth	= 80;
-			}
+			displayBanner(term);
+
+			setTimeout( () => {
+				return client.menuStack.goto(nextMenu);
+			}, 500);
 		}
-
-		prepareTerminal(term);
-
-		//
-		//	Always show an ENiGMA½ banner
-		//
-		displayBanner(term);
-
-		setTimeout( () => {
-			return client.menuStack.goto(nextMenu);
-		}, 500);
-	});	
+	);
 }
-

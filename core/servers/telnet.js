@@ -510,7 +510,6 @@ util.inherits(TelnetClient, baseClient.Client);
 ///////////////////////////////////////////////////////////////////////////////
 TelnetClient.prototype.handleTelnetEvent = function(evt) {
 	//	handler name e.g. 'handleWontCommand'
-	//const handlerName = 'handle' + evt.command.charAt(0).toUpperCase() + evt.command.substr(1) + 'Command';
 	const handlerName = `handle${evt.command.charAt(0).toUpperCase()}${evt.command.substr(1)}Command`;
 
 	if(this[handlerName]) {
@@ -567,7 +566,7 @@ TelnetClient.prototype.handleDoCommand = function(evt) {
 };
 
 TelnetClient.prototype.handleDontCommand = function(evt) {
-	this.connectionDebug(evt, 'dont');
+	this.connectionDebug(evt, 'DONT');
 };
 
 TelnetClient.prototype.handleSbCommand = function(evt) {

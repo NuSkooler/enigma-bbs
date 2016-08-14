@@ -123,24 +123,19 @@ View.prototype.setPosition = function(pos) {
 	if(util.isArray(pos)) {
 		this.position.row = pos[0];
 		this.position.col = pos[1];
-	} else if(pos.row && pos.col) {
+	} else if(_.isNumber(pos.row) && _.isNumber(pos.col)) {
 		this.position.row = pos.row;
 		this.position.col = pos.col;
 	} else if(2 === arguments.length) {
 		this.position.row = parseInt(arguments[0], 10);
 		this.position.col = parseInt(arguments[1], 10);
 	}
-	
-	assert(!(isNaN(this.position.row)));
-	assert(!(isNaN(this.position.col)));
 
-	assert(
-		this.position.row > 0 && this.position.row <= this.client.term.termHeight, 
-		'X position ' + this.position.row + ' out of terminal range ' + this.client.term.termHeight);
-
-	assert(
-		this.position.col > 0 && this.position.col <= this.client.term.termWidth, 
-		'Y position ' + this.position.col + ' out of terminal range ' + this.client.term.termWidth);
+	//	santaize
+	this.position.row	= Math.max(this.position.row, 1);
+	this.position.col	= Math.max(this.position.col, 1);
+	this.position.row	= Math.min(this.position.row, this.client.term.termHeight);
+	this.position.col	= Math.min(this.position.col, this.client.term.termWidth);
 };
 
 View.prototype.setDimension = function(dimens) {
