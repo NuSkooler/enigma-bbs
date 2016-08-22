@@ -287,11 +287,16 @@ function getDefaultConfig() {
 		},
 
 		misc : {
-			idleLogoutSeconds	: 60 * 6,	//	6m
+			preAuthIdleLogoutSeconds	: 60 * 3,	//	2m
+			idleLogoutSeconds			: 60 * 6,	//	6m
 		},
 
 		logging : {
 			level	: 'debug'
+		},
+
+		debug : {
+			assertsEnabled	: false,
 		}
 	};
 }

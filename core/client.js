@@ -402,9 +402,13 @@ Client.prototype.startIdleMonitor = function() {
 	//	Every 1m, check for idle.
 	//
 	self.idleCheck = setInterval(function checkForIdle() {
-		var nowMs	= Date.now();
+		const nowMs	= Date.now();
 
-		if(nowMs - self.lastKeyPressMs >= (Config.misc.idleLogoutSeconds * 1000)) {
+		const idleLogoutSeconds = self.user.isAuthenticated() ?
+			Config.misc.idleLogoutSeconds :
+			Config.misc.preAuthIdleLogoutSeconds;
+
+		if(nowMs - self.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
 			self.emit('idle timeout');
 		}
 	}, 1000 * 60);
