@@ -1,18 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-var events		= require('events');
-var util		= require('util');
-var assert		= require('assert');
-var ansi		= require('./ansi_term.js');
-var colorCodes	= require('./color_codes.js');
+//	ENiGMA½
+const events		= require('events');
+const util			= require('util');
+const ansi			= require('./ansi_term.js');
+const colorCodes	= require('./color_codes.js');
+const enigAssert	= require('./enigma_assert.js');
 
-var _			= require('lodash');
+//	deps
+const _				= require('lodash');
 
 exports.View							= View;
-exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
-var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
+const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	accept		: [ 'return' ],
 	exit		: [ 'esc' ],
 	backspace	: [ 'backspace', 'del' ],
@@ -27,11 +28,13 @@ var VIEW_SPECIAL_KEY_MAP_DEFAULT = {
 	clearLine	: [ 'ctrl + y' ],
 };
 
+exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
+
 function View(options) {
 	events.EventEmitter.call(this);
 
-	assert(_.isObject(options));
-	assert(_.isObject(options.client));
+	enigAssert(_.isObject(options));
+	enigAssert(_.isObject(options.client));
 
 	var self			= this;
 
@@ -131,7 +134,7 @@ View.prototype.setPosition = function(pos) {
 		this.position.col = parseInt(arguments[1], 10);
 	}
 
-	//	santaize
+	//	sanatize
 	this.position.row	= Math.max(this.position.row, 1);
 	this.position.col	= Math.max(this.position.col, 1);
 	this.position.row	= Math.min(this.position.row, this.client.term.termHeight);
@@ -139,25 +142,23 @@ View.prototype.setPosition = function(pos) {
 };
 
 View.prototype.setDimension = function(dimens) {
-	assert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
+	enigAssert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
 
 	this.dimens		= dimens;
 	this.autoScale	= { height : false, width : false };
 };
 
 View.prototype.setHeight = function(height) {
-	height = parseInt(height, 10);
-	assert(_.isNumber(height));
-	//	:TODO: assert height is within this.client.term.termHeight
+	height	= parseInt(height) || 1;
+	height	= Math.min(height, this.client.term.termHeight); 
 
 	this.dimens.height		= height;
 	this.autoScale.height	= false;
 };
 
 View.prototype.setWidth = function(width) {
-	width = parseInt(width);
-	assert(_.isNumber(width));
-	//	:TODO: assert width is appropriate for this.client.term.termWidth
+	width	= parseInt(width) || 1;
+	width	= Math.min(width, this.client.term.termWidth);
 
 	this.dimens.width		= width;
 	this.autoScale.width	= false;
@@ -168,7 +169,7 @@ View.prototype.getSGR = function() {
 };
 
 View.prototype.getStyleSGR = function(n) {
-	assert(_.isNumber(n));
+	n = parseInt(n) || 0;
 	return this['styleSGR' + n];
 };
 
@@ -241,21 +242,22 @@ View.prototype.redraw = function() {
 };
 
 View.prototype.setFocus = function(focused) {
-	assert(this.acceptsFocus, 'View does not accept focus');
+	enigAssert(this.acceptsFocus, 'View does not accept focus');
 
 	this.hasFocus = focused;
 	this.restoreCursor();
 };
 
-View.prototype.onKeyPress = function(ch, key) {
-	if(false === this.hasFocus) {
-		console.log('doh!');	//	:TODO: fix me -- assert here?
+View.prototype.onKeyPress = function(ch, key) {	
+	enigAssert(this.hasFocus,		'View does not have focus');
+	enigAssert(this.acceptsInput,	'View does not accept input');
+
+	if(!this.hasFocus || !this.acceptsInput) {
+		return;
 	}
-	assert(this.hasFocus,		'View does not have focus');
-	assert(this.acceptsInput,	'View does not accept input');
 
 	if(key) {
-		assert(this.specialKeyMap, 'No special key map defined');
+		enigAssert(this.specialKeyMap, 'No special key map defined');
 
 		if(this.isKeyMapped('accept', key.name)) {
 			this.emit('action', 'accept', key);
@@ -265,7 +267,7 @@ View.prototype.onKeyPress = function(ch, key) {
 	}
 
 	if(ch) {
-		assert(1 === ch.length);
+		enigAssert(1 === ch.length);
 	}
 
 	this.emit('key press', ch, key);
