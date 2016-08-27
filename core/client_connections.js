@@ -1,28 +1,39 @@
 /* jslint node: true */
 'use strict';
 
-var logger						= require('./logger.js');
+//	ENiGMA½
+const logger			= require('./logger.js');
 
-var _							= require('lodash');
-var moment						= require('moment');
+//	deps
+const _					= require('lodash');
+const moment			= require('moment');
 
 exports.getActiveConnections	= getActiveConnections;
 exports.getActiveNodeList		= getActiveNodeList;
 exports.addNewClient			= addNewClient;
 exports.removeClient			= removeClient;
 
-var clientConnections = [];
+const clientConnections = [];
 exports.clientConnections		= clientConnections;
 
 function getActiveConnections() {
 	return clientConnections;
 }
 
-function getActiveNodeList() {
+function getActiveNodeList(authUsersOnly) {
+
+	if(!_.isBoolean(authUsersOnly)) {
+		authUsersOnly = true; 
+	}
+
 	const now = moment();
+
+	const activeConnections = getActiveConnections().filter(ac => {
+		return ((authUsersOnly && ac.user.isAuthenticated()) || !authUsersOnly);
+	});
 	
-	return _.map(getActiveConnections(), ac => {
-		let entry = {
+	return _.map(activeConnections, ac => {
+		const entry = {
 			node			: ac.node,
 			authenticated	: ac.user.isAuthenticated(),
 			userId			: ac.user.userId,
@@ -46,13 +57,13 @@ function getActiveNodeList() {
 }
 
 function addNewClient(client, clientSock) {
-	var id = client.session.id = clientConnections.push(client) - 1;
+	const id = client.session.id = clientConnections.push(client) - 1;
 
 	//	Create a client specific logger 
 	//	Note that this will be updated @ login with additional information
 	client.log = logger.log.child( { clientId : id } );
 
-	var connInfo = {
+	const connInfo = {
 		ip			: clientSock.remoteAddress,
 		serverName	: client.session.serverName,
 		isSecure	: client.session.isSecure,
@@ -71,7 +82,7 @@ function addNewClient(client, clientSock) {
 function removeClient(client) {
 	client.end();
 
-	var i = clientConnections.indexOf(client);
+	const i = clientConnections.indexOf(client);
 	if(i > -1) {
 		clientConnections.splice(i, 1);
 		
@@ -84,15 +95,3 @@ function removeClient(client) {
 			);
 	}
 }
-
-/* :TODO: make a public API elsewhere
-function getActiveClientInformation() {
-	var info = {};
-
-	clientConnections.forEach(function connEntry(cc) {
-
-	});
-
-	return info;
-}
-*/

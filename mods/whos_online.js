@@ -1,14 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule				= require('../core/menu_module.js').MenuModule;
-var ViewController			= require('../core/view_controller.js').ViewController;
-var getActiveNodeList		= require('../core/client_connections.js').getActiveNodeList;
+//	ENiGMA½
+const MenuModule			= require('../core/menu_module.js').MenuModule;
+const ViewController		= require('../core/view_controller.js').ViewController;
+const getActiveNodeList		= require('../core/client_connections.js').getActiveNodeList;
 
-var moment					= require('moment');
-var async					= require('async');
-var assert					= require('assert');
-var _						= require('lodash');
+//	deps
+const async					= require('async');
+const _						= require('lodash');
 
 exports.moduleInfo = {
 	name		: 'Who\'s Online',
@@ -17,26 +17,9 @@ exports.moduleInfo = {
 	packageName	: 'codes.l33t.enigma.whosonline'
 };
 
-/*
-node
-userName
-userId
-action
-note
-affils
-timeOnSec
-location
-realName
-serverName (Telnet, SSH, ...)
-
-default
-{node} - {username} - {action} - {timeOnSec}
-
-*/
-
 exports.getModule	= WhosOnlineModule;
 
-var MciCodeIds = {
+const MciCodeIds = {
 	OnlineList		: 1,
 };
 
@@ -47,30 +30,29 @@ function WhosOnlineModule(options) {
 require('util').inherits(WhosOnlineModule, MenuModule);
 
 WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
-	var self		= this;
-	var vc			= self.viewControllers.allViews = new ViewController( { client : self.client } );
+	const self	= this;
+	const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
 
 	async.series(
 		[
 			function callParentMciReady(callback) {
-				WhosOnlineModule.super_.prototype.mciReady.call(self, mciData, callback);
+				return WhosOnlineModule.super_.prototype.mciReady.call(self, mciData, callback);
 			},
 			function loadFromConfig(callback) {
-				var loadOpts = {
+				const loadOpts = {
 					callingMenu		: self,
 					mciMap			: mciData.menu,
 					noInput			: true,
 				};
 
-				vc.loadFromMenuConfig(loadOpts, callback);
+				return vc.loadFromMenuConfig(loadOpts, callback);
 			},
 			function populateList(callback) {
-				var onlineListView = vc.getView(MciCodeIds.OnlineList);
-
-				const listFormat	= self.menuConfig.config.listFormat || '{node} - {userName} - {action} - {timeOn}';
-				const nonAuthUser	= self.menuConfig.config.nonAuthUser || 'Logging In';
-				const otherUnknown	= self.menuConfig.config.otherUnknown || 'N/A';	
-				const onlineList 	= getActiveNodeList().slice(0, onlineListView.height);
+				const onlineListView	= vc.getView(MciCodeIds.OnlineList);
+				const listFormat		= self.menuConfig.config.listFormat || '{node} - {userName} - {action} - {timeOn}';
+				const nonAuthUser		= self.menuConfig.config.nonAuthUser || 'Logging In';
+				const otherUnknown		= self.menuConfig.config.otherUnknown || 'N/A';
+				const onlineList 		= getActiveNodeList(self.menuConfig.config.authUsersOnly).slice(0, onlineListView.height);
 				
 				onlineListView.setItems(_.map(onlineList, oe => {
 					if(oe.authenticated) {
@@ -85,16 +67,16 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 				}));
 
 				onlineListView.focusItems = onlineListView.items;
-
 				onlineListView.redraw();
-				callback(null);
+
+				return callback(null);
 			}
 		],
 		function complete(err) {
 			if(err) {
-				self.client.log.error( { error : err.toString() }, 'Error loading who\'s online');
+				self.client.log.error( { error : err.message }, 'Error loading who\'s online');
 			}
-			cb(err);
+			return cb(err);
 		}
 	);
 };
