@@ -16,9 +16,7 @@ exports.removeClient			= removeClient;
 const clientConnections = [];
 exports.clientConnections		= clientConnections;
 
-function getActiveConnections() {
-	return clientConnections;
-}
+function getActiveConnections() { return clientConnections; }
 
 function getActiveNodeList(authUsersOnly) {
 
