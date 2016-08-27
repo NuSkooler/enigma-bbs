@@ -271,6 +271,31 @@
 				}
 			}
 
+			mainMenuRumorz: {
+				config: {
+					listFormat:      "|00|11  {rumor}"
+					focusListFormat: "|00|15> |14{rumor}"
+				}
+				0: {
+					mci: {
+						VM1: { height: 14 }
+						TM2: {
+							focusTextStyle: upper
+							items: [ "yes", "no" ]
+						}						
+					}
+				}
+				1: {
+					mci: {
+						ET1: { width: 60 }
+						TL2: { width: 60 }
+						TM3: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
 			bbsList: {
 				0: {
 					mci: {

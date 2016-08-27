@@ -746,6 +746,10 @@
 					action: @menu:mainMenuOnelinerz
 				}
 				{
+					value: { command: "R" }
+					action: @menu:mainMenuRumorz
+				}
+				{
 					value: { command: "CHAT"}
 					action: @menu:ercClient
 				}
@@ -1074,6 +1078,92 @@
 							focus: true
 							maxLength: 70
 							argName: oneliner
+						}
+						TL2: {
+							width: 60
+						}
+						TM3: {
+							argName: addOrCancel
+							items: [ "add", "cancel" ]
+							"hotKeys"	: { "A" : 0, "C" : 1, "Q" : 1 }
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { addOrCancel: 0 }
+								action: @method:addEntry
+							}
+							{
+								value: { addOrCancel: 1 }
+								action: @method:cancelAdd
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:cancelAdd
+						}
+					]
+				}
+			}
+		}
+
+		mainMenuRumorz: {
+			desc: Rumorz
+			module: rumorz
+			options: {
+				cls: true
+			}
+			config: {
+				art: {
+					entries: RUMORS
+					add: RUMORADD
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: false
+							height: 10
+						}
+						TM2: {
+							argName: addOrExit
+							items: [ "yeah!", "nah" ]
+							"hotKeys"	: { "Y" : 0, "N" : 1, "Q" : 1 }
+							submit: true
+							focus: true
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { addOrExit: 0 }
+								action: @method:viewAddScreen
+							}
+							{
+								value: { addOrExit: null }
+								action: @systemMethod:nextMenu
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:nextMenu
+						}
+					]
+				},
+				1: {
+					mci: {
+						ET1: {
+							focus: true
+							maxLength: 70
+							argName: rumor
 						}
 						TL2: {
 							width: 60
