@@ -11,6 +11,7 @@ const logger		= require('./logger.js');
 const database		= require('./database.js');
 const clientConns	= require('./client_connections.js');
 
+//	deps
 const async			= require('async');
 const util			= require('util');
 const _				= require('lodash');
