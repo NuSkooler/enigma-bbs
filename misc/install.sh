@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 
-ENIGMA_NODE_VERSION=4.4
-ENIGMA_INSTALL_DIR=$HOME/enigma-bbs
-ENIGMA_SOURCE=https://github.com/NuSkooler/enigma-bbs.git
+{ # this ensures the entire script is downloaded before execution
+
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=4.4}
+ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
+ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
+WAIT_BEFORE_INSTALL=10
 
 enigma_header() {
+    clear
     cat << EndOfMessage
                                                                      ______
 _____________________   _____  ____________________    __________\\_   /
@@ -16,13 +20,14 @@ _____________________   _____  ____________________    __________\\_   /
                                                                        /__   _\\
        <*> ENiGMA½ // https://github.com/NuSkooler/enigma-bbs <*>        /__/
 
-This script will install Node 4.4 via nvm, download Enigma½, install its dependencies,
-then run the config generator for you. If this isn't what you were expecting, hit ctrl-c now.
+ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE}.
 
-If you already have nvm installed, this will update it to the latest version.
+ENiGMA½ requires Node, v${ENIGMA_NODE_VERSION} will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
+
+If this isn't what you were expecting, hit ctrl-c now. Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
 
 EndOfMessage
-    read -p ">> Hit Enter To Continue <<"
+    sleep ${WAIT_BEFORE_INSTALL}
 }
 
 enigma_install_needs() {
@@ -88,14 +93,17 @@ install_node_packages() {
     fi
 }
 
-generate_enigma_config() {
-    log "Launching config generator"
-    cd ${ENIGMA_INSTALL_DIR}
-    ./oputil.js config --new
-}
-
 enigma_footer() {
     log "ENiGMA½ installation complete!"
+    echo -e "\e[33m"
+    cat << EndOfMessage
+If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands:
+
+cd ${ENIGMA_INSTALL_DIR}
+./oputil.js config --new
+
+EndOfMessage
+    echo -e "\e[39m"
 }
 
 enigma_header
@@ -104,5 +112,6 @@ install_nvm
 configure_nvm
 download_enigma_source
 install_node_packages
-generate_enigma_config
 enigma_footer
+
+} # this ensures the entire script is downloaded before execution
