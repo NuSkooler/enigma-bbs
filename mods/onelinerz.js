@@ -7,6 +7,7 @@ const getModDatabasePath	= require('../core/database.js').getModDatabasePath;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const theme					= require('../core/theme.js');
 const ansi					= require('../core/ansi_term.js');
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const sqlite3				= require('sqlite3');
@@ -145,7 +146,7 @@ function OnelinerzModule(options) {
 					const tsFormat		= config.timestampFormat || 'ddd h:mma';
 
 					entriesView.setItems(entries.map( e => {
-						return listFormat.format( {
+						return stringFormat(listFormat, {
 							userId		: e.user_id,
 							username	: e.user_name,
 							oneliner	: e.oneliner,
