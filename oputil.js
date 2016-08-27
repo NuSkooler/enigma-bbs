@@ -12,7 +12,6 @@ const resolvePath	= require('./core/misc_util.js').resolvePath;
 //	deps
 const _				= require('lodash');
 const async			= require('async');
-const assert		= require('assert');
 const inq			= require('inquirer');
 const mkdirsSync	= require('fs-extra').mkdirsSync;
 const fs			= require('fs');
