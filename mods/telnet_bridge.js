@@ -50,8 +50,11 @@ class TelnetClientConnection extends EventEmitter {
 		if(!this.pipeRestored) {
 			this.pipeRestored = true;
 
-			this.client.term.output.unpipe(this.bridgeConnection);
-			this.client.term.output.resume();
+			//	client may have bailed
+			if(_.has(this, 'client.term.output')) {
+				this.client.term.output.unpipe(this.bridgeConnection);
+				this.client.term.output.resume();
+			}
 		}
 	}
 

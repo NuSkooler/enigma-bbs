@@ -3,6 +3,7 @@
 
 //	ENiGMA½
 const checkAcs	= require('./acs_parser.js').parse;
+const Log		= require('./logger.js').log;
 
 //	deps
 const assert	= require('assert');
@@ -16,7 +17,12 @@ class ACS {
 	check(acs, scope, defaultAcs) {
 		acs = acs ? acs[scope] : defaultAcs;
 		acs = acs || defaultAcs;
-		return checkAcs(acs, { client : this.client } );		
+		try {
+			return checkAcs(acs, { client : this.client } );
+		} catch(e) {
+			Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
+			return false;
+		}		
 	}
 
 	hasMessageConfRead(conf) {
@@ -33,7 +39,12 @@ class ACS {
 
 		const matchCond = condArray.find( cond => {
 			if(_.has(cond, 'acs')) {
-				return checkAcs(cond.acs, { client : this.client } );
+				try {
+					return checkAcs(cond.acs, { client : this.client } );
+				} catch(e) {
+					Log.warn( { exception : e, acs : cond }, 'Exception caught checking ACS');
+					return false;
+				}
 			} else {
 				return true;	//	no acs check req.
 			}
