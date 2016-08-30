@@ -18,6 +18,8 @@ exports.loadProperties				= loadProperties;
 exports.getUserIdsWithProperty		= getUserIdsWithProperty;
 exports.getUserList					= getUserList;
 
+exports.isRootUserId = function(id) { return 1 === id; };
+
 function User() {
 	var self = this;
 
@@ -28,7 +30,7 @@ function User() {
 
 	this.isAuthenticated = function() {
 		return true === self.authenticated;
-	}
+	};
 
 	this.isValid = function() {
 		if(self.userId <= 0 || self.username.length < Config.users.usernameMin) {
@@ -58,13 +60,15 @@ function User() {
 			groupNames = [ groupNames ];
 		}
 
+		//	:TODO: _.some()
+
 		var isMember = false;
 		
 		_.forEach(groupNames, groupName => {
-		if(-1 !== self.groups.indexOf(groupName)) {
-		isMember = true;
-		return false;    //  stop iteration
-		} 
+			if(-1 !== self.groups.indexOf(groupName)) {
+				isMember = true;
+				return false;    //  stop iteration
+			} 
 		});
 
 		return isMember;
@@ -103,9 +107,9 @@ User.prototype.load = function(userId, cb) {
 };
 
 User.prototype.authenticate = function(username, password, cb) {
-	var self = this;
+	const self = this;
 
-	var cachedInfo = {};
+	const cachedInfo = {};
 
 	async.waterfall(
 		[
@@ -178,7 +182,7 @@ User.prototype.authenticate = function(username, password, cb) {
 				self.authenticated	= true;
 			}
 
-			cb(err);
+			return cb(err);
 		}
 	);
 };
