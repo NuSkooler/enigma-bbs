@@ -7,6 +7,7 @@ const ViewController	= require('../core/view_controller.js').ViewController;
 const StatLog			= require('../core/stat_log.js');
 const getUserName		= require('../core/user.js').getUserName;
 const loadProperties	= require('../core/user.js').loadProperties;
+const isRootUserId		= require('../core/user.js').isRootUserId;
 
 //	deps
 const moment			= require('moment');
@@ -68,6 +69,13 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 
 				StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, callersView.dimens.height, (err, lh) => {
 					loginHistory = lh;
+
+					if(self.menuConfig.config.hideSysOpLogin) {
+						loginHistory = loginHistory.filter(lh => {
+							return false === isRootUserId(parseInt(lh.log_value));	//	log_value=userId
+						});
+					}
+
 					return callback(err);
 				});
 			},
