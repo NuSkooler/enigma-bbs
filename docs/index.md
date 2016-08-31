@@ -4,15 +4,25 @@ ENiGMA½ is a modern from scratch BBS package written in Node.js.
 # Quickstart
 TL;DR? This should get you started...
 
-## Prerequisites
+## The Easy Way
+Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can simply execute the `install.sh` script to get everything up and running. Simply cut + paste the following into your terminal:
+
+```
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+```
+
+## The Manual Way
+For Windows environments or if you simply like to do things manually, read on...
+
+### Prerequisites
 * [Node.js](https://nodejs.org/) version **v4.2.x or higher**
   * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
-* **Windows users will need additional dependencies installed** for the `npm install` step in order to compile native binaries:
-  * A recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK). Note that you **should only need Visual C++**.
-  * [Python](https://www.python.org/downloads/) 2.7.x
+* [Python](https://www.python.org/downloads/) 2.7.x
+* A compiler such as Clang or GCC for Linux/UNIX systems or a recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK) for Windows users. Note that you **should only need the Visual C++ component**.
+  
  
-## New to Node
-If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type enviornments:
+### New to Node
+If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type enviornments (Please consider the `install.sh` approach unless you really want to manually install!):
 
 ```bash
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh | bash
@@ -23,12 +33,12 @@ nvm use 4.4.0
 
 If the above completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
   
-## Clone
+### Clone
 ```bash
 git clone https://github.com/NuSkooler/enigma-bbs.git
 ```
 
-## Install Node Modules
+### Install Node Modules
 ```bash
 cd enigma-bbs
 npm install
@@ -40,17 +50,17 @@ To utilize the SSH server, a SSH Private Key will need generated. This step can 
 openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
 ```
 
-## Create a Minimal Config
+### Create a Minimal Config
 The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
-### Via oputil.js
+#### Via oputil.js
 `oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
 
    ./oputil.js config --new
 
 You wil be asked a series of basic questions.
 
-### Example Starting Configuration
+#### Example Starting Configuration
 Below is an _example_ configuration. It is recommended that you at least **start with a generated configuration using oputil.js described above**.
 
 ```hjson
@@ -96,7 +106,7 @@ Logs are produced by Bunyan which outputs each entry as a JSON object. To tail l
 
 ENiGMA½ does not produce much to standard out. See below for tailing the log file to see what's going on.
 
-### Points of Interest
+## Points of Interest
 * Default ports are 8888 (Telnet) and 8889 (SSH)
   * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
 * **The first user you create via applying is the SysOp** (aka root)

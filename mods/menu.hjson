@@ -677,6 +677,10 @@
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:prevMenu
 						}
+						{
+							keys: [ "x", "shift + x" ]
+							action: @method:fullExit
+						}
 					]
 				}
 			}

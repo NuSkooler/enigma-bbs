@@ -318,3 +318,7 @@ MenuModule.prototype.standardMCIReadyHandler = function(mciData, cb) {
 
 MenuModule.prototype.finishedLoading = function() {
 };
+
+MenuModule.prototype.getMenuResult = function() {
+	//	nothing in base
+};

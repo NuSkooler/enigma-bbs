@@ -103,6 +103,11 @@ function MessageListModule(options) {
 			} else {
 				return cb(null);
 			}
+		},
+
+		fullExit : function(formData, extraArgs, cb) {
+			self.menuResult = { fullExit : true };
+			return self.prevMenu(cb);
 		}
 	};
 
@@ -249,4 +254,8 @@ MessageListModule.prototype.restoreSavedState = function(savedState) {
 	if(savedState) {
 		this.initialFocusIndex = savedState.initialFocusIndex;
 	}
+};
+
+MessageListModule.prototype.getMenuResult = function() {
+	return this.menuResult;	
 };
