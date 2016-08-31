@@ -37,6 +37,8 @@ function NewScanModule(options) {
 	var self	= this;
 	var config	= this.menuConfig.config;
 
+	this.newScanFullExit	= _.has(options, 'lastMenuResult.fullExit') ? options.lastMenuResult.fullExit : false;
+
 	this.currentStep		= 'messageConferences';
 	this.currentScanAux		= {};
 
@@ -190,6 +192,12 @@ NewScanModule.prototype.restoreSavedState = function(savedState) {
 };
 
 NewScanModule.prototype.mciReady = function(mciData, cb) {
+
+	if(this.newScanFullExit) {
+		//	user has canceled the entire scan @ message list view
+		return cb(null);
+	}
+
 
 	var self	= this;
 	var vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );

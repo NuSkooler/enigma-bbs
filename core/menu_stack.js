@@ -73,6 +73,8 @@ module.exports = class MenuStack {
 	}
 
 	prev(cb) {
+		const menuResult = this.top().instance.getMenuResult();
+
 		//	:TODO: leave() should really take a cb...
 		this.pop().instance.leave();	//	leave & remove current
 	
@@ -80,8 +82,9 @@ module.exports = class MenuStack {
 
 		if(previousModuleInfo) {
 			const opts = {
-				extraArgs	: previousModuleInfo.extraArgs, 
-				savedState	: previousModuleInfo.savedState
+				extraArgs		: previousModuleInfo.extraArgs, 
+				savedState		: previousModuleInfo.savedState,
+				lastMenuResult	: menuResult,
 			};
 
 			return this.goto(previousModuleInfo.name, opts, cb);
@@ -112,7 +115,8 @@ module.exports = class MenuStack {
 		};
 
 		if(_.isObject(options)) {
-			loadOpts.extraArgs = options.extraArgs;
+			loadOpts.extraArgs		= options.extraArgs;
+			loadOpts.lastMenuResult	= options.lastMenuResult;
 		}
 
 		loadMenu(loadOpts, (err, modInst) => {

@@ -90,10 +90,11 @@ function loadMenu(options, cb) {
 
 				try {
 					const moduleInstance = new modData.mod.getModule({
-						menuName	: options.name,
-						menuConfig	: modData.config, 
-						extraArgs	: options.extraArgs,
-						client      : options.client,
+						menuName		: options.name,
+						menuConfig		: modData.config, 
+						extraArgs		: options.extraArgs,
+						client			: options.client,
+						lastMenuResult	: options.lastMenuResult,
 					});
 					return callback(null, moduleInstance);
 				} catch(e) {
