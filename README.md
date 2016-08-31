@@ -6,7 +6,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 
 
 ## Features Available Now
- * Multi platform: Anywhere Node.js runs likely works (tested under Linux and OS X)
+ * Multi platform: Anywhere Node.js runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Multi node support
  * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based mods
  * MCI support for lightbars, toggles, input areas, and so on plus many other other bells and whistles
@@ -17,7 +17,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Pipe codes (ala Renegade)
  * [SQLite](http://sqlite.org/) storage of users and message areas
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption
- * Door support including common dropfile formats and legacy DOS doors (See [Doors](docs/doors.md))
+ * Door support including common dropfile formats and legacy DOS doors, [BBSLink](http://bbslink.net/), and [DoorParty](http://forums.throwbackbbs.com/)! (See [Doors](docs/doors.md))
  * [Bunyan](https://github.com/trentm/node-bunyan) logging
  * FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
 
@@ -52,11 +52,15 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## Boards
 * WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
 * Support board: &#x2620; BLACK ƒlag &#x2620; (**telnet://blackflag.acid.org:2425**)
-* HappyLand (**telnet://andrew.homeunix.org:2023**)
+* [force9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 
 ## Installation
-Please see the [Quickstart](docs/index.md#quickstart)
+```
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+```
+<br>
+(See the [Quickstart](docs/index.md#quickstart) for more information)
 
 ## Special Thanks
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
