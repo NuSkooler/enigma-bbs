@@ -48,6 +48,9 @@ enigma_install_init() {
 
     log "Checking curl installation"
     enigma_install_needs curl
+
+    log "Checking Python installation"
+    enigma_install_needs python
 }
 
 install_nvm() {
