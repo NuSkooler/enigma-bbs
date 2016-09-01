@@ -82,6 +82,11 @@ function Client(input, output) {
 	this.lastKeyPressMs		= Date.now();
 	this.menuStack			= new MenuStack(this);
 	this.acs				= new ACS(this);
+	this.mciCache			= {};
+
+	this.clearMciCache = function() {
+		this.mciCache = {};
+	};
 
 	Object.defineProperty(this, 'node', {
 		get : function() {

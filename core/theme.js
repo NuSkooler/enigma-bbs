@@ -455,6 +455,7 @@ function displayThemeArt(options, cb) {
 			cb(err);
 		} else {
 			//	:TODO: just use simple merge of options -> displayOptions
+			/*
 			var dispOptions = {
 				art				: artInfo.data,
 				sauce			: artInfo.sauce,
@@ -465,6 +466,16 @@ function displayThemeArt(options, cb) {
 
 			art.display(dispOptions, function displayed(err, mciMap, extraInfo) {
 				cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
+			});
+			*/
+			const displayOpts = {
+				sauce		: artInfo.sauce,
+				font		: options.font,
+				trailingLF	: options.trailingLF,
+			};
+
+			art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
+				return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
 			});
 		}
 	});
