@@ -60,28 +60,20 @@ function User() {
 			groupNames = [ groupNames ];
 		}
 
-		//	:TODO: _.some()
-
-		var isMember = false;
-		
-		_.forEach(groupNames, groupName => {
-			if(-1 !== self.groups.indexOf(groupName)) {
-				isMember = true;
-				return false;    //  stop iteration
-			} 
-		});
-
+		const isMember = groupNames.some(gn => (-1 !== self.groups.indexOf(gn))); 
 		return isMember;
 	};
 
 	this.getLegacySecurityLevel = function() {
 		if(self.isRoot() || self.isGroupMember('sysops')) {
 			return 100;
-		} else if(self.isGroupMember('users')) {
-			return 30;
-		} else {
-			return 10;	//	:TODO: Is this what we want?	
 		}
+		
+		if(self.isGroupMember('users')) {
+			return 30;
+		}
+		
+		return 10;	//	:TODO: Is this what we want?
 	};
 
 }
