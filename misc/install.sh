@@ -90,6 +90,7 @@ install_node_packages() {
       log "npm package installation complete"
     else
       log_error "Failed to install ENiGMA½ npm packages. Please report this!"
+      exit 1
     fi
 }
 
