@@ -2,19 +2,19 @@
 'use strict';
 
 //	ENiGMA½
-var conf		= require('./config.js');
-var miscUtil	= require('./misc_util.js');
-var ansi		= require('./ansi_term.js');
-var aep			= require('./ansi_escape_parser.js');
-var sauce		= require('./sauce.js');
+const Config	= require('./config.js').config;
+const miscUtil	= require('./misc_util.js');
+const ansi		= require('./ansi_term.js');
+const aep		= require('./ansi_escape_parser.js');
+const sauce		= require('./sauce.js');
 const farmhash	= require('farmhash');
 
 //	deps
-var fs			= require('fs');
-var paths		= require('path');
-var assert		= require('assert');
-var iconv		= require('iconv-lite');
-var _			= require('lodash');
+const fs		= require('fs');
+const paths		= require('path');
+const assert	= require('assert');
+const iconv		= require('iconv-lite');
+const _			= require('lodash');
 
 exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;
@@ -25,7 +25,7 @@ exports.defaultEncodingFromExtension	= defaultEncodingFromExtension;
 //	:TODO: process SAUCE comments
 //	:TODO: return font + font mapped information from SAUCE
 
-var SUPPORTED_ART_TYPES = {
+const SUPPORTED_ART_TYPES = {
 	//	:TODO: the defualt encoding are really useless if they are all the same ...
 	//	perhaps .ansamiga and .ascamiga could be supported as well as overrides via conf
 	'.ans'	: { name : 'ANSI',		defaultEncoding : 'cp437',	eof : 0x1a	},
@@ -59,17 +59,16 @@ function sliceAtEOF(data, eofMarker) {
 }
 
 function getArtFromPath(path, options, cb) {
-	fs.readFile(path, function onData(err, data) {
+	fs.readFile(path, (err, data) => {
 		if(err) {
-			cb(err);
-			return;
+			return cb(err);
 		}
 
 		//
 		//	Convert from encodedAs -> j
 		//
-		var ext = paths.extname(path).toLowerCase();
-		var encoding = options.encodedAs || defaultEncodingFromExtension(ext);
+		const ext		= paths.extname(path).toLowerCase();
+		const encoding	= options.encodedAs || defaultEncodingFromExtension(ext);
 
 		//	:TODO: how are BOM's currently handled if present? Are they removed? Do we need to?
 
@@ -77,13 +76,13 @@ function getArtFromPath(path, options, cb) {
 			if(options.fullFile === true) {
 				return iconv.decode(data, encoding);
 			} else {
-				var eofMarker = defaultEofFromExtension(ext);
+				const eofMarker = defaultEofFromExtension(ext);
 				return iconv.decode(sliceAtEOF(data, eofMarker), encoding);
 			}
 		}
 
 		function getResult(sauce) {
-			var result = {
+			const result = {
 				data		: sliceOfData(),
 				fromPath	: path,
 			};
@@ -96,37 +95,37 @@ function getArtFromPath(path, options, cb) {
 		}	
 
 		if(options.readSauce === true) {
-			sauce.readSAUCE(data, function onSauce(err, sauce) {
+			sauce.readSAUCE(data, (err, sauce) => {
 				if(err) {
-					cb(null, getResult());
-				} else {
-					//
-					//	If a encoding was not provided & we have a mapping from
-					//	the information provided by SAUCE, use that.
-					//
-					if(!options.encodedAs) {
-						/*
-						if(sauce.Character && sauce.Character.fontName) {
-							var enc = SAUCE_FONT_TO_ENCODING_HINT[sauce.Character.fontName];
-							if(enc) {
-								encoding = enc;
-							}
-						}
-						*/
-					}
-					cb(null, getResult(sauce));
+					return cb(null, getResult());
 				}
+
+				//
+				//	If a encoding was not provided & we have a mapping from
+				//	the information provided by SAUCE, use that.
+				//
+				if(!options.encodedAs) {
+					/*
+					if(sauce.Character && sauce.Character.fontName) {
+						var enc = SAUCE_FONT_TO_ENCODING_HINT[sauce.Character.fontName];
+						if(enc) {
+							encoding = enc;
+						}
+					}
+					*/
+				}
+				return cb(null, getResult(sauce));
 			});
 		} else {
-			cb(null, getResult());
+			return cb(null, getResult());
 		}
 	});
 }
 
 function getArt(name, options, cb) {
-	var ext = paths.extname(name);
+	const ext = paths.extname(name);
 
-	options.basePath	= miscUtil.valueWithDefault(options.basePath, conf.config.paths.art);
+	options.basePath	= miscUtil.valueWithDefault(options.basePath, Config.paths.art);
 	options.asAnsi		= miscUtil.valueWithDefault(options.asAnsi, true);
 
 	//	:TODO: make use of asAnsi option and convert from supported -> ansi
@@ -143,29 +142,27 @@ function getArt(name, options, cb) {
 
 	//	If an extension is provided, just read the file now
 	if('' !== ext) {
-		var directPath = paths.join(options.basePath, name);
-		getArtFromPath(directPath, options, cb);
-		return;
+		const directPath = paths.join(options.basePath, name);
+		return getArtFromPath(directPath, options, cb);
 	}
 
-	fs.readdir(options.basePath, function onFiles(err, files) {
+	fs.readdir(options.basePath, (err, files) => {
 		if(err) {
-			cb(err);
-			return;
+			return cb(err);
 		}
 
-		var filtered = files.filter(function onFile(file) {
+		const filtered = files.filter( file => {
 			//
 			//  Ignore anything not allowed in |options.types|
 			//
-			var fext = paths.extname(file);
+			const fext = paths.extname(file);
 			if(options.types.indexOf(fext.toLowerCase()) < 0) {
 				return false;
 			}
 
-			var bn = paths.basename(file, fext).toLowerCase();
+			const bn = paths.basename(file, fext).toLowerCase();
 			if(options.random) {
-				var suppliedBn = paths.basename(name, fext).toLowerCase();
+				const suppliedBn = paths.basename(name, fext).toLowerCase();
 				//
 				//  Random selection enabled. We'll allow for
 				//  basename1.ext, basename2.ext, ...
@@ -173,7 +170,8 @@ function getArt(name, options, cb) {
 				if(bn.indexOf(suppliedBn) !== 0) {
 					return false;
 				}
-				var num = bn.substr(suppliedBn.length);
+
+				const num = bn.substr(suppliedBn.length);
 				if(num.length > 0) {
 					if(isNaN(parseInt(num, 10))) {
 						return false;
@@ -188,6 +186,7 @@ function getArt(name, options, cb) {
 					return false;
 				}
 			}
+
 			return true;
 		});
 
@@ -197,7 +196,7 @@ function getArt(name, options, cb) {
 			//  - Exactly (1) item in |filtered| if non-random
 			//  - 1:n items in |filtered| to choose from if random
 			//
-			var readPath;
+			let readPath;
 			if(options.random) {
 				readPath = paths.join(options.basePath, filtered[Math.floor(Math.random() * filtered.length)]);
 			} else {
@@ -205,18 +204,12 @@ function getArt(name, options, cb) {
 				readPath = paths.join(options.basePath, filtered[0]);
 			}
 
-			getArtFromPath(readPath, options, cb);
-		} else {
-			return cb(new Error(`No matching art for supplied criteria: ${name}`));
+			return getArtFromPath(readPath, options, cb);
 		}
+		
+		return cb(new Error(`No matching art for supplied criteria: ${name}`));
 	});
 }
-
-//	:TODO: need a showArt()
-//	- center (if term width > 81)
-//	- interruptable
-//	- pausable: by user key and/or by page size (e..g term height)
-
 
 function defaultEncodingFromExtension(ext) {
 	return SUPPORTED_ART_TYPES[ext.toLowerCase()].defaultEncoding;
@@ -271,6 +264,7 @@ function display(client, art, options, cb) {
 		if(!options.disableMciCache) {
 			//	cache our MCI findings...
 			client.mciCache[artHash] = mciMap;
+			client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Added MCI map from cache');
 		}
 
 		ansiParser.removeAllListeners();	//	:TODO: Necessary???
@@ -292,7 +286,9 @@ function display(client, art, options, cb) {
 		}
 	}
 
-	if(!mciMap) {
+	if(mciMap) {
+		client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Loaded MCI map from cache');
+	} else {
 		//	no cached MCI info
 		mciMap = {};
 
@@ -374,187 +370,4 @@ function display(client, art, options, cb) {
 
 	ansiParser.reset(art);
 	ansiParser.parse();	
-}
-
-function displayBACKUP(options, cb) {
-	assert(_.isObject(options));
-	assert(_.isObject(options.client));
-	assert(!_.isUndefined(options.art));
-
-	if(0 === options.art.length) {
-		cb(new Error('Empty art'));
-		return;
-	}
-
-	//	pause = none/off | end | termHeight | [ "key1", "key2", ... ]
-
-	var cancelKeys			= miscUtil.valueWithDefault(options.cancelKeys, []);
-	var pauseKeys			= miscUtil.valueWithDefault(options.pauseKeys, []);
-	var pauseAtTermHeight	= miscUtil.valueWithDefault(options.pauseAtTermHeight, false);
-	var mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, ' ');
-
-	var iceColors			= options.iceColors;
-	if(_.isUndefined(options.iceColors)) {
-		//	detect from SAUCE, if present
-		iceColors = false;
-		if(_.isObject(options.sauce) && _.isNumber(options.sauce.ansiFlags)) {
-			if(options.sauce.ansiFlags & (1 << 0)) {
-				iceColors = true;
-			}
-		}
-	}
-
-	//var iceColors			= miscUtil.valueWithDefault(options.iceColors, false);
-
-	//	:TODO: support pause/cancel & pause @ termHeight
-	var canceled = false;
-
-	var parser			= new aep.ANSIEscapeParser({
-		mciReplaceChar	: mciReplaceChar,
-		termHeight		: options.client.term.termHeight,
-		termWidth		: options.client.term.termWidth,
-		trailingLF		: options.trailingLF,
-	});
-
-	var mciMap			= {};
-	var mciPosQueue		= [];
-	var parseComplete	= false;
-
-	var generatedId		= 100;
-
-	var cprListener = function(pos) {
-		if(mciPosQueue.length > 0) {
-			var forMapItem = mciPosQueue.shift();
-			mciMap[forMapItem].position = pos;
-
-			if(parseComplete && 0 === mciPosQueue.length) {
-				completed();
-			}
-		}
-	};
-
-	function completed() {
-		options.client.removeListener('cursor position report', cprListener);
-		parser.removeAllListeners();	//	:TODO: Necessary???
-
-		if(iceColors) {
-		//	options.client.term.write(ansi.blinkNormal());
-		}
-
-		var extraInfo = {
-			height : parser.row - 1,
-		};
-
-		cb(null, mciMap, extraInfo);
-	}
-
-	options.client.on('cursor position report', cprListener);
-
-	options.pause = 'termHeight';	//	:TODO: remove!!
-	var nextPauseTermHeight = options.client.term.termHeight;
-	var continous = false;
-
-	/*
-	parser.on('row update', function rowUpdate(row) {
-		if(row >= nextPauseTermHeight) {
-			if(!continous && 'termHeight' === options.pause) {
-				//	:TODO: Must use new key type (ch, key)
-				options.client.waitForKeyPress(function kp(k) {
-					//	:TODO: Allow for configurable key(s) here; or none
-					if('C' === k || 'c' == k) {
-						continous = true;
-					}
-					parser.parse();
-				});
-				parser.stop();
-			}
-			nextPauseTermHeight += options.client.term.termHeight;
-		}
-	});
-*/
-
-	parser.on('mci', function mciEncountered(mciInfo) {
-
-		/*
-		if('PA' === mciInfo.mci) {
-			//	:TODO: can't do this until this thing is pausable anyway...
-			options.client.waitForKeyPress(function kp(k) {
-				console.log('got a key: ' + k);
-			});
-			return;
-		}
-		*/
-
-		//	:TODO: ensure generatedId's do not conflict with any |id|
-		//	:TODO: Bug here - should only generate & increment ID's for the initial entry, not the "focus" version 
-		var id			= !_.isNumber(mciInfo.id) ? generatedId++ : mciInfo.id;
-		var mapKey		= mciInfo.mci + id;
-		var mapEntry	= mciMap[mapKey];
-		if(mapEntry) {
-			mapEntry.focusSGR	= mciInfo.SGR;
-			mapEntry.focusArgs	= mciInfo.args;
-		} else {
-			mciMap[mapKey] = {
-				args	: mciInfo.args,
-				SGR		: mciInfo.SGR,
-				code	: mciInfo.mci,
-				id		: id,
-			};
-
-			mciPosQueue.push(mapKey);
-
-			options.client.term.write(ansi.queryPos(), false);
-		}
-	});
-
-	/*
-	parser.on('chunk', function onChunk(chunk) {
-		options.client.term.write(chunk, false);
-	});
-	*/
-	parser.on('literal', literal => {
-		options.client.term.write(literal, false);
-	});
-	
-	parser.on('control', control => {
-		options.client.term.write(control, false);
-	});
-	
-
-	parser.on('complete', function onComplete() {
-		parseComplete = true;
-
-		if(0 === mciPosQueue.length) {
-			completed();
-		}		
-	});
-
-	//	:TODO: If options.font, set the font via ANSI
-	//	...this should come from sauce, be passed in, or defaulted
-	var ansiFont = '';
-	if(options.font) {
-		ansiFont = ansi.setSyncTERMFont(options.font);
-	} else if(options.sauce) {
-		var fontName = getFontNameFromSAUCE(options.sauce);
-		if(fontName) {
-			fontName = ansi.getSyncTERMFontFromAlias(fontName);
-		}
-		
-		//	Don't set default (cp437) from SAUCE
-		if(fontName && 'cp437' !== fontName) {
-			ansiFont = ansi.setSyncTERMFont(fontName);
-		}
-	}
-
-	if(ansiFont.length > 1) {
-		options.client.term.write(ansiFont, false);
-	}
-
-
-	if(iceColors) {
-		options.client.term.write(ansi.blinkToBrightIntensity(), false);
-	}
-
-	parser.reset(options.art);
-	parser.parse();
 }
