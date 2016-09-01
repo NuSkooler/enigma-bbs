@@ -150,11 +150,13 @@ ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
 
 ClientTerminal.prototype.rawWrite = function(s, cb) {
 	if(this.output) {
-		this.output.write(s, function written(err) {
-			if(_.isFunction(cb)) {
-				cb(err);
-			} else if(err) {
-				Log.warn('Failed writing to socket: ' + err.toString());
+		this.output.write(s, err => {
+			if(cb) {
+				return cb(err);
+			}
+			
+			if(err) {
+				Log.warn( { error : err.message }, 'Failed writing to socket');
 			}
 		});
 	}

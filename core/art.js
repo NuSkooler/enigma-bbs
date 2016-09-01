@@ -7,6 +7,7 @@ var miscUtil	= require('./misc_util.js');
 var ansi		= require('./ansi_term.js');
 var aep			= require('./ansi_escape_parser.js');
 var sauce		= require('./sauce.js');
+const farmhash	= require('farmhash');
 
 //	deps
 var fs			= require('fs');
@@ -225,10 +226,157 @@ function defaultEofFromExtension(ext) {
 	return SUPPORTED_ART_TYPES[ext.toLowerCase()].eof;
 }
 
-//	:TODO: change to display(art, options, cb)
-//	cb(err, mci)
+//	:TODO: Implement the following
+//	* Pause (disabled | termHeight | keyPress )
+//	* Cancel (disabled | <keys> )
+//	* Resume from pause -> continous (disabled | <keys>)
+function display(client, art, options, cb) {
+	if(_.isFunction(options) && !cb) {
+		cb = options;
+		options = {};
+	}
 
-function display(options, cb) {
+	if(!art || !art.length) {
+		return cb(new Error('Empty art'));
+	}
+
+	options.mciReplaceChar 	= options.mciReplaceChar || ' ';
+	options.disableMciCache	= options.disableMciCache || false;  
+
+	if(!_.isBoolean(options.iceColors)) {
+		//	try to detect from SAUCE
+		if(_.has(options, 'sauce.ansiFlags') && (options.sauce.ansiFlags & (1 << 0))) {
+			options.iceColors = true;
+		}
+	}
+
+	const ansiParser = new aep.ANSIEscapeParser({
+		mciReplaceChar	: options.mciReplaceChar,
+		termHeight		: client.term.termHeight,
+		termWidth		: client.term.termWidth,
+		trailingLF		: options.trailingLF,
+	});
+
+	let parseComplete = false;
+	let cprListener;
+	let mciMap;
+	const mciCprQueue = [];
+	let artHash;
+
+	function completed() {
+		if(cprListener) {
+			client.removeListener('cursor position report', cprListener);
+		}
+
+		if(!options.disableMciCache) {
+			//	cache our MCI findings...
+			client.mciCache[artHash] = mciMap;
+		}
+
+		ansiParser.removeAllListeners();	//	:TODO: Necessary???
+
+		const extraInfo = {
+			height : ansiParser.row - 1,
+		};
+
+		return cb(null, mciMap, extraInfo);
+	}
+
+
+	if(!options.disableMciCache) {		
+		artHash	= farmhash.hash32(art);
+
+		//	see if we have a mciMap cached for this art
+		if(client.mciCache) {
+			mciMap	= client.mciCache[artHash];
+		}
+	}
+
+	if(!mciMap) {
+		//	no cached MCI info
+		mciMap = {};
+
+		cprListener = function(pos) {
+			if(mciCprQueue.length > 0) {
+				mciMap[mciCprQueue.shift()].position = pos;
+
+				if(parseComplete && 0 === mciCprQueue.length) {					
+					return completed();
+				}
+			}
+		};
+
+		client.on('cursor position report', cprListener);
+
+		let generatedId = 100;
+
+		ansiParser.on('mci', mciInfo => {
+			//	:TODO: ensure generatedId's do not conflict with any existing |id|
+			const id		= _.isNumber(mciInfo.id) ? mciInfo.id : generatedId;
+			const mapKey	= `${mciInfo.mci}${id}`;
+			const mapEntry	= mciMap[mapKey];
+
+			if(mapEntry) {
+				mapEntry.focusSGR	= mciInfo.SGR;
+				mapEntry.focusArgs	= mciInfo.args;
+			} else {
+				mciMap[mapKey] = {
+					args	: mciInfo.args,
+					SGR		: mciInfo.SGR,
+					code	: mciInfo.mci,
+					id		: id,
+				};
+
+				if(!mciInfo.id) {
+					++generatedId;
+				}
+
+				mciCprQueue.push(mapKey);
+				client.term.write(ansi.queryPos(), false);
+			}
+
+		});
+	}
+
+	ansiParser.on('literal', literal => client.term.write(literal, false) );	
+	ansiParser.on('control', control => client.term.write(control, false) );
+
+	ansiParser.on('complete', () => {
+		parseComplete = true;
+
+		if(0 === mciCprQueue.length) {
+			return completed();
+		}		
+	});
+
+	let ansiFontSeq;
+	if(options.font) {
+		ansiFontSeq = ansi.setSyncTermFontWithAlias(options.font);
+	} else if(options.sauce) {
+		let fontName = getFontNameFromSAUCE(options.sauce);
+		if(fontName) {
+			fontName = ansi.getSyncTERMFontFromAlias(fontName);
+		}
+
+		//	don't set default (CP437) from SAUCE
+		if(fontName && 'cp437' !== fontName) {
+			ansiFontSeq = ansi.setSyncTERMFont(fontName);
+		}
+	}
+
+	if(ansiFontSeq) {
+		client.term.write(ansiFontSeq, false);
+	}
+
+	if(options.iceColors) {
+		client.term.write(ansi.blinkToBrightIntensity(), false);
+	}
+
+	ansiParser.reset(art);
+	ansiParser.parse();	
+}
+
+function displayBACKUP(options, cb) {
 	assert(_.isObject(options));
 	assert(_.isObject(options.client));
 	assert(!_.isUndefined(options.art));

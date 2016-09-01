@@ -599,9 +599,11 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				self.setTermType(evt.envVars[name]);
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {
 				self.term.termWidth = parseInt(evt.envVars[name]);
+				self.clearMciCache();	//	term size changes = invalidate cache
 				self.log.debug({ termWidth : self.term.termWidth, source : 'NEW-ENVIRON'}, 'Window width updated');
 			} else if('ROWS' === name && 0 === self.term.termHeight) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
+				self.clearMciCache();	//	term size changes = invalidate cache
 				self.log.debug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
@@ -635,6 +637,8 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 		if(evt.height > 0) {
 			self.term.env.ROWS = evt.height;
 		}
+
+		self.clearMciCache();	//	term size changes = invalidate cache
 
 		self.log.debug({ termWidth : evt.width , termHeight : evt.height, source : 'NAWS' }, 'Window size updated');
 	} else {
