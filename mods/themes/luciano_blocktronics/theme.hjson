@@ -297,6 +297,10 @@
 			}
 
 			bbsList: {
+				config: {
+					listFormat: "|00|07{bbsName}"
+					focusListFormat: "|00|19|15{bbsName!styleFirstLower}"
+				}
 				0: {
 					mci: {
 						VM1: {
