@@ -40,7 +40,7 @@ function validateUserNameAvail(data, cb) {
 		} else {
 			user.getUserIdAndName(data, function userIdAndName(err) {
 				if(!err) {	//	err is null if we succeeded -- meaning this user exists already
-					return cb(new Error('Userame unavailable'));
+					return cb(new Error('Username unavailable'));
 				}
 				
 				return cb(null);

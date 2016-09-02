@@ -73,7 +73,8 @@ function userLogin(client, username, password, cb) {
 						StatLog.incrementUserStat(user, 'login_count', 1, callback);						
 					},
 					function recordLoginHistory(callback) {
-						StatLog.appendSystemLogEntry('user_login_history', user.userId, 30, callback);
+						const LOGIN_HISTORY_MAX	= 200;	//	history of up to last 200 callers
+						StatLog.appendSystemLogEntry('user_login_history', user.userId, LOGIN_HISTORY_MAX, StatLog.KeepType.Max, callback);
 					}
 				],
 				function complete(err) {

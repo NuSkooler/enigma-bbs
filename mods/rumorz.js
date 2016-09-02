@@ -52,7 +52,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 				if(_.isString(formData.value.rumor) && renderStringLength(formData.value.rumor) > 0) {
 					const rumor = formData.value.rumor.trim();	//	remove any trailing ws
 					
-					StatLog.appendSystemLogEntry(STATLOG_KEY_RUMORZ, rumor, StatLog.KeepDays.Forever, () => {
+					StatLog.appendSystemLogEntry(STATLOG_KEY_RUMORZ, rumor, StatLog.KeepDays.Forever, StatLog.KeepType.Forever, () => {
 						this.clearAddForm(); 
 						return this.displayViewScreen(true, cb);	//	true=cls
 					});

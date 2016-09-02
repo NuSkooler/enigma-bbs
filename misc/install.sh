@@ -48,6 +48,9 @@ enigma_install_init() {
 
     log "Checking curl installation"
     enigma_install_needs curl
+
+    log "Checking Python installation"
+    enigma_install_needs python
 }
 
 install_nvm() {
@@ -90,6 +93,7 @@ install_node_packages() {
       log "npm package installation complete"
     else
       log_error "Failed to install ENiGMA½ npm packages. Please report this!"
+      exit 1
     fi
 }
 

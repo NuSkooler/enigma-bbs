@@ -67,15 +67,29 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 			function fetchHistory(callback) {
 				callersView = vc.getView(MciCodeIds.CallerList);
 
-				StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, callersView.dimens.height, (err, lh) => {
+				//	fetch up 
+				StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, 200, (err, lh) => {
 					loginHistory = lh;
 
 					if(self.menuConfig.config.hideSysOpLogin) {
-						loginHistory = loginHistory.filter(lh => {
+						const noOpLoginHistory = loginHistory.filter(lh => {
 							return false === isRootUserId(parseInt(lh.log_value));	//	log_value=userId
 						});
-					}
 
+						//
+						//	If we have enough items to display, or hideSysOpLogin is set to 'always',
+						//	then set loginHistory to our filtered list. Else, we'll leave it be.
+						//
+						if(noOpLoginHistory.length >= callersView.dimens.height || 'always' === self.menuConfig.config.hideSysOpLogin) {
+							loginHistory = noOpLoginHistory;
+						}
+					}
+					
+					//
+					//	Finally, we need to trim up the list to the needed size
+					//
+					loginHistory = loginHistory.slice(0, callersView.dimens.height);
+					
 					return callback(err);
 				});
 			},

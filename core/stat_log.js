@@ -50,6 +50,15 @@ class StatLog {
 		};
 	}
 
+	get KeepType() {
+		return {
+			Forever	: 'forever',
+			Days	: 'days',
+			Max		: 'max',
+			Count	: 'max',
+		};
+	}
+
 	get Order() {
 		return {
 			Timestamp		: 'timestamp_asc',
@@ -57,7 +66,7 @@ class StatLog {
 			TimestampDesc	: 'timestamp_desc',
 			Random			: 'random',
 		};
-	}
+	} 
 
 	setNonPeristentSystemStat(statName, statValue) {
 		this.systemStats[statName] = statValue;
@@ -129,33 +138,64 @@ class StatLog {
 	//	the time "now" in the ISO format we use and love :)
 	get now() { return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); }
 
-	appendSystemLogEntry(logName, logValue, keepDays, cb) {
+	appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
 		sysDb.run(
 			`INSERT INTO system_event_log (timestamp, log_name, log_value)
 			VALUES (?, ?, ?);`,
 			[ this.now, logName, logValue ],
 			() => {
 				//
-				//	Handle keepDays
+				//	Handle keep
 				//
-				if(-1 === keepDays) {
+				if(-1 === keep) {
 					if(cb) {
 						return cb(null);
 					}
 					return;
 				}
 
-				sysDb.run(
-					`DELETE FROM system_event_log
-					WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
-					[ logName ],
-					err => {
-						//	cb optional - callers may fire & forget
-						if(cb) {
-							return cb(err);
-						}
-					}
-				);				
+				switch(keepType) {
+					//	keep # of days
+					case 'days' :
+						sysDb.run(
+							`DELETE FROM system_event_log
+							WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
+							[ logName ],
+							err => {
+								//	cb optional - callers may fire & forget
+								if(cb) {
+									return cb(err);
+								}
+							}
+						);
+						break;
+
+					case 'count':
+					case 'max' :
+						//	keep max of N/count
+						sysDb.run(
+							`DELETE FROM system_event_log
+							WHERE id IN(
+								SELECT id 
+								FROM system_event_log
+								WHERE log_name = ?
+								ORDER BY id DESC
+								LIMIT -1 OFFSET ${keep}
+							);`,
+							[ logName ],
+							err => {
+								if(cb) {
+									return cb(err);
+								}
+							}
+						);
+						break; 
+
+					case 'forever' :
+					default :
+						//	nop
+						break;
+				}							
 			}
 		);
 	}
