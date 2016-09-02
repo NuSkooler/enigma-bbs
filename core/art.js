@@ -47,10 +47,11 @@ function getFontNameFromSAUCE(sauce) {
 }
 
 function sliceAtEOF(data, eofMarker) {
-	var eof = data.length;
-	//	:TODO: max scan back or other beter way of doing this?!	
-	for(var i = data.length - 1; i > 0; i--) {
-		if(data[i] === eofMarker) {
+	let eof			= data.length;
+	const stopPos	= Math.max(data.length - (256), 0);	//	256 = 2 * sizeof(SAUCE)
+	 
+	for(let i = eof - 1; i > stopPos; i--) {
+		if(eofMarker === data[i]) {
 			eof = i;
 			break;
 		}
