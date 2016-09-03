@@ -32,7 +32,7 @@
     "temp": "^0.8.3",
     "inquirer" : "^1.1.0",
     "fs-extra" : "0.26.x",
-    "farmhash"  : "^1.2.0"
+    "farmhash"  : "^1.2.1"
   },
   "engines": {
     "node": ">=4.2.0"
