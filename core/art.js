@@ -7,7 +7,7 @@ const miscUtil	= require('./misc_util.js');
 const ansi		= require('./ansi_term.js');
 const aep		= require('./ansi_escape_parser.js');
 const sauce		= require('./sauce.js');
-const farmhash	= require('farmhash');
+const xxhash    = require('xxhash');
 
 //	deps
 const fs		= require('fs');
@@ -280,7 +280,7 @@ function display(client, art, options, cb) {
 
 
 	if(!options.disableMciCache) {		
-		artHash	= farmhash.hash32(art);
+		artHash	= xxhash.hash(new Buffer(art), 0xCAFEBABE);
 
 		//	see if we have a mciMap cached for this art
 		if(client.mciCache) {
