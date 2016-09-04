@@ -292,7 +292,17 @@ function getDefaultConfig() {
 		},
 
 		logging : {
-			level	: 'debug'
+			level	: 'debug',
+
+			rotatingFile	: {	//	set to 'disabled' or false to disable
+				type		: 'rotating-file',
+				fileName	: 'enigma-bbs.log',
+				period		: '1d',
+				count		: 3,
+				level		: 'debug',
+			}
+
+			//	:TODO: syslog - https://github.com/mcavage/node-bunyan-syslog
 		},
 
 		debug : {

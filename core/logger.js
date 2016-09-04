@@ -1,63 +1,74 @@
 /* jslint node: true */
 'use strict';
 
-var bunyan		= require('bunyan');
-var paths		= require('path');
-var fs			= require('fs');
+//	deps
+const bunyan	= require('bunyan');
+const paths		= require('path');
+const fs		= require('fs');
+const _			= require('lodash');
 
-module.exports	= {
-	init	: function() {
-		var Config = require('./config.js').config;
-		//var ringBufferLimit = miscUtil.valueWithDefault(config.logRingBufferLimit, 100);
-		var logPath			= Config.paths.logs;
+module.exports = class Log {
 
-		//
-		//	Create something a bit more friendly if the log directory cannot be used
-		//
-		//	:TODO: this seems cheesy...
-		var logPathError;
-		try {
-			var pathStat = fs.statSync(logPath);
-			if(!pathStat.isDirectory()) {
-				logPathError = logPath + ' is not a directory!';
-			}
-		} catch(e) {
-			if('ENOENT' === e.code) {
-				logPathError = 'No such file or directory: ' + logPath;
-			} else {
-				logPathError = e.message;
-			}
+	static init() {
+		const Config	= require('./config.js').config;
+		const logPath	= Config.paths.logs;
+		
+		const err = this.checkLogPath(logPath);
+		if(err) {
+			console.error(err.message);	//	eslint-disable-line no-console
+			return process.exit();
 		}
 
-		if(logPathError) {
-			console.error(logPathError);
-			process.exit();
+		const logStreams = [];
+		if(_.isObject(Config.logging.rotatingFile)) {
+			Config.logging.rotatingFile.path = paths.join(logPath, Config.logging.rotatingFile.fileName);
+			logStreams.push(Config.logging.rotatingFile);
 		}
 
-		var logFile			= paths.join(logPath, 'enigma-bbs.log');
+		const serializers = {
+			err			: bunyan.stdSerializers.err,		//	handle 'err' fields with stack/etc.
+		};
 
-		//	:TODO: make this configurable --
-		//	user should be able to configure rotations, levels to file vs ringBuffer, 
-		//	completely disable logging, etc.
+		//	try to remove sensitive info by default, e.g. 'password' fields	
+		[ 'formData', 'formValue' ].forEach(keyName => {
+			serializers[keyName]	= (fd) => Log.hideSensitive(fd); 
+		});
 
 		this.log = bunyan.createLogger({
-			name	: 'ENiGMA½ BBS',
-			streams	: [
-				{
-					type	: 'rotating-file',
-					path	: logFile,
-					period	: Config.logging.period || '1d',
-					count	: 3,
-					level	: Config.logging.level || 'debug',
-				}
-				/*,
-				{
-					type	: 'raw',
-					stream	: ringBuffer,
-					level	: 'trace'
-				}*/
-			],
-			serializers: { err : bunyan.stdSerializers.err }	//	handle 'err' fields with stack/etc.
+			name			: 'ENiGMA½ BBS',
+			streams			: logStreams,
+			serializers		: serializers,
 		});
+	}
+
+	static checkLogPath(logPath) {
+		try {
+			if(!fs.statSync(logPath).isDirectory()) {
+				return new Error(`${logPath} is not a directory`);
+			}
+			
+			return null;
+		} catch(e) {
+			if('ENOENT' === e.code) {
+				return new Error(`${logPath} does not exist`);
+			}
+			return e;
+		}
+	}
+
+	static hideSensitive(obj) {
+		try {
+			//
+			//	Use a regexp -- we don't know how nested fields we want to seek and destroy may be
+			//
+			return JSON.parse(
+				JSON.stringify(obj).replace(/"(password)"\s?:\s?"([^"]+)"/, (match, valueName) => {
+					return `"${valueName}":"********"`;
+				})
+			);
+		} catch(e) {
+			//	be safe and return empty obj!
+			return {};
+		}
 	}
 };
