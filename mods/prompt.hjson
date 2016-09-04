@@ -59,16 +59,19 @@
 			}
 		}
 
-		"menuCommand" : {
+		menuCommand: {
 			art: MNUPRMT
-			"mci" :  {
-				"ET2" : {
-					"argName" 	: "command",
-					"width"		: 20,
-					"maxLength"	: 20,
-					"submit"	: true,
-					"textStyle"	: "U",
-					"focus"		: true
+			mci:  {
+				TL1: {
+					//	theme me!
+				}
+				ET2: {
+					argName: command
+					width: 20
+					maxLength: 20
+					submit: true
+					textStyle: upper
+					focus: true
 				}
 			}
 		},
