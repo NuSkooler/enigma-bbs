@@ -49,7 +49,7 @@ function getFontNameFromSAUCE(sauce) {
 function sliceAtEOF(data, eofMarker) {
 	let eof			= data.length;
 	const stopPos	= Math.max(data.length - (256), 0);	//	256 = 2 * sizeof(SAUCE)
-	 
+
 	for(let i = eof - 1; i > stopPos; i--) {
 		if(eofMarker === data[i]) {
 			eof = i;
@@ -256,16 +256,17 @@ function display(client, art, options, cb) {
 	let mciMap;
 	const mciCprQueue = [];
 	let artHash;
+	let mciMapFromCache;
 
 	function completed() {
 		if(cprListener) {
 			client.removeListener('cursor position report', cprListener);
 		}
 
-		if(!options.disableMciCache) {
+		if(!options.disableMciCache && !mciMapFromCache) {
 			//	cache our MCI findings...
 			client.mciCache[artHash] = mciMap;
-			client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Added MCI map from cache');
+			client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Added MCI map to cache');
 		}
 
 		ansiParser.removeAllListeners();	//	:TODO: Necessary???
@@ -288,6 +289,7 @@ function display(client, art, options, cb) {
 	}
 
 	if(mciMap) {
+		mciMapFromCache = true;
 		client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Loaded MCI map from cache');
 	} else {
 		//	no cached MCI info
