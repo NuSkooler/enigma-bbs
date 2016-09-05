@@ -2,6 +2,7 @@
 'use strict';
 
 var MenuModule		= require('../core/menu_module.js').MenuModule;
+const stringFormat	= require('../core/string_format.js');
 
 //	deps
 const async			= require('async');
@@ -86,10 +87,10 @@ function ErcClientModule(options) {
 							try {
 								if(data.userName) {
 									//	user message
-									text = self.chatEntryFormat.format(data);
+									text = stringFormat(self.chatEntryFormat, data);
 								} else {
 									//	system message
-									text = self.systemEntryFormat.format(data);
+									text = stringFormat(self.systemEntryFormat, data);
 								}
 							} catch(e) {
 								return self.client.log.warn( { error : e.message }, 'ERC: chatEntryFormat error');

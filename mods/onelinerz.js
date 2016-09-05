@@ -154,7 +154,6 @@ function OnelinerzModule(options) {
 						} );
 					}));
 
-					entriesView.focusItems = entriesView.items;	//	:TODO: this is a hack
 					entriesView.redraw();
 
 					return callback(null);

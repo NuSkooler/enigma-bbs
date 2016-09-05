@@ -2,17 +2,16 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule					= require('../core/menu_module.js').MenuModule;
-const ViewController				= require('../core/view_controller.js').ViewController;
-const ansi							= require('../core/ansi_term.js');
-const theme							= require('../core/theme.js');
-const Message						= require('../core/message.js');
-const getMessageAreaByTag			= require('../core/message_area.js').getMessageAreaByTag;
-const updateMessageAreaLastReadId	= require('../core/message_area.js').updateMessageAreaLastReadId;
-const getUserIdAndName				= require('../core/user.js').getUserIdAndName;
-const cleanControlCodes				= require('../core/string_util.js').cleanControlCodes;
+const MenuModule					= require('./menu_module.js').MenuModule;
+const ViewController				= require('./view_controller.js').ViewController;
+const ansi							= require('./ansi_term.js');
+const theme							= require('./theme.js');
+const Message						= require('./message.js');
+const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
+const getUserIdAndName				= require('./user.js').getUserIdAndName;
+const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
-
+const stringFormat					= require('./string_format.js');
 
 //	deps
 const async							= require('async');
@@ -851,6 +850,21 @@ function FullScreenEditorModule(options) {
 		});
 	};
 
+	this.getQuoteByHeader = function() {
+		let quoteFormat = this.menuConfig.config.quoteFormats;
+		if(Array.isArray(quoteFormat)) {			
+			quoteFormat =  quoteFormat[ Math.floor(Math.random() * quoteFormat.length) ];
+		} else if(!_.isString(quoteFormat)) {
+			quoteFormat = 'On {dateTime} {userName} said...';
+		}
+
+		const dtFormat = this.menuConfig.config.quoteDateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();	
+		return stringFormat(quoteFormat, { 
+			dateTime	: moment(self.replyToMessage.modTimestamp).format(dtFormat),
+			userName	: self.replyToMessage.fromUserName,
+		});
+	};
+
 	this.menuMethods = {
 		//
 		//	Validation stuff
@@ -917,14 +931,7 @@ function FullScreenEditorModule(options) {
 
 			if(self.newQuoteBlock) {
 				self.newQuoteBlock = false;
-				
-				//	:TODO: Make date/time format avail as FSE config -- also the line itself!
-				var dtFormat = self.client.currentTheme.helpers.getDateTimeFormat();
-				quoteMsgView.addText(
-					'On {0} {1} said...'.format(
-						moment(self.replyToMessage.modTimestamp).format(dtFormat), 
-						self.replyToMessage.fromUserName)
-					);
+				quoteMsgView.addText(self.getQuoteByHeader());
 			}
 			
 			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);

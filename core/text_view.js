@@ -240,14 +240,6 @@ TextView.prototype.setText = function(text) {
 };
 */
 
-TextView.prototype.setFormatObject = function(obj) {
-	if(!_.isObject(obj) || !this.text) {
-		return;
-	}
-
-	this.setText(this.text.format(obj));
-};
-
 TextView.prototype.clearText = function() {
 	this.setText('');
 };

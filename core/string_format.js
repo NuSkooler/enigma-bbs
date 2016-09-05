@@ -1,9 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-const EnigError		= require('./enig_error.js').EnigError;
-const pad			= require('./string_util.js').pad;
-const stylizeString	= require('./string_util.js').stylizeString;
+const EnigError				= require('./enig_error.js').EnigError;
+const pad					= require('./string_util.js').pad;
+const stylizeString			= require('./string_util.js').stylizeString;
+const renderStringLength	= require('./string_util.js').renderStringLength;
+const renderSubstr			= require('./string_util.js').renderSubstr;
 
 //	deps
 const _				= require('lodash');
@@ -124,7 +126,7 @@ function getPadAlign(align) {
 function formatString(value, tokens) {
 	const fill		= tokens.fill || (tokens['0'] ? '0' : ' ');
 	const align		= tokens.align || (tokens['0'] ? '=' : '<');
-	const precision	= Number(tokens.precision || value.length);	//	:TODO: consider pipe/ANSI length
+	const precision	= Number(tokens.precision || renderStringLength(value) + 1);
 
 	if('' !== tokens.type && 's' !== tokens.type) {
 		throw new ValueError(`Unknown format code "${tokens.type}" for String object`);
@@ -146,7 +148,7 @@ function formatString(value, tokens) {
 		throw new ValueError('"=" alignment not allowed in string format specifier');
 	}
 
-	return pad(value.slice(0, precision), parseInt(tokens.width), fill, getPadAlign(align));
+	return pad(renderSubstr(value, 0, precision), Number(tokens.width), fill, getPadAlign(align));
 }
 
 const FormatNumRegExp = {
@@ -167,7 +169,10 @@ function formatNumberHelper(n, precision, type) {
 		case 'x' : return n.toString(16);
 		case 'e' : return n.toExponential(precision).replace(FormatNumRegExp.ExponentRep, '$&0'); 
 		case 'f' : return n.toFixed(precision); 
-		case 'g' : return n.toPrecision(precision || 1);
+		case 'g' :
+			//	we don't want useless trailing zeros. parseFloat -> back to string fixes this for us
+			return parseFloat(n.toPrecision(precision || 1)).toString();
+
 		case '%' : return formatNumberHelper(n * 100, precision, 'f') + '%';
 		case ''  : return formatNumberHelper(n, precision, 'd');
 		
@@ -276,7 +281,7 @@ const REGEXP_BASIC_FORMAT	= /{([^.!:}]+(?:\.[^.!:}]+)*)(?:\!([^:}]+))?(?:\:([^}]
 
 function getValue(obj, path) {
 	const value = _.get(obj, path);
-	if(value) {
+	if(!_.isUndefined(value)) {
 		return _.isFunction(value) ? value() : value;
 	}
 	
@@ -286,9 +291,16 @@ function getValue(obj, path) {
 module.exports = function format(fmt, obj) {
 
 	const re = REGEXP_BASIC_FORMAT;
+
 	let match;
 	let pos;
 	let out = '';
+	let objPath ;
+	let transformer;
+	let formatSpec;
+	let value;
+	let tokens;
+
 	do {
 		pos		= re.lastIndex;
 		match	= re.exec(fmt);
@@ -298,16 +310,16 @@ module.exports = function format(fmt, obj) {
 				out += fmt.slice(pos, match.index);
 			}
 
-			const objPath		= match[1];
-			const transformer	= match[2];
-			const formatSpec	= match[3];
+			objPath		= match[1];
+			transformer	= match[2];
+			formatSpec	= match[3];
 
-			let value = getValue(obj,  objPath);
+			value = getValue(obj,  objPath);
 			if(transformer) {
 				value = transformValue(transformer, value);
 			}
 
-			const tokens = tokenizeFormatSpec(formatSpec || '');
+			tokens = tokenizeFormatSpec(formatSpec || '');
 
 			if(!isNaN(parseInt(value))) {
 				out += formatNumber(value, tokens);
@@ -323,5 +335,5 @@ module.exports = function format(fmt, obj) {
 		out += fmt.slice(pos);
 	}	
 
-	return out;
+	return out;	
 };

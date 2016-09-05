@@ -128,10 +128,10 @@ function initialize(cb) {
 						if(err) {
 							console.error('Could not create path: ' + conf.config.paths[pathKey] + ': ' + err.toString());
 						}
-						next(err);
+						return next(err);
 					});
 				}, function dirCreationComplete(err) {
-					callback(err);
+					return callback(err);
 				});
 			},
 			function basicInit(callback) {
@@ -142,22 +142,19 @@ function initialize(cb) {
 
 				process.on('SIGINT', shutdownSystem);
 			
-				//	Init some extensions
-				require('string-format').extend(String.prototype, require('./string_util.js').stringFormatExtensions);
-
-				callback(null);
+				return callback(null);
 			},			
 			function initDatabases(callback) {
-				database.initializeDatabases(callback);
+				return database.initializeDatabases(callback);
 			},
 			function initStatLog(callback) {
-				require('./stat_log.js').init(callback);
+				return require('./stat_log.js').init(callback);
 			},
 			function initThemes(callback) {
 				//	Have to pull in here so it's after Config init
 				require('./theme.js').initAvailableThemes(function onThemesInit(err, themeCount) {
 					logger.log.info({ themeCount : themeCount }, 'Themes initialized');
-					callback(err);
+					return callback(err);
 				});
 			},
 			function loadSysOpInformation(callback) {
@@ -204,10 +201,10 @@ function initialize(cb) {
 				);
 			},
 			function initMCI(callback) {
-				require('./predefined_mci.js').init(callback);
+				return require('./predefined_mci.js').init(callback);
 			},
 			function readyMessageNetworkSupport(callback) {
-				require('./msg_network.js').startup(callback);	
+				return require('./msg_network.js').startup(callback);	
 			},
 			function readyEventScheduler(callback) {
 				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
@@ -218,7 +215,7 @@ function initialize(cb) {
 			}
 		],
 		function onComplete(err) {
-			cb(err);
+			return cb(err);
 		}
 	);
 }

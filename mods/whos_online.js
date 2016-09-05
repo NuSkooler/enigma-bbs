@@ -5,6 +5,7 @@
 const MenuModule			= require('../core/menu_module.js').MenuModule;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const getActiveNodeList		= require('../core/client_connections.js').getActiveNodeList;
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const async					= require('async');
@@ -63,7 +64,7 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 						});
 						oe.userName = nonAuthUser;
 					}
-					return listFormat.format(oe);
+					return stringFormat(listFormat, oe);
 				}));
 
 				onlineListView.focusItems = onlineListView.items;

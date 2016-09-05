@@ -8,6 +8,7 @@ const ViewController		= require('../core/view_controller.js').ViewController;
 const ansi					= require('../core/ansi_term.js');
 const theme					= require('../core/theme.js');
 const getUserName			= require('../core/user.js').getUserName;
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const async 				= require('async');
@@ -99,7 +100,6 @@ function BBSListModule(options) {
 				self.setViewText(MciViewIds.view[mciName], '');
 			});
 		} else {
-			//	:TODO: we really need pipe code support for TextView!!
 			const youSubmittedFormat = config.youSubmittedFormat || '{submitter} (You!)';
 			
 			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {
@@ -107,7 +107,7 @@ function BBSListModule(options) {
 				if(MciViewIds.view[mciName]) {
 
 					if('SelectedBBSSubmitter' == mciName && entry.submitterUserId == self.client.user.userId) {
-						self.setViewText(MciViewIds.view.SelectedBBSSubmitter, youSubmittedFormat.format(entry));
+						self.setViewText(MciViewIds.view.SelectedBBSSubmitter, stringFormat(youSubmittedFormat, entry));
 					} else {
 						self.setViewText(MciViewIds.view[mciName], t);
 					}
@@ -120,8 +120,8 @@ function BBSListModule(options) {
 		const listFormat		= config.listFormat || '{bbsName}';
 		const focusListFormat	= config.focusListFormat || '{bbsName}';
 
-		entriesView.setItems(self.entries.map( e => listFormat.format(e) ) );
-		entriesView.setFocusItems(self.entries.map( e => focusListFormat.format(e) ) );
+		entriesView.setItems(self.entries.map( e => stringFormat(listFormat, e) ) );
+		entriesView.setFocusItems(self.entries.map( e => stringFormat(focusListFormat, e) ) );
 	};
 
 	this.displayBBSList = function(clearScreen, cb) {

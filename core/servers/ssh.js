@@ -9,6 +9,7 @@ var ServerModule	= require('../server_module.js').ServerModule;
 var userLogin		= require('../user_login.js').userLogin;
 var enigVersion 	= require('../../package.json').version;
 var theme			= require('../theme.js');
+const stringFormat	= require('../string_format.js');
 
 var ssh2			= require('ssh2');
 var fs				= require('fs');
@@ -105,12 +106,12 @@ function SSHClient(clientConn) {
 								theme.getThemeArt(artOpts, function gotArt(err, artInfo) {
 									if(err) {
 										interactivePrompt.prompt = 'Access denied\n' + ctx.username + '\'s password: ';
-									} else {
-										var newUserNameList = '"' + (Config.users.newUserNames || []).join(', ') + '"';
-										interactivePrompt.prompt = 
-											'Access denied\n' + 
-											artInfo.data.format( { newUserNames : newUserNameList } ) + 
-											'\n' + ctx.username + '\'s password: ';
+									} else {										
+										const newUserNameList = _.has(Config, 'users.newUserNames') && Config.users.newUserNames.length > 0 ?
+											Config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
+											'(No new user names enabled!)';
+
+										interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
 									}
 									return ctx.prompt(interactivePrompt, retryPrompt);
 								});

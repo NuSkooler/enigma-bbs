@@ -5,10 +5,10 @@ var MenuModule			= require('../core/menu_module.js').MenuModule;
 //var userDb				= require('../core/database.js').dbs.user;
 var getUserList			= require('../core/user.js').getUserList;
 var ViewController		= require('../core/view_controller.js').ViewController;
+const stringFormat		= require('../core/string_format.js');
 
 var moment				= require('moment');
 var async				= require('async');
-var assert				= require('assert');
 var _					= require('lodash');
 
 /*
@@ -92,11 +92,11 @@ UserListModule.prototype.mciReady = function(mciData, cb) {
 				}
 
 				userListView.setItems(_.map(userList, function formatUserEntry(ue) {
-					return listFormat.format(getUserFmtObj(ue));
+					return stringFormat(listFormat, getUserFmtObj(ue));
 				}));
 
 				userListView.setFocusItems(_.map(userList, function formatUserEntry(ue) {
-					return focusListFormat.format(getUserFmtObj(ue));
+					return stringFormat(focusListFormat, getUserFmtObj(ue));
 				}));
 
 				userListView.redraw();

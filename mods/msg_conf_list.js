@@ -8,6 +8,7 @@ const messageArea			= require('../core/message_area.js');
 const displayThemeArt		= require('../core/theme.js').displayThemeArt;
 const displayThemedPause	= require('../core/theme.js').displayThemedPause;
 const resetScreen			= require('../core/ansi_term.js').resetScreen;
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const async				= require('async');
@@ -121,7 +122,7 @@ MessageConfListModule.prototype.mciReady = function(mciData, cb) {
 				const confListView = vc.getView(MCICodeIDs.ConfList);
 				let i = 1;
 				confListView.setItems(_.map(self.messageConfs, v => {
-					return listFormat.format({
+					return stringFormat(listFormat, {
 						index   : i++,
 						confTag : v.conf.confTag,
 						name    : v.conf.name,
@@ -131,7 +132,7 @@ MessageConfListModule.prototype.mciReady = function(mciData, cb) {
 
 				i = 1;
 				confListView.setFocusItems(_.map(self.messageConfs, v => {
-					return focusListFormat.format({
+					return stringFormat(focusListFormat, {
 						index   : i++,
 						confTag : v.conf.confTag,
 						name    : v.conf.name,

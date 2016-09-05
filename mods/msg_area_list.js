@@ -8,6 +8,7 @@ const messageArea			= require('../core/message_area.js');
 const displayThemeArt		= require('../core/theme.js').displayThemeArt;
 const displayThemedPause	= require('../core/theme.js').displayThemedPause;
 const resetScreen			= require('../core/ansi_term.js').resetScreen;
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const async				= require('async');
@@ -152,7 +153,7 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 				const areaListView = vc.getView(MCICodesIDs.AreaList);
 				let i = 1;
 				areaListView.setItems(_.map(self.messageAreas, v => {
-					return listFormat.format({
+					return stringFormat(listFormat, {
 						index   : i++,
 						areaTag : v.area.areaTag,
 						name    : v.area.name,
@@ -162,7 +163,7 @@ MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
 
 				i = 1;
 				areaListView.setFocusItems(_.map(self.messageAreas, v => {
-					return focusListFormat.format({
+					return stringFormat(focusListFormat, {
 						index   : i++,
 						areaTag : v.area.areaTag,
 						name    : v.area.name,

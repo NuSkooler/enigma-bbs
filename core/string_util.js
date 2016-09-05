@@ -195,45 +195,6 @@ function stringFromNullTermBuffer(buf, encoding) {
 	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
 }
 
-//
-//	Extend String.format's object syntax with some modifiers
-//	e.g.: '{username!styleL33t}'.format( { username : 'Leet User' } ) -> "L33t U53r"
-//
-var stringFormatExtensions = {
-	styleUpper : function(s) {
-		return stylizeString(s, 'upper');
-	},
-	styleLower : function(s) {
-		return stylizeString(s, 'lower');
-	},
-	styleTitle : function(s) {
-		return stylizeString(s, 'title');
-	},
-	styleFirstLower : function(s) {
-		return stylizeString(s, 'first lower');
-	},
-	styleSmallVowels : function(s) {
-		return stylizeString(s, 'small vowels');
-	},
-	styleBigVowels : function(s) {
-		return stylizeString(s, 'big vowels');
-	},
-	styleSmallI : function(s) {
-		return stylizeString(s, 'small i');
-	},
-	styleMixed : function(s) {
-		return stylizeString(s, 'mixed');
-	},
-	styleL33t : function(s) {
-		return stylizeString(s, 'l33t');
-	}
-
-	//	:TODO: Add padding/etc. modifiers.
-};
-
-exports.stringFormatExtensions = stringFormatExtensions;
-
-
 //	:TODO: Add other codes from ansi_escape_parser
 const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 const PIPE_REGEXP			= /\|[A-Z\d]{2}/g;
@@ -244,7 +205,7 @@ const ANSI_OR_PIPE_REGEXP	= new RegExp(ANSI_REGEXP.source + '|' + PIPE_REGEXP.so
 //
 function renderSubstr(str, start, length) {
 	start	= start || 0;
-	length	= length || str.length - start;
+	length	= Math.max(0, (length || str.length - start) - 1);
 
 	const re = ANSI_REGEXP;
 	let pos;

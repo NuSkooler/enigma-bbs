@@ -2,7 +2,8 @@
 'use strict';
 
 //	ENiGMA½
-const Config	= require('./config.js').config;
+const Config		= require('./config.js').config;
+const stringFormat	= require('./string_format.js');
 
 //	base/modules
 const fs		= require('fs');
@@ -124,7 +125,7 @@ module.exports = class ArchiveUtil {
 
 		let args = _.clone(archiver.compressArgs);	//	don't muck with orig
 		for(let i = 0; i < args.length; ++i) {
-			args[i] = args[i].format({
+			args[i] = stringFormat(args[i], {
 				archivePath	: archivePath,
 				fileList	: files.join(' '),
 			});
@@ -144,7 +145,7 @@ module.exports = class ArchiveUtil {
 		
 		let args = _.clone(archiver.decompressArgs);	//	don't muck with orig
 		for(let i = 0; i < args.length; ++i) {
-			args[i] = args[i].format({
+			args[i] = stringFormat(args[i], {
 				archivePath		: archivePath,
 				extractPath		: extractPath,
 			});
