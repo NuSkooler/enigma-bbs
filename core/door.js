@@ -1,6 +1,9 @@
 /* jslint node: true */
 'use strict';
 
+
+const stringFormat	= require('./string_format.js');
+
 const events		= require('events');
 const _				= require('lodash');
 const pty			= require('ptyw.js');
@@ -100,7 +103,7 @@ Door.prototype.run = function() {
 		let args = _.clone(self.exeInfo.args);	//	we need a copy so the original is not modified
 
 		for(let i = 0; i < args.length; ++i) {
-			args[i] = self.exeInfo.args[i].format({
+			args[i] = stringFormat(self.exeInfo.args[i], {
 				dropFile		: self.exeInfo.dropFile,
 				node			: self.exeInfo.node.toString(),
 				srvPort			: sockServer ? sockServer.address().port.toString() : '-1',

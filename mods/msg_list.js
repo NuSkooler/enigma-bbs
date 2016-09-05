@@ -5,6 +5,7 @@
 const MenuModule		= require('../core/menu_module.js').MenuModule;
 const ViewController	= require('../core/view_controller.js').ViewController;
 const messageArea		= require('../core/message_area.js');
+const stringFormat		= require('../core/string_format.js');
 
 //	deps
 const async				= require('async');
@@ -209,11 +210,11 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
 
 				msgListView.setItems(_.map(self.messageList, listEntry => {
-					return listFormat.format(listEntry);
+					return stringFormat(listFormat, listEntry);
 				}));
 
 				msgListView.setFocusItems(_.map(self.messageList, listEntry => {
-					return focusListFormat.format(listEntry);
+					return stringFormat(focusListFormat, listEntry);
 				}));
 
 				msgListView.on('index update', function indexUpdated(idx) {

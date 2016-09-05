@@ -8,6 +8,7 @@ const StatLog			= require('../core/stat_log.js');
 const getUserName		= require('../core/user.js').getUserName;
 const loadProperties	= require('../core/user.js').loadProperties;
 const isRootUserId		= require('../core/user.js').isRootUserId;
+const stringFormat		= require('../core/string_format.js');
 
 //	deps
 const moment			= require('moment');
@@ -123,12 +124,9 @@ LastCallersModule.prototype.mciReady = function(mciData, cb) {
 				);
 			},
 			function populateList(callback) {
-				const listFormat = self.menuConfig.config.listFormat || '{userName} - {location} - {affils} - {ts}';
+				const listFormat = self.menuConfig.config.listFormat || '{userName} - {location} - {affiliation} - {ts}';
 
-				callersView.setItems(_.map(loginHistory, ce => listFormat.format(ce) ) );
-
-				//	:TODO: This is a hack until pipe codes are better implemented
-				callersView.focusItems = callersView.items;
+				callersView.setItems(_.map(loginHistory, ce => stringFormat(listFormat, ce) ) );
 
 				callersView.redraw();
 				return callback(null);

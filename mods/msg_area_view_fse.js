@@ -123,3 +123,7 @@ AreaViewFSEModule.prototype.restoreSavedState = function(savedState) {
 	this.messageIndex	= savedState.messageIndex;
 	this.messageTotal	= savedState.messageTotal;
 };
+
+AreaViewFSEModule.prototype.getMenuResult = function() {
+	return this.messageIndex;
+};

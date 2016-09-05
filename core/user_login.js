@@ -16,7 +16,7 @@ exports.userLogin		= userLogin;
 function userLogin(client, username, password, cb) {
 	client.user.authenticate(username, password, function authenticated(err) {
 		if(err) {
-			client.log.info( { username : username }, 'Failed login attempt: %s', err);
+			client.log.info( { username : username, error : err.message }, 'Failed login attempt');
 
 			//	:TODO: if username exists, record failed login attempt to properties
 			//	:TODO: check Config max failed logon attempts/etc. - set err.maxAttempts = true

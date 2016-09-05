@@ -4,7 +4,8 @@
 //	ENiGMA½
 const msgArea			= require('./message_area.js');
 const MenuModule		= require('./menu_module.js').MenuModule;
-const ViewController	= require('../core/view_controller.js').ViewController;
+const ViewController	= require('./view_controller.js').ViewController;
+const stringFormat		= require('./string_format.js');
 
 //	deps
 const _					= require('lodash');
@@ -120,16 +121,7 @@ function NewScanModule(options) {
         //  :TODO: it would be nice to cache this - must be done by conf!
 		const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : self.client } );
 		const currentArea	= sortedAreas[self.currentScanAux.area];
-		
-		function getFormatObj() {
-			return {
-				confName    : conf.conf.name,
-				confDesc    : conf.conf.desc,
-				areaName    : currentArea.area.name,
-				areaDesc    : currentArea.area.desc
-			};
-		}
-		
+				
 		//
 		//	Scan and update index until we find something. If results are found,
 		//	we'll goto the list module & show them.
@@ -147,7 +139,12 @@ function NewScanModule(options) {
 					}
 				},
 				function updateStatusScanStarted(callback) {
-					self.updateScanStatus(self.scanStartFmt.format(getFormatObj()));
+					self.updateScanStatus(stringFormat(self.scanStartFmt, {
+						confName    : conf.conf.name,
+						confDesc    : conf.conf.desc,
+						areaName    : currentArea.area.name,
+						areaDesc    : currentArea.area.desc
+					}));
 					return callback(null);
 				},
 				function getNewMessagesCountInArea(callback) {

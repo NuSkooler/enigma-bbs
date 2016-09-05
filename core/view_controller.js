@@ -6,6 +6,7 @@ var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
 var asset			= require('./asset.js');
 var ansi			= require('./ansi_term.js');
+const Log			= require('./logger.js');
 
 //	deps
 var events			= require('events');
@@ -328,7 +329,14 @@ function ViewController(options) {
 			}
 		}
 
-		self.client.log.trace( { formValue : formValue, actionValue : actionValue }, 'Action match');
+		self.client.log.trace(
+			{ 
+				formValue	: formValue,
+				actionValue	: actionValue
+			}, 
+			'Action match'
+		);
+
 		return true;
 	};
 

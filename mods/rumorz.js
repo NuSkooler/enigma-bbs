@@ -8,6 +8,7 @@ const theme					= require('../core/theme.js');
 const resetScreen			= require('../core/ansi_term.js').resetScreen;
 const StatLog				= require('../core/stat_log.js');
 const renderStringLength	= require('../core/string_util.js').renderStringLength;
+const stringFormat			= require('../core/string_format.js');
 
 //	deps
 const async					= require('async');
@@ -158,8 +159,8 @@ exports.getModule = class RumorzModule extends MenuModule {
 					const listFormat		= config.listFormat || '{rumor}';
 					const focusListFormat	= config.focusListFormat || listFormat;
 
-					entriesView.setItems(entries.map( e => listFormat.format( { rumor : e.log_value } ) ) );
-					entriesView.setFocusItems(entries.map(e => focusListFormat.format( { rumor : e.log_value } ) ) );
+					entriesView.setItems(entries.map( e => stringFormat(listFormat, { rumor : e.log_value } ) ) );
+					entriesView.setFocusItems(entries.map(e => stringFormat(focusListFormat, { rumor : e.log_value } ) ) );
 					entriesView.redraw();
 
 					return callback(null);

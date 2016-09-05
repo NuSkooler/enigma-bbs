@@ -66,7 +66,7 @@ var SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
 	exit			: [ 'esc' ],
 	backspace		: [ 'backspace' ],
-	'delete'		: [ 'del' ],
+	delete			: [ 'del' ],
 	tab				: [ 'tab' ],
 	up				: [ 'up arrow' ],
 	down			: [ 'down arrow' ],
@@ -802,7 +802,6 @@ function MultiLineEditTextView(options) {
 		self.emitEditPosition();
 	};
 
-	//this.keyPressClearLine = function() {
 	this.keyPressDeleteLine = function() {
 		if(self.textLines.length > 0) {
 			self.removeCharactersFromText(
