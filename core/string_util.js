@@ -195,30 +195,37 @@ function stringFromNullTermBuffer(buf, encoding) {
 	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
 }
 
-//	:TODO: Add other codes from ansi_escape_parser
-const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
-const PIPE_REGEXP			= /\|[A-Z\d]{2}/g;
-const ANSI_OR_PIPE_REGEXP	= new RegExp(ANSI_REGEXP.source + '|' + PIPE_REGEXP.source, 'g');
+const PIPE_REGEXP			= /(\|[A-Z\d]{2})/g;
+const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
+const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
 
 //
 //	Similar to substr() but works with ANSI/Pipe code strings
 //
 function renderSubstr(str, start, length) {
-	start	= start || 0;
-	length	= Math.max(0, (length || str.length - start) - 1);
+	//	shortcut for empty strings
+	if(0 === str.length) {
+		return str;
+	}
 
-	const re = ANSI_REGEXP;
-	let pos;
+	start	= start || 0;
+	length	= length || str.length - start;
+
+	const re = ANSI_OR_PIPE_REGEXP;
+	re.lastIndex	 = 0;	//	we recycle the obj; must reset!
+
+	let pos = 0;
 	let match;
 	let out = '';
 	let renderLen = 0;
+	let s;
 	do {
 		pos		= re.lastIndex;
 		match	= re.exec(str);
 
 		if(match) {
 			if(match.index > pos) {				
-				const s = str.slice(pos + start, match.index - (Math.min(0, length - renderLen)));
+				s = str.slice(pos + start, Math.min(match.index, pos + (length - renderLen)));
 				start		= 0;	//	start offset applies only once
 				out			+= s;
 				renderLen	+= s.length;
@@ -230,19 +237,53 @@ function renderSubstr(str, start, length) {
 
 	//	remainder
 	if(pos + start < str.length && renderLen < length) {
-		out += str.slice(pos + start, pos + Math.max(0, length - renderLen));
+		out += str.slice(pos + start, (pos + start + (length - renderLen))); 
+		//out += str.slice(pos + start, Math.max(1, pos + (length - renderLen - 1)));
 	}
 
 	return out;
 }
 
 //
-//	Method to return the "rendered" length taking into account
-//	Pipe and ANSI color codes. Note that currently ANSI *movement* 
-//	codes are not considred!
+//	Method to return the "rendered" length taking into account Pipe and ANSI color codes. 
 //
-function renderStringLength(str) {
-	return str.replace(ANSI_OR_PIPE_REGEXP, '').length;
+//	We additionally account for ANSI *forward* movement ESC sequences
+//	in the form of ESC[<N>C where <N> is the "go forward" character count.
+//
+//	See also https://github.com/chalk/ansi-regex/blob/master/index.js
+//
+function renderStringLength(s) {
+	let m;
+	let pos;
+	let len = 0;
+
+	const re = ANSI_OR_PIPE_REGEXP;
+	re.lastIndex = 0;	//	we recycle the rege; reset
+	
+	//
+	//	Loop counting only literal (non-control) sequences
+	//	paying special attention to ESC[<N>C which means forward <N>
+	//	
+	do {
+		pos	= re.lastIndex;
+		m	= re.exec(s);
+		
+		if(m) {
+			if(m.index > pos) {
+				len += s.slice(pos, m.index).length;
+			}
+			
+			if('C' === m[3]) {	//	ESC[<N>C is foward/right
+				len += parseInt(m[2], 10) || 0;
+			}
+		}  
+	} while(0 !== re.lastIndex);
+	
+	if(pos < s.length) {
+		len += s.slice(pos).length;
+	}
+	
+	return len;
 }
 
 
@@ -267,7 +308,7 @@ function cleanControlCodes(input) {
 		pos	= REGEXP_ANSI_CONTROL_CODES.lastIndex;
 		m	= REGEXP_ANSI_CONTROL_CODES.exec(input);
 		
-		if(null !== m) {
+		if(m) {
 			if(m.index > pos) {
 				cleaned += input.slice(pos, m.index);
 			}

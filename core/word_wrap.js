@@ -1,8 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-var assert				= require('assert');
-var _					= require('lodash');
+var assert					= require('assert');
+var _						= require('lodash');
+const renderStringLength	= require('./string_util.js').renderStringLength; 
 
 exports.wordWrapText	= wordWrapText2;
 
@@ -15,22 +16,26 @@ const SPACE_CHARS		= [
 
 const REGEXP_WORD_WRAP = new RegExp(`\t|[${SPACE_CHARS.join('')}]`, 'g'); 
 
+/*
 //
 //	ANSI & pipe codes we indend to strip
 //
 //	See also https://github.com/chalk/ansi-regex/blob/master/index.js
 //
 //	:TODO: Consolidate this, regexp's in ansi_escape_parser, and strutil. Need more complete set that includes common standads, bansi, and cterm.txt
+//	renderStringLength() from strUtil does not account for ESC[<N>C (e.g. go forward)
 const REGEXP_CONTROL_CODES = /(\|[\d]{2})|(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
 
 function getRenderLength(s) {
 	let m;
 	let pos;
 	let len = 0;
+
+	REGEXP_CONTROL_CODES.lastIndex = 0;	//	reset
 	
 	//
 	//	Loop counting only literal (non-control) sequences
-	//	paying special attention to ESC[<N>C which means foward <N>
+	//	paying special attention to ESC[<N>C which means forward <N>
 	//	
 	do {
 		pos	= REGEXP_CONTROL_CODES.lastIndex;
@@ -53,6 +58,7 @@ function getRenderLength(s) {
 	
 	return len;
 }
+*/
 
 function wordWrapText2(text, options) {
 	assert(_.isObject(options));
@@ -79,7 +85,7 @@ function wordWrapText2(text, options) {
 	
 	function appendWord() {
 		word.match(REGEXP_GOBBLE).forEach( w => {
-			renderLen = getRenderLength(w);
+			renderLen = renderStringLength(w);
 			
 			if(result.renderLen[i] + renderLen > options.width) {
 				if(0 === i) {
