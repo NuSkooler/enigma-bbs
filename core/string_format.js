@@ -291,6 +291,7 @@ function getValue(obj, path) {
 module.exports = function format(fmt, obj) {
 
 	const re = REGEXP_BASIC_FORMAT;
+	re.lastIndex = 0;	//	reset from prev
 
 	let match;
 	let pos;
