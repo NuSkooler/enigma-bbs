@@ -663,6 +663,9 @@
 							submit: true
 							argName: message
 						}
+						TL6: {
+							//	theme me!
+						}
 					}
 					submit: {
 						*: [
@@ -1617,6 +1620,9 @@
 							focus: true
 							submit: true
 							argName: message
+						}
+						TL6: {
+							//	theme me!
 						}
 					}
 					submit: {
