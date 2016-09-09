@@ -322,7 +322,7 @@ module.exports = function format(fmt, obj) {
 
 			tokens = tokenizeFormatSpec(formatSpec || '');
 
-			if(!isNaN(parseInt(value))) {
+			if(_.isNumber(value)) {
 				out += formatNumber(value, tokens);
 			} else {
 				out += formatString(value, tokens);

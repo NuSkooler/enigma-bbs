@@ -81,4 +81,3 @@ WhosOnlineModule.prototype.mciReady = function(mciData, cb) {
 		}
 	);
 };
-
