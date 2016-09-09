@@ -8,6 +8,10 @@
     "type": "git",
     "url": "https://github.com/NuSkooler/enigma-bbs.git"
   },
+  "homepage": "https://github.com/NuSkooler/enigma-bbs",
+  "bugs": {
+    "url": "https://github.com/NuSkooler/enigma-bbs/issues"
+  },
   "keywords": [
     "bbs",
     "telnet"
@@ -25,7 +29,7 @@
     "minimist": "1.2.x",
     "moment": "^2.11.0",
     "node-uuid": "^1.4.7",
-    "ptyw.js": "^0.3.7",
+    "ptyw.js": "NuSkooler/ptyw.js",
     "sqlite3": "^3.1.1",
     "ssh2": "^0.4.13",    
     "temp": "^0.8.3",
