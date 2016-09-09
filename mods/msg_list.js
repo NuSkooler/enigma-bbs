@@ -25,12 +25,8 @@ const moment			= require('moment');
 	MCI codes:
 
 	VM1			: Message list
-	TL2			: Message area description
-	TL4			: Message selected #
-	TL5			: Total messages in area
+	TL2			: Message info 1: { msgNumSelected, msgNumTotal }	
 */
-
-//	:TODO: We need a way to update |initialFocusIndex| after next/prev in actual message viewing -- e.g. from child menu!!
 
 exports.getModule		= MessageListModule;
 
@@ -40,12 +36,9 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
-var MciCodesIds = {
-	MsgList			: 1,
-	MsgAreaDesc		: 2,
-	
-	MsgSelNum		: 4,
-	MsgTotal		: 5,
+const MCICodesIDs = {
+	MsgList			: 1,	//	VM1
+	MsgInfo1		: 2,	//	TL2
 };
 
 function MessageListModule(options) {
@@ -154,34 +147,34 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				MessageListModule.super_.prototype.mciReady.call(self, mciData, callback);
 			},
 			function loadFromConfig(callback) {
-				var loadOpts = {
+				const loadOpts = {
 					callingMenu		: self,
 					mciMap			: mciData.menu
 				};
 
-				vc.loadFromMenuConfig(loadOpts, callback);
+				return vc.loadFromMenuConfig(loadOpts, callback);
 			},
 			function fetchMessagesInArea(callback) {
 				//
 				//	Config can supply messages else we'll need to populate the list now
 				//
 				if(_.isArray(self.messageList)) {
-					callback(0 === self.messageList.length ? new Error('No messages in area') : null);
-				} else {
-					messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
-						if(!msgList || 0 === msgList.length) {
-							callback(new Error('No messages in area'));
-						} else {
-							self.messageList = msgList;
-							callback(err);
-						}
-					});
+					return callback(0 === self.messageList.length ? new Error('No messages in area') : null);
 				}
+				
+				messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
+					if(!msgList || 0 === msgList.length) {
+						return callback(new Error('No messages in area'));
+					}
+					
+					self.messageList = msgList;
+					return callback(err);						
+				});
 			},
 			function getLastReadMesageId(callback) {
 				messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaTag, function lastRead(err, lastReadId) {
 					self.lastReadId = lastReadId || 0;
-					callback(null);	//	ignore any errors, e.g. missing value
+					return callback(null);	//	ignore any errors, e.g. missing value
 				});
 			},
 			function updateMessageListObjects(callback) {
@@ -202,9 +195,10 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 				return callback(null);
 			},
 			function populateList(callback) {
-				const msgListView		= vc.getView(MciCodesIds.MsgList);	
-				const listFormat		= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';				
-				const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
+				const msgListView			= vc.getView(MCICodesIDs.MsgList);	
+				const listFormat			= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';				
+				const focusListFormat		= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
+				const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}'; 
 
 				//	:TODO: This can take a very long time to load large lists. What we need is to implement the "owner draw" concept in
 				//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
@@ -217,8 +211,10 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					return stringFormat(focusListFormat, listEntry);
 				}));
 
-				msgListView.on('index update', function indexUpdated(idx) {
-					self.setViewText(MciCodesIds.MsgSelNum, (idx + 1).toString());
+				msgListView.on('index update', idx => {
+					self.setViewText(
+						MCICodesIDs.MsgInfo1, 
+						stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.messageList.length } ));
 				});
 				
 				if(self.initialFocusIndex > 0) {
@@ -228,21 +224,21 @@ MessageListModule.prototype.mciReady = function(mciData, cb) {
 					msgListView.redraw();
 				}
 
-				callback(null);
+				return callback(null);
 			},
-			function populateOtherMciViews(callback) {
-				self.setViewText(MciCodesIds.MsgAreaDesc, messageArea.getMessageAreaByTag(self.messageAreaTag).name);
-				self.setViewText(MciCodesIds.MsgSelNum, (vc.getView(MciCodesIds.MsgList).getData() + 1).toString());
-				self.setViewText(MciCodesIds.MsgTotal, self.messageList.length.toString());
-
-				callback(null);
+			function drawOtherViews(callback) {
+				const messageInfo1Format = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
+				self.setViewText(
+					MCICodesIDs.MsgInfo1, 
+					stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.messageList.length } ));
+				return callback(null);
 			},
-		],
-		function complete(err) {
+		],		
+		err => {
 			if(err) {
 				self.client.log.error( { error : err.message }, 'Error loading message list');				
 			}
-			cb(err);
+			return cb(err);
 		}
 	);
 };
