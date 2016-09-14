@@ -11,6 +11,7 @@ const later					= require('later');
 const path					= require('path');
 const pty					= require('ptyw.js');
 const gaze					= require('gaze');
+const moment				= require('moment');
 
 exports.getModule				= EventSchedulerModule;
 exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
@@ -214,6 +215,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
 					eventName	: schedEvent.name,
 					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
 					action		: schedEvent.action,
+					next		: moment(later.schedule(schedEvent.schedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a')
 				},
 				'Scheduled event loaded'
 			);
