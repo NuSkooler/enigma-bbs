@@ -141,6 +141,8 @@ function initialize(cb) {
 					'**** ENiGMA½ Bulletin Board System Starting Up! ****');
 
 				process.on('SIGINT', shutdownSystem);
+
+				require('later').date.localTime();	//	use local times for later.js/scheduling
 			
 				return callback(null);
 			},			
