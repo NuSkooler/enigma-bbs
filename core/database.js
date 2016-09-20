@@ -47,233 +47,273 @@ function getModDatabasePath(moduleInfo, suffix) {
 }
 
 function initializeDatabases(cb) {
-	async.series(
-		[
-			function systemDb(callback) {
-				dbs.system	= new sqlite3.Database(getDatabasePath('system'), err => {
-					if(err) {
-						return callback(err);
-					}
-					
-					dbs.system.serialize( () => {
-						createSystemTables();
-					});
-
-					return callback(null);
-				});				
-			},
-			function userDb(callback) {
-				dbs.user = new sqlite3.Database(getDatabasePath('user'), err => {
-					if(err) {						
-						return callback(err);
-					}
-
-					dbs.user.serialize( () => {
-						createUserTables();
-						createInitialUserValues();
-					});
-					
-					return callback(null);
-				});
-			},
-			function messageDb(callback) {
-				dbs.message	= new sqlite3.Database(getDatabasePath('message'), err => {
-					if(err) {
-						return callback(err);
-					}
-
-
-					dbs.message.serialize(function serialized() {
-						createMessageBaseTables();
-						createInitialMessageValues();
-					});
-					
-					return callback(null);
-				});
+	async.each( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
+		dbs[dbName] = new sqlite3.Database(getDatabasePath(dbName), err => {
+			if(err) {
+				return cb(err);
 			}
-		],
-		cb
-	);
+
+			dbs[dbName].serialize( () => {
+				DB_INIT_TABLE[dbName]();
+
+				return next(null);
+			});
+		});
+	}, err => {
+		return cb(err);
+	});
 }
 
-function createSystemTables() {
+const DB_INIT_TABLE = {
+	system : () => {
+		dbs.system.run('PRAGMA foreign_keys = ON;');
 
-	dbs.system.run('PRAGMA foreign_keys = ON;');
+		//	Various stat/event logging - see stat_log.js
+		dbs.system.run(
+			`CREATE TABLE IF NOT EXISTS system_stat (
+				stat_name		VARCHAR PRIMARY KEY NOT NULL,
+				stat_value		VARCHAR NOT NULL
+			);`
+		);
 
-	//	Various stat/event logging - see stat_log.js
-	dbs.system.run(
-		`CREATE TABLE IF NOT EXISTS system_stat (
-			stat_name		VARCHAR PRIMARY KEY NOT NULL,
-			stat_value		VARCHAR NOT NULL
-		);`
-	);
+		dbs.system.run(
+			`CREATE TABLE IF NOT EXISTS system_event_log (
+				id				INTEGER PRIMARY KEY,
+				timestamp		DATETIME NOT NULL,
+				log_name		VARCHAR NOT NULL,
+				log_value		VARCHAR NOT NULL,
 
-	dbs.system.run(
-		`CREATE TABLE IF NOT EXISTS system_event_log (
-			id				INTEGER PRIMARY KEY,
-			timestamp		DATETIME NOT NULL,
-			log_name		VARCHAR NOT NULL,
-			log_value		VARCHAR NOT NULL,
+				UNIQUE(timestamp, log_name)
+			);`
+		);
 
-			UNIQUE(timestamp, log_name)
-		);`
-	);
+		dbs.system.run(
+			`CREATE TABLE IF NOT EXISTS user_event_log (
+				id				INTEGER PRIMARY KEY,
+				timestamp		DATETIME NOT NULL,
+				user_id			INTEGER NOT NULL,
+				log_name		VARCHAR NOT NULL,
+				log_value		VARCHAR NOT NULL,
 
-	dbs.system.run(
-		`CREATE TABLE IF NOT EXISTS user_event_log (
-			id				INTEGER PRIMARY KEY,
-			timestamp		DATETIME NOT NULL,
-			user_id			INTEGER NOT NULL,
-			log_name		VARCHAR NOT NULL,
-			log_value		VARCHAR NOT NULL,
+				UNIQUE(timestamp, user_id, log_name)
+			);`
+		);
+	},
 
-			UNIQUE(timestamp, user_id, log_name)
-		);`
-	);
-}
+	user : () => {
+		dbs.user.run('PRAGMA foreign_keys = ON;');
 
-function createUserTables() {
-	dbs.user.run('PRAGMA foreign_keys = ON;');
+		dbs.user.run(
+			`CREATE TABLE IF NOT EXISTS user ( 
+				id			INTEGER PRIMARY KEY,
+				user_name	VARCHAR NOT NULL, 
+				UNIQUE(user_name)
+			);`
+		);
 
-	dbs.user.run(
-		`CREATE TABLE IF NOT EXISTS user ( 
-			id			INTEGER PRIMARY KEY,
-			user_name	VARCHAR NOT NULL, 
-			UNIQUE(user_name)
-		);`
-	);
+		//	:TODO: create FK on delete/etc.
 
-	//	:TODO: create FK on delete/etc.
+		dbs.user.run(
+			`CREATE TABLE IF NOT EXISTS user_property (
+				user_id		INTEGER NOT NULL,
+				prop_name	VARCHAR NOT NULL,
+				prop_value	VARCHAR,
+				UNIQUE(user_id, prop_name),
+				FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE 
+			);`
+		);
 
-	dbs.user.run(
-		`CREATE TABLE IF NOT EXISTS user_property (
-			user_id		INTEGER NOT NULL,
-			prop_name	VARCHAR NOT NULL,
-			prop_value	VARCHAR,
-			UNIQUE(user_id, prop_name),
-			FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE 
-		);`
-	);
+		dbs.user.run(
+			`CREATE TABLE IF NOT EXISTS user_group_member ( 
+				group_name	VARCHAR NOT NULL, 
+				user_id		INTEGER NOT NULL,
+				UNIQUE(group_name, user_id)
+			);`
+		);
 
-	dbs.user.run(
-		`CREATE TABLE IF NOT EXISTS user_group_member ( 
-			group_name	VARCHAR NOT NULL, 
-			user_id		INTEGER NOT NULL,
-			UNIQUE(group_name, user_id)
-		);`
-	);
+		dbs.user.run(
+			`CREATE TABLE IF NOT EXISTS user_login_history (	
+				user_id		INTEGER NOT NULL,
+				user_name	VARCHAR NOT NULL,
+				timestamp	DATETIME NOT NULL
+			);`
+		);
+	},
 
-	dbs.user.run(
-		`CREATE TABLE IF NOT EXISTS user_login_history (	
-			user_id		INTEGER NOT NULL,
-			user_name	VARCHAR NOT NULL,
-			timestamp	DATETIME NOT NULL
-		);`
-	);
-}
+	message : () => {
+		dbs.message.run('PRAGMA foreign_keys = ON;');
 
-function createMessageBaseTables() {
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS message (
+				message_id				INTEGER PRIMARY KEY, 
+				area_tag				VARCHAR NOT NULL,
+				message_uuid			VARCHAR(36) NOT NULL, 
+				reply_to_message_id		INTEGER,
+				to_user_name			VARCHAR NOT NULL,
+				from_user_name			VARCHAR NOT NULL,
+				subject, /* FTS @ message_fts */
+				message, /* FTS @ message_fts */
+				modified_timestamp		DATETIME NOT NULL,
+				view_count				INTEGER NOT NULL DEFAULT 0,
+				UNIQUE(message_uuid) 
+			);`
+		);
 
-	dbs.message.run('PRAGMA foreign_keys = ON;');
+		dbs.message.run(
+			`CREATE INDEX IF NOT EXISTS message_by_area_tag_index
+			ON message (area_tag);`
+		);
 
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS message (
-			message_id				INTEGER PRIMARY KEY, 
-			area_tag				VARCHAR NOT NULL,
-			message_uuid			VARCHAR(36) NOT NULL, 
-			reply_to_message_id		INTEGER,
-			to_user_name			VARCHAR NOT NULL,
-			from_user_name			VARCHAR NOT NULL,
-			subject, /* FTS @ message_fts */
-			message, /* FTS @ message_fts */
-			modified_timestamp		DATETIME NOT NULL,
-			view_count				INTEGER NOT NULL DEFAULT 0,
-			UNIQUE(message_uuid) 
-		);`
-	);
+		dbs.message.run(
+			`CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
+				content="message",
+				subject,
+				message
+			);`
+		);
 
-	dbs.message.run(
-		`CREATE INDEX IF NOT EXISTS message_by_area_tag_index
-		ON message (area_tag);`
-	);
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
+				DELETE FROM message_fts WHERE docid=old.rowid;
+			END;
+			
+			CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+				DELETE FROM message_fts WHERE docid=old.rowid;
+			END;
 
-	dbs.message.run(
-		`CREATE VIRTUAL TABLE IF NOT EXISTS message_fts USING fts4 (
-			content="message",
-			subject,
-			message
-		);`
-	);
+			CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+			END;
 
-	dbs.message.run(
-		`CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
-  			DELETE FROM message_fts WHERE docid=old.rowid;
-		END;
+			CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
+			END;`
+		);
+
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS message_meta (
+				message_id		INTEGER NOT NULL,
+				meta_category	INTEGER NOT NULL,
+				meta_name		VARCHAR NOT NULL,
+				meta_value		VARCHAR NOT NULL,
+				UNIQUE(message_id, meta_category, meta_name, meta_value), 
+				FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
+			);`
+		);
+
+		//	:TODO: need SQL to ensure cleaned up if delete from message?
+		/*
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS hash_tag (
+				hash_tag_id		INTEGER PRIMARY KEY,
+				hash_tag_name	VARCHAR NOT NULL,
+				UNIQUE(hash_tag_name)
+			);`
+		);
+
+		//	:TODO: need SQL to ensure cleaned up if delete from message?
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS message_hash_tag (
+				hash_tag_id	INTEGER NOT NULL,
+				message_id	INTEGER NOT NULL,
+			);`
+		);
+		*/
+
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS user_message_area_last_read (
+				user_id		INTEGER NOT NULL,
+				area_tag	VARCHAR NOT NULL,
+				message_id	INTEGER NOT NULL,
+				UNIQUE(user_id, area_tag)
+			);`
+		);
 		
-		CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
-  			DELETE FROM message_fts WHERE docid=old.rowid;
-		END;
+		dbs.message.run(
+			`CREATE TABLE IF NOT EXISTS message_area_last_scan (
+				scan_toss		VARCHAR NOT NULL,
+				area_tag		VARCHAR NOT NULL,
+				message_id		INTEGER NOT NULL,
+				UNIQUE(scan_toss, area_tag)
+			);`	
+		);
+	},
 
-		CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
-			INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-		END;
+	file : () => {
+		dbs.file.run('PRAGMA foreign_keys = ON;');
 
-		CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
-			INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-		END;`
-	);
+		dbs.file.run(
+			//	:TODO: should any of this be unique??
+			`CREATE TABLE IF NOT EXISTS file (
+				file_id				INTEGER PRIMARY KEY,
+				area_tag			VARCHAR NOT NULL,
+				file_sha1			VARCHAR NOT NULL,
+				file_name,			/* FTS @ file_fts */
+				desc,				/* FTS @ file_fts */
+				desc_long,			/* FTS @ file_fts */
+				upload_by_username	VARCHAR NOT NULL,
+				upload_timestamp	DATETIME NOT NULL
+			);`
+		);
 
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS message_meta (
-			message_id		INTEGER NOT NULL,
-			meta_category	INTEGER NOT NULL,
-			meta_name		VARCHAR NOT NULL,
-			meta_value		VARCHAR NOT NULL,
-			UNIQUE(message_id, meta_category, meta_name, meta_value), 
-			FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
-		);`
-	);
+		dbs.file.run(
+			`CREATE INDEX IF NOT EXISTS file_by_area_tag_index
+			ON file (area_tag);`
+		);
 
-	//	:TODO: need SQL to ensure cleaned up if delete from message?
-	/*
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS hash_tag (
-			hash_tag_id		INTEGER PRIMARY KEY,
-			hash_tag_name	VARCHAR NOT NULL,
-			UNIQUE(hash_tag_name)
-		);`
-	);
+		dbs.file.run(
+			`CREATE VIRTUAL TABLE IF NOT EXISTS file_fts USING fts4 (
+				content="file",
+				file_name,
+				desc,
+				desc_long
+			);`
+		);
 
-	//	:TODO: need SQL to ensure cleaned up if delete from message?
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS message_hash_tag (
-			hash_tag_id	INTEGER NOT NULL,
-			message_id	INTEGER NOT NULL,
-		);`
-	);
-	*/
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_before_update BEFORE UPDATE ON file BEGIN
+				DELETE FROM file_fts WHERE docid=old.rowid;
+			END;
+			
+			CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
+				DELETE FROM file_fts WHERE docid=old.rowid;
+			END;
 
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS user_message_area_last_read (
-			user_id		INTEGER NOT NULL,
-			area_tag	VARCHAR NOT NULL,
-			message_id	INTEGER NOT NULL,
-			UNIQUE(user_id, area_tag)
-		);`
-	);
-	
-	dbs.message.run(
-		`CREATE TABLE IF NOT EXISTS message_area_last_scan (
-			scan_toss		VARCHAR NOT NULL,
-			area_tag		VARCHAR NOT NULL,
-			message_id		INTEGER NOT NULL,
-			UNIQUE(scan_toss, area_tag)
-		);`	
-	);
-}
+			CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, long_desc) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
+			END;
 
-function createInitialMessageValues() {
-}
+			CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
+			END;`
+		);
 
-function createInitialUserValues() {
-}
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_meta (
+				file_id			INTEGER NOT NULL,
+				meta_name		VARCHAR NOT NULL,
+				meta_value		VARCHAR NOT NULL,
+				UNIQUE(file_id, meta_name, meta_value), 
+				FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
+			);`
+		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS hash_tag (
+				hash_tag_id		INTEGER PRIMARY KEY,
+				hash_tag		VARCHAR NOT NULL,
+			
+				UNIQUE(hash_tag)
+			);`
+		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_hash_tag (
+				hash_tag_id		INTEGER NOT NULL,
+				file_id			INTEGER NOT NULL,
+			
+				UNIQUE(hash_tag_id, file_id)
+			);`
+		);
+	}
+};

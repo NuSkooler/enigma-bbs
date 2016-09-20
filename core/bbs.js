@@ -223,15 +223,14 @@ function initialize(cb) {
 }
 
 function startListening(cb) {
-	if(!conf.config.servers) {
+	if(!conf.config.loginServers) {
 		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
-		//logger.log.error('No servers configured');
-		return cb(new Error('No servers configured'));
+		return cb(new Error('No login servers configured'));
 	}
 
 	const moduleUtil = require('./module_util.js');	//	late load so we get Config
 
-	moduleUtil.loadModulesForCategory('servers', (err, module) => {
+	moduleUtil.loadModulesForCategory('loginServers', (err, module) => {
 		if(err) {
 			if('EENIGMODDISABLED' === err.code) {
 				logger.log.debug(err.message);
