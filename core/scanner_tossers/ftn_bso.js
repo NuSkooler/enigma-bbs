@@ -1216,8 +1216,9 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 			if(exportSchedule) {
 				Log.debug(
 					{ 
-						schedule	: this.moduleConfig.schedule.export,
+						schedule	: this.moduleConfig.schedule.export,						
 						schedOK		: -1 === exportSchedule.sched.error,
+						next		: moment(later.schedule(exportSchedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a'),
 						immediate	: exportSchedule.immediate ? true : false,
 					},
 					'Export schedule loaded'
@@ -1245,6 +1246,7 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 					{
 						schedule	: this.moduleConfig.schedule.import,
 						schedOK		: -1 === importSchedule.sched.error,
+						next		: moment(later.schedule(importSchedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a'),
 						watchFile	: _.isString(importSchedule.watchFile) ? importSchedule.watchFile : 'None',
 					},
 					'Import schedule loaded'
