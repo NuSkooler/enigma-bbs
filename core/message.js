@@ -139,7 +139,7 @@ Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
 	body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
 	
 	return uuid.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
-}
+};
 
 Message.getMessageIdByUuid = function(uuid, cb) {
 	msgDb.get(
