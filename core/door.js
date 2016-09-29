@@ -100,6 +100,7 @@ Door.prototype.run = function() {
 		}
 
 		//	Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
+		//	:TODO: Use .map() here
 		let args = _.clone(self.exeInfo.args);	//	we need a copy so the original is not modified
 
 		for(let i = 0; i < args.length; ++i) {

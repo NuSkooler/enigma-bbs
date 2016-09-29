@@ -175,17 +175,23 @@ const DB_INIT_TABLE = {
 		dbs.message.run(
 			`CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
 				DELETE FROM message_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 			
-			CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
 				DELETE FROM message_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
 				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
 				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
 			END;`
 		);
@@ -250,7 +256,7 @@ const DB_INIT_TABLE = {
 				file_sha1			VARCHAR NOT NULL,
 				file_name,			/* FTS @ file_fts */
 				desc,				/* FTS @ file_fts */
-				desc_long,			/* FTS @ file_fts */
+				desc_long,			/* FTS @ file_fts */				
 				upload_by_username	VARCHAR NOT NULL,
 				upload_timestamp	DATETIME NOT NULL
 			);`
@@ -273,18 +279,24 @@ const DB_INIT_TABLE = {
 		dbs.file.run(
 			`CREATE TRIGGER IF NOT EXISTS file_before_update BEFORE UPDATE ON file BEGIN
 				DELETE FROM file_fts WHERE docid=old.rowid;
-			END;
-			
-			CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
+			END;`
+		);
+
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
 				DELETE FROM file_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
-				INSERT INTO file_fts(docid, file_name, desc, long_desc) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
-			END;
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
-				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
 			END;`
 		);
 

@@ -13,6 +13,8 @@ exports.debugEscapedString			= debugEscapedString;
 exports.stringFromNullTermBuffer	= stringFromNullTermBuffer;
 exports.renderSubstr				= renderSubstr;
 exports.renderStringLength			= renderStringLength;
+exports.formatByteSizeAbbr			= formatByteSizeAbbr;
+exports.formatByteSize				= formatByteSize;
 exports.cleanControlCodes			= cleanControlCodes;
 
 //	:TODO: create Unicode verison of this
@@ -284,6 +286,23 @@ function renderStringLength(s) {
 	}
 	
 	return len;
+}
+
+const SIZE_ABBRS = [ 'B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB' ];	//	:) 
+
+function formatByteSizeAbbr(byteSize) {
+	return SIZE_ABBRS[Math.floor(Math.log(byteSize) / Math.log(1024))];
+}
+
+function formatByteSize(byteSize, withAbbr, decimals) {
+	withAbbr = withAbbr || false; 
+	decimals = decimals || 3;
+	const i		= Math.floor(Math.log(byteSize) / Math.log(1024));
+	let result	= parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals));
+	if(withAbbr) {
+		result += ` ${SIZE_ABBRS[i]}`; 
+	}
+	return result;
 }
 
 

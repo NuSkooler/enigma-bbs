@@ -127,7 +127,7 @@ MessageListModule.prototype.enter = function() {
 	if(this.messageAreaTag) {
 		this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
 	} else {
-		this.messageAreaTag = this.messageAreaTag = this.client.user.properties.message_area_tag;
+		this.messageAreaTag = this.client.user.properties.message_area_tag;
 	}
 };
 

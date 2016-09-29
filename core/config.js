@@ -222,6 +222,33 @@ function getDefaultConfig() {
 			}
 		},
 		
+		fileTransferProtocols : {
+			zmodem8kSz : {
+				name		: 'ZModem 8k',
+				type		: 'external',
+				external	: {
+					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
+					sendArgs	: [
+						'--zmodem', '-y', '--try-8k', '--binary', '--restricted', '{filePath}'
+					],
+					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+				} 
+			},
+
+			zmodem8kSexyz : {
+				name		: 'ZModem 8k',
+				type		: 'external',
+				external	: {
+					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
+					sendCmd		: 'sexyz',
+					sendArgs	: [
+						'-telnet', 'sz', '{filePath}'
+					],
+					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+				} 
+			}
+
+		},
 		
 		messageAreaDefaults : {
 			//

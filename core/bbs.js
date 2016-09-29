@@ -16,6 +16,8 @@ const async			= require('async');
 const util			= require('util');
 const _				= require('lodash');
 const mkdirs		= require('fs-extra').mkdirs;
+const fs			= require('fs');
+const paths			= require('path');
 
 //	our main entry point
 exports.bbsMain	= bbsMain;
@@ -71,14 +73,23 @@ function bbsMain() {
 					if(err) {
 						console.error('Error initializing: ' + util.inspect(err));
 					}
-					callback(err);
+					return callback(err);
 				});
 			},
 			function listenConnections(callback) {
-				startListening(callback);
+				return startListening(callback);
 			}
 		],
 		function complete(err) {
+			//	note this is escaped:
+			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
+				console.info('ENiGMA½ Copyright (c) 2014-2016 Bryan Ashby');
+				if(!err) {					
+					console.info(banner);
+				}					
+				console.info('System started!');
+			});
+
 			if(err) {
 				console.error('Error initializing: ' + util.inspect(err));
 			}
@@ -87,7 +98,9 @@ function bbsMain() {
 }
 
 function shutdownSystem() {
-	logger.log.info('Process interrupted, shutting down...');
+	const msg = 'Process interrupted. Shutting down...';
+	console.info(msg);
+	logger.log.info(msg);
 
 	async.series(
 		[
@@ -114,7 +127,8 @@ function shutdownSystem() {
 			} 
 		],
 		() => {
-			process.exit();
+			console.info('Goodbye!');
+			return process.exit();
 		}
 	);
 }

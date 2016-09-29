@@ -33,6 +33,10 @@ class ACS {
 		return this.check(area.acs, 'read', ACS.Defaults.MessageAreaRead);
 	}
 
+	hasFileAreaRead(area) {
+		return this.check(area.acs, 'read', ACS.Defaults.FileAreaRead);
+	}
+
 	getConditionalValue(condArray, memberName) {
 		assert(_.isArray(condArray));
 		assert(_.isString(memberName));
@@ -59,6 +63,8 @@ class ACS {
 ACS.Defaults = {
 	MessageAreaRead		: 'GM[users]',
 	MessageConfRead		: 'GM[users]',
+
+	FileAreaRead		: 'GM[users]',
 };
 
 module.exports = ACS;

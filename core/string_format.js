@@ -6,6 +6,8 @@ const pad					= require('./string_util.js').pad;
 const stylizeString			= require('./string_util.js').stylizeString;
 const renderStringLength	= require('./string_util.js').renderStringLength;
 const renderSubstr			= require('./string_util.js').renderSubstr;
+const formatByteSize		= require('./string_util.js').formatByteSize;
+const formatByteSizeAbbr	= require('./string_util.js').formatByteSizeAbbr;		
 
 //	deps
 const _				= require('lodash');
@@ -265,6 +267,12 @@ const transformers = {
 	styleSmallI			: (s) => stylizeString(s, 'small i'),
 	styleMixed			: (s) => stylizeString(s, 'mixed'),
 	styleL33t			: (s) => stylizeString(s, 'l33t'),
+
+	//	toMegs(), toKilobytes(), ... 
+	//	toList(), toCommaList(), 
+	sizeWithAbbr		: (n) => formatByteSize(n, true, 2),
+	sizeWithoutAbbr		: (n) => formatByteSize(n, false, 2),
+	sizeAbbr			: (n) => formatByteSizeAbbr(n),
 };
 
 function transformValue(transformerName, value) {
