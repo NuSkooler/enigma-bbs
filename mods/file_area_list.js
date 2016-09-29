@@ -107,8 +107,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					}
 					
 					theme.displayThemedAsset(
-						//config.art.browse,
-						'FBRWSE',
+						config.art.browse,
 						self.client,
 						{ font : self.menuConfig.font, trailingLF : false },
 						(err, artData) => {
@@ -174,17 +173,15 @@ exports.getModule = class FileAreaList extends MenuModule {
 						hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
 					};
 
-					const META_NUMBERS = [ 'byte_size', 'dl_count' ];
-					_.forEach(self.currentFileEntry.meta, (value, name) => {
-						if(META_NUMBERS.indexOf(name) > -1) {
-							value = parseInt(value);
-						}
+					//
+					//	We need the entry object to contain meta keys even if they are empty as
+					//	consumers may very likely attempt to use them
+					//
+					const metaValues = FileEntry.getWellKnownMetaValues();
+					metaValues.forEach(name => {
+						const value = currEntry.meta[name] || '';
 						entryInfo[_.camelCase(name)] = value;
 					});
-
-					
-
-				//	entryInfo.fileSize = 1241234;	//	:TODO: REMOVE ME!
 
 					//	10+ are custom textviews
 					let textView;					

@@ -13,6 +13,19 @@ const FILE_TABLE_MEMBERS	= [
 	'desc', 'desc_long', 'upload_by_username', 'upload_timestamp' 
 ];
 
+const FILE_WELL_KNOWN_META = {
+	//	name -> *read* converter, if any
+	upload_by_username	: null,
+	upload_by_user_id	: null,
+	file_md5			: null,
+	file_sha256			: null,
+	file_crc32			: null,
+	est_release_year	: parseInt,
+	dl_count			: parseInt,
+	byte_size			: parseInt,
+	user_rating			: parseInt,
+};
+
 module.exports = class FileEntry {
 	constructor(options) {
 		options			= options || {};
@@ -74,7 +87,8 @@ module.exports = class FileEntry {
 			[ this.fileId ],
 			(err, meta) => {
 				if(meta) {
-					this.meta[meta.meta_name] = meta.meta_value;
+					const conv = FILE_WELL_KNOWN_META[meta.meta_name];
+					this.meta[meta.meta_name] = conv ? conv(meta.meta_value) : meta.meta_value;
 				}
 			},
 			err => {
@@ -103,6 +117,8 @@ module.exports = class FileEntry {
 			}
 		);	
 	}
+
+	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
 
 	static findFiles(criteria, cb) {
 		//	:TODO: build search here - return [ fileid1, fileid2, ... ]
