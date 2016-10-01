@@ -131,15 +131,16 @@ ClientTerminal.prototype.isANSI = function() {
 	//	ansi-bbs:
 	//		* fTelnet
 	//
+	//	pcansi:
+	//		* ZOC
+	//
 	//	screen:
 	//		* ConnectBot (Android)
 	//
 	//	linux:
 	//		* JuiceSSH (note: TERM=linux also)
 	//
-
-	//	:TODO: Others??
-	return [ 'ansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
+	return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
 };
 
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
