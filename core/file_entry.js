@@ -20,10 +20,10 @@ const FILE_WELL_KNOWN_META = {
 	file_md5			: null,
 	file_sha256			: null,
 	file_crc32			: null,
-	est_release_year	: parseInt,
-	dl_count			: parseInt,
-	byte_size			: parseInt,
-	user_rating			: parseInt,
+	est_release_year	: (y) => parseInt(y) || new Date().getFullYear(),
+	dl_count			: (d) => parseInt(d) || 0,
+	byte_size			: (b) => parseInt(b) || 0,
+	user_rating			: (r) => Math.min(parseInt(r) || 0, 5),
 };
 
 module.exports = class FileEntry {

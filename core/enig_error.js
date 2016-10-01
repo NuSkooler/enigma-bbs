@@ -19,14 +19,12 @@ class EnigError extends Error {
 	}
 }
 
-//	:TODO: Just use EnigError for all
-class EnigMenuError extends EnigError { }
-
 exports.EnigError				= EnigError;
-exports.EnigMenuError			= EnigMenuError;
 
 exports.Errors = {
 	General				: (reason, reasonCode) 	=> new EnigError('An error occurred', -33000, reason, reasonCode),
-	MenuStack			: (reason, reasonCode)	=> new EnigMenuError('Menu stack error', -33001, reason, reasonCode),
+	MenuStack			: (reason, reasonCode)	=> new EnigError('Menu stack error', -33001, reason, reasonCode),
 	DoesNotExist		: (reason, reasonCode) 	=> new EnigError('Object does not exist', -33002, reason, reasonCode),
+	AccessDenied		: (reason, reasonCode)	=> new EnigError('Access denied', -32003, reason, reasonCode),
+	Invalid				: (reason, reasonCode)	=> new EnigError('Invalid', -32004, reason, reasonCode),
 };

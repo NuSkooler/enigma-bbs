@@ -236,7 +236,7 @@ function getDefaultConfig() {
 			},
 
 			zmodem8kSexyz : {
-				name		: 'ZModem 8k',
+				name		: 'ZModem (SEXYZ)',
 				type		: 'external',
 				external	: {
 					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
@@ -244,7 +244,7 @@ function getDefaultConfig() {
 					sendArgs	: [
 						'-telnet', 'sz', '{filePath}'
 					],
-					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+					escapeTelnet	: false,	//	-telnet option does this for us
 				} 
 			}
 

@@ -151,7 +151,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
 						if(descView) {
 							descView.setText(self.currentFileEntry.desc);
-							//descView.redraw();
 						}
 					}
 					
@@ -159,6 +158,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					const uploadTimestampFormat = config.browseUploadTimestampFormat || config.uploadTimestampFormat || 'YYYY-MMM-DD';
 					const area = FileArea.getFileAreaByTag(currEntry.areaTag);
 					const hashTagsSep = config.hashTagsSep || ', ';
+					
 					const entryInfo = {
 						fileId				: currEntry.fileId,
 						areaTag				: currEntry.areaTag,
@@ -183,6 +183,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 						entryInfo[_.camelCase(name)] = value;
 					});
 
+					const userRatingChar = config.userRatingChar ? config.userRatingChar[0] : '*';
+					if(_.isNumber(entryInfo.userRating)) {
+						entryInfo.userRatingString = new Array(entryInfo.userRating).join(userRatingChar);
+					} else {
+						entryInfo.userRatingString = '';
+					}
+
 					//	10+ are custom textviews
 					let textView;					
 					let customMciId = 10;
@@ -197,6 +204,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 						++customMciId;
 					}
+
+					return callback(null);
 				}
 			],
 			err => {

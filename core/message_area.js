@@ -2,11 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const msgDb			= require('./database.js').dbs.message;
-const Config		= require('./config.js').config;
-const Message		= require('./message.js');
-const Log			= require('./logger.js').log;
-const msgNetRecord	= require('./msg_network.js').recordMessage;
+const msgDb				= require('./database.js').dbs.message;
+const Config			= require('./config.js').config;
+const Message			= require('./message.js');
+const Log				= require('./logger.js').log;
+const msgNetRecord		= require('./msg_network.js').recordMessage;
+const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
 
 //	deps
 const async			= require('async');
@@ -31,29 +32,6 @@ exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 exports.persistMessage						= persistMessage;
 exports.trimMessageAreasScheduledEvent		= trimMessageAreasScheduledEvent;
-
-//
-//	Method for sorting Message areas and conferences
-//	If the sort key is present and is a number, sort in numerical order;
-//	Otherwise, use a locale comparison on the sort key or name as a fallback
-// 
-function sortAreasOrConfs(areasOrConfs, type) {
-	let entryA;
-	let entryB;
-
-	areasOrConfs.sort((a, b) => {
-		entryA = a[type];
-		entryB = b[type];
-
-		if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
-			return entryA.sort - entryB.sort;
-		} else {
-			const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
-			const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
-			return keyA.localeCompare(keyB);
-		}
-	});
-}
 
 function getAvailableMessageConferences(client, options) {
 	options = options || { includeSystemInternal : false };
@@ -269,7 +247,7 @@ function changeMessageConference(client, confTag, cb) {
 }
 
 function changeMessageAreaWithOptions(client, areaTag, options, cb) {
-	options = options || {};
+	options = options || {};	//	:TODO: this is currently pointless... cb is required...
 
 	async.waterfall(
 		[
@@ -305,7 +283,7 @@ function changeMessageAreaWithOptions(client, areaTag, options, cb) {
 				client.log.warn( { areaTag : areaTag, area : area, error : err.message }, 'Could not change message area');
 			}
 
-			cb(err);
+			return cb(err);
 		}
 	);
 }
