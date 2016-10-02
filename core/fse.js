@@ -8,6 +8,7 @@ const ansi							= require('./ansi_term.js');
 const theme							= require('./theme.js');
 const Message						= require('./message.js');
 const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
+const getMessageAreaByTag			= require('./message_area.js').getMessageAreaByTag;
 const getUserIdAndName				= require('./user.js').getUserIdAndName;
 const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
@@ -563,8 +564,14 @@ function FullScreenEditorModule(options) {
 							break;
 							
 						case 'edit' :
-							self.viewControllers.header.getView(1).setText(self.client.user.username);	//	from
-
+							const fromView = self.viewControllers.header.getView(1);
+							const area = getMessageAreaByTag(self.messageAreaTag);
+							if(area && area.realNames) {
+								fromView.setText(self.client.user.properties.real_name || self.client.user.username);
+							} else {
+								fromView.setText(self.client.user.username);
+							}
+							
 							if(self.replyToMessage) {
 								self.initHeaderReplyEditMode();
 							}
