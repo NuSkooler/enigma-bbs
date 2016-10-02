@@ -1023,7 +1023,12 @@ MultiLineEditTextView.prototype.getData = function() {
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'mode'			: this.mode = value; break;
+		case 'mode'			: 
+			this.mode = value;
+			if('preview' === value && !this.specialKeyMap.next) {
+				this.specialKeyMap.next = [ 'tab' ];
+			} 
+			break;
 		case 'autoScroll'	: this.autoScroll = value; break;
 	}
 
