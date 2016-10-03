@@ -215,10 +215,24 @@ function getDefaultConfig() {
 			zip : {
 				sig				: '504b0304',
 				offset			: 0,
-				compressCmd		: '7z',
-				compressArgs	: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
-				decompressCmd	: '7z',
-				decompressArgs	: [ 'e', '-o{extractPath}', '{archivePath}' ]
+				compress		: {
+					cmd			: '7z',
+					args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
+				},
+				decompress		: {
+					cmd			: '7z',
+					args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
+				},
+				/*
+				list			: {
+					cmd			: '7z',
+					args		: [ 'l', '{archivePath}' ],
+					match		: '...someregex...'
+				},*/
+				extract			: {
+					cmd			: '7z',
+					args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+				},				
 			}
 		},
 		

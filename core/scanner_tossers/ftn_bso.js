@@ -37,6 +37,8 @@ exports.moduleInfo = {
 	* Support NetMail
 		* NetMail needs explicit isNetMail()  check
 		* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
+	* Validate packet passwords!!!!
+		=> secure vs insecure landing areas
 	
 */ 
 
@@ -49,9 +51,7 @@ function FTNMessageScanTossModule() {
 	
 	let self = this;
 
-	this.archUtil = new ArchiveUtil();
-	this.archUtil.init();
-	
+	this.archUtil = ArchiveUtil.getInstance();
 
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
 		this.moduleConfig = Config.scannerTossers.ftn_bso;	

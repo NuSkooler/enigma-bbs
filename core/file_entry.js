@@ -10,7 +10,7 @@ const _			= require('lodash');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha1', 'file_name', 
-	'desc', 'desc_long', 'upload_by_username', 'upload_timestamp' 
+	'desc', 'desc_long', 'upload_by_username', 'upload_timestamp'	//	:TODO: remove upload_by_username -- and from database.js, etc. 
 ];
 
 const FILE_WELL_KNOWN_META = {

@@ -38,6 +38,7 @@ global args:
 commands:
   user                  : user utilities
   config                : config file management
+  file-area             : file area management
 
 `,
 	User : 
@@ -56,11 +57,24 @@ valid args:
 
 valid args:
   --new                 : generate a new/initial configuration
+`,
+	FileArea :
+`usage: oputil.js file-area <args>
+
+valid args:
+  --scan AREA_TAG       : (re)scan area specified by AREA_TAG for new files
 `
 };
 
-function printUsage(command) {
-	console.error(USAGE_HELP[command]);
+function printUsageAndSetExitCode(command, exitCode) {
+	if(_.isUndefined(exitCode)) {
+		exitCode = ExitCodes.ERROR;
+	}
+	process.exitCode = exitCode;
+	const errMsg = USAGE_HELP[command];
+	if(errMsg) {
+		console.error(errMsg);
+	}
 }
 
 function initConfig(cb) {
@@ -144,8 +158,7 @@ function setAccountStatus(userName, active) {
 
 function handleUserCommand() {
 	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
-		process.exitCode = ExitCodes.ERROR;
-		return printUsage('User');
+		return printUsageAndSetExitCode('User', ExitCodes.ERROR);
 	}
 
 	if(_.isString(argv.password)) {
@@ -399,8 +412,7 @@ function askNewConfigQuestions(cb) {
 
 function handleConfigCommand() {
 	if(true === argv.help) {
-		process.exitCode = ExitCodes.ERROR;
-		return printUsage('Config');
+		return printUsageAndSetExitCode('Config', ExitCodes.ERROR);
 	}
 
 	if(argv.new) {
@@ -419,9 +431,49 @@ function handleConfigCommand() {
 			}
 		});		
 	} else {
-		process.exitCode = ExitCodes.ERROR;
-		return printUsage('Config');	
+		return printUsageAndSetExitCode('Config', ExitCodes.ERROR);
 	}	
+}
+
+function fileAreaScan(areaTag) {
+	async.waterfall(
+		[
+			function init(callback) {
+				return initConfigAndDatabases(callback);
+			},
+			function getFileArea(callback) {
+				const fileAreaMod = require('./core/file_area.js');
+
+				const areaInfo = fileAreaMod.getFileAreaByTag(argv.scan);
+				if(!areaInfo) {
+					return callback(new Error('Invalid file area'));
+				}
+
+				return callback(null, fileAreaMod, areaInfo);
+			},
+			function performScan(fileAreaMod, areaInfo, callback) {
+				fileAreaMod.scanFileAreaForChanges(areaInfo, err => {
+
+				});
+			}
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
+	);
+}
+
+function handleFileAreaCommand() {
+	if(true === argv.help) {
+		return printUsageAndSetExitCode('FileArea', ExitCodes.ERROR);
+	}
+
+	if(argv.scan) {
+		return fileAreaScan(argv.scan);
+	}
 }
 
 function main() {
@@ -435,8 +487,7 @@ function main() {
 	if(0 === argv._.length ||
 		'help' === argv._[0])
 	{
-		printUsage('General');
-		process.exit(ExitCodes.SUCCESS);
+		printUsageAndSetExitCode('General', ExitCodes.SUCCESS);
 	}
 
 	switch(argv._[0]) {
@@ -448,9 +499,12 @@ function main() {
 			handleConfigCommand();
 			break;
 
+		case 'file-area' :
+			handleFileAreaCommand();
+			break;
+
 		default:
-			printUsage('');
-			process.exitCode = ExitCodes.BAD_COMMAND;
+			printUsageAndSetExitCode('', ExitCodes.BAD_COMMAND);
 	}
 }
 

@@ -67,6 +67,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		this.filterCriteria = this.filterCriteria || { 
 			//	:TODO: set area tag - all in current area by default
 		};
+
+		this.currentFileEntry = new FileEntry();
 	}
 
 	enter() {
@@ -139,9 +141,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				function fetchEntryData(callback) {
 					return self.loadFileIds(callback);
 				},
-				function loadCurrentFileInfo(callback) {
-					self.currentFileEntry = new FileEntry();
-					
+				function loadCurrentFileInfo(callback) {										
 					self.currentFileEntry.load( self.fileList[ self.fileListPosition ], err => {
 						return callback(err);
 					});
