@@ -223,12 +223,11 @@ function getDefaultConfig() {
 					cmd			: '7z',
 					args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
 				},
-				/*
 				list			: {
-					cmd			: '7z',
-					args		: [ 'l', '{archivePath}' ],
-					match		: '...someregex...'
-				},*/
+					cmd				: '7z',
+					args			: [ 'l', '{archivePath}' ],
+					entryMatch		: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\n]+)$',
+				},
 				extract			: {
 					cmd			: '7z',
 					args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],

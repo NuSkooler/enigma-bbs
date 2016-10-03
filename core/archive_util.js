@@ -37,7 +37,7 @@ class Archiver {
 
 	canCompress() { return this.can('compress'); }
 	canDecompress() { return this.can('decompress'); }
-	canList() { return this.can('list'); }
+	canList() { return this.can('list'); }	//	:TODO: validate entryMatch
 	canExtract() { return this.can('extract'); }
 }
 
@@ -53,8 +53,8 @@ module.exports = class ArchiveUtil {
 		if(!archiveUtil) {
 			archiveUtil = new ArchiveUtil();
 			archiveUtil.init();
-			return archiveUtil;
 		}
+		return archiveUtil;
 	}
 
 	init() {
@@ -127,17 +127,17 @@ module.exports = class ArchiveUtil {
 		});
 	}
 
-	spawnHandler(comp, action, cb) {
+	spawnHandler(proc, action, cb) {
 		//	pty.js doesn't currently give us a error when things fail,
 		//	so we have this horrible, horrible hack:
 		let err;
-		comp.once('data', d => {
+		proc.once('data', d => {
 			if(_.isString(d) && d.startsWith('execvp(3) failed.: No such file or directory')) {
 				err = new Error(`${action} failed: ${d.trim()}`);
 			}
 		});
 		
-		comp.once('exit', exitCode => {
+		proc.once('exit', exitCode => {
 			if(exitCode) {
 				return cb(new Error(`${action} failed with exit code: ${exitCode}`));
 			}
@@ -161,9 +161,9 @@ module.exports = class ArchiveUtil {
 		};
 
 		const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
-		const comp = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
+		const proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
 
-		return this.spawnHandler(comp, 'Compression', cb);
+		return this.spawnHandler(proc, 'Compression', cb);
 	}
 
 	extractTo(archivePath, extractPath, archType, cb) {
@@ -179,9 +179,53 @@ module.exports = class ArchiveUtil {
 		};
 
 		const args = archiver.decompress.args.map( arg => stringFormat(arg, fmtObj) );
-		const comp = pty.spawn(archiver.decompress.cmd, args, this.getPtyOpts());
+		const proc = pty.spawn(archiver.decompress.cmd, args, this.getPtyOpts());
 
-		return this.spawnHandler(comp, 'Decompression', cb);
+		return this.spawnHandler(proc, 'Decompression', cb);
+	}
+
+	listEntries(archivePath, archType, cb) {
+		const archiver = this.getArchiver(archType);
+		
+		if(!archiver) {
+			return cb(new Error(`Unknown archive type: ${archType}`));			
+		}
+
+		const fmtObj = {
+			archivePath		: archivePath,
+		};
+
+		const args	= archiver.list.args.map( arg => stringFormat(arg, fmtObj) );
+		const proc	= pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+
+		let output = '';
+		proc.on('data', data => {
+			//	:TODO: hack for: execvp(3) failed.: No such file or directory
+			
+			output += data;
+		});
+
+		proc.once('exit', exitCode => {
+			if(exitCode) {
+				return cb(new Error(`List failed with exit code: ${exitCode}`));
+			}
+			//if(err) {
+		//		return cb(err);
+		//	}
+
+			const entries = [];
+			const entryMatchRe = new RegExp(archiver.list.entryMatch, 'g');
+			let m;
+			while(null !== (m = entryMatchRe.exec(output))) {
+				//	:TODO: allow alternate ordering!!!
+				entries.push({
+					size		: m[1],
+					fileName	: m[2],
+				});
+			}
+
+			return cb(null, entries);
+		});	
 	}
 	
 	getPtyOpts() {

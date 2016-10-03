@@ -141,11 +141,15 @@ function getExistingFileEntriesBySha1(sha1, cb) {
 }
 
 function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
+	const archiveUtil = ArchiveUtil.getInstance();
+
 	async.series(
 		[
 			function getArchiveFileList(callback) {
 				//	:TODO: get list of files in archive
-				return callback(null);
+				archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
+					return callback(err);	
+				});						
 			}
 		],
 		err => {
