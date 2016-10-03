@@ -10,11 +10,51 @@ const fs		= require('fs');
 const _			= require('lodash');
 const pty		= require('ptyw.js');
 
+let archiveUtil;
+
+class Archiver {
+	constructor(config) {
+		this.compress	= config.compress;
+		this.decompress	= config.decompress;
+		this.list		= config.list;
+		this.extract	= config.extract;
+
+		this.sig		= new Buffer(config.sig, 'hex');
+		this.offset		= config.offset || 0;
+	}
+
+	ok() {
+		return this.canCompress() && this.canDecompress(); 
+	}
+
+	can(what) {
+		if(!_.has(this, [ what, 'cmd' ]) || !_.has(this, [ what, 'args' ])) {
+			return false;
+		}
+
+		return _.isString(this[what].cmd) && Array.isArray(this[what].args) && this[what].args.length > 0;
+	}
+
+	canCompress() { return this.can('compress'); }
+	canDecompress() { return this.can('decompress'); }
+	canList() { return this.can('list'); }
+	canExtract() { return this.can('extract'); }
+}
+
 module.exports = class ArchiveUtil {
 	
 	constructor() {
 		this.archivers = {};
 		this.longestSignature = 0;
+	}
+
+	//	singleton access
+	static getInstance() {
+		if(!archiveUtil) {
+			archiveUtil = new ArchiveUtil();
+			archiveUtil.init();
+			return archiveUtil;
+		}
 	}
 
 	init() {
@@ -23,28 +63,16 @@ module.exports = class ArchiveUtil {
 		//
 		if(_.has(Config, 'archivers')) {
 			Object.keys(Config.archivers).forEach(archKey => {
-				const arch = Config.archivers[archKey];
-				if(!_.isString(arch.sig) || 
-					!_.isString(arch.compressCmd) ||
-					!_.isString(arch.decompressCmd) ||
-					!_.isArray(arch.compressArgs) ||
-					!_.isArray(arch.decompressArgs))
-				{
-					//	:TODO: log warning
-					return;
+
+				const archConfig 	= Config.archivers[archKey];
+				const archiver		= new Archiver(archConfig);
+
+				if(!archiver.ok()) {
+					//	:TODO: Log warning - bad archiver/config
 				}
 
-				const archiver = {
-					compressCmd		: arch.compressCmd,
-					compressArgs	: arch.compressArgs,
-					decompressCmd	: arch.decompressCmd,
-					decompressArgs	: arch.decompressArgs,
-					sig				: new Buffer(arch.sig, 'hex'),
-					offset			: arch.offset || 0,
-				};
-				
 				this.archivers[archKey] = archiver;
-				
+
 				if(archiver.offset + archiver.sig.length > this.longestSignature) {
 					this.longestSignature = archiver.offset + archiver.sig.length;
 				}
@@ -63,6 +91,10 @@ module.exports = class ArchiveUtil {
 	
 	haveArchiver(archType) {
 		return this.getArchiver(archType) ? true : false;
+	}
+
+	detectTypeWithBuf(buf, cb) {
+		//	:TODO: implement me!		
 	}
 
 	detectType(path, cb) {
@@ -123,15 +155,13 @@ module.exports = class ArchiveUtil {
 			return cb(new Error(`Unknown archive type: ${archType}`));
 		}
 
-		let args = _.clone(archiver.compressArgs);	//	don't muck with orig
-		for(let i = 0; i < args.length; ++i) {
-			args[i] = stringFormat(args[i], {
-				archivePath	: archivePath,
-				fileList	: files.join(' '),
-			});
-		}
+		const fmtObj = {
+			archivePath	: archivePath,
+			fileList	: files.join(' '),
+		};
 
-		let comp = pty.spawn(archiver.compressCmd, args, this.getPtyOpts());
+		const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
+		const comp = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
 
 		return this.spawnHandler(comp, 'Compression', cb);
 	}
@@ -142,16 +172,14 @@ module.exports = class ArchiveUtil {
 		if(!archiver) {
 			return cb(new Error(`Unknown archive type: ${archType}`));
 		}
-		
-		let args = _.clone(archiver.decompressArgs);	//	don't muck with orig
-		for(let i = 0; i < args.length; ++i) {
-			args[i] = stringFormat(args[i], {
-				archivePath		: archivePath,
-				extractPath		: extractPath,
-			});
-		}
-		
-		let comp = pty.spawn(archiver.decompressCmd, args, this.getPtyOpts());
+
+		const fmtObj = {
+			archivePath		: archivePath,
+			extractPath		: extractPath,
+		};
+
+		const args = archiver.decompress.args.map( arg => stringFormat(arg, fmtObj) );
+		const comp = pty.spawn(archiver.decompress.cmd, args, this.getPtyOpts());
 
 		return this.spawnHandler(comp, 'Decompression', cb);
 	}
