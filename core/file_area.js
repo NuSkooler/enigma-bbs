@@ -143,13 +143,25 @@ function getExistingFileEntriesBySha1(sha1, cb) {
 function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
 	const archiveUtil = ArchiveUtil.getInstance();
 
-	async.series(
+	async.waterfall(
 		[
-			function getArchiveFileList(callback) {
-				//	:TODO: get list of files in archive
+			function getArchiveFileList(callback) {				
 				archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
-					return callback(err);	
-				});						
+					return callback(null, entries || []);	//	ignore any errors here	
+				});
+			},
+			function extractDescFiles(entries, callback) {
+
+				//	:TODO: would be nice if these RegExp's were cached
+				const shortDescFile = entries.find( e => {
+					return Config.fileBase.fileNamePatterns.shortDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+				});
+
+				const longDescFile = entries.find( e => {
+					return Config.fileBase.fileNamePatterns.longDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+				});
+
+				return callback(null);
 			}
 		],
 		err => {

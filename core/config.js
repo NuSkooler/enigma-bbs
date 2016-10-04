@@ -226,12 +226,62 @@ function getDefaultConfig() {
 				list			: {
 					cmd				: '7z',
 					args			: [ 'l', '{archivePath}' ],
-					entryMatch		: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\n]+)$',
+					entryMatch		: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
 				},
 				extract			: {
 					cmd			: '7z',
 					args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],
-				},				
+				},
+			},
+		},
+
+		archivers2 : {
+			tools : {
+				'7Zip' : {
+					compress		: {
+						cmd			: '7z',
+						args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
+					},
+					decompress		: {
+						cmd			: '7z',
+						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
+					},
+					list			: {
+						cmd			: '7z',
+						args		: [ 'l', '{archivePath}' ],
+						entryMatch	: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
+					},
+					extract			: {
+						cmd			: '7z',
+						args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+					},
+				}
+			},
+			formats : {
+				zip	: {
+					sig		: '504b0304',
+					offset	: 0,
+					exts	: [ 'zip' ],
+					tool	: '7Zip',	
+				},
+				'7z' : {
+					sig		: '377abcaf271c',
+					offset	: 0,
+					exts	: [ '7z' ],
+					tool	: '7Zip',
+				},
+				arj : {
+					sig		: '60ea',
+					offset	: 0,
+					exts	: [ 'arj' ],
+					tool	: '7Zip',
+				},
+				rar :  {
+					sig		: '526172211a0700',
+					offset	: 0,
+					exts	: [ 'rar' ],
+					tool	: '7Zip',
+				}
 			}
 		},
 		

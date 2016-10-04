@@ -214,9 +214,9 @@ module.exports = class ArchiveUtil {
 		//	}
 
 			const entries = [];
-			const entryMatchRe = new RegExp(archiver.list.entryMatch, 'g');
+			const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
 			let m;
-			while(null !== (m = entryMatchRe.exec(output))) {
+			while((m = entryMatchRe.exec(output))) {
 				//	:TODO: allow alternate ordering!!!
 				entries.push({
 					size		: m[1],
