@@ -49,7 +49,11 @@ function ViewController(options) {
 		menuUtil.handleAction(self.client, formData, actionBlock, (err) => {
 			if(err) {
 				//	:TODO: What can we really do here?
-				self.client.log.warn( { err : err }, 'Error during handleAction()');
+				if('ALREADYTHERE' === err.reasonCode) {
+					self.client.log.trace( err.reason );
+				} else {
+					self.client.log.warn( { err : err }, 'Error during handleAction()');
+				}
 			}
 			
 			self.waitActionCompletion = false;

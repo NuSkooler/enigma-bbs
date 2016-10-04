@@ -14,29 +14,29 @@ exports.init				= init;
 exports.getDefaultPath		= getDefaultPath;
 
 function hasMessageConferenceAndArea(config) {
-    assert(_.isObject(config.messageConferences));  //  we create one ourself!
-    
-    const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
-       return 'system_internal' !== confTag; 
-    });
-    
-    if(0 === nonInternalConfs.length) {
-        return false;
-    }
-    
-    //  :TODO: there is likely a better/cleaner way of doing this
-    
-    var result = false;
-    _.forEach(nonInternalConfs, confTag => {
-        if(_.has(config.messageConferences[confTag], 'areas') &&
-            Object.keys(config.messageConferences[confTag].areas) > 0)
-        {            
-            result = true;
-            return false;   //  stop iteration
-        }
-    });
-    
-    return result;
+	assert(_.isObject(config.messageConferences));  //  we create one ourself!
+
+	const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
+		return 'system_internal' !== confTag; 
+	});
+
+	if(0 === nonInternalConfs.length) {
+		return false;
+	}
+
+	//  :TODO: there is likely a better/cleaner way of doing this
+
+	let result = false;
+	_.forEach(nonInternalConfs, confTag => {
+		if(_.has(config.messageConferences[confTag], 'areas') &&
+			Object.keys(config.messageConferences[confTag].areas) > 0)
+		{            
+			result = true;
+			return false;   //  stop iteration
+		}
+	});
+
+	return result;
 }
 
 function init(configPath, cb) {
@@ -75,18 +75,18 @@ function init(configPath, cb) {
 				//
 				//	Various sections must now exist in config
 				//
-                if(hasMessageConferenceAndArea(mergedConfig)) {
-                    var msgAreasErr = new Error('Please create at least one message conference and area!');
+				if(hasMessageConferenceAndArea(mergedConfig)) {
+					var msgAreasErr = new Error('Please create at least one message conference and area!');
 					msgAreasErr.code = 'EBADCONFIG';
-					callback(msgAreasErr);
-                } else {
-                    callback(null, mergedConfig);
-                }
+					return callback(msgAreasErr);
+				} else {
+					return callback(null, mergedConfig);
+				}
 			}
 		],
 		function complete(err, mergedConfig) {
 			exports.config = mergedConfig;
-			cb(err);
+			return cb(err);
 		}
 	);
 }
@@ -171,7 +171,8 @@ function getDefaultConfig() {
 
 		paths		: {
 			mods				: paths.join(__dirname, './../mods/'),
-			servers				: paths.join(__dirname, './servers/'),
+			loginServers		: paths.join(__dirname, './servers/login/'),
+			contentServers		: paths.join(__dirname, './servers/content/'),
 
 			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
 			mailers				: paths.join(__dirname, './mailers/')		,
@@ -185,7 +186,7 @@ function getDefaultConfig() {
 			misc				: paths.join(__dirname, './../misc/'),
 		},
 		
-		servers : {
+		loginServers : {
 			telnet : {
 				port			: 8888,
 				enabled			: true,
@@ -264,6 +265,23 @@ function getDefaultConfig() {
 				//
 				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
 				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
+			}
+		},
+
+		fileBase: {
+			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|: 
+			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
+
+			fileNamePatterns: {
+				shortDesc		: [ '^FILE_ID\.DIZ$', '^DESC\.SDI$' ], 
+				longDesc		: [ '^.*\.NFO$', '^README\.1ST$', '^README\.TXT$' ],
+			},
+
+			areas: {
+				message_attachment : {
+					name	: 'Message attachments',
+					desc	: 'File attachments to messages',
+				}
 			}
 		},
 		

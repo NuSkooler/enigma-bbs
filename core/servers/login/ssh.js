@@ -2,14 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-const Config		= require('../config.js').config;
-const baseClient	= require('../client.js');
-const Log			= require('../logger.js').log;
-const ServerModule	= require('../server_module.js').ServerModule;
-const userLogin		= require('../user_login.js').userLogin;
-const enigVersion 	= require('../../package.json').version;
-const theme			= require('../theme.js');
-const stringFormat	= require('../string_format.js');
+const Config		= require('../../config.js').config;
+const baseClient	= require('../../client.js');
+const Log			= require('../../logger.js').log;
+const ServerModule	= require('../../server_module.js').ServerModule;
+const userLogin		= require('../../user_login.js').userLogin;
+const enigVersion 	= require('../../../package.json').version;
+const theme			= require('../../theme.js');
+const stringFormat	= require('../../string_format.js');
 
 //	deps
 const ssh2			= require('ssh2');
@@ -200,7 +200,7 @@ function SSHClient(clientConn) {
 				}
 
 				//	we're ready!
-				const firstMenu = self.isNewUser ? Config.servers.ssh.firstMenuNewUser : Config.servers.ssh.firstMenu;
+				const firstMenu = self.isNewUser ? Config.loginServers.ssh.firstMenuNewUser : Config.loginServers.ssh.firstMenu;
 				self.emit('ready', { firstMenu : firstMenu } );
 			});
 
@@ -238,15 +238,15 @@ SSHServerModule.prototype.createServer = function() {
 	const serverConf = {
 		hostKeys	: [
 			{
-				key			: fs.readFileSync(Config.servers.ssh.privateKeyPem),
-				passphrase	: Config.servers.ssh.privateKeyPass, 
+				key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
+				passphrase	: Config.loginServers.ssh.privateKeyPass, 
 			}
 		],
 		ident		: 'enigma-bbs-' + enigVersion + '-srv',
 		
         //	Note that sending 'banner' breaks at least EtherTerm!
 		debug		: (sshDebugLine) => { 
-			if(true === Config.servers.ssh.traceConnections) {
+			if(true === Config.loginServers.ssh.traceConnections) {
 				Log.trace(`SSH: ${sshDebugLine}`);
 			}
 		},

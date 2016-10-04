@@ -560,10 +560,10 @@ function persistMessage(message, cb) {
 	async.series(
 		[
 			function persistMessageToDisc(callback) {
-				message.persist(callback);
+				return message.persist(callback);
 			},
 			function recordToMessageNetworks(callback) {
-				msgNetRecord(message, callback);
+				return msgNetRecord(message, callback);
 			}			
 		],
 		cb

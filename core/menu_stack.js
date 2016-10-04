@@ -3,6 +3,7 @@
 
 //	ENiGMA½
 const loadMenu	= require('./menu_util.js').loadMenu;
+const Errors	= require('./enig_error.js').Errors;
 
 //	deps
 const _			= require('lodash');
@@ -57,16 +58,16 @@ module.exports = class MenuStack {
 		if(_.isArray(menuConfig.next)) {
 			nextMenu = this.client.acs.getConditionalValue(menuConfig.next, 'next');
 			if(!nextMenu) {
-				return cb(new Error('No matching condition for \'next\'!'));
+				return cb(Errors.MenuStack('No matching condition for "next"', 'NOCONDMATCH'));
 			}
 		} else if(_.isString(menuConfig.next)) {
 			nextMenu = menuConfig.next;
 		} else {
-			return cb(new Error('Invalid or missing \'next\' member in menu config!'));
+			return cb(Errors.MenuStack('Invalid or missing "next" member in menu config', 'BADNEXT'));
 		}
 
 		if(nextMenu === currentModuleInfo.name) {
-			return cb(new Error('Menu config \'next\' specifies current menu!'));
+			return cb(Errors.MenuStack('Menu config "next" specifies current menu', 'ALREADYTHERE'));
 		}
 
 		this.goto(nextMenu, { }, cb);
@@ -90,7 +91,7 @@ module.exports = class MenuStack {
 			return this.goto(previousModuleInfo.name, opts, cb);
 		}
 		
-		return cb(new Error('No previous menu available!'));		
+		return cb(Errors.MenuStack('No previous menu available', 'NOPREV'));
 	}
 
 	goto(name, options, cb) {
@@ -104,7 +105,7 @@ module.exports = class MenuStack {
 
 		if(currentModuleInfo && name === currentModuleInfo.name) {
 			if(cb) {
-				cb(new Error('Already at supplied menu!'));
+				cb(Errors.MenuStack('Already at supplied menu', 'ALREADYTHERE'));				
 			}
 			return;
 		}

@@ -2,10 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const baseClient	= require('../client.js');
-const Log			= require('../logger.js').log;
-const ServerModule	= require('../server_module.js').ServerModule;
-const Config		= require('../config.js').config;
+const baseClient	= require('../../client.js');
+const Log			= require('../../logger.js').log;
+const ServerModule	= require('../../server_module.js').ServerModule;
+const Config		= require('../../config.js').config;
 
 //	deps
 const net 			= require('net');
@@ -497,7 +497,7 @@ function TelnetClient(input, output) {
 	});
 
 	this.connectionDebug = (info, msg) => {
-		if(Config.servers.telnet.traceConnections) {
+		if(Config.loginServers.telnet.traceConnections) {
 			self.log.trace(info, 'Telnet: ' + msg);
 		}
 	};
@@ -584,7 +584,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 
 		if(!self.didReady) {
 			self.didReady = true;
-			self.emit('ready', { firstMenu : Config.servers.telnet.firstMenu } );
+			self.emit('ready', { firstMenu : Config.loginServers.telnet.firstMenu } );
 		}
 	} else if('new environment' === evt.option) {
 		//

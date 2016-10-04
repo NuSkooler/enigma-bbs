@@ -139,7 +139,7 @@ Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
 	body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
 	
 	return uuid.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
-}
+};
 
 Message.getMessageIdByUuid = function(uuid, cb) {
 	msgDb.get(
@@ -351,13 +351,13 @@ Message.prototype.persist = function(cb) {
 		return cb(new Error('Cannot persist invalid message!'));
 	}
 
-	let self = this;
+	const self = this;
 	
 	async.series(
 		[
 			function beginTransaction(callback) {
 				Message.startTransaction(err => {
-					callback(err);
+					return callback(err);
 				});
 			},
 			function storeMessage(callback) {
@@ -375,53 +375,52 @@ Message.prototype.persist = function(cb) {
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
 					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(msgTimestamp) ],
-					function inserted(err) {	//	use for this scope
+					function inserted(err) {	//	use non-arrow function for 'this' scope
 						if(!err) {
 							self.messageId = this.lastID;
 						}
 
-						callback(err);
+						return callback(err);
 					}
 				);
 			},
 			function storeMeta(callback) {
 				if(!self.meta) {
-					callback(null);
-				} else {
-					/*
-						Example of self.meta:
-						
-						meta: {
-							System: {
-								local_to_user_id: 1234,				
-							},
-							FtnProperty: {
-								ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
-							}
-						}					
-					*/
-					async.each(Object.keys(self.meta), (category, nextCat) => {
-						async.each(Object.keys(self.meta[category]), (name, nextName) => {
-							self.persistMetaValue(category, name, self.meta[category][name], err => {
-								nextName(err);
-							});
-						}, err => {
-							nextCat(err);
-						});
-						 
-					}, err => {
-						callback(err);
-					});					
+					return callback(null);
 				}
+				/*
+					Example of self.meta:
+					
+					meta: {
+						System: {
+							local_to_user_id: 1234,				
+						},
+						FtnProperty: {
+							ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
+						}
+					}					
+				*/
+				async.each(Object.keys(self.meta), (category, nextCat) => {
+					async.each(Object.keys(self.meta[category]), (name, nextName) => {
+						self.persistMetaValue(category, name, self.meta[category][name], err => {
+							nextName(err);
+						});
+					}, err => {
+						nextCat(err);
+					});
+						
+				}, err => {
+					callback(err);
+				});					
 			},
 			function storeHashTags(callback) {
 				//	:TODO: hash tag support
-				callback(null);
+				return callback(null);
 			}
 		],
 		err => {
 			Message.endTransaction(err, transErr => {
-				cb(err ? err : transErr, self.messageId);
+				return cb(err ? err : transErr, self.messageId);
 			});
 		}
 	);
