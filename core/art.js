@@ -7,7 +7,6 @@ const miscUtil	= require('./misc_util.js');
 const ansi		= require('./ansi_term.js');
 const aep		= require('./ansi_escape_parser.js');
 const sauce		= require('./sauce.js');
-const farmhash	= require('farmhash');
 
 //	deps
 const fs		= require('fs');
@@ -15,6 +14,7 @@ const paths		= require('path');
 const assert	= require('assert');
 const iconv		= require('iconv-lite');
 const _			= require('lodash');
+const farmhash	= require('farmhash');
 
 exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;

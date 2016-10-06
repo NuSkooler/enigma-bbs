@@ -4,6 +4,7 @@
 //	ENiGMA½
 const Config		= require('./config.js').config;
 const stringFormat	= require('./string_format.js');
+const Errors		= require('./enig_error.js').Errors;
 
 //	base/modules
 const fs		= require('fs');
@@ -19,8 +20,8 @@ class Archiver {
 		this.list		= config.list;
 		this.extract	= config.extract;
 
-		this.sig		= new Buffer(config.sig, 'hex');
-		this.offset		= config.offset || 0;
+		/*this.sig		= new Buffer(config.sig, 'hex');
+		this.offset		= config.offset || 0;*/
 	}
 
 	ok() {
@@ -61,10 +62,10 @@ module.exports = class ArchiveUtil {
 		//
 		//	Load configuration
 		//
-		if(_.has(Config, 'archivers')) {
-			Object.keys(Config.archivers).forEach(archKey => {
+		if(_.has(Config, 'archives.archivers')) {
+			Object.keys(Config.archives.archivers).forEach(archKey => {
 
-				const archConfig 	= Config.archivers[archKey];
+				const archConfig 	= Config.archives.archivers[archKey];
 				const archiver		= new Archiver(archConfig);
 
 				if(!archiver.ok()) {
@@ -72,21 +73,43 @@ module.exports = class ArchiveUtil {
 				}
 
 				this.archivers[archKey] = archiver;
+			});
+		}
 
-				if(archiver.offset + archiver.sig.length > this.longestSignature) {
-					this.longestSignature = archiver.offset + archiver.sig.length;
-				}
+		if(_.has(Config, 'archives.formats')) {
+			Object.keys(Config.archives.formats).forEach(fmtKey => {
+
+				Config.archives.formats[fmtKey].sig = new Buffer(Config.archives.formats[fmtKey].sig, 'hex');
+				Config.archives.formats[fmtKey].offset = Config.archives.formats[fmtKey].offset || 0;
+
+				const sigLen = Config.archives.formats[fmtKey].offset + Config.archives.formats[fmtKey].sig.length; 
+				if(sigLen > this.longestSignature) {
+					this.longestSignature = sigLen;
+				} 
 			});
 		}
 	}
 	
+	/*
 	getArchiver(archType) {
-		if(!archType) {
+		if(!archType || 0 === archType.length) {
 			return;
 		}
 		
 		archType = archType.toLowerCase();
 		return this.archivers[archType];
+	}*/
+
+	getArchiver(archType) {
+		if(!archType || 0 === archType.length) {
+			return;
+		}
+
+		if(_.has(Config, [ 'archives', 'formats', archType, 'handler' ] ) &&
+			_.has(Config, [ 'archives', 'archivers', Config.archives.formats[archType].handler ] ))
+		{
+			return Config.archives.archivers[ Config.archives.formats[archType].handler ];
+		}
 	}
 	
 	haveArchiver(archType) {
@@ -98,31 +121,33 @@ module.exports = class ArchiveUtil {
 	}
 
 	detectType(path, cb) {
+		if(!_.has(Config, 'archives.formats')) {
+			return cb(Errors.DoesNotExist('No formats configured'));
+		}
+
 		fs.open(path, 'r', (err, fd) => {
 			if(err) {
-				cb(err);
-				return;
+				return cb(err);
 			}
 			
-			let buf = new Buffer(this.longestSignature);
+			const buf = new Buffer(this.longestSignature);
 			fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
 				if(err) {
 					return cb(err);
 				}
 
-				//	return first match
-				const detected = _.findKey(this.archivers, arch => {
-					const lenNeeded = arch.offset + arch.sig.length;
-					
+				const archFormat = _.findKey(Config.archives.formats, archFormat => {
+					const lenNeeded = archFormat.offset + archFormat.sig.length;
+
 					if(bytesRead < lenNeeded) {
 						return false;
 					}
 
-					const comp = buf.slice(arch.offset, arch.offset + arch.sig.length);
-					return (arch.sig.equals(comp));
+					const comp = buf.slice(archFormat.offset, archFormat.offset + archFormat.sig.length);
+					return (archFormat.sig.equals(comp));
 				});
 
-				cb(detected ? null : new Error('Unknown type'), detected);
+				return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
 			});			
 		});
 	}
@@ -157,7 +182,7 @@ module.exports = class ArchiveUtil {
 
 		const fmtObj = {
 			archivePath	: archivePath,
-			fileList	: files.join(' '),
+			fileList	: files.join(' '),	//	:TODO: probably need same hack as extractTo here!
 		};
 
 		const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
@@ -166,7 +191,17 @@ module.exports = class ArchiveUtil {
 		return this.spawnHandler(proc, 'Compression', cb);
 	}
 
-	extractTo(archivePath, extractPath, archType, cb) {
+	extractTo(archivePath, extractPath, archType, fileList, cb) {
+		let haveFileList;
+
+		if(!cb && _.isFunction(fileList)) {
+			cb = fileList;
+			fileList = [];
+			haveFileList = false;	
+		} else {
+			haveFileList = true;
+		}
+
 		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
@@ -178,10 +213,22 @@ module.exports = class ArchiveUtil {
 			extractPath		: extractPath,
 		};
 
-		const args = archiver.decompress.args.map( arg => stringFormat(arg, fmtObj) );
-		const proc = pty.spawn(archiver.decompress.cmd, args, this.getPtyOpts());
+		const action = haveFileList ? 'extract' : 'decompress';
 
-		return this.spawnHandler(proc, 'Decompression', cb);
+		//	we need to treat {fileList} special in that it should be broken up to 0:n args
+		const args = archiver[action].args.map( arg => {
+			return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
+		});
+		
+		const fileListPos = args.indexOf('{fileList}');
+		if(fileListPos > -1) {
+			//	replace {fileList} with 0:n sep file list arguments
+			args.splice.apply(args, [fileListPos, 1].concat(fileList));
+		}
+
+		const proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts());
+
+		return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
 	}
 
 	listEntries(archivePath, archType, cb) {

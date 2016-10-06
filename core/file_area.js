@@ -15,6 +15,8 @@ const async			= require('async');
 const fs			= require('fs');
 const crypto		= require('crypto');
 const paths			= require('path');
+const temp			= require('temp').track();	//	track() cleans up temp dir/files for us
+const iconv			= require('iconv-lite');
 
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
@@ -140,6 +142,41 @@ function getExistingFileEntriesBySha1(sha1, cb) {
 	);
 }
 
+//	:TODO: This is bascially sliceAtEOF() from art.js .... DRY!
+function sliceAtSauceMarker(data) {
+	let eof			= data.length;
+	const stopPos	= Math.max(data.length - (256), 0);	//	256 = 2 * sizeof(SAUCE)
+
+	for(let i = eof - 1; i > stopPos; i--) {
+		if(0x1a === data[i]) {
+			eof = i;
+			break;
+		}
+	}
+	return data.slice(0, eof);
+}
+
+function getEstYear(input) {
+	//	:TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
+	const patterns	= Config.fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
+
+	let match;
+	for(let i = 0; i < patterns.length; ++i) {
+		match = patterns[i].exec(input);
+		if(match) {
+			break;
+		}
+	}
+
+	if(match) {
+		if(2 == match[1].length) {
+			return parseInt('19' + match[1]);
+		} else {
+			return parseInt(match[1]);
+		}
+	}
+}
+
 function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
 	const archiveUtil = ArchiveUtil.getInstance();
 
@@ -153,15 +190,78 @@ function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
 			function extractDescFiles(entries, callback) {
 
 				//	:TODO: would be nice if these RegExp's were cached
+				//	:TODO: this is long winded...
+
+				const extractList = [];
+
 				const shortDescFile = entries.find( e => {
 					return Config.fileBase.fileNamePatterns.shortDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
+
+				if(shortDescFile) {
+					extractList.push(shortDescFile.fileName);
+				}
 
 				const longDescFile = entries.find( e => {
 					return Config.fileBase.fileNamePatterns.longDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
-				return callback(null);
+				if(longDescFile) {
+					extractList.push(longDescFile.fileName);
+				}
+
+				temp.mkdir('enigextract-', (err, tempDir) => {
+					if(err) {
+						return callback(err);
+					}
+
+					archiveUtil.extractTo(filePath, tempDir, archiveType, extractList, err => {
+						if(err) {
+							return callback(err);
+						}				
+
+						const descFiles = {
+							desc		: shortDescFile ? paths.join(tempDir, shortDescFile.fileName) : null,
+							descLong	: longDescFile ? paths.join(tempDir, longDescFile.fileName) : null,
+						};
+
+						return callback(null, descFiles);
+					});
+				});
+			},
+			function readDescFiles(descFiles, callback) {
+				//	:TODO: we shoudl probably omit files that are too large
+				async.each(Object.keys(descFiles), (descType, next) => {
+					const path = descFiles[descType];
+					if(!path) {
+						return next(null);
+					}
+
+					fs.readFile(path, (err, data) => {
+						if(err || !data) {
+							return next(null);
+						}
+
+						//
+						//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
+						//
+						//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
+						fileEntry[descType] = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+						return next(null);
+					});
+				}, () => {
+					//	cleanup, but don't wait...
+					temp.cleanup( err => {
+						//	:TODO: Log me!
+					});
+					return callback(null);
+				});
+			},
+			function attemptReleaseYearEstimation(callback) {
+				let estYear;
+				if(fileEntry.descLong) {
+					estYear = getEstYear(fileEntry.descLong);
+				}
 			}
 		],
 		err => {
@@ -240,6 +340,17 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 				if(existingEntries.length > 0) {
 
 				} else {
+					//
+					//	Some basics for new entries
+					//
+					fileEntry.meta.user_rating = 0;
+					if(options.uploadByUserName) {
+						fileEntry.meta.upload_by_username = options.uploadByUserName;						 
+					}
+					if(options.uploadByUserId) {
+						fileEntry.meta.upload_by_user_id = options.uploadByUserId;
+					}
+
 					return addNewFileEntry(fileEntry, filePath, callback);
 				}
 			}, 

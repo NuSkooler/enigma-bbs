@@ -211,49 +211,25 @@ function getDefaultConfig() {
 			}
 		},
 
-		archivers : {
-			zip : {
-				sig				: '504b0304',
-				offset			: 0,
-				compress		: {
-					cmd			: '7z',
-					args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
-				},
-				decompress		: {
-					cmd			: '7z',
-					args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
-				},
-				list			: {
-					cmd				: '7z',
-					args			: [ 'l', '{archivePath}' ],
-					entryMatch		: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
-				},
-				extract			: {
-					cmd			: '7z',
-					args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],
-				},
-			},
-		},
-
-		archivers2 : {
-			tools : {
+		archives : {
+			archivers : {
 				'7Zip' : {
 					compress		: {
-						cmd			: '7z',
+						cmd			: '7za',
 						args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
 					},
 					decompress		: {
-						cmd			: '7z',
+						cmd			: '7za',
 						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
 					},
 					list			: {
-						cmd			: '7z',
+						cmd			: '7za',
 						args		: [ 'l', '{archivePath}' ],
 						entryMatch	: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
 					},
 					extract			: {
-						cmd			: '7z',
-						args		: [ 'x', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+						cmd			: '7za',
+						args		: [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
 					},
 				}
 			},
@@ -262,25 +238,25 @@ function getDefaultConfig() {
 					sig		: '504b0304',
 					offset	: 0,
 					exts	: [ 'zip' ],
-					tool	: '7Zip',	
+					handler	: '7Zip',	
 				},
 				'7z' : {
 					sig		: '377abcaf271c',
 					offset	: 0,
 					exts	: [ '7z' ],
-					tool	: '7Zip',
+					handler	: '7Zip',
 				},
 				arj : {
 					sig		: '60ea',
 					offset	: 0,
 					exts	: [ 'arj' ],
-					tool	: '7Zip',
+					handler	: '7Zip',
 				},
 				rar :  {
 					sig		: '526172211a0700',
 					offset	: 0,
 					exts	: [ 'rar' ],
-					tool	: '7Zip',
+					handler	: '7Zip',
 				}
 			}
 		},
@@ -366,6 +342,16 @@ function getDefaultConfig() {
 				shortDesc		: [ '^FILE_ID\.DIZ$', '^DESC\.SDI$' ], 
 				longDesc		: [ '^.*\.NFO$', '^README\.1ST$', '^README\.TXT$' ],
 			},
+
+			yearEstPatterns: [
+				//
+				//	Patterns should produce the year in the first submatch
+				//	The year may be YY or YYYY
+				//
+				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
+				"\\B('[1789][0-9])\\b",
+				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
+			],
 
 			areas: {
 				message_attachment : {
