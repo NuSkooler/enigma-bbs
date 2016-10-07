@@ -10,11 +10,13 @@ const paths			= require('path');
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
+const moment		= require('moment');
 
 //	database handles
 let dbs = {};
 
 exports.getModDatabasePath			= getModDatabasePath;
+exports.getISOTimestampString		= getISOTimestampString;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
@@ -44,6 +46,11 @@ function getModDatabasePath(moduleInfo, suffix) {
 		'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation');
 
 	return paths.join(conf.config.paths.modsDb, `${full}.sqlite3`);
+}
+
+function getISOTimestampString(ts) {
+	ts = ts || moment();
+	return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 }
 
 function initializeDatabases(cb) {
@@ -257,7 +264,6 @@ const DB_INIT_TABLE = {
 				file_name,			/* FTS @ file_fts */
 				desc,				/* FTS @ file_fts */
 				desc_long,			/* FTS @ file_fts */				
-				upload_by_username	VARCHAR NOT NULL,
 				upload_timestamp	DATETIME NOT NULL
 			);`
 		);

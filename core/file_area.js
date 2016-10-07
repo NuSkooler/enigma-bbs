@@ -156,28 +156,35 @@ function sliceAtSauceMarker(data) {
 	return data.slice(0, eof);
 }
 
-function getEstYear(input) {
+function attemptSetEstimatedReleaseDate(fileEntry) {
 	//	:TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
 	const patterns	= Config.fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
 
-	let match;
-	for(let i = 0; i < patterns.length; ++i) {
-		match = patterns[i].exec(input);
-		if(match) {
-			break;
+	function getMatch(input) {
+		if(input) {
+			let m;
+			for(let i = 0; i < patterns.length; ++i) {
+				m = patterns[i].exec(input);
+				if(m) {
+					return m;
+				}
+			}
 		}
 	}
 
-	if(match) {
-		if(2 == match[1].length) {
-			return parseInt('19' + match[1]);
-		} else {
-			return parseInt(match[1]);
+	//
+	//	We attempt deteciton in short -> long order
+	//
+	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
+	if(match && match[1]) {
+		const year = (2 === match[1].length) ? parseInt('19' + match[1]) : parseInt(match[1]);
+		if(year) {
+			fileEntry.meta.est_release_year = year;
 		}
 	}
 }
 
-function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
+function populateFileEntryWithArchive(fileEntry, filePath, archiveType, cb) {
 	const archiveUtil = ArchiveUtil.getInstance();
 
 	async.waterfall(
@@ -258,10 +265,8 @@ function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
 				});
 			},
 			function attemptReleaseYearEstimation(callback) {
-				let estYear;
-				if(fileEntry.descLong) {
-					estYear = getEstYear(fileEntry.descLong);
-				}
+				attemptSetEstimatedReleaseDate(fileEntry);
+				return callback(null);
 			}
 		],
 		err => {
@@ -270,17 +275,47 @@ function addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb) {
 	);
 }
 
+function populateFileEntry(fileEntry, filePath, archiveType, cb) {
+	//	:TODO:	implement me!
+	return cb(null);
+}
+
 function addNewFileEntry(fileEntry, filePath, cb) {
 	const archiveUtil = ArchiveUtil.getInstance();
 
 	//	:TODO: Use detectTypeWithBuf() once avail - we *just* read some file data
-	archiveUtil.detectType(filePath, (err, archiveType) => {
-		if(archiveType) {
-			return addNewArchiveFileEnty(fileEntry, filePath, archiveType, cb);
-		} else {
-			//	:TODO:addNewNonArchiveFileEntry
-		}
-	});
+
+	async.series(
+		[
+			function populateInfo(callback) {
+				archiveUtil.detectType(filePath, (err, archiveType) => {
+					if(archiveType) {
+						populateFileEntryWithArchive(fileEntry, filePath, archiveType, err => {
+							if(err) {
+								populateFileEntry(fileEntry, filePath, err => {
+									//	:TODO: log err
+									return callback(null);	//	ignore err
+								});
+							}
+							return callback(null);
+						});
+					} else {
+						populateFileEntry(fileEntry, filePath, err => {
+							//	:TODO: log err
+							return callback(null);	//	ignore err
+						});
+					}
+				});
+			},
+			function addNewDbRecord(callback) {
+				return fileEntry.persist(callback);
+			}
+		]
+	);
+}
+
+function updateFileEntry(fileEntry, filePath, cb) {
+
 }
 
 function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
@@ -289,6 +324,7 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 		areaTag		: areaInfo.areaTag,
 		meta		: options.meta,
 		hashTags	: options.hashTags,	//	Set() or Array
+		fileName	: fileName,
 	});
 
 	const filePath	= paths.join(getAreaStorageDirectory(areaInfo), fileName);
@@ -302,8 +338,7 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 				const sha1		= crypto.createHash('sha1');
 				const sha256	= crypto.createHash('sha256');
 				const md5		= crypto.createHash('md5');
-				
-				
+								
 				//	:TODO: crc32
 
 				stream.on('data', data => {
@@ -340,17 +375,6 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 				if(existingEntries.length > 0) {
 
 				} else {
-					//
-					//	Some basics for new entries
-					//
-					fileEntry.meta.user_rating = 0;
-					if(options.uploadByUserName) {
-						fileEntry.meta.upload_by_username = options.uploadByUserName;						 
-					}
-					if(options.uploadByUserId) {
-						fileEntry.meta.upload_by_user_id = options.uploadByUserId;
-					}
-
 					return addNewFileEntry(fileEntry, filePath, callback);
 				}
 			}, 

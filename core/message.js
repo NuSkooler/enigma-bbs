@@ -1,17 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-let msgDb			= require('./database.js').dbs.message;
-let wordWrapText	= require('./word_wrap.js').wordWrapText;
-let ftnUtil			= require('./ftn_util.js');
-let createNamedUUID	= require('./uuid_util.js').createNamedUUID;
+const msgDb					= require('./database.js').dbs.message;
+const wordWrapText			= require('./word_wrap.js').wordWrapText;
+const ftnUtil				= require('./ftn_util.js');
+const createNamedUUID		= require('./uuid_util.js').createNamedUUID;
+const getISOTimestampString	= require('./database.js').getISOTimestampString;
 
-let uuid			= require('node-uuid');
-let async			= require('async');
-let _				= require('lodash');
-let assert			= require('assert');
-let moment			= require('moment');
-const iconvEncode	= require('iconv-lite').encode;
+//	deps
+const uuid					= require('node-uuid');
+const async					= require('async');
+const _						= require('lodash');
+const assert				= require('assert');
+const moment				= require('moment');
+const iconvEncode			= require('iconv-lite').encode;
 
 module.exports = Message;
 
@@ -63,11 +65,6 @@ function Message(options) {
 
 	this.isPrivate = function() {
 		return Message.isPrivateAreaTag(this.areaTag);
-	};
-
-	this.getMessageTimestampString = function(ts) {
-		ts = ts || moment();
-		return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 	};
 }
 
@@ -374,7 +371,7 @@ Message.prototype.persist = function(cb) {
 				msgDb.run(
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
-					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, self.getMessageTimestampString(msgTimestamp) ],
+					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
 					function inserted(err) {	//	use non-arrow function for 'this' scope
 						if(!err) {
 							self.messageId = this.lastID;

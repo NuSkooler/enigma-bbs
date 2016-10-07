@@ -1,16 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-const fileDb	= require('./database.js').dbs.file;
-const Errors	= require('./enig_error.js').Errors;
+const fileDb				= require('./database.js').dbs.file;
+const Errors				= require('./enig_error.js').Errors;
+const getISOTimestampString	= require('./database.js').getISOTimestampString; 
 
 //	deps
-const async		= require('async');
-const _			= require('lodash');
+const async					= require('async');
+const _						= require('lodash');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha1', 'file_name', 
-	'desc', 'desc_long', 'upload_by_username', 'upload_timestamp'	//	:TODO: remove upload_by_username -- and from database.js, etc. 
+	'desc', 'desc_long', 'upload_timestamp' 
 ];
 
 const FILE_WELL_KNOWN_META = {
@@ -34,6 +35,7 @@ module.exports = class FileEntry {
 		this.areaTag	= options.areaTag || '';
 		this.meta		= {};
 		this.hashTags = new Set();
+		this.fileName	= options.fileName;
 	}
 
 	load(fileId, cb) {
@@ -76,6 +78,58 @@ module.exports = class FileEntry {
 			err => {
 				return cb(err);
 			}
+		);
+	}
+
+	persist(cb) {
+		const self = this;
+
+		async.series(
+			[
+				function startTrans(callback) {
+					return fileDb.run('BEGIN;', callback);
+				},
+				function storeEntry(callback) {
+					fileDb.run(
+						`REPLACE INTO file (area_tag, file_sha1, file_name, desc, desc_long, upload_timestamp)
+						VALUES(?, ?, ?, ?, ?, ?);`,
+						[ self.areaTag, self.fileSha1, self.fileName, self.desc, self.descLong, getISOTimestampString() ],
+						function inserted(err) {	//	use non-arrow func for 'this' scope / lastID
+							if(!err) {
+								self.fileId = this.lastID;
+							}
+							return callback(err);
+						}
+					);
+				},
+				function storeMeta(callback) {
+					async.each(Object.keys(self.meta), (n, next) => {
+						const v = self.meta[n];
+						return FileEntry.persistMetaValue(self.fileId, n, v, next);
+					}, 
+					err => {
+						return callback(err);
+					});
+				},
+				function storeHashTags(callback) {
+					return callback(null);
+				}
+			],
+			err => {
+				//	:TODO: Log orig err
+				fileDb.run(err ? 'ROLLBACK;' : 'COMMIT;', err => {
+					return cb(err);
+				});
+			}
+		);
+	}
+
+	static persistMetaValue(fileId, name, value, cb) {
+		fileDb.run(
+			`REPLACE INTO file_meta (file_id, meta_name, meta_value)
+			VALUES(?, ?, ?);`,
+			[ fileId, name, value ],
+			cb
 		);
 	}
 
