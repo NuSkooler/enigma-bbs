@@ -266,7 +266,7 @@ module.exports = class ArchiveUtil {
 			while((m = entryMatchRe.exec(output))) {
 				//	:TODO: allow alternate ordering!!!
 				entries.push({
-					size		: m[1],
+					byteSize	: parseInt(m[1]),
 					fileName	: m[2],
 				});
 			}

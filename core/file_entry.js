@@ -25,6 +25,7 @@ const FILE_WELL_KNOWN_META = {
 	dl_count			: (d) => parseInt(d) || 0,
 	byte_size			: (b) => parseInt(b) || 0,
 	user_rating			: (r) => Math.min(parseInt(r) || 0, 5),
+	archive_type		: null,
 };
 
 module.exports = class FileEntry {
@@ -33,8 +34,13 @@ module.exports = class FileEntry {
 
 		this.fileId		= options.fileId || 0;
 		this.areaTag	= options.areaTag || '';
-		this.meta		= {};
-		this.hashTags = new Set();
+		this.meta		= options.meta || {
+			//	values we always want
+			user_rating	: 0,
+			dl_count	: 0,
+		};
+
+		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
 	}
 

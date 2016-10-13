@@ -143,8 +143,10 @@ function ViewController(options) {
 			var mci		= mciMap[name];
 			var view	= self.mciViewFactory.createFromMCI(mci);
 
-			if(view && false === self.noInput) {
-				view.on('action', self.viewActionListener);
+			if(view) {
+				if(false === self.noInput) {
+					view.on('action', self.viewActionListener);
+				}
 
 				self.addView(view);
 			}

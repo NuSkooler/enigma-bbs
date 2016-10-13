@@ -113,30 +113,39 @@ HorizontalMenuView.prototype.setItems = function(items) {
 	this.positionCacheExpired = true;
 };
 
+HorizontalMenuView.prototype.focusNext = function() {
+	if(this.items.length - 1 === this.focusedItemIndex) {
+		this.focusedItemIndex = 0;
+	} else {
+		this.focusedItemIndex++;
+	}
+
+	//	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+	this.redraw();
+
+	HorizontalMenuView.super_.prototype.focusNext.call(this);
+};
+
+HorizontalMenuView.prototype.focusPrevious = function() {
+
+	if(0 === this.focusedItemIndex) {
+		this.focusedItemIndex = this.items.length - 1;
+	} else {
+		this.focusedItemIndex--;
+	}
+
+	//	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+	this.redraw();
+
+	HorizontalMenuView.super_.prototype.focusPrevious.call(this);
+};
+
 HorizontalMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
-		var prevFocusedItemIndex = this.focusedItemIndex;
-
 		if(this.isKeyMapped('left', key.name)) {
-			if(0 === this.focusedItemIndex) {
-				this.focusedItemIndex = this.items.length - 1;
-			} else {
-				this.focusedItemIndex--;
-			}
-
+			this.focusPrevious();
 		} else if(this.isKeyMapped('right', key.name)) {
-			if(this.items.length - 1 === this.focusedItemIndex) {
-				this.focusedItemIndex = 0;
-			} else {
-				this.focusedItemIndex++;
-			}
-		}
-
-		if(prevFocusedItemIndex !== this.focusedItemIndex) {
-			//	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
-			//	if this is changed to allow scrolling
-			this.redraw();
-			return;
+			this.focusNext();
 		}
 	}
 

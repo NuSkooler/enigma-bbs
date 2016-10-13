@@ -239,24 +239,28 @@ function getDefaultConfig() {
 					offset	: 0,
 					exts	: [ 'zip' ],
 					handler	: '7Zip',	
+					desc	: 'ZIP Archive',
 				},
 				'7z' : {
 					sig		: '377abcaf271c',
 					offset	: 0,
 					exts	: [ '7z' ],
 					handler	: '7Zip',
+					desc	: '7-Zip Archive',
 				},
 				arj : {
 					sig		: '60ea',
 					offset	: 0,
 					exts	: [ 'arj' ],
 					handler	: '7Zip',
+					desc	: 'ARJ Archive',
 				},
 				rar :  {
 					sig		: '526172211a0700',
 					offset	: 0,
 					exts	: [ 'rar' ],
 					handler	: '7Zip',
+					desc	: 'RAR Archive',
 				}
 			}
 		},
@@ -339,7 +343,11 @@ function getDefaultConfig() {
 			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
 
 			fileNamePatterns: {
-				shortDesc		: [ '^FILE_ID\.DIZ$', '^DESC\.SDI$' ], 
+				//	These are NOT case sensitive
+				shortDesc		: [ 
+					'^FILE_ID\.DIZ$', '^DESC\.SDI$', '^DESCRIPT\.ION$', '^FILE\.DES$', '$FILE\.SDI$', '^DISK\.ID$'
+				],
+
 				longDesc		: [ '^.*\.NFO$', '^README\.1ST$', '^README\.TXT$' ],
 			},
 
@@ -349,7 +357,7 @@ function getDefaultConfig() {
 				//	The year may be YY or YYYY
 				//
 				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
-				"\\B('[1789][0-9])\\b",
+				"\\B('[1789][0-9])\\b",	//	eslint-disable-line quotes
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
 

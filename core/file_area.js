@@ -20,7 +20,7 @@ const iconv			= require('iconv-lite');
 
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
-exports.getDefaultFileArea				= getDefaultFileArea;
+exports.getDefaultFileAreaTag				= getDefaultFileAreaTag;
 exports.getFileAreaByTag				= getFileAreaByTag;
 exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
 //exports.addOrUpdateFileEntry			= addOrUpdateFileEntry;
@@ -45,18 +45,20 @@ function getAvailableFileAreas(client, options) {
 }
 
 function getSortedAvailableFileAreas(client, options) {
-	const areas = _.map(getAvailableFileAreas(client, options), (v, k) => { 
-		return {
+	const areas = _.map(getAvailableFileAreas(client, options), (v, k) => {
+		const areaInfo = { 
 			areaTag : k,
 			area	: v
 		};
+
+		return areaInfo;
 	});
 
 	sortAreasOrConfs(areas, 'area');
 	return areas;
 }
 
-function getDefaultFileArea(client, disableAcsCheck) {
+function getDefaultFileAreaTag(client, disableAcsCheck) {
 	let defaultArea = _.findKey(Config.fileAreas, o => o.default);
 	if(defaultArea) {
 		const area = Config.fileAreas.areas[defaultArea];
@@ -76,7 +78,8 @@ function getDefaultFileArea(client, disableAcsCheck) {
 function getFileAreaByTag(areaTag) {
 	const areaInfo = Config.fileAreas.areas[areaTag];
 	if(areaInfo) {
-		areaInfo.areaTag = areaTag;	//	convienence!
+		areaInfo.areaTag			= areaTag;	//	convienence!
+		areaInfo.storageDirectory	= getAreaStorageDirectory(areaInfo);
 		return areaInfo;
 	}
 }
@@ -177,7 +180,20 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	//
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
 	if(match && match[1]) {
-		const year = (2 === match[1].length) ? parseInt('19' + match[1]) : parseInt(match[1]);
+		let year;
+		if(2 === match[1].length) {
+			year = parseInt(match[1]);
+			if(year) {
+				if(year > 70) {
+					year += 1900;
+				} else {
+					year += 2000;
+				}
+			}
+		} else {
+			year = parseInt(match[1]);
+		}
+
 		if(year) {
 			fileEntry.meta.est_release_year = year;
 		}
@@ -290,14 +306,18 @@ function addNewFileEntry(fileEntry, filePath, cb) {
 			function populateInfo(callback) {
 				archiveUtil.detectType(filePath, (err, archiveType) => {
 					if(archiveType) {
+						//	save this off
+						fileEntry.meta.archive_type = archiveType;
+
 						populateFileEntryWithArchive(fileEntry, filePath, archiveType, err => {
 							if(err) {
 								populateFileEntry(fileEntry, filePath, err => {
 									//	:TODO: log err
 									return callback(null);	//	ignore err
 								});
+							} else {
+								return callback(null);
 							}
-							return callback(null);
 						});
 					} else {
 						populateFileEntry(fileEntry, filePath, err => {
@@ -310,7 +330,10 @@ function addNewFileEntry(fileEntry, filePath, cb) {
 			function addNewDbRecord(callback) {
 				return fileEntry.persist(callback);
 			}
-		]
+		],
+		err => {
+			return cb(err);
+		}
 	);
 }
 
@@ -371,7 +394,7 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 					return callback(err, existingEntries);
 				});
 			},
-			function addOrUpdate(callback, existingEntries) {
+			function addOrUpdate(existingEntries, callback) {
 				if(existingEntries.length > 0) {
 
 				} else {
@@ -396,7 +419,7 @@ function scanFileAreaForChanges(areaInfo, cb) {
 						return callback(err);
 					}
 
-					async.each(files, (fileName, next) => {
+					async.eachSeries(files, (fileName, next) => {
 						const fullPath = paths.join(areaPhysDir, fileName);
 
 						fs.stat(fullPath, (err, stats) => {
@@ -409,8 +432,8 @@ function scanFileAreaForChanges(areaInfo, cb) {
 								return next(null);
 							}
 
-							addOrUpdateFileEntry(areaInfo, fileName, err => {
-
+							addOrUpdateFileEntry(areaInfo, fileName, { areaTag : areaInfo.areaTag }, err => {
+								return next(err);
 							});
 						});
 					}, err => {
