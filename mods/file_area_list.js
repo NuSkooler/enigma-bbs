@@ -92,14 +92,10 @@ exports.getModule = class FileAreaList extends MenuModule {
 			//	:TODO: set area tag - all in current area by default
 		};
 
-		this.currentFileEntry = new FileEntry();
-
 		this.menuMethods = {
 			nextFile : (formData, extraArgs, cb) => {		
 				if(this.fileListPosition + 1 < this.fileList.length) {
 					this.fileListPosition += 1;
-
-					delete this.currentFileEntry.archiveEntries;
 
 					return this.displayBrowsePage(true, cb);	//	true=clerarScreen
 				}
@@ -109,8 +105,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 			prevFile : (formData, extraArgs, cb) => {
 				if(this.fileListPosition > 0) {
 					--this.fileListPosition;
-
-					delete this.currentFileEntry.archiveEntries;
 
 					return this.displayBrowsePage(true, cb);	//	true=clearScreen
 				}
@@ -181,7 +175,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		//
 		const metaValues = FileEntry.getWellKnownMetaValues();
 		metaValues.forEach(name => {
-			const value = !_.isUndefined(currEntry.meta[name]) ? currEntry.meta[name] : '';
+			const value = !_.isUndefined(currEntry.meta[name]) ? currEntry.meta[name] : 'N/A';
 			entryInfo[_.camelCase(name)] = value;
 		});
 
@@ -193,7 +187,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 			entryInfo.archiveTypeDesc = 'N/A';
 		}
 
-		entryInfo.uploadByUsername = entryInfo.uploadByUsername || 'N/A';	//	may be imported
+		entryInfo.uploadByUsername 	= entryInfo.uploadByUsername || 'N/A';	//	may be imported
+		entryInfo.hashTags			= entryInfo.hashTags || '(none)';
 
 		//	create a rating string, e.g. "**---"
 		const userRatingTicked		= config.userRatingTicked || '*';
@@ -300,7 +295,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 					}
 					return self.loadFileIds(callback);
 				},
-				function loadCurrentFileInfo(callback) {										
+				function loadCurrentFileInfo(callback) {
+					self.currentFileEntry = new FileEntry();
+
 					self.currentFileEntry.load( self.fileList[ self.fileListPosition ], err => {
 						self.populateCurrentEntryInfo();
 						return callback(err);

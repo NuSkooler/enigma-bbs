@@ -8,6 +8,7 @@ const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
 const FileEntry			= require('./file_entry.js');
 const FileDb			= require('./database.js').dbs.file;
 const ArchiveUtil		= require('./archive_util.js');
+const CRC32				= require('./crc.js').CRC32;
 
 //	deps
 const _				= require('lodash');
@@ -361,6 +362,7 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 				const sha1		= crypto.createHash('sha1');
 				const sha256	= crypto.createHash('sha256');
 				const md5		= crypto.createHash('md5');
+				const crc32		= new CRC32();
 								
 				//	:TODO: crc32
 
@@ -369,7 +371,8 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 
 					sha1.update(data);
 					sha256.update(data);
-					md5.update(data);					
+					md5.update(data);
+					crc32.update(data);
 				});
 
 				stream.on('end', () => {
@@ -381,6 +384,7 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 					//	others are meta
 					fileEntry.meta.file_sha256	= sha256.digest('hex');
 					fileEntry.meta.file_md5 	= md5.digest('hex');
+					fileEntry.meta.file_crc32	= crc32.finalize().toString(16);
 
 					return callback(null);
 				});
