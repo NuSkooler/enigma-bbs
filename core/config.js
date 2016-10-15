@@ -358,6 +358,7 @@ function getDefaultConfig() {
 				//
 				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
 				"\\B('[1789][0-9])\\b",	//	eslint-disable-line quotes
+				'[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
 

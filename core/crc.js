@@ -19,4 +19,4 @@ exports.CRC32 = class CRC32 {
 	finalize() {
 		return (this.crc ^ (-1)) >>> 0;
 	}
-}
+};

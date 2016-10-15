@@ -12,6 +12,7 @@ const FileArea			= require('../core/file_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
 const ArchiveUtil		= require('../core/archive_util.js');
 const Config			= require('../core/config.js').config;
+const DownloadQueue		= require('../core/download_queue.js');
 
 //	deps
 const async				= require('async');
@@ -21,21 +22,7 @@ const paths				= require('path');
 
 /*
 	Misc TODO
-		* Allow rating to be user defined colors & characters/etc.
-		* 
-
-
-	Well known file entry meta values:
-	* upload_by_username
-	* upload_by_user_id	
-	* file_md5
-	* file_sha256
-	* file_crc32
-	* est_release_year
-	* dl_count
-	* byte_size
-	* user_rating
-	* 
+	 
 */
 
 exports.moduleInfo = {
@@ -56,6 +43,7 @@ const MciViewIds = {
 	browse	: {
 		desc		: 1,
 		navMenu		: 2,
+		queueToggle	: 3,	//	active queue toggle indicator - others avail in customs as {isQueued}
 		//	10+ = customs
 	},
 	details	: {
@@ -82,11 +70,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		const config	= this.menuConfig.config;
-
 		if(options.extraArgs) {
 			this.filterCriteria	= options.extraArgs.filterCriteria;
 		}
+
+		this.dlQueue = new DownloadQueue(this.client.user);
 
 		this.filterCriteria = this.filterCriteria || { 
 			//	:TODO: set area tag - all in current area by default
@@ -118,6 +106,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 			detailsQuit : (formData, extraArgs, cb) => {
 				this.viewControllers.details.setFocus(false);
 				return this.displayBrowsePage(true, cb);	//	true=clearScreen
+			},
+			toggleQueue : (formData, extraArgs, cb) => {
+				this.dlQueue.toggle(this.currentFileEntry);
+				this.updateQueueIndicator();
+				return cb(null);  
 			},
 		};
 	}
@@ -155,6 +148,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const uploadTimestampFormat = config.browseUploadTimestampFormat || config.uploadTimestampFormat || 'YYYY-MMM-DD';
 		const area					= FileArea.getFileAreaByTag(currEntry.areaTag);
 		const hashTagsSep			= config.hashTagsSep || ', ';
+		const isQueuedIndicator		= config.isQueuedIndicator || 'Y';
+		const isNotQueuedIndicator	= config.isNotQueuedIndicator || 'N';
 		
 		const entryInfo = this.currentFileEntry.entryInfo = {
 			fileId				: currEntry.fileId,
@@ -167,6 +162,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			descLong			: currEntry.descLong || '',
 			uploadTimestamp		: moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
 			hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
+			isQueued			: this.dlQueue.isQueued(this.currentFileEntry) ? isQueuedIndicator : isNotQueuedIndicator,
 		};
 
 		//
@@ -311,6 +307,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 						}
 					}
 
+					self.updateQueueIndicator();
 					self.populateCustomLabels('browse', 10);
 
 					return callback(null);
@@ -362,6 +359,22 @@ exports.getModule = class FileAreaList extends MenuModule {
 				return cb(err);
 			}
 		);
+	}
+
+	updateQueueIndicator() {
+		const indicatorView = this.viewControllers.browse.getView(MciViewIds.browse.queueToggle);
+	
+		if(indicatorView) {
+			const isQueuedIndicator		= this.menuConfig.config.isQueuedIndicator || 'Y';
+			const isNotQueuedIndicator	= this.menuConfig.config.isNotQueuedIndicator || 'N';
+			
+			indicatorView.setText(stringFormat(
+				this.dlQueue.isQueued(this.currentFileEntry) ? 
+					isQueuedIndicator : 
+					isNotQueuedIndicator
+				)
+			);
+		}
 	}
 
 	cacheArchiveEntries(cb) {

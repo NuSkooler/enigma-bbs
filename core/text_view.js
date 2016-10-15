@@ -102,7 +102,7 @@ function TextView(options) {
 		
 		renderLength = renderStringLength(textToDraw);
 		
-		if(renderLength > this.dimens.width) {
+		if(renderLength >= this.dimens.width) {
 			if(this.hasFocus) {
 				if(this.horizScroll) {
 					textToDraw = renderSubstr(textToDraw, renderLength - this.dimens.width, renderLength);
