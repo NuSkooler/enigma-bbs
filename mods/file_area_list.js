@@ -13,6 +13,7 @@ const Errors			= require('../core/enig_error.js').Errors;
 const ArchiveUtil		= require('../core/archive_util.js');
 const Config			= require('../core/config.js').config;
 const DownloadQueue		= require('../core/download_queue.js');
+const FileAreaWeb		= require('../core/file_area_web.js');
 
 //	deps
 const async				= require('async');
@@ -43,7 +44,6 @@ const MciViewIds = {
 	browse	: {
 		desc		: 1,
 		navMenu		: 2,
-		queueToggle	: 3,	//	active queue toggle indicator - others avail in customs as {isQueued}
 		//	10+ = customs
 	},
 	details	: {
@@ -74,7 +74,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			this.filterCriteria	= options.extraArgs.filterCriteria;
 		}
 
-		this.dlQueue = new DownloadQueue(this.client.user);
+		this.dlQueue = new DownloadQueue(this.client);
 
 		this.filterCriteria = this.filterCriteria || { 
 			//	:TODO: set area tag - all in current area by default
@@ -112,6 +112,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 				this.updateQueueIndicator();
 				return cb(null);  
 			},
+			showWebDownloadLink : (formData, extraArgs, cb) => {
+				return this.fetchAndDisplayWebDownloadLink(cb);
+			},
 		};
 	}
 
@@ -141,7 +144,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		);
 	}
 
-	populateCurrentEntryInfo() {
+	populateCurrentEntryInfo(cb) {
 		const config		= this.menuConfig.config;
 		const currEntry		= this.currentFileEntry;
 
@@ -163,6 +166,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 			uploadTimestamp		: moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
 			hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
 			isQueued			: this.dlQueue.isQueued(this.currentFileEntry) ? isQueuedIndicator : isNotQueuedIndicator,
+			webDlLink			: '',	//	:TODO: fetch web any existing web d/l link
+			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time
 		};
 
 		//
@@ -194,9 +199,27 @@ exports.getModule = class FileAreaList extends MenuModule {
 		if(entryInfo.userRating < 5) {
 			entryInfo.userRatingString += new Array( (5 - entryInfo.userRating) + 1).join(userRatingUnticked);
 		}
+
+		FileAreaWeb.getExistingTempDownloadServeItem(this.client, this.currentFileEntry, (err, serveItem) => {
+			if(err) {
+				entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';
+				entryInfo.webDlExpire	= '';
+			} else {
+				const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
+
+				entryInfo.webDlLink		= serveItem.url;
+				entryInfo.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
+			}
+
+			return cb(null);
+		});
 	}
 
 	populateCustomLabels(category, startId) {
+		return this.updateCustomLabelsWithFilter(category, startId);
+	}
+
+	updateCustomLabelsWithFilter(category, startId, filter) {
 		let textView;					
 		let customMciId = startId;
 		const config	= this.menuConfig.config;
@@ -205,7 +228,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			const key		= `${category}InfoFormat${customMciId}`;
 			const format	= config[key];
 
-			if(format) {
+			if(format && (!filter || filter.find(f => format.indexOf(f) > - 1))) {
 				textView.setText(stringFormat(format, this.currentFileEntry.entryInfo));
 			}
 
@@ -295,8 +318,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 					self.currentFileEntry = new FileEntry();
 
 					self.currentFileEntry.load( self.fileList[ self.fileListPosition ], err => {
-						self.populateCurrentEntryInfo();
-						return callback(err);
+						if(err) {
+							return callback(err);
+						}
+						
+						return self.populateCurrentEntryInfo(callback);
 					});
 				},
 				function populateViews(callback) {
@@ -360,8 +386,63 @@ exports.getModule = class FileAreaList extends MenuModule {
 			}
 		);
 	}
+	
+	fetchAndDisplayWebDownloadLink(cb) {
+		const self = this;
+
+		async.series(
+			[
+				function generateLinkIfNeeded(callback) {
+
+					if(self.currentFileEntry.webDlExpireTime < moment()) {
+						return callback(null);
+					}
+					
+					const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
+
+					FileAreaWeb.createAndServeTempDownload(
+						self.client, 
+						self.currentFileEntry,
+						{ expireTime : expireTime },
+						(err, url) => {
+							if(err) {
+								return callback(err);
+							}
+
+							self.currentFileEntry.webDlExpireTime = expireTime;
+
+							const webDlExpireTimeFormat = self.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
+
+							self.currentFileEntry.entryInfo.webDlLink 	= url;
+							self.currentFileEntry.entryInfo.webDlExpire	= expireTime.format(webDlExpireTimeFormat);
+
+							return callback(null);
+						}
+					);
+				},
+				function updateActiveViews(callback) {
+					self.updateCustomLabelsWithFilter( 'browse', 10, [ '{webDlLink}', '{webDlExpire}' ] );
+					return callback(null);
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);		
+	}
 
 	updateQueueIndicator() {
+		const isQueuedIndicator		= this.menuConfig.config.isQueuedIndicator || 'Y';
+		const isNotQueuedIndicator	= this.menuConfig.config.isNotQueuedIndicator || 'N';
+
+		this.currentFileEntry.entryInfo.isQueued = stringFormat(
+			this.dlQueue.isQueued(this.currentFileEntry) ? 
+				isQueuedIndicator : 
+				isNotQueuedIndicator
+		);
+
+		this.updateCustomLabelsWithFilter( 'browse', 10, [ '{isQueued}' ] );
+		/*
 		const indicatorView = this.viewControllers.browse.getView(MciViewIds.browse.queueToggle);
 	
 		if(indicatorView) {
@@ -374,7 +455,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					isNotQueuedIndicator
 				)
 			);
-		}
+		}*/
 	}
 
 	cacheArchiveEntries(cb) {

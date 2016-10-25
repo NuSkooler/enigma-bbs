@@ -2,10 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const baseClient	= require('../../client.js');
-const Log			= require('../../logger.js').log;
-const ServerModule	= require('../../server_module.js').ServerModule;
-const Config		= require('../../config.js').config;
+const baseClient		= require('../../client.js');
+const Log				= require('../../logger.js').log;
+const LoginServerModule	= require('../../login_server_module.js');
+const Config			= require('../../config.js').config;
 
 //	deps
 const net 			= require('net');
@@ -16,15 +16,13 @@ const util			= require('util');
 
 //var debug	= require('debug')('telnet');
 
-exports.moduleInfo = {
+const ModuleInfo = exports.moduleInfo = {
 	name		: 'Telnet',
 	desc		: 'Telnet Server',
 	author		: 'NuSkooler',
 	isSecure	: false,
+	packageName	: 'codes.l33t.enigma.telnet.server',
 };
-
-exports.getModule	= TelnetServerModule;
-
 
 //
 //	Telnet Protocol Resources
@@ -767,22 +765,34 @@ Object.keys(OPTIONS).forEach(function(name) {
 	});
 });
 
-function TelnetServerModule() {
-	ServerModule.call(this);
-}
+exports.getModule = class TelnetServerModule extends LoginServerModule {
+	constructor() {
+		super();
+	}
 
-util.inherits(TelnetServerModule, ServerModule);
+	createServer() {
+		this.server = net.createServer( sock => {
+			const client = new TelnetClient(sock, sock);
 
-TelnetServerModule.prototype.createServer = function() {
-	TelnetServerModule.super_.prototype.createServer.call(this);
+			client.banner();
 
-	const server = net.createServer( (sock) => {
-		const client = new TelnetClient(sock, sock);
-		
-		client.banner();
+			this.handleNewClient(client, sock, ModuleInfo);
+		});
 
-		server.emit('client', client, sock);
-	});
+		this.server.on('error', err => {
+			Log.info( { error : err.message }, 'Telnet server error');
+		});
+	}
 
-	return server;
+	listen() {
+		const port = parseInt(Config.loginServers.telnet.port);
+		if(isNaN(port)) {
+			Log.error( { server : ModuleInfo.name, port : Config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
+			return false;
+		}
+
+		this.server.listen(port);
+		Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+		return true;
+	}
 };

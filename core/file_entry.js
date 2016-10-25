@@ -3,11 +3,13 @@
 
 const fileDb				= require('./database.js').dbs.file;
 const Errors				= require('./enig_error.js').Errors;
-const getISOTimestampString	= require('./database.js').getISOTimestampString; 
+const getISOTimestampString	= require('./database.js').getISOTimestampString;
+const Config				= require('./config.js').config; 
 
 //	deps
 const async					= require('async');
 const _						= require('lodash');
+const paths					= require('path');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha1', 'file_name', 
@@ -128,6 +130,17 @@ module.exports = class FileEntry {
 				});
 			}
 		);
+	}
+
+	get filePath() {
+		const areaInfo = Config.fileAreas.areas[this.areaTag];
+		if(areaInfo) {
+			return paths.join(
+				Config.fileBase.areaStoragePrefix, 
+				areaInfo.storageDir || '',
+				this.fileName
+			);
+		}
 	}
 
 	static persistMetaValue(fileId, name, value, cb) {

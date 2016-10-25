@@ -59,9 +59,6 @@ function loadModuleEx(options, cb) {
 		return cb(new Error('Invalid or missing "getModule" method for module!'));
 	}
 
-	//	Ref configuration, if any, for convience to the module
-	mod.runtime = { config : modConfig };
-
 	return cb(null, mod);
 }
 
@@ -89,7 +86,7 @@ function loadModulesForCategory(category, iterator, complete) {
 		});
 
 		async.each(jsModules, (file, next) => {
-			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
++			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
 				iterator(err, mod);
 				return next();
 			});

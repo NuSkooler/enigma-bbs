@@ -6,7 +6,6 @@ var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
 var asset			= require('./asset.js');
 var ansi			= require('./ansi_term.js');
-const Log			= require('./logger.js');
 
 //	deps
 var events			= require('events');
@@ -449,6 +448,12 @@ ViewController.prototype.setFocus = function(focused) {
 	this.setViewFocusWithEvents(this.focusedView, focused);
 };
 
+ViewController.prototype.resetInitialFocus = function() {
+	if(this.formInitialFocusId) {
+		return this.switchFocus(this.formInitialFocusId);
+	}
+}
+
 ViewController.prototype.switchFocus = function(id) {
 	//
 	//	Perform focus switching validation now
@@ -618,7 +623,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 
 	var self			= this;
 	var formIdKey		= options.formId ? options.formId.toString() : '0';
-	var initialFocusId	= 1;	//	default to first
+	this.formInitialFocusId	 = 1;	//	default to first
 	var formConfig;
 
 	//	:TODO: honor options.withoutForm
@@ -671,7 +676,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			function applyViewConfiguration(callback) {
 				if(_.isObject(formConfig)) {
 					self.applyViewConfig(formConfig, function configApplied(err, info) {
-						initialFocusId = info.initialFocusId;
+						self.formInitialFocusId = info.initialFocusId;
 						callback(err);
 					});
 				} else {
@@ -746,12 +751,12 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
-				self.redrawAll(initialFocusId);
+				self.redrawAll(self.formInitialFocusId);
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
-				if(initialFocusId) {
-					self.switchFocus(initialFocusId);
+				if(self.formInitialFocusId) {
+					self.switchFocus(self.formInitialFocusId);
 				}
 				callback(null);
 			}
@@ -794,7 +799,7 @@ ViewController.prototype.getFormData = function(key) {
 
 		}
 	*/
-	var formData = {
+	const formData = {
 		id			: this.formId,
 		submitId	: this.focusedView.id,
 		value		: {},
@@ -803,6 +808,26 @@ ViewController.prototype.getFormData = function(key) {
 	if(key) {
 		formData.key = key;
 	}
+
+	let viewData;
+	_.each(this.views, view => {
+		try {
+			//	don't fill forms with static, non user-editable data data
+			if(!view.acceptsInput) {
+				return;
+			}
+
+			viewData = view.getData();
+			if(_.isUndefined(viewData)) {
+				return;
+			}
+
+			formData.value[ view.submitArgName ? view.submitArgName : view.id ] = viewData;
+		} catch(e) {
+			this.client.log.error( { error : e.message }, 'Exception caught gathering form data' );
+		}
+	});
+	/*
 
 	var viewData;
 	var view;
@@ -820,10 +845,10 @@ ViewController.prototype.getFormData = function(key) {
 		} catch(e) {
 			this.client.log.error(e);	//	:TODO: Log better ;)
 		}
-	}
+	}*/
 
 	return formData;
-}
+};
 
 /*
 ViewController.prototype.formatMenuArgs = function(args) {

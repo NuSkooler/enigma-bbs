@@ -4,22 +4,22 @@
 const FileEntry	= require('./file_entry.js');
 
 module.exports = class DownloadQueue {
-	constructor(user) {
-		this.user = user;
+	constructor(client) {
+		this.client	= client;
 
-		this.user.downloadQueue = this.user.downloadQueue || [];
+		this.loadFromProperty(client);
 	}
 
 	toggle(fileEntry) {
 		if(this.isQueued(fileEntry)) {
-			this.user.downloadQueue = this.user.downloadQueue.filter(e => fileEntry.fileId !== e.fileId);
+			this.client.user.downloadQueue = this.client.user.downloadQueue.filter(e => fileEntry.fileId !== e.fileId);
 		} else {
 			this.add(fileEntry);
 		}
 	}
 
 	add(fileEntry) {
-		this.user.downloadQueue.push({
+		this.client.user.downloadQueue.push({
 			fileId		: fileEntry.fileId,
 			areaTag		: fileEntry.areaTag,
 			fileName	: fileEntry.fileName,
@@ -32,16 +32,18 @@ module.exports = class DownloadQueue {
 			entryOrId = entryOrId.fileId;
 		}
 
-		return this.user.downloadQueue.find(e => entryOrId === e.fileId) ? true : false;
+		return this.client.user.downloadQueue.find(e => entryOrId === e.fileId) ? true : false;
 	}
 
-	toProperty() { return JSON.stringify(this.user.downloadQueue); }
+	toProperty() { return JSON.stringify(this.client.user.downloadQueue); }
 	
 	loadFromProperty(prop) {
 		try {
-			this.user.downloadQueue = JSON.parse(prop);
+			this.client.user.downloadQueue = JSON.parse(prop);
 		} catch(e) {
-			this.user.log.error( { error : e.message, property : prop }, 'Failed parsing download queue property'); 			
+			this.client.user.downloadQueue = [];
+
+			this.client.log.error( { error : e.message, property : prop }, 'Failed parsing download queue property'); 			
 		}
 	}	
 };

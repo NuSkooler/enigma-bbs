@@ -40,11 +40,11 @@ function ConfigCache() {
 	this.gaze.on('changed', function fileChanged(filePath) {
 		assert(filePath in self.cache);
 
-		Log.info( { filePath : filePath }, 'Configuration file changed; recaching');
+		Log.info( { path : filePath }, 'Configuration file changed; re-caching');
 
 		self.reCacheConfigFromFile(filePath, function reCached(err) {
 			if(err) {
-				Log.error( { error : err, filePath : filePath } , 'Error recaching HJSON config');
+				Log.error( { error : err.message, path : filePath } , 'Failed re-caching configuration');
 			} else {
 				self.emit('recached', filePath);
 			}

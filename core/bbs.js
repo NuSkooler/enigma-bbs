@@ -76,9 +76,6 @@ function bbsMain() {
 					return callback(err);
 				});
 			},
-			function listenConnections(callback) {
-				return startListening(callback);
-			}
 		],
 		function complete(err) {
 			//	note this is escaped:
@@ -113,6 +110,12 @@ function shutdownSystem() {
 				}
 				callback(null);
 			},
+			function stopListeningServers(callback) {
+				return require('./listening_server.js').shutdown( () => {
+					//	:TODO: log err
+					return callback(null);	//	ignore err
+				});
+			},
 			function stopEventScheduler(callback) {
 				if(initServices.eventScheduler) {
 					return initServices.eventScheduler.shutdown( () => {
@@ -121,6 +124,12 @@ function shutdownSystem() {
 				} else {
 					return callback(null);
 				}
+			},
+			function stopFileAreaWeb(callback) {
+				require('./file_area_web.js').startup(err => {
+					//	:TODO: Log me if err
+					return callback(null);
+				});
 			},
 			function stopMsgNetwork(callback) {
 				require('./msg_network.js').shutdown(callback);
@@ -222,6 +231,12 @@ function initialize(cb) {
 			function readyMessageNetworkSupport(callback) {
 				return require('./msg_network.js').startup(callback);	
 			},
+			function listenConnections(callback) {
+				return require('./listening_server.js').startup(callback);
+			},
+			function readyFileAreaWeb(callback) {
+				return require('./file_area_web.js').startup(callback);
+			},
 			function readyEventScheduler(callback) {
 				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
 				EventSchedulerModule.loadAndStart( (err, modInst) => {
@@ -234,119 +249,4 @@ function initialize(cb) {
 			return cb(err);
 		}
 	);
-}
-
-function startListening(cb) {
-	if(!conf.config.loginServers) {
-		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
-		return cb(new Error('No login servers configured'));
-	}
-
-	const moduleUtil = require('./module_util.js');	//	late load so we get Config
-
-	moduleUtil.loadModulesForCategory('loginServers', (err, module) => {
-		if(err) {
-			if('EENIGMODDISABLED' === err.code) {
-				logger.log.debug(err.message);
-			} else {
-				logger.log.info( { err : err }, 'Failed loading module');
-			}
-			return;
-		}
-
-		const port = parseInt(module.runtime.config.port);
-		if(isNaN(port)) {
-			logger.log.error( { port : module.runtime.config.port, server : module.moduleInfo.name }, 'Cannot load server (Invalid port)');
-			return;
-		}
-
-		const moduleInst = new module.getModule();
-		let server;
-		try {
-			server = moduleInst.createServer();
-		} catch(e) {
-			logger.log.warn(e, 'Exception caught creating server!');
-			return;
-		}
-
-		//	:TODO: handle maxConnections, e.g. conf.maxConnections
-
-		server.on('client', function newClient(client, clientSock) {									
-			//
-			//	Start tracking the client. We'll assign it an ID which is
-			//	just the index in our connections array.
-			//			
-			if(_.isUndefined(client.session)) {
-				client.session = {};
-			}
-
-			client.session.serverName 	= module.moduleInfo.name;
-			client.session.isSecure		= module.moduleInfo.isSecure || false;
-
-			clientConns.addNewClient(client, clientSock);
-
-			client.on('ready', function clientReady(readyOptions) {
-
-				client.startIdleMonitor();
-
-				//	Go to module -- use default error handler
-				prepareClient(client, function clientPrepared() {
-					require('./connect.js').connectEntry(client, readyOptions.firstMenu);
-				});
-			});
-
-			client.on('end', function onClientEnd() {
-				clientConns.removeClient(client);
-			});
-
-			client.on('error', function onClientError(err) {
-				logger.log.info({ clientId : client.session.id }, 'Connection error: %s' % err.message);
-			});
-
-			client.on('close', function onClientClose(hadError) {
-				const logFunc = hadError ? logger.log.info : logger.log.debug;
-				logFunc( { clientId : client.session.id }, 'Connection closed');
-				
-				clientConns.removeClient(client);
-			});
-
-			client.on('idle timeout', function idleTimeout() {
-				client.log.info('User idle timeout expired');
-
-				client.menuStack.goto('idleLogoff', function goMenuRes(err) {
-					if(err) {
-						//	likely just doesn't exist
-						client.term.write('\nIdle timeout expired. Goodbye!\n');
-						client.end();
-					}			
-				});
-			});
-		});
-
-		server.on('error', function serverErr(err) {
-			logger.log.info(err);	//	'close' should be handled after
-		});
-
-		server.listen(port);
-
-		logger.log.info(
-			{ server : module.moduleInfo.name, port : port }, 'Listening for connections');
-	}, err => {
-		cb(err);
-	});
-}
-
-function prepareClient(client, cb) {
-	const theme = require('./theme.js');
-
-	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
-
-	if('*' === conf.config.preLoginTheme) {
-		client.user.properties.theme_id = theme.getRandomTheme() || '';
-	} else {
-		client.user.properties.theme_id = conf.config.preLoginTheme;
-	}
-    
-	theme.setClientTheme(client, client.user.properties.theme_id);
-	return cb(null);   //  note: currently useless to use cb here - but this may change...again...
 }

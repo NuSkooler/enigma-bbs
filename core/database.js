@@ -333,5 +333,12 @@ const DB_INIT_TABLE = {
 				UNIQUE(hash_tag_id, file_id)
 			);`
 		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_web_serve (
+				hash_id				VARCHAR NOT NULL PRIMARY KEY,
+				expire_timestamp	DATETIME NOT NULL
+			);`
+		);
 	}
 };

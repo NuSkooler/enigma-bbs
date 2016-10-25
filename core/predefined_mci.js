@@ -8,6 +8,7 @@ const getMessageAreaByTag				= require('./message_area.js').getMessageAreaByTag;
 const getMessageConferenceByTag			= require('./message_area.js').getMessageConferenceByTag;
 const clientConnections					= require('./client_connections.js');
 const StatLog							= require('./stat_log.js');
+const FileBaseFilters					= require('./file_base_filter.js');
 
 //	deps
 const packageJson 			= require('../package.json');
@@ -80,6 +81,10 @@ function getPredefinedMCIValue(client, code) {
 			ND	: function connectedNode() { return client.node.toString(); },
 			IP	: function clientIpAddress() { return client.address().address; },
 			ST	: function serverName() { return client.session.serverName; },
+			FN	: function activeFileBaseFilterName() {
+				const activeFilter = FileBaseFilters.getActiveFilter(client);
+				return activeFilter ? activeFilter.name : ''; 
+			},
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },

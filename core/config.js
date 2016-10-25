@@ -211,6 +211,23 @@ function getDefaultConfig() {
 			}
 		},
 
+		contentServers : {
+			web : {
+				domain : 'another-fine-enigma-bbs.org',
+				
+				http : {
+					enabled : false,
+					port	: 8080,						
+				},
+				https : {
+					enabled	: false,
+					port	: 8443,
+					certPem	: paths.join(__dirname, './../misc/https_cert.pem'),
+					keyPem	: paths.join(__dirname, './../misc/https_cert_key.pem'),
+				}
+			}
+		},
+	
 		archives : {
 			archivers : {
 				'7Zip' : {
@@ -361,6 +378,12 @@ function getDefaultConfig() {
 				'[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
+
+			web : {
+				path			: '/f/',
+				routePath		: '/f/[a-zA-Z0-9]+$',
+				expireMinutes	: 1440,	//	1 day
+			},
 
 			areas: {
 				message_attachment : {

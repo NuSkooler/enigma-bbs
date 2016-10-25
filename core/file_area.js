@@ -21,8 +21,9 @@ const iconv			= require('iconv-lite');
 
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
-exports.getDefaultFileAreaTag				= getDefaultFileAreaTag;
+exports.getDefaultFileAreaTag			= getDefaultFileAreaTag;
 exports.getFileAreaByTag				= getFileAreaByTag;
+exports.getFileEntryPath				= getFileEntryPath;
 exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
 //exports.addOrUpdateFileEntry			= addOrUpdateFileEntry;
 exports.scanFileAreaForChanges			= scanFileAreaForChanges;
@@ -46,15 +47,7 @@ function getAvailableFileAreas(client, options) {
 }
 
 function getSortedAvailableFileAreas(client, options) {
-	const areas = _.map(getAvailableFileAreas(client, options), (v, k) => {
-		const areaInfo = { 
-			areaTag : k,
-			area	: v
-		};
-
-		return areaInfo;
-	});
-
+	const areas = _.map(getAvailableFileAreas(client, options), v => v);
 	sortAreasOrConfs(areas, 'area');
 	return areas;
 }
@@ -122,6 +115,13 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
 
 function getAreaStorageDirectory(areaInfo) {
 	return paths.join(Config.fileBase.areaStoragePrefix, areaInfo.storageDir || '');
+}
+
+function getFileEntryPath(fileEntry) {
+	const areaInfo = getFileAreaByTag(fileEntry.areaTag);
+	if(areaInfo) {
+		return paths.join(areaInfo.storageDirectory, fileEntry.fileName);
+	}
 }
 
 function getExistingFileEntriesBySha1(sha1, cb) {
