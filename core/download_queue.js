@@ -7,7 +7,9 @@ module.exports = class DownloadQueue {
 	constructor(client) {
 		this.client	= client;
 
-		this.loadFromProperty(client);
+		if(!Array.isArray(this.client.user.downloadQueue)) {
+			this.loadFromProperty(client);
+		}
 	}
 
 	toggle(fileEntry) {

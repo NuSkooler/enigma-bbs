@@ -361,17 +361,21 @@ function getDefaultConfig() {
 
 			fileNamePatterns: {
 				//	These are NOT case sensitive
+				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
 				shortDesc		: [ 
 					'^FILE_ID\.DIZ$', '^DESC\.SDI$', '^DESCRIPT\.ION$', '^FILE\.DES$', '$FILE\.SDI$', '^DISK\.ID$'
 				],
 
-				longDesc		: [ '^.*\.NFO$', '^README\.1ST$', '^README\.TXT$' ],
+				//	common README filename - https://en.wikipedia.org/wiki/README
+				longDesc		: [ 
+					'^.*\.NFO$', '^README\.1ST$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
+				],
 			},
 
 			yearEstPatterns: [
 				//
-				//	Patterns should produce the year in the first submatch
-				//	The year may be YY or YYYY
+				//	Patterns should produce the year in the first submatch.
+				//	The extracted year may be YY or YYYY
 				//
 				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
 				"\\B('[1789][0-9])\\b",	//	eslint-disable-line quotes
@@ -385,16 +389,24 @@ function getDefaultConfig() {
 				expireMinutes	: 1440,	//	1 day
 			},
 
+			//
+			//	File area storage location tag/value pairs.
+			//	Non-absolute paths are relative to |areaStoragePrefix|.
+			// 
+			storageTags : {
+				sys_msg_attach	: 'msg_attach',
+			},
+
 			areas: {
-				message_attachment : {
-					name	: 'Message attachments',
-					desc	: 'File attachments to messages',
+				systemm_message_attachment : {
+					name		: 'Message attachments',
+					desc		: 'File attachments to messages',
+					storageTags	: 'sys_msg_attach',	//	may be string or array of strings
 				}
 			}
 		},
 		
 		eventScheduler : {
-			
 			
 			events : {
 				trimMessageAreas : {

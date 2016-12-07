@@ -25,6 +25,9 @@ class ACS {
 		}		
 	}
 
+	//
+	//	Message Conferences & Areas
+	//
 	hasMessageConfRead(conf) {
 		return this.check(conf.acs, 'read', ACS.Defaults.MessageConfRead);
 	}
@@ -33,8 +36,15 @@ class ACS {
 		return this.check(area.acs, 'read', ACS.Defaults.MessageAreaRead);
 	}
 
+	//
+	//	File Base / Areas
+	//
 	hasFileAreaRead(area) {
 		return this.check(area.acs, 'read', ACS.Defaults.FileAreaRead);
+	}
+
+	hasFileAreaDownload(area) {
+		return this.check(area.acs, 'download', ACS.Defaults.FileAreaDownload);
 	}
 
 	getConditionalValue(condArray, memberName) {
@@ -65,6 +75,7 @@ ACS.Defaults = {
 	MessageConfRead		: 'GM[users]',
 
 	FileAreaRead		: 'GM[users]',
+	FileAreaDownload	: 'GM[users]',
 };
 
 module.exports = ACS;

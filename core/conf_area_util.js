@@ -16,8 +16,8 @@ function sortAreasOrConfs(areasOrConfs, type) {
 	let entryB;
 
 	areasOrConfs.sort((a, b) => {
-		entryA = a[type];
-		entryB = b[type];
+		entryA = type ? a[type] : a;
+		entryB = type ? b[type] : b;
 
 		if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
 			return entryA.sort - entryB.sort;

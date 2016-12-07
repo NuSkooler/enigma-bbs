@@ -30,6 +30,7 @@ const MciViewIds = {
 
 		selectedFilterInfo	: 10,	//	{ ...filter object ... }
 		activeFilterInfo	: 11,	//	{ ...filter object ... }
+		error				: 12,	//	validation errors
 	}
 };
 
@@ -67,7 +68,6 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 
 				this.updateActiveLabel();
 
-				//	:TODO: Need to update %FN somehow
 				return cb(null);
 			},
 			newFilter : (formData, extraArgs, cb) => {
@@ -92,9 +92,8 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 						if(newActive) {
 							filters.setActive(newActive.uuid);
 						} else {
-							//	nothing to set active to
-							//	:TODO: is this what we want?
-							this.client.user.properties.file_base_filter_active_uuid = 'none';
+							//	nothing to set active to						
+							this.client.user.removeProperty('file_base_filter_active_uuid');
 						}
 					}
 
@@ -106,7 +105,23 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 					}
 					return cb(null);
 				});				
-			}
+			},
+
+			viewValidationListener : (err, cb) => {
+				const errorView = this.viewControllers.editor.getView(MciViewIds.editor.error);
+				let newFocusId;
+
+				if(errorView) {
+					if(err) {
+						errorView.setText(err.message);
+						err.view.clearText();	//	clear out the invalid data
+					} else {
+						errorView.clearText();
+					}
+				}
+
+				return cb(newFocusId);
+			},
 		};
 	}
 	

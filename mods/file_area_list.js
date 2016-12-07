@@ -8,12 +8,16 @@ const ansi				= require('../core/ansi_term.js');
 const theme				= require('../core/theme.js');
 const FileEntry			= require('../core/file_entry.js');
 const stringFormat		= require('../core/string_format.js');
+const createCleanAnsi	= require('../core/string_util.js').createCleanAnsi;
 const FileArea			= require('../core/file_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
 const ArchiveUtil		= require('../core/archive_util.js');
 const Config			= require('../core/config.js').config;
 const DownloadQueue		= require('../core/download_queue.js');
 const FileAreaWeb		= require('../core/file_area_web.js');
+const FileBaseFilters	= require('../core/file_base_filter.js');
+
+const cleanControlCodes	= require('../core/string_util.js').cleanControlCodes;
 
 //	deps
 const async				= require('async');
@@ -328,15 +332,27 @@ exports.getModule = class FileAreaList extends MenuModule {
 				function populateViews(callback) {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
-						if(descView) {
-							descView.setText(self.currentFileEntry.desc);
+						if(descView) {					
+							createCleanAnsi(
+								self.currentFileEntry.desc, 
+								{ height : self.client.termHeight, width : descView.dimens.width },
+								cleanDesc => {
+									descView.setText(cleanDesc);
+
+									self.updateQueueIndicator();
+									self.populateCustomLabels('browse', 10);
+
+									return callback(null);
+								}
+							);	
+							descView.setText( self.currentFileEntry.desc );
 						}
+					} else {
+						self.updateQueueIndicator();
+						self.populateCustomLabels('browse', 10);
+
+						return callback(null);
 					}
-
-					self.updateQueueIndicator();
-					self.populateCustomLabels('browse', 10);
-
-					return callback(null);
 				}
 			],
 			err => {
@@ -442,20 +458,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 		);
 
 		this.updateCustomLabelsWithFilter( 'browse', 10, [ '{isQueued}' ] );
-		/*
-		const indicatorView = this.viewControllers.browse.getView(MciViewIds.browse.queueToggle);
-	
-		if(indicatorView) {
-			const isQueuedIndicator		= this.menuConfig.config.isQueuedIndicator || 'Y';
-			const isNotQueuedIndicator	= this.menuConfig.config.isNotQueuedIndicator || 'N';
-			
-			indicatorView.setText(stringFormat(
-				this.dlQueue.isQueued(this.currentFileEntry) ? 
-					isQueuedIndicator : 
-					isNotQueuedIndicator
-				)
-			);
-		}*/
 	}
 
 	cacheArchiveEntries(cb) {
@@ -469,7 +471,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			return cb(Errors.Invalid('Invalid area tag'));
 		}
 		
-		const filePath		= paths.join(areaInfo.storageDirectory, this.currentFileEntry.fileName);
+		const filePath		= this.currentFileEntry.filePath;
 		const archiveUtil	= ArchiveUtil.getInstance();
 
 		archiveUtil.listEntries(filePath, this.currentFileEntry.entryInfo.archiveType, (err, entries) => {
@@ -574,9 +576,10 @@ exports.getModule = class FileAreaList extends MenuModule {
 	}
 
 	loadFileIds(cb) {
-		this.fileListPosition = 0;
+		this.fileListPosition	= 0;
+		const activeFilter		= FileBaseFilters.getActiveFilter(this.client);
 
-		FileEntry.findFiles(this.filterCriteria, (err, fileIds) => {
+		FileEntry.findFiles(activeFilter, (err, fileIds) => {
 			this.fileList = fileIds;
 			return cb(err);
 		});

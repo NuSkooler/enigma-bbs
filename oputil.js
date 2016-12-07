@@ -435,7 +435,7 @@ function handleConfigCommand() {
 	}	
 }
 
-function fileAreaScan(areaTag) {
+function fileAreaScan() {
 	async.waterfall(
 		[
 			function init(callback) {
@@ -453,7 +453,7 @@ function fileAreaScan(areaTag) {
 			},
 			function performScan(fileAreaMod, areaInfo, callback) {
 				fileAreaMod.scanFileAreaForChanges(areaInfo, err => {
-
+					return callback(err);
 				});
 			}
 		],

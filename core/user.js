@@ -325,6 +325,22 @@ User.prototype.persistProperty = function(propName, propValue, cb) {
 	);
 };
 
+User.prototype.removeProperty = function(propName, cb) {
+	//	update live
+	delete this.properties[propName];
+
+	userDb.run(
+		`DELETE FROM user_property
+		WHERE user_id = ? AND prop_name = ?;`,
+		[ this.userId, propName ],
+		err => {
+			if(cb) {
+				return cb(err);
+			}
+		}
+	)
+};
+
 User.prototype.persistProperties = function(properties, cb) {
 	var self = this;
 

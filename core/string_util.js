@@ -2,8 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const miscUtil					= require('./misc_util.js');
-const iconv						= require('iconv-lite');
+const miscUtil			= require('./misc_util.js');
+const ANSIEscapeParser	= require('./ansi_escape_parser.js').ANSIEscapeParser;
+const ANSI				= require('./ansi_term.js');
+
+//	deps
+const iconv				= require('iconv-lite');
 
 exports.stylizeString				= stylizeString;
 exports.pad							= pad;
@@ -16,6 +20,7 @@ exports.renderStringLength			= renderStringLength;
 exports.formatByteSizeAbbr			= formatByteSizeAbbr;
 exports.formatByteSize				= formatByteSize;
 exports.cleanControlCodes			= cleanControlCodes;
+exports.createCleanAnsi				= createCleanAnsi;
 
 //	:TODO: create Unicode verison of this
 const VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -310,15 +315,23 @@ function formatByteSize(byteSize, withAbbr, decimals) {
 //const REGEXP_ANSI_CONTROL_CODES		= /(\x1b\x5b)([\?=;0-9]*?)([0-9A-ORZcf-npsu=><])/g;
 const REGEXP_ANSI_CONTROL_CODES		= /(?:\x1b\x5b)([\?=;0-9]*?)([A-ORZcf-npsu=><])/g;
 const ANSI_OPCODES_ALLOWED_CLEAN	= [
-	'C', 'm' , 
-	'A', 'B', 'D'
+	'A', 'B',	//	up, down
+	'C', 'D',	//	right, left
+	'm',		//	color
 ];
 
-function cleanControlCodes(input) {
+const AnsiSpecialOpCodes = {
+	positioning	: [ 'A', 'B', 'C', 'D' ],	//	up, down, right, left
+	style		: [ 'm' ]					//	color
+};
+
+function cleanControlCodes(input, options) {
 	let m;
 	let pos;
 	let cleaned = '';
 	
+	options = options || {};
+		
 	//
 	//	Loop through |input| adding only allowed ESC
 	//	sequences and literals to |cleaned|
@@ -330,6 +343,10 @@ function cleanControlCodes(input) {
 		if(m) {
 			if(m.index > pos) {
 				cleaned += input.slice(pos, m.index);
+			}
+
+			if(options.all) {
+				continue;
 			}
 
 			if(ANSI_OPCODES_ALLOWED_CLEAN.indexOf(m[2].charAt(0)) > -1) {
@@ -347,61 +364,141 @@ function cleanControlCodes(input) {
 	return cleaned;
 }
 
-function getCleanAnsi(input) {
-	//
-	//	Process |input| and produce |cleaned|, an array
-	//	of lines with "clean" ANSI.
-	//
-	//	Clean ANSI:
-	//	* Contains only color/SGR sequences
-	//	* All movement (up/down/left/right) removed but positioning
-	//	  left intact via spaces/etc.
-	//
-	//	Temporary processing will occur in a grid. Each cell
-	//	containing a character (defaulting to space) possibly a SGR
-	//
-	
-	let m;
-	let pos;
-	let grid = [];
-	let gridPos = { row : 0, col : 0 };
-	
-	function updateGrid(data, dataType) {
-		//	
-		//	Start at to grid[row][col] and populate val[0]...val[N]
-		//	creating cells as necessary
-		//
-		if(!grid[gridPos.row]) {
-			grid[gridPos.row] = [];
-		}
-		
-		if('literal' === dataType) {
-			data.forEach(c => {
-				grid[gridPos.row][gridPos.col] = (grid[gridPos.row][gridPos.col] || '') + c;	//	append to existing SGR
-				gridPos.col++; 
-			});
-		} else if('sgr' === dataType) {
-			grid[gridPos.row][gridPos.col] = (grid[gridPos.row][gridPos.col] || '') + data;
-		}
-	}
-	
-	function literal(s) {
-		let charCode;
-		const len = s.length;
-		for(let i = 0; i < len; ++i) {
-			charCode = s.charCodeAt(i) & 0xff;
+function createCleanAnsi(input, options, cb) {
 
+	options.width	= options.width || 80;
+	options.height	= options.height || 25;
+	
+	const canvas = new Array(options.height);
+	for(let i = 0; i < options.height; ++i) {
+		canvas[i] = new Array(options.width);
+		for(let j = 0; j < options.width; ++j) {
+			canvas[i][j] = {};
 		}
 	}
-	
-	do {
-		pos	= REGEXP_ANSI_CONTROL_CODES.lastIndex;
-		m 	= REGEXP_ANSI_CONTROL_CODES.exec(input);
-		
-		if(null !== m) {
-			if(m.index > pos) {
-				updateGrid(input.slice(pos, m.index), 'literal');
+
+	const parserOpts = {
+		termHeight	: options.height,
+		termWidth	: options.width,
+	};
+
+	const parser = new ANSIEscapeParser(parserOpts);
+
+	const canvasPos = {
+		col : 0,
+		row : 0,
+	};
+
+	let sgr;
+
+	function ensureCell() {
+		//	we've pre-allocated a matrix, but allow for > supplied dimens up front. They will be trimmed @ finalize
+		if(!canvas[canvasPos.row]) {
+			canvas[canvasPos.row] = new Array(options.width);
+			for(let j = 0; j < options.width; ++j) {
+				canvas[canvasPos.row][j] = {};
 			}
 		}
-	} while(0 !== REGEXP_ANSI_CONTROL_CODES.lastIndex);
+		canvas[canvasPos.row][canvasPos.col]	= canvas[canvasPos.row][canvasPos.col] || {};
+		//canvas[canvasPos.row][0].width 			= Math.max(canvas[canvasPos.row][0].width || 0, canvasPos.col); 
+	}
+
+	parser.on('literal', literal => {
+		//
+		//	CR/LF are handled for 'position update'; we don't need the chars themselves
+		//
+		literal = literal.replace(/\r?\n|[\r\u2028\u2029]/g, '');
+
+		for(let i = 0; i < literal.length; ++i) {
+			const c = literal.charAt(i);
+
+			ensureCell();
+
+			canvas[canvasPos.row][canvasPos.col].char	= c;
+						
+			if(sgr) {
+				canvas[canvasPos.row][canvasPos.col].sgr = sgr;
+				sgr = null;
+			}
+
+			canvasPos.col += 1;
+		}
+	});
+
+	parser.on('control', (match, opCode) => {
+		if('m' !== opCode) {
+			return;	//	don't care'
+		}
+		sgr = match;
+	});
+
+	parser.on('position update', (row, col) => {
+		canvasPos.row	= row - 1;
+		canvasPos.col	= Math.min(col - 1, options.width);
+	});
+
+	parser.on('complete', () => {
+		for(let row = 0; row < options.height; ++row) {
+			let col = 0;
+
+			//while(col <= canvas[row][0].width) {
+			while(col < options.width) {
+				if(!canvas[row][col].char) {
+					canvas[row][col].char = 'P';
+					if(!canvas[row][col].sgr) {
+						//	:TODO: fix duplicate SGR's in a row here - we just need one per sequence
+						canvas[row][col].sgr = ANSI.reset();
+					} 
+				}
+
+				col += 1;
+			}
+
+			//	:TODO: end *all* with CRLF - general usage will be width : 79 - prob update defaults
+
+			if(col <= options.width) {
+				canvas[row][col] = canvas[row][col] || {};
+
+				//canvas[row][col].char = '\r\n';
+				canvas[row][col].sgr = ANSI.reset();
+
+				//	:TODO: don't splice, just reset + fill with ' ' till end
+				for(let fillCol = col; fillCol <= options.width; ++fillCol) {
+					canvas[row][fillCol].char = 'X';
+				}
+				
+				//canvas[row] = canvas[row].splice(0, col + 1);
+				//canvas[row][options.width - 1].char = '\r\n';
+
+				
+			} else {
+				canvas[row] = canvas[row].splice(0, options.width + 1);				
+			}
+		
+		}
+
+		let out = '';
+		for(let row = 0; row < options.height; ++row) {
+			out += canvas[row].map( col => {
+				let c = col.sgr || '';
+				c += col.char;
+				return c;
+			}).join('');
+			
+		}
+
+		//	:TODO: finalize: @ any non-char cell, reset sgr & set to ' '
+		//	:TODO: finalize: after sgr established, omit anything > supplied dimens
+		return cb(out);
+	});
+
+	parser.parse(input);
 }
+
+const fs = require('fs');
+let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
+data = iconv.decode(data, 'cp437');
+createCleanAnsi(data, { width : 79, height : 25 }, (out) => {
+	out = iconv.encode(out, 'cp437');
+	fs.writeFileSync('/home/nuskooler/Downloads/art4.ans', out);
+});

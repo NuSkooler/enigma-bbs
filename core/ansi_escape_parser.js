@@ -48,8 +48,10 @@ function ANSIEscapeParser(options) {
 		self.row	= Math.max(self.row, 1);		
 		self.row	= Math.min(self.row, self.termHeight);
 
-		self.emit('move cursor', self.column, self.row);
-		self.rowUpdated();
+//		self.emit('move cursor', self.column, self.row);
+		
+		self.positionUpdated();
+		//self.rowUpdated();
 	};
 
 	self.saveCursorPosition = function() {
@@ -63,7 +65,9 @@ function ANSIEscapeParser(options) {
 		self.row	= self.savedPosition.row;
 		self.column	= self.savedPosition.column;
 		delete self.savedPosition;
-		self.rowUpdated();
+
+		self.positionUpdated();
+//		self.rowUpdated();
 	};
 
 	self.clearScreen = function() {
@@ -71,11 +75,76 @@ function ANSIEscapeParser(options) {
 		self.emit('clear screen');
 	};
 
+/*
 	self.rowUpdated = function() {
 		self.emit('row update', self.row + self.scrollBack);
+	};*/
+
+	self.positionUpdated = function() {
+		self.emit('position update', self.row, self.column);
 	};
 
 	function literal(text) {
+		let charCode;		
+		let pos;
+		let start	= 0;
+		const len	= text.length;
+
+		function emitLiteral() {
+			self.emit('literal', text.slice(start, pos));
+			start = pos;
+		}
+
+		for(pos = 0; pos < len; ++pos) {
+			charCode = text.charCodeAt(pos) & 0xff;	//	ensure 8bit clean
+
+			switch(charCode) {
+				case CR : 
+					emitLiteral();
+										
+					self.column = 1;
+
+					self.positionUpdated();
+					break;
+
+				case LF :
+					emitLiteral();
+
+					self.row += 1;
+
+					self.positionUpdated();
+					break;
+
+				default :
+					if(self.column > self.termWidth) {
+						//
+						//	Emit data up to this point so it can be drawn before the postion update
+						//
+						emitLiteral();
+
+						self.column = 1;
+						self.row	+= 1;
+						
+						self.positionUpdated();
+
+						
+					} else {
+						self.column += 1;
+					}
+					break;
+			}
+		}
+
+		self.emit('literal', text.slice(start));
+
+		if(self.column > self.termWidth) {
+			self.column = 1;
+			self.row	+= 1;
+			self.positionUpdated();
+		}
+	}
+
+	function literal2(text) {
 		var charCode;
 
 		var len = text.length;
@@ -88,29 +157,31 @@ function ANSIEscapeParser(options) {
 
 				case LF : 
 					self.row++;
-					self.rowUpdated();		
+					self.positionUpdated();
+					//self.rowUpdated();		
 					break;
 
 				default :
 					//	wrap
-					if(self.column === self.termWidth) {
+					if(self.column > self.termWidth) {
 						self.column = 1;
 						self.row++;
-						self.rowUpdated();
+						//self.rowUpdated();
+						self.positionUpdated();
 					} else {
-						self.column++;
+						self.column += 1;
 					}
 					break;
 			}
 
-			if(self.row === 26) {	//	:TODO: should be termHeight + 1 ?
-				self.scrollBack++;
-				self.row--;
-				self.rowUpdated();
+			if(self.row === self.termHeight) {
+				self.scrollBack		+= 1;
+				self.row			-= 1;
+
+				self.positionUpdated();
 			}
 		}
 
-		//self.emit('chunk', text);
 		self.emit('literal', text);
 	}
 
@@ -188,10 +259,10 @@ function ANSIEscapeParser(options) {
 		}
 	}
 
-	self.reset = function(buffer) {
+	self.reset = function(input) {
 		self.parseState = {
 			//	ignore anything past EOF marker, if any
-			buffer	: buffer.split(String.fromCharCode(0x1a), 1)[0],
+			buffer	: input.split(String.fromCharCode(0x1a), 1)[0],
 			re		: /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,
 			stop	: false,
 		};
@@ -201,7 +272,11 @@ function ANSIEscapeParser(options) {
 		self.parseState.stop = true;
 	};
 
-	self.parse = function() {
+	self.parse = function(input) {
+		if(input) {
+			self.reset(input);
+		}
+
 		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
 		var pos;
 		var match;
@@ -308,40 +383,45 @@ function ANSIEscapeParser(options) {
 	*/
 
 	function escape(opCode, args) {
-		var arg;
-		var i;
-		var len;
+		let arg;
 
 		switch(opCode) {
 			//	cursor up
 			case 'A' :
-				arg = args[0] || 1;
+				//arg = args[0] || 1;
+				arg = isNaN(args[0]) ? 1 : args[0];
 				self.moveCursor(0, -arg);
 				break;
 
 			//	cursor down
 			case 'B' :
-				arg = args[0] || 1;
+				//arg = args[0] || 1;
+				arg = isNaN(args[0]) ? 1 : args[0];
 				self.moveCursor(0, arg);
 				break;
 
 			//	cursor forward/right
 			case 'C' :
-				arg = args[0] || 1;
+				//arg = args[0] || 1;
+				arg = isNaN(args[0]) ? 1 : args[0];
 				self.moveCursor(arg, 0);
 				break;
 
 			//	cursor back/left
 			case 'D' :
-				arg = args[0] || 1;
+				//arg = args[0] || 1;
+				arg = isNaN(args[0]) ? 1 : args[0];
 				self.moveCursor(-arg, 0);
 				break;
 
 			case 'f' :	//	horiz & vertical
 			case 'H' :	//	cursor position
-				self.row	= args[0] || 1;
-				self.column	= args[1] || 1;
-				self.rowUpdated();
+				//self.row	= args[0] || 1;
+				//self.column	= args[1] || 1;
+				self.row	= isNaN(args[0]) ? 1 : args[0];
+				self.column	= isNaN(args[1]) ? 1 : args[1];
+				//self.rowUpdated();
+				self.positionUpdated();
 				break;
 
 			//	save position
@@ -356,7 +436,7 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
-				for(i = 0, len = args.length; i < len; ++i) {
+				for(let i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 
 					if(ANSIEscapeParser.foregroundColors[arg]) {
@@ -410,12 +490,13 @@ function ANSIEscapeParser(options) {
 						}
 					}
 				}
+				break;	//	m
 
-				break;
+			//	:TODO: s, u, K
 
 			//	erase display/screen
 			case 'J' :
-				//	:TODO: Handle others
+				//	:TODO: Handle other 'J' types!
 				if(2 === args[0]) {
 					self.clearScreen();
 				}

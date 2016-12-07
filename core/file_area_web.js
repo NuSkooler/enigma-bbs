@@ -28,7 +28,8 @@ const WEB_SERVER_PACKAGE_NAME	 = 'codes.l33t.enigma.web.server';
 
 class FileAreaWebAccess {
 	constructor() {
-		this.hashids	= new hashids(Config.general.boardName);
+		this.hashids		= new hashids(Config.general.boardName);
+		this.expireTimers	= {};	//	hashId->timer
 	}
 
 	startup(cb) {
@@ -37,8 +38,7 @@ class FileAreaWebAccess {
 		async.series(
 			[
 				function initFromDb(callback) {
-					//	:TODO: Init from DB & register expiration timers
-					return callback(null);
+					return self.load(callback);
 				},
 				function addWebRoute(callback) {
 					const webServer = getServer(WEB_SERVER_PACKAGE_NAME);
@@ -66,7 +66,56 @@ class FileAreaWebAccess {
 	}
 
 	load(cb) {
-		return cb(null);	//	:TODO: Load from db
+		//
+		//	Load entries, register expiration timers
+		//
+		FileDb.each(
+			`SELECT hash_id, expire_timestamp
+			FROM file_web_serve;`,
+			(err, row) => {
+				if(row) {
+					this.scheduleExpire(row.hash_id, moment(row.expire_timestamp));
+				}
+			},
+			err => {
+				return cb(err);
+			}
+		);
+	}
+
+	removeEntry(hashId) {
+		//
+		//	Delete record from DB, and our timer
+		//
+		FileDb.run(
+			`DELETE FROM file_web_serve
+			WHERE hash_id = ?;`,
+			[ hashId ]
+		);
+
+		delete this.expireTime[hashId];
+	}
+
+	scheduleExpire(hashId, expireTime) {
+
+		//	remove any previous entry for this hashId
+		const previous = this.expireTimers[hashId];
+		if(previous) {
+			clearTimeout(previous);
+			delete this.expireTimers[hashId];
+		}
+
+		const timeoutMs = expireTime.diff(moment());
+
+		if(timeoutMs <= 0) {
+			setImmediate( () => {
+				this.removeEntry(hashId);
+			});
+		} else {
+			this.expireTimers[hashId] = setTimeout( () => {
+				this.removeEntry(hashId);
+			}, timeoutMs);
+		}
 	}
 
 	loadServedHashId(hashId, cb) {
@@ -112,11 +161,8 @@ class FileAreaWebAccess {
 		//	Create a URL such as
 		//	https://l33t.codes:44512/f/qFdxyZr
 		//
-		//	:TODO: build from config
-
-		//
 		//	Prefer HTTPS over HTTP. Be explicit about the port
-		//	only if required.
+		//	only if non-standard.
 		//		
 		let schema;
 		let port;
@@ -163,8 +209,8 @@ class FileAreaWebAccess {
 					return cb(err);
 				}
 
-				//	:TODO: setup tracking of expiration time so we can clean up the entry 
-
+				this.scheduleExpire(hashId, options.expireTime);
+				
 				return cb(null, url);
 			}
 		);
@@ -173,7 +219,7 @@ class FileAreaWebAccess {
 	fileNotFound(resp) {
 		resp.writeHead(404, { 'Content-Type' : 'text/html' } );
 
-		//	:TODO: allow custom 404
+		//	:TODO: allow custom 404 - mods/<theme>/file_area_web-404.html
 		return resp.end('<html><body>Not found</html>');
 	}
 

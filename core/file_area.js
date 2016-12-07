@@ -37,7 +37,8 @@ function getAvailableFileAreas(client, options) {
 	options = options || { includeSystemInternal : false };
 
 	//	perform ACS check per conf & omit system_internal if desired
-	return _.omit(Config.fileAreas.areas, (area, areaTag) => {        
+	const areasWithTags = _.map(Config.fileBase.areas, (area, areaTag) => Object.assign(area, { areaTag : areaTag } ) );
+	return _.omit(Config.fileBase.areas, (area, areaTag) => {        
 		if(!options.includeSystemInternal && WellKnownAreaTags.MessageAreaAttach === areaTag) {
 			return true;
 		}
@@ -48,21 +49,21 @@ function getAvailableFileAreas(client, options) {
 
 function getSortedAvailableFileAreas(client, options) {
 	const areas = _.map(getAvailableFileAreas(client, options), v => v);
-	sortAreasOrConfs(areas, 'area');
+	sortAreasOrConfs(areas);
 	return areas;
 }
 
 function getDefaultFileAreaTag(client, disableAcsCheck) {
-	let defaultArea = _.findKey(Config.fileAreas, o => o.default);
+	let defaultArea = _.findKey(Config.fileBase, o => o.default);
 	if(defaultArea) {
-		const area = Config.fileAreas.areas[defaultArea];
+		const area = Config.fileBase.areas[defaultArea];
 		if(true === disableAcsCheck || client.acs.hasFileAreaRead(area)) {
 			return defaultArea;
 		}
 	}
 
 	//  just use anything we can
-	defaultArea = _.findKey(Config.fileAreas.areas, (area, areaTag) => {
+	defaultArea = _.findKey(Config.fileBase.areas, (area, areaTag) => {
 		return WellKnownAreaTags.MessageAreaAttach !== areaTag && (true === disableAcsCheck || client.acs.hasFileAreaRead(area));
 	});
     
@@ -70,10 +71,10 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 }
 
 function getFileAreaByTag(areaTag) {
-	const areaInfo = Config.fileAreas.areas[areaTag];
+	const areaInfo = Config.fileBase.areas[areaTag];
 	if(areaInfo) {
-		areaInfo.areaTag			= areaTag;	//	convienence!
-		areaInfo.storageDirectory	= getAreaStorageDirectory(areaInfo);
+		areaInfo.areaTag	= areaTag;	//	convienence!
+		areaInfo.storage	= getAreaStorageLocations(areaInfo); 
 		return areaInfo;
 	}
 }
@@ -113,8 +114,38 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
 	);
 }
 
-function getAreaStorageDirectory(areaInfo) {
-	return paths.join(Config.fileBase.areaStoragePrefix, areaInfo.storageDir || '');
+function getAreaStorageDirectoryByTag(storageTag) {
+	const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
+
+	return paths.resolve(Config.fileBase.areaStoragePrefix, storageLocation || '');
+	
+	/*
+	//	absolute paths as-is
+	if(storageLocation && '/' === storageLocation.charAt(0)) {
+		return storageLocation;		
+	}
+
+	//	relative to |areaStoragePrefix|
+	return paths.join(Config.fileBase.areaStoragePrefix, storageLocation || '');
+	*/
+}
+
+function getAreaStorageLocations(areaInfo) {
+	
+	const storageTags = Array.isArray(areaInfo.storageTags) ? 
+		areaInfo.storageTags : 
+		[ areaInfo.storageTags || '' ];
+
+	const avail = Config.fileBase.storageTags;
+	
+	return _.compact(storageTags.map(storageTag => {
+		if(avail[storageTag]) {
+			return {
+				storageTag	: storageTag,
+				dir			: getAreaStorageDirectoryByTag(storageTag),
+			};
+		}
+	}));
 }
 
 function getFileEntryPath(fileEntry) {
@@ -342,29 +373,28 @@ function updateFileEntry(fileEntry, filePath, cb) {
 
 }
 
-function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
+function addOrUpdateFileEntry(areaInfo, storageLocation, fileName, options, cb) {
 	
 	const fileEntry = new FileEntry({
 		areaTag		: areaInfo.areaTag,
 		meta		: options.meta,
 		hashTags	: options.hashTags,	//	Set() or Array
 		fileName	: fileName,
+		storageTag	: storageLocation.storageTag,
 	});
 
-	const filePath	= paths.join(getAreaStorageDirectory(areaInfo), fileName);
+	const filePath	= paths.join(storageLocation.dir, fileName);
 
 	async.waterfall(
 		[
 			function processPhysicalFile(callback) {			
-				const stream = fs.createReadStream(filePath);
-
 				let byteSize	= 0;
 				const sha1		= crypto.createHash('sha1');
 				const sha256	= crypto.createHash('sha256');
 				const md5		= crypto.createHash('md5');
 				const crc32		= new CRC32();
 								
-				//	:TODO: crc32
+				const stream = fs.createReadStream(filePath);
 
 				stream.on('data', data => {
 					byteSize += data.length;
@@ -413,6 +443,58 @@ function addOrUpdateFileEntry(areaInfo, fileName, options, cb) {
 }
 
 function scanFileAreaForChanges(areaInfo, cb) {
+	const storageLocations = getAreaStorageLocations(areaInfo);
+
+	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
+		async.series(
+			[
+				function scanPhysFiles(callback) {
+					const physDir = storageLoc.dir;
+
+					fs.readdir(physDir, (err, files) => {
+						if(err) {
+							return callback(err);
+						}
+
+						async.eachSeries(files, (fileName, nextFile) => {
+							const fullPath = paths.join(physDir, fileName);
+
+							fs.stat(fullPath, (err, stats) => {
+								if(err) {
+									//	:TODO: Log me!
+									return nextFile(null);	//	always try next file
+								}
+
+								if(!stats.isFile()) {
+									return nextFile(null);
+								}
+
+								addOrUpdateFileEntry(areaInfo, storageLoc, fileName, { }, err => {
+									return nextFile(err);
+								});
+							});
+						}, err => {
+							return callback(err);
+						});
+					});
+				},
+				function scanDbEntries(callback) {
+					//	:TODO: Look @ db entries for area that were *not* processed above
+					return callback(null);
+				}
+			], 
+			err => {
+				return nextLocation(err);
+			}
+		);
+	}, 
+	err => {
+		return cb(err);
+	});
+}
+
+/*
+function scanFileAreaForChanges2(areaInfo, cb) {
 	const areaPhysDir = getAreaStorageDirectory(areaInfo);
 
 	async.series(
@@ -455,3 +537,4 @@ function scanFileAreaForChanges(areaInfo, cb) {
 		}
 	);
 }
+*/

@@ -262,6 +262,7 @@ const DB_INIT_TABLE = {
 				area_tag			VARCHAR NOT NULL,
 				file_sha1			VARCHAR NOT NULL,
 				file_name,			/* FTS @ file_fts */
+				storage_tag			VARCHAR NOT NULL,
 				desc,				/* FTS @ file_fts */
 				desc_long,			/* FTS @ file_fts */				
 				upload_timestamp	DATETIME NOT NULL

@@ -12,7 +12,7 @@ const _						= require('lodash');
 const paths					= require('path');
 
 const FILE_TABLE_MEMBERS	= [ 
-	'file_id', 'area_tag', 'file_sha1', 'file_name', 
+	'file_id', 'area_tag', 'file_sha1', 'file_name', 'storage_tag',
 	'desc', 'desc_long', 'upload_timestamp' 
 ];
 
@@ -44,6 +44,7 @@ module.exports = class FileEntry {
 
 		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
+		this.storageTag	= options.storageTag;
 	}
 
 	load(fileId, cb) {
@@ -99,9 +100,9 @@ module.exports = class FileEntry {
 				},
 				function storeEntry(callback) {
 					fileDb.run(
-						`REPLACE INTO file (area_tag, file_sha1, file_name, desc, desc_long, upload_timestamp)
-						VALUES(?, ?, ?, ?, ?, ?);`,
-						[ self.areaTag, self.fileSha1, self.fileName, self.desc, self.descLong, getISOTimestampString() ],
+						`REPLACE INTO file (area_tag, file_sha1, file_name, storage_tag, desc, desc_long, upload_timestamp)
+						VALUES(?, ?, ?, ?, ?, ?, ?);`,
+						[ self.areaTag, self.fileSha1, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
 						function inserted(err) {	//	use non-arrow func for 'this' scope / lastID
 							if(!err) {
 								self.fileId = this.lastID;
@@ -132,15 +133,21 @@ module.exports = class FileEntry {
 		);
 	}
 
-	get filePath() {
-		const areaInfo = Config.fileAreas.areas[this.areaTag];
-		if(areaInfo) {
-			return paths.join(
-				Config.fileBase.areaStoragePrefix, 
-				areaInfo.storageDir || '',
-				this.fileName
-			);
+	static getAreaStorageDirectoryByTag(storageTag) {
+		const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
+	
+		//	absolute paths as-is
+		if(storageLocation && '/' === storageLocation.charAt(0)) {
+			return storageLocation;		
 		}
+
+		//	relative to |areaStoragePrefix|
+		return paths.join(Config.fileBase.areaStoragePrefix, storageLocation || '');
+	}
+
+	get filePath() {
+		const storageDir = FileEntry.getAreaStorageDirectoryByTag(this.storageTag);
+		return paths.join(storageDir, this.fileName);
 	}
 
 	static persistMetaValue(fileId, name, value, cb) {
@@ -193,13 +200,15 @@ module.exports = class FileEntry {
 
 	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
 
-	static findFiles(criteria, cb) {
+	static findFiles(filter, cb) {
 		//	:TODO: build search here - return [ fileid1, fileid2, ... ]
 		//	free form
 		//	areaTag
 		//	tags
 		//	order by
 		//	sort
+
+		filter = filter || {};
 
 		let sql = 
 			`SELECT file_id
@@ -216,21 +225,23 @@ module.exports = class FileEntry {
 			sqlWhere += clause;
 		}
 
-		if(criteria.areaTag) {
-			appendWhereClause(`area_tag="${criteria.areaTag}"`);
+		if(filter.areaTag) {
+			appendWhereClause(`area_tag="${filter.areaTag}"`);
 		}
 
-		if(criteria.search) {
+		if(filter.terms) {
 			appendWhereClause(
 				`file_id IN (
 					SELECT rowid
 					FROM file_fts
-					WHERE file_fts MATCH "${criteria.search.replace(/"/g,'""')}"
+					WHERE file_fts MATCH "${filter.terms.replace(/"/g,'""')}"
 				)`
 			);
 		}
 		
-		if(Array.isArray(criteria.hashTags)) {
+		if(filter.tags) {
+			const tags = filter.tags.split(' ');	//	filter stores as sep separated values
+
 			appendWhereClause(
 				`file_id IN (
 					SELECT file_id
@@ -238,14 +249,14 @@ module.exports = class FileEntry {
 					WHERE hash_tag_id IN (
 						SELECT hash_tag_id
 						FROM hash_tag
-						WHERE hash_tag IN (${criteria.hashTags.join(',')})
+						WHERE hash_tag IN (${tags.join(',')})
 					)
 				)`
 			);
 		}
 
-		//	:TODO: criteria.orderBy
-		//	:TODO: criteria.sort
+		//	:TODO: filter.orderBy
+		//	:TODO: filter.sort
 
 		sql += sqlWhere + ';';
 		const matchingFileIds = [];

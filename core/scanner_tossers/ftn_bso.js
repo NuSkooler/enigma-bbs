@@ -1098,6 +1098,8 @@ function FTNMessageScanTossModule() {
 										
 							return nextFile();	//	unknown archive type
 						}
+
+						Log.debug( { bundleFile : bundleFile }, 'Processing bundle' );
 						
 						self.archUtil.extractTo(
 							bundleFile.path,
