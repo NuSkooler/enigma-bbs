@@ -116,7 +116,7 @@ function DoorPartyModule(options) {
 			],
 			err => {
 				if(err) {
-					self.client.log.warn( { error : err.toString() }, 'DoorParty error');
+					self.client.log.warn( { error : err.message }, 'DoorParty error');
 				}
 				
 				//	if the client is stil here, go to previous

@@ -496,7 +496,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				}
 
 				if('re-cached' === cacheStatus) {
-					const fileListEntryFormat 		= this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';
+					const fileListEntryFormat 		= this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';	//	:TODO: use byteSize here?
 					const focusFileListEntryFormat	= this.menuConfig.config.focusFileListEntryFormat || fileListEntryFormat;
 					
 					fileListView.setItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(fileListEntryFormat, entry) ) );

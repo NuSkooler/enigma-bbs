@@ -12,6 +12,14 @@ module.exports = class DownloadQueue {
 		}
 	}
 
+	get items() {
+		return this.client.user.downloadQueue;
+	}
+
+	clear() {
+		this.client.user.downloadQueue = [];
+	}
+
 	toggle(fileEntry) {
 		if(this.isQueued(fileEntry)) {
 			this.client.user.downloadQueue = this.client.user.downloadQueue.filter(e => fileEntry.fileId !== e.fileId);
@@ -25,8 +33,17 @@ module.exports = class DownloadQueue {
 			fileId		: fileEntry.fileId,
 			areaTag		: fileEntry.areaTag,
 			fileName	: fileEntry.fileName,
-			byteSize	: fileEntry.meta.byteSize || 0,
+			path		: fileEntry.filePath,
+			byteSize	: fileEntry.meta.byte_size || 0,
 		});
+	}
+
+	removeItems(fileIds) {
+		if(!Array.isArray(fileIds)) {
+			fileIds = [ fileIds ];
+		}
+
+		this.client.user.downloadQueue = this.client.user.downloadQueue.filter(e => ( -1 === fileIds.indexOf(e.fileId) ) );
 	}
 
 	isQueued(entryOrId) {

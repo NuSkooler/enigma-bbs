@@ -9,6 +9,7 @@ const getMessageConferenceByTag			= require('./message_area.js').getMessageConfe
 const clientConnections					= require('./client_connections.js');
 const StatLog							= require('./stat_log.js');
 const FileBaseFilters					= require('./file_base_filter.js');
+const formatByteSize					= require('./string_util.js').formatByteSize;
 
 //	deps
 const packageJson 			= require('../package.json');
@@ -85,6 +86,13 @@ function getPredefinedMCIValue(client, code) {
 				const activeFilter = FileBaseFilters.getActiveFilter(client);
 				return activeFilter ? activeFilter.name : ''; 
 			},
+			DN	: function userNumDownloads() { return StatLog.getUserStat(client.user, 'dl_total_count'); },		//	Obv/2
+			DK	: function userByteDownload() {	//	Obv/2
+				const byteSize = parseInt(StatLog.getUserStat(client.user, 'dl_total_bytes')) || 0;
+				return formatByteSize(byteSize, true);
+			},
+			//	:TODO: Up/down ratio (count)
+			//	:TODO: Up/down ratio (bytes)
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },
@@ -167,6 +175,12 @@ function getPredefinedMCIValue(client, code) {
 
 				return StatLog.getSystemStat('random_rumor');
 			},
+
+			//
+			//	System File Base, Up/Download Info
+			//
+			//	:TODO: DD - Today's # of downloads (iNiQUiTY)
+			//	
 
 			//
 			//	Special handling for XY

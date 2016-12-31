@@ -10,7 +10,6 @@ const stringFormat					= require('../core/string_format.js');
 
 //	deps
 const async				= require('async');
-const _					= require('lodash');
 
 exports.moduleInfo = {
 	name		: 'File Area Filter Editor',

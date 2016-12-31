@@ -289,22 +289,28 @@ function getDefaultConfig() {
 				external	: {
 					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
 					sendArgs	: [
-						'--zmodem', '-y', '--try-8k', '--binary', '--restricted', '{filePath}'
+						'--zmodem', '-y', '--try-8k', '--binary', '--restricted', '{filePaths}'
 					],
 					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+					supportsBatch	: true,
 				} 
 			},
 
 			zmodem8kSexyz : {
-				name		: 'ZModem (SEXYZ)',
+				name		: 'ZModem 8k (SEXYZ)',
 				type		: 'external',
 				external	: {
 					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
 					sendCmd		: 'sexyz',
 					sendArgs	: [
-						'-telnet', 'sz', '{filePath}'
+						'-telnet', '-8', 'sz', '@{fileListPath}'
+					],
+					recvCmd		: 'sexyz',
+					recvArgs	: [
+						'-telnet', '-8', 'rz', '{uploadDir}'
 					],
 					escapeTelnet	: false,	//	-telnet option does this for us
+					supportsBatch	: true,
 				} 
 			}
 

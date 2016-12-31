@@ -2,14 +2,22 @@
 'use strict';
 
 //	enigma-bbs
-const MenuModule	= require('./menu_module.js').MenuModule;
-const Config		= require('./config.js').config;
-const stringFormat	= require('./string_format.js');
+const MenuModule		= require('./menu_module.js').MenuModule;
+const Config			= require('./config.js').config;
+const stringFormat		= require('./string_format.js');
+const Errors			= require('./enig_error.js').Errors;
+const DownloadQueue		= require('./download_queue.js');
+const StatLog			= require('./stat_log.js');
+const FileEntry			= require('./file_entry.js');
 
 //	deps
 const async			= require('async');
 const _				= require('lodash');
 const pty			= require('ptyw.js');
+const temp			= require('temp').track();	//	track() cleans up temp dir/files for us
+const paths			= require('path');
+const fs			= require('fs');
+const fse			= require('fs-extra');
 
 /*
 	Resources
@@ -30,67 +38,281 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		super(options);
 
 		this.config = this.menuConfig.config || {};
-		this.config.protocol 	= this.config.protocol || 'zmodem8kSz';
-		this.config.direction	= this.config.direction || 'send'; 
 
-		this.protocolConfig = Config.fileTransferProtocols[this.config.protocol];
+		//
+		//	Most options can be set via extraArgs or config block
+		//
+		if(options.extraArgs) {
+			if(options.extraArgs.protocol) {
+				this.protocolConfig = Config.fileTransferProtocols[options.extraArgs.protocol];
+			}
 
-		//	:TODO: bring in extraArgs for path(s) to send when sending; Allow to hard code in config (e.g. for info pack/static downloads)
+			if(options.extraArgs.direction) {
+				this.direction = options.extraArgs.direction;
+			}
+
+			if(options.extraArgs.sendQueue) {
+				this.sendQueue = options.extraArgs.sendQueue;	
+			}
+
+			if(options.extraArgs.recvFileName) {
+				this.recvFileName = options.extraArgs.recvFiles;
+			}
+
+			if(options.extraArgs.recvDirectory) {
+				this.recvDirectory = options.extraArgs.recvDirectory;
+			}
+		} else {
+			if(this.config.protocol) {
+				this.protocolConfig = Config.fileTransferProtocols[this.config.protocol];
+			}
+
+			if(this.config.direction) {
+				this.direction = this.config.direction;
+			}
+
+			if(this.config.sendQueue) {
+				this.sendQueue = this.config.sendQueue;
+			}
+
+			if(this.config.recvFileName) {
+				this.recvFileName = this.config.recvFileName;
+			}
+
+			if(this.config.recvDirectory) {
+				this.recvDirectory = this.config.recvDirectory;
+			}
+		}
+
+		this.protocolConfig = this.protocolConfig || Config.fileTransferProtocols.zmodem8kSz;	//	try for *something*
+		this.direction		= this.direction || 'send';
+		this.sendQueue		= this.sendQueue || [];
+
+		//	Ensure sendQueue is an array of objects that contain at least a 'path' member
+		this.sendQueue = this.sendQueue.map(item => {
+			if(_.isString(item)) {
+				return { path : item };
+			} else {
+				return item;
+			}			
+		});
+
+		this.sentFileIds = [];
+	}
+
+	get isSending() {
+		return 'send' === this.direction;
 	}
 
 	restorePipeAfterExternalProc(pipe) {
 		if(!this.pipeRestored) {
 			this.pipeRestored = true;
+
+			this.client.restoreDataHandler();
 			
-			this.client.term.output.unpipe(pipe);
-			this.client.term.output.resume();
+			//this.client.term.output.unpipe(pipe);
+			//this.client.term.output.resume();
 		}
 	}
 
 	sendFiles(cb) {
-		async.eachSeries(this.sendQueue, (filePath, next) => {
-			//	:TODO: built in protocols
-			//	:TODO: use protocol passed in
-			this.executeExternalProtocolHandler(filePath, err => {
-				return next(err);
+		//	:TODO: built in/native protocol support
+
+		if(this.protocolConfig.external.supportsBatch) {
+			const allFiles = this.sendQueue.map(f => f.path);
+			this.executeExternalProtocolHandlerForSend(allFiles, err => {
+				if(err) {
+					this.client.log.warn( { files : allFiles, error : err.message }, 'Error sending file(s)' );
+				} else {
+					const sentFiles = [];
+					this.sendQueue.forEach(f => {
+						f.sent = true;
+						sentFiles.push(f.path);
+						
+					});
+
+					this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
+				}
+				return cb(err);
 			});
-		}, err => {
-			return cb(err);
+		} else {
+			//	:TODO: we need to prompt between entries such that users can prepare their clients
+			async.eachSeries(this.sendQueue, (queueItem, next) => {
+				this.executeExternalProtocolHandlerForSend(queueItem.path, err => {
+					if(err) {
+						this.client.log.warn( { file : queueItem.path, error : err.message }, 'Error sending file' );
+					} else {
+						queueItem.sent = true;
+
+						this.client.log.info( { sentFile : queueItem.path }, 'Successfully sent file' );
+					}
+					return next(err);
+				});
+			}, err => {				
+				return cb(err);
+			});
+		}		
+	}
+
+	recvFiles(cb) {
+		this.executeExternalProtocolHandlerForRecv( (err, tempWorkingDir) => {
+			if(err) {
+				return cb(err);
+			}
+
+			this.receivedFiles = [];
+
+			if(this.recvFileName) {
+				//	file name specified - we expect a single file in |tempWorkingDir|
+				return cb(null);
+			} else {
+				//
+				//	blind recv (upload) - files in |tempWorkingDir| should be named appropriately already
+				//	move files to |this.recvDirectory|
+				//
+				fs.readdir(tempWorkingDir, (err, files) => {
+					if(err) {
+						return cb(err);
+					}
+
+					async.each(files, (file, nextFile) => {
+						fse.move(
+							paths.join(tempWorkingDir, file),
+							paths.join(this.recvDirectory, file),
+							err => {
+								if(err) {
+									//	:TODO: IMPORTANT: Handle collisions - rename to FILE(1).EXT, etc.
+									this.client.log.warn(
+										{ tempWorkingDir : tempWorkingDir, recvDirectory : this.recvDirectory, file : file, error : err.message }, 
+										'Failed to move upload file to destination directory'
+									);
+								} else {
+									this.receivedFiles.push(file);
+								}
+								return nextFile(null);	//	don't pass along err; try next
+							}
+						);
+					}, () => {
+						return cb(null);
+					});
+					
+				});
+			}
 		});
 	}
 
-	executeExternalProtocolHandler(filePath, cb) {
-		const external		= this.protocolConfig.external;
-		const cmd			= external[`${this.config.direction}Cmd`];
-		const args			= external[`${this.config.direction}Args`].map(arg => {
-			return stringFormat(arg, {
-				filePath	: filePath,
-			});
-		});
+	pathWithTerminatingSeparator(path) {
+		if(path && paths.sep !== path.charAt(path.length - 1)) {
+			path = path + paths.sep;
+		}
+		return path;
+	}
 
-		/*this.client.term.rawWrite(new Buffer(
-			[ 
-				255, 253, 0,	//	IAC DO TRANSMIT_BINARY
-				255, 251, 0,	//	IAC WILL TRANSMIT_BINARY
-			]
-		));*/
+	prepAndBuildSendArgs(filePaths, cb) {
+		const external		= this.protocolConfig.external;
+		const externalArgs	= external[`${this.direction}Args`];
+		const self			= this;
+		let tempWorkingDir;
+
+		async.waterfall(
+			[
+				function getTempFileListPath(callback) {
+					const hasFileList = externalArgs.find(ea => (ea.indexOf('{fileListPath}') > -1) );
+					if(!hasFileList) {
+						temp.mkdir('enigdl-', (err, tempDir) => {
+							if(err) {
+								return callback(err);
+							}
+
+							tempWorkingDir = self.pathWithTerminatingSeparator(tempDir);
+							return callback(null, null);
+						});
+					} else {
+						temp.open( { prefix : 'enigdl-', suffix : '.txt' }, (err, tempFileInfo) => {
+							if(err) {
+								return callback(err);	//	failed to create it 
+							}
+
+							tempWorkingDir = self.pathWithTerminatingSeparator(paths.dirname(tempFileInfo.path));
+
+							fs.write(tempFileInfo.fd, filePaths.join('\n'));
+							fs.close(tempFileInfo.fd, err => {
+								return callback(err, tempFileInfo.path);
+							});
+						});
+					}
+				},
+				function createArgs(tempFileListPath, callback) {
+					//	initial args: ignore {filePaths} as we must break that into it's own sep array items
+					const args = externalArgs.map(arg => {
+						return '{filePaths}' === arg ? arg : stringFormat(arg, {
+							fileListPath	: tempFileListPath || '',
+						});
+					});
+
+					const filePathsPos = args.indexOf('{filePaths}');
+					if(filePathsPos > -1) {
+						//	replace {filePaths} with 0:n individual entries in |args|
+						args.splice.apply( args, [ filePathsPos, 1 ].concat(filePaths) );
+					}
+
+					return callback(null, args);
+				}
+			], 
+			(err, args) => {
+				return cb(err, args, tempWorkingDir);
+			}
+		);
+	}
+
+	prepAndBuildRecvArgs(cb) {
+		const self = this;
+
+		async.waterfall(
+			[
+				function getTempRecvPath(callback) {
+					temp.mkdir('enigrcv-', (err, tempWorkingDir) => {
+						tempWorkingDir = self.pathWithTerminatingSeparator(tempWorkingDir);
+						return callback(err, tempWorkingDir);
+					});
+				},
+				function createArgs(tempWorkingDir, callback) {
+					const externalArgs	= self.protocolConfig.external[`${self.direction}Args`];
+					const args			= externalArgs.map(arg => stringFormat(arg, {
+						uploadDir		: tempWorkingDir,
+						fileName		: self.recvFileName || '',
+					}));
+
+					return callback(null, args, tempWorkingDir);
+				}
+			],
+			(err, args, tempWorkingDir) => {
+				return cb(err, args, tempWorkingDir);
+			}
+		);
+	}
+
+	executeExternalProtocolHandler(args, tempWorkingDir, cb) {
+		const external	= this.protocolConfig.external;
+		const cmd		= external[`${this.direction}Cmd`];
+
+		this.client.log.debug(
+			{ cmd : cmd, args : args, tempDir : tempWorkingDir, direction : this.direction },
+			'Executing external protocol'
+		);
 
 		const externalProc = pty.spawn(cmd, args, {
-			cols : this.client.term.termWidth,
-			rows : this.client.term.termHeight,
-			//	:TODO: cwd
-			//	:TODO: anything else??
-			//env	: self.exeInfo.env,
+			cols	: this.client.term.termWidth,
+			rows	: this.client.term.termHeight,
+			cwd		: tempWorkingDir,				
 		});
 
-		this.client.term.output.pipe(externalProc);
-
-		/*this.client.term.output.on('data', data => {
-		//	let tmp = data.toString('binary').replace(/\xff\xff/g, '\xff');
-		//	proc.write(new Buffer(tmp, 'binary'));
-			proc.write(data);
+		this.client.setTemporaryDataHandler(data => {
+			externalProc.write(data);
 		});
-		*/
+		
+		//this.client.term.output.pipe(externalProc);		
+
 		externalProc.on('data', data => {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
@@ -105,7 +327,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			return this.restorePipeAfterExternalProc(externalProc);
 		});
 
-		externalProc.once('exit', exitCode => {
+		externalProc.once('exit', (exitCode) => {
+			this.client.log.debug( { cmd : cmd, args : args, exitCode : exitCode }, 'Process exited' );
+			
 			this.restorePipeAfterExternalProc(externalProc);
 			externalProc.removeAllListeners();
 
@@ -113,20 +337,162 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		});	
 	}
 
+	executeExternalProtocolHandlerForSend(filePaths, cb) {
+		if(!Array.isArray(filePaths)) {
+			filePaths = [ filePaths ];
+		}
+
+		this.prepAndBuildSendArgs(filePaths, (err, args, tempWorkingDir) => {
+			if(err) {
+				return cb(err);
+			}
+
+			this.executeExternalProtocolHandler(args, tempWorkingDir, err => {
+				return cb(err);
+			});		
+		});
+	}
+
+	executeExternalProtocolHandlerForRecv(cb) {
+		this.prepAndBuildRecvArgs( (err, args, tempWorkingDir) => {
+			if(err) {
+				return cb(err);
+			}
+
+			this.executeExternalProtocolHandler(args, tempWorkingDir, err => {
+				return cb(err, tempWorkingDir);
+			});
+		});
+	}
+
+	getMenuResult() {
+		return { sentFileIds : this.sentFileIds };
+	}
+
+	updateSendStats(cb) {
+		let downloadBytes 	= 0;
+		let downloadCount	= 0;
+		let fileIds			= [];
+
+		async.each(this.sendQueue, (queueItem, next) => {
+			if(!queueItem.sent) {
+				return next(null);
+			}
+
+			if(queueItem.fileId) {
+				fileIds.push(queueItem.fileId);
+			}
+
+			downloadCount += 1;
+
+			if(_.isNumber(queueItem.byteSize)) {
+				downloadBytes += queueItem.byteSize;
+				return next(null);
+			}
+
+			//	we just have a path - figure it out
+			fs.stat(queueItem.path, (err, stats) => {
+				if(err) {
+					this.client.log.warn( { error : err.message, path : queueItem.path }, 'File stat failed' );
+				} else {
+					downloadBytes += stats.size;
+				}
+
+				return next(null);
+			});
+		}, () => {
+			//	All stats/meta currently updated via fire & forget - if this is ever a issue, we can wait for callbacks
+			StatLog.incrementUserStat(this.client.user, 'dl_total_count', downloadCount);
+			StatLog.incrementUserStat(this.client.user, 'dl_total_bytes', downloadBytes);
+			StatLog.incrementSystemStat('dl_total_count', downloadCount);
+			StatLog.incrementSystemStat('dl_total_bytes', downloadBytes);
+
+			fileIds.forEach(fileId => {
+				FileEntry.incrementAndPersistMetaValue(fileId, 'dl_count', 1);
+			});
+			
+			return cb(null);
+		});
+	}
+	
+	updateRecvStats(cb) {
+		//	:TODO: update user & system upload stats
+		return cb(null);
+	}
+
 	initSequence() {
 		const self = this;
+
+		//	:TODO: break this up to send|recv
 
 		async.series(
 			[
 				function validateConfig(callback) {
-					//	:TODO:
+					if(self.isSending) {
+						if(!Array.isArray(self.sendQueue)) {
+							self.sendQueue = [ self.sendQueue ];  
+						}
+					}
+
 					return callback(null);
 				},
 				function transferFiles(callback) {
-					self.sendQueue = [ '/home/nuskooler/Downloads/fdoor100.zip' ];	//	:TODO: testing of course
-					return self.sendFiles(callback);
+					if(self.isSending) {
+						self.sendFiles( err => {
+							if(err) {
+								return callback(err);
+							}
+
+							const sentFileIds = [];
+							self.sendQueue.forEach(queueItem => {
+								if(queueItem.sent && queueItem.fileId) {
+									sentFileIds.push(queueItem.fileId);
+								}
+							});
+
+							if(sentFileIds.length > 0) {
+								//	remove items we sent from the D/L queue
+								const dlQueue = new DownloadQueue(self.client);
+								dlQueue.removeItems(sentFileIds);
+
+								self.sentFileIds = sentFileIds;
+							}
+
+							return callback(null);
+						});
+					} else {
+						self.recvFiles( err => {
+							return callback(err);
+						});
+					}
+				},
+				function cleanupTempFiles(callback) {
+					temp.cleanup( err => {
+						if(err) {
+							self.client.log.warn( { error : err.message }, 'Failed to clean up temporary file/directory(s)' );
+						}
+						return callback(null);	//	ignore err
+					});
+				},
+				function updateUserAndSystemStats(callback) {
+					if(self.isSending) {
+						return self.updateSendStats(callback);
+					} else {
+						return self.updateRecvStats(callback);
+					}
 				}
-			]
+			],
+			err => {
+				if(err) {
+					self.client.log.warn( { error : err.message }, 'File transfer error');
+				}
+
+				//	Wait for a key press - attempt to avoid issues with some terminals after xfer
+				self.client.term.write('|00\nTransfer(s) complete. Press a key\n');
+				self.client.waitForKeyPress( () => {
+					self.prevMenu();
+				});
+			}
 		);
 	}
 };

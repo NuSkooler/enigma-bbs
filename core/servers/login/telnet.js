@@ -438,6 +438,65 @@ function TelnetClient(input, output) {
 		newEnvironRequested	: false,
 	};
 
+	this.setTemporaryDataHandler = function(handler) {
+		this.input.removeAllListeners();
+		this.input.on('data', handler);
+	};
+
+	this.restoreDataHandler = function() {
+		this.input.removeAllListeners();
+		this.input.on('data', this.dataHandler);
+	};
+
+	this.dataHandler = function(b) {
+		bufs.push(b);
+
+		let i;
+		while((i = bufs.indexOf(IAC_BUF)) >= 0) {
+
+			//
+			//	Some clients will send even IAC separate from data
+			//
+			if(bufs.length <= (i + 1)) {
+				i = MORE_DATA_REQUIRED;
+				break;
+			}
+
+			assert(bufs.length > (i + 1));
+			
+			if(i > 0) {
+				self.emit('data', bufs.splice(0, i).toBuffer());
+			}
+
+			i = parseBufs(bufs);
+			
+			if(MORE_DATA_REQUIRED === i) {
+				break;				
+			} else {
+				if(i.option) {
+					self.emit(i.option, i);	//	"transmit binary", "echo", ...
+				}
+
+				self.handleTelnetEvent(i);
+
+				if(i.data) {
+					self.emit('data', i.data);
+				}
+			}
+		}
+
+		if(MORE_DATA_REQUIRED !== i && bufs.length > 0) {
+			//
+			//	Standard data payload. This can still be "non-user" data
+			//	such as ANSI control, but we don't handle that here.
+			//
+			self.emit('data', bufs.splice(0).toBuffer());
+		}
+	};
+
+	this.input.on('data', this.dataHandler);
+
+	/*
 	this.input.on('data', b => {
 		bufs.push(b);
 
@@ -482,8 +541,8 @@ function TelnetClient(input, output) {
 			//
 			self.emit('data', bufs.splice(0).toBuffer());
 		}
-
 	});
+	*/
 
 	this.input.on('end', () => {
 		self.emit('end');

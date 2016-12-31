@@ -34,13 +34,17 @@ const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 };
 
 function getAvailableFileAreas(client, options) {
-	options = options || { includeSystemInternal : false };
+	options = options || { };
 
 	//	perform ACS check per conf & omit system_internal if desired
 	const areasWithTags = _.map(Config.fileBase.areas, (area, areaTag) => Object.assign(area, { areaTag : areaTag } ) );
 	return _.omit(Config.fileBase.areas, (area, areaTag) => {        
 		if(!options.includeSystemInternal && WellKnownAreaTags.MessageAreaAttach === areaTag) {
 			return true;
+		}
+
+		if(options.writeAcs && !client.acs.FileAreaWrite(area)) {
+			return true;	//	omit
 		}
 
 		return !client.acs.hasFileAreaRead(area);

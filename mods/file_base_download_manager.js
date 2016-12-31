@@ -1,0 +1,195 @@
+/* jslint node: true */
+'use strict';
+
+//	ENiGMA½
+const MenuModule			= require('../core/menu_module.js').MenuModule;
+const ViewController		= require('../core/view_controller.js').ViewController;
+const DownloadQueue			= require('../core/download_queue.js');
+const theme					= require('../core/theme.js');
+const ansi					= require('../core/ansi_term.js');
+const Errors				= require('../core/enig_error.js').Errors;
+const stringFormat			= require('../core/string_format.js');
+
+//	deps
+const async					= require('async');
+const _						= require('lodash');
+
+exports.moduleInfo = {
+	name		: 'File Base Download Queue Manager',
+	desc		: 'Module for interacting with download queue/batch',
+	author		: 'NuSkooler',
+};
+
+const FormIds = {
+	queueManager	: 0,
+	details			: 1,
+};
+
+const MciViewIds = {
+	queueManager : {
+		queue	: 1,
+		navMenu	: 2,
+	},
+	details : {
+
+	}
+};
+
+exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
+
+	constructor(options) {
+		super(options);
+
+		this.dlQueue = new DownloadQueue(this.client);
+
+		if(_.has(options, 'lastMenuResult.sentFileIds')) {
+			this.sentFileIds = options.lastMenuResult.sentFileIds;
+		}
+		
+		this.fallbackOnly = options.lastMenuResult ? true : false;
+
+		this.menuMethods = {
+			downloadAll : (formData, extraArgs, cb) => {
+				const modOpts = {
+					extraArgs : {
+						sendQueue : this.dlQueue.items,
+					}
+				};
+
+				return this.gotoMenu(this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection', modOpts, cb);
+			},
+			viewItemInfo : (formData, extraArgs, cb) => {
+			},
+			removeItem : (formData, extraArgs, cb) => {
+				const selectedItem = formData.value.queueItem;
+				this.dlQueue.removeItems(selectedItem);
+				return this.updateDownloadQueueView(cb);
+			},
+			clearQueue : (formData, extraArgs, cb) => {
+				this.dlQueue.clear();
+				return this.updateDownloadQueueView(cb);
+			}
+		};
+	}
+
+	initSequence() {
+		if(0 === this.dlQueue.items.length) {
+			if(this.sendFileIds) {
+				//	we've finished everything up - just fall back
+				return this.prevMenu();
+			}
+
+			//	Simply an empty D/L queue: Present a specialized "empty queue" page
+			//	:TODO: This technique can be applied in many areas of the code; probablly need a better name than 'popAndGotoMenu' though
+			//	...actually, the option to not append to the stack would be better here
+			return this.gotoMenu(this.menuConfig.config.emptyQueueMenu || 'fileBaseDownloadManagerEmptyQueue');
+			//return this.popAndGotoMenu(this.menuConfig.config.emptyQueueMenu || 'fileBaseDownloadManagerEmptyQueue');
+		}
+
+		const self = this;
+
+		async.series(
+			[
+				function beforeArt(callback) {
+					return self.beforeArt(callback);
+				},
+				function display(callback) {
+					return self.displayQueueManagerPage(false, callback);
+				}
+			],
+			() => {
+				return self.finishedLoading();
+			}
+		);
+	}
+
+	updateDownloadQueueView(cb) {
+		const queueView = this.viewControllers.queueManager.getView(MciViewIds.queueManager.queue);
+		if(!queueView) {
+			return cb(Errors.DoesNotExist('Queue view does not exist'));
+		}
+
+		const queueListFormat		= this.menuConfig.config.queueListFormat || '{fileName} {byteSize}';
+		const focusQueueListFormat	= this.menuConfig.config.focusQueueListFormat || queueListFormat;
+
+		queueView.setItems(this.dlQueue.items.map( queueItem => stringFormat(queueListFormat, queueItem) ) );
+		queueView.setFocusItems(this.dlQueue.items.map( queueItem => stringFormat(focusQueueListFormat, queueItem) ) );
+
+		queueView.redraw();
+
+		return cb(null);
+	}
+
+	displayQueueManagerPage(clearScreen, cb) {
+		const self = this;
+
+		async.series(
+			[
+				function prepArtAndViewController(callback) {
+					return self.displayArtAndPrepViewController('queueManager', { clearScreen : clearScreen }, callback);
+				},
+				function populateViews(callback) {
+					return self.updateDownloadQueueView(callback);
+				}
+			],
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
+		);
+	}
+
+	displayArtAndPrepViewController(name, options, cb) {
+		const self		= this;
+		const config	= this.menuConfig.config;
+
+		async.waterfall(
+			[
+				function readyAndDisplayArt(callback) {
+					if(options.clearScreen) {
+						self.client.term.rawWrite(ansi.clearScreen());
+					}
+
+					theme.displayThemedAsset(
+						config.art[name],
+						self.client,
+						{ font : self.menuConfig.font, trailingLF : false },
+						(err, artData) => {
+							return callback(err, artData);
+						}
+					);
+				},
+				function prepeareViewController(artData, callback) {
+					if(_.isUndefined(self.viewControllers[name])) {
+						const vcOpts = {
+							client		: self.client,
+							formId		: FormIds[name],
+						};
+
+						if(!_.isUndefined(options.noInput)) {
+							vcOpts.noInput = options.noInput;
+						}
+
+						const vc = self.addViewController(name, new ViewController(vcOpts));
+
+						const loadOpts = {
+							callingMenu		: self,
+							mciMap			: artData.mciMap,
+							formId			: FormIds[name],
+						};
+
+						return vc.loadFromMenuConfig(loadOpts, callback);
+					}
+					
+					self.viewControllers[name].setFocus(true);
+					return callback(null);
+										
+				},
+			],
+			err => {
+				return cb(err);
+			}
+		);
+	}
+};

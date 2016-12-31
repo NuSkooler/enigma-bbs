@@ -135,11 +135,21 @@ module.exports = class MenuStack {
 					currentModuleInfo.instance.leave();
 				}
 
-				self.push({
-					name		: name,
-					instance	: modInst,
-					extraArgs	: loadOpts.extraArgs,
-				});
+				const noHistory = modInst.menuConfig.options.menuFlags.indexOf('noHistory') > -1;
+
+				const stackToLog = _.map(self.stack, stackEntry => stackEntry.name);
+
+				if(!noHistory) {
+					self.push({
+						name		: name,
+						instance	: modInst,
+						extraArgs	: loadOpts.extraArgs,
+					});
+
+					stackToLog.push(name);
+				} else {
+					stackToLog.push(`${name} (noHistory)`);
+				}
 
 				//	restore previous state if requested
 				if(options && options.savedState) {
@@ -149,8 +159,11 @@ module.exports = class MenuStack {
 				modInst.enter();
 
 				self.client.log.trace(
-					{ stack : _.map(self.stack, stackEntry => stackEntry.name) },
-					'Updated menu stack');
+					{
+						stack : stackToLog
+					},
+					'Updated menu stack'
+				);
 
 				if(cb) {
 					cb(null);

@@ -43,6 +43,10 @@ class ACS {
 		return this.check(area.acs, 'read', ACS.Defaults.FileAreaRead);
 	}
 
+	hasFileAreaWrite(area) {
+		return this.check(area.acs, 'write', ACS.Defaults.FileAreaWrite);
+	}
+
 	hasFileAreaDownload(area) {
 		return this.check(area.acs, 'download', ACS.Defaults.FileAreaDownload);
 	}
@@ -75,6 +79,7 @@ ACS.Defaults = {
 	MessageConfRead		: 'GM[users]',
 
 	FileAreaRead		: 'GM[users]',
+	FileAreaWrite		: 'GM[sysops]',
 	FileAreaDownload	: 'GM[users]',
 };
 

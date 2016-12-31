@@ -159,6 +159,21 @@ module.exports = class FileEntry {
 		);
 	}
 
+	static incrementAndPersistMetaValue(fileId, name, incrementBy, cb) {
+		incrementBy = incrementBy || 1;
+		fileDb.run(
+			`UPDATE file_meta
+			SET meta_value = meta_value + ?
+			WHERE file_id = ? AND meta_name = ?;`,
+			[ incrementBy, fileId, name ],
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
+		);
+	}
+
 	loadMeta(cb) {
 		fileDb.each(
 			`SELECT meta_name, meta_value

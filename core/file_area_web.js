@@ -93,7 +93,7 @@ class FileAreaWebAccess {
 			[ hashId ]
 		);
 
-		delete this.expireTime[hashId];
+		delete this.expireTimers[hashId];
 	}
 
 	scheduleExpire(hashId, expireTime) {

@@ -266,7 +266,7 @@ function display(client, art, options, cb) {
 		if(!options.disableMciCache && !mciMapFromCache) {
 			//	cache our MCI findings...
 			client.mciCache[artHash] = mciMap;
-			client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Added MCI map to cache');
+			client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Added MCI map to cache');
 		}
 
 		ansiParser.removeAllListeners();	//	:TODO: Necessary???
@@ -290,7 +290,7 @@ function display(client, art, options, cb) {
 
 	if(mciMap) {
 		mciMapFromCache = true;
-		client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Loaded MCI map from cache');
+		client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Loaded MCI map from cache');
 	} else {
 		//	no cached MCI info
 		mciMap = {};

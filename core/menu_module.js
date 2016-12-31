@@ -3,14 +3,12 @@
 
 var PluginModule		= require('./plugin_module.js').PluginModule;
 var theme				= require('./theme.js');
-var art					= require('./art.js');
-var Log					= require('./logger.js').log;
 var ansi				= require('./ansi_term.js');
-var asset				= require('./asset.js');
 var ViewController		= require('./view_controller.js').ViewController;
 var menuUtil			= require('./menu_util.js');
 var Config				= require('./config.js').config;
 
+//	deps
 var async				= require('async');
 var assert				= require('assert');
 var _					= require('lodash');
@@ -236,6 +234,11 @@ MenuModule.prototype.gotoMenu = function(name, options, cb) {
 	this.client.menuStack.goto(name, options, cb);
 };
 
+MenuModule.prototype.popAndGotoMenu = function(name, options, cb) {
+	this.client.menuStack.pop();
+	this.client.menuStack.goto(name, options, cb);
+};
+
 MenuModule.prototype.leave = function() {
 	this.detachViewControllers();
 };
@@ -321,4 +324,66 @@ MenuModule.prototype.finishedLoading = function() {
 
 MenuModule.prototype.getMenuResult = function() {
 	//	nothing in base
+};
+
+MenuModule.prototype.displayAsset = function(name, options, cb) {
+
+	if(_.isFunction(options)) {
+		cb = options;
+		options = {};
+	}
+
+	if(options.clearScreen) {
+		this.client.term.rawWrite(ansi.clearScreen());
+	}
+	
+	return theme.displayThemedAsset(
+		name, 
+		this.client, 
+		Object.merge( { font : this.menuConfig.config }, options ),
+		(err, artData) => {
+			if(cb) {
+				return cb(err, artData);
+			}
+		}
+	);
+	
+};
+
+MenuModule.prototype.prepViewController = function(name, formId, artData, cb) {
+	
+	if(_.isUndefined(this.viewControllers[name])) {
+		const vcOpts = {
+			client		: this.client,
+			formId		: formId,
+		};
+
+		const vc = this.addViewController(name, new ViewController(vcOpts));
+
+		const loadOpts = {
+			callingMenu		: this,
+			mciMap			: artData.mciMap,
+			formId			: formId,
+		};
+
+		return vc.loadFromMenuConfig(loadOpts, cb);
+	}
+
+	this.viewControllers[name].setFocus(true);
+	return cb(null);
+};
+
+
+MenuModule.prototype.prepViewControllerWithArt = function(name, formId, options, cb) {
+	this.displayAsset(
+		name,
+		options,
+		(err, artData) => {
+			if(err) {
+				return cb(err);
+			}
+
+			return this.prepViewController(name, formId, artData, cb);
+		}
+	);
 };
