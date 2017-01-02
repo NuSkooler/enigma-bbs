@@ -404,7 +404,7 @@ function getDefaultConfig() {
 			},
 
 			areas: {
-				systemm_message_attachment : {
+				system_message_attachment : {
 					name		: 'Message attachments',
 					desc		: 'File attachments to messages',
 					storageTags	: 'sys_msg_attach',	//	may be string or array of strings

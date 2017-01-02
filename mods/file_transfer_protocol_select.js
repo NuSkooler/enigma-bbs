@@ -27,11 +27,18 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 		super(options);
 
 		this.config = this.menuConfig.config || {};
+
+		if(options.extraArgs) {
+			if(options.extraArgs.direction) {
+				this.config.direction = options.extraArgs.direction;
+			}
+		}
+
 		this.config.direction = this.config.direction || 'send';
 
 		this.loadAvailProtocols();
 
-		this.extraArgs 		= options.extraArgs;
+		this.extraArgs	= options.extraArgs;
 
 		if(_.has(options, 'lastMenuResult.sentFileIds')) {
 			this.sentFileIds = options.lastMenuResult.sentFileIds;
@@ -50,9 +57,9 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 				};
 
 				if('send' === this.config.direction) {
-					return this.gotoMenu(this.config.downloadFilesMenu || 'downloadFiles', modOpts, cb);
+					return this.gotoMenu(this.config.downloadFilesMenu || 'sendFilesToUser', modOpts, cb);
 				} else {
-					return this.gotoMenu(this.config.uploadFilesMenu || 'uploadFiles', modOpts, cb);
+					return this.gotoMenu(this.config.uploadFilesMenu || 'recvFilesFromUser', modOpts, cb);
 				}				
 			},
 		};

@@ -19,8 +19,10 @@ const paths			= require('path');
 const temp			= require('temp').track();	//	track() cleans up temp dir/files for us
 const iconv			= require('iconv-lite');
 
+exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
+exports.getAreaDefaultStorageDirectory	= getAreaDefaultStorageDirectory;
 exports.getDefaultFileAreaTag			= getDefaultFileAreaTag;
 exports.getFileAreaByTag				= getFileAreaByTag;
 exports.getFileEntryPath				= getFileEntryPath;
@@ -30,20 +32,23 @@ exports.scanFileAreaForChanges			= scanFileAreaForChanges;
 
 const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	Invalid				: '',
-	MessageAreaAttach	: 'message_area_attach',
+	MessageAreaAttach	: 'system_message_attachment',
 };
+
+function isInternalArea(areaTag) {
+	return areaTag === WellKnownAreaTags.MessageAreaAttach;
+}
 
 function getAvailableFileAreas(client, options) {
 	options = options || { };
 
-	//	perform ACS check per conf & omit system_internal if desired
-	const areasWithTags = _.map(Config.fileBase.areas, (area, areaTag) => Object.assign(area, { areaTag : areaTag } ) );
+	//	perform ACS check per conf & omit internal if desired
 	return _.omit(Config.fileBase.areas, (area, areaTag) => {        
-		if(!options.includeSystemInternal && WellKnownAreaTags.MessageAreaAttach === areaTag) {
+		if(!options.includeSystemInternal && isInternalArea(areaTag)) {
 			return true;
 		}
 
-		if(options.writeAcs && !client.acs.FileAreaWrite(area)) {
+		if(options.writeAcs && !client.acs.hasFileAreaWrite(area)) {
 			return true;	//	omit
 		}
 
@@ -122,16 +127,10 @@ function getAreaStorageDirectoryByTag(storageTag) {
 	const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
 
 	return paths.resolve(Config.fileBase.areaStoragePrefix, storageLocation || '');
-	
-	/*
-	//	absolute paths as-is
-	if(storageLocation && '/' === storageLocation.charAt(0)) {
-		return storageLocation;		
-	}
+}
 
-	//	relative to |areaStoragePrefix|
-	return paths.join(Config.fileBase.areaStoragePrefix, storageLocation || '');
-	*/
+function getAreaDefaultStorageDirectory(areaInfo) {
+	return getAreaStorageDirectoryByTag(areaInfo.storageTags[0]);
 }
 
 function getAreaStorageLocations(areaInfo) {

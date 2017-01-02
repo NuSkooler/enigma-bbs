@@ -92,12 +92,10 @@ MenuView.prototype.getItem = function(index) {
 };
 
 MenuView.prototype.focusNext = function() {
-	//	nothing @ base currently
 	this.emit('index update', this.focusedItemIndex);
 };
 
 MenuView.prototype.focusPrevious = function() {
-	//	nothign @ base currently
 	this.emit('index update', this.focusedItemIndex);
 };
 

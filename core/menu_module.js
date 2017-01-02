@@ -340,7 +340,7 @@ MenuModule.prototype.displayAsset = function(name, options, cb) {
 	return theme.displayThemedAsset(
 		name, 
 		this.client, 
-		Object.merge( { font : this.menuConfig.config }, options ),
+		Object.assign( { font : this.menuConfig.config.font }, options ),
 		(err, artData) => {
 			if(cb) {
 				return cb(err, artData);
@@ -376,7 +376,7 @@ MenuModule.prototype.prepViewController = function(name, formId, artData, cb) {
 
 MenuModule.prototype.prepViewControllerWithArt = function(name, formId, options, cb) {
 	this.displayAsset(
-		name,
+		this.menuConfig.config.art[name],
 		options,
 		(err, artData) => {
 			if(err) {
