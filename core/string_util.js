@@ -444,7 +444,7 @@ function createCleanAnsi(input, options, cb) {
 			//while(col <= canvas[row][0].width) {
 			while(col < options.width) {
 				if(!canvas[row][col].char) {
-					canvas[row][col].char = 'P';
+					canvas[row][col].char = ' ';
 					if(!canvas[row][col].sgr) {
 						//	:TODO: fix duplicate SGR's in a row here - we just need one per sequence
 						canvas[row][col].sgr = ANSI.reset();
@@ -459,12 +459,12 @@ function createCleanAnsi(input, options, cb) {
 			if(col <= options.width) {
 				canvas[row][col] = canvas[row][col] || {};
 
-				//canvas[row][col].char = '\r\n';
+				canvas[row][col].char = '\r\n';
 				canvas[row][col].sgr = ANSI.reset();
 
 				//	:TODO: don't splice, just reset + fill with ' ' till end
 				for(let fillCol = col; fillCol <= options.width; ++fillCol) {
-					canvas[row][fillCol].char = 'X';
+					canvas[row][fillCol].char = ' ';
 				}
 				
 				//canvas[row] = canvas[row].splice(0, col + 1);

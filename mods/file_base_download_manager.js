@@ -45,7 +45,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 		if(_.has(options, 'lastMenuResult.sentFileIds')) {
 			this.sentFileIds = options.lastMenuResult.sentFileIds;
 		}
-		
+
 		this.fallbackOnly = options.lastMenuResult ? true : false;
 
 		this.menuMethods = {

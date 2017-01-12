@@ -333,6 +333,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
 						if(descView) {					
+							/* :TODO: finish createCleanAnsi() and use here!!!
 							createCleanAnsi(
 								self.currentFileEntry.desc, 
 								{ height : self.client.termHeight, width : descView.dimens.width },
@@ -345,6 +346,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 									return callback(null);
 								}
 							);	
+							*/
+
 							descView.setText( self.currentFileEntry.desc );
 						}
 					} else {

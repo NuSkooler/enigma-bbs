@@ -213,6 +213,16 @@ module.exports = class FileEntry {
 		);	
 	}
 
+	setHashTags(hashTags) {
+		if(_.isString(hashTags)) {
+			this.hashTags = new Set(hashTags.split(/[\s,]+/));
+		} else if(Array.isArray(hashTags)) {
+			this.hashTags = new Set(hashTags);
+		} else if(hashTags instanceof Set) {
+			this.hashTags = hashTags;
+		}
+	}
+
 	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
 
 	static findFiles(filter, cb) {

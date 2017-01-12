@@ -100,18 +100,15 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		this.sentFileIds = [];
 	}
 
-	get isSending() {
-		return 'send' === this.direction;
+	isSending() {
+		return ('send' === this.direction);
 	}
 
-	restorePipeAfterExternalProc(pipe) {
+	restorePipeAfterExternalProc() {
 		if(!this.pipeRestored) {
 			this.pipeRestored = true;
 
 			this.client.restoreDataHandler();
-			
-			//this.client.term.output.unpipe(pipe);
-			//this.client.term.output.resume();
 		}
 	}
 
@@ -154,16 +151,62 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		}		
 	}
 
+	moveFileWithCollisionHandling(src, dst, cb) {
+		//
+		//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc. 
+		//	in the case of collisions.
+		//
+		const dstPath		= paths.dirname(dst);
+		const dstFileExt	= paths.extname(dst);
+		const dstFileSuffix	= paths.basename(dst, dstFileExt);
+
+		let renameIndex		= 0;
+		let movedOk			= false;
+		let tryDstPath;
+
+		async.until(
+			() => movedOk,	//	until moved OK
+			(cb) => {
+				if(0 === renameIndex) {
+					//	try originally supplied path first
+					tryDstPath = dst;
+				} else {
+					tryDstPath = paths.join(dstPath, `${dstFileSuffix}(${renameIndex})${dstFileExt}`);
+				}
+
+				fse.move(src, tryDstPath, err => {
+					if(err) {
+						if('EEXIST' === err.code) {
+							renameIndex += 1;
+							return cb(null);	//	keep trying
+						}
+
+						return cb(err);
+					}
+
+					movedOk = true;
+					return cb(null, tryDstPath);
+				});
+			},
+			(err, finalPath) => {
+				return cb(err, finalPath);
+			}
+		);
+	}
+
 	recvFiles(cb) {
 		this.executeExternalProtocolHandlerForRecv( (err, tempWorkingDir) => {
 			if(err) {
 				return cb(err);
 			}
 
-			this.receivedFiles = [];
+			this.recvFilePaths = [];
 
 			if(this.recvFileName) {
 				//	file name specified - we expect a single file in |tempWorkingDir|
+				
+				//	:TODO: support non-blind: Move file to dest path, add to recvFilePaths, etc.
+
 				return cb(null);
 			} else {
 				//
@@ -176,19 +219,19 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					}
 
 					async.each(files, (file, nextFile) => {
-						fse.move(
+						this.moveFileWithCollisionHandling(
 							paths.join(tempWorkingDir, file),
 							paths.join(this.recvDirectory, file),
-							err => {
+							(err, destPath) => {
 								if(err) {
-									//	:TODO: IMPORTANT: Handle collisions - rename to FILE(1).EXT, etc.
 									this.client.log.warn(
 										{ tempWorkingDir : tempWorkingDir, recvDirectory : this.recvDirectory, file : file, error : err.message }, 
 										'Failed to move upload file to destination directory'
 									);
 								} else {
-									this.receivedFiles.push(file);
+									this.recvFilePaths.push(destPath);
 								}
+
 								return nextFile(null);	//	don't pass along err; try next
 							}
 						);
@@ -324,16 +367,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		});
 
 		externalProc.once('close', () => {
-			return this.restorePipeAfterExternalProc(externalProc);
+			return this.restorePipeAfterExternalProc();
 		});
 
 		externalProc.once('exit', (exitCode) => {
 			this.client.log.debug( { cmd : cmd, args : args, exitCode : exitCode }, 'Process exited' );
 			
-			this.restorePipeAfterExternalProc(externalProc);
+			this.restorePipeAfterExternalProc();
 			externalProc.removeAllListeners();
 
-			return cb(null);
+			return cb(exitCode ? Errors.ExternalProcess(`Process exited with exit code ${exitCode}`, 'EBADEXIT') : null);
 		});	
 	}
 
@@ -366,7 +409,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 
 	getMenuResult() {
-		return { sentFileIds : this.sentFileIds };
+		if(this.isSending()) {
+			return { sentFileIds : this.sentFileIds };
+		} else {
+			return { recvFilePaths : this.recvFilePaths };
+		}		
 	}
 
 	updateSendStats(cb) {
@@ -383,9 +430,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				fileIds.push(queueItem.fileId);
 			}
 
-			downloadCount += 1;
-
 			if(_.isNumber(queueItem.byteSize)) {
+				downloadCount += 1;
 				downloadBytes += queueItem.byteSize;
 				return next(null);
 			}
@@ -395,6 +441,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				if(err) {
 					this.client.log.warn( { error : err.message, path : queueItem.path }, 'File stat failed' );
 				} else {
+					downloadCount += 1;
 					downloadBytes += stats.size;
 				}
 
@@ -416,8 +463,30 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 	
 	updateRecvStats(cb) {
-		//	:TODO: update user & system upload stats
-		return cb(null);
+		let uploadBytes	= 0;
+		let uploadCount	= 0;
+
+		async.each(this.recvFilePaths, (filePath, next) => {
+			//	we just have a path - figure it out
+			fs.stat(filePath, (err, stats) => {
+				if(err) {
+					this.client.log.warn( { error : err.message, path : filePath }, 'File stat failed' );
+				} else {
+					uploadCount	+= 1;
+					uploadBytes += stats.size;
+				}
+
+				return next(null);
+			});
+		}, () => {
+			StatLog.incrementUserStat(this.client.user, 'ul_total_count', uploadCount);
+			StatLog.incrementUserStat(this.client.user, 'ul_total_bytes', uploadBytes);
+			StatLog.incrementSystemStat('ul_total_count', uploadCount);
+			StatLog.incrementSystemStat('ul_total_bytes', uploadBytes);
+
+
+			return cb(null);
+		});
 	}
 
 	initSequence() {
@@ -428,7 +497,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		async.series(
 			[
 				function validateConfig(callback) {
-					if(self.isSending) {
+					if(self.isSending()) {
 						if(!Array.isArray(self.sendQueue)) {
 							self.sendQueue = [ self.sendQueue ];  
 						}
@@ -437,7 +506,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					return callback(null);
 				},
 				function transferFiles(callback) {
-					if(self.isSending) {
+					if(self.isSending()) {
 						self.sendFiles( err => {
 							if(err) {
 								return callback(err);
@@ -475,7 +544,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					});
 				},
 				function updateUserAndSystemStats(callback) {
-					if(self.isSending) {
+					if(self.isSending()) {
 						return self.updateSendStats(callback);
 					} else {
 						return self.updateRecvStats(callback);
@@ -488,9 +557,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				}
 
 				//	Wait for a key press - attempt to avoid issues with some terminals after xfer
-				self.client.term.write('|00\nTransfer(s) complete. Press a key\n');
+				//	:TODO: display ANSI if it exists else prompt -- look @ Obv/2 for filename
+				self.client.term.pipeWrite('|00|07\nTransfer(s) complete. Press a key\n');
 				self.client.waitForKeyPress( () => {
-					self.prevMenu();
+					return self.prevMenu();
 				});
 			}
 		);

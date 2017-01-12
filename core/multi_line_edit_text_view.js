@@ -409,10 +409,10 @@ function MultiLineEditTextView(options) {
 
 	this.insertCharactersInText = function(c, index, col) {
 		self.textLines[index].text = [
-				self.textLines[index].text.slice(0, col),
-				c,
-				self.textLines[index].text.slice(col)
-			].join('');
+			self.textLines[index].text.slice(0, col),
+			c,
+			self.textLines[index].text.slice(col)
+		].join('');
 
 		//self.cursorPos.col++;
 		self.cursorPos.col += c.length;

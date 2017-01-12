@@ -44,6 +44,10 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 			this.sentFileIds = options.lastMenuResult.sentFileIds;
 		}
 
+		if(_.has(options, 'lastMenuResult.recvFilePaths')) {
+			this.recvFilePaths = options.lastMenuResult.recvFilePaths;
+		}
+
 		this.fallbackOnly	= options.lastMenuResult ? true : false;
 
 		this.menuMethods = {
@@ -69,11 +73,15 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 		if(this.sentFileIds) {
 			return { sentFileIds : this.sentFileIds };
 		}
+
+		if(this.recvFilePaths) {
+			return { recvFilePaths : this.recvFilePaths };
+		}
 	}
 
 	initSequence() {
-		if(this.sentFileIds) {
-			//	nothing to do here; move along
+		if(this.sentFileIds || this.recvFilePaths) {
+			//	nothing to do here; move along (we're just falling through)
 			this.prevMenu();
 		} else {
 			super.initSequence();

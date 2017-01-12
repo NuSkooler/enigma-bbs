@@ -148,8 +148,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 	//
 	if(_.has(formForId, 'mci') || _.has(formForId, 'submit')) {
 		Log.trace('Using generic configuration');
-		cb(null, formForId);
-		return;
+		return cb(null, formForId);
 	}
 
 	cb(new Error('No matching form configuration found for key \'' + mciReqKey + '\''));
