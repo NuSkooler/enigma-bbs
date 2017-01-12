@@ -29,7 +29,7 @@ function userLogin(client, username, password, cb) {
 		//	Loop through active connections -- which includes the current --
 		//	and check for matching user ID. If the count is > 1, disallow.
 		//
-		let existingClientConnection = 
+		let existingClientConnection;
 		clientConnections.forEach(function connEntry(cc) {
 			if(cc.user !== user && cc.user.userId === user.userId) {
 				existingClientConnection = cc;
@@ -47,7 +47,9 @@ function userLogin(client, username, password, cb) {
 			var existingConnError = new Error('Already logged in as supplied user');
 			existingConnError.existingConn = true;
 
-			return cb(existingClientConnection);
+			//	:TODO: We should use EnigError & pass existing connection as second param
+
+			return cb(existingConnError);
 		}
 
 
