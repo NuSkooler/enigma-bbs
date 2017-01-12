@@ -286,12 +286,18 @@ function getDefaultConfig() {
 			zmodem8kSz : {
 				name		: 'ZModem 8k',
 				type		: 'external',
-				external	: {
+				external	: {					
 					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
 					sendArgs	: [
-						'--zmodem', '-y', '--try-8k', '--binary', '--restricted', '{filePaths}'
+						//	:TODO: try -q
+						'--zmodem', '--try-8k', '--binary', '--restricted', '{filePaths}'
 					],
-					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+					recvCmd		: 'rz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
+					recvArgs	: [
+						'--zmodem', '--binary', '--restricted',	//	dumps to CWD which is set to {uploadDir}
+					],
+					//	:TODO: can we not just use --escape ?
+					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					
 					supportsBatch	: true,
 				} 
 			},
@@ -385,7 +391,8 @@ function getDefaultConfig() {
 				//
 				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
 				"\\B('[1789][0-9])\\b",	//	eslint-disable-line quotes
-				'[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',
+				'[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',				
+				'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)\\s((?:[0-9]{2})?[0-9]{2})',	//	November 29th, 1997
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
 
