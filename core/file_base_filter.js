@@ -46,6 +46,17 @@ module.exports = class FileBaseFilters {
 		return filterUuid;
 	}
 
+	replace(filterUuid, filterInfo) {
+		const filter = this.get(filterUuid);
+		if(!filter) {
+			return false;
+		}
+
+		filterInfo.tags = this.cleanTags(filterInfo.tags);
+		this.filters[filterUuid] = filterInfo;
+		return true;
+	}
+
 	remove(filterUuid) {
 		delete this.filters[filterUuid];
 	}

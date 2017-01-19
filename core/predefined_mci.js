@@ -37,6 +37,17 @@ function setNextRandomRumor(cb) {
 	});
 }
 
+function getRatio(client, propA, propB) {
+	const a = StatLog.getUserStatNum(client.user, propA);
+	const b	= StatLog.getUserStatNum(client.user, propB);
+	const ratio	= ~~((a / b) * 100);
+	return `${ratio}%`;
+}
+
+function userStatAsString(client, statName, defaultValue) {
+	return (StatLog.getUserStat(client.user, statName) || defaultValue).toString();
+}
+
 function getPredefinedMCIValue(client, code) {
 
 	if(!client || !code) {
@@ -69,16 +80,16 @@ function getPredefinedMCIValue(client, code) {
 			UN	: function userName() { return client.user.username; },
 			UI	: function userId() { return client.user.userId.toString(); },
 			UG	: function groups() { return _.values(client.user.groups).join(', '); },
-			UR	: function realName() { return client.user.properties.real_name; },
-			LO	: function location() { return client.user.properties.location; },
+			UR	: function realName() { return userStatAsString(client, 'real_name', ''); },
+			LO	: function location() { return userStatAsString(client, 'location', ''); },
 			UA	: function age() { return client.user.getAge().toString(); },
-			UB	: function birthdate() { return moment(client.user.properties.birthdate).format(client.currentTheme.helpers.getDateFormat()); },
-			US	: function sex() { return client.user.properties.sex; },
-			UE	: function emailAddres() { return client.user.properties.email_address; },
-			UW	: function webAddress() { return client.user.properties.web_address; },
-			UF	: function affils() { return client.user.properties.affiliation; },
-			UT	: function themeId() { return client.user.properties.theme_id; },
-			UC	: function loginCount() { return client.user.properties.login_count.toString(); },
+			BD	: function birthdate() { return moment(client.user.properties.birthdate).format(client.currentTheme.helpers.getDateFormat()); },	//	iNiQUiTY
+			US	: function sex() { return userStatAsString(client, 'sex', ''); },
+			UE	: function emailAddres() { return userStatAsString(client, 'email_address', ''); },
+			UW	: function webAddress() { return userStatAsString(client, 'web_address', ''); },
+			UF	: function affils() { return userStatAsString(client, 'affiliation', ''); },
+			UT	: function themeId() { return userStatAsString(client, 'theme_id', ''); },
+			UC	: function loginCount() { return userStatAsString(client, 'login_count', 0); },
 			ND	: function connectedNode() { return client.node.toString(); },
 			IP	: function clientIpAddress() { return client.address().address; },
 			ST	: function serverName() { return client.session.serverName; },
@@ -86,26 +97,27 @@ function getPredefinedMCIValue(client, code) {
 				const activeFilter = FileBaseFilters.getActiveFilter(client);
 				return activeFilter ? activeFilter.name : ''; 
 			},
-			DN	: function userNumDownloads() { return StatLog.getUserStat(client.user, 'dl_total_count'); },		//	Obv/2
-			DK	: function userByteDownload() {	//	Obv/2
-				const byteSize = parseInt(StatLog.getUserStat(client.user, 'dl_total_bytes')) || 0;
-				return formatByteSize(byteSize, true);
+			DN	: function userNumDownloads() { return userStatAsString(client, 'dl_total_count', 0); },		//	Obv/2
+			DK	: function userByteDownload() {	//	Obv/2 uses DK=downloaded Kbytes
+				const byteSize = StatLog.getUserStatNum(client.user, 'dl_total_bytes');
+				return formatByteSize(byteSize, true);	//	true=withAbbr
 			},
-			//	:TODO: Up/down ratio (count)
-			//	:TODO: Up/down ratio (bytes)
+			UP	: function userNumUploads() { return userStatAsString(client, 'ul_total_count', 0); },			//	Obv/2
+			UK	: function userByteUpload() { //	Obv/2 uses UK=uploaded Kbytes
+				const byteSize = StatLog.getUserStatNum(client.user, 'ul_total_bytes');
+				return formatByteSize(byteSize, true);	//	true=withAbbr
+			},
+			NR	: function userUpDownRatio() {	//	Obv/2
+				return getRatio(client, 'ul_total_count', 'dl_total_count');
+			},
+			KR	: function userUpDownByteRatio() {	//	Obv/2 uses KR=upload/download Kbyte ratio
+				return getRatio(client, 'ul_total_bytes', 'dl_total_bytes');
+			},
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 			CS	: function currentStatus() { return client.currentStatus; },
-			PS	: function userPostCount() {
-				const postCount = client.user.properties.post_count || 0; 
-				return postCount.toString();
-			},
-			PC	: function userPostCallRatio() {
-				const postCount = client.user.properties.post_count || 0;
-				const callCount	= client.user.properties.login_count;
-				const ratio		= ~~((postCount / callCount) * 100);
-				return `${ratio}%`;
-			},
+			PS	: function userPostCount() { return userStatAsString(client, 'post_count', 0); },
+			PC	: function userPostCallRatio() { return getRatio(client, 'post_count', 'login_count'); },
 
 			MD	: function currentMenuDescription() {
 				return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
@@ -181,6 +193,7 @@ function getPredefinedMCIValue(client, code) {
 			//
 			//	:TODO: DD - Today's # of downloads (iNiQUiTY)
 			//	
+			//	:TODO: System stat log for total ul/dl, total ul/dl bytes
 
 			//
 			//	Special handling for XY

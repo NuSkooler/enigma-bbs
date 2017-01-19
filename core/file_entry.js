@@ -121,7 +121,13 @@ module.exports = class FileEntry {
 					});
 				},
 				function storeHashTags(callback) {
-					return callback(null);
+					const hashTagsArray = Array.from(self.hashTags);
+					async.each(hashTagsArray, (hashTag, next) => {
+						return FileEntry.persistHashTag(self.fileId, hashTag, next);
+					},
+					err => {
+						return callback(err);
+					});					
 				}
 			],
 			err => {
@@ -192,6 +198,30 @@ module.exports = class FileEntry {
 		);
 	}
 
+	static persistHashTag(fileId, hashTag, cb) {
+		fileDb.serialize( () => {
+			fileDb.run(
+				`INSERT OR IGNORE INTO hash_tag (hash_tag)
+				VALUES (?);`, 
+				[ hashTag ]
+			);
+
+			fileDb.run(
+				`REPLACE INTO file_hash_tag (hash_tag_id, file_id)
+				VALUES (
+					(SELECT hash_tag_id
+					FROM hash_tag
+					WHERE hash_tag = ?),
+					?
+				);`,
+				[ hashTag, fileId ],
+				err => {
+					return cb(err);
+				}
+			);
+		});
+	}
+
 	loadHashTags(cb) {
 		fileDb.each(
 			`SELECT ht.hash_tag_id, ht.hash_tag
@@ -226,20 +256,20 @@ module.exports = class FileEntry {
 	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
 
 	static findFiles(filter, cb) {
-		//	:TODO: build search here - return [ fileid1, fileid2, ... ]
-		//	free form
-		//	areaTag
-		//	tags
-		//	order by
-		//	sort
-
 		filter = filter || {};
 
-		let sql = 
-			`SELECT file_id
-			FROM file`;
-
+		let sql;
 		let sqlWhere = '';
+		let sqlOrderBy;
+		const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
+		
+		function getOrderByWithCast(ob) {
+			if( [ 'dl_count', 'user_rating', 'est_release_year', 'byte_size' ].indexOf(filter.sort) > -1 ) {
+				return `ORDER BY CAST(${ob} AS INTEGER)`;
+			}
+
+			return `ORDER BY ${ob}`;
+		}
 
 		function appendWhereClause(clause) {
 			if(sqlWhere) {
@@ -250,13 +280,38 @@ module.exports = class FileEntry {
 			sqlWhere += clause;
 		}
 
+		if(filter.sort) {
+			if(Object.keys(FILE_WELL_KNOWN_META).indexOf(filter.sort) > -1) {	//	sorting via a meta value?
+				sql = 
+					`SELECT f.file_id
+					FROM file f, file_meta m`;
+
+				appendWhereClause(`f.file_id = m.file_id AND m.meta_name="${filter.sort}"`);
+
+				sqlOrderBy = `${getOrderByWithCast('m.meta_value')} ${sqlOrderDir}`;
+			} else {
+				sql = 
+					`SELECT f.file_id, f.${filter.sort}
+					FROM file f`;
+
+				sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  sqlOrderDir;
+			}
+		} else {
+			sql = 
+				`SELECT f.file_id
+				FROM file`;
+
+			sqlOrderBy = `${getOrderByWithCast('f.file_id')} ${sqlOrderDir}`;
+		}
+	
+
 		if(filter.areaTag) {
-			appendWhereClause(`area_tag="${filter.areaTag}"`);
+			appendWhereClause(`f.area_tag="${filter.areaTag}"`);
 		}
 
 		if(filter.terms) {
 			appendWhereClause(
-				`file_id IN (
+				`f.file_id IN (
 					SELECT rowid
 					FROM file_fts
 					WHERE file_fts MATCH "${filter.terms.replace(/"/g,'""')}"
@@ -265,25 +320,24 @@ module.exports = class FileEntry {
 		}
 		
 		if(filter.tags) {
-			const tags = filter.tags.split(' ');	//	filter stores as sep separated values
+			//	build list of quoted tags; filter.tags comes in as a space separated values
+			const tags = filter.tags.split(' ').map( tag => `"${tag}"` ).join(',');
 
 			appendWhereClause(
-				`file_id IN (
+				`f.file_id IN (
 					SELECT file_id
 					FROM file_hash_tag
 					WHERE hash_tag_id IN (
 						SELECT hash_tag_id
 						FROM hash_tag
-						WHERE hash_tag IN (${tags.join(',')})
+						WHERE hash_tag IN (${tags})
 					)
 				)`
 			);
 		}
 
-		//	:TODO: filter.orderBy
-		//	:TODO: filter.sort
+		sql += `${sqlWhere} ${sqlOrderBy};`;
 
-		sql += sqlWhere + ';';
 		const matchingFileIds = [];
 		fileDb.each(sql, (err, fileId) => {
 			if(fileId) {

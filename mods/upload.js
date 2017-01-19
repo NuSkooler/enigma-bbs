@@ -222,31 +222,43 @@ exports.getModule = class UploadModule extends MenuModule {
 				function prepDetails(scanResults, callback) {
 					async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
 						self.displayFileDetailsPageForEntry(newEntry, (err, newValues) => {
-							if(!err) {
-								//	if the file entry did *not* have a desc, take the user desc
-								if(!self.fileEntryHasDetectedDesc(newEntry)) {
-									newEntry.desc = newValues.shortDesc.trim();
-								}
+							if(err) {
+								return nextEntry(err);
+							}
 
-								if(newValues.estYear.length > 0) {
-									newEntry.meta.est_release_year = newValues.estYear;
-								}
+							//	if the file entry did *not* have a desc, take the user desc
+							if(!self.fileEntryHasDetectedDesc(newEntry)) {
+								newEntry.desc = newValues.shortDesc.trim();
+							}
 
-								if(newValues.tags.length > 0) {
-									newEntry.setHashTags(newValues.tags);
-								}
+							if(newValues.estYear.length > 0) {
+								newEntry.meta.est_release_year = newValues.estYear;
+							}
+
+							if(newValues.tags.length > 0) {
+								newEntry.setHashTags(newValues.tags);
 							}
 
 							return nextEntry(err);
 						});
 					}, err => {
 						delete self.fileDetailsCurrentEntrySubmitCallback;
+						return callback(err, scanResults);
+					});
+				},
+				function persistNewEntries(scanResults, callback) {
+					//	loop over entries again & persist to DB
+					async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
+						newEntry.persist(err => {
+							return nextEntry(err);
+						});
+					}, err => {
 						return callback(err);
 					});
 				}
 			],
 			err => {
-
+				console.log('eh');	//	:TODO: remove me :)
 			}
 		);
 	}

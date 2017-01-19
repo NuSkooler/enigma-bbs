@@ -262,11 +262,13 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 	}
 
 	saveCurrentFilter(formData, cb) {
-		const filters = new FileBaseFilters(this.client);
-		const selectedFilter = this.filtersArray[this.currentFilterIndex];
+		const filters			= new FileBaseFilters(this.client);
+		const selectedFilter	= this.filtersArray[this.currentFilterIndex];
+		
 		if(selectedFilter) {
 			//	*update* currently selected filter
 			this.setFilterValuesFromFormData(selectedFilter, formData);
+			filters.replace(selectedFilter.uuid, selectedFilter);
 		} else {
 			//	add a new entry; note that UUID will be generated
 			const newFilter = {};
