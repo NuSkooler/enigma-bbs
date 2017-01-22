@@ -439,12 +439,12 @@ function TelnetClient(input, output) {
 	};
 
 	this.setTemporaryDataHandler = function(handler) {
-		this.input.removeAllListeners();
+		this.input.removeAllListeners('data');
 		this.input.on('data', handler);
 	};
 
 	this.restoreDataHandler = function() {
-		this.input.removeAllListeners();
+		this.input.removeAllListeners('data');
 		this.input.on('data', this.dataHandler);
 	};
 

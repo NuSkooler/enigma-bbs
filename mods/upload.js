@@ -40,15 +40,16 @@ const MciViewIds = {
 	},
 
 	processing : {
-		//	10+ = customs
+		stepIndicator		: 1,
+		customRangeStart	: 10,	//	10+ = customs
 	},
 
 	fileDetails : {
-		desc		: 1,	//	defaults to 'desc' (e.g. from FILE_ID.DIZ)
-		tags		: 2,	//	tag(s) for item
-		estYear		: 3,
-		accept		: 4,	//	accept fields & continue
-		//	10+ = customs
+		desc				: 1,	//	defaults to 'desc' (e.g. from FILE_ID.DIZ)
+		tags				: 2,	//	tag(s) for item
+		estYear				: 3,
+		accept				: 4,	//	accept fields & continue
+		customRangeStart	: 10,	//	10+ = customs
 	}
 };
 
@@ -151,8 +152,66 @@ exports.getModule = class UploadModule extends MenuModule {
 		if(this.isFileTransferComplete()) {
 			return this.processUploadedFiles();
 		}
+	}
 
+	updateScanStepInfoViews(stepInfo) {
+		//	:TODO: add some blinking (e.g. toggle items) indicators - see OBV.DOC
 
+		const fmtObj = Object.assign( {}, stepInfo);
+		let stepIndicatorFmt = '';
+
+		switch(stepInfo.step) {
+			case 'start' :
+				stepIndicatorFmt = this.menuConfig.config.scanningStartFormat || 'Scanning {fileName}';
+				break;
+
+			case 'hash_update' :
+				stepIndicatorFmt = this.menuConfig.calcHashFormat || 'Calculating hash/checksums: {calcHashPercent}%';
+
+				this.scanStatus.hashUpdateCount += 1;
+				fmtObj.calcHashPercent = Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100)).toString();
+
+				if(this.scanStatus.hashUpdateCount % 2) {
+					fmtObj.calcHashIndicator = this.menuConfig.config.hashUpdateIndicator1Fmt || '-';
+				} else {
+					fmtObj.calcHashIndicator = this.menuConfig.config.hashUpdateIndicator2Fmt || '*';
+				}
+				break;
+
+			case 'hash_finish' : 
+				stepIndicatorFmt = this.menuConfig.calcHashCompleteFormat || 'Finished calculating hash/checksums';
+				break;
+
+			case 'archive_list_start' :
+				stepIndicatorFmt = this.menuConfig.extractArchiveListFormat || 'Extracting archive list';
+				break;
+
+			case 'archive_list_finish' : 
+				fmtObj.archivedFileCount = stepInfo.archiveEntries.length;
+				stepIndicatorFmt = this.menuConfig.extractArchiveListFinishFormat || 'Archive list extracted ({archivedFileCount} files)';
+				break;
+
+			case 'archive_list_failed' :
+				stepIndicatorFmt = this.menuConfig.extractArchiveListFailedFormat || 'Archive list extraction failed';
+				break;
+
+			case 'desc_files_start' : 
+				stepIndicatorFmt = this.menuConfig.processingDescFilesFormat || 'Processing description files';
+				break;
+
+			case 'desc_files_finish' :
+				stepIndicatorFmt = this.menuConfig.processingDescFilesFinishFormat || 'Finished processing description files';
+				break;
+		}
+
+		const stepIndicatorText = stringFormat(stepIndicatorFmt, fmtObj);
+
+		if(this.hasProcessingArt) {
+			this.setViewText('processing', MciViewIds.processing.stepIndicator, stepIndicatorText);
+			this.updateCustomViewTextsWithFilter('processing', MciViewIds.processing.customRangeStart, fmtObj);
+		} else {
+			this.client.term.pipeWrite(`${stepIndicatorText}\n`);
+		}
 	}
 
 	scanFiles(cb) {
@@ -166,35 +225,36 @@ exports.getModule = class UploadModule extends MenuModule {
 		async.eachSeries(this.recvFilePaths, (filePath, nextFilePath) => {
 			//	:TODO: virus scanning/etc. should occur around here
 
-			//	:TODO: update scanning status art or display line "scanning {fileName}..." type of thing
+			self.scanStatus = {
+				hashUpdateCount	: 0,
+			};
 
-			self.client.term.pipeWrite(`|00|07\nScanning ${paths.basename(filePath)}...`);
+			const scanOpts = {
+				areaTag		: self.areaInfo.areaTag,
+				storageTag	: self.areaInfo.storageTags[0],
+			};
 
-			scanFile(
-				filePath,
-				{
-					areaTag		: self.areaInfo.areaTag,
-					storageTag	: self.areaInfo.storageTags[0],
-				},
-				(err, fileEntry, existingEntries) => {
-					if(err) {
-						return nextFilePath(err);
-					}
+			function handleScanStep(stepInfo, nextScanStep) {
+				self.updateScanStepInfoViews(stepInfo);
+				return nextScanStep(null);
+			}
 
-					self.client.term.pipeWrite(' done\n');
-
-					//	new or dupe?
-					if(existingEntries.length > 0) {
-						//	1:n dupes found
-						results.dupes = results.dupes.concat(existingEntries);
-					} else {
-						//	new one
-						results.newEntries.push(fileEntry);
-					}
-
-					return nextFilePath(null);
+			scanFile(filePath, scanOpts, handleScanStep, (err, fileEntry, dupeEntries) => {
+				if(err) {
+					return nextFilePath(err);
 				}
-			);
+
+				//	new or dupe?
+				if(dupeEntries.length > 0) {
+					//	1:n dupes found
+					results.dupes = results.dupes.concat(dupeEntries);
+				} else {
+					//	new one
+					results.newEntries.push(fileEntry);
+				}
+
+				return nextFilePath(null);
+			});
 		}, err => {
 			return cb(err, results);
 		});
@@ -258,7 +318,11 @@ exports.getModule = class UploadModule extends MenuModule {
 				}
 			],
 			err => {
-				console.log('eh');	//	:TODO: remove me :)
+				if(err) {
+					self.client.log.warn('File upload error encountered', { error : err.message } );
+				}
+
+				return self.prevMenu();
 			}
 		);
 	}
@@ -312,8 +376,17 @@ exports.getModule = class UploadModule extends MenuModule {
 	}
 
 	displayProcessingPage(cb) {
-		//	:TODO: If art is supplied, display & start processing + update status/etc.; if no art, we'll just write each status update on a new line
-		return cb(null);
+		return this.prepViewControllerWithArt(
+			'processing',
+			FormIds.processing,
+			{ clearScreen : true, trailingLF : false },
+			err => {
+				//	note: this art is not required
+				this.hasProcessingArt = !err;
+
+				return cb(null);
+			}
+		);
 	}
 
 	fileEntryHasDetectedDesc(fileEntry) {

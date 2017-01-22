@@ -260,7 +260,7 @@ const DB_INIT_TABLE = {
 			`CREATE TABLE IF NOT EXISTS file (
 				file_id				INTEGER PRIMARY KEY,
 				area_tag			VARCHAR NOT NULL,
-				file_sha1			VARCHAR NOT NULL,
+				file_sha256			VARCHAR NOT NULL,
 				file_name,			/* FTS @ file_fts */
 				storage_tag			VARCHAR NOT NULL,
 				desc,				/* FTS @ file_fts */

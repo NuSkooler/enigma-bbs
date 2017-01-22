@@ -278,6 +278,13 @@ function getDefaultConfig() {
 					exts	: [ 'rar' ],
 					handler	: '7Zip',
 					desc	: 'RAR Archive',
+				},
+				gzip :  {
+					sig		: '1f8b',
+					offset	: 0,
+					exts	: [ 'gz' ],
+					handler	: '7Zip',
+					desc	: 'Gzip Archive',
 				}
 			}
 		},
@@ -294,7 +301,7 @@ function getDefaultConfig() {
 					],
 					recvCmd		: 'rz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
 					recvArgs	: [
-						'--zmodem', '--binary', '--restricted',	//	dumps to CWD which is set to {uploadDir}
+						'--zmodem', '--binary', '--restricted', '--keep-uppercase', 	//	dumps to CWD which is set to {uploadDir}
 					],
 					//	:TODO: can we not just use --escape ?
 					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					

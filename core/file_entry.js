@@ -12,7 +12,7 @@ const _						= require('lodash');
 const paths					= require('path');
 
 const FILE_TABLE_MEMBERS	= [ 
-	'file_id', 'area_tag', 'file_sha1', 'file_name', 'storage_tag',
+	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
 	'desc', 'desc_long', 'upload_timestamp' 
 ];
 
@@ -21,7 +21,7 @@ const FILE_WELL_KNOWN_META = {
 	upload_by_username	: null,
 	upload_by_user_id	: null,
 	file_md5			: null,
-	file_sha256			: null,
+	file_sha1			: null,
 	file_crc32			: null,
 	est_release_year	: (y) => parseInt(y) || new Date().getFullYear(),
 	dl_count			: (d) => parseInt(d) || 0,
@@ -100,9 +100,9 @@ module.exports = class FileEntry {
 				},
 				function storeEntry(callback) {
 					fileDb.run(
-						`REPLACE INTO file (area_tag, file_sha1, file_name, storage_tag, desc, desc_long, upload_timestamp)
+						`REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
 						VALUES(?, ?, ?, ?, ?, ?, ?);`,
-						[ self.areaTag, self.fileSha1, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
+						[ self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
 						function inserted(err) {	//	use non-arrow func for 'this' scope / lastID
 							if(!err) {
 								self.fileId = this.lastID;

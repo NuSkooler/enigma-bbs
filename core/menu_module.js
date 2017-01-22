@@ -1,17 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var PluginModule		= require('./plugin_module.js').PluginModule;
-var theme				= require('./theme.js');
-var ansi				= require('./ansi_term.js');
-var ViewController		= require('./view_controller.js').ViewController;
-var menuUtil			= require('./menu_util.js');
-var Config				= require('./config.js').config;
+const PluginModule		= require('./plugin_module.js').PluginModule;
+const theme				= require('./theme.js');
+const ansi				= require('./ansi_term.js');
+const ViewController	= require('./view_controller.js').ViewController;
+const menuUtil			= require('./menu_util.js');
+const Config			= require('./config.js').config;
+const stringFormat		= require('../core/string_format.js');
 
 //	deps
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+const async				= require('async');
+const assert			= require('assert');
+const _					= require('lodash');
 
 exports.MenuModule		= MenuModule;
 
@@ -386,4 +387,28 @@ MenuModule.prototype.prepViewControllerWithArt = function(name, formId, options,
 			return this.prepViewController(name, formId, artData, cb);
 		}
 	);
+};
+
+MenuModule.prototype.setViewText = function(formName, mciId, text) {
+	const view = this.viewControllers[formName].getView(mciId);
+	if(view) {
+		view.setText(text);
+	}
+};
+
+MenuModule.prototype.updateCustomViewTextsWithFilter = function(formName, startId, fmtObj, filter) {
+	let textView;					
+	let customMciId = startId;
+	const config	= this.menuConfig.config;
+
+	while( (textView = this.viewControllers[formName].getView(customMciId)) ) {
+		const key		= `${formName}InfoFormat${customMciId}`;
+		const format	= config[key];
+
+		if(format && (!filter || filter.find(f => format.indexOf(f) > - 1))) {
+			textView.setText(stringFormat(format, fmtObj));
+		}
+
+		++customMciId;
+	}
 };

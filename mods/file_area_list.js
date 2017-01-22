@@ -46,26 +46,30 @@ const FormIds = {
 
 const MciViewIds = {
 	browse	: {
-		desc		: 1,
-		navMenu		: 2,
-		//	10+ = customs
+		desc				: 1,
+		navMenu				: 2,
+
+		customRangeStart	: 10,	//	10+ = customs
 	},
 	details	: {
-		navMenu			: 1,
-		infoXyTop		: 2,	//	%XY starting position for info area
-		infoXyBottom	: 3,
-		//	10+ = customs
+		navMenu				: 1,
+		infoXyTop			: 2,	//	%XY starting position for info area
+		infoXyBottom		: 3,
+
+		customRangeStart	: 10,	//	10+ = customs
 	},
 	detailsGeneral : {
-		//	10+ = customs
+		customRangeStart	: 10, //	10+ = customs
 	},
 	detailsNfo : {
 		nfo		: 1,
-		//	10+ = customs
+
+		customRangeStart	: 10,	//	10+ = customs
 	},
 	detailsFileList : {
 		fileList	: 1,
-		//	10+ = customs
+
+		customRangeStart	: 10,	//	10+ = customs
 	},
 };
 
@@ -163,7 +167,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			areaTag				: currEntry.areaTag,
 			areaName			: area.name || 'N/A',
 			areaDesc			: area.desc || 'N/A',
-			fileSha1			: currEntry.fileSha1,
+			fileSha256			: currEntry.fileSha256,
 			fileName			: currEntry.fileName,
 			desc				: currEntry.desc || '',
 			descLong			: currEntry.descLong || '',
@@ -220,9 +224,10 @@ exports.getModule = class FileAreaList extends MenuModule {
 	}
 
 	populateCustomLabels(category, startId) {
-		return this.updateCustomLabelsWithFilter(category, startId);
+		return this.updateCustomViewTextsWithFilter(category, startId, this.currentFileEntry.entryInfo);
 	}
 
+/*
 	updateCustomLabelsWithFilter(category, startId, filter) {
 		let textView;					
 		let customMciId = startId;
@@ -239,6 +244,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			++customMciId;
 		}
 	}
+	*/
 
 	displayArtAndPrepViewController(name, options, cb) {
 		const self		= this;
@@ -342,7 +348,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 									descView.setText( self.currentFileEntry.desc );
 
 									self.updateQueueIndicator();
-									self.populateCustomLabels('browse', 10);
+									self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
 
 									return callback(null);
 								}
@@ -350,7 +356,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 						}
 					} else {
 						self.updateQueueIndicator();
-						self.populateCustomLabels('browse', 10);
+						self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
 
 						return callback(null);
 					}
@@ -373,7 +379,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					return self.displayArtAndPrepViewController('details', { clearScreen : true }, callback);
 				},
 				function populateViews(callback) {
-					self.populateCustomLabels('details', 10);
+					self.populateCustomLabels('details', MciViewIds.details.customRangeStart);
 					return callback(null);
 				},
 				function prepSection(callback) {
@@ -438,7 +444,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 					);
 				},
 				function updateActiveViews(callback) {
-					self.updateCustomLabelsWithFilter( 'browse', 10, [ '{webDlLink}', '{webDlExpire}' ] );
+					self.updateCustomViewTextsWithFilter(
+						'browse', 
+						MciViewIds.browse.customRangeStart, self.currentFileEntry.entryInfo, 
+						[ '{webDlLink}', '{webDlExpire}' ]
+					);
 					return callback(null);
 				}
 			],
@@ -458,7 +468,12 @@ exports.getModule = class FileAreaList extends MenuModule {
 				isNotQueuedIndicator
 		);
 
-		this.updateCustomLabelsWithFilter( 'browse', 10, [ '{isQueued}' ] );
+		this.updateCustomViewTextsWithFilter(
+			'browse',
+			MciViewIds.browse.customRangeStart,
+			this.currentFileEntry.entryInfo,
+			[ '{isQueued}' ]
+		);
 	}
 
 	cacheArchiveEntries(cb) {
@@ -564,7 +579,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 							break;
 					}
 
-					self.populateCustomLabels(name, 10);
+					self.populateCustomLabels(name, MciViewIds[name].customRangeStart);
 					return callback(null);
 				}
 			],

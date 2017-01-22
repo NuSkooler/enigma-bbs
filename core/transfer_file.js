@@ -351,7 +351,13 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		});
 
 		this.client.setTemporaryDataHandler(data => {
-			externalProc.write(data);
+			//	needed for things like sz/rz
+			if(external.escapeTelnet) {
+				const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');	//	de-escape
+				externalProc.write(new Buffer(tmp, 'binary'));
+			} else {
+				externalProc.write(data);
+			}
 		});
 		
 		//this.client.term.output.pipe(externalProc);		
@@ -359,7 +365,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		externalProc.on('data', data => {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
-				const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');
+				const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');	//	escape
 				this.client.term.rawWrite(new Buffer(tmp, 'binary'));
 			} else {
 				this.client.term.rawWrite(data);
@@ -484,7 +490,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			StatLog.incrementSystemStat('ul_total_count', uploadCount);
 			StatLog.incrementSystemStat('ul_total_bytes', uploadBytes);
 
-
 			return cb(null);
 		});
 	}
@@ -556,12 +561,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					self.client.log.warn( { error : err.message }, 'File transfer error');
 				}
 
+				return self.prevMenu();
+				/*
+
 				//	Wait for a key press - attempt to avoid issues with some terminals after xfer
 				//	:TODO: display ANSI if it exists else prompt -- look @ Obv/2 for filename
 				self.client.term.pipeWrite('|00|07\nTransfer(s) complete. Press a key\n');
 				self.client.waitForKeyPress( () => {
 					return self.prevMenu();
 				});
+				*/
 			}
 		);
 	}
