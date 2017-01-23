@@ -227,25 +227,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 		return this.updateCustomViewTextsWithFilter(category, startId, this.currentFileEntry.entryInfo);
 	}
 
-/*
-	updateCustomLabelsWithFilter(category, startId, filter) {
-		let textView;					
-		let customMciId = startId;
-		const config	= this.menuConfig.config;
-
-		while( (textView = this.viewControllers[category].getView(customMciId)) ) {
-			const key		= `${category}InfoFormat${customMciId}`;
-			const format	= config[key];
-
-			if(format && (!filter || filter.find(f => format.indexOf(f) > - 1))) {
-				textView.setText(stringFormat(format, this.currentFileEntry.entryInfo));
-			}
-
-			++customMciId;
-		}
-	}
-	*/
-
 	displayArtAndPrepViewController(name, options, cb) {
 		const self		= this;
 		const config	= this.menuConfig.config;
@@ -447,7 +428,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					self.updateCustomViewTextsWithFilter(
 						'browse', 
 						MciViewIds.browse.customRangeStart, self.currentFileEntry.entryInfo, 
-						[ '{webDlLink}', '{webDlExpire}' ]
+						{ filter : [ '{webDlLink}', '{webDlExpire}' ] }
 					);
 					return callback(null);
 				}
@@ -472,7 +453,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			'browse',
 			MciViewIds.browse.customRangeStart,
 			this.currentFileEntry.entryInfo,
-			[ '{isQueued}' ]
+			{ filter : [ '{isQueued}' ] }
 		);
 	}
 

@@ -248,9 +248,36 @@ function getDefaultConfig() {
 						cmd			: '7za',
 						args		: [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
 					},
+				},
+
+				Lha : {
+					//
+					//	'lha' command can be obtained from:
+					//	* apt-get: lhasa
+					//
+					//	(compress not currently supported)
+					//
+					decompress		: {
+						cmd			: 'lha',
+						args		: [ '-ew={extractPath}', '{archivePath}' ],
+					},
+					list			: {
+						cmd			: 'lha',
+						args		: [ '-l', '{archivePath}' ],
+						entryMatch	: '^[\\[a-z\\]]+(?:\\s+[0-9]+\\s+[0-9]+|\\s+)([0-9]+)\\s+[0-9]{2}\\.[0-9]\\%\\s+[A-Za-z]{3}\\s+[0-9]{1,2}\\s+[0-9]{4}\\s+([^\\r\\n]+)$',
+					},
+					extract			: {
+						cmd			: 'lha',
+						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
+					}
 				}
 			},
+
 			formats : {
+				//
+				//	Resources
+				//	* http://www.garykessler.net/library/file_sigs.html
+				//
 				zip	: {
 					sig		: '504b0304',
 					offset	: 0,
@@ -285,6 +312,20 @@ function getDefaultConfig() {
 					exts	: [ 'gz' ],
 					handler	: '7Zip',
 					desc	: 'Gzip Archive',
+				},
+				bzip : {
+					sig		: '425a68',
+					offset	: 0,
+					exts	: [ 'bz2' ],
+					handler	: '7Zip',
+					desc	: 'BZip2 Archive',
+				},
+				lzh :  {
+					sig		: '2d6c68',
+					offset	: 2,
+					exts	: [ 'lzh', 'ice' ],
+					handler	: 'Lha',
+					desc	: 'LHArc Archive',
 				}
 			}
 		},
@@ -399,7 +440,7 @@ function getDefaultConfig() {
 				'[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',	//	m/d/yyyy, mm-dd-yyyy, etc.
 				"\\B('[1789][0-9])\\b",	//	eslint-disable-line quotes
 				'[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})',				
-				'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)\\s((?:[0-9]{2})?[0-9]{2})',	//	November 29th, 1997
+				'(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})',	//	November 29th, 1997
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
 

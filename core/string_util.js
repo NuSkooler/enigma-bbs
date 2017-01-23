@@ -13,6 +13,7 @@ exports.stylizeString				= stylizeString;
 exports.pad							= pad;
 exports.replaceAt					= replaceAt;
 exports.isPrintable					= isPrintable;
+exports.stripAllLineFeeds			= stripAllLineFeeds;
 exports.debugEscapedString			= debugEscapedString;
 exports.stringFromNullTermBuffer	= stringFromNullTermBuffer;
 exports.renderSubstr				= renderSubstr;
@@ -187,6 +188,10 @@ function isPrintable(s) {
 function stringLength(s) {
 	//	:TODO: See https://mathiasbynens.be/notes/javascript-unicode
 	return s.length;
+}
+
+function stripAllLineFeeds(s) {
+	return s.replace(/\r?\n|[\r\u2028\u2029]/g, '');
 }
 
 function debugEscapedString(s) {

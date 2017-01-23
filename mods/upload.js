@@ -3,20 +3,15 @@
 
 //	enigma-bbs
 const MenuModule						= require('../core/menu_module.js').MenuModule;
-const ViewController					= require('../core/view_controller.js').ViewController;
-const theme								= require('../core/theme.js');
-const ansi								= require('../core/ansi_term.js');
-const Errors							= require('../core/enig_error.js').Errors;
 const stringFormat						= require('../core/string_format.js');
 const getSortedAvailableFileAreas		= require('../core/file_area.js').getSortedAvailableFileAreas;
 const getAreaDefaultStorageDirectory	= require('../core/file_area.js').getAreaDefaultStorageDirectory;
 const scanFile							= require('../core/file_area.js').scanFile;
-const getAreaStorageDirectoryByTag		= require('../core/file_area.js').getAreaStorageDirectoryByTag;
+const ansiGoto							= require('../core/ansi_term.js').goto;
 
 //	deps
 const async								= require('async');
 const _									= require('lodash');
-const paths								= require('path');
 
 exports.moduleInfo = {
 	name		: 'Upload',
@@ -40,8 +35,11 @@ const MciViewIds = {
 	},
 
 	processing : {
-		stepIndicator		: 1,
-		customRangeStart	: 10,	//	10+ = customs
+		calcHashIndicator		: 1,
+		archiveListIndicator	: 2,
+		descFileIndicator		: 3,
+
+		customRangeStart		: 10,	//	10+ = customs
 	},
 
 	fileDetails : {
@@ -160,6 +158,26 @@ exports.getModule = class UploadModule extends MenuModule {
 		const fmtObj = Object.assign( {}, stepInfo);
 		let stepIndicatorFmt = '';
 
+		const indicatorStates 	= this.menuConfig.config.indicatorStates || [ '|', '/', '-', '\\' ];
+		const indicatorFinished	= this.menuConfig.config.indicatorFinished || '√';
+
+		const indicator = { };
+		const self = this;
+
+		function updateIndicator(mci, isFinished) {
+			indicator.mci = mci;
+
+			if(isFinished) {
+				indicator.text = indicatorFinished;
+			} else {
+				self.scanStatus.indicatorPos += 1;
+				if(self.scanStatus.indicatorPos >= indicatorStates.length) {
+					self.scanStatus.indicatorPos = 0;
+				}
+				indicator.text = indicatorStates[self.scanStatus.indicatorPos];
+			}
+		}		
+
 		switch(stepInfo.step) {
 			case 'start' :
 				stepIndicatorFmt = this.menuConfig.config.scanningStartFormat || 'Scanning {fileName}';
@@ -167,28 +185,23 @@ exports.getModule = class UploadModule extends MenuModule {
 
 			case 'hash_update' :
 				stepIndicatorFmt = this.menuConfig.calcHashFormat || 'Calculating hash/checksums: {calcHashPercent}%';
-
-				this.scanStatus.hashUpdateCount += 1;
-				fmtObj.calcHashPercent = Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100)).toString();
-
-				if(this.scanStatus.hashUpdateCount % 2) {
-					fmtObj.calcHashIndicator = this.menuConfig.config.hashUpdateIndicator1Fmt || '-';
-				} else {
-					fmtObj.calcHashIndicator = this.menuConfig.config.hashUpdateIndicator2Fmt || '*';
-				}
+				updateIndicator(MciViewIds.processing.calcHashIndicator);
 				break;
 
 			case 'hash_finish' : 
 				stepIndicatorFmt = this.menuConfig.calcHashCompleteFormat || 'Finished calculating hash/checksums';
+				updateIndicator(MciViewIds.processing.calcHashIndicator, true);
 				break;
 
 			case 'archive_list_start' :
 				stepIndicatorFmt = this.menuConfig.extractArchiveListFormat || 'Extracting archive list';
+				updateIndicator(MciViewIds.processing.archiveListIndicator);
 				break;
 
 			case 'archive_list_finish' : 
 				fmtObj.archivedFileCount = stepInfo.archiveEntries.length;
 				stepIndicatorFmt = this.menuConfig.extractArchiveListFinishFormat || 'Archive list extracted ({archivedFileCount} files)';
+				updateIndicator(MciViewIds.processing.archiveListIndicator, true);
 				break;
 
 			case 'archive_list_failed' :
@@ -197,20 +210,25 @@ exports.getModule = class UploadModule extends MenuModule {
 
 			case 'desc_files_start' : 
 				stepIndicatorFmt = this.menuConfig.processingDescFilesFormat || 'Processing description files';
+				updateIndicator(MciViewIds.processing.descFileIndicator);
 				break;
 
 			case 'desc_files_finish' :
 				stepIndicatorFmt = this.menuConfig.processingDescFilesFinishFormat || 'Finished processing description files';
+				updateIndicator(MciViewIds.processing.descFileIndicator, true);
 				break;
 		}
 
-		const stepIndicatorText = stringFormat(stepIndicatorFmt, fmtObj);
-
+		fmtObj.stepIndicatorText = stringFormat(stepIndicatorFmt, fmtObj);
+		
 		if(this.hasProcessingArt) {
-			this.setViewText('processing', MciViewIds.processing.stepIndicator, stepIndicatorText);
-			this.updateCustomViewTextsWithFilter('processing', MciViewIds.processing.customRangeStart, fmtObj);
+			this.updateCustomViewTextsWithFilter('processing', MciViewIds.processing.customRangeStart, fmtObj, { appendMultiLine : true } );
+
+			if(indicator.mci && indicator.text) {
+				this.setViewText('processing', indicator.mci, indicator.text);
+			}
 		} else {
-			this.client.term.pipeWrite(`${stepIndicatorText}\n`);
+			this.client.term.pipeWrite(fmtObj.stepIndicatorText);
 		}
 	}
 
@@ -226,7 +244,7 @@ exports.getModule = class UploadModule extends MenuModule {
 			//	:TODO: virus scanning/etc. should occur around here
 
 			self.scanStatus = {
-				hashUpdateCount	: 0,
+				indicatorPos	: 0,
 			};
 
 			const scanOpts = {
@@ -239,6 +257,8 @@ exports.getModule = class UploadModule extends MenuModule {
 				return nextScanStep(null);
 			}
 
+			self.client.log.debug('Scanning upload', { filePath : filePath } );
+
 			scanFile(filePath, scanOpts, handleScanStep, (err, fileEntry, dupeEntries) => {
 				if(err) {
 					return nextFilePath(err);
@@ -247,6 +267,8 @@ exports.getModule = class UploadModule extends MenuModule {
 				//	new or dupe?
 				if(dupeEntries.length > 0) {
 					//	1:n dupes found
+					self.client.log.debug('Duplicate(s) of upload found', { dupeEntries : dupeEntries } );
+
 					results.dupes = results.dupes.concat(dupeEntries);
 				} else {
 					//	new one
@@ -270,6 +292,17 @@ exports.getModule = class UploadModule extends MenuModule {
 			[
 				function scan(callback) {
 					return self.scanFiles(callback);
+				},
+				function pause(scanResults, callback) {
+					if(self.hasProcessingArt) {
+						self.client.term.rawWrite(ansiGoto(self.client.term.termHeight, 1));
+					} else {
+						self.client.term.write('\n');
+					}
+
+					self.pausePrompt( () => {
+						return callback(null, scanResults);
+					});					
 				},
 				function displayDupes(scanResults, callback) {
 					if(0 === scanResults.dupes.length) {

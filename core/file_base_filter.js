@@ -61,15 +61,29 @@ module.exports = class FileBaseFilters {
 		delete this.filters[filterUuid];
 	}
 
-	load(prop) {
-		prop = prop || this.client.user.properties.file_base_filters;
+	load() {
+		let filtersProperty = this.client.user.properties.file_base_filters;
+		let defaulted;
+		if(!filtersProperty) {
+			filtersProperty = JSON.stringify(FileBaseFilters.getDefaultFilters());
+			defaulted = true;
+		}
 
 		try {
-			this.filters = JSON.parse(prop);
+			this.filters = JSON.parse(filtersProperty);
 		} catch(e) {
-			this.filters = {};
+			this.filters = FileBaseFilters.getDefaultFilters();	//	something bad happened; reset everything back to defaults :(
+			defaulted = true;
+			this.client.log.error( { error : e.message, property : filtersProperty }, 'Failed parsing file base filters property' );
+		}
 
-			this.client.log.error( { error : e.message, property : prop }, 'Failed parsing file base filters property' );
+		if(defaulted) {
+			this.persist( err => {
+				if(!err) {
+					const defaultActiveUuid = this.toArray()[0].uuid;
+					this.setActive(defaultActiveUuid);
+				}
+			});
 		}
 	}
 
@@ -91,6 +105,23 @@ module.exports = class FileBaseFilters {
 		}
 		
 		return false;
+	}
+
+	static getDefaultFilters() {
+		const filters = {};
+		
+		const uuid = uuids.v4();
+		filters[uuid] = {
+			name	: 'Default',
+			areaTag	: '',	//	all
+			terms	: '',	//	*
+			tags	: '',	//	*
+			order	: 'ascending',
+			sort	: 'upload_timestamp',
+			uuid	: uuid,
+		};
+
+		return filters;
 	}
 
 	static getActiveFilter(client) {

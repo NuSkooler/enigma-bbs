@@ -280,7 +280,7 @@ module.exports = class FileEntry {
 			sqlWhere += clause;
 		}
 
-		if(filter.sort) {
+		if(filter.sort && filter.sort.length > 0) {
 			if(Object.keys(FILE_WELL_KNOWN_META).indexOf(filter.sort) > -1) {	//	sorting via a meta value?
 				sql = 
 					`SELECT f.file_id
@@ -294,7 +294,7 @@ module.exports = class FileEntry {
 					`SELECT f.file_id, f.${filter.sort}
 					FROM file f`;
 
-				sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  sqlOrderDir;
+				sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
 			}
 		} else {
 			sql = 
@@ -305,11 +305,11 @@ module.exports = class FileEntry {
 		}
 	
 
-		if(filter.areaTag) {
+		if(filter.areaTag && filter.areaTag.length > 0) {
 			appendWhereClause(`f.area_tag="${filter.areaTag}"`);
 		}
 
-		if(filter.terms) {
+		if(filter.terms && filter.terms.length > 0) {
 			appendWhereClause(
 				`f.file_id IN (
 					SELECT rowid
@@ -319,7 +319,7 @@ module.exports = class FileEntry {
 			);
 		}
 		
-		if(filter.tags) {
+		if(filter.tags && filter.tags.length > 0) {
 			//	build list of quoted tags; filter.tags comes in as a space separated values
 			const tags = filter.tags.split(' ').map( tag => `"${tag}"` ).join(',');
 

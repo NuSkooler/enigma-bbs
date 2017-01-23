@@ -294,6 +294,10 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					extractList.push(longDescFile.fileName);
 				}
 
+				if(0 === extractList.length) {
+					return callback(null, [] );
+				}
+
 				temp.mkdir('enigextract-', (err, tempDir) => {
 					if(err) {
 						return callback(err);
@@ -423,6 +427,9 @@ function scanFile(filePath, options, iterator, cb) {
 		});
 	}
 
+
+	let lastCalcHashPercent;
+
 	async.waterfall(
 		[
 			function startScan(callback) {
@@ -449,25 +456,39 @@ function scanFile(filePath, options, iterator, cb) {
 
 				const stream = fs.createReadStream(filePath);
 
+				function updateHashes(data) {
+					async.each( HASH_NAMES, (hashName, nextHash) => {
+						hashes[hashName].update(data);
+						return nextHash(null);
+					}, () => {
+						return stream.resume();
+					});
+				}
+
 				stream.on('data', data => {
 					stream.pause();	//	until iterator compeltes
 
-					stepInfo.bytesProcessed	+= data.length;
-					stepInfo.step			= 'hash_update';
+					stepInfo.bytesProcessed		+= data.length;		
+					stepInfo.calcHashPercent	= Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
 
-					callIter(err => {
-						if(err) {
-							stream.destroy();	//	cancel read
-							return callback(err);
-						}
+					//
+					//	Only send 'hash_update' step update if we have a noticable percentage change in progress
+					//
+					if(stepInfo.calcHashPercent === lastCalcHashPercent) {
+						updateHashes(data);
+					} else {
+						lastCalcHashPercent = stepInfo.calcHashPercent;
+						stepInfo.step		= 'hash_update';
 
-						async.each( HASH_NAMES, (hashName, nextHash) => {
-							hashes[hashName].update(data);
-							return nextHash(null);
-						}, () => {
-							return stream.resume();
+						callIter(err => {
+							if(err) {
+								stream.destroy();	//	cancel read
+								return callback(err);
+							}
+
+							updateHashes(data);
 						});
-					});
+					}					
 				});
 
 				stream.on('end', () => {

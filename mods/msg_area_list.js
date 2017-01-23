@@ -84,6 +84,7 @@ function MessageAreaListModule(options) {
 								if(_.has(area, 'options.pause') && false === area.options.pause) { 
 									return self.prevMenuOnTimeout(1000, cb);
 								} else {
+									//	:TODO: Use MenuModule.pausePrompt()
 									displayThemedPause( { client : self.client }, () => {
 										return self.prevMenu(cb);
 									});

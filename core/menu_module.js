@@ -1,13 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-const PluginModule		= require('./plugin_module.js').PluginModule;
-const theme				= require('./theme.js');
-const ansi				= require('./ansi_term.js');
-const ViewController	= require('./view_controller.js').ViewController;
-const menuUtil			= require('./menu_util.js');
-const Config			= require('./config.js').config;
-const stringFormat		= require('../core/string_format.js');
+const PluginModule			= require('./plugin_module.js').PluginModule;
+const theme					= require('./theme.js');
+const ansi					= require('./ansi_term.js');
+const ViewController		= require('./view_controller.js').ViewController;
+const menuUtil				= require('./menu_util.js');
+const Config				= require('./config.js').config;
+const stringFormat			= require('../core/string_format.js');
+const MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 
 //	deps
 const async				= require('async');
@@ -183,6 +184,7 @@ MenuModule.prototype.initSequence = function() {
 					self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
 
 					//	:TODO: really need a client.term.pause() that uses the correct art/etc.
+					//	:TODO: Use MenuModule.pausePrompt()
 					theme.displayThemedPause( { client : self.client }, function keyPressed() {
 						callback(null);
 					});
@@ -389,24 +391,54 @@ MenuModule.prototype.prepViewControllerWithArt = function(name, formId, options,
 	);
 };
 
-MenuModule.prototype.setViewText = function(formName, mciId, text) {
+MenuModule.prototype.pausePrompt = function(position, cb) {
+	if(!cb && _.isFunction(position)) {
+		cb = position;
+		position = null;		
+	}
+
+	if(position) {
+		position.x = position.row || position.x || 1;
+		position.y = position.col || position.y || 1;
+
+		this.client.term.rawWrite(ansi.goto(position.x, position.y));
+	}
+	
+	theme.displayThemedPause( { client : this.client }, cb);
+};
+
+MenuModule.prototype.setViewText = function(formName, mciId, text, appendMultiline) {
 	const view = this.viewControllers[formName].getView(mciId);
-	if(view) {
+	if(!view) {
+		return;
+	}
+	
+	if(appendMultiline && (view instanceof MultiLineEditTextView)) {
+		view.addText(text);
+	} else {
 		view.setText(text);
 	}
 };
 
-MenuModule.prototype.updateCustomViewTextsWithFilter = function(formName, startId, fmtObj, filter) {
+MenuModule.prototype.updateCustomViewTextsWithFilter = function(formName, startId, fmtObj, options) {
+	options = options || {};
+
 	let textView;					
 	let customMciId = startId;
 	const config	= this.menuConfig.config;
 
 	while( (textView = this.viewControllers[formName].getView(customMciId)) ) {
-		const key		= `${formName}InfoFormat${customMciId}`;
+		const key		= `${formName}InfoFormat${customMciId}`;	//	e.g. "mainInfoFormat10"
 		const format	= config[key];
 
-		if(format && (!filter || filter.find(f => format.indexOf(f) > - 1))) {
-			textView.setText(stringFormat(format, fmtObj));
+		if(format && (!options.filter || options.filter.find(f => format.indexOf(f) > - 1))) {
+			const text = stringFormat(format, fmtObj);
+
+			if(options.appendMultiLine && (textView instanceof MultiLineEditTextView)) {
+				textView.addText(text);
+			} else {
+				textView.setText(text);
+			}
 		}
 
 		++customMciId;
