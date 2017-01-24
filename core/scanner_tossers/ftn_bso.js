@@ -1290,6 +1290,9 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	//
 	//	Clean up temp dir/files we created
 	//
+	/*
+	:TODO: fix global temp cleanup issue!!!
+
 	temp.cleanup((err, stats) => {
 		const fullStats = Object.assign(stats, { exportTemp : this.exportTempDir, importTemp : this.importTempDir } ); 
 		
@@ -1301,6 +1304,9 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 			
 		FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 	});
+	*/
+
+	FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
 
 FTNMessageScanTossModule.prototype.performImport = function(cb) {

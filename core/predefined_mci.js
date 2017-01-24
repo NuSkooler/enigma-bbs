@@ -115,7 +115,6 @@ function getPredefinedMCIValue(client, code) {
 			},
 
 			MS	: function accountCreated() { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
-			CS	: function currentStatus() { return client.currentStatus; },
 			PS	: function userPostCount() { return userStatAsString(client, 'post_count', 0); },
 			PC	: function userPostCallRatio() { return getRatio(client, 'post_count', 'login_count'); },
 

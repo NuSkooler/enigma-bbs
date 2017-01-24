@@ -339,9 +339,13 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					});
 				}, () => {
 					//	cleanup, but don't wait...
+					/*
+					:TODO: fix global temp cleanup issue!!!
+
 					temp.cleanup( err => {
 						//	:TODO: Log me!
-					});
+					});*/
+					
 					return callback(null);
 				});
 			},

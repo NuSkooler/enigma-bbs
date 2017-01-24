@@ -95,12 +95,6 @@ require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
 
 
 MenuModule.prototype.enter = function() {
-	if(_.isString(this.menuConfig.desc)) {
-		this.client.currentStatus = this.menuConfig.desc;
-	} else {
-		this.client.currentStatus = 'Browsing menus';
-	}
-
 	this.initSequence();
 };
 

@@ -438,7 +438,7 @@ function TelnetClient(input, output) {
 		newEnvironRequested	: false,
 	};
 
-	this.setTemporaryDataHandler = function(handler) {
+	this.setTemporaryDirectDataHandler = function(handler) {
 		this.input.removeAllListeners('data');
 		this.input.on('data', handler);
 	};

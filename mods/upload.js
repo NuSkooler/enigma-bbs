@@ -8,10 +8,14 @@ const getSortedAvailableFileAreas		= require('../core/file_area.js').getSortedAv
 const getAreaDefaultStorageDirectory	= require('../core/file_area.js').getAreaDefaultStorageDirectory;
 const scanFile							= require('../core/file_area.js').scanFile;
 const ansiGoto							= require('../core/ansi_term.js').goto;
+const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
+const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
 
 //	deps
 const async								= require('async');
 const _									= require('lodash');
+const temp								= require('temp').track();	//	track() cleans up temp dir/files for us
+const paths								= require('path');
 
 exports.moduleInfo = {
 	name		: 'Upload',
@@ -65,21 +69,12 @@ exports.getModule = class UploadModule extends MenuModule {
 		this.menuMethods = {
 			optionsNavContinue : (formData, extraArgs, cb) => {
 				if(this.isBlindUpload()) {
-					//	jump to protocol selection
-					const areaUploadDir = this.getSelectedAreaUploadDirectory();
-
-					const modOpts = {
-						extraArgs : {
-							recvDirectory	: areaUploadDir,
-							direction		: 'recv',
-						}
-					};
-
-					return this.gotoMenu(this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection', modOpts, cb);					
-				} else {
-					//	jump to fileDetails form
-					//	:TODO: support non-blind: collect info/filename -> upload -> complete					
+					return this.performBlindUpload(cb);
 				}
+
+				//	non-blind
+				//	jump to fileDetails form
+				//	:TODO: support non-blind: collect info/filename -> upload -> complete					
 			},
 
 			fileDetailsContinue : (formData, extraArgs, cb) => {
@@ -94,12 +89,13 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	getSaveState() {
 		const saveState = {
-			uploadType	: this.uploadType,
-
+			uploadType			: this.uploadType,
+			tempRecvDirectory	: this.tempRecvDirectory
 		};
 
 		if(this.isBlindUpload()) {
-			saveState.areaInfo = this.getSelectedAreaInfo();
+			const areaSelectView	= this.viewControllers.options.getView(MciViewIds.options.area);
+			saveState.areaInfo		= this.availAreas[areaSelectView.getData()];
 		}
 
 		return saveState;
@@ -107,18 +103,9 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	restoreSavedState(savedState) {
 		if(savedState.areaInfo) {
-			this.areaInfo = savedState.areaInfo;
+			this.areaInfo			= savedState.areaInfo;
+			this.tempRecvDirectory	= savedState.tempRecvDirectory;
 		}
-	}
-
-	getSelectedAreaInfo() {
-		const areaSelectView = this.viewControllers.options.getView(MciViewIds.options.area);
-		return this.availAreas[areaSelectView.getData()];
-	}
-
-	getSelectedAreaUploadDirectory() {
-		const areaInfo = this.getSelectedAreaInfo();
-		return getAreaDefaultStorageDirectory(areaInfo);
 	}
 
 	isBlindUpload() { return 'blind' === this.uploadType; }
@@ -150,6 +137,44 @@ exports.getModule = class UploadModule extends MenuModule {
 		if(this.isFileTransferComplete()) {
 			return this.processUploadedFiles();
 		}
+	}
+
+	leave() {
+		//	remove any temp files - only do this when 
+		if(this.isFileTransferComplete()) {
+			//	:TODO: fix global temp cleanup issue!!!
+			//temp.cleanup();	//	remove any temp files
+		}
+
+		super.leave();
+	}
+
+	performBlindUpload(cb) {
+		temp.mkdir('enigul-', (err, tempRecvDirectory) => {
+			if(err) {
+				return cb(err);
+			}
+
+			//	need a terminator for various external protocols
+			this.tempRecvDirectory = pathWithTerminatingSeparator(tempRecvDirectory);
+		
+			const modOpts = {
+				extraArgs : {
+					recvDirectory	: this.tempRecvDirectory,	//	we'll move files from here to their area container once processed/confirmed
+					direction		: 'recv',
+				}
+			};
+
+			//
+			//	Move along to protocol selection -> file transfer
+			//	Upon completion, we'll re-enter the module with some file paths handed to us
+			//
+			return this.gotoMenu(
+				this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection', 
+				modOpts, 
+				cb
+			);
+		});		
 	}
 
 	updateScanStepInfoViews(stepInfo) {
@@ -240,6 +265,8 @@ exports.getModule = class UploadModule extends MenuModule {
 			dupes		: [],
 		};
 
+		self.client.log.debug('Scanning upload(s)', { paths : this.recvFilePaths } );
+
 		async.eachSeries(this.recvFilePaths, (filePath, nextFilePath) => {
 			//	:TODO: virus scanning/etc. should occur around here
 
@@ -257,7 +284,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				return nextScanStep(null);
 			}
 
-			self.client.log.debug('Scanning upload', { filePath : filePath } );
+			self.client.log.debug('Scanning file', { filePath : filePath } );
 
 			scanFile(filePath, scanOpts, handleScanStep, (err, fileEntry, dupeEntries) => {
 				if(err) {
@@ -267,7 +294,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				//	new or dupe?
 				if(dupeEntries.length > 0) {
 					//	1:n dupes found
-					self.client.log.debug('Duplicate(s) of upload found', { dupeEntries : dupeEntries } );
+					self.client.log.debug('Duplicate file(s) found', { dupeEntries : dupeEntries } );
 
 					results.dupes = results.dupes.concat(dupeEntries);
 				} else {
@@ -279,6 +306,38 @@ exports.getModule = class UploadModule extends MenuModule {
 			});
 		}, err => {
 			return cb(err, results);
+		});
+	}
+
+	moveAndPersistUploadsToDatabase(newEntries) {
+
+		const areaStorageDir = getAreaDefaultStorageDirectory(this.areaInfo);
+		const self = this;
+
+		async.eachSeries(newEntries, (newEntry, nextEntry) => {
+			const src 	= paths.join(self.tempRecvDirectory, newEntry.fileName);
+			const dst	= paths.join(areaStorageDir, newEntry.fileName);
+
+			moveFileWithCollisionHandling(src, dst,	(err, finalPath) => {
+				if(err) {
+					self.client.log.error(
+						'Failed moving physical upload file', { error : err.message, fileName : newEntry.fileName, source : src, dest : dst }
+					);
+					
+					return nextEntry(null);	//	still try next file
+				}
+
+				self.client.log.debug('Moved upload to area', { path : finalPath } );
+
+				//	persist to DB
+				newEntry.persist(err => {
+					if(err) {
+						self.client.log.error('Failed persisting upload to database', { path : finalPath, error : err.message } );
+					}
+
+					return nextEntry(null);	//	still try next file
+				});
+			});
 		});
 	}
 
@@ -339,16 +398,15 @@ exports.getModule = class UploadModule extends MenuModule {
 						return callback(err, scanResults);
 					});
 				},
-				function persistNewEntries(scanResults, callback) {
-					//	loop over entries again & persist to DB
-					async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
-						newEntry.persist(err => {
-							return nextEntry(err);
-						});
-					}, err => {
-						return callback(err);
-					});
-				}
+				function startMovingAndPersistingToDatabase(scanResults, callback) {
+					//
+					//	*Start* the process of moving files from their current |tempRecvDirectory|
+					//	locations -> their final area destinations. Don't make the user wait
+					//	here as I/O can take quite a bit of time. Log any failures.
+					//
+					self.moveAndPersistUploadsToDatabase(scanResults.newEntries);
+					return callback(null);
+				},
 			],
 			err => {
 				if(err) {

@@ -19,6 +19,10 @@ const paths			= require('path');
 const fs			= require('fs');
 const fse			= require('fs-extra');
 
+//	some consts
+const SYSTEM_EOL	= require('os').EOL;
+const TEMP_SUFFIX	= 'enigtf-';	//	temp CWD/etc.
+
 /*
 	Resources
 
@@ -195,7 +199,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 
 	recvFiles(cb) {
-		this.executeExternalProtocolHandlerForRecv( (err, tempWorkingDir) => {
+		this.executeExternalProtocolHandlerForRecv(err => {
 			if(err) {
 				return cb(err);
 			}
@@ -203,42 +207,39 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			this.recvFilePaths = [];
 
 			if(this.recvFileName) {
-				//	file name specified - we expect a single file in |tempWorkingDir|
+				//	file name specified - we expect a single file in |this.recvDirectory|
 				
 				//	:TODO: support non-blind: Move file to dest path, add to recvFilePaths, etc.
 
 				return cb(null);
 			} else {
 				//
-				//	blind recv (upload) - files in |tempWorkingDir| should be named appropriately already
-				//	move files to |this.recvDirectory|
+				//	Blind Upload (recv): files in |this.recvDirectory| should be named appropriately already
 				//
-				fs.readdir(tempWorkingDir, (err, files) => {
+				fs.readdir(this.recvDirectory, (err, files) => {
 					if(err) {
 						return cb(err);
 					}
 
-					async.each(files, (file, nextFile) => {
-						this.moveFileWithCollisionHandling(
-							paths.join(tempWorkingDir, file),
-							paths.join(this.recvDirectory, file),
-							(err, destPath) => {
-								if(err) {
-									this.client.log.warn(
-										{ tempWorkingDir : tempWorkingDir, recvDirectory : this.recvDirectory, file : file, error : err.message }, 
-										'Failed to move upload file to destination directory'
-									);
-								} else {
-									this.recvFilePaths.push(destPath);
-								}
+					//	stat each to grab files only
+					async.each(files, (fileName, nextFile) => {
+						const recvFullPath = paths.join(this.recvDirectory, fileName);
 
-								return nextFile(null);	//	don't pass along err; try next
+						fs.stat(recvFullPath, (err, stats) => {
+							if(err) {
+								this.client.log.warn('Failed to stat file', { path : recvFullPath } );
+								return nextFile(null);	//	just try the next one
 							}
-						);
+
+							if(stats.isFile()) {
+								this.recvFilePaths.push(recvFullPath);
+							}
+
+							return nextFile(null);
+						});
 					}, () => {
 						return cb(null);
-					});
-					
+					});				
 				});
 			}
 		});
@@ -254,36 +255,25 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	prepAndBuildSendArgs(filePaths, cb) {
 		const external		= this.protocolConfig.external;
 		const externalArgs	= external[`${this.direction}Args`];
-		const self			= this;
-		let tempWorkingDir;
 
 		async.waterfall(
 			[
 				function getTempFileListPath(callback) {
 					const hasFileList = externalArgs.find(ea => (ea.indexOf('{fileListPath}') > -1) );
 					if(!hasFileList) {
-						temp.mkdir('enigdl-', (err, tempDir) => {
-							if(err) {
-								return callback(err);
-							}
-
-							tempWorkingDir = self.pathWithTerminatingSeparator(tempDir);
-							return callback(null, null);
-						});
-					} else {
-						temp.open( { prefix : 'enigdl-', suffix : '.txt' }, (err, tempFileInfo) => {
-							if(err) {
-								return callback(err);	//	failed to create it 
-							}
-
-							tempWorkingDir = self.pathWithTerminatingSeparator(paths.dirname(tempFileInfo.path));
-
-							fs.write(tempFileInfo.fd, filePaths.join('\n'));
-							fs.close(tempFileInfo.fd, err => {
-								return callback(err, tempFileInfo.path);
-							});
-						});
+						return callback(null, null);
 					}
+
+					temp.open( { prefix : TEMP_SUFFIX, suffix : '.txt' }, (err, tempFileInfo) => {
+						if(err) {
+							return callback(err);	//	failed to create it 
+						}
+
+						fs.write(tempFileInfo.fd, filePaths.join(SYSTEM_EOL));
+						fs.close(tempFileInfo.fd, err => {
+							return callback(err, tempFileInfo.path);
+						});
+					});
 				},
 				function createArgs(tempFileListPath, callback) {
 					//	initial args: ignore {filePaths} as we must break that into it's own sep array items
@@ -303,54 +293,37 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				}
 			], 
 			(err, args) => {
-				return cb(err, args, tempWorkingDir);
+				return cb(err, args);
 			}
 		);
 	}
 
 	prepAndBuildRecvArgs(cb) {
-		const self = this;
+		const externalArgs	= this.protocolConfig.external[`${this.direction}Args`];
+		const args			= externalArgs.map(arg => stringFormat(arg, {
+			uploadDir		: this.recvDirectory,
+			fileName		: this.recvFileName || '',
+		}));
 
-		async.waterfall(
-			[
-				function getTempRecvPath(callback) {
-					temp.mkdir('enigrcv-', (err, tempWorkingDir) => {
-						tempWorkingDir = self.pathWithTerminatingSeparator(tempWorkingDir);
-						return callback(err, tempWorkingDir);
-					});
-				},
-				function createArgs(tempWorkingDir, callback) {
-					const externalArgs	= self.protocolConfig.external[`${self.direction}Args`];
-					const args			= externalArgs.map(arg => stringFormat(arg, {
-						uploadDir		: tempWorkingDir,
-						fileName		: self.recvFileName || '',
-					}));
-
-					return callback(null, args, tempWorkingDir);
-				}
-			],
-			(err, args, tempWorkingDir) => {
-				return cb(err, args, tempWorkingDir);
-			}
-		);
+		return cb(null, args);
 	}
 
-	executeExternalProtocolHandler(args, tempWorkingDir, cb) {
+	executeExternalProtocolHandler(args, cb) {
 		const external	= this.protocolConfig.external;
 		const cmd		= external[`${this.direction}Cmd`];
 
 		this.client.log.debug(
-			{ cmd : cmd, args : args, tempDir : tempWorkingDir, direction : this.direction },
+			{ cmd : cmd, args : args, tempDir : this.recvDirectory, direction : this.direction },
 			'Executing external protocol'
 		);
 
 		const externalProc = pty.spawn(cmd, args, {
 			cols	: this.client.term.termWidth,
 			rows	: this.client.term.termHeight,
-			cwd		: tempWorkingDir,				
+			cwd		: this.recvDirectory,				
 		});
 
-		this.client.setTemporaryDataHandler(data => {
+		this.client.setTemporaryDirectDataHandler(data => {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
 				const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');	//	de-escape
@@ -360,8 +333,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			}
 		});
 		
-		//this.client.term.output.pipe(externalProc);		
-
 		externalProc.on('data', data => {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
@@ -391,25 +362,25 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			filePaths = [ filePaths ];
 		}
 
-		this.prepAndBuildSendArgs(filePaths, (err, args, tempWorkingDir) => {
+		this.prepAndBuildSendArgs(filePaths, (err, args) => {
 			if(err) {
 				return cb(err);
 			}
 
-			this.executeExternalProtocolHandler(args, tempWorkingDir, err => {
+			this.executeExternalProtocolHandler(args, err => {
 				return cb(err);
 			});		
 		});
 	}
 
 	executeExternalProtocolHandlerForRecv(cb) {
-		this.prepAndBuildRecvArgs( (err, args, tempWorkingDir) => {
+		this.prepAndBuildRecvArgs( (err, args) => {
 			if(err) {
 				return cb(err);
 			}
 
-			this.executeExternalProtocolHandler(args, tempWorkingDir, err => {
-				return cb(err, tempWorkingDir);
+			this.executeExternalProtocolHandler(args, err => {
+				return cb(err);
 			});
 		});
 	}
@@ -541,12 +512,15 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					}
 				},
 				function cleanupTempFiles(callback) {
+					/*	:TODO: figure out the global temp cleanup() issue!!@!
 					temp.cleanup( err => {
 						if(err) {
 							self.client.log.warn( { error : err.message }, 'Failed to clean up temporary file/directory(s)' );
 						}
 						return callback(null);	//	ignore err
 					});
+					*/
+					return callback(null);
 				},
 				function updateUserAndSystemStats(callback) {
 					if(self.isSending()) {
@@ -562,15 +536,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				}
 
 				return self.prevMenu();
-				/*
-
-				//	Wait for a key press - attempt to avoid issues with some terminals after xfer
-				//	:TODO: display ANSI if it exists else prompt -- look @ Obv/2 for filename
-				self.client.term.pipeWrite('|00|07\nTransfer(s) complete. Press a key\n');
-				self.client.waitForKeyPress( () => {
-					return self.prevMenu();
-				});
-				*/
 			}
 		);
 	}
