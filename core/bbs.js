@@ -80,7 +80,7 @@ function bbsMain() {
 		function complete(err) {
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
-				console.info('ENiGMA½ Copyright (c) 2014-2016 Bryan Ashby');
+				console.info('ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby');
 				if(!err) {					
 					console.info(banner);
 				}					
