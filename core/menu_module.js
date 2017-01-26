@@ -9,432 +9,393 @@ const menuUtil				= require('./menu_util.js');
 const Config				= require('./config.js').config;
 const stringFormat			= require('../core/string_format.js');
 const MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const Errors				= require('../core/enig_error.js').Errors;
 
 //	deps
-const async				= require('async');
-const assert			= require('assert');
-const _					= require('lodash');
+const async					= require('async');
+const assert				= require('assert');
+const _						= require('lodash');
 
-exports.MenuModule		= MenuModule;
+exports.MenuModule = class MenuModule extends PluginModule {
+	
+	constructor(options) {
+		super(options);	
 
-//	:TODO: some of this is a bit off... should pause after finishedLoading()
+		this.menuName			= options.menuName;
+		this.menuConfig			= options.menuConfig;
+		this.client				= options.client;
+		this.menuConfig.options	= options.menuConfig.options || {};
+		this.menuMethods		= {};	//	methods called from @method's		
+		this.menuConfig.config	= this.menuConfig.config || {};
+		
+		this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config.menus.cls;
 
-function MenuModule(options) {
-	PluginModule.call(this, options);
+		this.viewControllers	= {};
+	}
 
-	var self				= this;
-	this.menuName			= options.menuName;
-	this.menuConfig			= options.menuConfig;
-	this.client				= options.client;
-    
-    //  :TODO: this and the line below with .config creates empty ({}) objects in the theme --
-    //  ...which we really should not do. If they aren't there already, don't use 'em.
-	this.menuConfig.options	= options.menuConfig.options || {};
-	this.menuMethods		= {};	//	methods called from @method's
+	enter() {
+		this.initSequence();
+	}
 
-	this.cls				= _.isBoolean(this.menuConfig.options.cls) ? 
-		this.menuConfig.options.cls : 
-		Config.menus.cls;
+	leave() {
+		this.detachViewControllers();
+	}
 
-	this.menuConfig.config = this.menuConfig.config || {};
+	initSequence() {
+		const self		= this;
+		const mciData	= {};
+		let pausePosition;
 
-	this.initViewControllers();
+		async.series(
+			[
+				function beforeDisplayArt(callback) {
+					self.beforeArt(callback);
+				},
+				function displayMenuArt(callback) {
+					if(!_.isString(self.menuConfig.art)) {
+						return callback(null);
+					}
 
-	this.shouldPause = function() {
-		return 'end' === self.menuConfig.options.pause || true === self.menuConfig.options.pause;
-	};
+					self.displayAsset(
+						self.menuConfig.art,
+						self.menuConfig.options,
+						(err, artData) => {
+							if(err) {
+								self.client.log.trace('Could not display art', { art : self.menuConfig.art, reason : err.message } );
+							} else {
+								mciData.menu = artData.mciMap;
+							}
 
-	this.hasNextTimeout = function() {
-		return _.isNumber(self.menuConfig.options.nextTimeout);
-	};
+							return callback(null);	//	any errors are non-fatal
+						}
+					);
+				},
+				function moveToPromptLocation(callback) {												
+					if(self.menuConfig.prompt) {
+						//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
+					}
 
-	this.autoNextMenu = function(cb) {
-		function goNext() {
-			if(_.isString(self.menuConfig.next) || _.isArray(self.menuConfig.next)) {
+					return callback(null);
+				},
+				function displayPromptArt(callback) {
+					if(!_.isString(self.menuConfig.prompt)) {
+						return callback(null);
+					}
+
+					if(!_.isObject(self.menuConfig.promptConfig)) {
+						return callback(Errors.MissingConfig('Prompt specified but no "promptConfig" block found'));
+					}
+
+					self.displayAsset(
+						self.menuConfig.promptConfig.art,
+						self.menuConfig.options,
+						(err, artData) => {
+							if(artData) {
+								mciData.prompt = artData.mciMap;
+							}
+							return callback(err);	//	pass err here; prompts *must* have art
+						}
+					);
+				},
+				function recordCursorPosition(callback) {
+					if(!self.shouldPause()) {
+						return callback(null);	//	cursor position not needed
+					}
+
+					self.client.once('cursor position report', pos => {
+						pausePosition = { row : pos[0], col : 1 };
+						self.client.log.trace('After art position recorded', { position : pausePosition } );
+						return callback(null);
+					});
+
+					self.client.term.rawWrite(ansi.queryPos());
+				},
+				function afterArtDisplayed(callback) {
+					return self.mciReady(mciData, callback);
+				},
+				function displayPauseIfRequested(callback) {
+					if(!self.shouldPause()) {
+						return callback(null);
+					}
+
+					return self.pausePrompt(pausePosition, callback);
+				},
+				function finishAndNext(callback) {
+					self.finishedLoading();
+					return self.autoNextMenu(callback);
+				}
+			],
+			err => {
+				if(err) {
+					self.client.log.warn('Error during init sequence', { error : err.message } );
+
+					return self.prevMenu( () => { /* dummy */ } );
+				}
+			}
+		);
+	}
+
+	beforeArt(cb) {
+		if(_.isNumber(this.menuConfig.options.baudRate)) {
+			//	:TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
+			this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
+		}
+
+		if(this.cls) {
+			this.client.term.rawWrite(ansi.resetScreen());
+		}
+
+		return cb(null);
+	}
+
+	mciReady(mciData, cb) {
+		//	available for sub-classes
+		return cb(null);
+	}
+
+	finishedLoading() {
+		//	nothing in base
+	}
+
+	getSaveState() {
+		//	nothing in base
+	}
+
+	restoreSavedState(/*savedState*/) {
+		//	nothing in base
+	}
+
+	getMenuResult() {
+		//	nothing in base
+	}
+
+	nextMenu(cb) {
+		if(!this.haveNext()) {		
+			return this.prevMenu(cb);	//	no next, go to prev
+		}
+		
+		return this.client.menuStack.next(cb);
+	}
+
+	prevMenu(cb) {
+		return this.client.menuStack.prev(cb);
+	}
+
+	gotoMenu(name, options, cb) {
+		return this.client.menuStack.goto(name, options, cb);
+	}
+
+	addViewController(name, vc) {
+		assert(!this.viewControllers[name], `ViewController by the name of "${name}" already exists!`);
+
+		this.viewControllers[name] = vc;
+		return vc;
+	}
+
+	detachViewControllers() {
+		Object.keys(this.viewControllers).forEach( name => {
+			this.viewControllers[name].detachClientEvents();
+		});
+	}
+
+	shouldPause() {
+		return ('end' === this.menuConfig.options.pause || true === this.menuConfig.options.pause);
+	}
+
+	hasNextTimeout() {
+		return _.isNumber(this.menuConfig.options.nextTimeout);
+	}
+
+	haveNext() {
+		return (_.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next));
+	}
+	
+	autoNextMenu(cb) {
+		const self = this;
+
+		function gotoNextMenu() {
+			if(self.haveNext()) {
 				return menuUtil.handleNext(self.client, self.menuConfig.next, {}, cb);
 			} else {
 				return self.prevMenu(cb);
 			}
 		}
         
-		if(_.has(self.menuConfig, 'runtime.autoNext') && true === self.menuConfig.runtime.autoNext) {
-			/*
-				If 'next' is supplied, we'll use it. Otherwise, utlize fallback which
-				may be explicit (supplied) or non-explicit (previous menu)
-
-				'next' may be a simple asset, or a object with next.asset and
-				extrArgs
-
-				next: assetSpec
-
-				-or-
-
-				next: {
-					asset: assetSpec
-					extraArgs: ...
-				}
-			*/			
-			if(self.hasNextTimeout()) {
+		if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {	
+			if(this.hasNextTimeout()) {
 				setTimeout( () => {
-					return goNext();
+					return gotoNextMenu();
 				}, this.menuConfig.options.nextTimeout);
 			} else {
-				goNext();
+				return gotoNextMenu();
 			}
 		}
-	};
+	}
 
-	this.haveNext = function() {
-		return (_.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next));
-	};
-}
+	standardMCIReadyHandler(mciData, cb) {
+		//
+		//	A quick rundown:
+		//	*	We may have mciData.menu, mciData.prompt, or both.
+		//	*	Prompt form is favored over menu form if both are present.
+		//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+		//
+		const self = this;
 
-require('util').inherits(MenuModule, PluginModule);
+		async.series(
+			[
+				function addViewControllers(callback) {
+					_.forEach(mciData, (mciMap, name) => {
+						assert('menu' === name || 'prompt' === name);
+						self.addViewController(name, new ViewController( { client : self.client } ) );
+					});
 
-require('./mod_mixins.js').ViewControllerManagement.call(MenuModule.prototype);
-
-
-MenuModule.prototype.enter = function() {
-	this.initSequence();
-};
-
-MenuModule.prototype.initSequence = function() {
-	var mciData = { };
-	const self = this;
-
-	async.series(
-		[
-			function beforeDisplayArt(callback) {
-				self.beforeArt(callback);
-			},
-			function displayMenuArt(callback) {
-				if(_.isString(self.menuConfig.art)) {
-					theme.displayThemedAsset(
-						self.menuConfig.art, 
-						self.client, 
-						self.menuConfig.options,	//	can include .font, .trailingLF, etc.
-						function displayed(err, artData) {
-							if(err) {
-								self.client.log.trace( { art : self.menuConfig.art, error : err.message }, 'Could not display art');
-							} else {
-								mciData.menu = artData.mciMap;
-							}
-							callback(null);	//	non-fatal
-						}
-					);
-				} else {						
-					callback(null);
-				}
-			},
-			function moveToPromptLocation(callback) {												
-				if(self.menuConfig.prompt) {
-					//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
-				}
-
-				callback(null);
-			},
-			function displayPromptArt(callback) {
-				if(_.isString(self.menuConfig.prompt)) {
-					//	If a prompt is specified, we need the configuration
-					if(!_.isObject(self.menuConfig.promptConfig)) {
-						callback(new Error('Prompt specified but configuraiton not found!'));
-						return;
+					return callback(null);
+				},
+				function createMenu(callback) {
+					if(!self.viewControllers.menu) {
+						return callback(null);
 					}
 
-					//	Prompts *must* have art. If it's missing it's an error
-					//	:TODO: allow inline prompts in the future, e.g. @inline:memberName -> { "memberName" : { "text" : "stuff", ... } }
-					var promptConfig = self.menuConfig.promptConfig;
-					theme.displayThemedAsset(
-						promptConfig.art, 
-						self.client, 
-						self.menuConfig.options,	//	can include .font, .trailingLF, etc.
-						function displayed(err, artData) {
-							if(!err) {
-								mciData.prompt = artData.mciMap;
-							}
-							callback(err);
-						});
-				} else {						
-					callback(null);
-				}
-			},
-			function recordCursorPosition(callback) {
-				if(self.shouldPause()) {
-					self.client.once('cursor position report', function cpr(pos) {
-						self.afterArtPos = pos;
-						self.client.log.trace( { position : pos }, 'After art position recorded');
-						callback(null);
-					});
-					self.client.term.write(ansi.queryPos());
-				} else {
-					callback(null);
-				}
-			},
-			function afterArtDisplayed(callback) {
-				self.mciReady(mciData, callback);
-			},
-			function displayPauseIfRequested(callback) {
-				if(self.shouldPause()) {
-					self.client.term.write(ansi.goto(self.afterArtPos[0], 1));
-
-					//	:TODO: really need a client.term.pause() that uses the correct art/etc.
-					//	:TODO: Use MenuModule.pausePrompt()
-					theme.displayThemedPause( { client : self.client }, function keyPressed() {
-						callback(null);
-					});
-				} else {
-					callback(null);
-				}
-			},
-			function finishAndNext(callback) {
-				self.finishedLoading();
-
-				self.autoNextMenu(callback);	
-			}
-		],
-		function complete(err) {
-			if(err) {
-				console.log(err)
-				//	:TODO: what to do exactly?????
-				return self.prevMenu( () => {
-					//	dummy
-				});
-			}
-		}
-	);
-};
-
-MenuModule.prototype.getSaveState = function() {
-	//	nothing in base
-};
-
-MenuModule.prototype.restoreSavedState = function(/*savedState*/) {
-	//	nothing in base
-};
-
-MenuModule.prototype.nextMenu = function(cb) {
-	//
-	//	If we don't actually have |next|, we'll go previous
-	//
-	if(!this.haveNext()) {
-		return this.prevMenu(cb);
-	}
-	
-	this.client.menuStack.next(cb);
-};
-
-MenuModule.prototype.prevMenu = function(cb) {
-	this.client.menuStack.prev(cb);
-};
-
-MenuModule.prototype.gotoMenu = function(name, options, cb) {
-	this.client.menuStack.goto(name, options, cb);
-};
-
-MenuModule.prototype.popAndGotoMenu = function(name, options, cb) {
-	this.client.menuStack.pop();
-	this.client.menuStack.goto(name, options, cb);
-};
-
-MenuModule.prototype.leave = function() {
-	this.detachViewControllers();
-};
-
-MenuModule.prototype.beforeArt = function(cb) {
-	//
-	//	Set emulated baud rate - note that some terminals will display
-	//	part of the ESC sequence here (generally a single 'r') if they 
-	//	do not support cterm style baud rates
-	//
-	if(_.isNumber(this.menuConfig.options.baudRate)) {
-		this.client.term.write(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
-	}
-
-	if(this.cls) {
-		this.client.term.write(ansi.resetScreen());
-	}
-
-	return cb(null);
-};
-
-MenuModule.prototype.mciReady = function(mciData, cb) {
-	//	Reserved for sub classes
-	cb(null);
-};
-
-MenuModule.prototype.standardMCIReadyHandler = function(mciData, cb) {
-	//
-	//	A quick rundown:
-	//	*	We may have mciData.menu, mciData.prompt, or both.
-	//	*	Prompt form is favored over menu form if both are present.
-	//	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
-	//
-	var self = this;
-
-	async.series(
-		[
-			function addViewControllers(callback) {
-				_.forEach(mciData, function entry(mciMap, name) {
-					assert('menu' === name || 'prompt' === name);
-					self.addViewController(name, new ViewController( { client : self.client } ));
-				});
-				callback(null);
-			},
-			function createMenu(callback) {
-				if(self.viewControllers.menu) {
-					var menuLoadOpts = {
+					const menuLoadOpts = {
 						mciMap		: mciData.menu,
 						callingMenu	: self,
 						withoutForm	: _.isObject(mciData.prompt),
 					};
 
-					self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, function menuLoaded(err) {
-						callback(err);
+					self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, err => {
+						return callback(err);
 					});
-				} else {
-					callback(null);
-				}
-			},
-			function createPrompt(callback) {
-				if(self.viewControllers.prompt) {
-					var promptLoadOpts = {
+				},
+				function createPrompt(callback) {
+					if(!self.viewControllers.prompt) {
+						return callback(null);
+					}
+
+					const promptLoadOpts = {
 						callingMenu		: self,
 						mciMap			: mciData.prompt,
 					};
 
-					self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, function promptLoaded(err) {
-						callback(err);
+					self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, err => {
+						return callback(err);
 					});
-				} else {
-					callback(null);
 				}
-			}
-		],
-		function complete(err) {
-			cb(err);
-		}
-	);
-};
-
-MenuModule.prototype.finishedLoading = function() {
-};
-
-MenuModule.prototype.getMenuResult = function() {
-	//	nothing in base
-};
-
-MenuModule.prototype.displayAsset = function(name, options, cb) {
-
-	if(_.isFunction(options)) {
-		cb = options;
-		options = {};
-	}
-
-	if(options.clearScreen) {
-		this.client.term.rawWrite(ansi.clearScreen());
-	}
-	
-	return theme.displayThemedAsset(
-		name, 
-		this.client, 
-		Object.assign( { font : this.menuConfig.config.font }, options ),
-		(err, artData) => {
-			if(cb) {
-				return cb(err, artData);
-			}
-		}
-	);
-	
-};
-
-MenuModule.prototype.prepViewController = function(name, formId, artData, cb) {
-	
-	if(_.isUndefined(this.viewControllers[name])) {
-		const vcOpts = {
-			client		: this.client,
-			formId		: formId,
-		};
-
-		const vc = this.addViewController(name, new ViewController(vcOpts));
-
-		const loadOpts = {
-			callingMenu		: this,
-			mciMap			: artData.mciMap,
-			formId			: formId,
-		};
-
-		return vc.loadFromMenuConfig(loadOpts, cb);
-	}
-
-	this.viewControllers[name].setFocus(true);
-	return cb(null);
-};
-
-
-MenuModule.prototype.prepViewControllerWithArt = function(name, formId, options, cb) {
-	this.displayAsset(
-		this.menuConfig.config.art[name],
-		options,
-		(err, artData) => {
-			if(err) {
+			],
+			err => {
 				return cb(err);
 			}
+		);
+	}
 
-			return this.prepViewController(name, formId, artData, cb);
+	displayAsset(name, options, cb) {
+		if(_.isFunction(options)) {
+			cb = options;
+			options = {};
 		}
-	);
-};
 
-MenuModule.prototype.pausePrompt = function(position, cb) {
-	if(!cb && _.isFunction(position)) {
-		cb = position;
-		position = null;		
-	}
-
-	if(position) {
-		position.x = position.row || position.x || 1;
-		position.y = position.col || position.y || 1;
-
-		this.client.term.rawWrite(ansi.goto(position.x, position.y));
-	}
-	
-	theme.displayThemedPause( { client : this.client }, cb);
-};
-
-MenuModule.prototype.setViewText = function(formName, mciId, text, appendMultiline) {
-	const view = this.viewControllers[formName].getView(mciId);
-	if(!view) {
-		return;
-	}
-	
-	if(appendMultiline && (view instanceof MultiLineEditTextView)) {
-		view.addText(text);
-	} else {
-		view.setText(text);
-	}
-};
-
-MenuModule.prototype.updateCustomViewTextsWithFilter = function(formName, startId, fmtObj, options) {
-	options = options || {};
-
-	let textView;					
-	let customMciId = startId;
-	const config	= this.menuConfig.config;
-
-	while( (textView = this.viewControllers[formName].getView(customMciId)) ) {
-		const key		= `${formName}InfoFormat${customMciId}`;	//	e.g. "mainInfoFormat10"
-		const format	= config[key];
-
-		if(format && (!options.filter || options.filter.find(f => format.indexOf(f) > - 1))) {
-			const text = stringFormat(format, fmtObj);
-
-			if(options.appendMultiLine && (textView instanceof MultiLineEditTextView)) {
-				textView.addText(text);
-			} else {
-				textView.setText(text);
+		if(options.clearScreen) {
+			this.client.term.rawWrite(ansi.clearScreen());
+		}
+		
+		return theme.displayThemedAsset(
+			name, 
+			this.client, 
+			Object.assign( { font : this.menuConfig.config.font }, options ),
+			(err, artData) => {
+				if(cb) {
+					return cb(err, artData);
+				}
 			}
+		);
+	}
+
+	prepViewController(name, formId, artData, cb) {
+		if(_.isUndefined(this.viewControllers[name])) {
+			const vcOpts = {
+				client		: this.client,
+				formId		: formId,
+			};
+
+			const vc = this.addViewController(name, new ViewController(vcOpts));
+
+			const loadOpts = {
+				callingMenu		: this,
+				mciMap			: artData.mciMap,
+				formId			: formId,
+			};
+
+			return vc.loadFromMenuConfig(loadOpts, cb);
 		}
 
-		++customMciId;
+		this.viewControllers[name].setFocus(true);
+		return cb(null);
+	}
+
+	prepViewControllerWithArt(name, formId, options, cb) {
+		this.displayAsset(
+			this.menuConfig.config.art[name],
+			options,
+			(err, artData) => {
+				if(err) {
+					return cb(err);
+				}
+
+				return this.prepViewController(name, formId, artData, cb);
+			}
+		);
+	}
+
+	pausePrompt(position, cb) {
+		if(!cb && _.isFunction(position)) {
+			cb = position;
+			position = null;		
+		}
+
+		if(position) {
+			position.x = position.row || position.x || 1;
+			position.y = position.col || position.y || 1;
+
+			this.client.term.rawWrite(ansi.goto(position.x, position.y));
+		}
+		
+		return theme.displayThemedPause( { client : this.client }, cb);
+	}
+
+	setViewText(formName, mciId, text, appendMultiLine) {
+		const view = this.viewControllers[formName].getView(mciId);
+		if(!view) {
+			return;
+		}
+		
+		if(appendMultiLine && (view instanceof MultiLineEditTextView)) {
+			view.addText(text);
+		} else {
+			view.setText(text);
+		}
+	}
+
+	updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
+		options = options || {};
+
+		let textView;					
+		let customMciId = startId;
+		const config	= this.menuConfig.config;
+
+		while( (textView = this.viewControllers[formName].getView(customMciId)) ) {
+			const key		= `${formName}InfoFormat${customMciId}`;	//	e.g. "mainInfoFormat10"
+			const format	= config[key];
+
+			if(format && (!options.filter || options.filter.find(f => format.indexOf(f) > - 1))) {
+				const text = stringFormat(format, fmtObj);
+
+				if(options.appendMultiLine && (textView instanceof MultiLineEditTextView)) {
+					textView.addText(text);
+				} else {
+					textView.setText(text);
+				}
+			}
+
+			++customMciId;
+		}
 	}
 };

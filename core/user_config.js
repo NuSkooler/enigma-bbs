@@ -1,17 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule			= require('./menu_module.js').MenuModule;
-var ViewController		= require('./view_controller.js').ViewController;
-var theme 				= require('./theme.js');
-var sysValidate			= require('./system_view_validate.js');
+const MenuModule		= require('./menu_module.js').MenuModule;
+const ViewController	= require('./view_controller.js').ViewController;
+const theme 			= require('./theme.js');
+const sysValidate		= require('./system_view_validate.js');
 
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
-var moment				= require('moment');
-
-exports.getModule		= UserConfigModule;
+const async				= require('async');
+const assert			= require('assert');
+const _					= require('lodash');
+const moment			= require('moment');
 
 exports.moduleInfo = {
 	name		: 'User Configuration',
@@ -19,7 +17,7 @@ exports.moduleInfo = {
 	author		: 'NuSkooler',
 };
 
-var MciCodeIds = {
+const MciCodeIds = {
 	RealName	: 1,
 	BirthDate	: 2,
 	Sex			: 3,
@@ -37,192 +35,187 @@ var MciCodeIds = {
 	SaveCancel	: 25,
 };
 
-function UserConfigModule(options) {
-	MenuModule.call(this, options);
+exports.getModule = class UserConfigModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	var self = this;
-	
-	self.getView = function(viewId) {
-		return self.viewControllers.menu.getView(viewId);
-	};
+		const self = this;
 
-	self.setViewText = function(viewId, text) {
-		var v = self.getView(viewId);
-		if(v) {
-			v.setText(text);
-		}
-	};
-
-	this.menuMethods = {
-		//
-		//	Validation support
-		//
-		validateEmailAvail : function(data, cb) {
+		this.menuMethods = {
 			//
-			//	If nothing changed, we know it's OK
+			//	Validation support
 			//
-			if(self.client.user.properties.email_address.toLowerCase() === data.toLowerCase()) {
-				return cb(null);
-			}
-			
-			//	Otherwise we can use the standard system method
-			return sysValidate.validateEmailAvail(data, cb);
-		},
-		
-		validatePassword : function(data, cb) {
-			//
-			//	Blank is OK - this means we won't be changing it
-			//
-			if(!data || 0 === data.length) {
-				return cb(null);
-			}
-			
-			//	Otherwise we can use the standard system method
-			return sysValidate.validatePasswordSpec(data, cb);
-		},
-		
-		validatePassConfirmMatch : function(data, cb) {
-			var passwordView = self.getView(MciCodeIds.Password);
-			cb(passwordView.getData() === data ? null : new Error('Passwords do not match'));
-		},
-		
-		viewValidationListener : function(err, cb) {
-			var errMsgView = self.getView(MciCodeIds.ErrorMsg);
-			var newFocusId;
-			if(errMsgView) {
-				if(err) {
-					errMsgView.setText(err.message);
-					
-					if(err.view.getId() === MciCodeIds.PassConfirm) {
-						newFocusId = MciCodeIds.Password;
-						var passwordView = self.getView(MciCodeIds.Password);
-						passwordView.clearText();
-						err.view.clearText();
-					}
-				} else {
-					errMsgView.clearText();
-				}
-			}
-			cb(newFocusId);
-		},
-		
-		//
-		//	Handlers
-		//
-		saveChanges : function(formData, extraArgs, cb) {
-			assert(formData.value.password === formData.value.passwordConfirm);
-			
-			const newProperties = {
-				real_name			: formData.value.realName,
-				birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
-				sex					: formData.value.sex,
-				location			: formData.value.location,
-				affiliation			: formData.value.affils,
-				email_address		: formData.value.email,
-				web_address			: formData.value.web,
-				term_height			: formData.value.termHeight.toString(),				
-				theme_id			: self.availThemeInfo[formData.value.theme].themeId,
-			};
-            
-            //  runtime set theme
-			theme.setClientTheme(self.client, newProperties.theme_id);
-			
-            //  persist all changes
-			self.client.user.persistProperties(newProperties, err => {			
-				if(err) {
-					self.client.log.warn( { error : err.toString() }, 'Failed persisting updated properties');
-					//	:TODO: warn end user!
-					return self.prevMenu(cb);
-				}
+			validateEmailAvail : function(data, cb) {
 				//
-				//	New password if it's not empty
+				//	If nothing changed, we know it's OK
 				//
-				self.client.log.info('User updated properties');
-				
-				if(formData.value.password.length > 0) {
-					self.client.user.setNewAuthCredentials(formData.value.password, err => {
-						if(err) {
-							self.client.log.error( { err : err }, 'Failed storing new authentication credentials');
-						} else {
-							self.client.log.info('User changed authentication credentials');
-						}
-						return self.prevMenu(cb);
-					});
-				} else {
-					return self.prevMenu(cb);
+				if(self.client.user.properties.email_address.toLowerCase() === data.toLowerCase()) {
+					return cb(null);
 				}
-			});
-		},
-	};
-}
-
-require('util').inherits(UserConfigModule, MenuModule);
-
-UserConfigModule.prototype.mciReady = function(mciData, cb) {
-	var self 	= this;
-	var vc		= self.viewControllers.menu = new ViewController( { client : self.client} );
-	
-	var currentThemeIdIndex = 0;
-
-	async.series(
-		[
-			function callParentMciReady(callback) {
-				UserConfigModule.super_.prototype.mciReady.call(self, mciData, callback);
-			},
-			function loadFromConfig(callback) {
-				vc.loadFromMenuConfig( { callingMenu : self, mciMap : mciData.menu }, callback);
-			},
-			function prepareAvailableThemes(callback) {
-				self.availThemeInfo = _.sortBy(_.map(theme.getAvailableThemes(), function makeThemeInfo(t, themeId) {		
-					return {
-						themeId		: themeId,
-						name		: t.info.name,
-						author		: t.info.author,
-						desc		: _.isString(t.info.desc) ? t.info.desc : '',
-						group		: _.isString(t.info.group) ? t.info.group : '',
-					};
-				}), 'name');
 				
-				currentThemeIdIndex = _.findIndex(self.availThemeInfo, function cmp(ti) {
-					return ti.themeId === self.client.user.properties.theme_id;
-				});
-				
-				callback(null);
+				//	Otherwise we can use the standard system method
+				return sysValidate.validateEmailAvail(data, cb);
 			},
-			function populateViews(callback) {
-				var user = self.client.user;
-
-				self.setViewText(MciCodeIds.RealName, user.properties.real_name);
-				self.setViewText(MciCodeIds.BirthDate, moment(user.properties.birthdate).format('YYYYMMDD'));
-				self.setViewText(MciCodeIds.Sex, user.properties.sex);
-				self.setViewText(MciCodeIds.Loc, user.properties.location);
-				self.setViewText(MciCodeIds.Affils, user.properties.affiliation);
-				self.setViewText(MciCodeIds.Email, user.properties.email_address);
-				self.setViewText(MciCodeIds.Web, user.properties.web_address);
-				self.setViewText(MciCodeIds.TermHeight, user.properties.term_height.toString());
+			
+			validatePassword : function(data, cb) {
+				//
+				//	Blank is OK - this means we won't be changing it
+				//
+				if(!data || 0 === data.length) {
+					return cb(null);
+				}
+				
+				//	Otherwise we can use the standard system method
+				return sysValidate.validatePasswordSpec(data, cb);
+			},
+			
+			validatePassConfirmMatch : function(data, cb) {
+				var passwordView = self.getView(MciCodeIds.Password);
+				cb(passwordView.getData() === data ? null : new Error('Passwords do not match'));
+			},
+			
+			viewValidationListener : function(err, cb) {
+				var errMsgView = self.getView(MciCodeIds.ErrorMsg);
+				var newFocusId;
+				if(errMsgView) {
+					if(err) {
+						errMsgView.setText(err.message);
 						
-				
-				var themeView = self.getView(MciCodeIds.Theme);
-				if(themeView) {
-					themeView.setItems(_.map(self.availThemeInfo, 'name'));
-					themeView.setFocusItemIndex(currentThemeIdIndex);
+						if(err.view.getId() === MciCodeIds.PassConfirm) {
+							newFocusId = MciCodeIds.Password;
+							var passwordView = self.getView(MciCodeIds.Password);
+							passwordView.clearText();
+							err.view.clearText();
+						}
+					} else {
+						errMsgView.clearText();
+					}
 				}
+				cb(newFocusId);
+			},
+			
+			//
+			//	Handlers
+			//
+			saveChanges : function(formData, extraArgs, cb) {
+				assert(formData.value.password === formData.value.passwordConfirm);
 				
-				var realNameView = self.getView(MciCodeIds.RealName);
-				if(realNameView) {
-					realNameView.setFocus(true);	//	:TODO: HACK! menu.hjson sets focus, but manual population above breaks this. Needs a real fix!
-				}
+				const newProperties = {
+					real_name			: formData.value.realName,
+					birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
+					sex					: formData.value.sex,
+					location			: formData.value.location,
+					affiliation			: formData.value.affils,
+					email_address		: formData.value.email,
+					web_address			: formData.value.web,
+					term_height			: formData.value.termHeight.toString(),				
+					theme_id			: self.availThemeInfo[formData.value.theme].themeId,
+				};
 				
-				callback(null);
-			}
-		],
-		function complete(err) {
+				//  runtime set theme
+				theme.setClientTheme(self.client, newProperties.theme_id);
+				
+				//  persist all changes
+				self.client.user.persistProperties(newProperties, err => {			
+					if(err) {
+						self.client.log.warn( { error : err.toString() }, 'Failed persisting updated properties');
+						//	:TODO: warn end user!
+						return self.prevMenu(cb);
+					}
+					//
+					//	New password if it's not empty
+					//
+					self.client.log.info('User updated properties');
+					
+					if(formData.value.password.length > 0) {
+						self.client.user.setNewAuthCredentials(formData.value.password, err => {
+							if(err) {
+								self.client.log.error( { err : err }, 'Failed storing new authentication credentials');
+							} else {
+								self.client.log.info('User changed authentication credentials');
+							}
+							return self.prevMenu(cb);
+						});
+					} else {
+						return self.prevMenu(cb);
+					}
+				});
+			},
+		};
+	}
+
+	getView(viewId) {
+		return this.viewControllers.menu.getView(viewId);
+	}
+
+	mciReady(mciData, cb) {
+		super.mciReady(mciData, err => {
 			if(err) {
-				self.client.log.warn( { error : err.toString() }, 'User configuration failed to init');
-				self.prevMenu();
-			} else {
-				cb(null);
+				return cb(err);
 			}
-		}
-	);
+
+			const self 				= this;
+			const vc				= self.viewControllers.menu = new ViewController( { client : self.client} );		
+			let currentThemeIdIndex = 0;
+
+			async.series(
+				[
+					function loadFromConfig(callback) {
+						vc.loadFromMenuConfig( { callingMenu : self, mciMap : mciData.menu }, callback);
+					},
+					function prepareAvailableThemes(callback) {
+						self.availThemeInfo = _.sortBy(_.map(theme.getAvailableThemes(), function makeThemeInfo(t, themeId) {		
+							return {
+								themeId		: themeId,
+								name		: t.info.name,
+								author		: t.info.author,
+								desc		: _.isString(t.info.desc) ? t.info.desc : '',
+								group		: _.isString(t.info.group) ? t.info.group : '',
+							};
+						}), 'name');
+						
+						currentThemeIdIndex = _.findIndex(self.availThemeInfo, function cmp(ti) {
+							return ti.themeId === self.client.user.properties.theme_id;
+						});
+						
+						callback(null);
+					},
+					function populateViews(callback) {
+						var user = self.client.user;
+
+						self.setViewText('menu', MciCodeIds.RealName, user.properties.real_name);
+						self.setViewText('menu', MciCodeIds.BirthDate, moment(user.properties.birthdate).format('YYYYMMDD'));
+						self.setViewText('menu', MciCodeIds.Sex, user.properties.sex);
+						self.setViewText('menu', MciCodeIds.Loc, user.properties.location);
+						self.setViewText('menu', MciCodeIds.Affils, user.properties.affiliation);
+						self.setViewText('menu', MciCodeIds.Email, user.properties.email_address);
+						self.setViewText('menu', MciCodeIds.Web, user.properties.web_address);
+						self.setViewText('menu', MciCodeIds.TermHeight, user.properties.term_height.toString());
+								
+						
+						var themeView = self.getView(MciCodeIds.Theme);
+						if(themeView) {
+							themeView.setItems(_.map(self.availThemeInfo, 'name'));
+							themeView.setFocusItemIndex(currentThemeIdIndex);
+						}
+						
+						var realNameView = self.getView(MciCodeIds.RealName);
+						if(realNameView) {
+							realNameView.setFocus(true);	//	:TODO: HACK! menu.hjson sets focus, but manual population above breaks this. Needs a real fix!
+						}
+						
+						callback(null);
+					}
+				],
+				function complete(err) {
+					if(err) {
+						self.client.log.warn( { error : err.toString() }, 'User configuration failed to init');
+						self.prevMenu();
+					} else {
+						cb(null);
+					}
+				}
+			);
+		});
+	}
 };

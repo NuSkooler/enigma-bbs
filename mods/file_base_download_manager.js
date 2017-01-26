@@ -80,10 +80,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 			}
 
 			//	Simply an empty D/L queue: Present a specialized "empty queue" page
-			//	:TODO: This technique can be applied in many areas of the code; probablly need a better name than 'popAndGotoMenu' though
-			//	...actually, the option to not append to the stack would be better here
 			return this.gotoMenu(this.menuConfig.config.emptyQueueMenu || 'fileBaseDownloadManagerEmptyQueue');
-			//return this.popAndGotoMenu(this.menuConfig.config.emptyQueueMenu || 'fileBaseDownloadManagerEmptyQueue');
 		}
 
 		const self = this;

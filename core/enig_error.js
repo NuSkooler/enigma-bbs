@@ -28,4 +28,5 @@ exports.Errors = {
 	AccessDenied		: (reason, reasonCode)	=> new EnigError('Access denied', -32003, reason, reasonCode),
 	Invalid				: (reason, reasonCode)	=> new EnigError('Invalid', -32004, reason, reasonCode),
 	ExternalProcess		: (reason, reasonCode)	=> new EnigError('External process error', -32005, reason, reasonCode),
+	MissingConfig		: (reason, reasonCode)	=> new EnigError('Missing configuration', -32006, reason, reasonCode),
 };

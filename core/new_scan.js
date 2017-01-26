@@ -17,8 +17,6 @@ exports.moduleInfo = {
 	author		: 'NuSkooler',
 };
 
-exports.getModule = NewScanModule;
-
 /*
  * :TODO:
  * * User configurable new scan: Area selection (avail from messages area) (sep module)
@@ -27,48 +25,45 @@ exports.getModule = NewScanModule;
  
 */
 
-var MciCodeIds = {
+const MciCodeIds = {
 	ScanStatusLabel	: 1,	//	TL1
 	ScanStatusList	: 2,	//	VM2 (appends)
 };
 
-function NewScanModule(options) {
-	MenuModule.call(this, options);
+exports.getModule = class NewScanModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	var self	= this;
-	var config	= this.menuConfig.config;
+		this.newScanFullExit	= _.has(options, 'lastMenuResult.fullExit') ? options.lastMenuResult.fullExit : false;
 
-	this.newScanFullExit	= _.has(options, 'lastMenuResult.fullExit') ? options.lastMenuResult.fullExit : false;
+		this.currentStep		= 'messageConferences';
+		this.currentScanAux		= {};
 
-	this.currentStep		= 'messageConferences';
-	this.currentScanAux		= {};
+		//  :TODO: Make this conf/area specific:
+		const config			= this.menuConfig.config;
+		this.scanStartFmt		= config.scanStartFmt || 'Scanning {confName} - {areaName}...';		
+		this.scanFinishNoneFmt	= config.scanFinishNoneFmt || 'Nothing new';
+		this.scanFinishNewFmt	= config.scanFinishNewFmt || '{count} entries found';
+		this.scanCompleteMsg	= config.scanCompleteMsg || 'Finished newscan';
+	}
 
-    //  :TODO: Make this conf/area specific:
-	this.scanStartFmt		= config.scanStartFmt || 'Scanning {confName} - {areaName}...';
-	this.scanFinishNoneFmt	= config.scanFinishNoneFmt || 'Nothing new';
-	this.scanFinishNewFmt	= config.scanFinishNewFmt || '{count} entries found';
-	this.scanCompleteMsg	= config.scanCompleteMsg || 'Finished newscan';
+	updateScanStatus(statusText) {
+		this.setViewText('allViews', MciCodeIds.ScanStatusLabel, statusText);
 
-	this.updateScanStatus = function(statusText) {
-		var vc = self.viewControllers.allViews;
-		
-		var view = vc.getView(MciCodeIds.ScanStatusLabel);
-		if(view) {
-			view.setText(statusText);
-		}
-
+		/*
 		view = vc.getView(MciCodeIds.ScanStatusList);
 		//	:TODO: MenuView needs appendItem()
 		if(view) {			
 		}
-	};
+		*/
+	}
     
-	this.newScanMessageConference = function(cb) {
+	newScanMessageConference(cb) {
         //  lazy init
-		if(!self.sortedMessageConfs) {
+		if(!this.sortedMessageConfs) {
 			const getAvailOpts = { includeSystemInternal : true };      //  find new private messages, bulletins, etc.            
 
-			self.sortedMessageConfs = _.map(msgArea.getAvailableMessageConferences(self.client, getAvailOpts), (v, k) => {
+			this.sortedMessageConfs = _.map(msgArea.getAvailableMessageConferences(this.client, getAvailOpts), (v, k) => {
 				return {
 					confTag : k,
 					conf    : v,  
@@ -80,7 +75,7 @@ function NewScanModule(options) {
 			//	always come first such that we display private mails/etc. before
 			//	other conferences & areas
 			//
-			self.sortedMessageConfs.sort((a, b) => {
+			this.sortedMessageConfs.sort((a, b) => {
 				if('system_internal' === a.confTag) {
 					return -1;
 				} else {
@@ -88,11 +83,12 @@ function NewScanModule(options) {
 				}
 			});
 
-			self.currentScanAux.conf = self.currentScanAux.conf || 0;
-			self.currentScanAux.area = self.currentScanAux.area || 0;
+			this.currentScanAux.conf = this.currentScanAux.conf || 0;
+			this.currentScanAux.area = this.currentScanAux.area || 0;
 		}
         
-		const currentConf = self.sortedMessageConfs[self.currentScanAux.conf];
+		const currentConf	= this.sortedMessageConfs[this.currentScanAux.conf];
+		const self			= this;
         
 		async.series(
 			[
@@ -113,19 +109,22 @@ function NewScanModule(options) {
 					});
 				}
 			],
-			cb 
+			err => {
+				return cb(err);
+			}
         );
-	};
+	}
 	
-	this.newScanMessageArea = function(conf, cb) {
+	newScanMessageArea(conf, cb) {
         //  :TODO: it would be nice to cache this - must be done by conf!
-		const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : self.client } );
-		const currentArea	= sortedAreas[self.currentScanAux.area];
+		const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } );
+		const currentArea	= sortedAreas[this.currentScanAux.area];
 				
 		//
 		//	Scan and update index until we find something. If results are found,
 		//	we'll goto the list module & show them.
 		//
+		const self = this;
 		async.waterfall(
 			[
 				function checkAndUpdateIndex(callback) {
@@ -165,73 +164,73 @@ function NewScanModule(options) {
 						}
 					};
 
-					return self.gotoMenu(config.newScanMessageList || 'newScanMessageList', nextModuleOpts);
+					return self.gotoMenu(self.menuConfig.config.newScanMessageList || 'newScanMessageList', nextModuleOpts);
 				}
 			],
-			cb // no more areas
+			err => {
+				return cb(err);
+			}
 		);
-	};
-
-}
-
-require('util').inherits(NewScanModule, MenuModule);
-
-NewScanModule.prototype.getSaveState = function() {
-	return {
-		currentStep 	: this.currentStep,
-		currentScanAux	: this.currentScanAux,
-	};
-};
-
-NewScanModule.prototype.restoreSavedState = function(savedState) {
-	this.currentStep 	= savedState.currentStep;
-	this.currentScanAux	= savedState.currentScanAux;
-};
-
-NewScanModule.prototype.mciReady = function(mciData, cb) {
-
-	if(this.newScanFullExit) {
-		//	user has canceled the entire scan @ message list view
-		return cb(null);
 	}
 
+	getSaveState() {
+		return {
+			currentStep 	: this.currentStep,
+			currentScanAux	: this.currentScanAux,
+		};
+	}
 
-	var self	= this;
-	var vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+	restoreSavedState(savedState) {
+		this.currentStep 	= savedState.currentStep;
+		this.currentScanAux	= savedState.currentScanAux;
+	}
 
-	//	:TODO: display scan step/etc.
-
-	async.series(		
-		[
-			function callParentMciReady(callback) {
-				NewScanModule.super_.prototype.mciReady.call(self, mciData, callback);
-			},
-			function loadFromConfig(callback) {
-				const loadOpts = {
-					callingMenu		: self,
-					mciMap			: mciData.menu,
-					noInput			: true,
-				};
-
-				vc.loadFromMenuConfig(loadOpts, callback);
-			},
-			function performCurrentStepScan(callback) {
-				switch(self.currentStep) {
-					case 'messageConferences' :
-						self.newScanMessageConference( () => {
-							callback(null); //  finished
-						});
-						break;	
-						
-					default : return callback(null);
-				}
-			}
-		],
-		function complete(err) {
-			if(err) {
-				self.client.log.error( { error : err.toString() }, 'Error during new scan');
-			}
-			cb(err);
+	mciReady(mciData, cb) {
+		if(this.newScanFullExit) {
+			//	user has canceled the entire scan @ message list view
+			return cb(null);
 		}
-	);
+
+		super.mciReady(mciData, err => {
+			if(err) {
+				return cb(err);
+			}
+
+			const self	= this;
+			const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
+
+			//	:TODO: display scan step/etc.
+
+			async.series(		
+				[
+					function loadFromConfig(callback) {
+						const loadOpts = {
+							callingMenu		: self,
+							mciMap			: mciData.menu,
+							noInput			: true,
+						};
+
+						vc.loadFromMenuConfig(loadOpts, callback);
+					},
+					function performCurrentStepScan(callback) {
+						switch(self.currentStep) {
+							case 'messageConferences' :
+								self.newScanMessageConference( () => {
+									callback(null); //  finished
+								});
+								break;	
+								
+							default : return callback(null);
+						}
+					}
+				],
+				err => {
+					if(err) {
+						self.client.log.error( { error : err.toString() }, 'Error during new scan');
+					}
+					return cb(err);
+				}
+			);
+		});
+	}
 };

@@ -14,8 +14,6 @@ const stringFormat			= require('../core/string_format.js');
 const async				= require('async');
 const _					= require('lodash');
 
-exports.getModule			= MessageAreaListModule;
-
 exports.moduleInfo = {
 	name	: 'Message Area List',
 	desc	: 'Module for listing / choosing message areas',
@@ -36,153 +34,146 @@ exports.moduleInfo = {
           |TI      Current time
 */
 
-const MCICodesIDs = {
+const MciViewIds = {
 	AreaList		: 1,
 	SelAreaInfo1	: 2,
 	SelAreaInfo2	: 3, 
 };
 
-function MessageAreaListModule(options) {
-	MenuModule.call(this, options);
+exports.getModule = class MessageAreaListModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	var self = this;
+		this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
+			this.client.user.properties.message_conf_tag,
+			{ client : this.client }
+		);
 
-	this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
-         self.client.user.properties.message_conf_tag,
-        { client : self.client }
-    );
+		const self = this;
+		this.menuMethods = {
+			changeArea : function(formData, extraArgs, cb) {
+				if(1 === formData.submitId) {
+					let area 		= self.messageAreas[formData.value.area];
+					const areaTag	=  area.areaTag;
+					area = area.area;	//	what we want is actually embedded
 
-	this.prevMenuOnTimeout = function(timeout, cb) {
-		setTimeout( () => {
-			self.prevMenu(cb);
-		}, timeout);
-	};
+					messageArea.changeMessageArea(self.client, areaTag, err => {
+						if(err) {
+							self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
 
-	this.menuMethods = {
-		changeArea : function(formData, extraArgs, cb) {
-			if(1 === formData.submitId) {
-				let area 		= self.messageAreas[formData.value.area];
-				const areaTag	=  area.areaTag;
-				area = area.area;	//	what we want is actually embedded
+							self.prevMenuOnTimeout(1000, cb);
+						} else {						
+							if(_.isString(area.art)) {
+								const dispOptions = {
+									client	: self.client,
+									name	: area.art,
+								};
 
-				messageArea.changeMessageArea(self.client, areaTag, err => {
-					if(err) {
-						self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
+								self.client.term.rawWrite(resetScreen());
 
-						self.prevMenuOnTimeout(1000, cb);
-					} else {						
-						if(_.isString(area.art)) {
-							const dispOptions = {
-								client	: self.client,
-								name	: area.art,
-							};
-
-							self.client.term.rawWrite(resetScreen());
-
-							displayThemeArt(dispOptions, () => {
-								//	pause by default, unless explicitly told not to
-								if(_.has(area, 'options.pause') && false === area.options.pause) { 
-									return self.prevMenuOnTimeout(1000, cb);
-								} else {
-									//	:TODO: Use MenuModule.pausePrompt()
-									displayThemedPause( { client : self.client }, () => {
-										return self.prevMenu(cb);
-									});
-								}
-							});
-						} else {
-							return self.prevMenu(cb);
+								displayThemeArt(dispOptions, () => {
+									//	pause by default, unless explicitly told not to
+									if(_.has(area, 'options.pause') && false === area.options.pause) { 
+										return self.prevMenuOnTimeout(1000, cb);
+									} else {
+										//	:TODO: Use MenuModule.pausePrompt()
+										displayThemedPause( { client : self.client }, () => {
+											return self.prevMenu(cb);
+										});
+									}
+								});
+							} else {
+								return self.prevMenu(cb);
+							}
 						}
-					}
-				});
-			} else {
-				return cb(null);
+					});
+				} else {
+					return cb(null);
+				}
 			}
-		}
-	};
+		};
+	}
 
-	this.setViewText = function(id, text) {
-		const v = self.viewControllers.areaList.getView(id);
-		if(v) {
-			v.setText(text);
-		}
-	};
+	prevMenuOnTimeout(timeout, cb) {
+		setTimeout( () => {
+			return this.prevMenu(cb);
+		}, timeout);
+	}
 
-	this.updateGeneralAreaInfoViews = function(areaIndex) {
+	updateGeneralAreaInfoViews(areaIndex) {
+		//	:TODO: these concepts have been replaced with the {someKey} style formatting - update me!
 		/* experimental: not yet avail
 		const areaInfo = self.messageAreas[areaIndex];
 
-		[ MCICodesIDs.SelAreaInfo1, MCICodesIDs.SelAreaInfo2 ].forEach(mciId => {
+		[ MciViewIds.SelAreaInfo1, MciViewIds.SelAreaInfo2 ].forEach(mciId => {
 			const v = self.viewControllers.areaList.getView(mciId);
 			if(v) {
 				v.setFormatObject(areaInfo.area);
 			}
 		});
 		*/
-	};
+	}
 
-}
-
-require('util').inherits(MessageAreaListModule, MenuModule);
-
-MessageAreaListModule.prototype.mciReady = function(mciData, cb) {
-	const self	= this;
-	const vc	= self.viewControllers.areaList = new ViewController( { client : self.client } );
-
-	async.series(
-		[
-			function callParentMciReady(callback) {
-				MessageAreaListModule.super_.prototype.mciReady.call(this, mciData, function parentMciReady(err) {
-					callback(err);
-				});
-			},
-			function loadFromConfig(callback) {
-				const loadOpts = {
-					callingMenu	: self,
-					mciMap		: mciData.menu,
-					formId		: 0,
-				};
-
-				vc.loadFromMenuConfig(loadOpts, function startingViewReady(err) {
-					callback(err);
-				});
-			},
-			function populateAreaListView(callback) {
-				const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
-				const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
-                
-				const areaListView = vc.getView(MCICodesIDs.AreaList);
-				let i = 1;
-				areaListView.setItems(_.map(self.messageAreas, v => {
-					return stringFormat(listFormat, {
-						index   : i++,
-						areaTag : v.area.areaTag,
-						name    : v.area.name,
-						desc    : v.area.desc, 
-					});
-				}));
-
-				i = 1;
-				areaListView.setFocusItems(_.map(self.messageAreas, v => {
-					return stringFormat(focusListFormat, {
-						index   : i++,
-						areaTag : v.area.areaTag,
-						name    : v.area.name,
-						desc    : v.area.desc, 
-					});
-				}));
-
-				areaListView.on('index update', areaIndex => {
-					self.updateGeneralAreaInfoViews(areaIndex);
-				});
-
-				areaListView.redraw();
-
-				callback(null);
+	mciReady(mciData, cb) {
+		super.mciReady(mciData, err => {
+			if(err) {
+				return cb(err);
 			}
-		],
-		function complete(err) {
-			return cb(err);
-		}
-	);
+
+			const self	= this;
+			const vc	= self.viewControllers.areaList = new ViewController( { client : self.client } );
+
+			async.series(
+				[
+					function loadFromConfig(callback) {
+						const loadOpts = {
+							callingMenu	: self,
+							mciMap		: mciData.menu,
+							formId		: 0,
+						};
+
+						vc.loadFromMenuConfig(loadOpts, function startingViewReady(err) {
+							callback(err);
+						});
+					},
+					function populateAreaListView(callback) {
+						const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
+						const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
+						
+						const areaListView = vc.getView(MciViewIds.AreaList);
+						let i = 1;
+						areaListView.setItems(_.map(self.messageAreas, v => {
+							return stringFormat(listFormat, {
+								index   : i++,
+								areaTag : v.area.areaTag,
+								name    : v.area.name,
+								desc    : v.area.desc, 
+							});
+						}));
+
+						i = 1;
+						areaListView.setFocusItems(_.map(self.messageAreas, v => {
+							return stringFormat(focusListFormat, {
+								index   : i++,
+								areaTag : v.area.areaTag,
+								name    : v.area.name,
+								desc    : v.area.desc, 
+							});
+						}));
+
+						areaListView.on('index update', areaIndex => {
+							self.updateGeneralAreaInfoViews(areaIndex);
+						});
+
+						areaListView.redraw();
+
+						callback(null);
+					}
+				],
+				function complete(err) {
+					return cb(err);
+				}
+			);
+		});
+	}
 };

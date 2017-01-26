@@ -1,6 +1,6 @@
 {
   "name": "enigma-bbs",
-  "version": "0.0.2-alpha",
+  "version": "0.0.3-alpha",
   "description": "ENiGMA½ Bulletin Board System",
   "author": "Bryan Ashby <bryan@l33t.codes>",
   "license": "BSD-2-Clause",
@@ -14,7 +14,8 @@
   },
   "keywords": [
     "bbs",
-    "telnet"
+    "telnet",
+    "retro"
   ],
   "dependencies": {
     "async": "^1.5.1",
