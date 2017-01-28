@@ -151,7 +151,7 @@ TextView.prototype.redraw = function() {
 	//	and there is no actual text (e.g. save SGR's and processing)
 	//
 	if(!this.hasDrawnOnce) {
-		if(!this.text) {
+		if(_.isUndefined(this.text)) {
 			return;
 		}
 	}
