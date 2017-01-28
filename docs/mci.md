@@ -7,16 +7,16 @@ ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce info
 A **View** is a control placed on a **form** that can display variable data or collect input. One example of a View is a Vertical Menu (`%VM`): Oldschool BBSers may recognize this as a lightbar menu.
 
 ### Available Views
-* Text Label (`%TL`): Displays text
-* Edit Text (`%ET`): Collect user input
-* Masked Edit Text (`%ME`): Collect user input using a *mask*
-* Multi Line Text Edit (`%MT`): Multi line edit control
-* Button (`%BT`): A button
-* Vertical Menu (`%VM`): A vertical menu aka a vertical lightbar
-* Horizontal Menu (`%HM`): A horizontal menu aka a horizontal lightbar
-* Spinner Menu (`%SM`): A spinner input control
-* Toggle Menu (`%TM`): A toggle menu commonly used for Yes/No style input
-* Key Entry (`%KE`): A *single* key input control
+* Text Label (`TL`): Displays text
+* Edit Text (`ET`): Collect user input
+* Masked Edit Text (`ME`): Collect user input using a *mask*
+* Multi Line Text Edit (`MT`): Multi line edit control
+* Button (`BT`): A button
+* Vertical Menu (`VM`): A vertical menu aka a vertical lightbar
+* Horizontal Menu (`HM`): A horizontal menu aka a horizontal lightbar
+* Spinner Menu (`SM`): A spinner input control
+* Toggle Menu (`TM`): A toggle menu commonly used for Yes/No style input
+* Key Entry (`KE`): A *single* key input control
 
 (Peek at `core/mci_view_factory.js` to see additional information on these)
 
@@ -81,8 +81,8 @@ A special `XY` MCI code may also be utilized for placement identification when c
 Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`.
 
 ### Common Properties
-* `textStyle`: Sets the standard (non-focus) text style to `normal` (as-is), `upper` (UPPER), `lower` (lower), `title` (Title Case), `first lower` (fIRST lOWER), `small vowels` (SMaLL VoWeLS), `big vowels` (bIg vOwELS), `small i` (ENiGMA), `mixed` (mIxED CAsE), or `l33t` (l337 5p34k)
-* `focusTextStyle`: Sets focus text style to `normal` (as-is), `upper` (UPPER), `lower` (lower), `title` (Title Case), `first lower` (fIRST lOWER), `small vowels` (SMaLL VoWeLS), `big vowels` (bIg vOwELS), `small i` (ENiGMA), `mixed` (mIxED CAsE), or `l33t` (l337 5p34k)
+* `textStyle`: Sets the standard (non-focus) text style. See **Text Styles** below
+* `focusTextStyle`: Sets focus text style. See **Text Styles** below.
 * `itemSpacing`: Used to separate items in menus such as Vertical Menu and Horizontal Menu Views.
 * `height`: Sets the height of views such as menus that may be > 1 character in height
 * `width`: Sets the width of a view
@@ -91,3 +91,18 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 * `submit`: If set to `true` any `accept` action upon this view will submit the encompassing **form**
 
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default `menu.hjson` and `theme.hjson` files!
+
+
+#### Text Styles
+Standard style types available for `textStyle` and `focusTextStyle`:
+
+* `normal`: Leaves text as-is. This is the default.
+* `upper`: ENIGMA BULLETIN BOARD SOFTWARE
+* `lower`: enigma bulletin board software
+* `title`: Enigma Bulletin Board Software
+* `first lower`: eNIGMA bULLETIN bOARD sOFTWARE
+* `small vowels`: eNiGMa BuLLeTiN BoaRD SoFTWaRe
+* `big vowels`: EniGMa bUllEtIn bOArd sOftwArE
+* `small i`: ENiGMA BULLETiN BOARD SOFTWARE
+* `mixed`: EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned)
+* `l33t`: 3n1gm4 bull371n b04rd 50f7w4r3
