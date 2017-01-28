@@ -56,7 +56,7 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
 						
 						onlineListView.setItems(_.map(onlineList, oe => {
 							if(oe.authenticated) {
-								oe.timeOn = _.capitalize(oe.timeOn.humanize());
+								oe.timeOn = _.upperFirst(oe.timeOn.humanize());
 							} else {
 								[ 'realName', 'location', 'affils', 'timeOn' ].forEach(m => {
 									oe[m] = otherUnknown;

@@ -45,7 +45,7 @@ function getAvailableFileAreas(client, options) {
 	//	perform ACS check per conf & omit internal if desired
 	const allAreas = _.map(Config.fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
 	
-	return _.omit(allAreas, areaInfo => {        
+	return _.omitBy(allAreas, areaInfo => {        
 		if(!options.includeSystemInternal && isInternalArea(areaInfo.areaTag)) {
 			return true;
 		}

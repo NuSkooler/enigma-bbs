@@ -226,7 +226,7 @@ function ANSIEscapeParser(options) {
 
 					self.lastMciCode = fullMciCode;
 
-					self.graphicRenditionForErase = _.clone(self.graphicRendition, true);
+					self.graphicRenditionForErase = _.clone(self.graphicRendition);
 				}
 
 				

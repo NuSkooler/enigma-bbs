@@ -32,7 +32,8 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 
 		const self = this;
 
-		this.menuMethods = {
+		//	assign *additional* menuMethods
+		Object.assign(this.menuMethods, {
 			nextMessage : (formData, extraArgs, cb) => {
 				if(self.messageIndex + 1 < self.messageList.length) {
 					self.messageIndex++;
@@ -85,7 +86,7 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 				self.client.log(extraArgs, 'Missing extraArgs.menu');
 				return cb(null);
 			}
-		};
+		});
 	}
 
 

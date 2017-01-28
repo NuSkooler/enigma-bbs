@@ -94,18 +94,20 @@ function loadMenu(options, cb) {
 					{ moduleName : modData.name, extraArgs : options.extraArgs, config : modData.config, info : modData.mod.modInfo },
 					'Creating menu module instance');
 
+				let moduleInstance;
 				try {
-					const moduleInstance = new modData.mod.getModule({
+					moduleInstance = new modData.mod.getModule({
 						menuName		: options.name,
 						menuConfig		: modData.config, 
 						extraArgs		: options.extraArgs,
 						client			: options.client,
 						lastMenuResult	: options.lastMenuResult,
-					});
-					return callback(null, moduleInstance);
+					});					
 				} catch(e) {
 					return callback(e);
 				}
+
+				return callback(null, moduleInstance);
 			}
 		],
 		(err, modInst) => {
@@ -127,8 +129,8 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 		return;
 	}
 
-	var formForId = menuConfig.form[formId];
-	var mciReqKey = _.filter(_.pluck(_.sortBy(mciMap, 'code'), 'code'), function(mci) {
+	const formForId = menuConfig.form[formId];
+	const mciReqKey = _.filter(_.map(_.sortBy(mciMap, 'code'), 'code'), (mci) => {
 		return MCIViewFactory.UserViewCodes.indexOf(mci) > -1;
 	}).join('');
 

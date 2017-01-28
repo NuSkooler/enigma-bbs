@@ -37,7 +37,7 @@ function getAvailableMessageConferences(client, options) {
 	options = options || { includeSystemInternal : false };
     
     //	perform ACS check per conf & omit system_internal if desired
-	return _.omit(Config.messageConferences, (conf, confTag) => {        
+	return _.omitBy(Config.messageConferences, (conf, confTag) => {        
 		if(!options.includeSystemInternal && 'system_internal' === confTag) {
 			return true;
 		}
@@ -73,7 +73,7 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
 			return areas;
 		} else {
 			//	perform ACS check per area
-			return _.omit(areas, area => {
+			return _.omitBy(areas, area => {
 				return !options.client.acs.hasMessageAreaRead(area);
 			});
 		}

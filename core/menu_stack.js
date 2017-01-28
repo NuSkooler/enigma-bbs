@@ -133,37 +133,34 @@ module.exports = class MenuStack {
 					currentModuleInfo.savedState = currentModuleInfo.instance.getSaveState();
 
 					currentModuleInfo.instance.leave();
+
+					if(modInst.menuConfig.options.menuFlags.includes('noHistory')) {
+						this.pop().instance.leave();	//	leave & remove current
+					}
 				}
 
-				const noHistory = modInst.menuConfig.options.menuFlags.indexOf('noHistory') > -1;
-
-				const stackToLog = _.map(self.stack, stackEntry => stackEntry.name);
-
-				if(!noHistory) {
-					self.push({
-						name		: name,
-						instance	: modInst,
-						extraArgs	: loadOpts.extraArgs,
-					});
-
-					stackToLog.push(name);
-				} else {
-					stackToLog.push(`${name} (noHistory)`);
-				}
+				self.push({
+					name		: name,
+					instance	: modInst,
+					extraArgs	: loadOpts.extraArgs,
+				});
 
 				//	restore previous state if requested
 				if(options && options.savedState) {
 					modInst.restoreSavedState(options.savedState);
 				}
 
-				modInst.enter();
+				const stackEntries = self.stack.map(stackEntry => {
+					let name = stackEntry.name;
+					if(stackEntry.instance.menuConfig.options.menuFlags.length > 0) {
+						name += ` (${stackEntry.instance.menuConfig.options.menuFlags.join(', ')})`;
+					}
+					return name;
+				});
 
-				self.client.log.trace(
-					{
-						stack : stackToLog
-					},
-					'Updated menu stack'
-				);
+				self.client.log.trace( { stack : stackEntries }, 'Updated menu stack' );
+
+				modInst.enter();
 
 				if(cb) {
 					cb(null);

@@ -8,7 +8,11 @@ module.exports = class DownloadQueue {
 		this.client	= client;
 
 		if(!Array.isArray(this.client.user.downloadQueue)) {
-			this.loadFromProperty(client);
+			if(this.client.user.properties.dl_queue) {
+				this.loadFromProperty(this.client.user.properties.dl_queue);
+			} else {
+				this.client.user.downloadQueue = [];
+			}
 		}
 	}
 

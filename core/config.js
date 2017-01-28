@@ -1,17 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-var miscUtil			= require('./misc_util.js');
+//	ENiGMA½
+const miscUtil			= require('./misc_util.js');
 
-var fs					= require('fs');
-var paths				= require('path');
-var async				= require('async');
-var _					= require('lodash');
-var hjson				= require('hjson');
-var assert              = require('assert');
+//	deps
+const fs				= require('fs');
+const paths				= require('path');
+const async				= require('async');
+const _					= require('lodash');
+const hjson				= require('hjson');
+const assert			= require('assert');
 
-exports.init				= init;
-exports.getDefaultPath		= getDefaultPath;
+exports.init			= init;
+exports.getDefaultPath	= getDefaultPath;
 
 function hasMessageConferenceAndArea(config) {
 	assert(_.isObject(config.messageConferences));  //  we create one ourself!
@@ -43,38 +45,45 @@ function init(configPath, cb) {
 	async.waterfall(
 		[
 			function loadUserConfig(callback) {
-				if(_.isString(configPath)) {
-					fs.readFile(configPath, { encoding : 'utf8' }, function configData(err, data) {
-						if(err) {
-							callback(err);
-						} else {
-							try {
-								var configJson = hjson.parse(data);
-								callback(null, configJson);
-							} catch(e) {
-								callback(e);							
-							}
-						}
-					});
-				} else {
-					callback(null, { } );
+				if(!_.isString(configPath)) {
+					return callback(null, { } );
 				}
+				
+				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
+					if(err) {
+						return callback(err);
+					}
+				
+					let configJson;
+					try {
+						configJson = hjson.parse(configData);
+					} catch(e) {
+						return callback(e);
+					}
+
+					return callback(null, configJson);
+				});				
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				var mergedConfig = _.merge(getDefaultConfig(), configJson, function mergeCustomizer(conf1, conf2) {
-					//	Arrays should always concat
-					if(_.isArray(conf1)) {
-						//	:TODO: look for collisions & override dupes
-						return conf1.concat(conf2);
+				
+				const mergedConfig = _.mergeWith(
+					getDefaultConfig(), 
+					configJson, (conf1, conf2) => {
+						//	Arrays should always concat
+						if(_.isArray(conf1)) {
+							//	:TODO: look for collisions & override dupes
+							return conf1.concat(conf2);
+						}
 					}
-				});
+				);
 
-				callback(null, mergedConfig);
+				return callback(null, mergedConfig);
 			},
 			function validate(mergedConfig, callback) {
 				//
 				//	Various sections must now exist in config
 				//
+				//	:TODO: Logic is broken here:
 				if(hasMessageConferenceAndArea(mergedConfig)) {
 					var msgAreasErr = new Error('Please create at least one message conference and area!');
 					msgAreasErr.code = 'EBADCONFIG';
@@ -92,7 +101,7 @@ function init(configPath, cb) {
 }
 
 function getDefaultPath() {
-	var base = miscUtil.resolvePath('~/');
+	const base = miscUtil.resolvePath('~/');
 	if(base) {
 		//	e.g. /home/users/joeuser/.config/enigma-bbs/config.hjson
 		return paths.join(base, '.config', 'enigma-bbs', 'config.hjson');

@@ -274,7 +274,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	}
 
 	getFooterName() {
-		return 'footer' + _.capitalize(this.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
+		return 'footer' + _.upperFirst(this.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
 	}
 
 	getFormId(name) {
@@ -431,9 +431,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					callback(null);
 				},
 				function displayFooterArt(callback) {
-					var footerArt = self.menuConfig.config.art[options.footerName];
+					const footerArt = self.menuConfig.config.art[options.footerName];
 
-					theme.displayThemedAsset(
+or					theme.displayThemedAsset(
 						footerArt,
 						self.client,
 						{ font : self.menuConfig.font },
@@ -723,7 +723,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			if(posView) {
 				this.client.term.rawWrite(ansi.savePos());
 				//	:TODO: Use new formatting techniques here, e.g. state.cursorPositionRow, cursorPositionCol and cursorPositionFormat
-				posView.setText(_.padLeft(String(pos.row + 1), 2, '0') + ',' + _.padLeft(String(pos.col + 1), 2, '0'));
+				posView.setText(_.padStart(String(pos.row + 1), 2, '0') + ',' + _.padEnd(String(pos.col + 1), 2, '0'));
 				this.client.term.rawWrite(ansi.restorePos());
 			}
 		}

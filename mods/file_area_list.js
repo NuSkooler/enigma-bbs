@@ -509,7 +509,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 	displayDetailsSection(sectionName, clearArea, cb) {
 		const self		= this;
-		const name		= `details${_.capitalize(sectionName)}`;
+		const name		= `details${_.upperFirst(sectionName)}`;
 
 		async.series(
 			[

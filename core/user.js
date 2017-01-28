@@ -338,7 +338,7 @@ User.prototype.removeProperty = function(propName, cb) {
 				return cb(err);
 			}
 		}
-	)
+	);
 };
 
 User.prototype.persistProperties = function(properties, cb) {
@@ -474,7 +474,7 @@ function generatePasswordDerivedKeySalt(cb) {
 
 function generatePasswordDerivedKey(password, salt, cb) {
 	password = new Buffer(password).toString('hex');
-	crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, function onDerivedKey(err, dk) {
+	crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', function onDerivedKey(err, dk) {
 		if(err) {
 			cb(err);
 		} else {

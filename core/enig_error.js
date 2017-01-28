@@ -30,3 +30,10 @@ exports.Errors = {
 	ExternalProcess		: (reason, reasonCode)	=> new EnigError('External process error', -32005, reason, reasonCode),
 	MissingConfig		: (reason, reasonCode)	=> new EnigError('Missing configuration', -32006, reason, reasonCode),
 };
+
+exports.ErrorReasons = {
+	AlreadyThere		: 'ALREADYTHERE',
+	InvalidNextMenu		: 'BADNEXT',
+	NoPreviousMenu		: 'NOPREV',
+	NoConditionMatch	: 'NOCONDMATCH',
+};

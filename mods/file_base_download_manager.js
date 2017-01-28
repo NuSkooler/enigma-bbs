@@ -61,12 +61,20 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 			viewItemInfo : (formData, extraArgs, cb) => {
 			},
 			removeItem : (formData, extraArgs, cb) => {
-				const selectedItem = formData.value.queueItem;
-				this.dlQueue.removeItems(selectedItem);
+				const selectedItem = this.dlQueue.items[formData.value.queueItem];
+				if(!selectedItem) {
+					return cb(null);
+				}
+
+				this.dlQueue.removeItems(selectedItem.fileId);
+
+				//	:TODO: broken: does not redraw menu properly - needs fixed!
 				return this.updateDownloadQueueView(cb);
 			},
 			clearQueue : (formData, extraArgs, cb) => {
 				this.dlQueue.clear();
+								
+				//	:TODO: broken: does not redraw menu properly - needs fixed!
 				return this.updateDownloadQueueView(cb);
 			}
 		};

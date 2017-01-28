@@ -104,7 +104,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
 					self.client.once('cursor position report', pos => {
 						pausePosition = { row : pos[0], col : 1 };
-						self.client.log.trace('After art position recorded', { position : pausePosition } );
+						self.client.log.trace('After art position recorded', pausePosition );
 						return callback(null);
 					});
 

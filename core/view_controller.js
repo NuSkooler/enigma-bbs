@@ -73,8 +73,9 @@ function ViewController(options) {
 				self.switchFocus(actionForKey.viewId);
 				self.submitForm(key);
 			} else if(_.isString(actionForKey.action)) {
+				const formData = self.getFocusedView() ? self.getFormData() : { };
 				self.handleActionWrapper(
-					{ ch : ch, key : key },	//	formData
+					Object.assign( { ch : ch, key : key }, formData ),	//	formData + key info
 					actionForKey);			//	actionBlock
 			}
 		} else {
@@ -115,6 +116,7 @@ function ViewController(options) {
 		self.emit('submit', this.getFormData(key));
 	};
 
+	//	:TODO: replace this in favor of overriding toJSON() for various things such that logging will *never* output them
 	this.getLogFriendlyFormData = function(formData) {
 		//	:TODO: these fields should be part of menu.json sensitiveMembers[]
 		var safeFormData = _.cloneDeep(formData);
@@ -585,7 +587,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 							for(var c = 0; c < menuSubmit.length; ++c) {
 								var actionBlock = menuSubmit[c];
 
-								if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
+								if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
 									self.handleActionWrapper(formData, actionBlock);
 									break;	//	there an only be one...
 								}
@@ -713,7 +715,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					for(var c = 0; c < confForFormId.length; ++c) {
 						var actionBlock = confForFormId[c];
 
-						if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
+						if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
 							self.handleActionWrapper(formData, actionBlock);
 							break;	//	there an only be one...
 						}
@@ -827,38 +829,6 @@ ViewController.prototype.getFormData = function(key) {
 			this.client.log.error( { error : e.message }, 'Exception caught gathering form data' );
 		}
 	});
-	/*
-
-	var viewData;
-	var view;
-	for(var id in this.views) {
-		try {
-			view = this.views[id];
-			viewData = view.getData();
-			if(!_.isUndefined(viewData)) {
-				if(_.isString(view.submitArgName)) {
-					formData.value[view.submitArgName] = viewData;
-				} else {
-					formData.value[id] = viewData;
-				}
-			}
-		} catch(e) {
-			this.client.log.error(e);	//	:TODO: Log better ;)
-		}
-	}*/
 
 	return formData;
 };
-
-/*
-ViewController.prototype.formatMenuArgs = function(args) {
-	var self = this;
-
-	return _.mapValues(args, function val(value) {
-		if('string' === typeof value) {
-			return self.formatMCIString(value);
-		}
-		return value;
-	});
-};
-*/

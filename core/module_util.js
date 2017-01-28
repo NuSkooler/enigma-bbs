@@ -86,7 +86,7 @@ function loadModulesForCategory(category, iterator, complete) {
 		});
 
 		async.each(jsModules, (file, next) => {
-+			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
+			loadModule(paths.basename(file, '.js'), category, (err, mod) => {
 				iterator(err, mod);
 				return next();
 			});
