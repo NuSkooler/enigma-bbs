@@ -38,7 +38,7 @@
     "ptyw.js": "NuSkooler/ptyw.js",
     "sqlite3": "^3.1.1",
     "ssh2": "^0.5.1",
-    "temp": "^0.8.3"
+    "temptmp" : "^1.0.0"
   },
   "devDependencies": {
     "lodash-migrate": "^0.3.16"

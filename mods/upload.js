@@ -10,11 +10,12 @@ const scanFile							= require('../core/file_area.js').scanFile;
 const ansiGoto							= require('../core/ansi_term.js').goto;
 const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
 const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
+const Log								= require('../core/logger.js').log;
 
 //	deps
 const async								= require('async');
 const _									= require('lodash');
-const temp								= require('temp').track();	//	track() cleans up temp dir/files for us
+const temptmp							= require('temptmp').createTrackedSession('upload');
 const paths								= require('path');
 
 exports.moduleInfo = {
@@ -142,15 +143,16 @@ exports.getModule = class UploadModule extends MenuModule {
 	leave() {
 		//	remove any temp files - only do this when 
 		if(this.isFileTransferComplete()) {
-			//	:TODO: fix global temp cleanup issue!!!
-			//temp.cleanup();	//	remove any temp files
+			temptmp.cleanup( paths => {
+				Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Temporary files cleaned up' );
+			});
 		}
 
 		super.leave();
 	}
 
 	performBlindUpload(cb) {
-		temp.mkdir('enigul-', (err, tempRecvDirectory) => {
+		temptmp.mkdir( { prefix : 'enigul-' }, (err, tempRecvDirectory) => {
 			if(err) {
 				return cb(err);
 			}

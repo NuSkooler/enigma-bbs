@@ -9,6 +9,7 @@ const FileEntry			= require('./file_entry.js');
 const FileDb			= require('./database.js').dbs.file;
 const ArchiveUtil		= require('./archive_util.js');
 const CRC32				= require('./crc.js').CRC32;
+const Log				= require('./logger.js').log;
 
 //	deps
 const _				= require('lodash');
@@ -16,7 +17,7 @@ const async			= require('async');
 const fs			= require('fs');
 const crypto		= require('crypto');
 const paths			= require('path');
-const temp			= require('temp').track();	//	track() cleans up temp dir/files for us
+const temptmp		= require('temptmp').createTrackedSession('file_area');
 const iconv			= require('iconv-lite');
 
 exports.isInternalArea					= isInternalArea;
@@ -298,7 +299,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					return callback(null, [] );
 				}
 
-				temp.mkdir('enigextract-', (err, tempDir) => {
+				temptmp.mkdir( { prefix : 'enigextract-' }, (err, tempDir) => {
 					if(err) {
 						return callback(err);
 					}
@@ -338,14 +339,11 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 						return next(null);
 					});
 				}, () => {
-					//	cleanup, but don't wait...
-					/*
-					:TODO: fix global temp cleanup issue!!!
-
-					temp.cleanup( err => {
-						//	:TODO: Log me!
-					});*/
-					
+					//	cleanup but don't wait
+					temptmp.cleanup( paths => {
+						//	note: don't use client logger here - may not be avail
+						Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
+					});
 					return callback(null);
 				});
 			},

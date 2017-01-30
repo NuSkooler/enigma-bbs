@@ -18,7 +18,7 @@ const paths					= require('path');
 const async					= require('async');
 const fs					= require('fs');
 const later					= require('later');
-const temp					= require('temp').track();	//	track() cleans up temp dir/files for us
+const temptmp				= require('temptmp').createTrackedSession('ftn_bso');
 const assert				= require('assert');
 const gaze					= require('gaze');
 const fse					= require('fs-extra');
@@ -1153,14 +1153,14 @@ function FTNMessageScanTossModule() {
 	};
 	
 	this.createTempDirectories = function(cb) {
-		temp.mkdir('enigftnexport-', (err, tempDir) => {
+		temptmp.mkdir( { prefix : 'enigftnexport-' }, (err, tempDir) => {
 			if(err) {
 				return cb(err);
 			}
 			
 			self.exportTempDir = tempDir;
 			
-			temp.mkdir('enigftnimport-', (err, tempDir) => {
+			temptmp.mkdir( { prefix : 'enigftnimport-' }, (err, tempDir) => {
 				self.importTempDir = tempDir;
 				
 				cb(err);
@@ -1290,21 +1290,18 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	//
 	//	Clean up temp dir/files we created
 	//
-	/*
-	:TODO: fix global temp cleanup issue!!!
-
-	temp.cleanup((err, stats) => {
-		const fullStats = Object.assign(stats, { exportTemp : this.exportTempDir, importTemp : this.importTempDir } ); 
+	temptmp.cleanup( paths => {
+		const fullStats = {
+			exportDir	: this.exportTempDir,
+			importTemp	: this.importTempDir,
+			paths		: paths,
+			sessionId	: temptmp.sessionId,
+		};
 		
-		if(err) {
-			Log.warn(fullStats, 'Failed cleaning up temporary directories!');
-		} else {
-			Log.trace(fullStats, 'Temporary directories cleaned up');
-		}
+		Log.trace(fullStats, 'Temporary directories cleaned up');
 			
 		FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 	});
-	*/
 
 	FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };

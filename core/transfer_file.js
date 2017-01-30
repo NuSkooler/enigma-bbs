@@ -9,12 +9,13 @@ const Errors			= require('./enig_error.js').Errors;
 const DownloadQueue		= require('./download_queue.js');
 const StatLog			= require('./stat_log.js');
 const FileEntry			= require('./file_entry.js');
+const Log				= require('./logger.js').log;
 
 //	deps
 const async			= require('async');
 const _				= require('lodash');
 const pty			= require('ptyw.js');
-const temp			= require('temp').track();	//	track() cleans up temp dir/files for us
+const temptmp		= require('temptmp').createTrackedSession('transfer_file');
 const paths			= require('path');
 const fs			= require('fs');
 const fse			= require('fs-extra');
@@ -264,7 +265,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 						return callback(null, null);
 					}
 
-					temp.open( { prefix : TEMP_SUFFIX, suffix : '.txt' }, (err, tempFileInfo) => {
+					temptmp.open( { prefix : TEMP_SUFFIX, suffix : '.txt' }, (err, tempFileInfo) => {
 						if(err) {
 							return callback(err);	//	failed to create it 
 						}
@@ -511,15 +512,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
 						});
 					}
 				},
-				function cleanupTempFiles(callback) {
-					/*	:TODO: figure out the global temp cleanup() issue!!@!
-					temp.cleanup( err => {
-						if(err) {
-							self.client.log.warn( { error : err.message }, 'Failed to clean up temporary file/directory(s)' );
-						}
-						return callback(null);	//	ignore err
+				function cleanupTempFiles(callback) {					
+					temptmp.cleanup( paths => {
+						Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Temporary files cleaned up' );
 					});
-					*/
+
 					return callback(null);
 				},
 				function updateUserAndSystemStats(callback) {
