@@ -2,7 +2,7 @@
 
 { # this ensures the entire script is downloaded before execution
 
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=4.4}
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=4}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
@@ -22,7 +22,7 @@ _____________________   _____  ____________________    __________\\_   /
 
 ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE}.
 
-ENiGMA½ requires Node, v${ENIGMA_NODE_VERSION} will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
+ENiGMA½ requires Node.js. Version ${ENIGMA_NODE_VERSION}.x current will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
 
 If this isn't what you were expecting, hit ctrl-c now. Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
 
@@ -103,8 +103,20 @@ enigma_footer() {
     cat << EndOfMessage
 If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands:
 
-cd ${ENIGMA_INSTALL_DIR}
-./oputil.js config --new
+  cd ${ENIGMA_INSTALL_DIR}
+  ./oputil.js config --new
+
+Additionally, the following support binaires are recommended:
+  7zip: Archive support
+    Debian/Ubuntu : apt-get install p7zip
+    CentOS        : yum install p7zip
+
+  Lha: Archive support
+    Debian/Ubuntu : apt-get install lhasa
+
+  sz/rz: Various X/Y/Z modem support
+    Debian/Ubuntu : apt-get install lrzsz
+    CentOS        : yum install lrzsz
 
 EndOfMessage
     echo -e "\e[39m"
