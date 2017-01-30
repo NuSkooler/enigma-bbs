@@ -433,7 +433,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				function displayFooterArt(callback) {
 					const footerArt = self.menuConfig.config.art[options.footerName];
 
-or					theme.displayThemedAsset(
+					theme.displayThemedAsset(
 						footerArt,
 						self.client,
 						{ font : self.menuConfig.font },
