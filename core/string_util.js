@@ -371,6 +371,10 @@ function cleanControlCodes(input, options) {
 
 function createCleanAnsi(input, options, cb) {
 
+	if(!input) {
+		return cb('');
+	}
+
 	options.width	= options.width || 80;
 	options.height	= options.height || 25;
 	

@@ -256,18 +256,16 @@ module.exports = class ArchiveUtil {
 			if(exitCode) {
 				return cb(new Error(`List failed with exit code: ${exitCode}`));
 			}
-			//if(err) {
-		//		return cb(err);
-		//	}
+
+			const entryGroupOrder = archiver.list.entryGroupOrder || { byteSize : 1, fileName : 2 };
 
 			const entries = [];
 			const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
 			let m;
 			while((m = entryMatchRe.exec(output))) {
-				//	:TODO: allow alternate ordering!!!
 				entries.push({
-					byteSize	: parseInt(m[1]),
-					fileName	: m[2],
+					byteSize	: parseInt(m[entryGroupOrder.byteSize]),
+					fileName	: m[entryGroupOrder.fileName],
 				});
 			}
 

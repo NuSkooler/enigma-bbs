@@ -280,7 +280,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 				const extractList = [];
 
 				const shortDescFile = entries.find( e => {
-					return Config.fileBase.fileNamePatterns.shortDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+					return Config.fileBase.fileNamePatterns.desc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
 				if(shortDescFile) {
@@ -288,7 +288,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 				}
 
 				const longDescFile = entries.find( e => {
-					return Config.fileBase.fileNamePatterns.longDesc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+					return Config.fileBase.fileNamePatterns.descLong.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
 				if(longDescFile) {
@@ -318,25 +318,38 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					});
 				});
 			},
-			function readDescFiles(descFiles, callback) {
-				//	:TODO: we shoudl probably omit files that are too large
+			function readDescFiles(descFiles, callback) {				
 				async.each(Object.keys(descFiles), (descType, next) => {
 					const path = descFiles[descType];
 					if(!path) {
 						return next(null);
 					}
 
-					fs.readFile(path, (err, data) => {
-						if(err || !data) {
+					fs.stat(path, (err, stats) => {
+						if(err) {
 							return next(null);
 						}
 
-						//
-						//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
-						//
-						//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-						fileEntry[descType] = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
-						return next(null);
+						//	skip entries that are too large
+						const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
+					
+						if(Config.fileBase[maxFileSizeKey] && stats.size > Config.fileBase[maxFileSizeKey]) {
+							Log.debug( { byteSize : stats.size, maxByteSize : Config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
+							return next(null);
+						}
+
+						fs.readFile(path, (err, data) => {
+							if(err || !data) {
+								return next(null);
+							}
+
+							//
+							//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
+							//
+							//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
+							fileEntry[descType] = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+							return next(null);
+						});
 					});
 				}, () => {
 					//	cleanup but don't wait

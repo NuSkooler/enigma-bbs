@@ -246,7 +246,7 @@ function getDefaultConfig() {
 					},
 					decompress		: {
 						cmd			: '7za',
-						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]
+						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]	//	:TODO: should be 'x'?
 					},
 					list			: {
 						cmd			: '7za',
@@ -279,6 +279,30 @@ function getDefaultConfig() {
 						cmd			: 'lha',
 						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
 					}
+				},
+
+				Arj : {
+					//
+					//	'arj' command can be obtained from:
+					//	* apt-get: arj
+					//
+					decompress		: {
+						cmd			: 'arj',
+						args		: [ 'x', '{archivePath}', '{extractPath}' ],
+					},
+					list			: {
+						cmd				: 'arj',
+						args			: [ 'l', '{archivePath}' ],
+						entryMatch		: '^([^\\s]+)\\s+([0-9]+)\\s+[0-9]+\\s[0-9\\.]+\\s+[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\:[0-9]{2}\\s+(?:[^\\r\\n]+)$',
+						entryGroupOrder	: {	//	defaults to { byteSize : 1, fileName : 2 }
+							fileName	: 1,
+							byteSize	: 2,
+						}
+					},
+					extract			: {
+						cmd			: 'arj',
+						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+					}
 				}
 			},
 
@@ -305,7 +329,7 @@ function getDefaultConfig() {
 					sig		: '60ea',
 					offset	: 0,
 					exts	: [ 'arj' ],
-					handler	: '7Zip',
+					handler	: 'Arj',
 					desc	: 'ARJ Archive',
 				},
 				rar :  {
@@ -428,15 +452,18 @@ function getDefaultConfig() {
 			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|: 
 			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
 
+			maxDescFileByteSize			: 471859,	//	~1/4 MB
+			maxDescLongFileByteSize		: 524288,	//	1/2 MB
+
 			fileNamePatterns: {
 				//	These are NOT case sensitive
 				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
-				shortDesc		: [ 
+				desc		: [ 
 					'^FILE_ID\.DIZ$', '^DESC\.SDI$', '^DESCRIPT\.ION$', '^FILE\.DES$', '$FILE\.SDI$', '^DISK\.ID$'
 				],
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
-				longDesc		: [ 
+				descLong		: [ 
 					'^.*\.NFO$', '^README\.1ST$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
 				],
 			},

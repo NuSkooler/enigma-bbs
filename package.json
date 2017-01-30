@@ -41,7 +41,6 @@
     "temptmp" : "^1.0.0"
   },
   "devDependencies": {
-    "lodash-migrate": "^0.3.16"
   },
   "engines": {
     "node": ">=6.9.2"
