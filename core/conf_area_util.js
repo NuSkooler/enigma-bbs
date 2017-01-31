@@ -24,7 +24,7 @@ function sortAreasOrConfs(areasOrConfs, type) {
 		} else {
 			const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
 			const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
-			return keyA.localeCompare(keyB);
+			return keyA.localeCompare(keyB, { sensitivity : false, numeric : true } );	//	"natural" compare
 		}
 	});
 }
