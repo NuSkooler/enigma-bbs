@@ -114,6 +114,9 @@ Additionally, the following support binaires are recommended:
   Lha: Archive support
     Debian/Ubuntu : apt-get install lhasa
 
+  Arj: Archive support
+    Debian/Ubuntu : apt-get install arj
+
   sz/rz: Various X/Y/Z modem support
     Debian/Ubuntu : apt-get install lrzsz
     CentOS        : yum install lrzsz
