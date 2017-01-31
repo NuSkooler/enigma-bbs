@@ -141,12 +141,13 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
 
 MenuView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'itemSpacing' 	: this.setItemSpacing(value); break;
-		case 'items'		: this.setItems(value); break;
-		case 'focusItems'	: this.setFocusItems(value); break;
-		case 'hotKeys'		: this.setHotKeys(value); break;
-		case 'hotKeySubmit'	: this.hotKeySubmit = value; break;
-		case 'justify'		: this.justify = value; break;
+		case 'itemSpacing' 		: this.setItemSpacing(value); break;
+		case 'items'			: this.setItems(value); break;
+		case 'focusItems'		: this.setFocusItems(value); break;
+		case 'hotKeys'			: this.setHotKeys(value); break;
+		case 'hotKeySubmit'		: this.hotKeySubmit = value; break;
+		case 'justify'			: this.justify = value; break;
+		case 'focusItemIndex'	: this.focusedItemIndex = value; break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
