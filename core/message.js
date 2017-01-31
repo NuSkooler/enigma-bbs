@@ -8,7 +8,7 @@ const createNamedUUID		= require('./uuid_util.js').createNamedUUID;
 const getISOTimestampString	= require('./database.js').getISOTimestampString;
 
 //	deps
-const uuid					= require('node-uuid');
+const uuidParse				= require('uuid-parse');
 const async					= require('async');
 const _						= require('lodash');
 const assert				= require('assert');
@@ -17,7 +17,7 @@ const iconvEncode			= require('iconv-lite').encode;
 
 module.exports = Message;
 
-const ENIGMA_MESSAGE_UUID_NAMESPACE 	= uuid.parse('154506df-1df8-46b9-98f8-ebb5815baaf8');
+const ENIGMA_MESSAGE_UUID_NAMESPACE 	= uuidParse.parse('154506df-1df8-46b9-98f8-ebb5815baaf8');
 
 function Message(options) {
 	options = options || {};
@@ -135,7 +135,7 @@ Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
 	subject			= iconvEncode(subject.toUpperCase().trim(), 'CP437');
 	body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
 	
-	return uuid.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
+	return uuidParse.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
 };
 
 Message.getMessageIdByUuid = function(uuid, cb) {

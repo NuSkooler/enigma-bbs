@@ -2,7 +2,7 @@
 'use strict';
 
 const _			= require('lodash');
-const uuids		= require('node-uuid');
+const uuidV4	= require('uuid/v4');
 
 module.exports = class FileBaseFilters {
 	constructor(client) {
@@ -37,7 +37,7 @@ module.exports = class FileBaseFilters {
 	}
 
 	add(filterInfo) {
-		const filterUuid = uuids.v4();
+		const filterUuid = uuidV4();
 		
 		filterInfo.tags = this.cleanTags(filterInfo.tags);
 		
@@ -110,7 +110,7 @@ module.exports = class FileBaseFilters {
 	static getDefaultFilters() {
 		const filters = {};
 		
-		const uuid = uuids.v4();
+		const uuid = uuidV4();
 		filters[uuid] = {
 			name	: 'Default',
 			areaTag	: '',	//	all

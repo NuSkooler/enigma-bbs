@@ -8,7 +8,7 @@ let FNV1a			= require('./fnv1a.js');
 let _				= require('lodash');
 let iconv			= require('iconv-lite');
 let moment			= require('moment');
-let uuid			= require('node-uuid');
+//let uuid			= require('node-uuid');
 let os				= require('os');
 
 let packageJson 	= require('../package.json');
@@ -39,7 +39,7 @@ exports.getQuotePrefix				= getQuotePrefix;
 //	Namespace for RFC-4122 name based UUIDs generated from
 //	FTN kludges MSGID + AREA
 //
-const ENIGMA_FTN_MSGID_NAMESPACE 	= uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
+//const ENIGMA_FTN_MSGID_NAMESPACE 	= uuid.parse('a5c7ae11-420c-4469-a116-0e9a6d8d2654');
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
