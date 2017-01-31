@@ -27,6 +27,7 @@ const MciViewIds = {
 		filterName			: 6,
 		navMenu				: 7,
 
+		//	:TODO: use the customs new standard thing - filter obj can have active/selected, etc.
 		selectedFilterInfo	: 10,	//	{ ...filter object ... }
 		activeFilterInfo	: 11,	//	{ ...filter object ... }
 		error				: 12,	//	validation errors
@@ -39,6 +40,23 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 
 		this.filtersArray		= new FileBaseFilters(this.client).toArray();	//	ordered, such that we can index into them
 		this.currentFilterIndex	= 0;	//	into |filtersArray|
+
+		//
+		//	Lexical sort + keep currently active filter (if any) as the first item in |filtersArray|
+		//
+		const activeFilter = FileBaseFilters.getActiveFilter(this.client);
+		this.filtersArray.sort( (filterA, filterB) => {
+			if(activeFilter) {
+				if(filterA.uuid === activeFilter.uuid) {
+					return -1;
+				}
+				if(filterB.uuid === activeFilter.uuid) {
+					return 1;
+				}
+			}
+
+			return filterA.name.localeCompare(filterB.name);
+		});
 
 		this.menuMethods = {
 			saveFilter : (formData, extraArgs, cb) => {
