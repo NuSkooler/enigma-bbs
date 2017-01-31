@@ -55,7 +55,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 				}
 			}
 
-			return filterA.name.localeCompare(filterB.name);
+			return filterA.name.localeCompare(filterB.name, { sensitivity : false, numeric : true } );
 		});
 
 		this.menuMethods = {
