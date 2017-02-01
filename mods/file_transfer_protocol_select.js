@@ -36,8 +36,6 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
 		this.config.direction = this.config.direction || 'send';
 
-		this.loadAvailProtocols();
-
 		this.extraArgs	= options.extraArgs;
 
 		if(_.has(options, 'lastMenuResult.sentFileIds')) {
@@ -49,6 +47,8 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 		}
 
 		this.fallbackOnly	= options.lastMenuResult ? true : false;
+
+		this.loadAvailProtocols();
 
 		this.menuMethods = {
 			selectProtocol : (formData, extraArgs, cb) => {
@@ -130,11 +130,20 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
 	loadAvailProtocols() {
 		this.protocols = _.map(Config.fileTransferProtocols, (protInfo, protocol) => {
-			return { 
+			return {
 				protocol	: protocol,
 				name		: protInfo.name,
+				hasBatch	: _.has(protInfo, 'external.recvArgs'),
+				hasNonBatch	: _.has(protInfo, 'external.recvArgsNonBatch'),
 			};
 		});
+
+		//	Filter out batch vs non-batch only protocols
+		if(this.extraArgs.recvFileName) {	//	non-batch aka non-blind
+			this.protocols = this.protocols.filter( prot => prot.hasNonBatch );
+		} else {
+			this.protocols = this.protocols.filter( prot => prot.hasBatch );
+		}
 
 		this.protocols.sort( (a, b) => a.name.localeCompare(b.name) );
 	}

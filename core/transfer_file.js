@@ -61,7 +61,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			}
 
 			if(options.extraArgs.recvFileName) {
-				this.recvFileName = options.extraArgs.recvFiles;
+				this.recvFileName = options.extraArgs.recvFileName;
 			}
 
 			if(options.extraArgs.recvDirectory) {
@@ -118,6 +118,28 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 
 	sendFiles(cb) {
+		//	assume *sending* can always batch
+		//	:TODO: Look into this further
+		const allFiles = this.sendQueue.map(f => f.path);
+		this.executeExternalProtocolHandlerForSend(allFiles, err => {
+			if(err) {
+				this.client.log.warn( { files : allFiles, error : err.message }, 'Error sending file(s)' );
+			} else {
+				const sentFiles = [];
+				this.sendQueue.forEach(f => {
+					f.sent = true;
+					sentFiles.push(f.path);
+					
+				});
+
+				this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
+			}
+			return cb(err);
+		});
+	}
+
+	/*
+	sendFiles(cb) {
 		//	:TODO: built in/native protocol support
 
 		if(this.protocolConfig.external.supportsBatch) {
@@ -155,6 +177,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			});
 		}		
 	}
+	*/
 
 	moveFileWithCollisionHandling(src, dst, cb) {
 		//
@@ -208,11 +231,23 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			this.recvFilePaths = [];
 
 			if(this.recvFileName) {
+				//
 				//	file name specified - we expect a single file in |this.recvDirectory|
-				
-				//	:TODO: support non-blind: Move file to dest path, add to recvFilePaths, etc.
+				//	by the name of |this.recvFileName|
+				//
+				const recvFullPath = paths.join(this.recvDirectory, this.recvFileName);
+				fs.stat(recvFullPath, (err, stats) => {
+					if(err) {
+						return cb(err);
+					}
 
-				return cb(null);
+					if(!stats.isFile()) {
+						return cb(Errors.Invalid('Expected file entry in recv directory'));
+					}
+
+					this.recvFilePaths.push(recvFullPath);
+					return cb(null);
+				});
 			} else {
 				//
 				//	Blind Upload (recv): files in |this.recvDirectory| should be named appropriately already
@@ -254,8 +289,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 
 	prepAndBuildSendArgs(filePaths, cb) {
-		const external		= this.protocolConfig.external;
-		const externalArgs	= external[`${this.direction}Args`];
+		const externalArgs	= this.protocolConfig.external['sendArgs'];
 
 		async.waterfall(
 			[
@@ -300,7 +334,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
 	}
 
 	prepAndBuildRecvArgs(cb) {
-		const externalArgs	= this.protocolConfig.external[`${this.direction}Args`];
+		const argsKey		= this.recvFileName ? 'recvArgsNonBatch' : 'recvArgs';
+		const externalArgs	= this.protocolConfig.external[argsKey];
 		const args			= externalArgs.map(arg => stringFormat(arg, {
 			uploadDir		: this.recvDirectory,
 			fileName		: this.recvFileName || '',

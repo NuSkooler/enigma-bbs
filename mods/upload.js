@@ -11,6 +11,7 @@ const ansiGoto							= require('../core/ansi_term.js').goto;
 const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
 const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
 const Log								= require('../core/logger.js').log;
+const Errors							= require('../core/enig_error.js').Errors;
 
 //	deps
 const async								= require('async');
@@ -69,41 +70,28 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		this.menuMethods = {
 			optionsNavContinue : (formData, extraArgs, cb) => {
-				if(this.isBlindUpload()) {
-					return this.performBlindUpload(cb);
-				}
-
-				//	non-blind
-				//	jump to fileDetails form
-				//	:TODO: support non-blind: collect info/filename -> upload -> complete					
+				return this.performUpload(cb);
 			},
 
 			fileDetailsContinue : (formData, extraArgs, cb) => {
-
-
-				//	see notes in displayFileDetailsPageForEntry() about this hackery:
-				cb(null);
+				//	see displayFileDetailsPageForUploadEntry() for this hackery:
+				cb(null);				
 				return this.fileDetailsCurrentEntrySubmitCallback(null, formData.value);	//	move on to the next entry, if any
 			}
 		};	
 	}
 
 	getSaveState() {
-		const saveState = {
+		return {
 			uploadType			: this.uploadType,
-			tempRecvDirectory	: this.tempRecvDirectory
+			tempRecvDirectory	: this.tempRecvDirectory,
+			areaInfo			: this.availAreas[ this.viewControllers.options.getView(MciViewIds.options.area).getData() ],
 		};
-
-		if(this.isBlindUpload()) {
-			const areaSelectView	= this.viewControllers.options.getView(MciViewIds.options.area);
-			saveState.areaInfo		= this.availAreas[areaSelectView.getData()];
-		}
-
-		return saveState;
 	}
 
 	restoreSavedState(savedState) {
 		if(savedState.areaInfo) {
+			this.uploadType			= savedState.uploadType;
 			this.areaInfo			= savedState.areaInfo;
 			this.tempRecvDirectory	= savedState.tempRecvDirectory;
 		}
@@ -151,7 +139,7 @@ exports.getModule = class UploadModule extends MenuModule {
 		super.leave();
 	}
 
-	performBlindUpload(cb) {
+	performUpload(cb) {
 		temptmp.mkdir( { prefix : 'enigul-' }, (err, tempRecvDirectory) => {
 			if(err) {
 				return cb(err);
@@ -167,6 +155,10 @@ exports.getModule = class UploadModule extends MenuModule {
 				}
 			};
 
+			if(!this.isBlindUpload()) {
+				modOpts.extraArgs.recvFileName = this.viewControllers.options.getView(MciViewIds.options.fileName).getData();
+			}
+
 			//
 			//	Move along to protocol selection -> file transfer
 			//	Upon completion, we'll re-enter the module with some file paths handed to us
@@ -176,7 +168,11 @@ exports.getModule = class UploadModule extends MenuModule {
 				modOpts, 
 				cb
 			);
-		});		
+		});
+	}
+
+	continueNonBlindUpload(cb) {
+		return cb(null);
 	}
 
 	updateScanStepInfoViews(stepInfo) {
@@ -343,6 +339,34 @@ exports.getModule = class UploadModule extends MenuModule {
 		});
 	}
 
+	prepDetailsForUpload(scanResults, cb) {
+		async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
+			this.displayFileDetailsPageForUploadEntry(newEntry, (err, newValues) => {
+				if(err) {
+					return nextEntry(err);
+				}
+
+				//	if the file entry did *not* have a desc, take the user desc
+				if(!this.fileEntryHasDetectedDesc(newEntry)) {
+					newEntry.desc = newValues.shortDesc.trim();
+				}
+
+				if(newValues.estYear.length > 0) {
+					newEntry.meta.est_release_year = newValues.estYear;
+				}
+
+				if(newValues.tags.length > 0) {
+					newEntry.setHashTags(newValues.tags);
+				}
+
+				return nextEntry(err);
+			});
+		}, err => {
+			delete this.fileDetailsCurrentEntrySubmitCallback;
+			return cb(err, scanResults);
+		});
+	}
+
 	processUploadedFiles() {
 		//
 		//	For each file uploaded, we need to process & gather information
@@ -351,6 +375,22 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		async.waterfall(
 			[
+				function prepNonBlind(callback) {
+					if(self.isBlindUpload()) {
+						return callback(null);
+					}
+
+					//
+					//	For non-blind uploads, batch is not supported, we expect a single file
+					//	in |recvFilePaths|. If not, it's an error (we don't want to process the wrong thing)
+					//
+					if(self.recvFilePaths.length > 1) {
+						self.client.log.warn( { recvFilePaths : self.recvFilePaths }, 'Non-blind upload received 2:n files' );
+						return callback(Errors.UnexpectedState(`Non-blind upload expected single file but got received ${self.recvFilePaths.length}`));
+					}
+
+					return callback(null);
+				},
 				function scan(callback) {
 					return self.scanFiles(callback);
 				},
@@ -374,31 +414,7 @@ exports.getModule = class UploadModule extends MenuModule {
 					return callback(null, scanResults);
 				},
 				function prepDetails(scanResults, callback) {
-					async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
-						self.displayFileDetailsPageForEntry(newEntry, (err, newValues) => {
-							if(err) {
-								return nextEntry(err);
-							}
-
-							//	if the file entry did *not* have a desc, take the user desc
-							if(!self.fileEntryHasDetectedDesc(newEntry)) {
-								newEntry.desc = newValues.shortDesc.trim();
-							}
-
-							if(newValues.estYear.length > 0) {
-								newEntry.meta.est_release_year = newValues.estYear;
-							}
-
-							if(newValues.tags.length > 0) {
-								newEntry.setHashTags(newValues.tags);
-							}
-
-							return nextEntry(err);
-						});
-					}, err => {
-						delete self.fileDetailsCurrentEntrySubmitCallback;
-						return callback(err, scanResults);
-					});
+					return self.prepDetailsForUpload(scanResults, callback);					
 				},
 				function startMovingAndPersistingToDatabase(scanResults, callback) {
 					//
@@ -486,7 +502,7 @@ exports.getModule = class UploadModule extends MenuModule {
 		return (fileEntry.desc && fileEntry.desc.length > 0);
 	}
 
-	displayFileDetailsPageForEntry(fileEntry, cb) {
+	displayFileDetailsPageForUploadEntry(fileEntry, cb) {
 		const self = this;
 		
 		async.series(

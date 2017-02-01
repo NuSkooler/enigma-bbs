@@ -29,6 +29,7 @@ exports.Errors = {
 	Invalid				: (reason, reasonCode)	=> new EnigError('Invalid', -32004, reason, reasonCode),
 	ExternalProcess		: (reason, reasonCode)	=> new EnigError('External process error', -32005, reason, reasonCode),
 	MissingConfig		: (reason, reasonCode)	=> new EnigError('Missing configuration', -32006, reason, reasonCode),
+	UnexpectedState		: (reason, reasonCode)	=> new EnigError('Unexpected state', -32007, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

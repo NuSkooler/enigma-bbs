@@ -379,7 +379,6 @@ function getDefaultConfig() {
 					],
 					//	:TODO: can we not just use --escape ?
 					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					
-					supportsBatch	: true,
 				} 
 			},
 
@@ -396,8 +395,10 @@ function getDefaultConfig() {
 					recvArgs	: [
 						'-telnet', '-8', 'rz', '{uploadDir}'
 					],
+					recvArgsNonBatch : [
+						'-telnet', '-8', 'rz', '{fileName}'
+					],
 					escapeTelnet	: false,	//	-telnet option does this for us
-					supportsBatch	: true,
 				} 
 			}
 
@@ -478,6 +479,7 @@ function getDefaultConfig() {
 				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',				
 				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
+				//	:TODO: "Copyright YYYY someone"
 			],
 
 			web : {
