@@ -25,28 +25,13 @@ general: {
 ```
 
 ### Specific Areas of Interest
+* [Doors](doors.md)
+* [MCI Codes](mci.md)
+* [Menu System](menu_system.md)
+* [Message Conferences](msg_conf_area.md)
+* [Message Networks](msg_networks.md)
+* [File Archives & Archivers](archives.md)
 
-#### Archivers
-External archivers can be configured for various tasks such as EchoMail bundle handling.
-
-TODO: Document further inc. Members & defaults
-
-**Example**:
-
-```hjson
-archivers: {'
-  zip: {
-    // byte signature in HEX of ZIP archives
-    sig: "504b0304"
-    // offset of sig
-	offset: 0
-	compressCmd: "7za"
-	compressArgs: [ "a", "-tzip", "{archivePath}", "{fileList}" ]
-	decompressCmd: "7za"
-	decompressArgs: [ "e", "-o{extractPath}", "{archivePath}" ]
-  }
-}
-```
 
 ### A Sample Configuration
 Below is a **sample** `config.hjson` illustrating various (but certainly not all!) elements that can be configured / tweaked.

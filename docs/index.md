@@ -11,12 +11,14 @@ Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can s
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
+For other environments such as Windows, see **The Manual Way** below.
+
 ## The Manual Way
 For Windows environments or if you simply like to do things manually, read on...
 
 ### Prerequisites
-* [Node.js](https://nodejs.org/) version **v4.2.x or higher**
-  * :information_source: It is suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
+* [Node.js](https://nodejs.org/) version **v6.x or higher**
+  * :information_source: It is **highly** suggested to use [nvm](https://github.com/creationix/nvm) to manage your Node/io.js installs
 * [Python](https://www.python.org/downloads/) 2.7.x
 * A compiler such as Clang or GCC for Linux/UNIX systems or a recent copy of Visual Studio ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions OK) for Windows users. Note that you **should only need the Visual C++ component**.
   
@@ -25,13 +27,15 @@ For Windows environments or if you simply like to do things manually, read on...
 If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type enviornments (Please consider the `install.sh` approach unless you really want to manually install!):
 
 ```bash
-curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.31.0/install.sh | bash
-nvm install 4.4.0
-nvm use 4.4.0
+curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.0/install.sh | bash
+nvm install 6
+nvm use 6
 ```
 
-
 If the above completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
+
+For Windows nvm-like systems exist ([nvm-windows](https://github.com/coreybutler/nvm-windows), ...) or [just download the installer](https://nodejs.org/en/download/).
+
   
 ### Clone
 ```bash
@@ -56,9 +60,11 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 #### Via oputil.js
 `oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
 
-   ./oputil.js config --new
+```bash
+./oputil.js config --new
+```
 
-You wil be asked a series of basic questions.
+(You wil be asked a series of basic questions)
 
 #### Example Starting Configuration
 Below is an _example_ configuration. It is recommended that you at least **start with a generated configuration using oputil.js described above**.
@@ -69,7 +75,7 @@ Below is an _example_ configuration. It is recommended that you at least **start
 		boardName: Super Awesome BBS
 	}
 
-	servers: {
+	loginServers: {
 		ssh: {
 	    	privateKeyPass: YOUR_PK_PASS
 	    	enabled: true /* set to false to disable the SSH server */
