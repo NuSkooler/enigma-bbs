@@ -77,6 +77,20 @@ MenuView.prototype.setItems = function(items) {
 	}
 };
 
+MenuView.prototype.removeItem = function(index) {
+	this.items.splice(index, 1);
+	
+	if(this.focusItems) {
+		this.focusItems.splice(index, 1);
+	}
+
+	if(this.focusedItemIndex >= index) {
+		this.focusedItemIndex = Math.max(this.focusedItemIndex - 1, 0);
+	}
+
+	this.positionCacheExpired = true;
+};
+
 MenuView.prototype.getCount = function() {
 	return this.items.length;
 };

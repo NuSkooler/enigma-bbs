@@ -39,7 +39,8 @@
     "ptyw.js": "NuSkooler/ptyw.js",
     "sqlite3": "^3.1.1",
     "ssh2": "^0.5.1",
-    "temptmp" : "^1.0.0"
+    "temptmp" : "^1.0.0",
+    "sanitize-filename" : "^1.6.1"
   },
   "devDependencies": {
   },

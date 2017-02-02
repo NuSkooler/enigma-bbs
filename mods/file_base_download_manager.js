@@ -69,13 +69,13 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 				this.dlQueue.removeItems(selectedItem.fileId);
 
 				//	:TODO: broken: does not redraw menu properly - needs fixed!
-				return this.updateDownloadQueueView(cb);
+				return this.removeItemsFromDownloadQueueView(formData.value.queueItem, cb);
 			},
 			clearQueue : (formData, extraArgs, cb) => {
 				this.dlQueue.clear();
 								
 				//	:TODO: broken: does not redraw menu properly - needs fixed!
-				return this.updateDownloadQueueView(cb);
+				return this.removeItemsFromDownloadQueueView('all', cb);
 			}
 		};
 	}
@@ -106,6 +106,23 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 				return self.finishedLoading();
 			}
 		);
+	}
+
+	removeItemsFromDownloadQueueView(itemIndex, cb) {
+		const queueView = this.viewControllers.queueManager.getView(MciViewIds.queueManager.queue);
+		if(!queueView) {
+			return cb(Errors.DoesNotExist('Queue view does not exist'));
+		}
+
+		if('all' === itemIndex) {
+			queueView.setItems([]);
+			queueView.setFocusItems([]);
+		} else {
+			queueView.removeItem(itemIndex);
+		}
+
+		queueView.redraw();
+		return cb(null);
 	}
 
 	updateDownloadQueueView(cb) {

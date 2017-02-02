@@ -18,6 +18,7 @@ const async								= require('async');
 const _									= require('lodash');
 const temptmp							= require('temptmp').createTrackedSession('upload');
 const paths								= require('path');
+const sanatizeFilename					= require('sanitize-filename');
 
 exports.moduleInfo = {
 	name		: 'Upload',
@@ -38,6 +39,7 @@ const MciViewIds = {
 		uploadType	: 2,	//	blind vs specify filename
 		fileName	: 3,	//	for non-blind; not editable for blind
 		navMenu		: 4,	//	next/cancel/etc.
+		errMsg		: 5,	//	errors (e.g. filename cannot be blank)
 	},
 
 	processing : {
@@ -77,6 +79,37 @@ exports.getModule = class UploadModule extends MenuModule {
 				//	see displayFileDetailsPageForUploadEntry() for this hackery:
 				cb(null);				
 				return this.fileDetailsCurrentEntrySubmitCallback(null, formData.value);	//	move on to the next entry, if any
+			},
+
+			//	validation
+			validateNonBlindFileName : (fileName, cb) => {
+				fileName = sanatizeFilename(fileName);	//	remove unsafe chars, path info, etc.
+				if(0 === fileName.length) {
+					return cb(new Error('Invalid filename'));
+				}
+
+				if(0 === fileName.length) {
+					return cb(new Error('Filename cannot be empty'));
+				}
+
+				//	At least SEXYZ doesn't like non-blind names that start with a number - it becomes confused
+				if(/^[0-9].*$/.test(fileName)) {
+					return cb(new Error('Invalid filename'));
+				}
+
+				return cb(null);
+			},
+			viewValidationListener : (err, cb) => {
+				const errView = this.viewControllers.options.getView(MciViewIds.options.errMsg);
+				if(errView) {
+					if(err) {
+						errView.setText(err.message);
+					} else {
+						errView.clearText();
+					}
+				}
+
+				return cb(null);
 			}
 		};	
 	}
@@ -156,6 +189,7 @@ exports.getModule = class UploadModule extends MenuModule {
 			};
 
 			if(!this.isBlindUpload()) {
+				//	data has been sanatized at this point
 				modOpts.extraArgs.recvFileName = this.viewControllers.options.getView(MciViewIds.options.fileName).getData();
 			}
 
@@ -463,10 +497,19 @@ exports.getModule = class UploadModule extends MenuModule {
 
 						if(self.isBlindUpload()) {
 							fileNameView.setText(blindFileNameText);
-
-							//	:TODO: when blind, fileNameView should not be focus/editable
+							fileNameView.acceptsFocus = false;
+						} else  {
+							fileNameView.clearText();
+							fileNameView.acceptsFocus = true;
 						}
-					});					
+					});
+
+					//	sanatize filename for display when leaving the view
+					self.viewControllers.options.on('leave', prevView => {
+						if(prevView.id === MciViewIds.options.fileName) {
+							fileNameView.setText(sanatizeFilename(fileNameView.getData()));
+						}
+					});
 					
 					self.uploadType = 'blind';
 					uploadTypeView.setFocusItemIndex(0);	//	default to blind

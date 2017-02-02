@@ -195,12 +195,14 @@ function getPredefinedMCIValue(client, code) {
 			//	:TODO: System stat log for total ul/dl, total ul/dl bytes
 
 			//	:TODO: PT - Messages posted *today* (Obv/2)
+			//		-> Include FTN/etc.
 			//	:TODO: NT - New users today (Obv/2)
 			//	:TODO: CT - Calls *today* (Obv/2)
 			//	:TODO: TF - Total files on the system (Obv/2)
 			//	:TODO: FT - Files uploaded/added *today* (Obv/2)
 			//	:TODO: DD - Files downloaded *today* (iNiQUiTY)
 			//	:TODO: TP - total message/posts on the system (Obv/2)
+			//		-> Include FTN/etc.
 			//	:TODO: LC - name of last caller to system (Obv/2)
 			//	:TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
 			

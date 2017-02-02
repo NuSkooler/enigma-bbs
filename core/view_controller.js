@@ -454,7 +454,7 @@ ViewController.prototype.resetInitialFocus = function() {
 	if(this.formInitialFocusId) {
 		return this.switchFocus(this.formInitialFocusId);
 	}
-}
+};
 
 ViewController.prototype.switchFocus = function(id) {
 	//
@@ -480,15 +480,19 @@ ViewController.prototype.switchFocus = function(id) {
 };
 
 ViewController.prototype.nextFocus = function() {
-	var nextId;
+	let nextFocusView = this.focusedView ? this.focusedView : this.views[this.firstId];
 
-	if(!this.focusedView) {
-		nextId = this.views[this.firstId].id;
-	} else {
-		nextId = this.views[this.focusedView.id].nextId;		
+	//	find the next view that accepts focus
+	while(nextFocusView && nextFocusView.nextId) {
+		nextFocusView = this.getView(nextFocusView.nextId);
+		if(!nextFocusView || nextFocusView.acceptsFocus) {
+			break;
+		}
 	}
 
-	this.switchFocus(nextId);
+	if(nextFocusView && this.focusedView !== nextFocusView) {
+		this.switchFocus(nextFocusView.id);
+	}
 };
 
 ViewController.prototype.setViewOrder = function(order) {
@@ -507,7 +511,6 @@ ViewController.prototype.setViewOrder = function(order) {
 	}
 
 	if(viewIdOrder.length > 0) {
-		var view;
 		var count = viewIdOrder.length - 1;
 		for(var i = 0; i < count; ++i) {
 			this.views[viewIdOrder[i]].nextId = viewIdOrder[i + 1];

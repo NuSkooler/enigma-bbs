@@ -364,9 +364,48 @@ function getDefaultConfig() {
 		},
 		
 		fileTransferProtocols : {
+			zmodem8kSexyz : {
+				name		: 'ZModem 8k (SEXYZ)',
+				type		: 'external',
+				sort		: 1,
+				external	: {
+					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', '-8', 'sz', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgs			: [ '-telnet', '-8', 'rz', '{uploadDir}' ],
+					recvArgsNonBatch	: [ '-telnet', '-8', 'rz', '{fileName}' ],
+				} 
+			},
+
+			xmodemSexyz : {
+				name		: 'XModem (SEXYZ)',
+				type		: 'external',
+				sort		: 3,
+				external	: {
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', 'sX', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgsNonBatch	: [ '-telnet', 'rC', '{fileName}' ]
+				}
+			},
+
+			ymodemSexyz : {
+				name		: 'YModem (SEXYZ)',
+				type		: 'external',
+				sort		: 4,
+				external	: {
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', 'sY', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgs			: [ '-telnet', 'ry', '{uploadDir}' ],
+				}
+			},
+
 			zmodem8kSz : {
 				name		: 'ZModem 8k',
 				type		: 'external',
+				sort		: 2,
 				external	: {					
 					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
 					sendArgs	: [
@@ -380,28 +419,7 @@ function getDefaultConfig() {
 					//	:TODO: can we not just use --escape ?
 					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					
 				} 
-			},
-
-			zmodem8kSexyz : {
-				name		: 'ZModem 8k (SEXYZ)',
-				type		: 'external',
-				external	: {
-					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
-					sendCmd		: 'sexyz',
-					sendArgs	: [
-						'-telnet', '-8', 'sz', '@{fileListPath}'
-					],
-					recvCmd		: 'sexyz',
-					recvArgs	: [
-						'-telnet', '-8', 'rz', '{uploadDir}'
-					],
-					recvArgsNonBatch : [
-						'-telnet', '-8', 'rz', '{fileName}'
-					],
-					escapeTelnet	: false,	//	-telnet option does this for us
-				} 
 			}
-
 		},
 		
 		messageAreaDefaults : {

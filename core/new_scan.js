@@ -79,7 +79,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 				if('system_internal' === a.confTag) {
 					return -1;
 				} else {
-					return a.conf.name.localeCompare(b.conf.name);
+					return a.conf.name.localeCompare(b.conf.name, { sensitivity : false, numeric : true } );
 				}
 			});
 

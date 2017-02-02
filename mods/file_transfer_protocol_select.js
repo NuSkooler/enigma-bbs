@@ -135,6 +135,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 				name		: protInfo.name,
 				hasBatch	: _.has(protInfo, 'external.recvArgs'),
 				hasNonBatch	: _.has(protInfo, 'external.recvArgsNonBatch'),
+				sort		: protInfo.sort,
 			};
 		});
 
@@ -145,6 +146,13 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 			this.protocols = this.protocols.filter( prot => prot.hasBatch );
 		}
 
-		this.protocols.sort( (a, b) => a.name.localeCompare(b.name) );
+		//	natural sort taking explicit orders into consideration
+		this.protocols.sort( (a, b) => {
+			if(_.isNumber(a.sort) && _.isNumber(b.sort)) {
+				return a.sort - b.sort;
+			} else {
+				return a.name.localeCompare(b.name, { sensitivity : false, numeric : true } );
+			}
+		});
 	}
 };
