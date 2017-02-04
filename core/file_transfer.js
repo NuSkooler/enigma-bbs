@@ -25,11 +25,19 @@ const SYSTEM_EOL	= require('os').EOL;
 const TEMP_SUFFIX	= 'enigtf-';	//	temp CWD/etc.
 
 /*
+	Notes
+	-----------------------------------------------------------------------------
+
+	See core/config.js for external protocol configuration
+
+
 	Resources
+	-----------------------------------------------------------------------------
 
 	ZModem
 		* http://gallium.inria.fr/~doligez/zmodem/zmodem.txt
 		* https://github.com/protomouse/synchronet/blob/master/src/sbbs3/zmodem.c
+
 */
 
 exports.moduleInfo = {

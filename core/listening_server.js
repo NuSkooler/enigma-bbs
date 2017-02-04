@@ -6,7 +6,6 @@ const logger			= require('./logger.js');
 
 //	deps
 const async				= require('async');
-const _					= require('lodash');
 
 const listeningServers = {};	//	packageName -> info
 

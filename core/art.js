@@ -78,7 +78,7 @@ function getArtFromPath(path, options, cb) {
 				return iconv.decode(data, encoding);
 			} else {
 				const eofMarker = defaultEofFromExtension(ext);
-				return iconv.decode(sliceAtEOF(data, eofMarker), encoding);
+				return iconv.decode(eofMarker ? sliceAtEOF(data, eofMarker) : data, encoding);
 			}
 		}
 
@@ -213,11 +213,15 @@ function getArt(name, options, cb) {
 }
 
 function defaultEncodingFromExtension(ext) {
-	return SUPPORTED_ART_TYPES[ext.toLowerCase()].defaultEncoding;
+	const artType = SUPPORTED_ART_TYPES[ext.toLowerCase()];
+	return artType ? artType.defaultEncoding : 'utf8';
 }
 
 function defaultEofFromExtension(ext) {
-	return SUPPORTED_ART_TYPES[ext.toLowerCase()].eof;
+	const artType = SUPPORTED_ART_TYPES[ext.toLowerCase()];
+	if(artType) {
+		return artType.eof;
+	}
 }
 
 //	:TODO: Implement the following

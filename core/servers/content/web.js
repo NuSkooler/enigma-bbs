@@ -11,6 +11,8 @@ const http			= require('http');
 const https			= require('https');
 const _				= require('lodash');
 const fs			= require('fs');
+const paths			= require('path');
+const mimeTypes		= require('mime-types');
 
 const ModuleInfo = exports.moduleInfo = {
 	name		: 'Web',
@@ -55,6 +57,14 @@ exports.getModule = class WebServerModule extends ServerModule {
 		this.enableHttps	= Config.contentServers.web.https.enabled || false;
 
 		this.routes = {};
+
+		if(Config.contentServers.web.staticRoot) {
+			this.addRoute({
+				method		: 'GET',
+				path		: '/static/.*$',
+				handler		: this.routeStaticFile,
+			});
+		}
 	}
 
 	createServer() {
@@ -116,8 +126,54 @@ exports.getModule = class WebServerModule extends ServerModule {
 		return route ? route.handler(req, resp) : this.accessDenied(resp);
 	}
 
-	accessDenied(resp) {
-		resp.writeHead(401, { 'Content-Type' : 'text/html' } );
-		return resp.end('<html><body>Access denied</body></html>');
+	respondWithError(resp, code, bodyText, title) {
+		const customErrorPage = paths.join(Config.contentServers.web.staticRoot, `${code}.html`);
+
+		fs.readFile(customErrorPage, 'utf8', (err, data) => {
+			resp.writeHead(code, { 'Content-Type' : 'text/html' } );
+
+			if(err) {
+				return resp.end(`<!doctype html>
+					<html lang="en">
+						<head>
+						<meta charset="utf-8">
+						<title>${title}</title>
+						<meta name="viewport" content="width=device-width, initial-scale=1">
+						</head>
+						<body>
+							<article>
+								<h2>${bodyText}</h2>
+							</article>
+						</body>
+					</html>`
+				);
+			}
+
+			return resp.end(data);
+		});
 	}
-}
+
+	accessDenied(resp) {
+		return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
+	}
+
+	routeStaticFile(req, resp) {
+		const fileName = req.url.substr(req.url.indexOf('/', 1));
+		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
+
+		fs.stat(filePath, (err, stats) => {
+			if(err) {
+				return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+			}
+
+			const headers = {
+				'Content-Type'		: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
+				'Content-Length'	: stats.size,
+			};
+
+			const readStream = fs.createReadStream(filePath);
+			resp.writeHead(200, headers);
+			return readStream.pipe(resp);
+		});
+	}
+};

@@ -4,7 +4,7 @@
 //	ENiGMA½
 const MenuModule					= require('../core/menu_module.js').MenuModule;
 const ViewController				= require('../core/view_controller.js').ViewController;
-const getSortedAvailableFileAreas	= require('../core/file_area.js').getSortedAvailableFileAreas;
+const getSortedAvailableFileAreas	= require('../core/file_base_area.js').getSortedAvailableFileAreas;
 const FileBaseFilters				= require('../core/file_base_filter.js');
 const stringFormat					= require('../core/string_format.js');
 

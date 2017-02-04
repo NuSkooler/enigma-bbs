@@ -4,9 +4,9 @@
 //	enigma-bbs
 const MenuModule						= require('../core/menu_module.js').MenuModule;
 const stringFormat						= require('../core/string_format.js');
-const getSortedAvailableFileAreas		= require('../core/file_area.js').getSortedAvailableFileAreas;
-const getAreaDefaultStorageDirectory	= require('../core/file_area.js').getAreaDefaultStorageDirectory;
-const scanFile							= require('../core/file_area.js').scanFile;
+const getSortedAvailableFileAreas		= require('../core/file_base_area.js').getSortedAvailableFileAreas;
+const getAreaDefaultStorageDirectory	= require('../core/file_base_area.js').getAreaDefaultStorageDirectory;
+const scanFile							= require('../core/file_base_area.js').scanFile;
 const ansiGoto							= require('../core/ansi_term.js').goto;
 const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
 const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
@@ -560,19 +560,20 @@ exports.getModule = class UploadModule extends MenuModule {
 				},
 				function populateViews(callback) {
 					const descView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.desc);
-					
+					const tagsView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.tags);
+					const yearView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.estYear);
+
+					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
+					yearView.setText(fileEntry.meta.est_release_year || '');
+
 					if(self.fileEntryHasDetectedDesc(fileEntry)) {
 						descView.setText(fileEntry.desc);
 						descView.setPropertyValue('mode', 'preview');
-
-						//	:TODO: it would be nice to take this out of the focus order
+						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.tags);
+						descView.acceptsFocus = false;
+					} else {
+						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.desc);
 					}
-
-					const tagsView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.tags);
-					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
-
-					const yearView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.estYear);
-					yearView.setText(fileEntry.meta.est_release_year || '');
 
 					return callback(null);
 				}

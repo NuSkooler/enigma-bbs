@@ -9,7 +9,7 @@ const theme				= require('../core/theme.js');
 const FileEntry			= require('../core/file_entry.js');
 const stringFormat		= require('../core/string_format.js');
 const createCleanAnsi	= require('../core/string_util.js').createCleanAnsi;
-const FileArea			= require('../core/file_area.js');
+const FileArea			= require('../core/file_base_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
 const ArchiveUtil		= require('../core/archive_util.js');
 const Config			= require('../core/config.js').config;
@@ -23,12 +23,6 @@ const cleanControlCodes	= require('../core/string_util.js').cleanControlCodes;
 const async				= require('async');
 const _					= require('lodash');
 const moment			= require('moment');
-const paths				= require('path');
-
-/*
-	Misc TODO
-	 
-*/
 
 exports.moduleInfo = {
 	name	: 'File Area List',

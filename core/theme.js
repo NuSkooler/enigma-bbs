@@ -354,16 +354,16 @@ function setClientTheme(client, themeId) {
 function getThemeArt(options, cb) {
 	//
 	//	options - required:
-	//	name
-	//	client
+	//		name
 	//	
 	//	options - optional
-	//	themeId
-	//	asAnsi
-	//	readSauce
-	//	random
+	//		client - needed for user's theme/etc.
+	//		themeId
+	//		asAnsi
+	//		readSauce
+	//		random
 	//
-	if(!options.themeId && _.has(options.client, 'user.properties.theme_id')) {
+	if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
 		options.themeId = options.client.user.properties.theme_id;
 	} else {
 		options.themeId = Config.defaults.theme;
@@ -437,9 +437,13 @@ function getThemeArt(options, cb) {
 		],
 		function complete(err, artInfo) {
 			if(err) {
-				options.client.log.debug( { error : err }, 'Cannot find art');
+				if(options.client) {
+					options.client.log.debug( { error : err.message }, 'Cannot find theme art' );
+				} else {
+					Log.debug( { error : err.message }, 'Cannot find theme art' );
+				}
 			}
-			cb(err, artInfo);
+			return cb(err, artInfo);
 		}
 	);
 }

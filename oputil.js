@@ -442,7 +442,7 @@ function fileAreaScan() {
 				return initConfigAndDatabases(callback);
 			},
 			function getFileArea(callback) {
-				const fileAreaMod = require('./core/file_area.js');
+				const fileAreaMod = require('./core/file_base_area.js');
 
 				const areaInfo = fileAreaMod.getFileAreaByTag(argv.scan);
 				if(!areaInfo) {

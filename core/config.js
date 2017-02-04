@@ -223,6 +223,8 @@ function getDefaultConfig() {
 		contentServers : {
 			web : {
 				domain : 'another-fine-enigma-bbs.org',
+
+				staticRoot : paths.join(__dirname, './../www'),
 				
 				http : {
 					enabled : false,
@@ -364,6 +366,9 @@ function getDefaultConfig() {
 		},
 		
 		fileTransferProtocols : {
+			//
+			//	See http://www.synchro.net/docs/sexyz.txt for information on SEXYZ
+			//
 			zmodem8kSexyz : {
 				name		: 'ZModem 8k (SEXYZ)',
 				type		: 'external',

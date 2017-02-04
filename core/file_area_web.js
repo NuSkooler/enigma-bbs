@@ -41,15 +41,15 @@ class FileAreaWebAccess {
 					return self.load(callback);
 				},
 				function addWebRoute(callback) {
-					const webServer = getServer(WEB_SERVER_PACKAGE_NAME);
-					if(!webServer) {
+					self.webServer = getServer(WEB_SERVER_PACKAGE_NAME);
+					if(!self.webServer) {
 						return callback(Errors.DoesNotExist(`Server with package name "${WEB_SERVER_PACKAGE_NAME}" does not exist`));
 					}
 					
-					const routeAdded = webServer.instance.addRoute({
+					const routeAdded = self.webServer.instance.addRoute({
 						method	: 'GET',
 						path	: '/f/[a-zA-Z0-9]+$',	//	:TODO: allow this to be configurable
-						handler	: self.routeWebRequest.bind(self),
+						handler	: self.routeWebRequestForFile.bind(self),
 					});
 
 					return callback(routeAdded ? null : Errors.General('Failed adding route'));
@@ -217,13 +217,10 @@ class FileAreaWebAccess {
 	}
 
 	fileNotFound(resp) {
-		resp.writeHead(404, { 'Content-Type' : 'text/html' } );
-
-		//	:TODO: allow custom 404 - mods/<theme>/file_area_web-404.html
-		return resp.end('<html><body>Not found</html>');
+		this.webServer.instance.respondWithError(resp, 404, 'File not found.', 'File Not Found');
 	}
 
-	routeWebRequest(req, resp) {
+	routeWebRequestForFile(req, resp) {
 		const hashId = paths.basename(req.url);
 
 		this.loadServedHashId(hashId, (err, servedItem) => {
@@ -259,7 +256,7 @@ class FileAreaWebAccess {
 					});
 
 					const headers = {
-						'Content-Type'			: mimeTypes.contentType(paths.extname(filePath)) || mimeTypes.contentType('.bin'),
+						'Content-Type'			: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
 						'Content-Length'		: stats.size,
 						'Content-Disposition'	: `attachment; filename="${fileEntry.fileName}"`, 
 					};
