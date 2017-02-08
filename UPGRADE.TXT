@@ -40,6 +40,13 @@ file a issue on GitHub.
 
 0.0.1-alpha to 0.0.4-alpha
 -------------------------------------------------------------------------------
+* Node.js 6.x+ LTS is now required
+	You will need to upgrade Node.js to 6.x+. If using nvm (you should be!)
+	the process will go something like this:
+
+	nvm install 6
+	nvm alias default 6
+	
 * Manual Database Upgrade
 	sqlite3 db/message.sqlite
 	INSERT INTO message_fts(message_fts) VALUES('rebuild');
