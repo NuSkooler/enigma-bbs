@@ -58,9 +58,9 @@ exports.getModule = class FileBaseSearch extends MenuModule {
 						self.availAreas = [ { name : '-ALL-' } ].concat(getSortedAvailableFileAreas(self.client) || []);
 						
 						const areasView = vc.getView(MciViewIds.search.area);
-						if(areasView) {
-							areasView.setItems( self.availAreas.map( a => a.name ) );
-						}
+						areasView.setItems( self.availAreas.map( a => a.name ) );
+						areasView.redraw();
+						vc.switchFocus(MciViewIds.search.searchTerms);
 
 						return callback(null);
 					}
@@ -110,8 +110,9 @@ exports.getModule = class FileBaseSearch extends MenuModule {
 
 		const menuOpts = {
 			extraArgs	: {
-				filterCriteria	: filterCriteria,
-			}
+				filterCriteria	: filterCriteria,				
+			},
+			menuFlags	: [ 'noHistory' ],
 		};
 
 		return this.gotoMenu(this.menuConfig.config.fileBaseListEntriesMenu || 'fileBaseListEntries', menuOpts, cb);

@@ -124,6 +124,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 			},
 			showWebDownloadLink : (formData, extraArgs, cb) => {
 				return this.fetchAndDisplayWebDownloadLink(cb);
+			},
+			displayHelp : (formData, extraArgs, cb) => {
+				return this.displayHelpPage(cb);
 			}
 		};
 	}
@@ -180,7 +183,12 @@ exports.getModule = class FileAreaList extends MenuModule {
 					return self.beforeArt(callback);
 				},
 				function display(callback) {
-					return self.displayBrowsePage(false, callback);
+					return self.displayBrowsePage(false, err => {
+						if(err && 'NORESULTS' === err.reasonCode) {
+							self.gotoMenu(self.menuConfig.config.noResultsMenu || 'fileBaseListEntriesNoResults');
+						}
+						return callback(err);
+					});
 				}
 			],
 			() => {
@@ -334,16 +342,22 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		async.series(
 			[
-				function prepArtAndViewController(callback) {
-					return self.displayArtAndPrepViewController('browse', { clearScreen : clearScreen }, callback);
-				},
 				function fetchEntryData(callback) {
 					if(self.fileList) {
 						return callback(null);
 					}
 					return self.loadFileIds(false, callback);	//	false=do not force
 				},
-				function loadCurrentFileInfo(callback) {
+				function checkEmptyResults(callback) {
+					if(0 === self.fileList.length) {
+						return callback(Errors.General('No results for criteria', 'NORESULTS'));
+					}
+					return callback(null);
+				},
+				function prepArtAndViewController(callback) {
+					return self.displayArtAndPrepViewController('browse', { clearScreen : clearScreen }, callback);
+				},
+				function loadCurrentFileInfo(callback) {				
 					self.currentFileEntry = new FileEntry();
 
 					self.currentFileEntry.load( self.fileList[ self.fileListPosition ], err => {
@@ -381,7 +395,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					}
 				}
 			],
-			err => {
+			err => {				
 				if(cb) {
 					return cb(err);
 				}
@@ -425,6 +439,18 @@ exports.getModule = class FileAreaList extends MenuModule {
 			],
 			err => {
 				return cb(err);
+			}
+		);
+	}
+
+	displayHelpPage(cb) {
+		this.displayAsset(
+			this.menuConfig.config.art.help,
+			{ clearScreen : true },
+			() => {
+				this.client.waitForKeyPress( () => {
+					return this.displayBrowsePage(true, cb);
+				});
 			}
 		);
 	}

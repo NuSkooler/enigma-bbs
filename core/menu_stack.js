@@ -99,6 +99,7 @@ module.exports = class MenuStack {
 
 		if(!cb && _.isFunction(options)) {
 			cb = options;
+			options = {};
 		}
 
 		const self = this;
@@ -134,7 +135,9 @@ module.exports = class MenuStack {
 
 					currentModuleInfo.instance.leave();
 
-					if(modInst.menuConfig.options.menuFlags.includes('noHistory')) {
+					const menuFlags = (options && Array.isArray(options.menuFlags)) ? options.menuFlags : modInst.menuConfig.options.menuFlags;
+
+					if(menuFlags.includes('noHistory')) {
 						this.pop().instance.leave();	//	leave & remove current
 					}
 				}
