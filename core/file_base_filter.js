@@ -12,7 +12,7 @@ module.exports = class FileBaseFilters {
 	}
 
 	static get OrderByValues() {
-		return [ 'ascending', 'descending' ];
+		return [ 'descending', 'ascending' ];
 	}
 
 	static get SortByValues() {
@@ -116,7 +116,7 @@ module.exports = class FileBaseFilters {
 			areaTag	: '',	//	all
 			terms	: '',	//	*
 			tags	: '',	//	*
-			order	: 'ascending',
+			order	: 'descending',
 			sort	: 'upload_timestamp',
 			uuid	: uuid,
 		};

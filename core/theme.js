@@ -9,6 +9,7 @@ const configCache		= require('./config_cache.js');
 const getFullConfig		= require('./config_util.js').getFullConfig;
 const asset				= require('./asset.js');
 const ViewController	= require('./view_controller.js').ViewController;
+const Errors			= require('./enig_error.js').Errors;
 
 const fs				= require('fs');
 const paths				= require('path');
@@ -23,6 +24,7 @@ exports.setClientTheme          = setClientTheme;
 exports.initAvailableThemes		= initAvailableThemes;
 exports.displayThemeArt			= displayThemeArt;
 exports.displayThemedPause		= displayThemedPause;
+exports.displayThemedPrompt		= displayThemedPrompt;
 exports.displayThemedAsset		= displayThemedAsset;
 
 function refreshThemeHelpers(theme) {
@@ -484,110 +486,187 @@ function displayThemeArt(options, cb) {
 	});
 }
 
+/*
+function displayThemedPrompt(name, client, options, cb) {
+	
+	async.waterfall(
+		[
+			function loadConfig(callback) {
+				configCache.getModConfig('prompt.hjson', (err, promptJson) => {
+					if(err) {
+						return callback(err);
+					}
+
+					if(_.has(promptJson, [ 'prompts', name ] )) {
+						return callback(Errors.DoesNotExist(`Prompt "${name}" does not exist`));
+					}
+
+					const promptConfig = promptJson.prompts[name];
+					if(!_.isObject(promptConfig)) {
+						return callback(Errors.Invalid(`Prompt "${name} is invalid`));
+					}
+
+					return callback(null, promptConfig);
+				});
+			},
+			function display(promptConfig, callback) {
+				if(options.clearScreen) {
+					client.term.rawWrite(ansi.clearScreen());
+				}
+
+				//
+				//	If we did not clear the screen, don't let the font change
+				//				
+				const dispOptions = Object.assign( {}, promptConfig.options );
+				if(!options.clearScreen) {
+					dispOptions.font = 'not_really_a_font!';
+				}
+
+				displayThemedAsset(
+					promptConfig.art, 
+					client,
+					dispOptions,
+					(err, artData) => {
+						if(err) {
+							return callback(err);
+						}
+
+						return callback(null, promptConfig, artData.mciMap);
+					}
+				);
+			},
+			function prepViews(promptConfig, mciMap, callback) {
+				vc = new ViewController( { client : client } );
+
+				const loadOpts = {
+					promptName	: name,
+					mciMap		: mciMap,
+					config		: promptConfig,
+				};
+
+				vc.loadFromPromptConfig(loadOpts, err => {
+					callback(null);
+				});
+			}
+		]
+	);
+}
+*/
+
+function displayThemedPrompt(name, client, options, cb) {
+
+	const useTempViewController = _.isUndefined(options.viewController);
+
+	async.waterfall(
+		[
+			function display(callback) {
+				const promptConfig = client.currentTheme.prompts[name];
+				if(!promptConfig) {
+					return callback(Errors.DoesNotExist(`Missing "${name}" prompt configuration!`));
+				}
+
+				if(options.clearScreen) {
+					client.term.rawWrite(ansi.clearScreen());
+				}
+
+				//
+				//	If we did *not* clear the screen, don't let the font change
+				//	as it will mess with the output of the existing art displayed in a terminal
+				//				
+				const dispOptions = Object.assign( {}, promptConfig.options );
+				if(!options.clearScreen) {
+					dispOptions.font = 'not_really_a_font!';	//	kludge :)
+				}
+
+				displayThemedAsset(
+					promptConfig.art, 
+					client,
+					dispOptions,
+					(err, artInfo) => {
+						return callback(err, promptConfig, artInfo);
+					}
+				);
+			},
+			function discoverCursorPosition(promptConfig, artInfo, callback) {
+				if(!options.clearPrompt) {
+					//	no need to query cursor - we're not gonna use it
+					return callback(null, promptConfig, artInfo);
+				}
+				
+				client.once('cursor position report', pos => {
+					artInfo.startRow = pos[0] - artInfo.height;
+					return callback(null, promptConfig, artInfo);
+				});
+
+				client.term.rawWrite(ansi.queryPos());
+			},
+			function createMCIViews(promptConfig, artInfo, callback) {
+				const tempViewController = useTempViewController ? new ViewController( { client : client } ) : options.viewController;
+
+				const loadOpts = {
+					promptName	: name,
+					mciMap		: artInfo.mciMap,
+					config		: promptConfig,
+				};
+
+				tempViewController.loadFromPromptConfig(loadOpts, () => {
+					return callback(null, artInfo, tempViewController);
+				});
+			},
+			function pauseForUserInput(artInfo, tempViewController, callback) {
+				if(!options.pause) {
+					return callback(null, artInfo, tempViewController);
+				}
+
+				client.waitForKeyPress( () => {
+					return callback(null, artInfo, tempViewController);
+				});
+			},
+			function clearPauseArt(artInfo, tempViewController, callback) {
+				if(options.clearPrompt) {
+					if(artInfo.startRow && artInfo.height) {
+						client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
+						
+						//	Note: Does not work properly in NetRunner < 2.0b17:
+						client.term.rawWrite(ansi.deleteLine(artInfo.height));
+					} else {
+						client.term.rawWrite(ansi.eraseLine(1));
+					}
+				}
+
+				return callback(null, tempViewController);
+			}
+		],
+		(err, tempViewController) => {
+			if(err) {
+				client.log.warn( { error : err.message }, `Failed displaying "${name}" prompt` );
+			}
+
+			if(tempViewController && useTempViewController) {
+				tempViewController.detachClientEvents();
+			}
+
+			return cb(null);
+		}
+	);
+}
+
 //
 //	Pause prompts are a special prompt by the name 'pause'.
 //	
-function displayThemedPause(options, cb) {
-	//
-	//	options.client
-	//	options clearPrompt
-	//
-	assert(_.isObject(options.client));
+function displayThemedPause(client, options, cb) {
+
+	if(!cb && _.isFunction(options)) {
+		cb = options;
+		options = {};
+	}
 
 	if(!_.isBoolean(options.clearPrompt)) {
 		options.clearPrompt = true;
 	}
 
-	//	:TODO: Support animated pause prompts. Probably via MCI with AnimatedView
-
-	var artInfo;
-	var vc;
-	var promptConfig;
-
-	async.series(
-		[
-			function loadPromptJSON(callback) {
-				configCache.getModConfig('prompt.hjson', function loaded(err, promptJson) {
-					if(err) {
-						callback(err);
-					} else {
-						if(_.has(promptJson, [ 'prompts', 'pause' ] )) {
-							promptConfig = promptJson.prompts.pause;
-							callback(_.isObject(promptConfig) ? null : new Error('Invalid prompt config block!'));
-						} else {
-							callback(new Error('Missing standard \'pause\' prompt'));
-						}
-					}					
-				});
-			},
-			function displayPausePrompt(callback) {
-				//
-				//	Override .font so it doesn't change from current setting
-				//
-				var dispOptions = promptConfig.options;
-				dispOptions.font = 'not_really_a_font!';
-
-				displayThemedAsset(
-					promptConfig.art, 
-					options.client,
-					dispOptions,
-					function displayed(err, artData) {
-						artInfo = artData;
-						callback(err);
-					}
-				);
-			},
-			function discoverCursorPosition(callback) {
-				options.client.once('cursor position report', function cpr(pos) {
-					artInfo.startRow = pos[0] - artInfo.height;
-					callback(null);
-				});
-				options.client.term.rawWrite(ansi.queryPos());
-			},
-			function createMCIViews(callback) {
-				vc = new ViewController( { client : options.client, noInput : true } );
-				vc.loadFromPromptConfig( { promptName : 'pause', mciMap : artInfo.mciMap, config : promptConfig }, function loaded(err) {
-					callback(null);
-				});
-			},
-			function pauseForUserInput(callback) {
-				options.client.waitForKeyPress(function keyPressed() {
-					callback(null);
-				});
-			},
-			function clearPauseArt(callback) {
-				if(options.clearPrompt) {
-					if(artInfo.startRow && artInfo.height) {
-						options.client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-						
-						//	Note: Does not work properly in NetRunner < 2.0b17:
-						options.client.term.rawWrite(ansi.deleteLine(artInfo.height));
-					} else {
-						options.client.term.rawWrite(ansi.eraseLine(1))
-					}
-				}
-				callback(null);
-			}
-			/*
-			, function debugPause(callback) {
-				setTimeout(function to() {
-					callback(null);
-				}, 4000);
-			}
-			*/
-		],
-		function complete(err) {
-			if(err) {
-				Log.error(err);
-			}
-
-			if(vc) {
-				vc.detachClientEvents();
-			}
-
-			cb();
-		}
-	);
+	const promptOptions = Object.assign( {}, options, { pause : true } );
+	return displayThemedPrompt('pause', client, promptOptions, cb);
 }
 
 function displayThemedAsset(assetSpec, client, options, cb) {

@@ -166,7 +166,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	}
 
 	getMenuResult() {
-		//	nothing in base
+		//	default to the formData that was provided @ a submit, if any
+		return this.submitFormData;
 	}
 
 	nextMenu(cb) {
@@ -345,21 +346,41 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		);
 	}
 
-	pausePrompt(position, cb) {
-		if(!cb && _.isFunction(position)) {
-			cb = position;
-			position = null;		
-		}
-
+	optionalMoveToPosition(position) {
 		if(position) {
 			position.x = position.row || position.x || 1;
 			position.y = position.col || position.y || 1;
 
 			this.client.term.rawWrite(ansi.goto(position.x, position.y));
 		}
-		
-		return theme.displayThemedPause( { client : this.client }, cb);
 	}
+
+	pausePrompt(position, cb) {
+		if(!cb && _.isFunction(position)) {
+			cb = position;
+			position = null;		
+		}
+
+		this.optionalMoveToPosition(position);
+
+		return theme.displayThemedPause(this.client, cb);
+	}
+
+	/*
+	:TODO: this needs quite a bit of work - but would be nice: promptForInput(..., (err, formData) => ... )
+	promptForInput(formName, name, options, cb) {
+		if(!cb && _.isFunction(options)) {
+			cb = options;
+			options = {};
+		}
+
+		options.viewController = this.viewControllers[formName];
+
+		this.optionalMoveToPosition(options.position);
+
+		return theme.displayThemedPrompt(name, this.client, options, cb);
+	}
+	*/
 
 	setViewText(formName, mciId, text, appendMultiLine) {
 		const view = this.viewControllers[formName].getView(mciId);

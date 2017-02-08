@@ -99,8 +99,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
 						if(_.isString(self.config.tooManyArt)) {
 							theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
-								//	:TODO: Use MenuModule.pausePrompt()
-								theme.displayThemedPause( { client : self.client }, function keyPressed() {
+								self.pausePrompt( () => {
 									callback(new Error('Too many active instances'));
 								});
 							});
@@ -108,7 +107,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 							self.client.term.write('\nToo many active instances. Try again later.\n');
 
 							//	:TODO: Use MenuModule.pausePrompt()
-							theme.displayThemedPause( { client : self.client }, function keyPressed() {
+							self.pausePrompt( () => {
 								callback(new Error('Too many active instances'));
 							});
 						}

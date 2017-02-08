@@ -184,52 +184,52 @@ function ViewController(options) {
 			propAsset = asset.getViewPropertyAsset(conf[propName]);
 			if(propAsset) {
 				switch(propAsset.type) {
-				case 'config' :
-					propValue = asset.resolveConfigAsset(conf[propName]); 
-					break;
-				
-				case 'sysStat' :
-					propValue = asset.resolveSystemStatAsset(conf[propName]);
-					break;
+					case 'config' :
+						propValue = asset.resolveConfigAsset(conf[propName]); 
+						break;
+					
+					case 'sysStat' :
+						propValue = asset.resolveSystemStatAsset(conf[propName]);
+						break;
 
-					//	:TODO: handle @art (e.g. text : @art ...)
+						//	:TODO: handle @art (e.g. text : @art ...)
 
-				case 'method' : 
-				case 'systemMethod' :
-					if('validate' === propName) {						
-						//	:TODO: handle propAsset.location for @method script specification
-						if('systemMethod' === propAsset.type) {
-							//	:TODO: implementation validation @systemMethod handling!
-							var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
-							if(_.isFunction(methodModule[propAsset.asset])) {
-								propValue = methodModule[propAsset.asset];
-							}
-						} else {
-							if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
-								propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
-							}
-						}
-					} else {
-						if(_.isString(propAsset.location)) {
-
-						} else {
+					case 'method' : 
+					case 'systemMethod' :
+						if('validate' === propName) {						
+							//	:TODO: handle propAsset.location for @method script specification
 							if('systemMethod' === propAsset.type) {
-								//	:TODO:
+								//	:TODO: implementation validation @systemMethod handling!
+								var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
+								if(_.isFunction(methodModule[propAsset.asset])) {
+									propValue = methodModule[propAsset.asset];
+								}
 							} else {
-								//	local to current module
-								var currentModule = self.client.currentMenuModule;
-								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-									//	:TODO: Fix formData & extraArgs... this all needs general processing
-									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
+									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
+								}
+							}
+						} else {
+							if(_.isString(propAsset.location)) {
+
+							} else {
+								if('systemMethod' === propAsset.type) {
+									//	:TODO:
+								} else {
+									//	local to current module
+									var currentModule = self.client.currentMenuModule;
+									if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+										//	:TODO: Fix formData & extraArgs... this all needs general processing
+										propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+									}
 								}
 							}
 						}
-					}
-					break;
+						break;
 
-				default : 
-					propValue = propValue = conf[propName];
-					break;
+					default : 
+						propValue = propValue = conf[propName];
+						break;
 				}
 			} else {
 				propValue = conf[propName];
@@ -600,6 +600,33 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				}
 
 				callback(null);
+			},
+			function loadActionKeys(callback) {
+				if(!_.isObject(promptConfig) || !_.isArray(promptConfig.actionKeys)) {
+					return callback(null);
+				}
+
+				promptConfig.actionKeys.forEach(ak => {
+					//
+					//	*	'keys' must be present and be an array of key names
+					//	*	If 'viewId' is present, key(s) will focus & submit on behalf
+					//		of the specified view. 
+					//	*	If 'action' is present, that action will be procesed when
+					//		triggered by key(s)
+					//
+					//	Ultimately, create a map of key -> { action block }
+					//
+					if(!_.isArray(ak.keys)) {
+						return;
+					}
+
+					ak.keys.forEach(kn => {
+						self.actionKeyMap[kn] = ak;
+					});
+
+				});
+
+				return callback(null);
 			},
 			function drawAllViews(callback) {
 				self.redrawAll(initialFocusId);

@@ -7,11 +7,14 @@ const stringFormat						= require('../core/string_format.js');
 const getSortedAvailableFileAreas		= require('../core/file_base_area.js').getSortedAvailableFileAreas;
 const getAreaDefaultStorageDirectory	= require('../core/file_base_area.js').getAreaDefaultStorageDirectory;
 const scanFile							= require('../core/file_base_area.js').scanFile;
+const getFileAreaByTag					= require('../core/file_base_area.js').getFileAreaByTag;
 const ansiGoto							= require('../core/ansi_term.js').goto;
 const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
 const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
 const Log								= require('../core/logger.js').log;
 const Errors							= require('../core/enig_error.js').Errors;
+const FileEntry							= require('../core/file_entry.js');
+const enigmaToAnsi						= require('../core/color_codes.js').enigmaToAnsi;
 
 //	deps
 const async								= require('async');
@@ -30,7 +33,7 @@ const FormIds = {
 	options		: 0,
 	processing	: 1,
 	fileDetails	: 2,
-
+	dupes		: 3,
 };
 
 const MciViewIds = {
@@ -56,6 +59,10 @@ const MciViewIds = {
 		estYear				: 3,
 		accept				: 4,	//	accept fields & continue
 		customRangeStart	: 10,	//	10+ = customs
+	},
+
+	dupes : {
+		dupeList			: 1,
 	}
 };
 
@@ -159,17 +166,6 @@ exports.getModule = class UploadModule extends MenuModule {
 		if(this.isFileTransferComplete()) {
 			return this.processUploadedFiles();
 		}
-	}
-
-	leave() {
-		//	remove any temp files - only do this when 
-		if(this.isFileTransferComplete()) {
-			temptmp.cleanup( paths => {
-				Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Temporary files cleaned up' );
-			});
-		}
-
-		super.leave();
 	}
 
 	performUpload(cb) {
@@ -341,6 +337,12 @@ exports.getModule = class UploadModule extends MenuModule {
 		});
 	}
 
+	cleanupTempFiles() {
+		temptmp.cleanup( paths => {
+			Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Temporary files cleaned up' );
+		});
+	}
+
 	moveAndPersistUploadsToDatabase(newEntries) {
 
 		const areaStorageDir = getAreaDefaultStorageDirectory(this.areaInfo);
@@ -370,6 +372,11 @@ exports.getModule = class UploadModule extends MenuModule {
 					return nextEntry(null);	//	still try next file
 				});
 			});
+		}, () => {
+			//
+			//	Finally, we can remove any temp files that we may have created
+			//
+			self.cleanupTempFiles();
 		});
 	}
 
@@ -399,6 +406,75 @@ exports.getModule = class UploadModule extends MenuModule {
 			delete this.fileDetailsCurrentEntrySubmitCallback;
 			return cb(err, scanResults);
 		});
+	}
+
+	displayDupesPage(dupes, cb) {
+		//
+		//	If we have custom art to show, use it - else just dump basic info.
+		//	Pause at the end in either case.
+		//
+		const self = this;
+
+		async.waterfall(
+			[
+				function prepArtAndViewController(callback) {
+					self.prepViewControllerWithArt(
+						'dupes',
+						FormIds.dupes,
+						{ clearScreen : true, trailingLF : false },
+						err => {
+							if(err) {
+								self.client.term.pipeWrite('|00|07Duplicate upload(s) found:\n');
+								return callback(null, null);
+							}
+
+							const dupeListView = self.viewControllers.dupes.getView(MciViewIds.dupes.dupeList);
+							return callback(null, dupeListView);
+						}
+					);
+				},
+				function prepDupeObjects(dupeListView, callback) {
+					//	update dupe objects with additional info that can be used for formatString() and the like
+					async.each(dupes, (dupe, nextDupe) => {
+						FileEntry.loadBasicEntry(dupe.fileId, dupe, err => {
+							if(err) {
+								return nextDupe(err);
+							}
+							
+							const areaInfo = getFileAreaByTag(dupe.areaTag);
+							if(areaInfo) {
+								dupe.areaName 	= areaInfo.name;
+								dupe.areaDesc	= areaInfo.desc;
+							}
+							return nextDupe(null);
+						});
+					}, err => {
+						return callback(err, dupeListView);
+					});
+				},
+				function populateDupeInfo(dupeListView, callback) {
+					const dupeInfoFormat = self.menuConfig.config.dupeInfoFormat || '{fileName} @ {areaName}';
+
+					dupes.forEach(dupe => {
+						const formatted = stringFormat(dupeInfoFormat, dupe);
+						if(dupeListView) {
+							//	dupesInfoFormatX
+							dupeListView.addText(enigmaToAnsi(formatted));
+						} else {
+							self.client.term.pipeWrite(`${formatted}\n`);
+						}
+					});
+
+					return callback(null);
+				},
+				function pause(callback) {
+					return self.pausePrompt( { row : self.client.term.termHeight }, callback);
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
 	}
 
 	processUploadedFiles() {
@@ -437,15 +513,16 @@ exports.getModule = class UploadModule extends MenuModule {
 
 					self.pausePrompt( () => {
 						return callback(null, scanResults);
-					});					
+					});
 				},
 				function displayDupes(scanResults, callback) {
 					if(0 === scanResults.dupes.length) {
 						return callback(null, scanResults);
 					}
 
-					//	:TODO: display dupe info
-					return callback(null, scanResults);
+					return self.displayDupesPage(scanResults.dupes, () => {						
+						return callback(null, scanResults);
+					});
 				},
 				function prepDetails(scanResults, callback) {
 					return self.prepDetailsForUpload(scanResults, callback);					
@@ -463,6 +540,7 @@ exports.getModule = class UploadModule extends MenuModule {
 			err => {
 				if(err) {
 					self.client.log.warn('File upload error encountered', { error : err.message } );
+					self.cleanupTempFiles();	//	normally called after moveAndPersistUploadsToDatabase() is completed.
 				}
 
 				return self.prevMenu();
@@ -565,13 +643,16 @@ exports.getModule = class UploadModule extends MenuModule {
 
 					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
 					yearView.setText(fileEntry.meta.est_release_year || '');
-
+					
 					if(self.fileEntryHasDetectedDesc(fileEntry)) {
-						descView.setText(fileEntry.desc);
 						descView.setPropertyValue('mode', 'preview');
-						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.tags);
+						descView.setText(fileEntry.desc);						
 						descView.acceptsFocus = false;
+						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.tags);						
 					} else {
+						descView.setPropertyValue('mode', 'edit');
+						descView.setText('');						
+						descView.acceptsFocus = true;
 						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.desc);
 					}
 

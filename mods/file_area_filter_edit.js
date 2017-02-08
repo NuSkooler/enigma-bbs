@@ -89,7 +89,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 			},
 			newFilter : (formData, extraArgs, cb) => {
 				this.currentFilterIndex = this.filtersArray.length;	//	next avail slot
-				this.clearForm(true);	//	true=reset focus
+				this.clearForm(MciViewIds.editor.searchTerms);
 				return cb(null);
 			},
 			deleteFilter : (formData, extraArgs, cb) => {
@@ -115,10 +115,12 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 					}
 
 					//	update UI
+					this.updateActiveLabel();
+					
 					if(this.filtersArray.length > 0) {
 						this.loadDataForFilter(this.currentFilterIndex);
 					} else {
-						this.clearForm(true);	//	true=reset focus
+						this.clearForm();
 					}
 					return cb(null);
 				});				
@@ -203,7 +205,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 		}
 	}
 
-	clearForm(setFocus) {
+	clearForm(newFocusId) {
 		[ MciViewIds.editor.searchTerms, MciViewIds.editor.tags, MciViewIds.editor.filterName ].forEach(mciId => {
 			this.setText(mciId, '');
 		});
@@ -212,7 +214,9 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 			this.setFocusItemIndex(mciId, 0);
 		});
 
-		if(setFocus) {
+		if(newFocusId) {
+			this.viewControllers.editor.switchFocus(newFocusId);
+		} else {
 			this.viewControllers.editor.resetInitialFocus();
 		}
 	}

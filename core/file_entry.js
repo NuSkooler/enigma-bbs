@@ -26,7 +26,6 @@ const FILE_WELL_KNOWN_META = {
 	est_release_year	: (y) => parseInt(y) || new Date().getFullYear(),
 	dl_count			: (d) => parseInt(d) || 0,
 	byte_size			: (b) => parseInt(b) || 0,
-	user_rating			: (r) => Math.min(parseInt(r) || 0, 5),
 	archive_type		: null,
 };
 
@@ -38,13 +37,43 @@ module.exports = class FileEntry {
 		this.areaTag	= options.areaTag || '';
 		this.meta		= options.meta || {
 			//	values we always want
-			user_rating	: 0,
 			dl_count	: 0,
 		};
-
+				
 		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
 		this.storageTag	= options.storageTag;
+	}
+
+	static loadBasicEntry(fileId, dest, cb) {
+		if(!cb && _.isFunction(dest)) {
+			cb = dest;
+			dest = this;
+		}
+
+		fileDb.get(
+			`SELECT ${FILE_TABLE_MEMBERS.join(', ')}
+			FROM file
+			WHERE file_id=?
+			LIMIT 1;`,
+			[ fileId ],
+			(err, file) => {
+				if(err) {
+					return cb(err);
+				}
+
+				if(!file) {
+					return cb(Errors.DoesNotExist('No file is available by that ID'));
+				}
+
+				//	assign props from |file|
+				FILE_TABLE_MEMBERS.forEach(prop => {
+					dest[_.camelCase(prop)] = file[prop];
+				});
+
+				return cb(null);
+			}
+		);
 	}
 
 	load(fileId, cb) {
@@ -53,35 +82,16 @@ module.exports = class FileEntry {
 		async.series(
 			[
 				function loadBasicEntry(callback) {
-					fileDb.get(
-						`SELECT ${FILE_TABLE_MEMBERS.join(', ')}
-						FROM file
-						WHERE file_id=?
-						LIMIT 1;`,
-						[ fileId ],
-						(err, file) => {
-							if(err) {
-								return callback(err);
-							}
-
-							if(!file) {
-								return callback(Errors.DoesNotExist('No file is available by that ID'));
-							}
-
-							//	assign props from |file|
-							FILE_TABLE_MEMBERS.forEach(prop => {
-								self[_.camelCase(prop)] = file[prop];
-							});
-
-							return callback(null);
-						}
-					);
+					FileEntry.loadBasicEntry(fileId, self, callback);
 				},
 				function loadMeta(callback) {
 					return self.loadMeta(callback);
 				},
 				function loadHashTags(callback) {
 					return self.loadHashTags(callback);
+				},
+				function loadUserRating(callback) {
+					return self.loadRating(callback);
 				}
 			],
 			err => {
@@ -156,10 +166,19 @@ module.exports = class FileEntry {
 		return paths.join(storageDir, this.fileName);
 	}
 
+	static persistUserRating(fileId, userId, rating, cb) {
+		return fileDb.run(
+			`REPLACE INTO file_user_rating (file_id, user_id, rating)
+			VALUES (?, ?, ?);`,
+			[ fileId, userId, rating ],
+			cb
+		);
+	}
+
 	static persistMetaValue(fileId, name, value, cb) {
-		fileDb.run(
+		return fileDb.run(
 			`REPLACE INTO file_meta (file_id, meta_name, meta_value)
-			VALUES(?, ?, ?);`,
+			VALUES (?, ?, ?);`,
 			[ fileId, name, value ],
 			cb
 		);
@@ -243,6 +262,23 @@ module.exports = class FileEntry {
 		);	
 	}
 
+	loadRating(cb) {
+		fileDb.get(
+			`SELECT AVG(fur.rating) AS avg_rating
+			FROM file_user_rating fur
+			INNER JOIN file f
+				ON f.file_id = fur.file_id
+				AND f.file_id = ?`,
+			[ this.fileId ],
+			(err, result) => {
+				if(result) {
+					this.userRating = result.avg_rating;
+				}
+				return cb(err);
+			}
+		);
+	}
+
 	setHashTags(hashTags) {
 		if(_.isString(hashTags)) {
 			this.hashTags = new Set(hashTags.split(/[\s,]+/));
@@ -264,7 +300,7 @@ module.exports = class FileEntry {
 		const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
 		
 		function getOrderByWithCast(ob) {
-			if( [ 'dl_count', 'user_rating', 'est_release_year', 'byte_size' ].indexOf(filter.sort) > -1 ) {
+			if( [ 'dl_count', 'est_release_year', 'byte_size' ].indexOf(filter.sort) > -1 ) {
 				return `ORDER BY CAST(${ob} AS INTEGER)`;
 			}
 
@@ -290,11 +326,24 @@ module.exports = class FileEntry {
 
 				sqlOrderBy = `${getOrderByWithCast('m.meta_value')} ${sqlOrderDir}`;
 			} else {
-				sql = 
-					`SELECT f.file_id, f.${filter.sort}
-					FROM file f`;
+				//	additional special treatment for user ratings: we need to average them
+				if('user_rating' === filter.sort) {
+					sql =
+						`SELECT f.file_id,
+							(SELECT IFNULL(AVG(rating), 0) rating 
+							FROM file_user_rating 
+							WHERE file_id = f.file_id)
+							AS avg_rating
+						FROM file f`;
+					
+					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
+				} else {
+					sql = 
+						`SELECT f.file_id, f.${filter.sort}
+						FROM file f`;
 
-				sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
+					sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
+				}
 			}
 		} else {
 			sql = 

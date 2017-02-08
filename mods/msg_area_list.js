@@ -6,7 +6,6 @@ const MenuModule			= require('../core/menu_module.js').MenuModule;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const messageArea			= require('../core/message_area.js');
 const displayThemeArt		= require('../core/theme.js').displayThemeArt;
-const displayThemedPause	= require('../core/theme.js').displayThemedPause;
 const resetScreen			= require('../core/ansi_term.js').resetScreen;
 const stringFormat			= require('../core/string_format.js');
 
@@ -76,8 +75,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 									if(_.has(area, 'options.pause') && false === area.options.pause) { 
 										return self.prevMenuOnTimeout(1000, cb);
 									} else {
-										//	:TODO: Use MenuModule.pausePrompt()
-										displayThemedPause( { client : self.client }, () => {
+										self.pausePrompt( () => {
 											return self.prevMenu(cb);
 										});
 									}

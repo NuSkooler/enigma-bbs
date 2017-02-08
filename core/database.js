@@ -214,6 +214,7 @@ const DB_INIT_TABLE = {
 			);`
 		);
 
+
 		//	:TODO: need SQL to ensure cleaned up if delete from message?
 		/*
 		dbs.message.run(
@@ -332,6 +333,16 @@ const DB_INIT_TABLE = {
 				file_id			INTEGER NOT NULL,
 			
 				UNIQUE(hash_tag_id, file_id)
+			);`
+		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_user_rating (
+				file_id			INTEGER NOT NULL,
+				user_id			INTEGER NOT NULL,
+				rating			INTEGER NOT NULL,
+
+				UNIQUE(file_id, user_id)
 			);`
 		);
 

@@ -78,9 +78,17 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		this.dlQueue = new DownloadQueue(this.client);
 
-		this.filterCriteria = this.filterCriteria || { 
-			//	:TODO: set area tag - all in current area by default
-		};
+		if(!this.filterCriteria) {
+			this.filterCriteria = FileBaseFilters.getActiveFilter(this.client);
+		}
+
+		if(_.isString(this.filterCriteria)) {
+			this.filterCriteria = JSON.parse(this.filterCriteria);
+		}
+
+		if(_.has(options, 'lastMenuResult.value')) {
+			this.lastMenuResultValue = options.lastMenuResult.value;
+		}
 
 		this.menuMethods = {
 			nextFile : (formData, extraArgs, cb) => {		
@@ -116,7 +124,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			},
 			showWebDownloadLink : (formData, extraArgs, cb) => {
 				return this.fetchAndDisplayWebDownloadLink(cb);
-			},
+			}
 		};
 	}
 
@@ -128,11 +136,46 @@ exports.getModule = class FileAreaList extends MenuModule {
 		super.leave();
 	}
 
+	getSaveState() {
+		return {
+			fileList			: this.fileList,
+			fileListPosition	: this.fileListPosition,
+		};
+	}
+
+	restoreSavedState(savedState) {
+		if(savedState) {
+			this.fileList			= savedState.fileList;
+			this.fileListPosition	= savedState.fileListPosition;
+		}
+	}
+
+	updateFileEntryWithMenuResult(cb) {
+		if(!this.lastMenuResultValue) {
+			return cb(null);
+		}
+
+		if(_.isNumber(this.lastMenuResultValue.rating)) {
+			const fileId = this.fileList[this.fileListPosition];
+			FileEntry.persistUserRating(fileId, this.client.user.userId, this.lastMenuResultValue.rating, err => {
+				if(err) {
+					this.client.log.warn( { error : err.message, fileId : fileId }, 'Failed to persist file rating' );
+				}
+				return cb(null);
+			});
+		} else {
+			return cb(null);
+		}
+	}
+
 	initSequence() {
 		const self = this;
 
 		async.series(
 			[
+				function preInit(callback) {
+					return self.updateFileEntryWithMenuResult(callback);
+				},
 				function beforeArt(callback) {
 					return self.beforeArt(callback);
 				},
@@ -165,11 +208,12 @@ exports.getModule = class FileAreaList extends MenuModule {
 			fileName			: currEntry.fileName,
 			desc				: currEntry.desc || '',
 			descLong			: currEntry.descLong || '',
+			userRating			: currEntry.userRating,
 			uploadTimestamp		: moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
 			hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
 			isQueued			: this.dlQueue.isQueued(this.currentFileEntry) ? isQueuedIndicator : isNotQueuedIndicator,
 			webDlLink			: '',	//	:TODO: fetch web any existing web d/l link
-			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time
+			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time			
 		};
 
 		//
@@ -196,7 +240,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		//	create a rating string, e.g. "**---"
 		const userRatingTicked		= config.userRatingTicked || '*';
 		const userRatingUnticked	= config.userRatingUnticked || '';					
-		entryInfo.userRating		= entryInfo.userRating || 0;	//	be safe!
+		entryInfo.userRating		= ~~Math.round(entryInfo.userRating) || 0;	//	be safe!
 		entryInfo.userRatingString	= new Array(entryInfo.userRating + 1).join(userRatingTicked);
 		if(entryInfo.userRating < 5) {
 			entryInfo.userRatingString += new Array( (5 - entryInfo.userRating) + 1).join(userRatingUnticked);
@@ -297,7 +341,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(self.fileList) {
 						return callback(null);
 					}
-					return self.loadFileIds(callback);
+					return self.loadFileIds(false, callback);	//	false=do not force
 				},
 				function loadCurrentFileInfo(callback) {
 					self.currentFileEntry = new FileEntry();
@@ -566,14 +610,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 		);
 	}
 
-	loadFileIds(cb) {
-		this.fileListPosition	= 0;
-		const activeFilter		= FileBaseFilters.getActiveFilter(this.client);
-
-		FileEntry.findFiles(activeFilter, (err, fileIds) => {
-			this.fileList = fileIds;
-			return cb(err);
-		});
+	loadFileIds(force, cb) {
+		if(force || (_.isUndefined(this.fileList) || _.isUndefined(this.fileListPosition))) {
+			this.fileListPosition	= 0;
+			FileEntry.findFiles(this.filterCriteria, (err, fileIds) => {
+				this.fileList = fileIds;
+				return cb(err);
+			});
+		}
 	}
-
 };

@@ -1,8 +1,34 @@
 {
+	/*
+		./\/\.' ENiGMA½ Prompt Configuration -/--/-------- - --   - 
+
+		_____________________   _____  ____________________    __________\_   /
+		\__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+		//   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+		/____       _____|      __________       ___|__|      ____|     \   /  _____  \
+		---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+		                                                                 /__   _\
+		<*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+
+		-------------------------------------------------------------------------------
+
+		This configuration is in HJSON (http://hjson.org/) format.  Strict to-spec 
+		JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+		
+		See http://hjson.org/ for more information and syntax.
+
+
+		If you haven't yet, copy the conents of this file to something like 
+		sick_board_prompt.hjson. Point to it via config.hjson using the 
+		'general.promptFile' key:
+		
+			general: { promptFile: "sick_board_prompt.hjson" } 	
+		
+	*/
 	//	:TODO: this entire file needs cleaned up a LOT
 	//	:TODO: Convert all of this to HJSON
-	"prompts" : {
-		"userCredentials" : {
+	prompts: {
+		userCredentials: {
 			"art" : "usercred",
 			"mci" : {
 				"ET1" : {
@@ -106,6 +132,25 @@
 				}
 			}
 		},
+
+		//	File Base Related
+		fileBaseRateEntryPrompt: {
+			art: RATEFILE
+			mci: {
+				SM1: {
+					argName: rating
+					items: [ "-----", "*----", "**---", "***--", "****-", "*****" ]
+				}
+			}
+			
+			actionKeys: [
+				{
+					keys: [ "escape" ]
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	Standard / Required
 		///////////////////////////////////////////////////////////////////////

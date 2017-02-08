@@ -301,13 +301,17 @@ function renderStringLength(s) {
 const SIZE_ABBRS = [ 'B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB' ];	//	:) 
 
 function formatByteSizeAbbr(byteSize) {
+	if(0 === byteSize) {
+		return SIZE_ABBRS[0];	//	B
+	}
+	
 	return SIZE_ABBRS[Math.floor(Math.log(byteSize) / Math.log(1024))];
 }
 
 function formatByteSize(byteSize, withAbbr, decimals) {
 	withAbbr = withAbbr || false; 
 	decimals = decimals || 3;
-	const i		= Math.floor(Math.log(byteSize) / Math.log(1024));
+	const i		= 0 === byteSize ? byteSize : Math.floor(Math.log(byteSize) / Math.log(1024));
 	let result	= parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals));
 	if(withAbbr) {
 		result += ` ${SIZE_ABBRS[i]}`; 

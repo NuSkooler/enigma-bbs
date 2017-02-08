@@ -63,9 +63,15 @@ function logoff(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevMenu(callingMenu, formData, extraArgs, cb) {
+
+	//	:TODO: this is a pretty big hack -- need the whole key map concep there like other places
+	if(formData.key && 'return' === formData.key.name) {
+		callingMenu.submitFormData = formData;
+	}
+
 	callingMenu.prevMenu( err => {
 		if(err) {
-			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to fallback!');			
+			callingMenu.client.log.error( { error : err.message }, 'Error attempting to fallback!');			
 		}
 		return cb(err);
 	});
@@ -74,7 +80,7 @@ function prevMenu(callingMenu, formData, extraArgs, cb) {
 function nextMenu(callingMenu, formData, extraArgs, cb) {
 	callingMenu.nextMenu( err => {
 		if(err) {
-			callingMenu.client.log.error( { error : err.toString() }, 'Error attempting to go to next menu!');
+			callingMenu.client.log.error( { error : err.message}, 'Error attempting to go to next menu!');
 		}
 		return cb(err);
 	});
