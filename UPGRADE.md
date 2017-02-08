@@ -3,8 +3,8 @@ This document covers basic upgrade notes for major ENiGMA½.
 
 
 # Before Upgrading
-* Always back ALL files in the 'db' directory
-* Back up your menu.hjson (or renamed equivalent)
+* Alwasy back up your system! 
+* At least back up the `db` directory and your `menu.hjson` (or renamed equivalent)
 
 
 # General Notes
@@ -39,7 +39,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 
 # 0.0.1-alpha to 0.0.4-alpha
 ## Node.js 6.x+ LTS is now **required**
-You will need to upgrade Node.js to 6.x+. If using nvm (you should be!) the process will go something like this:
+You will need to upgrade Node.js to [6.x+](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V6.md). If using nvm (you should be!) the process will go something like this:
 ```bash
 nvm install 6
 nvm alias default 6
@@ -55,4 +55,4 @@ sqlite> INSERT INTO message_fts(message_fts) VALUES('rebuild');
 ```
 
 ## Archiver Changes
-If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [docs/archive.md](Archive Configuration) and `core/config.js`
+If you have overridden or made additions to archivers in your `config.hjson` you will need to update them. See [Archive Configuration](docs/archive.md) and `core/config.js`
