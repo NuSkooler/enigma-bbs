@@ -1,10 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-var TextView		= require('./text_view.js').TextView;
-var miscUtil		= require('./misc_util.js');
-var util			= require('util');
-var assert			= require('assert');
+const TextView		= require('./text_view.js').TextView;
+const miscUtil		= require('./misc_util.js');
+const util			= require('util');
 
 exports.ButtonView			= ButtonView;
 
@@ -20,7 +19,8 @@ function ButtonView(options) {
 util.inherits(ButtonView, TextView);
 
 ButtonView.prototype.onKeyPress = function(ch, key) {
-	if(' ' === ch) {
+	//	allow space = submit
+	if(' ' === ch) {	
 		this.emit('action', 'accept');
 	}
 
