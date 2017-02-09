@@ -122,11 +122,14 @@ exports.getModule = class UploadModule extends MenuModule {
 	}
 
 	getSaveState() {
-		return {
-			uploadType			: this.uploadType,
-			tempRecvDirectory	: this.tempRecvDirectory,
-			areaInfo			: this.availAreas[ this.viewControllers.options.getView(MciViewIds.options.area).getData() ],
-		};
+		//	if no areas, we're falling back due to lack of access/areas avail to upload to
+		if(this.availAreas.length > 0) {
+			return {
+				uploadType			: this.uploadType,
+				tempRecvDirectory	: this.tempRecvDirectory,
+				areaInfo			: this.availAreas[ this.viewControllers.options.getView(MciViewIds.options.area).getData() ],
+			};
+		}
 	}
 
 	restoreSavedState(savedState) {
@@ -142,6 +145,11 @@ exports.getModule = class UploadModule extends MenuModule {
 	
 	initSequence() {
 		const self = this;
+
+		if(0 === this.availAreas.length) {
+			//	
+			return this.gotoMenu(this.menuConfig.config.noUploadAreasAvailMenu || 'fileBaseNoUploadAreasAvail');
+		}
 
 		async.series(
 			[
@@ -640,6 +648,8 @@ exports.getModule = class UploadModule extends MenuModule {
 					const descView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.desc);
 					const tagsView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.tags);
 					const yearView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.estYear);
+
+					self.updateCustomViewTextsWithFilter('fileDetails', MciViewIds.fileDetails.customRangeStart, fileEntry);
 
 					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
 					yearView.setText(fileEntry.meta.est_release_year || '');

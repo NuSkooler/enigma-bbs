@@ -238,6 +238,13 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	}
 }
 
+//	a simple log proxy for when we call from oputil.js
+function logDebug(obj, msg) {
+	if(Log) {
+		Log.debug(obj, msg);
+	}
+}
+
 function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, cb) {
 	const archiveUtil 	= ArchiveUtil.getInstance();
 	const archiveType	= fileEntry.meta.archive_type;	//	we set this previous to populateFileEntryWithArchive()
@@ -334,7 +341,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 						const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
 					
 						if(Config.fileBase[maxFileSizeKey] && stats.size > Config.fileBase[maxFileSizeKey]) {
-							Log.debug( { byteSize : stats.size, maxByteSize : Config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
+							logDebug( { byteSize : stats.size, maxByteSize : Config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
 							return next(null);
 						}
 
@@ -355,7 +362,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					//	cleanup but don't wait
 					temptmp.cleanup( paths => {
 						//	note: don't use client logger here - may not be avail
-						Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
+						logDebug( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
 					});
 					return callback(null);
 				});
@@ -571,7 +578,12 @@ function scanFile(filePath, options, iterator, cb) {
 	);
 }
 
-function scanFileAreaForChanges(areaInfo, cb) {
+function scanFileAreaForChanges(areaInfo, iterator, cb) {
+	if(!cb && _.isFunction(iterator)) {
+		cb = iterator;
+		iterator = null;
+	}
+
 	const storageLocations = getAreaStorageLocations(areaInfo);
 
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
@@ -604,6 +616,7 @@ function scanFileAreaForChanges(areaInfo, cb) {
 										areaTag		: areaInfo.areaTag,
 										storageTag	: storageLoc.storageTag
 									},
+									iterator,
 									(err, fileEntry, dupeEntries) => {
 										if(err) {
 											//	:TODO: Log me!!!

@@ -38,7 +38,7 @@ global args:
 commands:
   user                  : user utilities
   config                : config file management
-  file-area             : file area management
+  file-base             : file base management
 
 `,
 	User : 
@@ -58,8 +58,8 @@ valid args:
 valid args:
   --new                 : generate a new/initial configuration
 `,
-	FileArea :
-`usage: oputil.js file-area <args>
+	FileBase :
+`usage: oputil.js file-base <args>
 
 valid args:
   --scan AREA_TAG       : (re)scan area specified by AREA_TAG for new files
@@ -436,6 +436,14 @@ function handleConfigCommand() {
 }
 
 function fileAreaScan() {
+	function scanFileIterator(stepInfo, nextScanStep) {
+		if('start' === stepInfo.step) {
+			console.info(`Scanning ${stepInfo.filePath}...`);
+		}
+		return nextScanStep(null);
+		//	:TODO: add 'finished' step when avail
+	}
+
 	async.waterfall(
 		[
 			function init(callback) {
@@ -452,7 +460,7 @@ function fileAreaScan() {
 				return callback(null, fileAreaMod, areaInfo);
 			},
 			function performScan(fileAreaMod, areaInfo, callback) {
-				fileAreaMod.scanFileAreaForChanges(areaInfo, err => {
+				fileAreaMod.scanFileAreaForChanges(areaInfo, scanFileIterator, err => {
 					return callback(err);
 				});
 			}
@@ -466,9 +474,9 @@ function fileAreaScan() {
 	);
 }
 
-function handleFileAreaCommand() {
+function handleFileBaseCommand() {
 	if(true === argv.help) {
-		return printUsageAndSetExitCode('FileArea', ExitCodes.ERROR);
+		return printUsageAndSetExitCode('FileBase', ExitCodes.ERROR);
 	}
 
 	if(argv.scan) {
@@ -499,8 +507,8 @@ function main() {
 			handleConfigCommand();
 			break;
 
-		case 'file-area' :
-			handleFileAreaCommand();
+		case 'file-base' :
+			handleFileBaseCommand();
 			break;
 
 		default:

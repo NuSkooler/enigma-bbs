@@ -3,7 +3,7 @@ For :bug: bug reports, please fill out the information below plus any additional
 **Short problem description**
 
 **Environment**
-- [ ] I am using Node.js v4.x or higher
+- [ ] I am using Node.js v6.x or higher
 - [ ] `npm install` reports success
 - Actual Node.js version (`node --version`):
 - Operating system (`uname -a` on *nix systems):

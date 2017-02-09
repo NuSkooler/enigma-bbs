@@ -55,7 +55,7 @@ areas: {
 		desc: Oldschool PC/DOS
 		storageTags: [ "retro_pc", "retro_pc_bbs" ]
 		acs: {
-			write: GM[users] /* optional, see Uploads below */
+			write: GM[users] /* optional, see ACS below */
 		}
 	}
 }
