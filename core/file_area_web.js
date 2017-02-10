@@ -48,7 +48,7 @@ class FileAreaWebAccess {
 					
 					const routeAdded = self.webServer.instance.addRoute({
 						method	: 'GET',
-						path	: '/f/[a-zA-Z0-9]+$',	//	:TODO: allow this to be configurable
+						path	: Config.fileBase.web.routePath,
 						handler	: self.routeWebRequestForFile.bind(self),
 					});
 
