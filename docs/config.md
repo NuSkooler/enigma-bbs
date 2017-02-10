@@ -4,7 +4,7 @@ Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](http://hjson.or
 ## System Configuration
 The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. The default path is `~/.config/enigma-bbs/config.hjson` though you can override this with the `--config` parameter when invoking `main.js`. Values found in core/config.js may be overridden by simply providing the object members you wish replace.
 
-**Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern Windows installations, e.g. `C:\Users\NuSkooler\\.config\enigma-bbs\config.hjson`
+**Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern Windows installations, e.g. `C:\Users\NuSkooler\.config\enigma-bbs\config.hjson`
 
 ### oputil.js
 Please see `oputil.js config` for configuration generation options.

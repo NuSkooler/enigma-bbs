@@ -10,6 +10,7 @@ const conf			= require('./config.js');
 const logger		= require('./logger.js');
 const database		= require('./database.js');
 const clientConns	= require('./client_connections.js');
+const resolvePath	= require('./misc_util.js').resolvePath;
 
 //	deps
 const async			= require('async');
@@ -25,30 +26,38 @@ exports.bbsMain	= bbsMain;
 //	object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
 
+const ENIGMA_COPYRIGHT	= 'ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby';
+const HELP = 
+`${ENIGMA_COPYRIGHT}
+usage: main.js <args>
+
+valid args:
+  --version       : display version
+  --help          : displays this help
+  --config PATH   : override default config.hjson path
+`;
+
+function printHelpAndExit() {
+	console.info(HELP);
+	process.exit();
+}
+
 function bbsMain() {
 	async.waterfall(
 		[
 			function processArgs(callback) {
-				const args = process.argv.slice(2);
+				const argv = require('minimist')(process.argv.slice(2));
 
-				var configPath;
-
-				if(args.indexOf('--help') > 0) {
-					//	:TODO: display help
-				} else {
-					let argCount = args.length;
-					for(let i = 0; i < argCount; ++i) {
-						const arg = args[i];
-						if('--config' === arg) {
-							configPath = args[i + 1];
-						}
-					}
+				if(argv.help) {
+					printHelpAndExit();
 				}
 
-				callback(null, configPath || conf.getDefaultPath(), _.isString(configPath));
+				const configOverridePath = argv.config;
+
+				return callback(null, configOverridePath || conf.getDefaultPath(), _.isString(configOverridePath));
 			},
 			function initConfig(configPath, configPathSupplied, callback) {
-				conf.init(configPath, function configInit(err) {
+				conf.init(resolvePath(configPath), function configInit(err) {
 
 					//
 					//	If the user supplied a path and we can't read/parse it 
@@ -80,7 +89,7 @@ function bbsMain() {
 		function complete(err) {
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
-				console.info('ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby');
+				console.info(ENIGMA_COPYRIGHT);
 				if(!err) {					
 					console.info(banner);
 				}					
