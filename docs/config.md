@@ -1,10 +1,10 @@
 # Configuration
 Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](http://hjson.org/) files. HJSON is just like JSON but simplified and much more resilient to human error.
 
-## System Configuraiton
+## System Configuration
 The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. The default path is `~/.config/enigma-bbs/config.hjson` though you can override this with the `--config` parameter when invoking `main.js`. Values found in core/config.js may be overridden by simply providing the object members you wish replace.
 
-**Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern installations, e.g. *C:\Users\NuSkooler\\.config\enigma-bbs\config.hjson*
+**Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern Windows installations, e.g. `C:\Users\NuSkooler\\.config\enigma-bbs\config.hjson`
 
 ### oputil.js
 Please see `oputil.js config` for configuration generation options.
@@ -24,13 +24,18 @@ general: {
 }
 ```
 
+(Note the very slightly different syntax. **You can use standard JSON if you wish**)
+
 ### Specific Areas of Interest
-* [Doors](doors.md)
-* [MCI Codes](mci.md)
 * [Menu System](menu_system.md)
 * [Message Conferences](msg_conf_area.md)
 * [Message Networks](msg_networks.md)
+* [File Base](file_base.md)
 * [File Archives & Archivers](archives.md)
+* [Doors](doors.md)
+* [MCI Codes](mci.md)
+* [Web Server](web_server.md)
+...and other stuff [in the /docs directory](./)
 
 
 ### A Sample Configuration
@@ -121,4 +126,4 @@ Below is a **sample** `config.hjson` illustrating various (but certainly not all
 ```
 
 ## Menus
-TODO: Documentation on menu.hjson, etc.
+See [the menu system docs](menu_system.md)

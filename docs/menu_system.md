@@ -1,13 +1,14 @@
 # Menu System
 ENiGMA½'s menu system is highly flexible and moddable. The possibilities are almost endless! By modifying your `menu.hjson` you will be able to create a custom look and feel unique to your board.
 
-The default `menu.hjson` file lives within the `mods` directory. To specify another file, set the `menuFile` property in your `config.hjson` file:
+The default `menu.hjson` file lives within the `mods` directory. It is **highly recommended** to specify another file by setting the `menuFile` property in your `config.hjson` file:
 ```hjson
 general: {
   /* Can also specify a full path */
   menuFile: mybbs.hjson
 }
 ```
+(You can start by copying the default `menu.hjson` to `mybbs.hjson`)
 
 ## The Basics
 Like all configuration within ENiGMA½, menu configuration is done via a HJSON file. This file is located in the `mods` directory: `mods/menu.hjson`.
@@ -37,6 +38,7 @@ Now let's look at `matrix`, the `next` entry from `telnetConnected`:
 ```hjson
 matrix: {
   art: matrix
+  desc: Login Matrix
   form: {
     0: {
       VM: {
