@@ -49,7 +49,7 @@ const MciViewIds = {
 		calcHashIndicator		: 1,
 		archiveListIndicator	: 2,
 		descFileIndicator		: 3,
-
+		logStep					: 4,
 		customRangeStart		: 10,	//	10+ = customs
 	},
 
@@ -218,13 +218,16 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		const fmtObj = Object.assign( {}, stepInfo);
 		let stepIndicatorFmt = '';
+		let logStepFmt;	
 
-		const indicatorStates 	= this.menuConfig.config.indicatorStates || [ '|', '/', '-', '\\' ];
-		const indicatorFinished	= this.menuConfig.config.indicatorFinished || '√';
+		const fmtConfig = this.menuConfig.config;
+
+		const indicatorStates 	= fmtConfig.indicatorStates || [ '|', '/', '-', '\\' ];
+		const indicatorFinished	= fmtConfig.indicatorFinished || '√';
 
 		const indicator = { };
 		const self = this;
-
+		
 		function updateIndicator(mci, isFinished) {
 			indicator.mci = mci;
 
@@ -237,46 +240,50 @@ exports.getModule = class UploadModule extends MenuModule {
 				}
 				indicator.text = indicatorStates[self.scanStatus.indicatorPos];
 			}
-		}		
+		}
 
 		switch(stepInfo.step) {
 			case 'start' :
-				stepIndicatorFmt = this.menuConfig.config.scanningStartFormat || 'Scanning {fileName}';
+				logStepFmt = stepIndicatorFmt = fmtConfig.scanningStartFormat || 'Scanning {fileName}';
 				break;
 
 			case 'hash_update' :
-				stepIndicatorFmt = this.menuConfig.calcHashFormat || 'Calculating hash/checksums: {calcHashPercent}%';
+				stepIndicatorFmt = fmtConfig.calcHashFormat || 'Calculating hash/checksums: {calcHashPercent}%';
 				updateIndicator(MciViewIds.processing.calcHashIndicator);
 				break;
 
 			case 'hash_finish' : 
-				stepIndicatorFmt = this.menuConfig.calcHashCompleteFormat || 'Finished calculating hash/checksums';
+				stepIndicatorFmt = fmtConfig.calcHashCompleteFormat || 'Finished calculating hash/checksums';
 				updateIndicator(MciViewIds.processing.calcHashIndicator, true);
 				break;
 
 			case 'archive_list_start' :
-				stepIndicatorFmt = this.menuConfig.extractArchiveListFormat || 'Extracting archive list';
+				stepIndicatorFmt = fmtConfig.extractArchiveListFormat || 'Extracting archive list';
 				updateIndicator(MciViewIds.processing.archiveListIndicator);
 				break;
 
 			case 'archive_list_finish' : 
 				fmtObj.archivedFileCount = stepInfo.archiveEntries.length;
-				stepIndicatorFmt = this.menuConfig.extractArchiveListFinishFormat || 'Archive list extracted ({archivedFileCount} files)';
+				stepIndicatorFmt = fmtConfig.extractArchiveListFinishFormat || 'Archive list extracted ({archivedFileCount} files)';
 				updateIndicator(MciViewIds.processing.archiveListIndicator, true);
 				break;
 
 			case 'archive_list_failed' :
-				stepIndicatorFmt = this.menuConfig.extractArchiveListFailedFormat || 'Archive list extraction failed';
+				stepIndicatorFmt = fmtConfig.extractArchiveListFailedFormat || 'Archive list extraction failed';
 				break;
 
 			case 'desc_files_start' : 
-				stepIndicatorFmt = this.menuConfig.processingDescFilesFormat || 'Processing description files';
+				stepIndicatorFmt = fmtConfig.processingDescFilesFormat || 'Processing description files';
 				updateIndicator(MciViewIds.processing.descFileIndicator);
 				break;
 
 			case 'desc_files_finish' :
-				stepIndicatorFmt = this.menuConfig.processingDescFilesFinishFormat || 'Finished processing description files';
+				stepIndicatorFmt = fmtConfig.processingDescFilesFinishFormat || 'Finished processing description files';
 				updateIndicator(MciViewIds.processing.descFileIndicator, true);
+				break;
+
+			case 'finished' :
+				logStepFmt = stepIndicatorFmt = fmtConfig.scanningStartFormat || 'Finished';
 				break;
 		}
 
@@ -287,6 +294,10 @@ exports.getModule = class UploadModule extends MenuModule {
 
 			if(indicator.mci && indicator.text) {
 				this.setViewText('processing', indicator.mci, indicator.text);
+			}
+
+			if(logStepFmt) {
+				this.setViewText('processing', MciViewIds.processing.logStep, stringFormat(logStepFmt, fmtObj),  { appendMultiLine : true } );
 			}
 		} else {
 			this.client.term.pipeWrite(fmtObj.stepIndicatorText);
@@ -649,7 +660,7 @@ exports.getModule = class UploadModule extends MenuModule {
 					const tagsView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.tags);
 					const yearView = self.viewControllers.fileDetails.getView(MciViewIds.fileDetails.estYear);
 
-					self.updateCustomViewTextsWithFilter('fileDetails', MciViewIds.fileDetails.customRangeStart, fileEntry);
+					self.updateCustomViewTextsWithFilter('fileDetails', MciViewIds.fileDetails.customRangeStart, fileEntry );
 
 					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
 					yearView.setText(fileEntry.meta.est_release_year || '');

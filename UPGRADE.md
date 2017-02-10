@@ -45,6 +45,9 @@ nvm install 6
 nvm alias default 6
 ```
 
+### ES6
+Newly written code will use ES6 and a lot of code has started the migration process. Of note is the `MenuModule` class. If you have created a mod that inherits from `MenuModule`, you will need to upgrade your class to ES6.
+
 ## Manual Database Upgrade
 A few upgrades need to be made to your SQLite databases:
 

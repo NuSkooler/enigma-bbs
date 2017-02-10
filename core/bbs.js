@@ -121,23 +121,21 @@ function shutdownSystem() {
 			},
 			function stopListeningServers(callback) {
 				return require('./listening_server.js').shutdown( () => {
-					//	:TODO: log err
 					return callback(null);	//	ignore err
 				});
 			},
 			function stopEventScheduler(callback) {
 				if(initServices.eventScheduler) {
 					return initServices.eventScheduler.shutdown( () => {
-						callback(null);	// ignore err
+						return callback(null);	// ignore err
 					});
 				} else {
 					return callback(null);
 				}
 			},
 			function stopFileAreaWeb(callback) {
-				require('./file_area_web.js').startup(err => {
-					//	:TODO: Log me if err
-					return callback(null);
+				require('./file_area_web.js').startup( () => {
+					return callback(null);	// ignore err
 				});
 			},
 			function stopMsgNetwork(callback) {

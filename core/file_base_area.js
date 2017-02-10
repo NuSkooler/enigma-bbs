@@ -566,6 +566,12 @@ function scanFile(filePath, options, iterator, cb) {
 				getExistingFileEntriesBySha256(fileEntry.fileSha256, (err, dupeEntries) => {
 					return callback(err, dupeEntries);
 				});
+			},
+			function finished(dupeEntries, callback) {
+				stepInfo.step = 'finished';
+				callIter( () => {
+					return callback(null, dupeEntries);
+				});
 			}
 		], 
 		(err, dupeEntries) => {

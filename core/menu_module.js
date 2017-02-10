@@ -401,8 +401,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		let textView;					
 		let customMciId = startId;
 		const config	= this.menuConfig.config;
+		const endId		= options.endId || 99;	//	we'll fail to get a view before 99
 
-		while( (textView = this.viewControllers[formName].getView(customMciId)) ) {
+		while(customMciId <= endId && (textView = this.viewControllers[formName].getView(customMciId)) ) {
 			const key		= `${formName}InfoFormat${customMciId}`;	//	e.g. "mainInfoFormat10"
 			const format	= config[key];
 
