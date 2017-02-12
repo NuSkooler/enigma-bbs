@@ -207,7 +207,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const isQueuedIndicator		= config.isQueuedIndicator || 'Y';
 		const isNotQueuedIndicator	= config.isNotQueuedIndicator || 'N';
 		
-		const entryInfo = this.currentFileEntry.entryInfo = {
+		const entryInfo = currEntry.entryInfo = {
 			fileId				: currEntry.fileId,
 			areaTag				: currEntry.areaTag,
 			areaName			: area.name || 'N/A',
@@ -219,7 +219,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			userRating			: currEntry.userRating,
 			uploadTimestamp		: moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
 			hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
-			isQueued			: this.dlQueue.isQueued(this.currentFileEntry) ? isQueuedIndicator : isNotQueuedIndicator,
+			isQueued			: this.dlQueue.isQueued(currEntry) ? isQueuedIndicator : isNotQueuedIndicator,
 			webDlLink			: '',	//	:TODO: fetch web any existing web d/l link
 			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time			
 		};
@@ -281,7 +281,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			[
 				function readyAndDisplayArt(callback) {
 					if(options.clearScreen) {
-						self.client.term.rawWrite(ansi.clearScreen());
+						self.client.term.rawWrite(ansi.resetScreen());
 					}
 
 					theme.displayThemedAsset(
