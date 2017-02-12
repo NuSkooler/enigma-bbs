@@ -793,7 +793,7 @@
 			fileMenuCommand: {
 				mci: {
 					TL1: {
-						text: "|00|15|MD|08: |03active filter|08: |10|FN"
+						text: "|00|15|MD|08 >> |03active filter|08: |10|FN"
 					}
 				}
 			}
