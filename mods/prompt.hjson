@@ -133,7 +133,23 @@
 			}
 		},
 
+		///////////////////////////////////////////////////////////////////////
 		//	File Base Related
+		///////////////////////////////////////////////////////////////////////
+		fileMenuCommand: {
+			art: FILPMPT
+			mci: {
+				TL1: {}
+				ET2: {
+					argName: menuOption
+					width: 20
+					maxLength: 20
+					textStyle: upper
+					focus: true
+				}
+			}
+		}
+
 		fileBaseRateEntryPrompt: {
 			art: RATEFILE
 			mci: {
@@ -153,6 +169,10 @@
 
 		///////////////////////////////////////////////////////////////////////
 		//	Standard / Required
+		//	
+		//	Prompts in this section are considered "standard" and are required
+		//	to be present
+		//
 		///////////////////////////////////////////////////////////////////////
 		pause: {
 			//

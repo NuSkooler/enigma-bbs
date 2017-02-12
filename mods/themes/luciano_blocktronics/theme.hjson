@@ -478,6 +478,176 @@
 				}
 			}
 
+			//////////////////// file base ////////////////////////////////
+
+			fileBase: {
+				mci: {
+					FN4: {
+						width: 18
+						textOverflow: ...
+					}
+				}
+			}
+
+			fileBaseListEntries: {
+				config: {
+					hashTagsSep: "|08, |07"
+					browseInfoFormat10: "|00|10{fileName} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat11: "|00|15{areaName}"				
+					browseInfoFormat12: "|00|07{hashTags}"
+					browseInfoFormat13: "|00|07{estReleaseYear}"
+					browseInfoFormat14: "|00|07{dlCount}"
+					browseInfoFormat15: "{userRatingString}"
+					browseInfoFormat16: "{isQueued}"
+					browseInfoFormat17: "{webDlLink}{webDlExpire}"
+
+					webDlExpireTimeFormat: " [|08- |07exp] ddd, MMM Do @ h:mm a"
+					webDlLinkNeedsGenerated: "|08(|07press |10W |07to generate link|08)"
+
+					isQueuedIndicator: "|00|10YES"
+					isNotQueuedIndicator: "|00|07no"
+					
+					userRatingTicked: "|00|15*"
+					userRatingUnticked: "|00|07-"
+
+					detailsGeneralInfoFormat10: "{fileName}"
+					detailsGeneralInfoFormat11: "|00|07{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08(|03{byteSize:,} |11B|08)"
+					detailsGeneralInfoFormat12: "|00|07{hashTags}"
+					detailsGeneralInfoFormat13: "{estReleaseYear}"
+					detailsGeneralInfoFormat14: "{dlCount}"
+					detailsGeneralInfoFormat15: "{userRatingString}"
+					detailsGeneralInfoFormat16: "{fileCrc32}"
+					detailsGeneralInfoFormat17: "{fileMd5}"
+					detailsGeneralInfoFormat18: "{fileSha1}"
+					detailsGeneralInfoFormat19: "{fileSha256}"
+					detailsGeneralInfoFormat20: "{uploadByUsername}"
+					detailsGeneralInfoFormat21: "{uploadTimestamp}"
+					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
+
+					fileListEntryFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+					focusFileListEntryFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+
+					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
+				}
+
+				0: {
+					mci: {
+						MT1: {
+							height: 16
+							width: 45
+						}
+						HM2: {
+							focusTextStyle: first lower
+						}
+
+						TL11: {
+							width: 21
+							textOverflow: ...
+						}
+
+						TL12: {
+							width: 21
+							textOverflow: ...
+						}
+						TL13: { width: 21 }
+						TL14: { width: 21 }
+						TL15: { width: 21 }
+						TL16: { width: 21 }						
+						TL17: { width: 73 }
+
+					}
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focusTextStyle: first lower
+						}
+					}
+				}
+
+				2: {
+
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							height: 19
+							width: 79
+						}
+					}
+				}
+
+				4: {
+					mci: {
+						VM1: {
+							height: 17
+							width: 79
+						}
+					}
+				}
+			}
+
+			fileBaseSearch: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					BT2: {
+						focusTextStyle: first lower
+					}
+					ET3: {
+						width: 42
+					}
+					SM4: {
+						width: 14
+						justify: right
+					}
+					SM5: {
+						width: 14
+						justify: right
+					}
+					SM6: {
+						width: 14
+						justify: right
+					}
+					BT7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileAreaFilterEditor: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					ET2: {
+						width: 42
+					}
+					SM3: {
+						width: 14
+						justify: right
+					}
+					SM4: {
+						width: 14
+						justify: right
+					}
+					SM5: {
+						width: 14
+						justify: right
+					}
+					ET6: {
+						width: 42
+					}
+					HM7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
 			ercClient: {
 				config: {
 					//chatEntryFormat: "|00|08[|03{bbsTag}|08] |10{userName}|08: |02{message}"
