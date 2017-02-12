@@ -566,7 +566,7 @@ function displayThemedPrompt(name, client, options, cb) {
 				}
 
 				if(options.clearScreen) {
-					client.term.rawWrite(ansi.clearScreen());
+					client.term.rawWrite(ansi.resetScreen());
 				}
 
 				//

@@ -170,7 +170,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 			[
 				function readyAndDisplayArt(callback) {
 					if(options.clearScreen) {
-						self.client.term.rawWrite(ansi.clearScreen());
+						self.client.term.rawWrite(ansi.resetScreen());
 					}
 
 					theme.displayThemedAsset(

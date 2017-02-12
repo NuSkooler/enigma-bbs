@@ -295,7 +295,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		}
 
 		if(options.clearScreen) {
-			this.client.term.rawWrite(ansi.clearScreen());
+			this.client.term.rawWrite(ansi.resetScreen());
 		}
 		
 		return theme.displayThemedAsset(
