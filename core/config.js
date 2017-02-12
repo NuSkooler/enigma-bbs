@@ -488,7 +488,7 @@ function getDefaultConfig() {
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
 				descLong		: [ 
-					'^.*\.NFO$', '^README\.1ST$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
+					'^.*\.NFO$', '^README\.1ST$', '^README\.NOW$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
 				],
 			},
 
