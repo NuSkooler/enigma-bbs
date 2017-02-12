@@ -19,7 +19,7 @@ const FILE_TABLE_MEMBERS	= [
 const FILE_WELL_KNOWN_META = {
 	//	name -> *read* converter, if any
 	upload_by_username	: null,
-	upload_by_user_id	: null,
+	upload_by_user_id	: (u) => parseInt(u) || 0,
 	file_md5			: null,
 	file_sha1			: null,
 	file_crc32			: null,
