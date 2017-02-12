@@ -314,8 +314,12 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		self.client.log.debug('Scanning upload(s)', { paths : this.recvFilePaths } );
 
+		let currentFileNum = 0;
+
 		async.eachSeries(this.recvFilePaths, (filePath, nextFilePath) => {
 			//	:TODO: virus scanning/etc. should occur around here
+
+			currentFileNum += 1;
 
 			self.scanStatus = {
 				indicatorPos	: 0,
@@ -327,11 +331,14 @@ exports.getModule = class UploadModule extends MenuModule {
 			};
 
 			function handleScanStep(stepInfo, nextScanStep) {
+				stepInfo.totalFileNum		= self.recvFilePaths.length;
+				stepInfo.currentFileNum		= currentFileNum;
+
 				self.updateScanStepInfoViews(stepInfo);
 				return nextScanStep(null);
 			}
 
-			self.client.log.debug('Scanning file', { filePath : filePath } );
+			self.client.log.debug('Scanning file', { filePath : filePath } );		
 
 			scanFile(filePath, scanOpts, handleScanStep, (err, fileEntry, dupeEntries) => {
 				if(err) {
@@ -401,6 +408,9 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	prepDetailsForUpload(scanResults, cb) {
 		async.eachSeries(scanResults.newEntries, (newEntry, nextEntry) => {
+			newEntry.meta.upload_by_username 	= this.client.user.username;
+			newEntry.meta.upload_by_user_id		= this.client.user.userId;
+
 			this.displayFileDetailsPageForUploadEntry(newEntry, (err, newValues) => {
 				if(err) {
 					return nextEntry(err);
@@ -474,15 +484,14 @@ exports.getModule = class UploadModule extends MenuModule {
 				function populateDupeInfo(dupeListView, callback) {
 					const dupeInfoFormat = self.menuConfig.config.dupeInfoFormat || '{fileName} @ {areaName}';
 
-					dupes.forEach(dupe => {
-						const formatted = stringFormat(dupeInfoFormat, dupe);
-						if(dupeListView) {
-							//	dupesInfoFormatX
-							dupeListView.addText(enigmaToAnsi(formatted));
-						} else {
-							self.client.term.pipeWrite(`${formatted}\n`);
-						}
-					});
+					if(dupeListView) {
+						dupeListView.setItems(dupes.map(dupe => stringFormat(dupeInfoFormat, dupe) ) );
+						dupeListView.redraw();
+					} else {
+						dupes.forEach(dupe => {
+							self.client.term.pipeWrite(`${stringFormat(dupeInfoFormat, dupe)}\n`);
+						});
+					}
 
 					return callback(null);
 				},

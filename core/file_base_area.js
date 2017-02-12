@@ -522,7 +522,7 @@ function scanFile(filePath, options, iterator, cb) {
 						} else if('sha1' === hashName || 'md5' === hashName) {
 							stepInfo[hashName] = fileEntry.meta[`file_${hashName}`] = hashes[hashName].digest('hex');
 						} else if('crc32' === hashName) {
-							stepInfo.crc32 = fileEntry.meta.crc32 = hashes.crc32.finalize().toString(16);
+							stepInfo.crc32 = fileEntry.meta.file_crc32 = hashes.crc32.finalize().toString(16);
 						}
 
 						return nextHash(null);
