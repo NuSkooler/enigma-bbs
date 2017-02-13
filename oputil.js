@@ -373,6 +373,9 @@ function askNewConfigQuestions(cb) {
 					};
 					
 					config.messageConferences.another_sample_conf = {
+						name	: 'Another Sample Conference',
+						desc	: 'Another conf sample. Change me!',
+						
 						areas :  {
 							another_sample_area : {
 								name	: 'Another Sample Area',

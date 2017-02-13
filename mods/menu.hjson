@@ -2279,8 +2279,8 @@
 		//	File Area
 		////////////////////////////////////////////////////////////////////////
 
-		fileArea: {
-			desc: File Area
+		fileBase: {
+			desc: File Base
 			art: FMENU
 			prompt: fileMenuCommand
 			submit: [
