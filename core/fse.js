@@ -316,12 +316,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	}
 
 	buildMessage() {
-		var headerValues = this.viewControllers.header.getFormData().value;
+		const headerValues = this.viewControllers.header.getFormData().value;
 
 		var msgOpts = {
 			areaTag			: this.messageAreaTag,
 			toUserName		: headerValues.to,
-			fromUserName	: headerValues.from,
+			fromUserName	: this.client.user.username,
 			subject			: headerValues.subject,
 			message			: this.viewControllers.body.getFormData().value.message,
 		};
