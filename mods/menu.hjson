@@ -52,7 +52,7 @@
 		//
 		sshConnectedNewUser: {
 			art: CONNECT
-			next: newUserApplicationSsh
+			next: newUserApplicationPreSsh
 			options: { nextTimeout: 1500 }
 		}
 
@@ -78,7 +78,7 @@
 								}
 								{
 									value: { 1: 1 },
-									action: @menu:newUserApplication
+									action: @menu:newUserApplicationPre
 								}
 								{
 									value: { 1: 2 },
@@ -394,7 +394,7 @@
 							}
 							{
 								value: { "submission" : 1 }
-								action: @systemMethod:prevMenu
+								action: @systemMethod:logoff
 							}
 						]
 					}
@@ -402,7 +402,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @systemMethod:prevMenu
+							action: @systemMethod:logoff
 						}
 					]
 				}
@@ -754,7 +754,7 @@
 				}
 				{
 					value: { command: "F" }
-					action: @menu:fileArea
+					action: @menu:fileBase
 				}
 				{
 					value: { command: "U" }
