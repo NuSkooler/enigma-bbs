@@ -54,16 +54,16 @@ function getISOTimestampString(ts) {
 }
 
 function initializeDatabases(cb) {
-	async.each( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
+	async.eachSeries( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
 		dbs[dbName] = new sqlite3.Database(getDatabasePath(dbName), err => {
 			if(err) {
 				return cb(err);
 			}
 
 			dbs[dbName].serialize( () => {
-				DB_INIT_TABLE[dbName]();
-
-				return next(null);
+				DB_INIT_TABLE[dbName]( () => {
+					return next(null);
+				});
 			});
 		});
 	}, err => {
@@ -72,7 +72,7 @@ function initializeDatabases(cb) {
 }
 
 const DB_INIT_TABLE = {
-	system : () => {
+	system : (cb) => {
 		dbs.system.run('PRAGMA foreign_keys = ON;');
 
 		//	Various stat/event logging - see stat_log.js
@@ -105,9 +105,11 @@ const DB_INIT_TABLE = {
 				UNIQUE(timestamp, user_id, log_name)
 			);`
 		);
+
+		return cb(null);
 	},
 
-	user : () => {
+	user : (cb) => {
 		dbs.user.run('PRAGMA foreign_keys = ON;');
 
 		dbs.user.run(
@@ -145,9 +147,11 @@ const DB_INIT_TABLE = {
 				timestamp	DATETIME NOT NULL
 			);`
 		);
+
+		return cb(null);
 	},
 
-	message : () => {
+	message : (cb) => {
 		dbs.message.run('PRAGMA foreign_keys = ON;');
 
 		dbs.message.run(
@@ -251,9 +255,11 @@ const DB_INIT_TABLE = {
 				UNIQUE(scan_toss, area_tag)
 			);`	
 		);
+
+		return cb(null);
 	},
 
-	file : () => {
+	file : (cb) => {
 		dbs.file.run('PRAGMA foreign_keys = ON;');
 
 		dbs.file.run(
@@ -352,5 +358,7 @@ const DB_INIT_TABLE = {
 				expire_timestamp	DATETIME NOT NULL
 			);`
 		);
+
+		return cb(null);
 	}
 };
