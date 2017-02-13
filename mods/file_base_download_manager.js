@@ -52,7 +52,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 			downloadAll : (formData, extraArgs, cb) => {
 				const modOpts = {
 					extraArgs : {
-						sendQueue : this.dlQueue.items,
+						sendQueue 	: this.dlQueue.items,
+						direction	: 'send',
 					}
 				};
 
