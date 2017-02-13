@@ -508,6 +508,7 @@ function createCleanAnsi(input, options, cb) {
 	parser.parse(input);
 }
 
+/*
 const fs = require('fs');
 let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
 data = iconv.decode(data, 'cp437');
@@ -515,3 +516,4 @@ createCleanAnsi(data, { width : 79, height : 25 }, (out) => {
 	out = iconv.encode(out, 'cp437');
 	fs.writeFileSync('/home/nuskooler/Downloads/art4.ans', out);
 });
+*/
