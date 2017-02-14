@@ -35,10 +35,11 @@ const USAGE_HELP = {
 global args:
   --config PATH         : specify config path (${getDefaultConfigPath()})
 
-commands:
+where <command> is one of:
   user                  : user utilities
   config                : config file management
-  file-base             : file base management
+  file-base
+  fb                    : file base management
 
 `,
 	User : 
@@ -59,10 +60,14 @@ valid args:
   --new                 : generate a new/initial configuration
 `,
 	FileBase :
-`usage: oputil.js file-base <args>
+`usage: oputil.js file-base <action> [<args>] [<action_specific>]
 
-valid args:
-  --scan AREA_TAG       : (re)scan area specified by AREA_TAG for new files
+where <action> is one of:
+  scan AREA_TAG         : (re)scan area specified by AREA_TAG for new files
+                          multiple area tags can be specified in form of AREA_TAG1 AREA_TAG2 ...
+
+scan args:
+  --tags TAG1,TAG2,...  : specify tag(s) to assign to discovered entries
 `
 };
 
@@ -375,7 +380,7 @@ function askNewConfigQuestions(cb) {
 					config.messageConferences.another_sample_conf = {
 						name	: 'Another Sample Conference',
 						desc	: 'Another conf sample. Change me!',
-						
+
 						areas :  {
 							another_sample_area : {
 								name	: 'Another Sample Area',
@@ -438,7 +443,41 @@ function handleConfigCommand() {
 	}	
 }
 
+function scanFileBaseArea(areaTag, options, iterator, cb) {
+	async.waterfall(
+		[
+			function getFileArea(callback) {
+				const fileAreaMod = require('./core/file_base_area.js');
+
+				const areaInfo = fileAreaMod.getFileAreaByTag(areaTag);
+				if(!areaInfo) {
+					return callback(new Error(`Invalid file base area tag: ${areaTag}`));
+				}
+
+				return callback(null, fileAreaMod, areaInfo);
+			},
+			function performScan(fileAreaMod, areaInfo, callback) {
+				fileAreaMod.scanFileAreaForChanges(areaInfo, options, iterator, err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
 function fileAreaScan() {
+	const options = {};
+
+	const tags = argv.tags;
+	if(tags) {
+		options.tags = tags.split(',');
+	}
+
+	const areaTags = argv._.slice(2);
+
 	function scanFileIterator(stepInfo, nextScanStep) {
 		if('start' === stepInfo.step) {
 			console.info(`Scanning ${stepInfo.filePath}...`);
@@ -447,23 +486,17 @@ function fileAreaScan() {
 		//	:TODO: add 'finished' step when avail
 	}
 
-	async.waterfall(
+	async.series(
 		[
 			function init(callback) {
 				return initConfigAndDatabases(callback);
 			},
-			function getFileArea(callback) {
-				const fileAreaMod = require('./core/file_base_area.js');
-
-				const areaInfo = fileAreaMod.getFileAreaByTag(argv.scan);
-				if(!areaInfo) {
-					return callback(new Error('Invalid file area'));
-				}
-
-				return callback(null, fileAreaMod, areaInfo);
-			},
-			function performScan(fileAreaMod, areaInfo, callback) {
-				fileAreaMod.scanFileAreaForChanges(areaInfo, scanFileIterator, err => {
+			function scanAreas(callback) {
+				async.eachSeries(areaTags, (areaTag, nextAreaTag) => {
+					scanFileBaseArea(areaTag, options, scanFileIterator, err => {
+						return nextAreaTag(err);
+					});
+				}, err => {
 					return callback(err);
 				});
 			}
@@ -482,8 +515,10 @@ function handleFileBaseCommand() {
 		return printUsageAndSetExitCode('FileBase', ExitCodes.ERROR);
 	}
 
-	if(argv.scan) {
-		return fileAreaScan(argv.scan);
+	const action = argv._[1];
+
+	switch(action) {
+		case 'scan' : return fileAreaScan();
 	}
 }
 
@@ -511,6 +546,7 @@ function main() {
 			break;
 
 		case 'file-base' :
+		case 'fb' :
 			handleFileBaseCommand();
 			break;
 

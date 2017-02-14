@@ -584,10 +584,14 @@ function scanFile(filePath, options, iterator, cb) {
 	);
 }
 
-function scanFileAreaForChanges(areaInfo, iterator, cb) {
-	if(!cb && _.isFunction(iterator)) {
-		cb = iterator;
-		iterator = null;
+function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
+	if(3 === arguments.length && _.isFunction(iterator)) {
+		cb			= iterator;
+		iterator	= null;
+	} else if(2 === arguments.length && _.isFunction(options)) {
+		cb			= options;
+		iterator	= null;
+		options		= {};
 	}
 
 	const storageLocations = getAreaStorageLocations(areaInfo);
@@ -632,6 +636,11 @@ function scanFileAreaForChanges(areaInfo, iterator, cb) {
 										if(dupeEntries.length > 0) {
 											//	:TODO: Handle duplidates -- what to do here???
 										} else {
+											if(Array.isArray(options.tags)) {
+												options.tags.forEach(tag => {
+													fileEntry.hashTags.add(tag);
+												});
+											}
 											addNewFileEntry(fileEntry, fullPath, err => {
 												//	pass along error; we failed to insert a record in our DB or something else bad
 												return nextFile(err);
