@@ -167,7 +167,7 @@ function FTNMessageScanTossModule() {
 		return dir;
 	};
 	
-	this.getOutgoingPacketFileName = function(basePath, messageId, isTemp) {
+	this.getOutgoingPacketFileName = function(basePath, messageId, isTemp, fileCase) {
 		//
 		//	Generating an outgoing packet file name comes with a few issues:
 		//	*	We must use DOS 8.3 filenames due to legacy systems that receive
@@ -185,12 +185,18 @@ function FTNMessageScanTossModule() {
 		//	*	We already have a system for 8-character serial number gernation that is
 		//		used for e.g. in FTS-0009.001 MSGIDs... let's use that!
 		// 		
-		const name	= ftnUtil.getMessageSerialNumber(messageId);
-		const ext	= (true === isTemp) ? 'pk_' : 'pkt';				 
-		return paths.join(basePath, `${name}.${ext}`);
+		const name		= ftnUtil.getMessageSerialNumber(messageId);
+		const ext		= (true === isTemp) ? 'pk_' : 'pkt';
+		
+		let fileName = `${name}.${ext}`;
+		if('upper' === fileCase) {
+			fileName = fileName.toUpperCase();
+		}
+
+		return paths.join(basePath, fileName);
 	};
 	
-	this.getOutgoingFlowFileExtension = function(destAddress, flowType, exportType) {
+	this.getOutgoingFlowFileExtension = function(destAddress, flowType, exportType, fileCase) {
 		let ext;
 		
 		switch(flowType) {
@@ -200,13 +206,23 @@ function FTNMessageScanTossModule() {
 			case 'request'	: ext = 'req'; break;
 			case 'requests'	: ext = 'hrq'; break;
 		}
+
+		if('upper' === fileCase) {
+			ext = ext.toUpperCase();
+		}
 		
 		return ext;	
 	};
 
-	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType) {
+	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType, fileCase) {
 		let basename;			
-		const ext = self.getOutgoingFlowFileExtension(destAddress, flowType, exportType);
+		
+		const ext = self.getOutgoingFlowFileExtension(
+			destAddress, 
+			flowType, 
+			exportType, 
+			fileCase
+		);
 		
 		if(destAddress.point) {
 
@@ -218,6 +234,10 @@ function FTNMessageScanTossModule() {
 			basename =
 				`0000${destAddress.net.toString(16)}`.substr(-4) + 
 				`0000${destAddress.node.toString(16)}`.substr(-4);			
+		}
+
+		if('upper' === fileCase) {
+			basename = basename.toUpperCase();
 		}
 		
 		return paths.join(basePath, `${basename}.${ext}`);
@@ -549,7 +569,13 @@ function FTNMessageScanTossModule() {
 							packetHeader.password = exportOpts.nodeConfig.packetPassword || '';
 							
 							//	use current message ID for filename seed
-							const pktFileName = self.getOutgoingPacketFileName(self.exportTempDir, message.messageId, createTempPacket);
+							const pktFileName = self.getOutgoingPacketFileName(
+								self.exportTempDir, 
+								message.messageId, 
+								createTempPacket,
+								exportOpts.fileCase
+							);
+
 							exportedFiles.push(pktFileName);
 							
 							ws = fs.createWriteStream(pktFileName);
@@ -629,7 +655,13 @@ function FTNMessageScanTossModule() {
 								packetHeader.password = exportOpts.nodeConfig.packetPassword || '';
 								
 								//	use current message ID for filename seed
-								const pktFileName = self.getOutgoingPacketFileName(self.exportTempDir, remainMessageId, createTempPacket);
+								const pktFileName = self.getOutgoingPacketFileName(
+									self.exportTempDir, 
+									remainMessageId, 
+									createTempPacket,
+									exportOpts.filleCase
+								);
+
 								exportedFiles.push(pktFileName);
 								
 								ws = fs.createWriteStream(pktFileName);
@@ -666,6 +698,7 @@ function FTNMessageScanTossModule() {
 				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
 				destAddress		: Address.fromString(uplink),
 				networkName		: areaConfig.network,
+				fileCase		: self.moduleConfig.nodes[nodeConfigKey].fileCase || 'lower',
 			};
 				
 			if(_.isString(exportOpts.network.localAddress)) {
@@ -717,19 +750,21 @@ function FTNMessageScanTossModule() {
 					function moveFilesToOutgoing(exportedFileNames, callback) {
 						async.each(exportedFileNames, (oldPath, nextFile) => {
 							const ext = paths.extname(oldPath).toLowerCase();
-							if('.pk_' === ext) {
+							if('.pk_' === ext.toLowerCase()) {
 								//
 								//	For a given temporary .pk_ file, we need to move it to the outoing
 								//	directory with the appropriate BSO style filename.
 								// 
-								const ext = self.getOutgoingFlowFileExtension(
+								const newExt = self.getOutgoingFlowFileExtension(
 									exportOpts.destAddress,
 									'mail', 
-									exportType);
+									exportType,
+									exportOpts.fileCase
+								);
 									
 								const newPath = paths.join(
 									outgoingDir, 
-									`${paths.basename(oldPath, 'pk_')}${ext}`);
+									`${paths.basename(oldPath, ext)}${newExt}`);
 																		
 								fse.move(oldPath, newPath, nextFile);
 							} else {
@@ -750,7 +785,9 @@ function FTNMessageScanTossModule() {
 										outgoingDir, 
 										exportOpts.destAddress,
 										'ref',
-										exportType);
+										exportType,
+										exportOpts.fileCase
+									);
 										 
 									//	directive of '^' = delete file after transfer
 									self.flowFileAppendRefs(flowFilePath, [ newPath ], '^', err => {
