@@ -10,11 +10,13 @@ const paths			= require('path');
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
+const moment		= require('moment');
 
 //	database handles
 let dbs = {};
 
 exports.getModDatabasePath			= getModDatabasePath;
+exports.getISOTimestampString		= getISOTimestampString;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
@@ -46,17 +48,22 @@ function getModDatabasePath(moduleInfo, suffix) {
 	return paths.join(conf.config.paths.modsDb, `${full}.sqlite3`);
 }
 
+function getISOTimestampString(ts) {
+	ts = ts || moment();
+	return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+}
+
 function initializeDatabases(cb) {
-	async.each( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
+	async.eachSeries( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
 		dbs[dbName] = new sqlite3.Database(getDatabasePath(dbName), err => {
 			if(err) {
 				return cb(err);
 			}
 
 			dbs[dbName].serialize( () => {
-				DB_INIT_TABLE[dbName]();
-
-				return next(null);
+				DB_INIT_TABLE[dbName]( () => {
+					return next(null);
+				});
 			});
 		});
 	}, err => {
@@ -65,7 +72,7 @@ function initializeDatabases(cb) {
 }
 
 const DB_INIT_TABLE = {
-	system : () => {
+	system : (cb) => {
 		dbs.system.run('PRAGMA foreign_keys = ON;');
 
 		//	Various stat/event logging - see stat_log.js
@@ -98,9 +105,11 @@ const DB_INIT_TABLE = {
 				UNIQUE(timestamp, user_id, log_name)
 			);`
 		);
+
+		return cb(null);
 	},
 
-	user : () => {
+	user : (cb) => {
 		dbs.user.run('PRAGMA foreign_keys = ON;');
 
 		dbs.user.run(
@@ -138,9 +147,11 @@ const DB_INIT_TABLE = {
 				timestamp	DATETIME NOT NULL
 			);`
 		);
+
+		return cb(null);
 	},
 
-	message : () => {
+	message : (cb) => {
 		dbs.message.run('PRAGMA foreign_keys = ON;');
 
 		dbs.message.run(
@@ -175,17 +186,23 @@ const DB_INIT_TABLE = {
 		dbs.message.run(
 			`CREATE TRIGGER IF NOT EXISTS message_before_update BEFORE UPDATE ON message BEGIN
 				DELETE FROM message_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 			
-			CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
 				DELETE FROM message_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_after_update AFTER UPDATE ON message BEGIN
 				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
+		dbs.message.run(
+			`CREATE TRIGGER IF NOT EXISTS message_after_insert AFTER INSERT ON message BEGIN
 				INSERT INTO message_fts(docid, subject, message) VALUES(new.rowid, new.subject, new.message);
 			END;`
 		);
@@ -200,6 +217,7 @@ const DB_INIT_TABLE = {
 				FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
 			);`
 		);
+
 
 		//	:TODO: need SQL to ensure cleaned up if delete from message?
 		/*
@@ -237,9 +255,11 @@ const DB_INIT_TABLE = {
 				UNIQUE(scan_toss, area_tag)
 			);`	
 		);
+
+		return cb(null);
 	},
 
-	file : () => {
+	file : (cb) => {
 		dbs.file.run('PRAGMA foreign_keys = ON;');
 
 		dbs.file.run(
@@ -247,11 +267,11 @@ const DB_INIT_TABLE = {
 			`CREATE TABLE IF NOT EXISTS file (
 				file_id				INTEGER PRIMARY KEY,
 				area_tag			VARCHAR NOT NULL,
-				file_sha1			VARCHAR NOT NULL,
+				file_sha256			VARCHAR NOT NULL,
 				file_name,			/* FTS @ file_fts */
+				storage_tag			VARCHAR NOT NULL,
 				desc,				/* FTS @ file_fts */
-				desc_long,			/* FTS @ file_fts */
-				upload_by_username	VARCHAR NOT NULL,
+				desc_long,			/* FTS @ file_fts */				
 				upload_timestamp	DATETIME NOT NULL
 			);`
 		);
@@ -273,18 +293,24 @@ const DB_INIT_TABLE = {
 		dbs.file.run(
 			`CREATE TRIGGER IF NOT EXISTS file_before_update BEFORE UPDATE ON file BEGIN
 				DELETE FROM file_fts WHERE docid=old.rowid;
-			END;
-			
-			CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
+			END;`
+		);
+
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_before_delete BEFORE DELETE ON file BEGIN
 				DELETE FROM file_fts WHERE docid=old.rowid;
-			END;
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
-				INSERT INTO file_fts(docid, file_name, desc, long_desc) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
-			END;
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_after_update AFTER UPDATE ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
+			END;`
+		);
 
-			CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
-				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.long_desc);
+		dbs.file.run(
+			`CREATE TRIGGER IF NOT EXISTS file_after_insert AFTER INSERT ON file BEGIN
+				INSERT INTO file_fts(docid, file_name, desc, desc_long) VALUES(new.rowid, new.file_name, new.desc, new.desc_long);
 			END;`
 		);
 
@@ -315,5 +341,24 @@ const DB_INIT_TABLE = {
 				UNIQUE(hash_tag_id, file_id)
 			);`
 		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_user_rating (
+				file_id			INTEGER NOT NULL,
+				user_id			INTEGER NOT NULL,
+				rating			INTEGER NOT NULL,
+
+				UNIQUE(file_id, user_id)
+			);`
+		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_web_serve (
+				hash_id				VARCHAR NOT NULL PRIMARY KEY,
+				expire_timestamp	DATETIME NOT NULL
+			);`
+		);
+
+		return cb(null);
 	}
 };

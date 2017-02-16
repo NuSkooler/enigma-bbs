@@ -1,10 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-let uuid		= require('node-uuid');
-let assert      = require('assert');
-let _           = require('lodash');
-let createHash	= require('crypto').createHash;
+const createHash	= require('crypto').createHash;
 
 exports.createNamedUUID	= createNamedUUID;
 
@@ -13,9 +10,9 @@ function createNamedUUID(namespaceUuid, key) {
 	//	v5 UUID generation code based on the work here:
 	//	https://github.com/download13/uuidv5/blob/master/uuid.js
 	//	
-    if(!Buffer.isBuffer(namespaceUuid)) {
-        namespaceUuid = new Buffer(namespaceUuid);
-    }
+	if(!Buffer.isBuffer(namespaceUuid)) {
+		namespaceUuid = new Buffer(namespaceUuid);
+	}
 	
 	if(!Buffer.isBuffer(key)) {
 		key = new Buffer(key);

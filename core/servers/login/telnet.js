@@ -2,10 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const baseClient	= require('../../client.js');
-const Log			= require('../../logger.js').log;
-const ServerModule	= require('../../server_module.js').ServerModule;
-const Config		= require('../../config.js').config;
+const baseClient		= require('../../client.js');
+const Log				= require('../../logger.js').log;
+const LoginServerModule	= require('../../login_server_module.js');
+const Config			= require('../../config.js').config;
 
 //	deps
 const net 			= require('net');
@@ -16,15 +16,13 @@ const util			= require('util');
 
 //var debug	= require('debug')('telnet');
 
-exports.moduleInfo = {
+const ModuleInfo = exports.moduleInfo = {
 	name		: 'Telnet',
 	desc		: 'Telnet Server',
 	author		: 'NuSkooler',
 	isSecure	: false,
+	packageName	: 'codes.l33t.enigma.telnet.server',
 };
-
-exports.getModule	= TelnetServerModule;
-
 
 //
 //	Telnet Protocol Resources
@@ -440,6 +438,65 @@ function TelnetClient(input, output) {
 		newEnvironRequested	: false,
 	};
 
+	this.setTemporaryDirectDataHandler = function(handler) {
+		this.input.removeAllListeners('data');
+		this.input.on('data', handler);
+	};
+
+	this.restoreDataHandler = function() {
+		this.input.removeAllListeners('data');
+		this.input.on('data', this.dataHandler);
+	};
+
+	this.dataHandler = function(b) {
+		bufs.push(b);
+
+		let i;
+		while((i = bufs.indexOf(IAC_BUF)) >= 0) {
+
+			//
+			//	Some clients will send even IAC separate from data
+			//
+			if(bufs.length <= (i + 1)) {
+				i = MORE_DATA_REQUIRED;
+				break;
+			}
+
+			assert(bufs.length > (i + 1));
+			
+			if(i > 0) {
+				self.emit('data', bufs.splice(0, i).toBuffer());
+			}
+
+			i = parseBufs(bufs);
+			
+			if(MORE_DATA_REQUIRED === i) {
+				break;				
+			} else {
+				if(i.option) {
+					self.emit(i.option, i);	//	"transmit binary", "echo", ...
+				}
+
+				self.handleTelnetEvent(i);
+
+				if(i.data) {
+					self.emit('data', i.data);
+				}
+			}
+		}
+
+		if(MORE_DATA_REQUIRED !== i && bufs.length > 0) {
+			//
+			//	Standard data payload. This can still be "non-user" data
+			//	such as ANSI control, but we don't handle that here.
+			//
+			self.emit('data', bufs.splice(0).toBuffer());
+		}
+	};
+
+	this.input.on('data', this.dataHandler);
+
+	/*
 	this.input.on('data', b => {
 		bufs.push(b);
 
@@ -484,8 +541,8 @@ function TelnetClient(input, output) {
 			//
 			self.emit('data', bufs.splice(0).toBuffer());
 		}
-
 	});
+	*/
 
 	this.input.on('end', () => {
 		self.emit('end');
@@ -767,22 +824,34 @@ Object.keys(OPTIONS).forEach(function(name) {
 	});
 });
 
-function TelnetServerModule() {
-	ServerModule.call(this);
-}
+exports.getModule = class TelnetServerModule extends LoginServerModule {
+	constructor() {
+		super();
+	}
 
-util.inherits(TelnetServerModule, ServerModule);
+	createServer() {
+		this.server = net.createServer( sock => {
+			const client = new TelnetClient(sock, sock);
 
-TelnetServerModule.prototype.createServer = function() {
-	TelnetServerModule.super_.prototype.createServer.call(this);
+			client.banner();
 
-	const server = net.createServer( (sock) => {
-		const client = new TelnetClient(sock, sock);
-		
-		client.banner();
+			this.handleNewClient(client, sock, ModuleInfo);
+		});
 
-		server.emit('client', client, sock);
-	});
+		this.server.on('error', err => {
+			Log.info( { error : err.message }, 'Telnet server error');
+		});
+	}
 
-	return server;
+	listen() {
+		const port = parseInt(Config.loginServers.telnet.port);
+		if(isNaN(port)) {
+			Log.error( { server : ModuleInfo.name, port : Config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
+			return false;
+		}
+
+		this.server.listen(port);
+		Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+		return true;
+	}
 };

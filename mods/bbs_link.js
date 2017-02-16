@@ -36,28 +36,26 @@ const packageJson 	= require('../package.json');
 //	:TODO: BUG: When a client disconnects, it's not handled very well -- the log is spammed with tons of errors
 //	:TODO: ENH: Support nodeMax and tooManyArt
 
-exports.getModule	= BBSLinkModule;
-
 exports.moduleInfo = {
 	name	: 'BBSLink',
 	desc	: 'BBSLink Access Module',
 	author	: 'NuSkooler',
 };
 
+exports.getModule = class BBSLinkModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-function BBSLinkModule(options) {
-	MenuModule.call(this, options);
+		this.config			= options.menuConfig.config;
+		this.config.host	= this.config.host || 'games.bbslink.net';
+		this.config.port	= this.config.port || 23;
+	}	
 
-	var self 	= this;
-	this.config = options.menuConfig.config;
-
-	this.config.host = this.config.host || 'games.bbslink.net';
-	this.config.port = this.config.port || 23;
-
-	this.initSequence = function() {
-		var token;
-		var randomKey;
-		var clientTerminated;
+	initSequence() {
+		let token;
+		let randomKey;
+		let clientTerminated;
+		const self = this;
 
 		async.series(
 			[
@@ -180,17 +178,17 @@ function BBSLinkModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.simpleHttpRequest = function(path, headers, cb) {
-		var getOpts = {
+	simpleHttpRequest(path, headers, cb) {
+		const getOpts = {
 			host	: this.config.host,
 			path	: path,
 			headers	: headers,
 		};
 
-		var req = http.get(getOpts, function response(resp) {
-			var data = '';
+		const req = http.get(getOpts, function response(resp) {
+			let data = '';
 
 			resp.on('data', function chunk(c) {
 				data += c;
@@ -205,7 +203,5 @@ function BBSLinkModule(options) {
 		req.on('error', function reqErr(err) {
 			cb(err);
 		});
-	};
-}
-
-require('util').inherits(BBSLinkModule, MenuModule);
+	}
+};

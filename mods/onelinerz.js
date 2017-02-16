@@ -31,9 +31,7 @@ exports.moduleInfo = {
 	packageName	: 'codes.l33t.enigma.onelinerz',
 };
 
-exports.getModule	= OnelinerzModule;
-
-const MciCodeIds = {
+const MciViewIds = {
 	ViewForm	:  {
 		Entries		: 1,
 		AddPrompt	: 2,
@@ -50,20 +48,52 @@ const FormIds = {
 	Add		: 1,
 };
 
-function OnelinerzModule(options) {
-	MenuModule.call(this, options);
+exports.getModule = class OnelinerzModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	const self		= this;
-	const config	= this.menuConfig.config;
+		const self = this;
 
-	this.initSequence = function() {
+		this.menuMethods = {
+			viewAddScreen : function(formData, extraArgs, cb) {
+				return self.displayAddScreen(cb);
+			},
+
+			addEntry : function(formData, extraArgs, cb) {
+				if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
+					const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
+
+					self.storeNewOneliner(oneliner, err => {
+						if(err) {
+							self.client.log.warn( { error : err.message }, 'Failed saving oneliner');
+						}
+
+						self.clearAddForm(); 
+						return self.displayViewScreen(true, cb);	//	true=cls
+					});
+
+				} else {
+					//	empty message - treat as if cancel was hit
+					return self.displayViewScreen(true, cb);	//	true=cls
+				}
+			},
+
+			cancelAdd : function(formData, extraArgs, cb) {
+				self.clearAddForm();
+				return self.displayViewScreen(true, cb);	//	true=cls
+			}
+		};
+	}
+	
+	initSequence() {
+		const self = this;
 		async.series(
 			[
 				function beforeDisplayArt(callback) {
-					self.beforeArt(callback);
+					return self.beforeArt(callback);
 				},
 				function display(callback) {
-					self.displayViewScreen(false, callback);
+					return self.displayViewScreen(false, callback);
 				}
 			],
 			err => {
@@ -73,9 +103,11 @@ function OnelinerzModule(options) {
 				self.finishedLoading();
 			}
 		);
-	};
+	}
 
-	this.displayViewScreen = function(clearScreen, cb) {
+	displayViewScreen(clearScreen, cb) {
+		const self = this;
+
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
@@ -88,7 +120,7 @@ function OnelinerzModule(options) {
 					}
 
 					theme.displayThemedAsset(
-						config.art.entries,
+						self.menuConfig.config.art.entries,
 						self.client,
 						{ font : self.menuConfig.font, trailingLF : false },
 						(err, artData) => {
@@ -112,12 +144,12 @@ function OnelinerzModule(options) {
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					} else {
 						self.viewControllers.view.setFocus(true);
-						self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt).redraw();						
+						self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt).redraw();						
 						return callback(null);
 					}
 				},
 				function fetchEntries(callback) {
-					const entriesView = self.viewControllers.view.getView(MciCodeIds.ViewForm.Entries);
+					const entriesView = self.viewControllers.view.getView(MciViewIds.ViewForm.Entries);
 					const limit = entriesView.dimens.height;
 					let entries = [];
 
@@ -142,8 +174,8 @@ function OnelinerzModule(options) {
 					);
 				},
 				function populateEntries(entriesView, entries, callback) {
-					const listFormat	= config.listFormat || '{username}@{ts}: {oneliner}';//	:TODO: should be userName to be consistent
-					const tsFormat		= config.timestampFormat || 'ddd h:mma';
+					const listFormat	= self.menuConfig.config.listFormat || '{username}@{ts}: {oneliner}';//	:TODO: should be userName to be consistent
+					const tsFormat		= self.menuConfig.config.timestampFormat || 'ddd h:mma';
 
 					entriesView.setItems(entries.map( e => {
 						return stringFormat(listFormat, {
@@ -159,7 +191,7 @@ function OnelinerzModule(options) {
 					return callback(null);
 				},
 				function finalPrep(callback) {
-					const promptView = self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt);
+					const promptView = self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt);
 					promptView.setFocusItemIndex(1);	//	default to NO
 					return callback(null);
 				}
@@ -170,9 +202,11 @@ function OnelinerzModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.displayAddScreen = function(cb) {
+	displayAddScreen(cb) {
+		const self = this;
+
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
@@ -180,7 +214,7 @@ function OnelinerzModule(options) {
 					self.client.term.rawWrite(ansi.resetScreen());					
 
 					theme.displayThemedAsset(
-						config.art.add,
+						self.menuConfig.config.art.add,
 						self.client,
 						{ font : self.menuConfig.font },
 						(err, artData) => {
@@ -205,7 +239,7 @@ function OnelinerzModule(options) {
 					} else {
 						self.viewControllers.add.setFocus(true);
 						self.viewControllers.add.redrawAll();
-						self.viewControllers.add.switchFocus(MciCodeIds.AddForm.NewEntry);
+						self.viewControllers.add.switchFocus(MciViewIds.AddForm.NewEntry);
 						return callback(null);
 					}
 				}
@@ -216,80 +250,50 @@ function OnelinerzModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.clearAddForm = function() {
-		const newEntryView	= self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
-		const previewView	= self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
+	clearAddForm() {
+		this.setViewText('add', MciViewIds.AddForm.NewEntry, '');
+		this.setViewText('add', MciViewIds.AddForm.EntryPreview, '');
+	}
 
-		newEntryView.setText('');
-		
-		//	preview is optional
-		if(previewView) {
-			previewView.setText('');
-		}
-	};
+	initDatabase(cb) {
+		const self = this;
 
-	this.menuMethods = {
-		viewAddScreen : function(formData, extraArgs, cb) {
-			return self.displayAddScreen(cb);
-		},
-
-		addEntry : function(formData, extraArgs, cb) {
-			if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
-				const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
-
-				self.storeNewOneliner(oneliner, err => {
-					if(err) {
-						self.client.log.warn( { error : err.message }, 'Failed saving oneliner');
-					}
-
-					self.clearAddForm(); 
-					return self.displayViewScreen(true, cb);	//	true=cls
-				});
-
-			} else {
-				//	empty message - treat as if cancel was hit
-				return self.displayViewScreen(true, cb);	//	true=cls
-			}
-		},
-
-		cancelAdd : function(formData, extraArgs, cb) {
-			self.clearAddForm();
-			return self.displayViewScreen(true, cb);	//	true=cls
-		}
-	};
-
-	this.initDatabase = function(cb) {
 		async.series(
 			[
 				function openDatabase(callback) {
 					self.db = new sqlite3.Database(
 						getModDatabasePath(exports.moduleInfo), 
-						callback
+						err => {
+							return callback(err);
+						}
 					);
 				},
 				function createTables(callback) {
-					self.db.serialize( () => {
-						self.db.run(
-							`CREATE TABLE IF NOT EXISTS onelinerz (
-								id				INTEGER PRIMARY KEY,
-								user_id			INTEGER_NOT NULL,
-								user_name		VARCHAR NOT NULL,								
-								oneliner		VARCHAR NOT NULL,
-								timestamp		DATETIME NOT NULL
-							)`
-						);
+					self.db.run(
+						`CREATE TABLE IF NOT EXISTS onelinerz (
+							id				INTEGER PRIMARY KEY,
+							user_id			INTEGER_NOT NULL,
+							user_name		VARCHAR NOT NULL,								
+							oneliner		VARCHAR NOT NULL,
+							timestamp		DATETIME NOT NULL
+						);`
+					,
+					err => {
+						return callback(err);
 					});
-					callback(null);
 				}
 			],
-			cb
+			err => {
+				return cb(err);
+			}
 		);
-	};
+	}
 
-	this.storeNewOneliner = function(oneliner, cb) {
-		const ts = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+	storeNewOneliner(oneliner, cb) {
+		const self	= this;
+		const ts	= moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 
 		async.series(
 			[
@@ -315,15 +319,15 @@ function OnelinerzModule(options) {
 					);
 				}
 			],
-			cb
+			err => {
+				return cb(err);
+			}
 		);		
-	};
-}
+	}
 
-require('util').inherits(OnelinerzModule, MenuModule);
-
-OnelinerzModule.prototype.beforeArt = function(cb) {
-	OnelinerzModule.super_.prototype.beforeArt.call(this, err => {
-		return err ? cb(err) : this.initDatabase(cb);				
-	});
+	beforeArt(cb) {
+		super.beforeArt(err => {
+			return err ? cb(err) : this.initDatabase(cb);
+		});
+	}
 };

@@ -10,12 +10,15 @@ const conf			= require('./config.js');
 const logger		= require('./logger.js');
 const database		= require('./database.js');
 const clientConns	= require('./client_connections.js');
+const resolvePath	= require('./misc_util.js').resolvePath;
 
 //	deps
 const async			= require('async');
 const util			= require('util');
 const _				= require('lodash');
 const mkdirs		= require('fs-extra').mkdirs;
+const fs			= require('fs');
+const paths			= require('path');
 
 //	our main entry point
 exports.bbsMain	= bbsMain;
@@ -23,30 +26,38 @@ exports.bbsMain	= bbsMain;
 //	object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
 
+const ENIGMA_COPYRIGHT	= 'ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby';
+const HELP = 
+`${ENIGMA_COPYRIGHT}
+usage: main.js <args>
+
+valid args:
+  --version       : display version
+  --help          : displays this help
+  --config PATH   : override default config.hjson path
+`;
+
+function printHelpAndExit() {
+	console.info(HELP);
+	process.exit();
+}
+
 function bbsMain() {
 	async.waterfall(
 		[
 			function processArgs(callback) {
-				const args = process.argv.slice(2);
+				const argv = require('minimist')(process.argv.slice(2));
 
-				var configPath;
-
-				if(args.indexOf('--help') > 0) {
-					//	:TODO: display help
-				} else {
-					let argCount = args.length;
-					for(let i = 0; i < argCount; ++i) {
-						const arg = args[i];
-						if('--config' === arg) {
-							configPath = args[i + 1];
-						}
-					}
+				if(argv.help) {
+					printHelpAndExit();
 				}
 
-				callback(null, configPath || conf.getDefaultPath(), _.isString(configPath));
+				const configOverridePath = argv.config;
+
+				return callback(null, configOverridePath || conf.getDefaultPath(), _.isString(configOverridePath));
 			},
 			function initConfig(configPath, configPathSupplied, callback) {
-				conf.init(configPath, function configInit(err) {
+				conf.init(resolvePath(configPath), function configInit(err) {
 
 					//
 					//	If the user supplied a path and we can't read/parse it 
@@ -71,14 +82,20 @@ function bbsMain() {
 					if(err) {
 						console.error('Error initializing: ' + util.inspect(err));
 					}
-					callback(err);
+					return callback(err);
 				});
 			},
-			function listenConnections(callback) {
-				startListening(callback);
-			}
 		],
 		function complete(err) {
+			//	note this is escaped:
+			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
+				console.info(ENIGMA_COPYRIGHT);
+				if(!err) {					
+					console.info(banner);
+				}					
+				console.info('System started!');
+			});
+
 			if(err) {
 				console.error('Error initializing: ' + util.inspect(err));
 			}
@@ -87,7 +104,9 @@ function bbsMain() {
 }
 
 function shutdownSystem() {
-	logger.log.info('Process interrupted, shutting down...');
+	const msg = 'Process interrupted. Shutting down...';
+	console.info(msg);
+	logger.log.info(msg);
 
 	async.series(
 		[
@@ -100,21 +119,32 @@ function shutdownSystem() {
 				}
 				callback(null);
 			},
+			function stopListeningServers(callback) {
+				return require('./listening_server.js').shutdown( () => {
+					return callback(null);	//	ignore err
+				});
+			},
 			function stopEventScheduler(callback) {
 				if(initServices.eventScheduler) {
 					return initServices.eventScheduler.shutdown( () => {
-						callback(null);	// ignore err
+						return callback(null);	// ignore err
 					});
 				} else {
 					return callback(null);
 				}
+			},
+			function stopFileAreaWeb(callback) {
+				require('./file_area_web.js').startup( () => {
+					return callback(null);	// ignore err
+				});
 			},
 			function stopMsgNetwork(callback) {
 				require('./msg_network.js').shutdown(callback);
 			} 
 		],
 		() => {
-			process.exit();
+			console.info('Goodbye!');
+			return process.exit();
 		}
 	);
 }
@@ -208,6 +238,12 @@ function initialize(cb) {
 			function readyMessageNetworkSupport(callback) {
 				return require('./msg_network.js').startup(callback);	
 			},
+			function listenConnections(callback) {
+				return require('./listening_server.js').startup(callback);
+			},
+			function readyFileAreaWeb(callback) {
+				return require('./file_area_web.js').startup(callback);
+			},
 			function readyEventScheduler(callback) {
 				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
 				EventSchedulerModule.loadAndStart( (err, modInst) => {
@@ -220,119 +256,4 @@ function initialize(cb) {
 			return cb(err);
 		}
 	);
-}
-
-function startListening(cb) {
-	if(!conf.config.loginServers) {
-		//	:TODO: Log error ... output to stderr as well. We can do it all with the logger
-		return cb(new Error('No login servers configured'));
-	}
-
-	const moduleUtil = require('./module_util.js');	//	late load so we get Config
-
-	moduleUtil.loadModulesForCategory('loginServers', (err, module) => {
-		if(err) {
-			if('EENIGMODDISABLED' === err.code) {
-				logger.log.debug(err.message);
-			} else {
-				logger.log.info( { err : err }, 'Failed loading module');
-			}
-			return;
-		}
-
-		const port = parseInt(module.runtime.config.port);
-		if(isNaN(port)) {
-			logger.log.error( { port : module.runtime.config.port, server : module.moduleInfo.name }, 'Cannot load server (Invalid port)');
-			return;
-		}
-
-		const moduleInst = new module.getModule();
-		let server;
-		try {
-			server = moduleInst.createServer();
-		} catch(e) {
-			logger.log.warn(e, 'Exception caught creating server!');
-			return;
-		}
-
-		//	:TODO: handle maxConnections, e.g. conf.maxConnections
-
-		server.on('client', function newClient(client, clientSock) {									
-			//
-			//	Start tracking the client. We'll assign it an ID which is
-			//	just the index in our connections array.
-			//			
-			if(_.isUndefined(client.session)) {
-				client.session = {};
-			}
-
-			client.session.serverName 	= module.moduleInfo.name;
-			client.session.isSecure		= module.moduleInfo.isSecure || false;
-
-			clientConns.addNewClient(client, clientSock);
-
-			client.on('ready', function clientReady(readyOptions) {
-
-				client.startIdleMonitor();
-
-				//	Go to module -- use default error handler
-				prepareClient(client, function clientPrepared() {
-					require('./connect.js').connectEntry(client, readyOptions.firstMenu);
-				});
-			});
-
-			client.on('end', function onClientEnd() {
-				clientConns.removeClient(client);
-			});
-
-			client.on('error', function onClientError(err) {
-				logger.log.info({ clientId : client.session.id }, 'Connection error: %s' % err.message);
-			});
-
-			client.on('close', function onClientClose(hadError) {
-				const logFunc = hadError ? logger.log.info : logger.log.debug;
-				logFunc( { clientId : client.session.id }, 'Connection closed');
-				
-				clientConns.removeClient(client);
-			});
-
-			client.on('idle timeout', function idleTimeout() {
-				client.log.info('User idle timeout expired');
-
-				client.menuStack.goto('idleLogoff', function goMenuRes(err) {
-					if(err) {
-						//	likely just doesn't exist
-						client.term.write('\nIdle timeout expired. Goodbye!\n');
-						client.end();
-					}			
-				});
-			});
-		});
-
-		server.on('error', function serverErr(err) {
-			logger.log.info(err);	//	'close' should be handled after
-		});
-
-		server.listen(port);
-
-		logger.log.info(
-			{ server : module.moduleInfo.name, port : port }, 'Listening for connections');
-	}, err => {
-		cb(err);
-	});
-}
-
-function prepareClient(client, cb) {
-	const theme = require('./theme.js');
-
-	//	:TODO: it feels like this should go somewhere else... and be a bit more elegant.
-
-	if('*' === conf.config.preLoginTheme) {
-		client.user.properties.theme_id = theme.getRandomTheme() || '';
-	} else {
-		client.user.properties.theme_id = conf.config.preLoginTheme;
-	}
-    
-	theme.setClientTheme(client, client.user.properties.theme_id);
-	return cb(null);   //  note: currently useless to use cb here - but this may change...again...
 }

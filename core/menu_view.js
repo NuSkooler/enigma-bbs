@@ -77,6 +77,20 @@ MenuView.prototype.setItems = function(items) {
 	}
 };
 
+MenuView.prototype.removeItem = function(index) {
+	this.items.splice(index, 1);
+	
+	if(this.focusItems) {
+		this.focusItems.splice(index, 1);
+	}
+
+	if(this.focusedItemIndex >= index) {
+		this.focusedItemIndex = Math.max(this.focusedItemIndex - 1, 0);
+	}
+
+	this.positionCacheExpired = true;
+};
+
 MenuView.prototype.getCount = function() {
 	return this.items.length;
 };
@@ -92,12 +106,10 @@ MenuView.prototype.getItem = function(index) {
 };
 
 MenuView.prototype.focusNext = function() {
-	//	nothing @ base currently
 	this.emit('index update', this.focusedItemIndex);
 };
 
 MenuView.prototype.focusPrevious = function() {
-	//	nothign @ base currently
 	this.emit('index update', this.focusedItemIndex);
 };
 
@@ -143,12 +155,13 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
 
 MenuView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'itemSpacing' 	: this.setItemSpacing(value); break;
-		case 'items'		: this.setItems(value); break;
-		case 'focusItems'	: this.setFocusItems(value); break;
-		case 'hotKeys'		: this.setHotKeys(value); break;
-		case 'hotKeySubmit'	: this.hotKeySubmit = value; break;
-		case 'justify'		: this.justify = value; break;
+		case 'itemSpacing' 		: this.setItemSpacing(value); break;
+		case 'items'			: this.setItems(value); break;
+		case 'focusItems'		: this.setFocusItems(value); break;
+		case 'hotKeys'			: this.setHotKeys(value); break;
+		case 'hotKeySubmit'		: this.hotKeySubmit = value; break;
+		case 'justify'			: this.justify = value; break;
+		case 'focusItemIndex'	: this.focusedItemIndex = value; break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);

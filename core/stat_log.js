@@ -118,6 +118,14 @@ class StatLog {
 		return user.persistProperty(statName, statValue, cb);
 	}
 
+	getUserStat(user, statName) {
+		return user.properties[statName];
+	}
+
+	getUserStatNum(user, statName) {
+		return parseInt(this.getUserStat(user, statName)) || 0;
+	}
+
 	incrementUserStat(user, statName, incrementBy, cb) {
 		incrementBy = incrementBy || 1;
 

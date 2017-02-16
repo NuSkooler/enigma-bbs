@@ -115,8 +115,10 @@ function MultiLineEditTextView(options) {
 
 	if ('preview' === this.mode) {
 		this.autoScroll = options.autoScroll || true;
+		this.tabSwitchesView = true;
 	} else {
 		this.autoScroll = options.autoScroll || false;
+		this.tabSwitchesView = options.tabSwitchesView || false;
 	}
 	//
 	//	cursorPos represents zero-based row, col positions
@@ -261,30 +263,30 @@ function MultiLineEditTextView(options) {
 		return text;
 	};
 
- 	this.getTextLines = function(startIndex, endIndex) {
- 		var lines;
+	this.getTextLines = function(startIndex, endIndex) {
+		var lines;
 		if(startIndex === endIndex) {
 			lines = [ self.textLines[startIndex] ];
 		} else {
 			lines = self.textLines.slice(startIndex, endIndex + 1);	//	"slice extracts up to but not including end."
 		}
 		return lines;
- 	};
+	};
 
-    this.getOutputText = function(startIndex, endIndex, eolMarker) {
-        let lines   = self.getTextLines(startIndex, endIndex);
-        let text    = '';
-        var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+	this.getOutputText = function(startIndex, endIndex, eolMarker) {
+		let lines   = self.getTextLines(startIndex, endIndex);
+		let text    = '';
+		var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
 
-        lines.forEach(line => {
-           text += line.text.replace(re, '\t');
-           if(eolMarker && line.eol) {
-               text += eolMarker;
-           }
-        });
+		lines.forEach(line => {
+			text += line.text.replace(re, '\t');
+			if(eolMarker && line.eol) {
+				text += eolMarker;
+			}
+		});
 
-        return text;
-    }
+		return text;
+	};
 
 	this.getContiguousText = function(startIndex, endIndex, includeEol) {
 		var lines = self.getTextLines(startIndex, endIndex);
@@ -409,10 +411,10 @@ function MultiLineEditTextView(options) {
 
 	this.insertCharactersInText = function(c, index, col) {
 		self.textLines[index].text = [
-				self.textLines[index].text.slice(0, col),
-				c,
-				self.textLines[index].text.slice(col)
-			].join('');
+			self.textLines[index].text.slice(0, col),
+			c,
+			self.textLines[index].text.slice(col)
+		].join('');
 
 		//self.cursorPos.col++;
 		self.cursorPos.col += c.length;
@@ -532,7 +534,7 @@ function MultiLineEditTextView(options) {
 				//	before and and after column
 				//
 				//	:TODO: Need to clean this string (e.g. collapse tabs)
-				text = self.textLines
+				text = self.textLines;
 
 				//	:TODO: Remove original line @ index
 			}
@@ -544,18 +546,18 @@ function MultiLineEditTextView(options) {
 			.replace(/\b/g, '')
 			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 
-		var wrapped;
+		let wrapped;
 
-		for(var i = 0; i < text.length; ++i) {
+		for(let i = 0; i < text.length; ++i) {
 			wrapped = self.wordWrapSingleLine(
 				text[i], 	//	input
 				'expand', 	//	tabHandling
 				self.dimens.width).wrapped;
 
-			for(var j = 0; j < wrapped.length - 1; ++j) {
+			for(let j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
 			}
-			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true });
+			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true } );
 		}
 	};
 
@@ -1023,14 +1025,26 @@ MultiLineEditTextView.prototype.getData = function() {
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'mode'			: this.mode = value; break;
+		case 'mode'			: 
+			this.mode = value;
+			if('preview' === value && !this.specialKeyMap.next) {
+				this.specialKeyMap.next = [ 'tab' ];
+			} 
+			break;
+
 		case 'autoScroll'	: this.autoScroll = value; break;
+
+		case 'tabSwitchesView' :
+			this.tabSwitchesView = value; 
+			this.specialKeyMap.next = this.specialKeyMap.next || [];
+			this.specialKeyMap.next.push('tab');
+			break;
 	}
 
 	MultiLineEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
 
-var HANDLED_SPECIAL_KEYS = [
+const HANDLED_SPECIAL_KEYS = [
 	'up', 'down', 'left', 'right',
 	'home', 'end',
 	'page up', 'page down',
@@ -1041,13 +1055,13 @@ var HANDLED_SPECIAL_KEYS = [
 	'delete line',
 ];
 
-var PREVIEW_MODE_KEYS = [
+const PREVIEW_MODE_KEYS = [
 	'up', 'down', 'page up', 'page down'
 ];
 
 MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
-	var self = this;
-	var handled;
+	const self = this;
+	let handled;
 
 	if(key) {
 		HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
@@ -1057,8 +1071,10 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
 					return;
 				}
 
-				self[_.camelCase('keyPress ' + specialKey)]();
-				handled = true;
+				if('tab' !== key.name || !self.tabSwitchesView) {
+					self[_.camelCase('keyPress ' + specialKey)]();
+					handled = true;
+				}
 			}
 		});
 	}

@@ -4,11 +4,43 @@
 //	ENiGMA½
 const Config		= require('./config.js').config;
 const stringFormat	= require('./string_format.js');
+const Errors		= require('./enig_error.js').Errors;
 
 //	base/modules
 const fs		= require('fs');
 const _			= require('lodash');
 const pty		= require('ptyw.js');
+
+let archiveUtil;
+
+class Archiver {
+	constructor(config) {
+		this.compress	= config.compress;
+		this.decompress	= config.decompress;
+		this.list		= config.list;
+		this.extract	= config.extract;
+
+		/*this.sig		= new Buffer(config.sig, 'hex');
+		this.offset		= config.offset || 0;*/
+	}
+
+	ok() {
+		return this.canCompress() && this.canDecompress(); 
+	}
+
+	can(what) {
+		if(!_.has(this, [ what, 'cmd' ]) || !_.has(this, [ what, 'args' ])) {
+			return false;
+		}
+
+		return _.isString(this[what].cmd) && Array.isArray(this[what].args) && this[what].args.length > 0;
+	}
+
+	canCompress() { return this.can('compress'); }
+	canDecompress() { return this.can('decompress'); }
+	canList() { return this.can('list'); }	//	:TODO: validate entryMatch
+	canExtract() { return this.can('extract'); }
+}
 
 module.exports = class ArchiveUtil {
 	
@@ -17,95 +49,120 @@ module.exports = class ArchiveUtil {
 		this.longestSignature = 0;
 	}
 
+	//	singleton access
+	static getInstance() {
+		if(!archiveUtil) {
+			archiveUtil = new ArchiveUtil();
+			archiveUtil.init();
+		}
+		return archiveUtil;
+	}
+
 	init() {
 		//
 		//	Load configuration
 		//
-		if(_.has(Config, 'archivers')) {
-			Object.keys(Config.archivers).forEach(archKey => {
-				const arch = Config.archivers[archKey];
-				if(!_.isString(arch.sig) || 
-					!_.isString(arch.compressCmd) ||
-					!_.isString(arch.decompressCmd) ||
-					!_.isArray(arch.compressArgs) ||
-					!_.isArray(arch.decompressArgs))
-				{
-					//	:TODO: log warning
-					return;
+		if(_.has(Config, 'archives.archivers')) {
+			Object.keys(Config.archives.archivers).forEach(archKey => {
+
+				const archConfig 	= Config.archives.archivers[archKey];
+				const archiver		= new Archiver(archConfig);
+
+				if(!archiver.ok()) {
+					//	:TODO: Log warning - bad archiver/config
 				}
 
-				const archiver = {
-					compressCmd		: arch.compressCmd,
-					compressArgs	: arch.compressArgs,
-					decompressCmd	: arch.decompressCmd,
-					decompressArgs	: arch.decompressArgs,
-					sig				: new Buffer(arch.sig, 'hex'),
-					offset			: arch.offset || 0,
-				};
-				
 				this.archivers[archKey] = archiver;
-				
-				if(archiver.offset + archiver.sig.length > this.longestSignature) {
-					this.longestSignature = archiver.offset + archiver.sig.length;
-				}
+			});
+		}
+
+		if(_.has(Config, 'archives.formats')) {
+			Object.keys(Config.archives.formats).forEach(fmtKey => {
+
+				Config.archives.formats[fmtKey].sig = new Buffer(Config.archives.formats[fmtKey].sig, 'hex');
+				Config.archives.formats[fmtKey].offset = Config.archives.formats[fmtKey].offset || 0;
+
+				const sigLen = Config.archives.formats[fmtKey].offset + Config.archives.formats[fmtKey].sig.length; 
+				if(sigLen > this.longestSignature) {
+					this.longestSignature = sigLen;
+				} 
 			});
 		}
 	}
 	
+	/*
 	getArchiver(archType) {
-		if(!archType) {
+		if(!archType || 0 === archType.length) {
 			return;
 		}
 		
 		archType = archType.toLowerCase();
 		return this.archivers[archType];
+	}*/
+
+	getArchiver(archType) {
+		if(!archType || 0 === archType.length) {
+			return;
+		}
+
+		if(_.has(Config, [ 'archives', 'formats', archType, 'handler' ] ) &&
+			_.has(Config, [ 'archives', 'archivers', Config.archives.formats[archType].handler ] ))
+		{
+			return Config.archives.archivers[ Config.archives.formats[archType].handler ];
+		}
 	}
 	
 	haveArchiver(archType) {
 		return this.getArchiver(archType) ? true : false;
 	}
 
+	detectTypeWithBuf(buf, cb) {
+		//	:TODO: implement me!		
+	}
+
 	detectType(path, cb) {
+		if(!_.has(Config, 'archives.formats')) {
+			return cb(Errors.DoesNotExist('No formats configured'));
+		}
+
 		fs.open(path, 'r', (err, fd) => {
 			if(err) {
-				cb(err);
-				return;
+				return cb(err);
 			}
 			
-			let buf = new Buffer(this.longestSignature);
+			const buf = new Buffer(this.longestSignature);
 			fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
 				if(err) {
 					return cb(err);
 				}
 
-				//	return first match
-				const detected = _.findKey(this.archivers, arch => {
-					const lenNeeded = arch.offset + arch.sig.length;
-					
+				const archFormat = _.findKey(Config.archives.formats, archFormat => {
+					const lenNeeded = archFormat.offset + archFormat.sig.length;
+
 					if(bytesRead < lenNeeded) {
 						return false;
 					}
 
-					const comp = buf.slice(arch.offset, arch.offset + arch.sig.length);
-					return (arch.sig.equals(comp));
+					const comp = buf.slice(archFormat.offset, archFormat.offset + archFormat.sig.length);
+					return (archFormat.sig.equals(comp));
 				});
 
-				cb(detected ? null : new Error('Unknown type'), detected);
+				return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
 			});			
 		});
 	}
 
-	spawnHandler(comp, action, cb) {
+	spawnHandler(proc, action, cb) {
 		//	pty.js doesn't currently give us a error when things fail,
 		//	so we have this horrible, horrible hack:
 		let err;
-		comp.once('data', d => {
+		proc.once('data', d => {
 			if(_.isString(d) && d.startsWith('execvp(3) failed.: No such file or directory')) {
 				err = new Error(`${action} failed: ${d.trim()}`);
 			}
 		});
 		
-		comp.once('exit', exitCode => {
+		proc.once('exit', exitCode => {
 			if(exitCode) {
 				return cb(new Error(`${action} failed with exit code: ${exitCode}`));
 			}
@@ -123,37 +180,97 @@ module.exports = class ArchiveUtil {
 			return cb(new Error(`Unknown archive type: ${archType}`));
 		}
 
-		let args = _.clone(archiver.compressArgs);	//	don't muck with orig
-		for(let i = 0; i < args.length; ++i) {
-			args[i] = stringFormat(args[i], {
-				archivePath	: archivePath,
-				fileList	: files.join(' '),
-			});
-		}
+		const fmtObj = {
+			archivePath	: archivePath,
+			fileList	: files.join(' '),	//	:TODO: probably need same hack as extractTo here!
+		};
 
-		let comp = pty.spawn(archiver.compressCmd, args, this.getPtyOpts());
+		const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
+		const proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
 
-		return this.spawnHandler(comp, 'Compression', cb);
+		return this.spawnHandler(proc, 'Compression', cb);
 	}
 
-	extractTo(archivePath, extractPath, archType, cb) {
+	extractTo(archivePath, extractPath, archType, fileList, cb) {
+		let haveFileList;
+
+		if(!cb && _.isFunction(fileList)) {
+			cb = fileList;
+			fileList = [];
+			haveFileList = false;	
+		} else {
+			haveFileList = true;
+		}
+
 		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
 			return cb(new Error(`Unknown archive type: ${archType}`));
 		}
-		
-		let args = _.clone(archiver.decompressArgs);	//	don't muck with orig
-		for(let i = 0; i < args.length; ++i) {
-			args[i] = stringFormat(args[i], {
-				archivePath		: archivePath,
-				extractPath		: extractPath,
-			});
-		}
-		
-		let comp = pty.spawn(archiver.decompressCmd, args, this.getPtyOpts());
 
-		return this.spawnHandler(comp, 'Decompression', cb);
+		const fmtObj = {
+			archivePath		: archivePath,
+			extractPath		: extractPath,
+		};
+
+		const action = haveFileList ? 'extract' : 'decompress';
+
+		//	we need to treat {fileList} special in that it should be broken up to 0:n args
+		const args = archiver[action].args.map( arg => {
+			return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
+		});
+		
+		const fileListPos = args.indexOf('{fileList}');
+		if(fileListPos > -1) {
+			//	replace {fileList} with 0:n sep file list arguments
+			args.splice.apply(args, [fileListPos, 1].concat(fileList));
+		}
+
+		const proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts());
+
+		return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
+	}
+
+	listEntries(archivePath, archType, cb) {
+		const archiver = this.getArchiver(archType);
+		
+		if(!archiver) {
+			return cb(new Error(`Unknown archive type: ${archType}`));			
+		}
+
+		const fmtObj = {
+			archivePath		: archivePath,
+		};
+
+		const args	= archiver.list.args.map( arg => stringFormat(arg, fmtObj) );
+		const proc	= pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+
+		let output = '';
+		proc.on('data', data => {
+			//	:TODO: hack for: execvp(3) failed.: No such file or directory
+			
+			output += data;
+		});
+
+		proc.once('exit', exitCode => {
+			if(exitCode) {
+				return cb(new Error(`List failed with exit code: ${exitCode}`));
+			}
+
+			const entryGroupOrder = archiver.list.entryGroupOrder || { byteSize : 1, fileName : 2 };
+
+			const entries = [];
+			const entryMatchRe = new RegExp(archiver.list.entryMatch, 'gm');
+			let m;
+			while((m = entryMatchRe.exec(output))) {
+				entries.push({
+					byteSize	: parseInt(m[entryGroupOrder.byteSize]),
+					fileName	: m[entryGroupOrder.fileName],
+				});
+			}
+
+			return cb(null, entries);
+		});	
 	}
 	
 	getPtyOpts() {

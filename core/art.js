@@ -7,7 +7,6 @@ const miscUtil	= require('./misc_util.js');
 const ansi		= require('./ansi_term.js');
 const aep		= require('./ansi_escape_parser.js');
 const sauce		= require('./sauce.js');
-const farmhash	= require('farmhash');
 
 //	deps
 const fs		= require('fs');
@@ -15,6 +14,7 @@ const paths		= require('path');
 const assert	= require('assert');
 const iconv		= require('iconv-lite');
 const _			= require('lodash');
+const farmhash	= require('farmhash');
 
 exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;
@@ -78,7 +78,7 @@ function getArtFromPath(path, options, cb) {
 				return iconv.decode(data, encoding);
 			} else {
 				const eofMarker = defaultEofFromExtension(ext);
-				return iconv.decode(sliceAtEOF(data, eofMarker), encoding);
+				return iconv.decode(eofMarker ? sliceAtEOF(data, eofMarker) : data, encoding);
 			}
 		}
 
@@ -213,11 +213,15 @@ function getArt(name, options, cb) {
 }
 
 function defaultEncodingFromExtension(ext) {
-	return SUPPORTED_ART_TYPES[ext.toLowerCase()].defaultEncoding;
+	const artType = SUPPORTED_ART_TYPES[ext.toLowerCase()];
+	return artType ? artType.defaultEncoding : 'utf8';
 }
 
 function defaultEofFromExtension(ext) {
-	return SUPPORTED_ART_TYPES[ext.toLowerCase()].eof;
+	const artType = SUPPORTED_ART_TYPES[ext.toLowerCase()];
+	if(artType) {
+		return artType.eof;
+	}
 }
 
 //	:TODO: Implement the following
@@ -266,7 +270,7 @@ function display(client, art, options, cb) {
 		if(!options.disableMciCache && !mciMapFromCache) {
 			//	cache our MCI findings...
 			client.mciCache[artHash] = mciMap;
-			client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Added MCI map to cache');
+			client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Added MCI map to cache');
 		}
 
 		ansiParser.removeAllListeners();	//	:TODO: Necessary???
@@ -290,7 +294,7 @@ function display(client, art, options, cb) {
 
 	if(mciMap) {
 		mciMapFromCache = true;
-		client.log.trace( { artHash : artHash, mciMap : mciMap }, 'Loaded MCI map from cache');
+		client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Loaded MCI map from cache');
 	} else {
 		//	no cached MCI info
 		mciMap = {};

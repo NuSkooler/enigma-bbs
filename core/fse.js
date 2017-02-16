@@ -13,18 +13,13 @@ const getUserIdAndName				= require('./user.js').getUserIdAndName;
 const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
+const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 
 //	deps
 const async							= require('async');
 const assert						= require('assert');
 const _								= require('lodash');
 const moment						= require('moment');
-
-exports.FullScreenEditorModule	= FullScreenEditorModule;
-
-//	:TODO: clean this up:
-
-exports.getModule	= FullScreenEditorModule;
 
 exports.moduleInfo = {
 	name	: 'Full Screen Editor (FSE)',
@@ -66,7 +61,7 @@ exports.moduleInfo = {
 
 			
 */
-var MCICodeIds = {
+const MciCodeIds = {
 	ViewModeHeader : {
 		From			: 1,
 		To				: 2,
@@ -98,72 +93,192 @@ var MCICodeIds = {
 	},
 };
 
-function FullScreenEditorModule(options) {
-	MenuModule.call(this, options);
+//	:TODO: convert code in this class to newer styles, conventions, etc. There is a lot of experimental stuff here that has better (DRY) alternatives
 
-	var self		= this;
-	var config		= this.menuConfig.config;
+exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModule extends MessageAreaConfTempSwitcher(MenuModule) {
 
-	//
-	//	menuConfig.config:
-	//		editorType				: email | area
-	//		editorMode				: view | edit | quote
-	//
-	//	menuConfig.config or extraArgs
-	//		messageAreaTag
-	//		messageIndex / messageTotal
-	//		toUserId
-	//
-	this.editorType			= config.editorType;
-	this.editorMode			= config.editorMode;	
-	
-	if(config.messageAreaTag) {
-		this.messageAreaTag	= config.messageAreaTag;
+	constructor(options) {
+		super(options);
+
+		const self		= this;
+		const config	= this.menuConfig.config;
+
+		//
+		//	menuConfig.config:
+		//		editorType				: email | area
+		//		editorMode				: view | edit | quote
+		//
+		//	menuConfig.config or extraArgs
+		//		messageAreaTag
+		//		messageIndex / messageTotal
+		//		toUserId
+		//
+		this.editorType			= config.editorType;
+		this.editorMode			= config.editorMode;	
+		
+		if(config.messageAreaTag) {
+			this.messageAreaTag	= config.messageAreaTag;
+		}
+		
+		this.messageIndex		= config.messageIndex || 0;
+		this.messageTotal		= config.messageTotal || 0;
+		this.toUserId			= config.toUserId || 0;
+
+		//	extraArgs can override some config
+		if(_.isObject(options.extraArgs)) {
+			if(options.extraArgs.messageAreaTag) {
+				this.messageAreaTag = options.extraArgs.messageAreaTag;
+			}
+			if(options.extraArgs.messageIndex) {
+				this.messageIndex = options.extraArgs.messageIndex;
+			}
+			if(options.extraArgs.messageTotal) {
+				this.messageTotal = options.extraArgs.messageTotal;
+			}
+			if(options.extraArgs.toUserId) {
+				this.toUserId = options.extraArgs.toUserId;
+			}
+		}
+
+		this.isReady = false;
+
+		if(_.has(options, 'extraArgs.message')) {
+			this.setMessage(options.extraArgs.message);
+		} else if(_.has(options, 'extraArgs.replyToMessage')) {
+			this.replyToMessage = options.extraArgs.replyToMessage;
+		}
+
+		this.menuMethods = {
+			//
+			//	Validation stuff
+			//
+			viewValidationListener : function(err, cb) {
+				var errMsgView = self.viewControllers.header.getView(MciCodeIds.ReplyEditModeHeader.ErrorMsg);
+				var newFocusViewId;
+				if(errMsgView) {
+					if(err) {
+						errMsgView.setText(err.message);
+						
+						if(MciCodeIds.ViewModeHeader.Subject === err.view.getId()) {
+							//	:TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
+						}
+					} else {
+						errMsgView.clearText();
+					}
+				}
+				cb(newFocusViewId);
+			},
+			
+			headerSubmit : function(formData, extraArgs, cb) {
+				self.switchToBody();
+				return cb(null);
+			},
+			editModeEscPressed : function(formData, extraArgs, cb) {
+				self.footerMode = 'editor' === self.footerMode ? 'editorMenu' : 'editor';
+
+				self.switchFooter(function next(err) {
+					if(err) {
+						//	:TODO:... what now?
+						console.log(err)
+					} else {
+						switch(self.footerMode) {
+							case 'editor' :
+								if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
+									//self.viewControllers.footerEditorMenu.setFocus(false);
+									self.viewControllers.footerEditorMenu.detachClientEvents();
+								}
+								self.viewControllers.body.switchFocus(1);
+								self.observeEditorEvents();
+								break;
+
+							case 'editorMenu' :
+								self.viewControllers.body.setFocus(false);
+								self.viewControllers.footerEditorMenu.switchFocus(1);
+								break;
+
+							default : throw new Error('Unexpected mode');
+						}
+					}
+
+					return cb(null);
+				});
+			},
+			editModeMenuQuote : function(formData, extraArgs, cb) {
+				self.viewControllers.footerEditorMenu.setFocus(false);
+				self.displayQuoteBuilder();
+				return cb(null);
+			},
+			appendQuoteEntry: function(formData, extraArgs, cb) {
+				//	:TODO: Dont' use magic # ID's here			
+				var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
+
+				if(self.newQuoteBlock) {
+					self.newQuoteBlock = false;
+					quoteMsgView.addText(self.getQuoteByHeader());
+				}
+				
+				var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
+				quoteMsgView.addText(quoteText);
+
+				//
+				//	If this is *not* the last item, advance. Otherwise, do nothing as we
+				//	don't want to jump back to the top and repeat already quoted lines
+				//
+				var quoteListView = self.viewControllers.quoteBuilder.getView(3);
+				if(quoteListView.getData() !== quoteListView.getCount() - 1) {
+					quoteListView.focusNext();
+				} else {
+					self.quoteBuilderFinalize();
+				}
+
+				return cb(null);
+			},
+			quoteBuilderEscPressed : function(formData, extraArgs, cb) {
+				self.quoteBuilderFinalize();
+				return cb(null);
+			},
+			/*
+			replyDiscard : function(formData, extraArgs) {
+				//	:TODO: need to prompt yes/no
+				//	:TODO: @method for fallback would be better
+				self.prevMenu();
+			},
+			*/
+			editModeMenuHelp : function(formData, extraArgs, cb) {
+				self.viewControllers.footerEditorMenu.setFocus(false);
+				return self.displayHelp(cb);
+			},
+			///////////////////////////////////////////////////////////////////////
+			//	View Mode
+			///////////////////////////////////////////////////////////////////////
+			viewModeMenuHelp : function(formData, extraArgs, cb) {
+				self.viewControllers.footerView.setFocus(false);
+				return self.displayHelp(cb);
+			}
+		};
+	}
+
+	isEditMode() {
+		return 'edit' === this.editorMode;
 	}
 	
-	this.messageIndex		= config.messageIndex || 0;
-	this.messageTotal		= config.messageTotal || 0;
-	this.toUserId			= config.toUserId || 0;
-
-	//	extraArgs can override some config
-	if(_.isObject(options.extraArgs)) {
-		if(options.extraArgs.messageAreaTag) {
-			this.messageAreaTag = options.extraArgs.messageAreaTag;
-		}
-		if(options.extraArgs.messageIndex) {
-			this.messageIndex = options.extraArgs.messageIndex;
-		}
-		if(options.extraArgs.messageTotal) {
-			this.messageTotal = options.extraArgs.messageTotal;
-		}
-		if(options.extraArgs.toUserId) {
-			this.toUserId = options.extraArgs.toUserId;
-		}
+	isViewMode() {
+		return 'view' === this.editorMode;
 	}
 
-	this.isReady				= false;
-	
-	this.isEditMode = function() {
-		return 'edit' === self.editorMode;
-	};
-	
-	this.isViewMode = function() {
-		return 'view' === self.editorMode;
-	};
+	isLocalEmail() {
+		return Message.WellKnownAreaTags.Private === this.messageAreaTag;
+	}
 
-	this.isLocalEmail = function() {
-		return Message.WellKnownAreaTags.Private === self.messageAreaTag;
-	};
+	isReply() {
+		return !_.isUndefined(this.replyToMessage);
+	}
 
-	this.isReply = function() {
-		return !_.isUndefined(self.replyToMessage);
-	};
+	getFooterName() {
+		return 'footer' + _.upperFirst(this.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
+	}
 
-	this.getFooterName = function() {
-		return 'footer' + _.capitalize(self.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
-	};
-
-	this.getFormId = function(name) {
+	getFormId(name) {
 		return {
 			header				: 0,
 			body				: 1,
@@ -174,27 +289,13 @@ function FullScreenEditorModule(options) {
 
 			help				: 50,
 		}[name];
-	};
-
-	/*ViewModeHeader : {
-		From			: 1,
-		To				: 2,
-		Subject			: 3,
-
-		DateTime		: 5,
-		MsgNum			: 6,
-		MsgTotal		: 7,
-		ViewCount		: 8,
-		HashTags		: 9,
-		MessageID		: 10,
-		ReplyToMsgID	: 11
-	},*/
+	}
 
 	//	:TODO: convert to something like this for all view acces:
-	this.getHeaderViews = function() {
-		var vc = self.viewControllers.header;
+	getHeaderViews() {
+		var vc = this.viewControllers.header;
 
-		if(self.isViewMode()) {
+		if(this.isViewMode()) {
 			return {
 				from		: vc.getView(1),
 				to			: vc.getView(2),
@@ -206,61 +307,55 @@ function FullScreenEditorModule(options) {
 
 			};
 		}
-	};
+	}
 
-	this.setInitialFooterMode = function() {
-		switch(self.editorMode) {
-			case 'edit' : self.footerMode = 'editor'; break;
-			case 'view' : self.footerMode = 'view'; break;
+	setInitialFooterMode() {
+		switch(this.editorMode) {
+			case 'edit' : this.footerMode = 'editor'; break;
+			case 'view' : this.footerMode = 'view'; break;
 		}
-	};
+	}
 
-	this.buildMessage = function() {
-		var headerValues = self.viewControllers.header.getFormData().value;
+	buildMessage() {
+		const headerValues = this.viewControllers.header.getFormData().value;
 
 		var msgOpts = {
-			areaTag			: self.messageAreaTag,
+			areaTag			: this.messageAreaTag,
 			toUserName		: headerValues.to,
-			fromUserName	: headerValues.from,
+			fromUserName	: this.client.user.username,
 			subject			: headerValues.subject,
-			message			: self.viewControllers.body.getFormData().value.message,
+			message			: this.viewControllers.body.getFormData().value.message,
 		};
 
-		if(self.isReply()) {
-			msgOpts.replyToMsgId	= self.replyToMessage.messageId;
+		if(this.isReply()) {
+			msgOpts.replyToMsgId	= this.replyToMessage.messageId;
 		}
 
-		self.message = new Message(msgOpts);
-	};
+		this.message = new Message(msgOpts);
+	}
 	
-	/*
-	this.setBodyMessageViewText = function() {
-		self.bodyMessageView.setText(cleanControlCodes(self.message.message));	
-	};
-	*/
-
-	this.setMessage = function(message) {
-		self.message = message;
+	setMessage(message) {
+		this.message = message;
 
 		updateMessageAreaLastReadId(
-			self.client.user.userId, self.messageAreaTag, self.message.messageId, () => {
+			this.client.user.userId, this.messageAreaTag, this.message.messageId, () => {
 
-				if(self.isReady) {
-					self.initHeaderViewMode();
-					self.initFooterViewMode();
+				if(this.isReady) {
+					this.initHeaderViewMode();
+					this.initFooterViewMode();
 
-					var bodyMessageView = self.viewControllers.body.getView(1);
-					if(bodyMessageView && _.has(self, 'message.message')) {
-						//self.setBodyMessageViewText();
-						bodyMessageView.setText(cleanControlCodes(self.message.message));
-						//bodyMessageView.redraw();
+					var bodyMessageView = this.viewControllers.body.getView(1);
+					if(bodyMessageView && _.has(this, 'message.message')) {
+						bodyMessageView.setText(cleanControlCodes(this.message.message));
 					}
 				}
 			}
 		);
-	};
+	}
 
-	this.getMessage = function(cb) {
+	getMessage(cb) {
+		const self = this;
+
 		async.series(
 			[
 				function buildIfNecessary(callback) {
@@ -296,24 +391,22 @@ function FullScreenEditorModule(options) {
 				cb(err, self.message);
 			}
 		);
-	};
+	}
 
-	this.updateUserStats = function(cb) {
+	updateUserStats(cb) {
 		if(Message.isPrivateAreaTag(this.message.areaTag)) {
 			if(cb) {
-				return cb(null);
+				cb(null);
 			}
+			return;	//	don't inc stats for private messages
 		}
 
-		StatLog.incrementUserStat(
-			self.client.user,
-			'post_count',
-			1,
-			cb
-		);
-	};
+		return StatLog.incrementUserStat(this.client.user, 'post_count', 1, cb);
+	}
 
-	this.redrawFooter = function(options, cb) {
+	redrawFooter(options, cb) {
+		const self = this;
+
 		async.waterfall(
 			[
 				function moveToFooterPosition(callback) {
@@ -339,7 +432,7 @@ function FullScreenEditorModule(options) {
 					callback(null);
 				},
 				function displayFooterArt(callback) {
-					var footerArt = self.menuConfig.config.art[options.footerName];
+					const footerArt = self.menuConfig.config.art[options.footerName];
 
 					theme.displayThemedAsset(
 						footerArt,
@@ -355,10 +448,11 @@ function FullScreenEditorModule(options) {
 				cb(err, artData);
 			}
 		);
-	};
+	}
 
-	this.redrawScreen = function(cb) {
+	redrawScreen(cb) {
 		var comps	= [ 'header', 'body' ];
+		const self	= this;
 		var art		= self.menuConfig.config.art;
 
 		self.client.term.rawWrite(ansi.resetScreen());
@@ -399,43 +493,44 @@ function FullScreenEditorModule(options) {
 				cb(err);
 			}
 		);	
-	};
+	}
 
+	switchFooter(cb) {
+		var footerName = this.getFooterName();
 
-	this.switchFooter = function(cb) {
-		var footerName = self.getFooterName();
-
-		self.redrawFooter( { footerName : footerName, clear : true }, function artDisplayed(err, artData) {
+		this.redrawFooter( { footerName : footerName, clear : true }, (err, artData) => {
 			if(err) {
 				cb(err);
 				return;
 			}
 
-			var formId = self.getFormId(footerName);
+			var formId = this.getFormId(footerName);
 
-			if(_.isUndefined(self.viewControllers[footerName])) {
+			if(_.isUndefined(this.viewControllers[footerName])) {
 				var menuLoadOpts = {
-					callingMenu	: self,
+					callingMenu	: this,
 					formId		: formId,
 					mciMap		: artData.mciMap
 				};
 
-				self.addViewController(
+				this.addViewController(
 					footerName,
-					new ViewController( { client : self.client, formId : formId } )
-				).loadFromMenuConfig(menuLoadOpts, function footerReady(err) {
+					new ViewController( { client : this.client, formId : formId } )
+				).loadFromMenuConfig(menuLoadOpts, err => {
 					cb(err);
 				});
 			} else {
-				self.viewControllers[footerName].redrawAll();
+				this.viewControllers[footerName].redrawAll();
 				cb(null);
 			}
 		});
-	};
+	}
 
-	this.initSequence = function() {
+	initSequence() {
 		var mciData = { };
+		const self	= this;
 		var art		= self.menuConfig.config.art;
+
 		assert(_.isObject(art));
 
 		async.series(
@@ -489,10 +584,10 @@ function FullScreenEditorModule(options) {
 				}
 			}
 		);	
-	};
+	}
 
-	this.createInitialViews = function(mciData, cb) {
-		
+	createInitialViews(mciData, cb) {
+		const self = this;
 		var menuLoadOpts = { callingMenu : self };
 
 		async.series(
@@ -603,11 +698,11 @@ function FullScreenEditorModule(options) {
 				cb(err);
 			}
 		);
-	};
+	}
 
-	this.mciReadyHandler = function(mciData, cb) {
+	mciReadyHandler(mciData, cb) {
 
-		self.createInitialViews(mciData, function viewsCreated(err) {
+		this.createInitialViews(mciData, err => {
 			//	:TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in 
 			//	place - if this is for existing usernames else validate spec
 
@@ -627,103 +722,94 @@ function FullScreenEditorModule(options) {
 
 			cb(err);
 		});
-	};
+	}
 
-	this.updateEditModePosition = function(pos) {
-		if(self.isEditMode()) {
-			var posView = self.viewControllers.footerEditor.getView(1);
+	updateEditModePosition(pos) {
+		if(this.isEditMode()) {
+			var posView = this.viewControllers.footerEditor.getView(1);
 			if(posView) {
-				self.client.term.rawWrite(ansi.savePos());
-				posView.setText(_.padLeft(String(pos.row + 1), 2, '0') + ',' + _.padLeft(String(pos.col + 1), 2, '0'));
-				self.client.term.rawWrite(ansi.restorePos());
+				this.client.term.rawWrite(ansi.savePos());
+				//	:TODO: Use new formatting techniques here, e.g. state.cursorPositionRow, cursorPositionCol and cursorPositionFormat
+				posView.setText(_.padStart(String(pos.row + 1), 2, '0') + ',' + _.padEnd(String(pos.col + 1), 2, '0'));
+				this.client.term.rawWrite(ansi.restorePos());
 			}
 		}
-	};
+	}
 
-	this.updateTextEditMode = function(mode) {
-		if(self.isEditMode()) {
-			var modeView = self.viewControllers.footerEditor.getView(2);
+	updateTextEditMode(mode) {
+		if(this.isEditMode()) {
+			var modeView = this.viewControllers.footerEditor.getView(2);
 			if(modeView) {
-				self.client.term.rawWrite(ansi.savePos());
+				this.client.term.rawWrite(ansi.savePos());
 				modeView.setText('insert' === mode ? 'INS' : 'OVR');
-				self.client.term.rawWrite(ansi.restorePos());	
+				this.client.term.rawWrite(ansi.restorePos());	
 			}
 		}
-	};
+	}
 
-	this.setHeaderText = function(id, text) {
-		var v = self.viewControllers.header.getView(id);
-		if(v) {
-			v.setText(text);
-		}
-	};
+	setHeaderText(id, text) {
+		this.setViewText('header', id, text);
+	}
 
-	this.initHeaderViewMode = function() {
-		assert(_.isObject(self.message));
+	initHeaderViewMode() {
+		assert(_.isObject(this.message));
 		
-		self.setHeaderText(MCICodeIds.ViewModeHeader.From,			self.message.fromUserName);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.To,			self.message.toUserName);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.Subject,		self.message.subject);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.DateTime,		moment(self.message.modTimestamp).format(self.client.currentTheme.helpers.getDateTimeFormat()));
-		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgNum,		(self.messageIndex + 1).toString());
-		self.setHeaderText(MCICodeIds.ViewModeHeader.MsgTotal,		self.messageTotal.toString());
-		self.setHeaderText(MCICodeIds.ViewModeHeader.ViewCount,		self.message.viewCount);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
-		self.setHeaderText(MCICodeIds.ViewModeHeader.MessageID,		self.message.messageId);
-		self.setHeaderText(MCICodeIds.ViewModeHeader.ReplyToMsgID,	self.message.replyToMessageId);
-	};
+		this.setHeaderText(MciCodeIds.ViewModeHeader.From,			this.message.fromUserName);
+		this.setHeaderText(MciCodeIds.ViewModeHeader.To,			this.message.toUserName);
+		this.setHeaderText(MciCodeIds.ViewModeHeader.Subject,		this.message.subject);
+		this.setHeaderText(MciCodeIds.ViewModeHeader.DateTime,		moment(this.message.modTimestamp).format(this.client.currentTheme.helpers.getDateTimeFormat()));
+		this.setHeaderText(MciCodeIds.ViewModeHeader.MsgNum,		(this.messageIndex + 1).toString());
+		this.setHeaderText(MciCodeIds.ViewModeHeader.MsgTotal,		this.messageTotal.toString());
+		this.setHeaderText(MciCodeIds.ViewModeHeader.ViewCount,		this.message.viewCount);
+		this.setHeaderText(MciCodeIds.ViewModeHeader.HashTags,		'TODO hash tags');
+		this.setHeaderText(MciCodeIds.ViewModeHeader.MessageID,		this.message.messageId);
+		this.setHeaderText(MciCodeIds.ViewModeHeader.ReplyToMsgID,	this.message.replyToMessageId);
+	}
 
-	this.initHeaderReplyEditMode = function() {
-		assert(_.isObject(self.replyToMessage));
+	initHeaderReplyEditMode() {
+		assert(_.isObject(this.replyToMessage));
 
-		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.To,		self.replyToMessage.fromUserName);
+		this.setHeaderText(MciCodeIds.ReplyEditModeHeader.To, this.replyToMessage.fromUserName);
 
 		//
 		//	We want to prefix the subject with "RE: " only if it's not already
 		//	that way -- avoid RE: RE: RE: RE: ...
 		//
-		let newSubj = self.replyToMessage.subject;
+		let newSubj = this.replyToMessage.subject;
 		if(false === /^RE:\s+/i.test(newSubj)) {
 			newSubj = `RE: ${newSubj}`;
 		}
 
-		self.setHeaderText(MCICodeIds.ReplyEditModeHeader.Subject,	newSubj);
-	};
+		this.setHeaderText(MciCodeIds.ReplyEditModeHeader.Subject,	newSubj);
+	}
 
-	this.initFooterViewMode = function() {
-		
-		function setFooterText(id, text) {
-			var v = self.viewControllers.footerView.getView(id);
-			if(v) {
-				v.setText(text);
-			}
-		}
+	initFooterViewMode() {
+		this.setViewText('footerView', MciCodeIds.ViewModeFooter.MsgNum, (this.messageIndex + 1).toString() );
+		this.setViewText('footerView', MciCodeIds.ViewModeFooter.MsgTotal, this.messageTotal.toString() );
+	}
 
-		setFooterText(MCICodeIds.ViewModeFooter.MsgNum,			(self.messageIndex + 1).toString());
-		setFooterText(MCICodeIds.ViewModeFooter.MsgTotal,		self.messageTotal.toString());
-	};
-
-	this.displayHelp = function(cb) {
-		self.client.term.rawWrite(ansi.resetScreen());
+	displayHelp(cb) {
+		this.client.term.rawWrite(ansi.resetScreen());
 
 		theme.displayThemeArt(
-			{ name : self.menuConfig.config.art.help, client : self.client },
+			{ name : this.menuConfig.config.art.help, client : this.client },
 			() => {
-				self.client.waitForKeyPress( () => {
-					self.redrawScreen( () => {
-						self.viewControllers[self.getFooterName()].setFocus(true);
+				this.client.waitForKeyPress( () => {
+					this.redrawScreen( () => {
+						this.viewControllers[this.getFooterName()].setFocus(true);
 						return cb(null);
 					});
 				});
 			}
 		);
-	};
+	}
 
-	this.displayQuoteBuilder = function() {
+	displayQuoteBuilder() {
 		//
 		//	Clear body area
 		//
-		self.newQuoteBlock = true;
+		this.newQuoteBlock = true;
+		const self = this;
 		
 		async.waterfall(
 			[
@@ -779,19 +865,19 @@ function FullScreenEditorModule(options) {
 				}
 			}
 		);	
-	};
+	}
 
-	this.observeEditorEvents = function() {
-		var bodyView = self.viewControllers.body.getView(1);
+	observeEditorEvents() {
+		const bodyView = this.viewControllers.body.getView(1);
 
-		bodyView.on('edit position', function cursorPosUpdate(pos) {
-			self.updateEditModePosition(pos);
+		bodyView.on('edit position', pos => {
+			this.updateEditModePosition(pos);
 		});
 
-		bodyView.on('text edit mode', function textEditMode(mode) {
-			self.updateTextEditMode(mode);
+		bodyView.on('text edit mode', mode => {
+			this.updateTextEditMode(mode);
 		});
-	};
+	}
 
 	/*
 	this.observeViewPosition = function() {
@@ -801,43 +887,43 @@ function FullScreenEditorModule(options) {
 	};
 	*/
 
-	this.switchToHeader = function() {
-		self.viewControllers.body.setFocus(false);
-		self.viewControllers.header.switchFocus(2);	//	to
+	switchToHeader() {
+		this.viewControllers.body.setFocus(false);
+		this.viewControllers.header.switchFocus(2);	//	to
+	}
+
+	switchToBody() {
+		this.viewControllers.header.setFocus(false);
+		this.viewControllers.body.switchFocus(1);
+
+		this.observeEditorEvents();
 	};
 
-	this.switchToBody = function() {
-		self.viewControllers.header.setFocus(false);
-		self.viewControllers.body.switchFocus(1);
+	switchToFooter() {
+		this.viewControllers.header.setFocus(false);
+		this.viewControllers.body.setFocus(false);
 
-		self.observeEditorEvents();
-	};
+		this.viewControllers[this.getFooterName()].switchFocus(1);	//	HM1
+	}
 
-	this.switchToFooter = function() {
-		self.viewControllers.header.setFocus(false);
-		self.viewControllers.body.setFocus(false);
-
-		self.viewControllers[self.getFooterName()].switchFocus(1);	//	HM1
-	};
-
-	this.switchFromQuoteBuilderToBody = function() {
-		self.viewControllers.quoteBuilder.setFocus(false);
-		var body = self.viewControllers.body.getView(1);
+	switchFromQuoteBuilderToBody() {
+		this.viewControllers.quoteBuilder.setFocus(false);
+		var body = this.viewControllers.body.getView(1);
 		body.redraw();
-		self.viewControllers.body.switchFocus(1);
+		this.viewControllers.body.switchFocus(1);
 		
 		//	:TODO: create method (DRY)
 		
-		self.updateTextEditMode(body.getTextEditMode());
-		self.updateEditModePosition(body.getEditPosition());
+		this.updateTextEditMode(body.getTextEditMode());
+		this.updateEditModePosition(body.getEditPosition());
 
-		self.observeEditorEvents();
-	};
+		this.observeEditorEvents();
+	}
 	
-	this.quoteBuilderFinalize = function() {
+	quoteBuilderFinalize() {
 		//	:TODO: fix magic #'s
-		var quoteMsgView	= self.viewControllers.quoteBuilder.getView(1);
-		var msgView			= self.viewControllers.body.getView(1);
+		var quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
+		var msgView			= this.viewControllers.body.getView(1);
 		
 		var quoteLines 		= quoteMsgView.getData();
 		
@@ -848,164 +934,43 @@ function FullScreenEditorModule(options) {
 		
 		quoteMsgView.setText('');
 
-		var footerName = self.getFooterName();
+		this.footerMode = 'editor';
 
-		self.footerMode = 'editor';
-
-		self.switchFooter(function switched(err) {
-			self.switchFromQuoteBuilderToBody();
+		this.switchFooter( () => {
+			this.switchFromQuoteBuilderToBody();
 		});
-	};
+	}
 
-	this.getQuoteByHeader = function() {
+	getQuoteByHeader() {
 		let quoteFormat = this.menuConfig.config.quoteFormats;
+
 		if(Array.isArray(quoteFormat)) {			
 			quoteFormat =  quoteFormat[ Math.floor(Math.random() * quoteFormat.length) ];
 		} else if(!_.isString(quoteFormat)) {
 			quoteFormat = 'On {dateTime} {userName} said...';
 		}
 
-		const dtFormat = this.menuConfig.config.quoteDateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();	
+		const dtFormat = this.menuConfig.config.quoteDateTimeFormat || this.client.currentTheme.helpers.getDateTimeFormat();	
 		return stringFormat(quoteFormat, { 
-			dateTime	: moment(self.replyToMessage.modTimestamp).format(dtFormat),
-			userName	: self.replyToMessage.fromUserName,
+			dateTime	: moment(this.replyToMessage.modTimestamp).format(dtFormat),
+			userName	: this.replyToMessage.fromUserName,
 		});
-	};
+	}
 
-	this.menuMethods = {
-		//
-		//	Validation stuff
-		//
-		viewValidationListener : function(err, cb) {
-			var errMsgView = self.viewControllers.header.getView(MCICodeIds.ReplyEditModeHeader.ErrorMsg);
-			var newFocusViewId;
-			if(errMsgView) {
-				if(err) {
-					errMsgView.setText(err.message);
-					
-					if(MCICodeIds.ViewModeHeader.Subject === err.view.getId()) {
-						//	:TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
-					}
-				} else {
-					errMsgView.clearText();
-				}
-			}
-			cb(newFocusViewId);
-		},
-		
-		headerSubmit : function(formData, extraArgs, cb) {
-			self.switchToBody();
-			return cb(null);
-		},
-		editModeEscPressed : function(formData, extraArgs, cb) {
-			self.footerMode = 'editor' === self.footerMode ? 'editorMenu' : 'editor';
-
-			self.switchFooter(function next(err) {
-				if(err) {
-					//	:TODO:... what now?
-					console.log(err)
-				} else {
-					switch(self.footerMode) {
-						case 'editor' :
-							if(!_.isUndefined(self.viewControllers.footerEditorMenu)) {
-								//self.viewControllers.footerEditorMenu.setFocus(false);
-								self.viewControllers.footerEditorMenu.detachClientEvents();
-							}
-							self.viewControllers.body.switchFocus(1);
-							self.observeEditorEvents();
-							break;
-
-						case 'editorMenu' :
-							self.viewControllers.body.setFocus(false);
-							self.viewControllers.footerEditorMenu.switchFocus(1);
-							break;
-
-						default : throw new Error('Unexpected mode');
-					}
-				}
-
-				return cb(null);
-			});
-		},
-		editModeMenuQuote : function(formData, extraArgs, cb) {
-			self.viewControllers.footerEditorMenu.setFocus(false);
-			self.displayQuoteBuilder();
-			return cb(null);
-		},
-		appendQuoteEntry: function(formData, extraArgs, cb) {
-			//	:TODO: Dont' use magic # ID's here			
-			var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
-
-			if(self.newQuoteBlock) {
-				self.newQuoteBlock = false;
-				quoteMsgView.addText(self.getQuoteByHeader());
-			}
-			
-			var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
-			quoteMsgView.addText(quoteText);
-
-			//
-			//	If this is *not* the last item, advance. Otherwise, do nothing as we
-			//	don't want to jump back to the top and repeat already quoted lines
-			//
-			var quoteListView = self.viewControllers.quoteBuilder.getView(3);
-			if(quoteListView.getData() !== quoteListView.getCount() - 1) {
-				quoteListView.focusNext();
-			} else {
-				self.quoteBuilderFinalize();
-			}
-
-			return cb(null);
-		},
-		quoteBuilderEscPressed : function(formData, extraArgs, cb) {
-			self.quoteBuilderFinalize();
-			return cb(null);
-		},
-		/*
-		replyDiscard : function(formData, extraArgs) {
-			//	:TODO: need to prompt yes/no
-			//	:TODO: @method for fallback would be better
-			self.prevMenu();
-		},
-		*/
-		editModeMenuHelp : function(formData, extraArgs, cb) {
-			self.viewControllers.footerEditorMenu.setFocus(false);
-			return self.displayHelp(cb);
-		},
-		///////////////////////////////////////////////////////////////////////
-		//	View Mode
-		///////////////////////////////////////////////////////////////////////
-		viewModeMenuHelp : function(formData, extraArgs, cb) {
-			self.viewControllers.footerView.setFocus(false);
-			return self.displayHelp(cb);
+	enter() {
+		if(this.messageAreaTag) {
+			this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
 		}
-	};
 
-	if(_.has(options, 'extraArgs.message')) {
-		this.setMessage(options.extraArgs.message);
-	} else if(_.has(options, 'extraArgs.replyToMessage')) {
-		this.replyToMessage = options.extraArgs.replyToMessage;
-	}
-}
-
-require('util').inherits(FullScreenEditorModule, MenuModule);
-
-require('./mod_mixins.js').MessageAreaConfTempSwitcher.call(FullScreenEditorModule.prototype);
-
-FullScreenEditorModule.prototype.enter = function() {
-
-	if(this.messageAreaTag) {
-		this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
+		super.enter();
 	}
 
-	FullScreenEditorModule.super_.prototype.enter.call(this);
-};
+	leave() {
+		this.tempMessageConfAndAreaRestore();
+		super.leave();
+	}
 
-FullScreenEditorModule.prototype.leave = function() {
-	this.tempMessageConfAndAreaRestore();
-	FullScreenEditorModule.super_.prototype.leave.call(this);
-};
-
-FullScreenEditorModule.prototype.mciReady = function(mciData, cb) {
-	this.mciReadyHandler(mciData, cb);
+	mciReady(mciData, cb) {
+		return this.mciReadyHandler(mciData, cb);
+	}
 };

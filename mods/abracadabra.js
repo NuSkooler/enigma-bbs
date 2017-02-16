@@ -1,23 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-let MenuModule			= require('../core/menu_module.js').MenuModule;
-let DropFile			= require('../core/dropfile.js').DropFile;
-let door				= require('../core/door.js');
-let theme				= require('../core/theme.js');
-let ansi				= require('../core/ansi_term.js');
+const MenuModule		= require('../core/menu_module.js').MenuModule;
+const DropFile			= require('../core/dropfile.js').DropFile;
+const door				= require('../core/door.js');
+const theme				= require('../core/theme.js');
+const ansi				= require('../core/ansi_term.js');
 
-let async				= require('async');
-let assert				= require('assert');
-let paths				= require('path');
-let _					= require('lodash');
-let mkdirs				= require('fs-extra').mkdirs;
+const async				= require('async');
+const assert			= require('assert');
+const paths				= require('path');
+const _					= require('lodash');
+const mkdirs			= require('fs-extra').mkdirs;
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
 
-exports.getModule		= AbracadabraModule;
-
-let activeDoorNodeInstances = {};
+const activeDoorNodeInstances = {};
 
 exports.moduleInfo = {
 	name	: 'Abracadabra',
@@ -60,20 +58,20 @@ exports.moduleInfo = {
 
 	:TODO: See Mystic & others for other arg options that we may need to support
 */
-function AbracadabraModule(options) {
-	MenuModule.call(this, options);
 
-	let self = this;
+exports.getModule = class AbracadabraModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	this.config = options.menuConfig.config;
+		this.config = options.menuConfig.config;
+		//	:TODO: MenuModule.validateConfig(cb) -- validate config section gracefully instead of asserts! -- { key : type, key2 : type2, ... }
+		assert(_.isString(this.config.name, 		'Config \'name\' is required'));
+		assert(_.isString(this.config.dropFileType,	'Config \'dropFileType\' is required'));
+		assert(_.isString(this.config.cmd,			'Config \'cmd\' is required'));
 
-	//	:TODO: MenuModule.validateConfig(cb) -- validate config section gracefully instead of asserts!
-	assert(_.isString(this.config.name, 		'Config \'name\' is required'));
-	assert(_.isString(this.config.dropFileType,	'Config \'dropFileType\' is required'));
-	assert(_.isString(this.config.cmd,			'Config \'cmd\' is required'));
-
-	this.config.nodeMax		= this.config.nodeMax || 0;
-	this.config.args		= this.config.args || [];
+		this.config.nodeMax		= this.config.nodeMax || 0;
+		this.config.args		= this.config.args || [];
+	}
 
 	/*
 		:TODO:
@@ -82,7 +80,9 @@ function AbracadabraModule(options) {
 		* Font support ala all other menus... or does this just work?
 	*/
 
-	this.initSequence = function() {
+	initSequence() {
+		const self = this;
+
 		async.series(
 			[
 				function validateNodeCount(callback) {
@@ -99,14 +99,15 @@ function AbracadabraModule(options) {
 
 						if(_.isString(self.config.tooManyArt)) {
 							theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
-								theme.displayThemedPause( { client : self.client }, function keyPressed() {
+								self.pausePrompt( () => {
 									callback(new Error('Too many active instances'));
 								});
 							});
 						} else {
 							self.client.term.write('\nToo many active instances. Try again later.\n');
 
-							theme.displayThemedPause( { client : self.client }, function keyPressed() {
+							//	:TODO: Use MenuModule.pausePrompt()
+							self.pausePrompt( () => {
 								callback(new Error('Too many active instances'));
 							});
 						}
@@ -146,54 +147,51 @@ function AbracadabraModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.runDoor = function() {
+	runDoor() {
 
 		const exeInfo = {
-			cmd			: self.config.cmd,
-			args		: self.config.args,
-			io			: self.config.io || 'stdio',
-			encoding	: self.config.encoding || self.client.term.outputEncoding,
-			dropFile	: self.dropFile.fileName,
-			node		: self.client.node,
-			//inhSocket	: self.client.output._handle.fd,
+			cmd			: this.config.cmd,
+			args		: this.config.args,
+			io			: this.config.io || 'stdio',
+			encoding	: this.config.encoding || this.client.term.outputEncoding,
+			dropFile	: this.dropFile.fileName,
+			node		: this.client.node,
+			//inhSocket	: this.client.output._handle.fd,
 		};
 
-		const doorInstance = new door.Door(self.client, exeInfo);
+		const doorInstance = new door.Door(this.client, exeInfo);
 
 		doorInstance.once('finished', () => {
 			//
 			//	Try to clean up various settings such as scroll regions that may
 			//	have been set within the door
 			//
-			self.client.term.rawWrite(
+			this.client.term.rawWrite(
 				ansi.normal() +
-				ansi.goto(self.client.term.termHeight, self.client.term.termWidth) +
+				ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
 				ansi.setScrollRegion() +
-				ansi.goto(self.client.term.termHeight, 0) +
+				ansi.goto(this.client.term.termHeight, 0) +
 				'\r\n\r\n'
 			);
 
-			self.prevMenu();
+			this.prevMenu();
 		});
 
-		self.client.term.write(ansi.resetScreen());
+		this.client.term.write(ansi.resetScreen());
 
 		doorInstance.run();
-	};
-}
-
-require('util').inherits(AbracadabraModule, MenuModule);
-
-AbracadabraModule.prototype.leave = function() {
-	AbracadabraModule.super_.prototype.leave.call(this);
-
-	if(!this.lastError) {
-		activeDoorNodeInstances[this.config.name] -= 1;
 	}
-};
 
-AbracadabraModule.prototype.finishedLoading = function() {
-	this.runDoor();
+	leave() {
+		super.leave();
+		if(!this.lastError) {
+			activeDoorNodeInstances[this.config.name] -= 1;
+		}
+	}
+
+	finishedLoading() {
+		this.runDoor();
+	}
 };

@@ -6,7 +6,6 @@ var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
 var menuUtil		= require('./menu_util.js');
 var asset			= require('./asset.js');
 var ansi			= require('./ansi_term.js');
-const Log			= require('./logger.js');
 
 //	deps
 var events			= require('events');
@@ -74,8 +73,9 @@ function ViewController(options) {
 				self.switchFocus(actionForKey.viewId);
 				self.submitForm(key);
 			} else if(_.isString(actionForKey.action)) {
+				const formData = self.getFocusedView() ? self.getFormData() : { };
 				self.handleActionWrapper(
-					{ ch : ch, key : key },	//	formData
+					Object.assign( { ch : ch, key : key }, formData ),	//	formData + key info
 					actionForKey);			//	actionBlock
 			}
 		} else {
@@ -116,6 +116,7 @@ function ViewController(options) {
 		self.emit('submit', this.getFormData(key));
 	};
 
+	//	:TODO: replace this in favor of overriding toJSON() for various things such that logging will *never* output them
 	this.getLogFriendlyFormData = function(formData) {
 		//	:TODO: these fields should be part of menu.json sensitiveMembers[]
 		var safeFormData = _.cloneDeep(formData);
@@ -143,8 +144,10 @@ function ViewController(options) {
 			var mci		= mciMap[name];
 			var view	= self.mciViewFactory.createFromMCI(mci);
 
-			if(view && false === self.noInput) {
-				view.on('action', self.viewActionListener);
+			if(view) {
+				if(false === self.noInput) {
+					view.on('action', self.viewActionListener);
+				}
 
 				self.addView(view);
 			}
@@ -181,52 +184,52 @@ function ViewController(options) {
 			propAsset = asset.getViewPropertyAsset(conf[propName]);
 			if(propAsset) {
 				switch(propAsset.type) {
-				case 'config' :
-					propValue = asset.resolveConfigAsset(conf[propName]); 
-					break;
-				
-				case 'sysStat' :
-					propValue = asset.resolveSystemStatAsset(conf[propName]);
-					break;
+					case 'config' :
+						propValue = asset.resolveConfigAsset(conf[propName]); 
+						break;
+					
+					case 'sysStat' :
+						propValue = asset.resolveSystemStatAsset(conf[propName]);
+						break;
 
-					//	:TODO: handle @art (e.g. text : @art ...)
+						//	:TODO: handle @art (e.g. text : @art ...)
 
-				case 'method' : 
-				case 'systemMethod' :
-					if('validate' === propName) {						
-						//	:TODO: handle propAsset.location for @method script specification
-						if('systemMethod' === propAsset.type) {
-							//	:TODO: implementation validation @systemMethod handling!
-							var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
-							if(_.isFunction(methodModule[propAsset.asset])) {
-								propValue = methodModule[propAsset.asset];
-							}
-						} else {
-							if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
-								propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
-							}
-						}
-					} else {
-						if(_.isString(propAsset.location)) {
-
-						} else {
+					case 'method' : 
+					case 'systemMethod' :
+						if('validate' === propName) {						
+							//	:TODO: handle propAsset.location for @method script specification
 							if('systemMethod' === propAsset.type) {
-								//	:TODO:
+								//	:TODO: implementation validation @systemMethod handling!
+								var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
+								if(_.isFunction(methodModule[propAsset.asset])) {
+									propValue = methodModule[propAsset.asset];
+								}
 							} else {
-								//	local to current module
-								var currentModule = self.client.currentMenuModule;
-								if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-									//	:TODO: Fix formData & extraArgs... this all needs general processing
-									propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+								if(_.isFunction(self.client.currentMenuModule.menuMethods[propAsset.asset])) {
+									propValue = self.client.currentMenuModule.menuMethods[propAsset.asset];
+								}
+							}
+						} else {
+							if(_.isString(propAsset.location)) {
+
+							} else {
+								if('systemMethod' === propAsset.type) {
+									//	:TODO:
+								} else {
+									//	local to current module
+									var currentModule = self.client.currentMenuModule;
+									if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
+										//	:TODO: Fix formData & extraArgs... this all needs general processing
+										propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
+									}
 								}
 							}
 						}
-					}
-					break;
+						break;
 
-				default : 
-					propValue = propValue = conf[propName];
-					break;
+					default : 
+						propValue = propValue = conf[propName];
+						break;
 				}
 			} else {
 				propValue = conf[propName];
@@ -447,6 +450,12 @@ ViewController.prototype.setFocus = function(focused) {
 	this.setViewFocusWithEvents(this.focusedView, focused);
 };
 
+ViewController.prototype.resetInitialFocus = function() {
+	if(this.formInitialFocusId) {
+		return this.switchFocus(this.formInitialFocusId);
+	}
+};
+
 ViewController.prototype.switchFocus = function(id) {
 	//
 	//	Perform focus switching validation now
@@ -471,15 +480,19 @@ ViewController.prototype.switchFocus = function(id) {
 };
 
 ViewController.prototype.nextFocus = function() {
-	var nextId;
+	let nextFocusView = this.focusedView ? this.focusedView : this.views[this.firstId];
 
-	if(!this.focusedView) {
-		nextId = this.views[this.firstId].id;
-	} else {
-		nextId = this.views[this.focusedView.id].nextId;		
+	//	find the next view that accepts focus
+	while(nextFocusView && nextFocusView.nextId) {
+		nextFocusView = this.getView(nextFocusView.nextId);
+		if(!nextFocusView || nextFocusView.acceptsFocus) {
+			break;
+		}
 	}
 
-	this.switchFocus(nextId);
+	if(nextFocusView && this.focusedView !== nextFocusView) {
+		this.switchFocus(nextFocusView.id);
+	}
 };
 
 ViewController.prototype.setViewOrder = function(order) {
@@ -498,7 +511,6 @@ ViewController.prototype.setViewOrder = function(order) {
 	}
 
 	if(viewIdOrder.length > 0) {
-		var view;
 		var count = viewIdOrder.length - 1;
 		for(var i = 0; i < count; ++i) {
 			this.views[viewIdOrder[i]].nextId = viewIdOrder[i + 1];
@@ -578,7 +590,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 							for(var c = 0; c < menuSubmit.length; ++c) {
 								var actionBlock = menuSubmit[c];
 
-								if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
+								if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
 									self.handleActionWrapper(formData, actionBlock);
 									break;	//	there an only be one...
 								}
@@ -588,6 +600,33 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 				}
 
 				callback(null);
+			},
+			function loadActionKeys(callback) {
+				if(!_.isObject(promptConfig) || !_.isArray(promptConfig.actionKeys)) {
+					return callback(null);
+				}
+
+				promptConfig.actionKeys.forEach(ak => {
+					//
+					//	*	'keys' must be present and be an array of key names
+					//	*	If 'viewId' is present, key(s) will focus & submit on behalf
+					//		of the specified view. 
+					//	*	If 'action' is present, that action will be procesed when
+					//		triggered by key(s)
+					//
+					//	Ultimately, create a map of key -> { action block }
+					//
+					if(!_.isArray(ak.keys)) {
+						return;
+					}
+
+					ak.keys.forEach(kn => {
+						self.actionKeyMap[kn] = ak;
+					});
+
+				});
+
+				return callback(null);
 			},
 			function drawAllViews(callback) {
 				self.redrawAll(initialFocusId);
@@ -616,7 +655,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 
 	var self			= this;
 	var formIdKey		= options.formId ? options.formId.toString() : '0';
-	var initialFocusId	= 1;	//	default to first
+	this.formInitialFocusId	 = 1;	//	default to first
 	var formConfig;
 
 	//	:TODO: honor options.withoutForm
@@ -669,7 +708,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 			function applyViewConfiguration(callback) {
 				if(_.isObject(formConfig)) {
 					self.applyViewConfig(formConfig, function configApplied(err, info) {
-						initialFocusId = info.initialFocusId;
+						self.formInitialFocusId = info.initialFocusId;
 						callback(err);
 					});
 				} else {
@@ -706,7 +745,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 					for(var c = 0; c < confForFormId.length; ++c) {
 						var actionBlock = confForFormId[c];
 
-						if(_.isEqual(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
+						if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
 							self.handleActionWrapper(formData, actionBlock);
 							break;	//	there an only be one...
 						}
@@ -744,12 +783,12 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 				callback(null);
 			},
 			function drawAllViews(callback) {
-				self.redrawAll(initialFocusId);
+				self.redrawAll(self.formInitialFocusId);
 				callback(null);
 			},
 			function setInitialViewFocus(callback) {
-				if(initialFocusId) {
-					self.switchFocus(initialFocusId);
+				if(self.formInitialFocusId) {
+					self.switchFocus(self.formInitialFocusId);
 				}
 				callback(null);
 			}
@@ -792,7 +831,7 @@ ViewController.prototype.getFormData = function(key) {
 
 		}
 	*/
-	var formData = {
+	const formData = {
 		id			: this.formId,
 		submitId	: this.focusedView.id,
 		value		: {},
@@ -802,36 +841,24 @@ ViewController.prototype.getFormData = function(key) {
 		formData.key = key;
 	}
 
-	var viewData;
-	var view;
-	for(var id in this.views) {
+	let viewData;
+	_.each(this.views, view => {
 		try {
-			view = this.views[id];
-			viewData = view.getData();
-			if(!_.isUndefined(viewData)) {
-				if(_.isString(view.submitArgName)) {
-					formData.value[view.submitArgName] = viewData;
-				} else {
-					formData.value[id] = viewData;
-				}
+			//	don't fill forms with static, non user-editable data data
+			if(!view.acceptsInput) {
+				return;
 			}
+
+			viewData = view.getData();
+			if(_.isUndefined(viewData)) {
+				return;
+			}
+
+			formData.value[ view.submitArgName ? view.submitArgName : view.id ] = viewData;
 		} catch(e) {
-			this.client.log.error(e);	//	:TODO: Log better ;)
+			this.client.log.error( { error : e.message }, 'Exception caught gathering form data' );
 		}
-	}
+	});
 
 	return formData;
-}
-
-/*
-ViewController.prototype.formatMenuArgs = function(args) {
-	var self = this;
-
-	return _.mapValues(args, function val(value) {
-		if('string' === typeof value) {
-			return self.formatMCIString(value);
-		}
-		return value;
-	});
 };
-*/

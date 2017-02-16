@@ -2,14 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-const Config		= require('../../config.js').config;
-const baseClient	= require('../../client.js');
-const Log			= require('../../logger.js').log;
-const ServerModule	= require('../../server_module.js').ServerModule;
-const userLogin		= require('../../user_login.js').userLogin;
-const enigVersion 	= require('../../../package.json').version;
-const theme			= require('../../theme.js');
-const stringFormat	= require('../../string_format.js');
+const Config			= require('../../config.js').config;
+const baseClient		= require('../../client.js');
+const Log				= require('../../logger.js').log;
+const LoginServerModule	= require('../../login_server_module.js');
+const userLogin			= require('../../user_login.js').userLogin;
+const enigVersion 		= require('../../../package.json').version;
+const theme				= require('../../theme.js');
+const stringFormat		= require('../../string_format.js');
 
 //	deps
 const ssh2			= require('ssh2');
@@ -18,14 +18,13 @@ const util			= require('util');
 const _				= require('lodash');
 const assert		= require('assert');
 
-exports.moduleInfo = {
+const ModuleInfo = exports.moduleInfo = {
 	name		: 'SSH',
 	desc		: 'SSH Server',
 	author		: 'NuSkooler',
 	isSecure	: true,
+	packageName	: 'codes.l33t.enigma.ssh.server',
 };
-
-exports.getModule		= SSHServerModule;
 
 function SSHClient(clientConn) {
 	baseClient.Client.apply(this, arguments);
@@ -226,40 +225,45 @@ util.inherits(SSHClient, baseClient.Client);
 
 SSHClient.ValidAuthMethods = [ 'password', 'keyboard-interactive' ];
 
-function SSHServerModule() {
-	ServerModule.call(this);
-}
+exports.getModule = class SSHServerModule extends LoginServerModule {
+	constructor() {
+		super();
+	}
 
-util.inherits(SSHServerModule, ServerModule);
+	createServer() {
+		const serverConf = {
+			hostKeys : [
+				{
+					key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
+					passphrase	: Config.loginServers.ssh.privateKeyPass, 
+				}
+			],
+			ident : 'enigma-bbs-' + enigVersion + '-srv',
+			
+			//	Note that sending 'banner' breaks at least EtherTerm!
+			debug : (sshDebugLine) => { 
+				if(true === Config.loginServers.ssh.traceConnections) {
+					Log.trace(`SSH: ${sshDebugLine}`);
+				}
+			},
+		};
 
-SSHServerModule.prototype.createServer = function() {
-	SSHServerModule.super_.prototype.createServer.call(this);
+		this.server = ssh2.Server(serverConf);
+		this.server.on('connection', (conn, info) => {
+			Log.info(info, 'New SSH connection');
+			this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
+		});
+	}
 
-	const serverConf = {
-		hostKeys	: [
-			{
-				key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
-				passphrase	: Config.loginServers.ssh.privateKeyPass, 
-			}
-		],
-		ident		: 'enigma-bbs-' + enigVersion + '-srv',
-		
-        //	Note that sending 'banner' breaks at least EtherTerm!
-		debug		: (sshDebugLine) => { 
-			if(true === Config.loginServers.ssh.traceConnections) {
-				Log.trace(`SSH: ${sshDebugLine}`);
-			}
-		},
-	};
+	listen() {
+		const port = parseInt(Config.loginServers.ssh.port);
+		if(isNaN(port)) {
+			Log.error( { server : ModuleInfo.name, port : Config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
+			return false;
+		}
 
-	const server = ssh2.Server(serverConf);
-	server.on('connection', function onConnection(conn, info) {
-		Log.info(info, 'New SSH connection');
-
-		const client = new SSHClient(conn);
-		
-		this.emit('client', client, conn._sock);
-	});
-
-	return server;
+		this.server.listen(port);
+		Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+		return true;
+	}
 };

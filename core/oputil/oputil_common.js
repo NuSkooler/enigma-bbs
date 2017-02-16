@@ -1,0 +1,76 @@
+/* jslint node: true */
+/* eslint-disable no-console */
+'use strict';
+
+const resolvePath		= require('../misc_util.js').resolvePath;
+
+const config			= require('../../core/config.js');
+const db				= require('../../core/database.js');
+
+const _					= require('lodash');
+const async				= require('async');
+
+exports.printUsageAndSetExitCode		= printUsageAndSetExitCode;
+exports.getDefaultConfigPath			= getDefaultConfigPath;
+exports.initConfigAndDatabases			= initConfigAndDatabases;
+exports.getAreaAndStorage				= getAreaAndStorage;
+
+const exitCodes = exports.ExitCodes = {
+	SUCCESS		: 0,
+	ERROR		: -1,
+	BAD_COMMAND	: -2,
+	BAD_ARGS	: -3,
+};
+
+const argv = exports.argv = require('minimist')(process.argv.slice(2));
+
+function printUsageAndSetExitCode(errMsg, exitCode) {
+	if(_.isUndefined(exitCode)) {
+		exitCode = exitCodes.ERROR;
+	}
+
+	process.exitCode = exitCode;
+
+	if(errMsg) {
+		console.error(errMsg);
+	}
+}
+
+function getDefaultConfigPath() {
+	return resolvePath('~/.config/enigma-bbs/config.hjson');
+}
+
+function initConfig(cb) {
+	const configPath = argv.config ? argv.config : config.getDefaultPath();
+
+	config.init(configPath, cb);
+}
+
+function initConfigAndDatabases(cb) {
+	async.series(
+		[
+			function init(callback) {
+				initConfig(callback);
+			},
+			function initDb(callback) {
+				db.initializeDatabases(callback);
+			},
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
+function getAreaAndStorage(tags) {
+	return tags.map(tag => {
+		const parts = tag.split('@');
+		const entry = {
+			areaTag	: parts[0],
+		};
+		if(parts[1]) {
+			entry.storageTag = parts[1];
+		}
+		return entry;
+	});
+}
