@@ -28,6 +28,7 @@ Upgrading from GitHub is easy:
 ```bash
 cd /path/to/enigma-bbs
 git pull
+rm -rf npm_modules # do this any time you update Node.js itself
 npm install
 ```
 

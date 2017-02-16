@@ -24,6 +24,7 @@ exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
 exports.getAreaDefaultStorageDirectory	= getAreaDefaultStorageDirectory;
+exports.getAreaStorageLocations			= getAreaStorageLocations;
 exports.getDefaultFileAreaTag			= getDefaultFileAreaTag;
 exports.getFileAreaByTag				= getFileAreaByTag;
 exports.getFileEntryPath				= getFileEntryPath;

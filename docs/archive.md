@@ -15,7 +15,7 @@ The following archivers are pre-configured in ENiGMA½ as of this writing. Remem
 #### Lha
 * Formats: <a href="https://en.wikipedia.org/wiki/LHA_(file_format)">LHA</a> files such as .lzh.
 * Key: `Lha`
-* Homepage/package: `lhasa` on most *nix environments. See also https://fragglet.github.io/lhasa/
+* Homepage/package: `lhasa` on most *nix environments. See also https://fragglet.github.io/lhasa/ and http://www2m.biglobe.ne.jp/~dolphin/lha/lha-unix.htm
 
 #### Arj
 * Formats: .arj
