@@ -160,10 +160,11 @@ exports.getModule = class WebServerModule extends ServerModule {
 	routeStaticFile(req, resp) {
 		const fileName = req.url.substr(req.url.indexOf('/', 1));
 		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
+		const self = this;
 
 		fs.stat(filePath, (err, stats) => {
 			if(err) {
-				return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+				return self.respondWithError(resp, 404, 'File not found.', 'File Not Found');
 			}
 
 			const headers = {
