@@ -25,9 +25,7 @@ function ToggleMenuView (options) {
 	*/
 
 	this.updateSelection = function() {
-		//assert(!self.positionCacheExpired);
 		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
-
 		self.redraw();
 	};
 }
@@ -74,28 +72,38 @@ ToggleMenuView.prototype.setFocus = function(focused) {
 	this.redraw();
 };
 
-ToggleMenuView.prototype.onKeyPress = function(ch, key) {
-	if(key) {
-		var needsUpdate;
-		if(this.isKeyMapped('right', key.name) || this.isKeyMapped('down', key.name)) {
-			if(this.items.length - 1 === this.focusedItemIndex) {
-				this.focusedItemIndex = 0;
-			} else {
-				this.focusedItemIndex++;
-			}
-			needsUpdate = true;
-		} else if(this.isKeyMapped('left', key.name) || this.isKeyMapped('up', key.name)) {
-			if(0 === this.focusedItemIndex) {
-				this.focusedItemIndex = this.items.length - 1;
-			} else {
-				this.focusedItemIndex--;
-			}
-			needsUpdate = true;
-		}
+ToggleMenuView.prototype.focusNext = function() {
+	if(this.items.length - 1 === this.focusedItemIndex) {
+		this.focusedItemIndex = 0;
+	} else {
+		this.focusedItemIndex++;
+	}
 
-		if(needsUpdate) {
-			this.updateSelection();
-			return;
+	this.updateSelection();
+
+	ToggleMenuView.super_.prototype.focusNext.call(this);
+};
+
+ToggleMenuView.prototype.focusPrevious = function() {
+
+	if(0 === this.focusedItemIndex) {
+		this.focusedItemIndex = this.items.length - 1;
+	} else {
+		this.focusedItemIndex--;
+	}
+
+	this.updateSelection();
+
+	ToggleMenuView.super_.prototype.focusPrevious.call(this);
+};
+
+ToggleMenuView.prototype.onKeyPress = function(ch, key) {
+
+	if(key) {
+		if(this.isKeyMapped('right', key.name) || this.isKeyMapped('down', key.name)) {
+			this.focusNext();
+		} else if(this.isKeyMapped('left', key.name) || this.isKeyMapped('up', key.nam4e)) {
+			this.focusPrevious();
 		}
 	}
 

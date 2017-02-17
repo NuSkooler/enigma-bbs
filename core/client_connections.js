@@ -12,6 +12,7 @@ exports.getActiveConnections	= getActiveConnections;
 exports.getActiveNodeList		= getActiveNodeList;
 exports.addNewClient			= addNewClient;
 exports.removeClient			= removeClient;
+exports.getConnectionByUserId	= getConnectionByUserId;
 
 const clientConnections = [];
 exports.clientConnections		= clientConnections;
@@ -92,4 +93,8 @@ function removeClient(client) {
 			'Client disconnected'
 			);
 	}
+}
+
+function getConnectionByUserId(userId) {
+	return getActiveConnections().find( ac => userId === ac.user.userId );
 }

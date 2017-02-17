@@ -44,7 +44,7 @@ function VerticalMenuView(options) {
 
 		self.viewWindow = {
 			top		: self.focusedItemIndex,
-			bottom	: Math.min(self.focusedItemIndex + self.maxVisibleItems, self.items.length) - 1
+			bottom	: Math.min(self.focusedItemIndex + self.maxVisibleItems, self.items.length) - 1,
 		};
 	};
 
@@ -107,12 +107,14 @@ VerticalMenuView.prototype.redraw = function() {
 		delete this.oldDimens;
 	}	
 
-	let row = this.position.row;
-	for(let i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
-		this.items[i].row = row;
-		row += this.itemSpacing + 1;
-		this.items[i].focused = this.focusedItemIndex === i;
-		this.drawItem(i);
+	if(this.items.length) {
+		let row = this.position.row;
+		for(let i = this.viewWindow.top; i <= this.viewWindow.bottom; ++i) {
+			this.items[i].row = row;
+			row += this.itemSpacing + 1;
+			this.items[i].focused = this.focusedItemIndex === i;
+			this.drawItem(i);
+		}
 	}
 };
 
@@ -171,12 +173,20 @@ VerticalMenuView.prototype.getData = function() {
 VerticalMenuView.prototype.setItems = function(items) {
 	//	if we have items already, save off their drawing area so we don't leave fragments at redraw
 	if(this.items && this.items.length) {
-		this.oldDimens = this.dimens;
+		this.oldDimens = Object.assign({}, this.dimens);
 	}
 
 	VerticalMenuView.super_.prototype.setItems.call(this, items);
 
 	this.positionCacheExpired = true;
+};
+
+VerticalMenuView.prototype.removeItem = function(index) {
+	if(this.items && this.items.length) {
+		this.oldDimens = Object.assign({}, this.dimens);
+	}
+
+	VerticalMenuView.super_.prototype.removeItem.call(this, index);
 };
 
 //	:TODO: Apply draw optimizaitons when only two items need drawn vs entire view!

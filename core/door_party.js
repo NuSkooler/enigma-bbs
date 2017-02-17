@@ -10,28 +10,26 @@ const async			= require('async');
 const _				= require('lodash');
 const SSHClient		= require('ssh2').Client;
 
-exports.getModule	= DoorPartyModule;
-
 exports.moduleInfo = {
 	name	: 'DoorParty',
 	desc	: 'DoorParty Access Module',
 	author	: 'NuSkooler',
 };
 
+exports.getModule = class DoorPartyModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-function DoorPartyModule(options) {
-	MenuModule.call(this, options);
+		//	establish defaults
+		this.config				= options.menuConfig.config;
+		this.config.host		= this.config.host || 'dp.throwbackbbs.com';
+		this.config.sshPort 	= this.config.sshPort || 2022;
+		this.config.rloginPort	= this.config.rloginPort || 513;	
+	}
 	
-	const self	= this;
-	
-	//	establish defaults
-	this.config	= options.menuConfig.config;
-	this.config.host		= this.config.host || 'dp.throwbackbbs.com';
-	this.config.sshPort 	= this.config.sshPort || 2022;
-	this.config.rloginPort	= this.config.rloginPort || 513;	
-	
-	this.initSequence = function() {
+	initSequence() {
 		let clientTerminated;
+		const self = this;
 		
 		async.series(
 			[
@@ -116,7 +114,7 @@ function DoorPartyModule(options) {
 			],
 			err => {
 				if(err) {
-					self.client.log.warn( { error : err.toString() }, 'DoorParty error');
+					self.client.log.warn( { error : err.message }, 'DoorParty error');
 				}
 				
 				//	if the client is stil here, go to previous
@@ -125,8 +123,5 @@ function DoorPartyModule(options) {
 				}
 			}
 		);
-	};
-	
-}
-
-require('util').inherits(DoorPartyModule, MenuModule);
+	}	
+};

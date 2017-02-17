@@ -18,12 +18,12 @@ const paths					= require('path');
 const async					= require('async');
 const fs					= require('fs');
 const later					= require('later');
-const temp					= require('temp').track();	//	track() cleans up temp dir/files for us
+const temptmp				= require('temptmp').createTrackedSession('ftn_bso');
 const assert				= require('assert');
 const gaze					= require('gaze');
 const fse					= require('fs-extra');
 const iconv					= require('iconv-lite');
-const uuid					= require('node-uuid');
+const uuidV4				= require('uuid/v4');
 
 exports.moduleInfo = {
 	name	: 'FTN BSO',
@@ -37,6 +37,8 @@ exports.moduleInfo = {
 	* Support NetMail
 		* NetMail needs explicit isNetMail()  check
 		* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
+	* Validate packet passwords!!!!
+		=> secure vs insecure landing areas
 	
 */ 
 
@@ -49,9 +51,7 @@ function FTNMessageScanTossModule() {
 	
 	let self = this;
 
-	this.archUtil = new ArchiveUtil();
-	this.archUtil.init();
-	
+	this.archUtil = ArchiveUtil.getInstance();
 
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
 		this.moduleConfig = Config.scannerTossers.ftn_bso;	
@@ -871,7 +871,7 @@ function FTNMessageScanTossModule() {
 					//
 					if(Config.messageNetworks.ftn.areas[localAreaTag].allowDupes) {
 						//	just generate a UUID & therefor always allow for dupes
-						message.uuid = uuid.v1();
+						message.uuid = uuidV4();
 					}
 					
 					callback(null);	
@@ -1135,6 +1135,8 @@ function FTNMessageScanTossModule() {
 										
 							return nextFile();	//	unknown archive type
 						}
+
+						Log.debug( { bundleFile : bundleFile }, 'Processing bundle' );
 						
 						self.archUtil.extractTo(
 							bundleFile.path,
@@ -1188,14 +1190,14 @@ function FTNMessageScanTossModule() {
 	};
 	
 	this.createTempDirectories = function(cb) {
-		temp.mkdir('enigftnexport-', (err, tempDir) => {
+		temptmp.mkdir( { prefix : 'enigftnexport-' }, (err, tempDir) => {
 			if(err) {
 				return cb(err);
 			}
 			
 			self.exportTempDir = tempDir;
 			
-			temp.mkdir('enigftnimport-', (err, tempDir) => {
+			temptmp.mkdir( { prefix : 'enigftnimport-' }, (err, tempDir) => {
 				self.importTempDir = tempDir;
 				
 				cb(err);
@@ -1325,17 +1327,20 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	//
 	//	Clean up temp dir/files we created
 	//
-	temp.cleanup((err, stats) => {
-		const fullStats = Object.assign(stats, { exportTemp : this.exportTempDir, importTemp : this.importTempDir } ); 
+	temptmp.cleanup( paths => {
+		const fullStats = {
+			exportDir	: this.exportTempDir,
+			importTemp	: this.importTempDir,
+			paths		: paths,
+			sessionId	: temptmp.sessionId,
+		};
 		
-		if(err) {
-			Log.warn(fullStats, 'Failed cleaning up temporary directories!');
-		} else {
-			Log.trace(fullStats, 'Temporary directories cleaned up');
-		}
+		Log.trace(fullStats, 'Temporary directories cleaned up');
 			
 		FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 	});
+
+	FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 };
 
 FTNMessageScanTossModule.prototype.performImport = function(cb) {

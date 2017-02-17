@@ -10,6 +10,7 @@ const stylizeString			= require('./string_util.js').stylizeString;
 const renderSubstr			= require('./string_util.js').renderSubstr;
 const renderStringLength	= require('./string_util.js').renderStringLength;
 const pipeToAnsi			= require('./color_codes.js').pipeToAnsi;
+const stripAllLineFeeds		= require('./string_util.js').stripAllLineFeeds;
 
 //	deps
 const util			= require('util');
@@ -102,7 +103,7 @@ function TextView(options) {
 		
 		renderLength = renderStringLength(textToDraw);
 		
-		if(renderLength > this.dimens.width) {
+		if(renderLength >= this.dimens.width) {
 			if(this.hasFocus) {
 				if(this.horizScroll) {
 					textToDraw = renderSubstr(textToDraw, renderLength - this.dimens.width, renderLength);
@@ -150,7 +151,7 @@ TextView.prototype.redraw = function() {
 	//	and there is no actual text (e.g. save SGR's and processing)
 	//
 	if(!this.hasDrawnOnce) {
-		if(!this.text) {
+		if(_.isUndefined(this.text)) {
 			return;
 		}
 	}
@@ -183,7 +184,7 @@ TextView.prototype.setText = function(text, redraw) {
 		text = text.toString();
 	}
 
-	text = pipeToAnsi(text, this.client);	//	expand MCI/etc.	
+	text = pipeToAnsi(stripAllLineFeeds(text), this.client);	//	expand MCI/etc.	
 
 	var widthDelta = 0;
 	if(this.text && this.text !== text) {

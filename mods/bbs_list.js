@@ -17,16 +17,12 @@ const _						= require('lodash');
 
 //	:TODO: add notes field
 
-exports.getModule	= BBSListModule;
-
-const moduleInfo = {
+const moduleInfo = exports.moduleInfo = {
 	name		: 'BBS List',
 	desc		: 'List of other BBSes',
 	author		: 'Andrew Pamment',
 	packageName	: 'com.magickabbs.enigma.bbslist'
 };
-
-exports.moduleInfo = moduleInfo;
 
 const MciViewIds = {
 	view : {
@@ -69,13 +65,106 @@ const SELECTED_MCI_NAME_TO_ENTRY = {
 	SelectedBBSNotes		: 'notes',
 };
 
-function BBSListModule(options) {
-	MenuModule.call(this, options);
+exports.getModule = class BBSListModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-	const self		= this;
-	const config	= this.menuConfig.config;
+		const self = this;
+		this.menuMethods = {
+			//
+			//	Validators
+			//
+			viewValidationListener : function(err, cb) {
+				const errMsgView = self.viewControllers.add.getView(MciViewIds.add.Error);
+				if(errMsgView) {
+					if(err) {
+						errMsgView.setText(err.message);
+					} else {
+						errMsgView.clearText();
+					}
+				}
 
-	this.initSequence = function() {
+				return cb(null);
+			},
+
+			//
+			//	Key & submit handlers
+			//
+			addBBS : function(formData, extraArgs, cb) {
+				self.displayAddScreen(cb);
+			},
+			deleteBBS : function(formData, extraArgs, cb) {
+				const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
+
+				if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
+					//	must be owner or +op
+					return cb(null);
+				}
+
+				const entry = self.entries[self.selectedBBS];
+				if(!entry) {
+					return cb(null);
+				}
+
+				self.database.run(
+					`DELETE FROM bbs_list 
+					WHERE id=?;`,
+					[ entry.id ],
+					err => {
+						if (err) {
+							self.client.log.error( { err : err }, 'Error deleting from BBS list');
+						} else {
+							self.entries.splice(self.selectedBBS, 1);
+
+							self.setEntries(entriesView);
+
+							if(self.entries.length > 0) {
+								entriesView.focusPrevious();
+							}
+
+							self.viewControllers.view.redrawAll();
+						}
+
+						return cb(null);
+					}
+				);
+			},
+			submitBBS : function(formData, extraArgs, cb) {
+
+				let ok = true;
+				[ 'BBSName', 'Sysop', 'Telnet' ].forEach( mciName => {
+					if('' === self.viewControllers.add.getView(MciViewIds.add[mciName]).getData()) {
+						ok = false;
+					}
+				});
+				if(!ok) {
+					//	validators should prevent this!
+					return cb(null);
+				}
+
+				self.database.run(
+					`INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes) 
+					VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
+					[ formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes ],
+					err => {
+						if(err) {
+							self.client.log.error( { err : err }, 'Error adding to BBS list');
+						}
+
+						self.clearAddForm();
+						self.displayBBSList(true, cb);
+					}
+				);
+			},
+			cancelSubmit : function(formData, extraArgs, cb) {
+				self.clearAddForm();
+				self.displayBBSList(true, cb);
+			}
+		};
+	}
+
+	initSequence() {
+		const self = this;
 		async.series(
 			[
 				function beforeDisplayArt(callback) {
@@ -92,39 +181,42 @@ function BBSListModule(options) {
 				self.finishedLoading();
 			}
 		);
-	};
+	}
 
-	this.drawSelectedEntry = function(entry) {
+	drawSelectedEntry(entry) {
 		if(!entry) {
 			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {						
-				self.setViewText(MciViewIds.view[mciName], '');
+				this.setViewText('view', MciViewIds.view[mciName], '');
 			});
 		} else {
-			const youSubmittedFormat = config.youSubmittedFormat || '{submitter} (You!)';
+			const youSubmittedFormat = this.menuConfig.youSubmittedFormat || '{submitter} (You!)';
 			
 			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {
 				const t = entry[SELECTED_MCI_NAME_TO_ENTRY[mciName]];
 				if(MciViewIds.view[mciName]) {
 
-					if('SelectedBBSSubmitter' == mciName && entry.submitterUserId == self.client.user.userId) {
-						self.setViewText(MciViewIds.view.SelectedBBSSubmitter, stringFormat(youSubmittedFormat, entry));
+					if('SelectedBBSSubmitter' == mciName && entry.submitterUserId == this.client.user.userId) {
+						this.setViewText('view',MciViewIds.view.SelectedBBSSubmitter, stringFormat(youSubmittedFormat, entry));
 					} else {
-						self.setViewText(MciViewIds.view[mciName], t);
+						this.setViewText('view',MciViewIds.view[mciName], t);
 					}
 				}
 			});
 		}
-	};
+	}
 
-	this.setEntries = function(entriesView) {
+	setEntries(entriesView) {
+		const config			= this.menuConfig.config;
 		const listFormat		= config.listFormat || '{bbsName}';
 		const focusListFormat	= config.focusListFormat || '{bbsName}';
 
-		entriesView.setItems(self.entries.map( e => stringFormat(listFormat, e) ) );
-		entriesView.setFocusItems(self.entries.map( e => stringFormat(focusListFormat, e) ) );
-	};
+		entriesView.setItems(this.entries.map( e => stringFormat(listFormat, e) ) );
+		entriesView.setFocusItems(this.entries.map( e => stringFormat(focusListFormat, e) ) );
+	}
 
-	this.displayBBSList = function(clearScreen, cb) {
+	displayBBSList(clearScreen, cb) {
+		const self = this;
+
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
@@ -135,7 +227,7 @@ function BBSListModule(options) {
 						self.client.term.rawWrite(ansi.resetScreen());
 					}
 					theme.displayThemedAsset(
-						config.art.entries,
+						self.menuConfig.config.art.entries,
 						self.client,
 						{ font : self.menuConfig.font, trailingLF : false },
 						(err, artData) => {
@@ -238,9 +330,11 @@ function BBSListModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.displayAddScreen = function(cb) {
+	displayAddScreen(cb) {
+		const self = this;
+
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
@@ -248,7 +342,7 @@ function BBSListModule(options) {
 					self.client.term.rawWrite(ansi.resetScreen());
 
 					theme.displayThemedAsset(
-						config.art.add,
+						self.menuConfig.config.art.add,
 						self.client,
 						{ font : self.menuConfig.font },
 						(err, artData) => {
@@ -284,117 +378,17 @@ function BBSListModule(options) {
 				}
 			}
 		);
-	};
+	}
 
-	this.clearAddForm = function() {
+	clearAddForm() {
 		[ 'BBSName', 'Sysop', 'Telnet', 'Www', 'Location', 'Software', 'Error', 'Notes' ].forEach( mciName => {
-			const v = self.viewControllers.add.getView(MciViewIds.add[mciName]);
-			if(v) {
-				v.setText('');
-			}	
+			this.setViewText('add', MciViewIds.add[mciName], '');
 		});
-	};
+	}
 
-	this.menuMethods = {
-		//
-		//	Validators
-		//
-		viewValidationListener : function(err, cb) {
-			const errMsgView = self.viewControllers.add.getView(MciViewIds.add.Error);
-			if(errMsgView) {
-				if(err) {
-					errMsgView.setText(err.message);
-				} else {
-					errMsgView.clearText();
-				}
-			}
+	initDatabase(cb) {
+		const self = this;
 
-			return cb(null);
-		},
-
-		//
-		//	Key & submit handlers
-		//
-		addBBS : function(formData, extraArgs, cb) {
-			self.displayAddScreen(cb);
-		},
-		deleteBBS : function(formData, extraArgs, cb) {
-			const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
-
-			if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
-				//	must be owner or +op
-				return cb(null);
-			}
-
-			const entry = self.entries[self.selectedBBS];
-			if(!entry) {
-				return cb(null);
-			}
-
-			self.database.run(
-				`DELETE FROM bbs_list 
-				WHERE id=?;`,
-				[ entry.id ],
-				err => {
-					if (err) {
-						self.client.log.error( { err : err }, 'Error deleting from BBS list');
-					} else {
-						self.entries.splice(self.selectedBBS, 1);
-
-						self.setEntries(entriesView);
-
-						if(self.entries.length > 0) {
-							entriesView.focusPrevious();
-						}
-
-						self.viewControllers.view.redrawAll();
-					}
-
-					return cb(null);
-				}
-			);
-		},
-		submitBBS : function(formData, extraArgs, cb) {
-
-			let ok = true;
-			[ 'BBSName', 'Sysop', 'Telnet' ].forEach( mciName => {
-				if('' === self.viewControllers.add.getView(MciViewIds.add[mciName]).getData()) {
-					ok = false;
-				}
-			});
-			if(!ok) {
-				//	validators should prevent this!
-				return cb(null);
-			}
-
-			self.database.run(
-				`INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes) 
-				VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
-				[ formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes ],
-				err => {
-					if(err) {
-						self.client.log.error( { err : err }, 'Error adding to BBS list');
-					}
-
-					self.clearAddForm();
-					self.displayBBSList(true, cb);
-				}
-			);
-		},
-		cancelSubmit : function(formData, extraArgs, cb) {
-			self.clearAddForm();
-			self.displayBBSList(true, cb);
-		}
-	};
-
-	this.setViewText = function(id, text) {
-		var v = self.viewControllers.view.getView(id);
-		if(v) {
-			v.setText(text);
-		}
-	};
-
-	this.initDatabase = function(cb) {
 		async.series(
 			[
 				function openDatabase(callback) {
@@ -422,15 +416,15 @@ function BBSListModule(options) {
 					callback(null);
 				}
 			],
-			cb
+			err => {
+				return cb(err);
+			}
 		);
-	};
-}
+	}
 
-require('util').inherits(BBSListModule, MenuModule);
-
-BBSListModule.prototype.beforeArt = function(cb) {
-	BBSListModule.super_.prototype.beforeArt.call(this, err => {
-		return err ? cb(err) : this.initDatabase(cb);
-	});
+	beforeArt(cb) {
+		super.beforeArt(err => {
+			return err ? cb(err) : this.initDatabase(cb);
+		});
+	}
 };

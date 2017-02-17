@@ -1,17 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-var miscUtil			= require('./misc_util.js');
+//	ENiGMA½
+const miscUtil			= require('./misc_util.js');
 
-var fs					= require('fs');
-var paths				= require('path');
-var async				= require('async');
-var _					= require('lodash');
-var hjson				= require('hjson');
-var assert              = require('assert');
+//	deps
+const fs				= require('fs');
+const paths				= require('path');
+const async				= require('async');
+const _					= require('lodash');
+const hjson				= require('hjson');
+const assert			= require('assert');
 
-exports.init				= init;
-exports.getDefaultPath		= getDefaultPath;
+exports.init			= init;
+exports.getDefaultPath	= getDefaultPath;
 
 function hasMessageConferenceAndArea(config) {
 	assert(_.isObject(config.messageConferences));  //  we create one ourself!
@@ -43,38 +45,45 @@ function init(configPath, cb) {
 	async.waterfall(
 		[
 			function loadUserConfig(callback) {
-				if(_.isString(configPath)) {
-					fs.readFile(configPath, { encoding : 'utf8' }, function configData(err, data) {
-						if(err) {
-							callback(err);
-						} else {
-							try {
-								var configJson = hjson.parse(data);
-								callback(null, configJson);
-							} catch(e) {
-								callback(e);							
-							}
-						}
-					});
-				} else {
-					callback(null, { } );
+				if(!_.isString(configPath)) {
+					return callback(null, { } );
 				}
+				
+				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
+					if(err) {
+						return callback(err);
+					}
+				
+					let configJson;
+					try {
+						configJson = hjson.parse(configData);
+					} catch(e) {
+						return callback(e);
+					}
+
+					return callback(null, configJson);
+				});				
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				var mergedConfig = _.merge(getDefaultConfig(), configJson, function mergeCustomizer(conf1, conf2) {
-					//	Arrays should always concat
-					if(_.isArray(conf1)) {
-						//	:TODO: look for collisions & override dupes
-						return conf1.concat(conf2);
+				
+				const mergedConfig = _.mergeWith(
+					getDefaultConfig(), 
+					configJson, (conf1, conf2) => {
+						//	Arrays should always concat
+						if(_.isArray(conf1)) {
+							//	:TODO: look for collisions & override dupes
+							return conf1.concat(conf2);
+						}
 					}
-				});
+				);
 
-				callback(null, mergedConfig);
+				return callback(null, mergedConfig);
 			},
 			function validate(mergedConfig, callback) {
 				//
 				//	Various sections must now exist in config
 				//
+				//	:TODO: Logic is broken here:
 				if(hasMessageConferenceAndArea(mergedConfig)) {
 					var msgAreasErr = new Error('Please create at least one message conference and area!');
 					msgAreasErr.code = 'EBADCONFIG';
@@ -92,7 +101,7 @@ function init(configPath, cb) {
 }
 
 function getDefaultPath() {
-	var base = miscUtil.resolvePath('~/');
+	const base = miscUtil.resolvePath('~/');
 	if(base) {
 		//	e.g. /home/users/joeuser/.config/enigma-bbs/config.hjson
 		return paths.join(base, '.config', 'enigma-bbs', 'config.hjson');
@@ -211,17 +220,212 @@ function getDefaultConfig() {
 			}
 		},
 
-		archivers : {
-			zip : {
-				sig				: '504b0304',
-				offset			: 0,
-				compressCmd		: '7z',
-				compressArgs	: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
-				decompressCmd	: '7z',
-				decompressArgs	: [ 'e', '-o{extractPath}', '{archivePath}' ]
+		contentServers : {
+			web : {
+				domain : 'another-fine-enigma-bbs.org',
+
+				staticRoot : paths.join(__dirname, './../www'),
+				
+				http : {
+					enabled : false,
+					port	: 8080,	
+				},
+				https : {
+					enabled	: false,
+					port	: 8443,
+					certPem	: paths.join(__dirname, './../misc/https_cert.pem'),
+					keyPem	: paths.join(__dirname, './../misc/https_cert_key.pem'),
+				}
+			}
+		},
+	
+		archives : {
+			archivers : {
+				'7Zip' : {
+					compress		: {
+						cmd			: '7za',
+						args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
+					},
+					decompress		: {
+						cmd			: '7za',
+						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]	//	:TODO: should be 'x'?
+					},
+					list			: {
+						cmd			: '7za',
+						args		: [ 'l', '{archivePath}' ],
+						entryMatch	: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
+					},
+					extract			: {
+						cmd			: '7za',
+						args		: [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+					},
+				},
+
+				Lha : {
+					//
+					//	'lha' command can be obtained from:
+					//	* apt-get: lhasa
+					//
+					//	(compress not currently supported)
+					//
+					decompress		: {
+						cmd			: 'lha',
+						args		: [ '-ew={extractPath}', '{archivePath}' ],
+					},
+					list			: {
+						cmd			: 'lha',
+						args		: [ '-l', '{archivePath}' ],
+						entryMatch	: '^[\\[a-z\\]]+(?:\\s+[0-9]+\\s+[0-9]+|\\s+)([0-9]+)\\s+[0-9]{2}\\.[0-9]\\%\\s+[A-Za-z]{3}\\s+[0-9]{1,2}\\s+[0-9]{4}\\s+([^\\r\\n]+)$',
+					},
+					extract			: {
+						cmd			: 'lha',
+						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
+					}
+				},
+
+				Arj : {
+					//
+					//	'arj' command can be obtained from:
+					//	* apt-get: arj
+					//
+					decompress		: {
+						cmd			: 'arj',
+						args		: [ 'x', '{archivePath}', '{extractPath}' ],
+					},
+					list			: {
+						cmd				: 'arj',
+						args			: [ 'l', '{archivePath}' ],
+						entryMatch		: '^([^\\s]+)\\s+([0-9]+)\\s+[0-9]+\\s[0-9\\.]+\\s+[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\:[0-9]{2}\\s+(?:[^\\r\\n]+)$',
+						entryGroupOrder	: {	//	defaults to { byteSize : 1, fileName : 2 }
+							fileName	: 1,
+							byteSize	: 2,
+						}
+					},
+					extract			: {
+						cmd			: 'arj',
+						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+					}
+				}
+			},
+
+			formats : {
+				//
+				//	Resources
+				//	* http://www.garykessler.net/library/file_sigs.html
+				//
+				zip	: {
+					sig		: '504b0304',
+					offset	: 0,
+					exts	: [ 'zip' ],
+					handler	: '7Zip',	
+					desc	: 'ZIP Archive',
+				},
+				'7z' : {
+					sig		: '377abcaf271c',
+					offset	: 0,
+					exts	: [ '7z' ],
+					handler	: '7Zip',
+					desc	: '7-Zip Archive',
+				},
+				arj : {
+					sig		: '60ea',
+					offset	: 0,
+					exts	: [ 'arj' ],
+					handler	: 'Arj',
+					desc	: 'ARJ Archive',
+				},
+				rar :  {
+					sig		: '526172211a0700',
+					offset	: 0,
+					exts	: [ 'rar' ],
+					handler	: '7Zip',
+					desc	: 'RAR Archive',
+				},
+				gzip :  {
+					sig		: '1f8b',
+					offset	: 0,
+					exts	: [ 'gz' ],
+					handler	: '7Zip',
+					desc	: 'Gzip Archive',
+				},
+				bzip : {
+					sig		: '425a68',
+					offset	: 0,
+					exts	: [ 'bz2' ],
+					handler	: '7Zip',
+					desc	: 'BZip2 Archive',
+				},
+				lzh :  {
+					sig		: '2d6c68',
+					offset	: 2,
+					exts	: [ 'lzh', 'ice' ],
+					handler	: 'Lha',
+					desc	: 'LHArc Archive',
+				}
 			}
 		},
 		
+		fileTransferProtocols : {
+			//
+			//	See http://www.synchro.net/docs/sexyz.txt for information on SEXYZ
+			//
+			zmodem8kSexyz : {
+				name		: 'ZModem 8k (SEXYZ)',
+				type		: 'external',
+				sort		: 1,
+				external	: {
+					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', '-8', 'sz', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgs			: [ '-telnet', '-8', 'rz', '{uploadDir}' ],
+					recvArgsNonBatch	: [ '-telnet', '-8', 'rz', '{fileName}' ],
+				} 
+			},
+
+			xmodemSexyz : {
+				name		: 'XModem (SEXYZ)',
+				type		: 'external',
+				sort		: 3,
+				external	: {
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', 'sX', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgsNonBatch	: [ '-telnet', 'rC', '{fileName}' ]
+				}
+			},
+
+			ymodemSexyz : {
+				name		: 'YModem (SEXYZ)',
+				type		: 'external',
+				sort		: 4,
+				external	: {
+					sendCmd				: 'sexyz',
+					sendArgs			: [ '-telnet', 'sY', '@{fileListPath}' ],
+					recvCmd				: 'sexyz',
+					recvArgs			: [ '-telnet', 'ry', '{uploadDir}' ],
+				}
+			},
+
+			zmodem8kSz : {
+				name		: 'ZModem 8k',
+				type		: 'external',
+				sort		: 2,
+				external	: {					
+					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
+					sendArgs	: [
+						//	:TODO: try -q
+						'--zmodem', '--try-8k', '--binary', '--restricted', '{filePaths}'
+					],
+					recvCmd		: 'rz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
+					recvArgs	: [
+						'--zmodem', '--binary', '--restricted', '--keep-uppercase', 	//	dumps to CWD which is set to {uploadDir}
+					],
+					//	:TODO: can we not just use --escape ?
+					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					
+				} 
+			}
+		},
 		
 		messageAreaDefaults : {
 			//
@@ -272,21 +476,59 @@ function getDefaultConfig() {
 			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|: 
 			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
 
+			maxDescFileByteSize			: 471859,	//	~1/4 MB
+			maxDescLongFileByteSize		: 524288,	//	1/2 MB
+
 			fileNamePatterns: {
-				shortDesc		: [ '^FILE_ID\.DIZ$', '^DESC\.SDI$' ], 
-				longDesc		: [ '^.*\.NFO$', '^README\.1ST$', '^README\.TXT$' ],
+				//	These are NOT case sensitive
+				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
+				desc		: [ 
+					'^FILE_ID\.DIZ$', '^DESC\.SDI$', '^DESCRIPT\.ION$', '^FILE\.DES$', '$FILE\.SDI$', '^DISK\.ID$'
+				],
+
+				//	common README filename - https://en.wikipedia.org/wiki/README
+				descLong		: [ 
+					'^.*\.NFO$', '^README\.1ST$', '^README\.NOW$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
+				],
+			},
+
+			yearEstPatterns: [
+				//
+				//	Patterns should produce the year in the first submatch.
+				//	The extracted year may be YY or YYYY
+				//
+				'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]|[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',	//	yyyy-mm-dd, m/d/yyyy, mm-dd-yyyy, etc.
+				"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
+				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',				
+				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
+				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
+				//	:TODO: "Copyright YYYY someone"
+			],
+
+			web : {
+				path			: '/f/',
+				routePath		: '/f/[a-zA-Z0-9]+$',
+				expireMinutes	: 1440,	//	1 day
+			},
+
+			//
+			//	File area storage location tag/value pairs.
+			//	Non-absolute paths are relative to |areaStoragePrefix|.
+			// 
+			storageTags : {
+				sys_msg_attach	: 'msg_attach',
 			},
 
 			areas: {
-				message_attachment : {
-					name	: 'Message attachments',
-					desc	: 'File attachments to messages',
+				system_message_attachment : {
+					name		: 'Message attachments',
+					desc		: 'File attachments to messages',
+					storageTags	: 'sys_msg_attach',	//	may be string or array of strings
 				}
 			}
 		},
 		
 		eventScheduler : {
-			
 			
 			events : {
 				trimMessageAreas : {

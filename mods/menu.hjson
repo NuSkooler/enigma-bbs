@@ -1,11 +1,29 @@
 {
 	/*
-		ENiGMA½ Menu Configuration
+		./\/\.' ENiGMA½ Menu Configuration -/--/-------- - --   - 
 
-		This configuration is in HJSON format. Strict to-spec JSON is also
-		perfectly valid. The hjson npm can be used to convert to/from JSON.
+		_____________________   _____  ____________________    __________\_   /
+		\__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+		//   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+		/____       _____|      __________       ___|__|      ____|     \   /  _____  \
+		---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+		                                                                 /__   _\
+		<*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
 
+		-------------------------------------------------------------------------------
+
+		This configuration is in HJSON (http://hjson.org/) format.  Strict to-spec 
+		JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+		
 		See http://hjson.org/ for more information and syntax.
+
+
+		If you haven't yet, copy the conents of this file to something like 
+		sick_board.hjson. Point to it via config.hjson using the 
+		'general.menuFile' key:
+		
+			general: { menuFile: "sick_board.hjson" } 	
+		
 	*/
 	menus: {
 		//
@@ -34,7 +52,7 @@
 		//
 		sshConnectedNewUser: {
 			art: CONNECT
-			next: newUserApplicationSsh
+			next: newUserApplicationPreSsh
 			options: { nextTimeout: 1500 }
 		}
 
@@ -60,7 +78,7 @@
 								}
 								{
 									value: { 1: 1 },
-									action: @menu:newUserApplication
+									action: @menu:newUserApplicationPre
 								}
 								{
 									value: { 1: 2 },
@@ -162,12 +180,24 @@
 			desc: Logging Off
 			next: @systemMethod:logoff
 		}
-		/*
-			TODO: display PRINT before this (Obv/2) or NEWUSER1 (Mystic)
-		*/
+
+		//	A quick preamble - defaults to warning about broken terminals
+		newUserApplicationPre: {
+			art: NEWUSER1
+			next: newUserApplication
+			desc: Applying
+			options: {
+				pause: true
+				cls: true				
+			}
+		}
+
 		newUserApplication: {
 			module: nua
 			art: NUA
+			options: {
+				menuFlags: [ "noHistory" ]
+			}
 			next: [
 				{
 					//	Initial SysOp does not send feedback to themselves
@@ -268,6 +298,17 @@
 			}
 		}
 
+		//	A quick preamble - defaults to warning about broken terminals (SSH version)
+		newUserApplicationPreSsh: {
+			art: NEWUSER1
+			next: newUserApplicationSsh
+			desc: Applying
+			options: {
+				pause: true
+				cls: true
+			}
+		}
+
 		//
 		//	SSH specialization of NUA
 		//	Canceling this form logs off vs falling back to matrix
@@ -275,6 +316,9 @@
 		newUserApplicationSsh: {
 			art: NUA
 			fallback: logoff
+			options: {
+				menuFlags: [ "noHistory" ]
+			}
 			next: newUserFeedbackToSysOpPreamble
 			form: {
 				0: {
@@ -350,7 +394,7 @@
 							}
 							{
 								value: { "submission" : 1 }
-								action: @systemMethod:prevMenu
+								action: @systemMethod:logoff
 							}
 						]
 					}
@@ -358,7 +402,7 @@
 					actionKeys: [
 						{
 							keys: [ "escape" ]
-							action: @systemMethod:prevMenu
+							action: @systemMethod:logoff
 						}
 					]
 				}
@@ -707,6 +751,10 @@
 				{
 					value: { command: "D" }
 					action: @menu:doorMenu
+				}
+				{
+					value: { command: "F" }
+					action: @menu:fileBase
 				}
 				{
 					value: { command: "U" }
@@ -1696,6 +1744,7 @@
 						HM1: {
 							//	:TODO: (#)Jump/(L)Index (msg list)/Last
 							items: [ "prev", "next", "reply", "quit", "help" ]
+							focusItemIndex: 1
 						}
 					}
 					submit: {
@@ -2225,6 +2274,639 @@
 				}
 			}
 		}
+
+		////////////////////////////////////////////////////////////////////////
+		//	File Area
+		////////////////////////////////////////////////////////////////////////
+
+		fileBase: {
+			desc: File Base
+			art: FMENU
+			prompt: fileMenuCommand
+			submit: [
+				{
+					value: { menuOption: "B" }
+					action: @menu:fileBaseListEntries
+				}
+				{
+					value: { menuOption: "F" }
+					action: @menu:fileAreaFilterEditor
+				}
+				{
+					value: { menuOption: "Q" }
+					action: @systemMethod:prevMenu
+				}
+				{
+					value: { menuOption: "G" }
+					action: @menu:fullLogoffSequence
+				}
+				{
+					value: { menuOption: "D" }
+					action: @menu:fileBaseDownloadManager
+				}
+				{
+					value: { menuOption: "U" }
+					action: @menu:fileBaseUploadFiles
+				}
+				{
+					value: { menuOption: "S" }
+					action: @menu:fileBaseSearch
+				}
+			]
+		}
+
+		fileBaseListEntries: {
+			module: file_area_list
+			desc: Browsing Files
+			config: {
+				art: {
+					browse: FBRWSE
+					details: FDETAIL
+					detailsGeneral: FDETGEN
+					detailsNfo: FDETNFO
+					detailsFileList: FDETLST
+					help: FBHELP
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						MT1: {
+							mode: preview
+						}
+
+						HM2: {
+							focus: true
+							submit: true
+							argName: navSelect							
+							items: [
+								"prev", "next", "details", "toggle queue", "rate", "change filter", "help", "quit"
+							]
+							focusItemIndex: 1
+						}
+					}
+					
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:prevFile
+							}
+							{
+								value: { navSelect: 1 }
+								action: @method:nextFile
+							}
+							{
+								value: { navSelect: 2 }
+								action: @method:viewDetails
+							}
+							{
+								value: { navSelect: 3 }
+								action: @method:toggleQueue
+							}
+							{
+								value: { navSelect: 4 }
+								action: @menu:fileBaseGetRatingForSelectedEntry
+							}							
+							{
+								value: { navSelect: 5 }
+								action: @menu:fileAreaFilterEditor
+							}
+							{
+								value: { navSelect: 6 }
+								action: @method:displayHelp
+							}
+							{
+								value: { navSelect: 7 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "w", "shift + w" ]
+							action: @method:showWebDownloadLink
+						}
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+						{
+							keys: [ "t", "shift + t" ]
+							action: @method:toggleQueue
+						}
+						{
+							keys: [ "f", "shift + f" ]
+							action: @menu:fileAreaFilterEditor
+						}
+						{
+							keys: [ "v", "shift + v" ]
+							action: @method:viewDetails
+						}
+						{
+							keys: [ "r", "shift + r" ]
+							action: @menu:fileBaseGetRatingForSelectedEntry
+						}
+						{
+							keys: [ "?" ]
+							action: @method:displayHelp
+						}
+					]
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focus: true
+							submit: true
+							argName: navSelect
+							items: [
+								"general", "nfo/readme", "file listing"
+							]
+						}
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @method:detailsQuit
+						}
+					]
+				}
+
+				2: {
+					//	details - general
+					mci: {}					
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							mode: preview
+						}
+					}
+				}
+
+				4: {
+					//	details - file listing
+					mci: {
+						VM1: {
+
+						}
+					}
+				}
+			}
+		}
+
+		fileBaseGetRatingForSelectedEntry: {
+			desc: Rating a File
+			prompt: fileBaseRateEntryPrompt
+			options: {
+				cls: true
+			}
+			submit: [
+			//	:TODO: handle esc/q
+				{
+					//	pass data back to caller
+					value: { rating: null }
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+
+		fileBaseListEntriesNoResults: {
+			desc: Browsing Files
+			art: FBNORES
+			options: {
+				pause: true
+				menuFlags: [ "noHistory" ]
+			}
+		}
+
+		fileBaseSearch: {
+			module: file_base_search
+			desc: Searching Files
+			art: FSEARCH
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							focus: true
+							argName: searchTerms
+						}
+						BT2: {
+							argName: search
+							text: search
+							submit: true
+						}
+						ET3: {
+							maxLength: 64
+							argName: tags
+						}
+						SM4: {
+							maxLength: 64
+							argName: areaIndex
+						}
+						SM5: {
+							items: [
+								"upload date",
+								"uploaded by",
+								"downloads",
+								"rating",
+								"estimated year",
+								"size",
+							]
+							argName: sortByIndex
+						}
+						SM6: {
+							items: [
+								"decending",
+								"ascending"
+							]
+							argName: orderByIndex
+						}
+						BT7: {
+							argName: advancedSearch
+							text: advanced search
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { search: null }
+								action: @method:search
+							}
+							{
+								value: { advancedSearch: null }
+								action: @method:search
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		fileAreaFilterEditor: {
+			desc: File Filter Editor
+			module: file_area_filter_edit
+			art: FFILEDT
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							argName: searchTerms
+						}
+						ET2: {
+							maxLength: 64
+							argName: tags
+						}
+						SM3: {
+							maxLength: 64
+							argName: areaIndex
+						}
+						SM4: {
+							items: [
+								"upload date",
+								"uploaded by",
+								"downloads",
+								"rating",
+								"estimated year",
+								"size",
+							]
+							argName: sortByIndex
+						}
+						SM5: {
+							items: [
+								"decending",
+								"ascending"
+							]
+							argName: orderByIndex
+						}
+						ET6: {
+							maxLength: 64
+							argName: name
+							validate: @systemMethod:validateNonEmpty
+						}
+						HM7: {
+							focus: true
+							items: [
+								"prev", "next", "make active", "save", "new", "delete"
+							]
+							argName: navSelect
+							focusItemIndex: 1
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:prevFilter
+							}
+							{
+								value: { navSelect: 1 }
+								action: @method:nextFilter
+							}
+							{
+								value: { navSelect: 2 }
+								action: @method:makeFilterActive
+							}
+							{
+								value: { navSelect: 3 }
+								action: @method:saveFilter
+							}
+							{
+								value: { navSelect: 4 }
+								action: @method:newFilter
+							}
+							{
+								value: { navSelect: 5 }
+								action: @method:deleteFilter
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		fileBaseDownloadManager: {
+			desc: Download Manager
+			module: file_base_download_manager
+			config: {
+				art: {
+					queueManager: FDLMGR
+					/*
+					NYI
+					details: FDLDET
+					*/
+				}
+				emptyQueueMenu: fileBaseDownloadManagerEmptyQueue
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							argName: queueItem
+						}
+						HM2: {
+							focus: true
+							items: [ "download all", "quit" ]
+							argName: navSelect
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:downloadAll
+							}
+							{
+								value: { navSelect: 1 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "a", "shift + a" ]
+							action: @method:downloadAll
+						}
+						{
+							keys: [ "delete", "r", "shift + r" ]
+							action: @method:removeItem
+						}
+						{
+							keys: [ "c", "shift + c" ]
+							action: @method:clearQueue
+						}
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		fileBaseDownloadManagerEmptyQueue: {
+			desc: Empty Download Queue
+			art: FEMPTYQ
+			options: {
+				pause: true
+				menuFlags: [ "noHistory" ]
+			}
+		}
+
+		fileTransferProtocolSelection: {
+			desc: Protocol selection
+			module: file_transfer_protocol_select
+			art: FPROSEL
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							argName: protocol
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { protocol: null }
+								action: @method:selectProtocol
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		fileBaseUploadFiles: {
+			desc: Uploading
+			module: upload
+			config: {
+				art: {
+					options: ULOPTS
+					fileDetails: ULDETAIL
+					processing: ULCHECK
+					dupes: ULDUPES
+				}
+			}
+
+			form: {
+				//	options
+				0: {
+					mci: {
+						SM1: {
+							argName: areaSelect
+							focus: true
+						}
+						TM2: {
+							argName: uploadType
+							items: [ "blind", "supply filename" ]
+						}
+						ET3: {
+							argName: fileName
+							maxLength: 255
+							validate: @method:validateNonBlindFileName
+						}
+						HM4: {
+							argName: navSelect
+							items: [ "continue", "cancel" ]
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:optionsNavContinue
+							}
+							{
+								value: { navSelect: 1 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					"actionKeys" : [
+						{
+							"keys"		: [ "escape" ],
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+
+				1: {
+					mci: {
+						TL1: {}
+						TL2: {}
+						TL3: {}
+						MT4: {}
+						TL10: {}
+					}
+				}
+
+				//	file details entry
+				2: {
+					mci: {
+						MT1: {
+							argName: shortDesc
+							tabSwitchesView: true
+							focus: true
+						}
+
+						ET2: {
+							argName: tags
+						}
+
+						ME3: {
+							argName: estYear
+							maskPattern: "####"
+						}
+
+						BT4: {
+							argName: continue
+							text: continue
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { continue: null }
+								action: @method:fileDetailsContinue
+							}
+						]
+					}
+				}
+
+				//	dupes
+				3: {
+					mci: {
+						VM1: {
+							/*
+							Use 'dupeInfoFormat' to custom format:
+
+							areaDesc
+							areaName
+							areaTag
+							desc
+							descLong
+							fileId
+							fileName
+							fileSha256
+							storageTag
+							uploadTimestamp
+
+							*/
+
+							mode: preview
+						}
+					}
+				}
+			}
+		}
+
+		fileBaseNoUploadAreasAvail: {
+			desc: File Base
+			art: ULNOAREA
+			options: {
+				pause: true
+				menuFlags: [ "noHistory" ]
+			}
+		}
+
+		sendFilesToUser: {
+			desc: Downloading
+			module: @systemModule:file_transfer
+			config: {
+				//	defaults - generally use extraArgs
+				protocol: zmodem8kSexyz
+				direction: send
+			}
+		}
+
+		recvFilesFromUser: {
+			desc: Uploading
+			module: @systemModule:file_transfer
+			config: {
+				//	defaults - generally use extraArgs
+				protocol: zmodem8kSexyz
+				direction: recv
+			}	
+		}
+
 
 		////////////////////////////////////////////////////////////////////////
 		//	Required entries

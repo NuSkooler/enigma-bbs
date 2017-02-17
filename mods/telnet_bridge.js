@@ -27,9 +27,6 @@ const buffers		= require('buffers');
 */
 
 //	:TODO: ENH: Support nodeMax and tooManyArt
-
-exports.getModule	= TelnetBridgeModule;
-
 exports.moduleInfo = {
 	name	: 'Telnet Bridge',
 	desc	: 'Connect to other Telnet Systems',
@@ -52,7 +49,9 @@ class TelnetClientConnection extends EventEmitter {
 
 			//	client may have bailed
 			if(_.has(this, 'client.term.output')) {
-				this.client.term.output.unpipe(this.bridgeConnection);
+				if(this.bridgeConnection) {
+					this.client.term.output.unpipe(this.bridgeConnection);
+				}
 				this.client.term.output.resume();
 			}
 		}
@@ -123,18 +122,18 @@ class TelnetClientConnection extends EventEmitter {
 
 }
 
+exports.getModule = class TelnetBridgeModule extends MenuModule {
+	constructor(options) {
+		super(options);
 
-function TelnetBridgeModule(options) {
-	MenuModule.call(this, options);
-
-	const self	= this;
-	this.config = options.menuConfig.config;
+		this.config			= options.menuConfig.config;
+		//	defaults
+		this.config.port	= this.config.port || 23; 
+	}
 	
-	//	defaults
-	this.config.port = this.config.port || 23; 
-
-	this.initSequence = function() {
+	initSequence() {
 		let clientTerminated;
+		const self = this;
 
 		async.series(
 			[
@@ -195,7 +194,5 @@ function TelnetBridgeModule(options) {
 				}
 			}
 		);
-	};
-}
-
-require('util').inherits(TelnetBridgeModule, MenuModule);
+	}
+};

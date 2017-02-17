@@ -15,20 +15,28 @@ module.exports = class KeyEntryView extends View {
 
 		super(options);
 
-		this.eatTabKey = options.eatTabKey || true;
-		this.caseInsensitive = options.caseInsensitive || true;
+		this.eatTabKey			= options.eatTabKey || true;
+		this.caseInsensitive	= options.caseInsensitive || true;
 
-		//	:TODO: allow (by default) only supplied keys[] to even draw
+		if(Array.isArray(options.keys)) {
+			if(this.caseInsensitive) {
+				this.keys = options.keys.map( k => k.toUpperCase() );
+			} else {
+				this.keys = options.keys;
+			}
+		}
 	}
 
 	onKeyPress(ch, key) {
-		if(ch && isPrintable(ch)) {
-			this.redraw();	//	sets position
-			this.client.term.write(stylizeString(ch, this.textStyle));
-		}
+		const drawKey = ch;
 
 		if(ch && this.caseInsensitive) {
 			ch = ch.toUpperCase();
+		}
+
+		if(drawKey && isPrintable(drawKey) && (!this.keys || this.keys.indexOf(ch) > -1)) {
+			this.redraw();	//	sets position
+			this.client.term.write(stylizeString(ch, this.textStyle));
 		}
 
 		this.keyEntered = ch || key.name;
@@ -52,6 +60,12 @@ module.exports = class KeyEntryView extends View {
 			case 'caseInsensitive' :
 				if(_.isBoolean(propValue)) {
 					this.caseInsensitive = propValue;
+				}
+				break;
+
+			case 'keys' :
+				if(Array.isArray(propValue)) {
+					this.keys = propValue;
 				}
 				break;
 		}

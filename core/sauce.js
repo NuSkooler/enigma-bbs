@@ -50,20 +50,17 @@ function readSAUCE(data, cb) {
 		.tap(function onVars(vars) {
 
 			if(!SAUCE_ID.equals(vars.id)) {
-				cb(new Error('No SAUCE record present'));
-				return;
+				return cb(new Error('No SAUCE record present'));
 			}	
 
 			var ver = iconv.decode(vars.version, 'cp437');
 
 			if('00' !== ver) {
-				cb(new Error('Unsupported SAUCE version: ' + ver));
-				return;
+				return cb(new Error('Unsupported SAUCE version: ' + ver));
 			}
 
 			if(-1 === SAUCE_VALID_DATA_TYPES.indexOf(vars.dataType)) {
-				cb(new Error('Unsupported SAUCE DataType: ' + vars.dataType));
-				return;
+				return cb(new Error('Unsupported SAUCE DataType: ' + vars.dataType));
 			}
 
 			var sauce = {

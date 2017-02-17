@@ -59,9 +59,6 @@ function loadModuleEx(options, cb) {
 		return cb(new Error('Invalid or missing "getModule" method for module!'));
 	}
 
-	//	Ref configuration, if any, for convience to the module
-	mod.runtime = { config : modConfig };
-
 	return cb(null, mod);
 }
 

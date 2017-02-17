@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule		= require('../core/menu_module.js').MenuModule;
+const MenuModule	= require('../core/menu_module.js').MenuModule;
 const stringFormat	= require('../core/string_format.js');
 
 //	deps
@@ -33,8 +33,9 @@ var MciViewIds = {
 	InputArea 	: 3,
 };
 
+//	:TODO: needs converted to ES6 MenuModule subclass
 function ErcClientModule(options) {
-	MenuModule.call(this, options);
+	MenuModule.prototype.ctorShim.call(this, options);
 
 	const self			= this;  
 	this.config			= options.menuConfig.config;

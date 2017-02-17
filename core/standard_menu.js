@@ -1,9 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-var MenuModule		= require('./menu_module.js').MenuModule;
-
-exports.getModule	= StandardMenuModule;
+const MenuModule	= require('./menu_module.js').MenuModule;
 
 exports.moduleInfo = {
 	name	: 'Standard Menu Module',
@@ -11,30 +9,19 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
-function StandardMenuModule(menuConfig) {
-	MenuModule.call(this, menuConfig);
-}
+exports.getModule = class StandardMenuModule extends MenuModule {
+	constructor(options) {
+		super(options);
+	}
 
-require('util').inherits(StandardMenuModule, MenuModule);
+	mciReady(mciData, cb) {
+		super.mciReady(mciData, err => {
+			if(err) {
+				return cb(err);
+			}
 
-
-StandardMenuModule.prototype.enter = function() {
-	StandardMenuModule.super_.prototype.enter.call(this);
-};
-
-StandardMenuModule.prototype.beforeArt = function(cb) {
-	StandardMenuModule.super_.prototype.beforeArt.call(this, cb);
-};
-
-StandardMenuModule.prototype.mciReady = function(mciData, cb) {
-	var self = this;
-	
-	StandardMenuModule.super_.prototype.mciReady.call(this, mciData, function mciReadyComplete(err) {
-		if(err) {
-			cb(err);
-		} else {
 			//	 we do this so other modules can be both customized and still perform standard tasks
-			StandardMenuModule.super_.prototype.standardMCIReadyHandler.call(self, mciData, cb);
-		}
-	});
+			return this.standardMCIReadyHandler(mciData, cb);
+		});
+	}
 };
