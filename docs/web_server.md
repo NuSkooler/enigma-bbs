@@ -21,7 +21,8 @@ This will configure HTTP for port 8080 (override with `port`). To additionally e
 contentServers: {
 	web: {
 		domain: bbs.yourdomain.com
-
+		//	set 'overrideUrlPrefix' if for example, you use a transparent proxy in front of ENiGMA and need to be explicit about URLs the system hands out
+		overrideUrlPrefix: https://bbs.yourdomain.com
 		https: {
 			enabled: true
 			port: 8443
