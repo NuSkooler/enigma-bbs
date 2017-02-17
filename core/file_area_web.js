@@ -16,6 +16,7 @@ const paths			= require('path');
 const async			= require('async');
 const fs			= require('fs');
 const mimeTypes		= require('mime-types');
+const _				= require('lodash');
 
 const WEB_SERVER_PACKAGE_NAME	 = 'codes.l33t.enigma.web.server';
 
@@ -166,19 +167,23 @@ class FileAreaWebAccess {
 		//		
 		let schema;
 		let port;
-		if(Config.contentServers.web.https.enabled) {
-			schema	= 'https://';
-			port	=  (443 === Config.contentServers.web.https.port) ?
-				'' :
-				`:${Config.contentServers.web.https.port}`;
+		if(_.isString(Config.contentServers.web.overrideUrlPrefix)) {
+			return `${Config.contentServers.web.overrideUrlPrefix}${Config.fileBase.web.path}${hashId}`;
 		} else {
-			schema	= 'http://';
-			port	= (80 === Config.contentServers.web.http.port) ?
-				'' :
-				`:${Config.contentServers.web.http.port}`;
+			if(Config.contentServers.web.https.enabled) {
+				schema	= 'https://';
+				port	=  (443 === Config.contentServers.web.https.port) ?
+					'' :
+					`:${Config.contentServers.web.https.port}`;
+			} else {
+				schema	= 'http://';
+				port	= (80 === Config.contentServers.web.http.port) ?
+					'' :
+					`:${Config.contentServers.web.http.port}`;
+			}
+			
+			return `${schema}${Config.contentServers.web.domain}${port}${Config.fileBase.web.path}${hashId}`;
 		}
-
-		return `${schema}${Config.contentServers.web.domain}${port}${Config.fileBase.web.path}${hashId}`;
 	}
 
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {
