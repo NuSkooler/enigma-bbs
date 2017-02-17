@@ -80,10 +80,10 @@ Temporary web HTTP(S) URLs can be used to download files using the built in web 
 See [Web Server](web_server.md) for more information.
 
 ## oputil
-The `oputil.js` +op utilty `file-base` command has tools for managing file bases. For example, to import existing files found within **all** storage locations tied to an area:
+The `oputil.js` +op utilty `fb` command has tools for managing file bases. For example, to import existing files found within **all** storage locations tied to an area and set tags `tag1` and `tag2` to each import:
 
 ```bash
-oputil.js file-base --scan some_area
+oputil.js fb scan some_area --tags tag1,tag2
 ```
 
-See `oputil.js file-base --help` for additional information.
+See `oputil.js fb --help` for additional information.

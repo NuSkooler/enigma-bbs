@@ -62,7 +62,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 			this.addRoute({
 				method		: 'GET',
 				path		: '/static/.*$',
-				handler		: this.routeStaticFile,
+				handler		: this.routeStaticFile.bind(this),
 			});
 		}
 	}
