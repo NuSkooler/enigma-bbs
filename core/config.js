@@ -305,6 +305,22 @@ function getDefaultConfig() {
 						cmd			: 'arj',
 						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
 					}
+				},
+
+				Rar : {
+					decompress		: {
+						cmd			: 'unrar',
+						args		: [ 'x', '{archivePath}', '{extractPath}' ],
+					},
+					list			: {
+						cmd			: 'unrar',
+						args		: [ 'l', '{archivePath}' ],
+						entryMatch	: '^\\s+[\\.A-Z]+\\s+([\\d]+)\\s{2}[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s{2}([^\\r\\n]+)$',
+					},
+					extract			: {
+						cmd			: 'unrar',
+						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+					}
 				}
 			},
 
@@ -338,7 +354,7 @@ function getDefaultConfig() {
 					sig		: '526172211a0700',
 					offset	: 0,
 					exts	: [ 'rar' ],
-					handler	: '7Zip',
+					handler	: 'Rar',
 					desc	: 'RAR Archive',
 				},
 				gzip :  {
@@ -483,12 +499,12 @@ function getDefaultConfig() {
 				//	These are NOT case sensitive
 				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
 				desc		: [ 
-					'^FILE_ID\.DIZ$', '^DESC\.SDI$', '^DESCRIPT\.ION$', '^FILE\.DES$', '$FILE\.SDI$', '^DISK\.ID$'
+					'^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
 				],
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
 				descLong		: [ 
-					'^.*\.NFO$', '^README\.1ST$', '^README\.NOW$', '^README\.TXT$', '^READ\.ME$', '^README$', '^README\.md$'
+					'^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'
 				],
 			},
 
