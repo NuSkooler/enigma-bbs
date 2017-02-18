@@ -91,7 +91,7 @@ function getPredefinedMCIValue(client, code) {
 			UT	: function themeId() { return userStatAsString(client, 'theme_id', ''); },
 			UC	: function loginCount() { return userStatAsString(client, 'login_count', 0); },
 			ND	: function connectedNode() { return client.node.toString(); },
-			IP	: function clientIpAddress() { return client.address().address; },
+			IP	: function clientIpAddress() { return client.remoteAddress; },
 			ST	: function serverName() { return client.session.serverName; },
 			FN	: function activeFileBaseFilterName() {
 				const activeFilter = FileBaseFilters.getActiveFilter(client);

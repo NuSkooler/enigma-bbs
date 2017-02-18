@@ -56,16 +56,17 @@ function getActiveNodeList(authUsersOnly) {
 }
 
 function addNewClient(client, clientSock) {
-	const id = client.session.id = clientConnections.push(client) - 1;
+	const id			= client.session.id		= clientConnections.push(client) - 1;
+	const remoteAddress = client.remoteAddress	= clientSock.remoteAddress;
 
 	//	Create a client specific logger 
 	//	Note that this will be updated @ login with additional information
 	client.log = logger.log.child( { clientId : id } );
 
 	const connInfo = {
-		ip			: clientSock.remoteAddress,
-		serverName	: client.session.serverName,
-		isSecure	: client.session.isSecure,
+		remoteAddress	: remoteAddress,
+		serverName		: client.session.serverName,
+		isSecure		: client.session.isSecure,
 	};
 
 	if(client.log.debug()) {

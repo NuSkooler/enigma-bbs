@@ -457,10 +457,6 @@ Client.prototype.waitForKeyPress = function(cb) {
 	});
 };
 
-Client.prototype.address = function() {
-	return this.input.address();
-};
-
 Client.prototype.isLocal = function() {
 	//	:TODO: return rather client is a local connection or not
 	return false;
