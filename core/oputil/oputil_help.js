@@ -17,7 +17,6 @@ global args:
 where <command> is one of:
   user                  : user utilities
   config                : config file management
-  file-base
   fb                    : file base management
 
 `,
@@ -39,7 +38,7 @@ valid args:
   --new                 : generate a new/initial configuration
 `,
 	FileBase :
-`usage: oputil.js file-base <action> [<args>] [<action_specific>]
+`usage: oputil.js fb <action> [<args>] [<action_specific>]
 
 where <action> is one of:
   scan <args> AREA_TAG         : (re)scan area specified by AREA_TAG for new files
@@ -47,6 +46,8 @@ where <action> is one of:
 
 valid scan <args>:
   --tags TAG1,TAG2,...  : specify tag(s) to assign to discovered entries
+
+ARE_TAG can optionally contain @STORAGE_TAG; for example: retro_pc@bbs
 `
 };
 

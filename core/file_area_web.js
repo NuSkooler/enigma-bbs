@@ -9,6 +9,10 @@ const FileEntry				= require('./file_entry.js');
 const getServer				= require('./listening_server.js').getServer;
 const Errors				= require('./enig_error.js').Errors;
 const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
+const StatLog				= require('./stat_log.js');
+const User					= require('./user.js');
+const Log					= require('./logger.js').log;
+const getConnectionByUserId	= require('./client_connections.js').getConnectionByUserId;
 
 //	deps
 const hashids		= require('hashids');
@@ -219,7 +223,7 @@ class FileAreaWebAccess {
 		if(!this.isEnabled()) {
 			return cb(notEnabledError());
 		}
-		
+
 		const hashId		= this.getHashId(client, fileEntry);
 		const url			= this.buildTempDownloadLink(client, fileEntry, hashId);		
 		options.expireTime	= options.expireTime || moment().add(2, 'days');
@@ -277,7 +281,7 @@ class FileAreaWebAccess {
 
 					resp.on('finish', () => {
 						//	transfer completed fully
-						//	:TODO: we need to update the users stats - bytes xferred, credit stuff, etc.
+						this.updateDownloadStatsForUserId(servedItem.userId, stats.size);
 					});
 
 					const headers = {
@@ -292,6 +296,37 @@ class FileAreaWebAccess {
 				});
 			});									
 		});
+	}
+
+	updateDownloadStatsForUserId(userId, dlBytes, cb) {
+		async.waterfall(
+			[
+				function fetchActiveUser(callback) {
+					const clientForUserId = getConnectionByUserId(userId);
+					if(clientForUserId) {
+						return callback(null, clientForUserId.user);
+					}
+
+					//	not online now - look 'em up
+					User.getUser(userId, (err, assocUser) => {
+						return callback(err, assocUser);
+					});
+				},
+				function updateStats(user, callback) {
+					StatLog.incrementUserStat(user, 'dl_total_count', 1);
+					StatLog.incrementUserStat(user, 'dl_total_bytes', dlBytes);
+					StatLog.incrementSystemStat('dl_total_count', 1);
+					StatLog.incrementSystemStat('dl_total_bytes', dlBytes);
+					
+					return callback(null);
+				}
+			],
+			err => {
+				if(cb) {
+					return cb(err);
+				}
+			}
+		);
 	}
 }
 

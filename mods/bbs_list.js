@@ -7,7 +7,7 @@ const getModDatabasePath	= require('../core/database.js').getModDatabasePath;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const ansi					= require('../core/ansi_term.js');
 const theme					= require('../core/theme.js');
-const getUserName			= require('../core/user.js').getUserName;
+const User					= require('../core/user.js');
 const stringFormat			= require('../core/string_format.js');
 
 //	deps
@@ -284,7 +284,7 @@ exports.getModule = class BBSListModule extends MenuModule {
 				},
 				function getUserNames(entriesView, callback) {
 					async.each(self.entries, (entry, next) => {
-						getUserName(entry.submitterUserId, (err, username) => {
+						User.getUserName(entry.submitterUserId, (err, username) => {
 							if(username) {
 								entry.submitter = username;
 							} else {

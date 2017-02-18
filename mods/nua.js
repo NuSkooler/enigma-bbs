@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const MenuModule	= require('../core/menu_module.js').MenuModule;
-const user			= require('../core/user.js');
+const User			= require('../core/user.js');
 const theme			= require('../core/theme.js');
 const login			= require('../core/system_menu_method.js').login;
 const Config		= require('../core/config.js').config;
@@ -61,7 +61,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 			//	Submit handlers
 			//
 			submitApplication : function(formData, extraArgs, cb) {
-				const newUser = new user.User();
+				const newUser = new User();
 
 				newUser.username = formData.value.username;
 
@@ -102,7 +102,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 				}
 				
 				//	:TODO: User.create() should validate email uniqueness!
-				newUser.create( { password : formData.value.password }, err => {
+				newUser.create(formData.value.password, err => {
 					if(err) {
 						self.client.log.info( { error : err, username : formData.value.username }, 'New user creation failed');
 
@@ -124,7 +124,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 							};
 						}
 
-						if(user.User.AccountStatus.inactive === self.client.user.properties.account_status) {
+						if(User.AccountStatus.inactive === self.client.user.properties.account_status) {
 							return self.gotoMenu(extraArgs.inactive, cb);
 						} else {
 							//

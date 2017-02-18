@@ -34,7 +34,6 @@ module.exports = function() {
 			handleConfigCommand();
 			break;
 
-		case 'file-base' :
 		case 'fb' :
 			handleFileBaseCommand();
 			break;

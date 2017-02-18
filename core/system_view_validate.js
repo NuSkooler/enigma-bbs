@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const user		= require('./user.js');
+const User		= require('./user.js');
 const Config	= require('./config.js').config;
 
 exports.validateNonEmpty		= validateNonEmpty;
@@ -38,7 +38,7 @@ function validateUserNameAvail(data, cb) {
 		} else if(/^[0-9]+$/.test(data)) {
 			return cb(new Error('Username cannot be a number'));
 		} else {
-			user.getUserIdAndName(data, function userIdAndName(err) {
+			User.getUserIdAndName(data, function userIdAndName(err) {
 				if(!err) {	//	err is null if we succeeded -- meaning this user exists already
 					return cb(new Error('Username unavailable'));
 				}
@@ -56,7 +56,7 @@ function validateUserNameExists(data, cb) {
 		return cb(invalidUserNameError);
 	}
 
-	user.getUserIdAndName(data, (err) => {
+	User.getUserIdAndName(data, (err) => {
 		return cb(err ? invalidUserNameError : null);
 	});
 }
@@ -80,7 +80,7 @@ function validateEmailAvail(data, cb) {
 		return cb(new Error('Invalid email address'));
 	}
 
-	user.getUserIdsWithProperty('email_address', data, function userIdsWithEmail(err, uids) {
+	User.getUserIdsWithProperty('email_address', data, function userIdsWithEmail(err, uids) {
 		if(err) {
 			return cb(new Error('Internal system error'));
 		} else if(uids.length > 0) {

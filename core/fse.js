@@ -9,7 +9,7 @@ const theme							= require('./theme.js');
 const Message						= require('./message.js');
 const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
 const getMessageAreaByTag			= require('./message_area.js').getMessageAreaByTag;
-const getUserIdAndName				= require('./user.js').getUserIdAndName;
+const User							= require('./user.js');
 const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
@@ -373,7 +373,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 							callback(null);
 						} else {
 							//	we need to look it up
-							getUserIdAndName(self.message.toUserName, function userInfo(err, toUserId) {
+							User.getUserIdAndName(self.message.toUserName, function userInfo(err, toUserId) {
 								if(err) {
 									callback(err);
 								} else {
