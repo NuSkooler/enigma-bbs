@@ -37,4 +37,5 @@ exports.ErrorReasons = {
 	InvalidNextMenu		: 'BADNEXT',
 	NoPreviousMenu		: 'NOPREV',
 	NoConditionMatch	: 'NOCONDMATCH',
+	NotEnabled			: 'NOTENABLED',
 };

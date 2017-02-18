@@ -8,6 +8,7 @@ const getISOTimestampString	= require('./database.js').getISOTimestampString;
 const FileEntry				= require('./file_entry.js');
 const getServer				= require('./listening_server.js').getServer;
 const Errors				= require('./enig_error.js').Errors;
+const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
 
 //	deps
 const hashids		= require('hashids');
@@ -26,6 +27,10 @@ const WEB_SERVER_PACKAGE_NAME	 = 'codes.l33t.enigma.web.server';
 		* At creation, set expire timer via scheduler
 		* 
 	*/
+
+function notEnabledError() {
+	return Errors.General('Web server is not enabled', ErrNotEnabled);
+}
 
 class FileAreaWebAccess {
 	constructor() {
@@ -46,14 +51,17 @@ class FileAreaWebAccess {
 					if(!self.webServer) {
 						return callback(Errors.DoesNotExist(`Server with package name "${WEB_SERVER_PACKAGE_NAME}" does not exist`));
 					}
-					
-					const routeAdded = self.webServer.instance.addRoute({
-						method	: 'GET',
-						path	: Config.fileBase.web.routePath,
-						handler	: self.routeWebRequestForFile.bind(self),
-					});
 
-					return callback(routeAdded ? null : Errors.General('Failed adding route'));
+					if(self.isEnabled()) {
+						const routeAdded = self.webServer.instance.addRoute({
+							method	: 'GET',
+							path	: Config.fileBase.web.routePath,
+							handler	: self.routeWebRequestForFile.bind(self),
+						});
+						return callback(routeAdded ? null : Errors.General('Failed adding route'));
+					} else {
+						return callback(null);	//	not enabled, but no error
+					}
 				}
 			], 
 			err => {
@@ -64,6 +72,10 @@ class FileAreaWebAccess {
 
 	shutdown(cb) {
 		return cb(null);
+	}
+
+	isEnabled() {
+		return this.webServer.instance.isEnabled();
 	}
 
 	load(cb) {
@@ -187,6 +199,10 @@ class FileAreaWebAccess {
 	}
 
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {
+		if(!this.isEnabled()) {
+			return cb(notEnabledError());
+		}	
+
 		const hashId = this.getHashId(client, fileEntry);
 		this.loadServedHashId(hashId, (err, servedItem) => {
 			if(err) {
@@ -200,6 +216,10 @@ class FileAreaWebAccess {
 	}
 
 	createAndServeTempDownload(client, fileEntry, options, cb) {
+		if(!this.isEnabled()) {
+			return cb(notEnabledError());
+		}
+		
 		const hashId		= this.getHashId(client, fileEntry);
 		const url			= this.buildTempDownloadLink(client, fileEntry, hashId);		
 		options.expireTime	= options.expireTime || moment().add(2, 'days');
