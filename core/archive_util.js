@@ -265,7 +265,7 @@ module.exports = class ArchiveUtil {
 			while((m = entryMatchRe.exec(output))) {
 				entries.push({
 					byteSize	: parseInt(m[entryGroupOrder.byteSize]),
-					fileName	: m[entryGroupOrder.fileName],
+					fileName	: m[entryGroupOrder.fileName].trim(),
 				});
 			}
 
