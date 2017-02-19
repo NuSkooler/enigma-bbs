@@ -139,23 +139,23 @@ function dumpFileInfo(shaOrFileId, cb) {
 
 	async.waterfall(
 		[
-			function getBySha(callback) {
-				FileEntry.findFileBySha(shaOrFileId, (err, fileEntry) => {
-					return callback(null, fileEntry);
+			function getByFileId(callback) {
+				const fileId = parseInt(shaOrFileId);
+				if(!/^[0-9]+$/.test(shaOrFileId) || isNaN(fileId)) {
+					return callback(null, null);
+				}
+
+				const fileEntry = new FileEntry();
+				fileEntry.load(fileId, () => {
+					return callback(null, fileEntry);	//	try sha
 				});
 			},
-			function getByFileId(fileEntry, callback) {
+			function getBySha(fileEntry, callback) {
 				if(fileEntry) {
 					return callback(null, fileEntry);	//	already got it by sha
 				}
 
-				const fileId = parseInt(shaOrFileId);
-				if(isNaN(fileId)) {
-					return callback(Errors.DoesNotExist('Not found'));
-				}
-
-				fileEntry = new FileEntry();
-				fileEntry.load(shaOrFileId, err => {
+				FileEntry.findFileBySha(shaOrFileId, (err, fileEntry) => {
 					return callback(err, fileEntry);
 				});
 			},
