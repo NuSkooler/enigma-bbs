@@ -2,7 +2,7 @@
 'use strict';
 
 const MenuModule		= require('../core/menu_module.js').MenuModule;
-const getUserList		= require('../core/user.js').getUserList;
+const User				= require('../core/user.js');
 const ViewController	= require('../core/view_controller.js').ViewController;
 const stringFormat		= require('../core/string_format.js');
 
@@ -64,7 +64,7 @@ exports.getModule = class UserListModule extends MenuModule {
 					},
 					function fetchUserList(callback) {
 						//	:TODO: Currently fetching all users - probably always OK, but this could be paged
-						getUserList(USER_LIST_OPTS, function got(err, ul) {
+						User.getUserList(USER_LIST_OPTS, function got(err, ul) {
 							userList = ul;
 							callback(err);
 						});

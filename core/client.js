@@ -34,7 +34,7 @@
 //	ENiGMA½
 const term		= require('./client_term.js');
 const ansi		= require('./ansi_term.js');
-const user		= require('./user.js');
+const User		= require('./user.js');
 const Config	= require('./config.js').config;
 const MenuStack	= require('./menu_stack.js');
 const ACS		= require('./acs.js');
@@ -77,7 +77,7 @@ function Client(input, output) {
 
 	const self	= this;
 	
-	this.user				= new user.User();
+	this.user				= new User();
 	this.currentTheme		= { info : { name : 'N/A', description : 'None' } };
 	this.lastKeyPressMs		= Date.now();
 	this.menuStack			= new MenuStack(this);
@@ -455,10 +455,6 @@ Client.prototype.waitForKeyPress = function(cb) {
 	this.once('key press', function kp(ch, key) {
 		cb(ch, key);
 	});
-};
-
-Client.prototype.address = function() {
-	return this.input.address();
 };
 
 Client.prototype.isLocal = function() {

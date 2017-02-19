@@ -53,18 +53,22 @@ exports.getModule = class WebServerModule extends ServerModule {
 	constructor() {
 		super();
 
-		this.enableHttp		= Config.contentServers.web.http.enabled || true;
+		this.enableHttp		= Config.contentServers.web.http.enabled || false;
 		this.enableHttps	= Config.contentServers.web.https.enabled || false;
 
 		this.routes = {};
 
-		if(Config.contentServers.web.staticRoot) {
+		if(this.isEnabled() && Config.contentServers.web.staticRoot) {
 			this.addRoute({
 				method		: 'GET',
 				path		: '/static/.*$',
 				handler		: this.routeStaticFile.bind(this),
 			});
 		}
+	}
+
+	isEnabled() {
+		return this.enableHttp || this.enableHttps;
 	}
 
 	createServer() {

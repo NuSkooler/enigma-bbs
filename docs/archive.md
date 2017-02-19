@@ -22,6 +22,11 @@ The following archivers are pre-configured in ENiGMA½ as of this writing. Remem
 * Key: `Arj`
 * Homepage/package: `arj` on most *nix environments.
 
+#### Rar
+* Formats: .Rar
+* Key: `Rar`
+* Homepage/package: `unrar` on most *nix environments. See also https://blog.hostonnet.com/unrar
+
 ### Archiver Configuration
 Archiver entries in `config.hjson` are mostly self explanatory with the exception of `list` commands that require some additional information. The `args` member for an entry is an array of arguments to pass to `cmd`. Some variables are available to `args` that will be expanded by the system:
 

@@ -5,9 +5,7 @@
 const MenuModule		= require('../core/menu_module.js').MenuModule;
 const ViewController	= require('../core/view_controller.js').ViewController;
 const StatLog			= require('../core/stat_log.js');
-const getUserName		= require('../core/user.js').getUserName;
-const loadProperties	= require('../core/user.js').loadProperties;
-const isRootUserId		= require('../core/user.js').isRootUserId;
+const User				= require('../core/user.js');
 const stringFormat		= require('../core/string_format.js');
 
 //	deps
@@ -73,7 +71,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
 
 							if(self.menuConfig.config.hideSysOpLogin) {
 								const noOpLoginHistory = loginHistory.filter(lh => {
-									return false === isRootUserId(parseInt(lh.log_value));	//	log_value=userId
+									return false === User.isRootUserId(parseInt(lh.log_value));	//	log_value=userId
 								});
 
 								//
@@ -106,11 +104,10 @@ exports.getModule = class LastCallersModule extends MenuModule {
 								item.userId = parseInt(item.log_value);
 								item.ts		= moment(item.timestamp).format(dateTimeFormat);						
 
-								getUserName(item.userId, (err, userName) => {
-									item.userName		= userName;
-									getPropOpts.userId	= item.userId;
+								User.getUserName(item.userId, (err, userName) => {
+									item.userName = userName;
 
-									loadProperties(getPropOpts, (err, props) => {
+									User.loadProperties(item.userId, getPropOpts, (err, props) => {
 										if(!err) {
 											item.location 		= props.location;
 											item.affiliation	= item.affils = props.affiliation;

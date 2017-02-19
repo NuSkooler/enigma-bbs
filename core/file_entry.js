@@ -289,7 +289,36 @@ module.exports = class FileEntry {
 		}
 	}
 
+	//	:TODO: Use static get accessor:
 	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
+
+	static findFileBySha(sha, cb) {
+		//	full or partial SHA-256
+		fileDb.all(
+			`SELECT file_id
+			FROM file
+			WHERE file_sha256 LIKE "${sha}%"
+			LIMIT 2;`,	//	limit 2 such that we can find if there are dupes
+			(err, fileIdRows) => {
+				if(err) {
+					return cb(err);
+				}
+
+				if(!fileIdRows || 0 === fileIdRows.length) {
+					return cb(Errors.DoesNotExist('No matches'));
+				}
+
+				if(fileIdRows.length > 1) {
+					return cb(Errors.Invalid('SHA is ambiguous'));
+				}
+
+				const fileEntry = new FileEntry();
+				return fileEntry.load(fileIdRows[0].file_id, err => {
+					return cb(err, fileEntry);
+				});
+			}
+		);
+	}
 
 	static findFiles(filter, cb) {
 		filter = filter || {};

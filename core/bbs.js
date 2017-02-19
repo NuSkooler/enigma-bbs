@@ -196,19 +196,18 @@ function initialize(cb) {
 				//	* We do this every time as the op is free to change this information just
 				//	  like any other user
 				//				
-				const user		= require('./user.js');
+				const User = require('./user.js');
 
 				async.waterfall(
 					[
 						function getOpUserName(next) {
-							return user.getUserName(1, next);
+							return User.getUserName(1, next);
 						},
 						function getOpProps(opUserName, next) {
 							const propLoadOpts = {
-								userId	: 1,
 								names	: [ 'real_name', 'sex', 'email_address', 'location', 'affiliation' ],
 							};
-							user.loadProperties(propLoadOpts, (err, opProps) => {
+							User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
 								return next(err, opUserName, opProps);
 							});
 						}

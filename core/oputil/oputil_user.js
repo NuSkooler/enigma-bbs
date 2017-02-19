@@ -7,8 +7,8 @@ const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 
-
 const async						= require('async');
+const _							= require('lodash');
 
 exports.handleUserCommand		= handleUserCommand;
 
@@ -55,13 +55,13 @@ function handleUserCommand() {
 }
 
 function getUser(userName, cb) {
-	const user = require('./core/user.js');
-	user.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
+	const User = require('../../core/user.js');
+	User.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
 		if(err) {
 			process.exitCode = ExitCodes.BAD_ARGS;
 			return cb(new Error('Failed to retrieve user'));
 		} else {
-			let u = new user.User();
+			let u = new User();
 			u.userId = userId;
 			return cb(null, u);
 		}
@@ -97,7 +97,7 @@ function setAccountStatus(userName, active) {
 				initAndGetUser(argv.user, callback);
 			},
 			function activateUser(user, callback) {
-				const AccountStatus = require('./core/user.js').User.AccountStatus;
+				const AccountStatus = require('../../core/user.js').AccountStatus;
 				user.persistProperty('account_status', active ? AccountStatus.active : AccountStatus.inactive, callback);
 			}
 		],

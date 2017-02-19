@@ -64,7 +64,7 @@ function initConfigAndDatabases(cb) {
 
 function getAreaAndStorage(tags) {
 	return tags.map(tag => {
-		const parts = tag.split('@');
+		const parts = tag.toString().split('@');
 		const entry = {
 			areaTag	: parts[0],
 		};

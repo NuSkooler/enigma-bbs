@@ -11,6 +11,7 @@ const stringFormat		= require('../core/string_format.js');
 const createCleanAnsi	= require('../core/string_util.js').createCleanAnsi;
 const FileArea			= require('../core/file_base_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
+const ErrNotEnabled		= require('../core/enig_error.js').ErrorReasons.NotEnabled;
 const ArchiveUtil		= require('../core/archive_util.js');
 const Config			= require('../core/config.js').config;
 const DownloadQueue		= require('../core/download_queue.js');
@@ -256,8 +257,12 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		FileAreaWeb.getExistingTempDownloadServeItem(this.client, this.currentFileEntry, (err, serveItem) => {
 			if(err) {
-				entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';
 				entryInfo.webDlExpire	= '';
+				if(ErrNotEnabled === err.reasonCode) {
+					entryInfo.webDlExpire	= config.webDlLinkNoWebserver || 'Web server is not enabled';
+				} else {
+					entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';					
+				}
 			} else {
 				const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
