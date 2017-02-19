@@ -8,11 +8,13 @@ const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
-
+const Errors					= require('../../core/enig_error.js').Errors;
 
 const async						= require('async');
 const fs						= require('fs');
 const paths						= require('path');
+const _							= require('lodash');
+const moment					= require('moment');
 
 exports.handleFileBaseCommand			= handleFileBaseCommand;
 
@@ -119,6 +121,140 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 	});
 }
 
+function dumpAreaInfo(areaInfo, areaAndStorageInfo, cb) {
+	console.info(`areaTag: ${areaInfo.areaTag}`);
+	console.info(`name: ${areaInfo.name}`);
+	console.info(`desc: ${areaInfo.desc}`);
+
+	areaInfo.storage.forEach(si => {
+		console.info(`storageTag: ${si.storageTag} => ${si.dir}`);
+	});
+	console.info('');
+	
+	return cb(null);
+}
+
+function dumpFileInfo(shaOrFileId, cb) {
+	const FileEntry = require('../../core/file_entry.js');
+
+	async.waterfall(
+		[
+			function getBySha(callback) {
+				FileEntry.findFileBySha(shaOrFileId, (err, fileEntry) => {
+					return callback(null, fileEntry);
+				});
+			},
+			function getByFileId(fileEntry, callback) {
+				if(fileEntry) {
+					return callback(null, fileEntry);	//	already got it by sha
+				}
+
+				const fileId = parseInt(shaOrFileId);
+				if(isNaN(fileId)) {
+					return callback(Errors.DoesNotExist('Not found'));
+				}
+
+				fileEntry = new FileEntry();
+				fileEntry.load(shaOrFileId, err => {
+					return callback(err, fileEntry);
+				});
+			},
+			function dumpInfo(fileEntry, callback) {
+				const fullPath = paths.join(fileArea.getAreaStorageDirectoryByTag(fileEntry.storageTag), fileEntry.fileName);
+
+				console.info(`file_id: ${fileEntry.fileId}`);
+				console.info(`sha_256: ${fileEntry.fileSha256}`);
+				console.info(`area_tag: ${fileEntry.areaTag}`);		
+				console.info(`path: ${fullPath}`);
+				console.info(`hashTags: ${Array.from(fileEntry.hashTags).join(', ')}`);
+				console.info(`uploaded: ${moment(fileEntry.uploadTimestamp).format()}`);
+				
+				_.each(fileEntry.meta, (metaValue, metaName) => {
+					console.info(`${metaName}: ${metaValue}`);
+				});
+
+				if(argv['show-desc']) {
+					console.info(`${fileEntry.desc}`);
+				}
+				console.info('');
+
+				return callback(null);
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+/*
+	FileEntry.findFileBySha(sha, (err, fileEntry) => {
+		if(err) {
+			return cb(err);
+		}
+
+		const fullPath = paths.join(fileArea.getAreaStorageDirectoryByTag(fileEntry.storageTag), fileEntry.fileName);
+
+		console.info(`file_id: ${fileEntry.fileId}`);
+		console.info(`sha_256: ${fileEntry.fileSha256}`);
+		console.info(`area_tag: ${fileEntry.areaTag}`);		
+		console.info(`path: ${fullPath}`);
+		console.info(`hashTags: ${Array.from(fileEntry.hashTags).join(', ')}`);
+		console.info(`uploaded: ${moment(fileEntry.uploadTimestamp).format()}`);
+		
+		_.each(fileEntry.meta, (metaValue, metaName) => {
+			console.info(`${metaName}: ${metaValue}`);
+		});
+
+		if(argv['show-desc']) {
+			console.info(`${fileEntry.desc}`);
+		}
+	});
+	*/
+}
+
+function displayFileAreaInfo() {
+	//	AREA_TAG[@STORAGE_TAG]
+	//	SHA256|PARTIAL
+	//	if sha: dump file info
+	//	if area/stoarge dump area(s) +
+
+	async.series(
+		[
+			function init(callback) {
+				return initConfigAndDatabases(callback);
+			},	
+			function dumpInfo(callback) {
+				const Config = require('../../core/config.js').config;
+				let suppliedAreas = argv._.slice(2);
+				if(!suppliedAreas || 0 === suppliedAreas.length) {
+					suppliedAreas = _.map(Config.fileBase.areas, (areaInfo, areaTag) => areaTag);
+				}
+
+				const areaAndStorageInfo = getAreaAndStorage(suppliedAreas);
+
+				fileArea = require('../../core/file_base_area.js');
+
+				async.eachSeries(areaAndStorageInfo, (areaAndStorage, nextArea) => {
+					const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
+					if(areaInfo) {
+						return dumpAreaInfo(areaInfo, areaAndStorageInfo, nextArea);
+					} else {
+						return dumpFileInfo(areaAndStorage.areaTag, nextArea);
+					}
+				},
+				err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
+	);
+}
+
 function scanFileAreas() {
 	const options = {};
 
@@ -170,6 +306,7 @@ function handleFileBaseCommand() {
 	const action = argv._[1];
 
 	switch(action) {
+		case 'info' : return displayFileAreaInfo();
 		case 'scan' : return scanFileAreas();
 	}
 }

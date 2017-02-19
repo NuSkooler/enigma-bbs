@@ -38,16 +38,22 @@ valid args:
   --new                 : generate a new/initial configuration
 `,
 	FileBase :
-`usage: oputil.js fb <action> [<args>] [<action_specific>]
+`usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
 
 where <action> is one of:
-  scan <args> AREA_TAG         : (re)scan area specified by AREA_TAG for new files
-                                 multiple area tags can be specified in form of AREA_TAG1 AREA_TAG2 ...
+  scan AREA_TAG|SHA|FILE_ID    : scan specified areas
+                                 AREA_TAG may be suffixed with @STORAGE_TAG; for example: retro@bbs
+
+  info AREA_TAG|FILE_ID|SHA    : display information about areas and/or files
+                                 SHA may be a full or partial SHA-256
 
 valid scan <args>:
-  --tags TAG1,TAG2,...  : specify tag(s) to assign to discovered entries
+  --tags TAG1,TAG2,...         : specify tag(s) to assign to discovered entries
 
-ARE_TAG can optionally contain @STORAGE_TAG; for example: retro_pc@bbs
+valid info <args>:
+  --show-desc                  : display short description, if any
+
+
 `
 };
 

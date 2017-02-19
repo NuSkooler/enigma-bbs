@@ -23,6 +23,7 @@ const iconv			= require('iconv-lite');
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
+exports.getAreaStorageDirectoryByTag	= getAreaStorageDirectoryByTag;
 exports.getAreaDefaultStorageDirectory	= getAreaDefaultStorageDirectory;
 exports.getAreaStorageLocations			= getAreaStorageLocations;
 exports.getDefaultFileAreaTag			= getDefaultFileAreaTag;
