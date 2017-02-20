@@ -280,7 +280,7 @@ function getMsgAreaImportType(path) {
 
 function importAreas() {
 	const importPath = argv._[argv._.length - 1];
-	if(!importPath) {
+	if(argv._.length < 3 || !importPath || 0 === importPath.length) {
 		return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
 	}
 

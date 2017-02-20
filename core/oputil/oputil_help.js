@@ -36,18 +36,23 @@ valid args:
 `usage: optutil.js config <action> [<args>]
 
 where <action> is one of:
-  new                   : generate a new/initial configuration
-  import-na [CONF_TAG]  : import fidonet *.NA file
-                          if CONF_TAG is not supplied, it will be prompted for
+  new                      : generate a new/initial configuration
+  import-areas PATH        : import areas using fidonet *.NA or AREAS.BBS file from PATH
+
+valid import-areas <args>:
+  --conf CONF_TAG          : specify conference tag in which to import areas
+  --network NETWORK        : specify network name/key to associate FTN areas
+  --uplinks UL1,UL2,...    : specify one or more comma separated uplinks
+  --type TYPE              : specifies area import type. valid options are "bbs" and "na"
 `,
 	FileBase :
 `usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
 
 where <action> is one of:
-  scan AREA_TAG|SHA|FILE_ID    : scan specified areas
+  scan AREA_TAG                : scan specified areas
                                  AREA_TAG may be suffixed with @STORAGE_TAG; for example: retro@bbs
 
-  info AREA_TAG|FILE_ID|SHA    : display information about areas and/or files
+  info AREA_TAG|SHA|FILE_ID    : display information about areas and/or files
                                  SHA may be a full or partial SHA-256
 
 valid scan <args>:
