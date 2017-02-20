@@ -41,7 +41,12 @@ function hasMessageConferenceAndArea(config) {
 	return result;
 }
 
-function init(configPath, cb) {
+function init(configPath, options, cb) {
+	if(!cb && _.isFunction(options)) {
+		cb = options;
+		options = {};
+	}
+
 	async.waterfall(
 		[
 			function loadUserConfig(callback) {
@@ -56,7 +61,7 @@ function init(configPath, cb) {
 				
 					let configJson;
 					try {
-						configJson = hjson.parse(configData);
+						configJson = hjson.parse(configData, options);
 					} catch(e) {
 						return callback(e);
 					}

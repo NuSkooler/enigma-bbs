@@ -12,6 +12,7 @@ const async				= require('async');
 
 exports.printUsageAndSetExitCode		= printUsageAndSetExitCode;
 exports.getDefaultConfigPath			= getDefaultConfigPath;
+exports.getConfigPath					= getConfigPath;
 exports.initConfigAndDatabases			= initConfigAndDatabases;
 exports.getAreaAndStorage				= getAreaAndStorage;
 
@@ -40,10 +41,14 @@ function getDefaultConfigPath() {
 	return resolvePath('~/.config/enigma-bbs/config.hjson');
 }
 
-function initConfig(cb) {
-	const configPath = argv.config ? argv.config : config.getDefaultPath();
+function getConfigPath() {
+	return argv.config ? argv.config : config.getDefaultPath();
+}
 
-	config.init(configPath, cb);
+function initConfig(cb) {
+	const configPath = getConfigPath();
+
+	config.init(configPath, { keepWsc : true }, cb);
 }
 
 function initConfigAndDatabases(cb) {

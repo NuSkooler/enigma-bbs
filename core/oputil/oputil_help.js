@@ -13,6 +13,7 @@ const usageHelp = exports.USAGE_HELP = {
 
 global args:
   --config PATH         : specify config path (${getDefaultConfigPath()})
+  --no-prompt           : assume defaults/don't prompt for input where possible
 
 where <command> is one of:
   user                  : user utilities
@@ -32,10 +33,12 @@ valid args:
 `,
 
 	Config : 
-`usage: optutil.js config <args>
+`usage: optutil.js config <action> [<args>]
 
-valid args:
-  --new                 : generate a new/initial configuration
+where <action> is one of:
+  new                   : generate a new/initial configuration
+  import-na [CONF_TAG]  : import fidonet *.NA file
+                          if CONF_TAG is not supplied, it will be prompted for
 `,
 	FileBase :
 `usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
@@ -52,8 +55,6 @@ valid scan <args>:
 
 valid info <args>:
   --show-desc                  : display short description, if any
-
-
 `
 };
 

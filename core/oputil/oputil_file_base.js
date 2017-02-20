@@ -308,5 +308,7 @@ function handleFileBaseCommand() {
 	switch(action) {
 		case 'info' : return displayFileAreaInfo();
 		case 'scan' : return scanFileAreas();
+
+		default : return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
 	}
 }
