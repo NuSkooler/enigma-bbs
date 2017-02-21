@@ -55,6 +55,12 @@ where <action> is one of:
   info AREA_TAG|SHA|FILE_ID    : display information about areas and/or files
                                  SHA may be a full or partial SHA-256
 
+  move SRC DST                 : move entry(s) from SRC to DST where:
+                                 SRC may be FILE_ID|SHA|AREA_TAG
+                                 DST may be AREA_TAG, optionally suffixed with @STORAGE_TAG; for example: retro@bbs
+                                 SHA may be a full or partial SHA-256
+                                 multiple instances of SRC may exist: SRC1 SRC2 ...
+
 valid scan <args>:
   --tags TAG1,TAG2,...         : specify tag(s) to assign to discovered entries
 

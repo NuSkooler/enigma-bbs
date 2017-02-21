@@ -90,7 +90,7 @@ function loadMenu(options, cb) {
 				});
 			},		
 			function createModuleInstance(modData, callback) {
-				Log.debug(
+				Log.trace(
 					{ moduleName : modData.name, extraArgs : options.extraArgs, config : modData.config, info : modData.mod.modInfo },
 					'Creating menu module instance');
 

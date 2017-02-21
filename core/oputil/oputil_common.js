@@ -73,6 +73,7 @@ function getAreaAndStorage(tags) {
 		const entry = {
 			areaTag	: parts[0],
 		};
+		entry.pattern = entry.areaTag;	//	handy
 		if(parts[1]) {
 			entry.storageTag = parts[1];
 		}
