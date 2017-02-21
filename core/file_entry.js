@@ -4,12 +4,13 @@
 const fileDb				= require('./database.js').dbs.file;
 const Errors				= require('./enig_error.js').Errors;
 const getISOTimestampString	= require('./database.js').getISOTimestampString;
-const Config				= require('./config.js').config; 
+const Config				= require('./config.js').config;
 
 //	deps
 const async					= require('async');
 const _						= require('lodash');
 const paths					= require('path');
+const fse					= require('fs-extra');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
@@ -377,7 +378,7 @@ module.exports = class FileEntry {
 		} else {
 			sql = 
 				`SELECT f.file_id
-				FROM file`;
+				FROM file f`;
 
 			sqlOrderBy = `${getOrderByWithCast('f.file_id')} ${sqlOrderDir}`;
 		}
@@ -385,6 +386,10 @@ module.exports = class FileEntry {
 
 		if(filter.areaTag && filter.areaTag.length > 0) {
 			appendWhereClause(`f.area_tag="${filter.areaTag}"`);
+		}
+
+		if(filter.storageTag && filter.storageTag.length > 0) {
+			appendWhereClause(`f.storage_tag="${filter.storageTag}"`);
 		}
 
 		if(filter.terms && filter.terms.length > 0) {
@@ -424,5 +429,50 @@ module.exports = class FileEntry {
 		}, err => {
 			return cb(err, matchingFileIds);
 		});
+	}
+
+	static moveEntry(srcFileEntry, destAreaTag, destStorageTag, destFileName, cb) {
+		if(!cb && _.isFunction(destFileName)) {
+			cb = destFileName;
+			destFileName = srcFileEntry.fileName;
+		}
+
+		const srcPath	= srcFileEntry.filePath;
+		const dstDir	= FileEntry.getAreaStorageDirectoryByTag(destStorageTag);
+		
+		
+		if(!dstDir) {
+			return cb(Errors.Invalid('Invalid storage tag'));
+		}
+
+		const dstPath	= paths.join(dstDir, destFileName);
+
+		async.series(
+			[
+				function movePhysFile(callback) {
+					if(srcPath === dstPath) {
+						return callback(null);	//	don't need to move file, but may change areas
+					}
+
+					fse.move(srcPath, dstPath, err => {
+						return callback(err);
+					});
+				},
+				function updateDatabase(callback) {
+					fileDb.run(
+						`UPDATE file
+						SET area_tag = ?, file_name = ?, storage_tag = ?
+						WHERE file_id = ?;`,
+						[ destAreaTag, destFileName, destStorageTag, srcFileEntry.fileId ],
+						err => {
+							return callback(err);
+						}
+					);
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
 	}
 };

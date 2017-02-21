@@ -31,7 +31,7 @@ module.exports = class Address {
 			this.zone === other.zone &&
 			this.point === other.point &&
 			this.domain === other.domain
-			);
+		);
 	}
 
 	getMatchAddr(pattern) {
@@ -40,7 +40,7 @@ module.exports = class Address {
 			let addr = { };
 
 			if(m[1]) {
-				addr.zone = m[1].slice(0, -1)
+				addr.zone = m[1].slice(0, -1);
 				if('*' !== addr.zone) {
 					addr.zone = parseInt(addr.zone);
 				}
@@ -116,7 +116,7 @@ module.exports = class Address {
 				('*' === addr.zone || this.zone === addr.zone) &&
 				('*' === addr.point || this.point === addr.point) &&
 				('*' === addr.domain || this.domain === addr.domain)
-				);
+			);
 		}
 
 		return false;
@@ -193,6 +193,6 @@ module.exports = class Address {
 			}
 
 			return (left.domain || '').localeCompare(right.domain || '');
-		}
+		};
 	}
-}
+};

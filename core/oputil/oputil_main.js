@@ -39,6 +39,6 @@ module.exports = function() {
 			break;
 
 		default:
-			return printUsageAndSetExitCode('', ExitCodes.BAD_COMMAND);
+			return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.BAD_COMMAND);
 	}
 };

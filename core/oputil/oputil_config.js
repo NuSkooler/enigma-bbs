@@ -7,8 +7,10 @@ const resolvePath				= require('../../core/misc_util.js').resolvePath;
 const printUsageAndSetExitCode	= require('./oputil_common.js').printUsageAndSetExitCode;
 const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
-const getDefaultConfigPath		= require('./oputil_common.js').getDefaultConfigPath;
+const getConfigPath				= require('./oputil_common.js').getConfigPath;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
+const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
+const Errors					= require('../../core/enig_error.js').Errors;
 
 //	deps
 const async			= require('async');
@@ -17,6 +19,7 @@ const mkdirsSync	= require('fs-extra').mkdirsSync;
 const fs			= require('fs');
 const hjson			= require('hjson');
 const paths			= require('path');
+const _				= require('lodash');
 
 exports.handleConfigCommand				= handleConfigCommand;
 
@@ -38,7 +41,7 @@ const QUESTIONS = {
 		{
 			name	: 'configPath',
 			message	: 'Configuration path:',
-			default	: argv.config ? argv.config : getDefaultConfigPath(),
+			default	: getConfigPath(),
 			when	: answers => answers.createNewConfig
 		},	
 	],
@@ -232,27 +235,326 @@ function askNewConfigQuestions(cb) {
 	);
 }
 
+function writeConfig(config, path) {
+	config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t', keepWsc : true, quotes : 'strings' } );
+	
+	try {
+		fs.writeFileSync(path, config, 'utf8');
+		return true;
+	} catch(e) {
+		return false;
+	}	
+}
+
+function buildNewConfig() {
+	askNewConfigQuestions( (err, configPath, config) => {
+		if(err) {								
+			return;
+		}
+
+		if(writeConfig(config, configPath)) {
+			console.info('Configuration generated');
+		} else {
+			console.error('Failed writing configuration');
+		}
+	});
+}
+
+function validateUplinks(uplinks) {
+	const ftnAddress = require('../../core/ftn_address.js');
+	const valid = uplinks.every(ul => {
+		const addr = ftnAddress.fromString(ul);
+		return addr;
+	});
+	return valid;
+}
+
+function getMsgAreaImportType(path) {
+	if(argv.type) {
+		return argv.type.toLowerCase();
+	}
+
+	const ext = paths.extname(path).toLowerCase().substr(1);
+	return ext;	//	.bbs|.na|...
+}
+
+function importAreas() {
+	const importPath = argv._[argv._.length - 1];
+	if(argv._.length < 3 || !importPath || 0 === importPath.length) {
+		return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
+	}
+
+	const importType = getMsgAreaImportType(importPath);
+	if('na' !== importType && 'bbs' !== importType) {
+		return console.error(`"${importType}" is not a recognized import file type`);
+	}
+
+	//	optional data - we'll prompt if for anything not found
+	let confTag		= argv.conf;
+	let networkName	= argv.network;
+	let uplinks		= argv.uplinks;
+	if(uplinks) {
+		uplinks = uplinks.split(/[\s,]+/);		
+	}
+
+	let importEntries;
+
+	async.waterfall(
+		[
+			function readImportFile(callback) {
+				fs.readFile(importPath, 'utf8', (err, importData) => {
+					if(err) {
+						return callback(err);
+					}
+
+					importEntries = getImportEntries(importType, importData);
+					if(0 === importEntries.length) {
+						return callback(Errors.Invalid('Invalid or empty import file'));
+					}
+
+					//	We should have enough to validate uplinks
+					if('bbs' === importType) {
+						for(let i = 0; i < importEntries.length; ++i) {
+							if(!validateUplinks(importEntries[i].uplinks)) {
+								return callback(Errors.Invalid('Invalid uplink(s)'));	
+							}
+						}
+					} else {
+						if(!validateUplinks(uplinks)) {
+							return callback(Errors.Invalid('Invalid uplink(s)'));
+						}
+					}
+
+					return callback(null);
+				});
+			},
+			function init(callback) {
+				return initConfigAndDatabases(callback);
+			},
+			function validateAndCollectInput(callback) {
+				const msgArea	= require('../../core/message_area.js');
+				const Config	= require('../../core/config.js').config;
+
+				let msgConfs = msgArea.getSortedAvailMessageConferences(null, { noClient : true } );
+				if(!msgConfs) {
+					return callback(Errors.DoesNotExist('No conferences exist in your configuration'));
+				}
+
+				msgConfs = msgConfs.map(mc => {
+					return {
+						name	: mc.conf.name,
+						value	: mc.confTag,
+					};
+				});
+
+				if(confTag && !msgConfs.find(mc => {
+					return confTag === mc.value;
+				}))
+				{
+					return callback(Errors.DoesNotExist(`Conference "${confTag}" does not exist`));
+				}
+
+				let existingNetworkNames = [];
+				if(_.has(Config, 'messageNetworks.ftn.networks')) {
+					existingNetworkNames = Object.keys(Config.messageNetworks.ftn.networks);
+				}
+
+				if(0 === existingNetworkNames.length) {
+					return callback(Errors.DoesNotExist('No FTN style networks exist in your configuration'));
+				}
+
+				if(networkName && !existingNetworkNames.find(net => networkName === net)) {
+					return callback(Errors.DoesNotExist(`FTN style Network "${networkName}" does not exist`));
+				}
+				
+				getAnswers([
+					{
+						name		: 'confTag',
+						message		: 'Message conference:',
+						type		: 'list',
+						choices		: msgConfs,
+						pageSize	: 10,
+						when		: !confTag,
+					},
+					{
+						name		: 'networkName',
+						message		: 'Network name:',
+						type		: 'list',
+						choices		: existingNetworkNames,
+						when		: !networkName,
+					},
+					{
+						name		: 'uplinks',
+						message		: 'Uplink(s) (comma separated):',
+						type		: 'input',
+						validate	: (input) => {								
+							const inputUplinks = input.split(/[\s,]+/);
+							return validateUplinks(inputUplinks) ? true : 'Invalid uplink(s)';
+						},
+						when		: !uplinks && 'bbs' !== importType,
+					}
+				], 
+				answers => {
+					confTag			= confTag || answers.confTag;
+					networkName		= networkName || answers.networkName;
+					uplinks			= uplinks || answers.uplinks;
+
+					importEntries.forEach(ie => {
+						ie.areaTag = ie.ftnTag.toLowerCase();
+					});
+
+					return callback(null);
+				});
+			},
+			function confirmWithUser(callback) {
+				const Config	= require('../../core/config.js').config;
+
+				console.info(`Importing the following for "${confTag}" - (${Config.messageConferences[confTag].name} - ${Config.messageConferences[confTag].desc})`);
+				importEntries.forEach(ie => {
+					console.info(`  ${ie.ftnTag} - ${ie.name}`);
+				});
+				
+				console.info('');
+				console.info('Importing will NOT create required FTN network configurations.');
+				console.info('If you have not yet done this, you will need to complete additional steps after importing.');
+				console.info('See docs/msg_networks.md for details.');
+				console.info('');
+
+				getAnswers([
+					{
+						name	: 'proceed',
+						message	: 'Proceed?',
+						type	: 'confirm',
+					}
+				],
+				answers => {
+					return callback(answers.proceed ? null : Errors.General('User canceled'));
+				});
+
+			},
+			function loadConfigHjson(callback) {
+				const configPath = getConfigPath();
+				fs.readFile(configPath, 'utf8', (err, confData) => {
+					if(err) {
+						return callback(err);
+					}
+
+					let config;
+					try {
+						config = hjson.parse(confData, { keepWsc : true } );
+					} catch(e) {
+						return callback(e);
+					}
+					return callback(null, config);
+
+				});
+			},
+			function performImport(config, callback) {
+				const confAreas = { messageConferences : {} };
+				confAreas.messageConferences[confTag] = { areas : {} };
+
+				const msgNetworks = { messageNetworks : { ftn : { areas : {} } } };
+
+				importEntries.forEach(ie => {
+					const specificUplinks = ie.uplinks || uplinks;	//	AREAS.BBS has specific uplinks per area
+
+					confAreas.messageConferences[confTag].areas[ie.areaTag] = {
+						name : ie.name,
+						desc : ie.name,
+					};
+
+					msgNetworks.messageNetworks.ftn.areas[ie.areaTag] = {
+						network	: networkName,
+						tag		: ie.ftnTag,
+						uplinks	: specificUplinks
+					};
+				});
+				
+
+				const newConfig = _.defaultsDeep(config, confAreas, msgNetworks);
+				const configPath = getConfigPath();
+
+				if(!writeConfig(newConfig, configPath)) {
+					return callback(Errors.UnexpectedState('Failed writing configuration'));
+				}
+
+				return callback(null);
+			}
+		],
+		err => {
+			if(err) {
+				console.error(err.reason ? err.reason : err.message);
+			} else {
+				const addFieldUpd = 'bbs' === importType ? '"name" and "desc"' : '"desc"';
+				console.info('Configuration generated.');
+				console.info(`You may wish to validate changes made to ${getConfigPath()}`);
+				console.info(`as well as update ${addFieldUpd} fields, sorting, etc.`);
+				console.info('');
+			}
+		}
+	);
+	
+}
+
+function getImportEntries(importType, importData) {
+	let importEntries = [];
+
+	if('na' === importType) {
+		//
+		//	parse out
+		//	TAG		DESC
+		//
+		const re = /^([^\s]+)\s+([^\r\n]+)/gm;
+		let m;
+		
+		while( (m = re.exec(importData) )) {
+			importEntries.push({
+				ftnTag		: m[1],
+				name		: m[2],
+			});
+		}
+	} else if ('bbs' === importType) {
+		//
+		//	Various formats for AREAS.BBS seem to exist. We want to support as much as possible.
+		//
+		//	SBBS http://www.synchro.net/docs/sbbsecho.html#AREAS.BBS
+		//	CODE	TAG		UPLINKS
+		//
+		//	VADV https://www.vadvbbs.com/products/vadv/support/docs/docs_vfido.php#AREAS.BBS
+		//	TAG		UPLINKS
+		//
+		//	Misc
+		//	PATH|OTHER	TAG		UPLINKS
+		//
+		//	Assume the second item is TAG and 1:n UPLINKS (space and/or comma sep) after (at the end)
+		//
+		const re = /^[^\s]+\s+([^\s]+)\s+([^\n]+)$/gm;
+		let m;
+		while ( (m = re.exec(importData) )) {
+			const tag = m[1];
+
+			importEntries.push({
+				ftnTag		: tag,
+				name		: `Area: ${tag}`,
+				uplinks		: m[2].split(/[\s,]+/),
+			});
+		}
+	}
+
+	return importEntries;
+}
+
 function handleConfigCommand() {
 	if(true === argv.help) {
 		return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
 	}
 
-	if(argv.new) {
-		askNewConfigQuestions( (err, configPath, config) => {
-			if(err) {								
-				return;
-			}
-			
-			config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t' } );
-			
-			try {
-				fs.writeFileSync(configPath, config, 'utf8');
-				console.info('Configuration generated');
-			} catch(e) {
-				console.error('Exception attempting to create config: ' + e.toString());
-			}
-		});		
-	} else {
-		return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
-	}	
+	const action = argv._[1];
+
+	switch(action) {
+		case 'new' 			: return buildNewConfig();
+		case 'import-areas' : return importAreas();
+
+		default : return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
+	}
 }

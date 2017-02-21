@@ -35,6 +35,8 @@ exports.trimMessageAreasScheduledEvent		= trimMessageAreasScheduledEvent;
 
 function getAvailableMessageConferences(client, options) {
 	options = options || { includeSystemInternal : false };
+
+	assert(client || true === options.noClient);
     
     //	perform ACS check per conf & omit system_internal if desired
 	return _.omitBy(Config.messageConferences, (conf, confTag) => {        
@@ -42,7 +44,7 @@ function getAvailableMessageConferences(client, options) {
 			return true;
 		}
 
-		return !client.acs.hasMessageConfRead(conf);
+		return client && !client.acs.hasMessageConfRead(conf);
 	});
 }
 

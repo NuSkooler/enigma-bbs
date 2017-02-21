@@ -6,6 +6,7 @@ const printUsageAndSetExitCode	= require('./oputil_common.js').printUsageAndSetE
 const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
+const getHelpFor				= require('./oputil_help.js').getHelpFor;
 
 const async						= require('async');
 const _							= require('lodash');
@@ -14,7 +15,7 @@ exports.handleUserCommand		= handleUserCommand;
 
 function handleUserCommand() {
 	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
-		return printUsageAndSetExitCode('User', ExitCodes.ERROR);
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
 	}
 
 	if(_.isString(argv.password)) {
