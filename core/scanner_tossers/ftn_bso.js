@@ -803,6 +803,9 @@ function FTNMessageScanTossModule() {
 				],
 				err => {
 					//	:TODO: do something with |err| ?
+					if(err) {
+						Log.warn(err.message);
+					}
 					nextUplink();
 				}
 			);			
@@ -1214,7 +1217,7 @@ function FTNMessageScanTossModule() {
 		
 		return false;
 	};
-	
+
 	//	ends an export block
 	this.exportingEnd = function() {
 		this.exportRunning = false;	
@@ -1263,14 +1266,15 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 					'Export schedule loaded'
 				);
 				
-				if(exportSchedule.sched && this.exportingStart()) {
+				if(exportSchedule.sched) {
 					this.exportTimer = later.setInterval( () => {
-						
-						Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
-						
-						this.performExport( () => {
-							this.exportingEnd();
-						});
+						if(this.exportingStart()) {
+							Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
+							
+							this.performExport( () => {
+								this.exportingEnd();
+							});
+						}
 					}, exportSchedule.sched);
 				}
 				

@@ -296,7 +296,7 @@ function Packet(options) {
 		
 		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-		buffer.writeUInt16LE(packetHeader.origNet, 20);
+		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xff : packetHeader.origNet, 20);
 		buffer.writeUInt16LE(packetHeader.destNet, 22);
 		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
 		buffer.writeUInt8(packetHeader.prodRevHi, 25);
@@ -318,7 +318,7 @@ function Packet(options) {
 		buffer.writeUInt32LE(packetHeader.prodData, 54);
 		
 		return buffer;
-	}
+	};
 
 	this.writePacketHeader = function(packetHeader, ws) {
 		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
@@ -334,7 +334,7 @@ function Packet(options) {
 		
 		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-		buffer.writeUInt16LE(packetHeader.origNet, 20);
+		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xff : packetHeader.origNet, 20);
 		buffer.writeUInt16LE(packetHeader.destNet, 22);
 		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
 		buffer.writeUInt8(packetHeader.prodRevHi, 25);
