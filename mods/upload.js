@@ -8,6 +8,7 @@ const getSortedAvailableFileAreas		= require('../core/file_base_area.js').getSor
 const getAreaDefaultStorageDirectory	= require('../core/file_base_area.js').getAreaDefaultStorageDirectory;
 const scanFile							= require('../core/file_base_area.js').scanFile;
 const getFileAreaByTag					= require('../core/file_base_area.js').getFileAreaByTag;
+const getDescFromFileName				= require('../core/file_base_area.js').getDescFromFileName;
 const ansiGoto							= require('../core/ansi_term.js').goto;
 const moveFileWithCollisionHandling		= require('../core/file_util.js').moveFileWithCollisionHandling;
 const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTerminatingSeparator;
@@ -673,7 +674,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
 					yearView.setText(fileEntry.meta.est_release_year || '');
-					
+
 					if(self.fileEntryHasDetectedDesc(fileEntry)) {
 						descView.setPropertyValue('mode', 'preview');
 						descView.setText(fileEntry.desc);						
@@ -681,7 +682,7 @@ exports.getModule = class UploadModule extends MenuModule {
 						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.tags);						
 					} else {
 						descView.setPropertyValue('mode', 'edit');
-						descView.setText('');						
+						descView.setText(getDescFromFileName(fileEntry.fileName));	//	try to come up with something good as a default
 						descView.acceptsFocus = true;
 						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.desc);
 					}

@@ -229,7 +229,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		//	We need the entry object to contain meta keys even if they are empty as
 		//	consumers may very likely attempt to use them
 		//
-		const metaValues = FileEntry.getWellKnownMetaValues();
+		const metaValues = FileEntry.WellKnownMetaValues;
 		metaValues.forEach(name => {
 			const value = !_.isUndefined(currEntry.meta[name]) ? currEntry.meta[name] : 'N/A';
 			entryInfo[_.camelCase(name)] = value;

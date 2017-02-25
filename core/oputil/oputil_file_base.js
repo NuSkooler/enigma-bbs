@@ -9,12 +9,14 @@ const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDataba
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
 const Errors					= require('../../core/enig_error.js').Errors;
+const getDescFromFileName		= require('../../core/file_base_area.js').getDescFromFileName;
 
 const async						= require('async');
 const fs						= require('fs');
 const paths						= require('path');
 const _							= require('lodash');
 const moment					= require('moment');
+const inq						= require('inquirer');
 
 exports.handleFileBaseCommand			= handleFileBaseCommand;
 
@@ -32,6 +34,40 @@ exports.handleFileBaseCommand			= handleFileBaseCommand;
 */
 
 let fileArea;	//	required during init
+
+function finalizeEntryAndPersist(fileEntry, cb) {
+	async.series(
+		[
+			function getDescIfNeeded(callback) {
+				if(false === argv.prompt || ( fileEntry.desc && fileEntry.desc.length > 0 ) ) {
+					return callback(null);
+				}
+
+				const questions = [
+					{
+						name	: 'desc',
+						message	: `Description for ${fileEntry.fileName}:`,
+						type	: 'input',
+						default	: getDescFromFileName(fileEntry.fileName),
+					}
+				];
+
+				inq.prompt(questions).then( answers => {
+					fileEntry.desc = answers.desc;
+					return callback(null);
+				});
+			},
+			function persist(callback) {
+				fileEntry.persist( err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
 
 function scanFileAreaForChanges(areaInfo, options, cb) {
 
@@ -94,7 +130,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 												});
 											}
 
-											fileEntry.persist( err => {
+											finalizeEntryAndPersist(fileEntry, err => {
 												return nextFile(err);
 											});
 										}

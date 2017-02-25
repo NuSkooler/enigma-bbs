@@ -22,7 +22,7 @@ module.exports = function() {
 	if(0 === argv._.length ||
 		'help' === argv._[0])
 	{
-		printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.SUCCESS);
+		return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.SUCCESS);
 	}
 
 	switch(argv._[0]) {

@@ -290,8 +290,9 @@ module.exports = class FileEntry {
 		}
 	}
 
-	//	:TODO: Use static get accessor:
-	static getWellKnownMetaValues() { return Object.keys(FILE_WELL_KNOWN_META); }
+	static get WellKnownMetaValues()  {
+		return Object.keys(FILE_WELL_KNOWN_META); 
+	}
 
 	static findFileBySha(sha, cb) {
 		//	full or partial SHA-256

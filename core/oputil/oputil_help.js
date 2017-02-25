@@ -12,13 +12,13 @@ const usageHelp = exports.USAGE_HELP = {
                    <command> [<args>]
 
 global args:
-  --config PATH         : specify config path (${getDefaultConfigPath()})
-  --no-prompt           : assume defaults/don't prompt for input where possible
+  -c, --config PATH         : specify config path (${getDefaultConfigPath()})
+  -n, --no-prompt           : assume defaults/don't prompt for input where possible
 
 where <command> is one of:
-  user                  : user utilities
-  config                : config file management
-  fb                    : file base management
+  user                      : user utilities
+  config                    : config file management
+  fb                        : file base management
 
 `,
 	User : 
