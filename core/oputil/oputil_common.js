@@ -23,7 +23,14 @@ const exitCodes = exports.ExitCodes = {
 	BAD_ARGS	: -3,
 };
 
-const argv = exports.argv = require('minimist')(process.argv.slice(2));
+const argv = exports.argv = require('minimist')(process.argv.slice(2), {
+	alias : {
+		h	 	: 'help',
+		v		: 'version',
+		c		: 'config',
+		n		: 'no-prompt',
+	}
+});
 
 function printUsageAndSetExitCode(errMsg, exitCode) {
 	if(_.isUndefined(exitCode)) {

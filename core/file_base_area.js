@@ -32,6 +32,7 @@ exports.getFileEntryPath				= getFileEntryPath;
 exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
 exports.scanFile						= scanFile;
 exports.scanFileAreaForChanges			= scanFileAreaForChanges;
+exports.getDescFromFileName				= getDescFromFileName;
 
 const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	Invalid				: '',
@@ -669,4 +670,12 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
 	err => {
 		return cb(err);
 	});
+}
+
+function getDescFromFileName(fileName) {
+	//	:TODO: this method could use some more logic to really be nice.
+	const ext   = paths.extname(fileName);
+	const name  = paths.basename(fileName, ext);
+
+	return _.upperFirst(name.replace(/[\-_.+]/g, ' ').replace(/\s+/g, ' '));
 }

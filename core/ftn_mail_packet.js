@@ -93,8 +93,9 @@ class PacketHeader {
 
 		//	See FSC-48
 		if(address.point) {
+			this.auxNet		= address.origNet;
 			this.origNet	= -1;
-			this.auxNet		= address.net;
+			
 		} else {
 			this.origNet	= address.net;
 			this.auxNet		= 0;
@@ -296,7 +297,7 @@ function Packet(options) {
 		
 		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xff : packetHeader.origNet, 20);
+		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xffff : packetHeader.origNet, 20);
 		buffer.writeUInt16LE(packetHeader.destNet, 22);
 		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
 		buffer.writeUInt8(packetHeader.prodRevHi, 25);
@@ -334,7 +335,7 @@ function Packet(options) {
 		
 		buffer.writeUInt16LE(packetHeader.baud, 16);
 		buffer.writeUInt16LE(FTN_PACKET_HEADER_TYPE, 18);
-		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xff : packetHeader.origNet, 20);
+		buffer.writeUInt16LE(-1 === packetHeader.origNet ? 0xffff : packetHeader.origNet, 20);
 		buffer.writeUInt16LE(packetHeader.destNet, 22);
 		buffer.writeUInt8(packetHeader.prodCodeLo, 24);
 		buffer.writeUInt8(packetHeader.prodRevHi, 25);
