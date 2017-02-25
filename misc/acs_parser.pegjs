@@ -44,12 +44,12 @@
 					return client.node === value;
 				},
 				NP	: function numberOfPosts() {
-					//	:TODO: implement me!!!!
-					return false;
+					const postCount = parseInt(user.properties.post_count, 10);
+					return !isNaN(value) && postCount >= value;
 				},
 				NC	: function numberOfCalls() {
-					//	:TODO: implement me!!
-					return false;
+					const loginCount = parseInt(user.properties.login_count, 10);
+					return !isNaN(value) && loginCount >= value;
 				},
 				SC 	: function isSecureConnection() {
 					return client.session.isSecure;
