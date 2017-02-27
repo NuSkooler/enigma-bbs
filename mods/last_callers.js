@@ -27,7 +27,7 @@ exports.moduleInfo = {
 	name		: 'Last Callers',
 	desc		: 'Last callers to the system',
 	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.lastcallers'	//	:TODO: concept idea for mods
+	packageName	: 'codes.l33t.enigma.lastcallers'
 };
 
 const MciCodeIds = {

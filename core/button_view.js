@@ -19,14 +19,25 @@ function ButtonView(options) {
 util.inherits(ButtonView, TextView);
 
 ButtonView.prototype.onKeyPress = function(ch, key) {
+	if(this.isKeyMapped('accept', key.name) || ' ' === ch) {
+		this.submitData = 'accept';
+		this.emit('action', 'accept');
+		delete this.submitData;		
+	} else {
+		ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
+	}
+};
+/*
+ButtonView.prototype.onKeyPress = function(ch, key) {
 	//	allow space = submit
-	if(' ' === ch) {	
+	if(' ' === ch) {
 		this.emit('action', 'accept');
 	}
 
 	ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
 };
+*/
 
 ButtonView.prototype.getData = function() {
-	return null;
+	return this.submitData || null;
 };

@@ -243,6 +243,10 @@ function initialize(cb) {
 			function readyFileAreaWeb(callback) {
 				return require('./file_area_web.js').startup(callback);
 			},
+			function readyPasswordReset(callback) {
+				const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
+				return WebPasswordReset.startup(callback);
+			},
 			function readyEventScheduler(callback) {
 				const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
 				EventSchedulerModule.loadAndStart( (err, modInst) => {

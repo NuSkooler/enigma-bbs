@@ -230,7 +230,26 @@ function getDefaultConfig() {
 				domain : 'another-fine-enigma-bbs.org',
 
 				staticRoot : paths.join(__dirname, './../www'),
-				
+
+				resetPassword : {
+					//
+					//	The following templates have these variables available to them:
+					//	
+					//	* %BOARDNAME%		: Name of BBS
+					//	* %USERNAME%		: Username of whom to reset password
+					//	* %TOKEN%			: Reset token
+					//	* %RESET_URL%		: In case of email, the link to follow for reset. In case of landing page,
+					//						  URL to POST submit reset form.
+
+					//	templates for pw reset *email*
+					resetPassEmailText	: paths.join(__dirname, '../misc/reset_password_email.template.txt'),	//	plain text version
+					resetPassEmailHtml	: paths.join(__dirname, '../misc/reset_password_email.template.html'),	//	HTML version
+
+					//	tempalte for pw reset *landing page*
+					//
+					resetPageTemplate	: paths.join(__dirname, './../www/reset_password.template.html'),
+				},
+								
 				http : {
 					enabled : false,
 					port	: 8080,	
@@ -563,6 +582,12 @@ function getDefaultConfig() {
 					//	- @execute:/path/to/something/executable.sh 
 					//	
 					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+				},
+
+				forgotPasswordMaintenance : {
+					schedule	: 'every 24 hours',
+					action		: '@method:core/web_password_reset.js:performMaintenanceTask',
+					args		: [ '24 hours' ]	//	items older than this will be removed
 				}
 			}	
 		},

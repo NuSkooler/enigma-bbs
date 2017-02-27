@@ -47,8 +47,7 @@ class PacketHeader {
 			point	: 0,
 		};
 
-		this.packetVersion = version || '2+';
-
+		this.version 		= version || '2+';
 		this.origAddress 	= origAddr || EMPTY_ADDRESS;
 		this.destAddress 	= destAddr || EMPTY_ADDRESS;
 		this.created		= createdMoment || moment();
@@ -234,7 +233,7 @@ function Packet(options) {
 				//
 				//	:TODO: adjust values based on version discovered
 				if(FTN_PACKET_BAUD_TYPE_2_2 === packetHeader.baud) {
-					packetHeader.packetVersion = '2.2';
+					packetHeader.version = '2.2';
 
 					//	See FSC-0045
 					packetHeader.origPoint	= packetHeader.year;
@@ -254,14 +253,14 @@ function Packet(options) {
 						0 != packetHeader.capWord &&
 						packetHeader.capWord & 0x0001)
 					{
-						packetHeader.packetVersion = '2+';
+						packetHeader.version = '2+';
 
 						//	See FSC-0048
 						if(-1 === packetHeader.origNet) {
 							packetHeader.origNet = packetHeader.auxNet;
 						}
 					} else {
-						packetHeader.packetVersion = '2';
+						packetHeader.version = '2';
 
 						//	:TODO: should fill bytes be 0?
 					}

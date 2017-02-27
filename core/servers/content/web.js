@@ -44,7 +44,9 @@ class Route {
 		);
 	}
 
-	matchesRequest(req) { return req.method === this.method && this.pathRegExp.test(req.url); }
+	matchesRequest(req) {
+		return req.method === this.method && this.pathRegExp.test(req.url);
+	}
 
 	getRouteKey() { return `${this.method}:${this.path}`; }
 }
@@ -65,6 +67,35 @@ exports.getModule = class WebServerModule extends ServerModule {
 				handler		: this.routeStaticFile.bind(this),
 			});
 		}
+	}
+
+	buildUrl(pathAndQuery) {
+		//
+		//	Create a URL such as
+		//	https://l33t.codes:44512/ + |pathAndQuery|
+		//
+		//	Prefer HTTPS over HTTP. Be explicit about the port
+		//	only if non-standard. Allow users to override full prefix in config.
+		//
+		if(_.isString(Config.contentServers.web.overrideUrlPrefix)) {
+			return `${Config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
+		}
+
+		let schema;
+		let port;
+		if(Config.contentServers.web.https.enabled) {
+			schema	= 'https://';
+			port	=  (443 === Config.contentServers.web.https.port) ?
+				'' :
+				`:${Config.contentServers.web.https.port}`;
+		} else {
+			schema	= 'http://';
+			port	= (80 === Config.contentServers.web.http.port) ?
+				'' :
+				`:${Config.contentServers.web.http.port}`;
+		}
+		
+		return `${schema}${Config.contentServers.web.domain}${port}${pathAndQuery}`;
 	}
 
 	isEnabled() {
@@ -126,7 +157,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 	}
 
 	routeRequest(req, resp) {
-		const route = _.find(this.routes, r => r.matchesRequest(req) );		
+		const route = _.find(this.routes, r => r.matchesRequest(req) );
 		return route ? route.handler(req, resp) : this.accessDenied(resp);
 	}
 
@@ -161,6 +192,10 @@ exports.getModule = class WebServerModule extends ServerModule {
 		return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
 	}
 
+	fileNotFound(resp) {
+		return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+	}
+
 	routeStaticFile(req, resp) {
 		const fileName = req.url.substr(req.url.indexOf('/', 1));
 		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
@@ -168,7 +203,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 
 		fs.stat(filePath, (err, stats) => {
 			if(err) {
-				return self.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+				return self.fileNotFound(resp);
 			}
 
 			const headers = {
@@ -180,5 +215,29 @@ exports.getModule = class WebServerModule extends ServerModule {
 			resp.writeHead(200, headers);
 			return readStream.pipe(resp);
 		});
+	}
+
+	routeTemplateFilePage(templatePath, preprocessCallback, resp) {
+		const self = this;
+
+		fs.readFile(templatePath, 'utf8', (err, templateData) => {
+			if(err) {
+				return self.fileNotFound(resp);
+			}
+
+			preprocessCallback(templateData, (err, finalPage, contentType) => {
+				if(err || !finalPage) {
+					return self.respondWithError(resp, 500, 'Internal Server Error.', 'Internal Server Error');
+				}
+
+				const headers = {
+					'Content-Type'		: contentType || mimeTypes.contentType('.html'),
+					'Content-Length'	: finalPage.length,
+				};
+
+				resp.writeHead(200, headers);
+				return resp.end(finalPage);
+			});
+		});		
 	}
 };
