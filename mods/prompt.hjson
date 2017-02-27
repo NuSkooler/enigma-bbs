@@ -133,6 +133,24 @@
 			}
 		},
 
+		forgotPasswordPrompt: {
+			art: FORGOTPW
+			mci: {
+				ET1: {
+					argName: username
+					maxLength: @config:users.usernameMax
+					width: 32
+					focus: true
+				}
+			}
+			actionKeys: [
+				{
+					keys: [ "escape" ]
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	File Base Related
 		///////////////////////////////////////////////////////////////////////
@@ -165,6 +183,15 @@
 					action: @systemMethod:prevMenu
 				}
 			]
+		}
+
+		fileBaseTagEntryPrompt: {
+			art: TAGFILE
+			mci: {
+				ET1: {
+					argName: tags
+				}
+			}
 		}
 
 		///////////////////////////////////////////////////////////////////////

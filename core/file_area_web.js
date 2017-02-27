@@ -13,6 +13,7 @@ const StatLog				= require('./stat_log.js');
 const User					= require('./user.js');
 const Log					= require('./logger.js').log;
 const getConnectionByUserId	= require('./client_connections.js').getConnectionByUserId;
+const webServerPackageName	= require('./servers/content/web.js').moduleInfo.packageName;
 
 //	deps
 const hashids		= require('hashids');
@@ -22,8 +23,6 @@ const async			= require('async');
 const fs			= require('fs');
 const mimeTypes		= require('mime-types');
 const _				= require('lodash');
-
-const WEB_SERVER_PACKAGE_NAME	 = 'codes.l33t.enigma.web.server';
 
 	/*
 		:TODO:
@@ -51,9 +50,9 @@ class FileAreaWebAccess {
 					return self.load(callback);
 				},
 				function addWebRoute(callback) {
-					self.webServer = getServer(WEB_SERVER_PACKAGE_NAME);
+					self.webServer = getServer(webServerPackageName);
 					if(!self.webServer) {
-						return callback(Errors.DoesNotExist(`Server with package name "${WEB_SERVER_PACKAGE_NAME}" does not exist`));
+						return callback(Errors.DoesNotExist(`Server with package name "${webServerPackageName}" does not exist`));
 					}
 
 					if(self.isEnabled()) {
@@ -173,6 +172,9 @@ class FileAreaWebAccess {
 
 	buildTempDownloadLink(client, fileEntry, hashId) {		
 		hashId = hashId || this.getHashId(client, fileEntry);
+
+		return this.webServer.instance.buildUrl(`${Config.fileBase.web.path}${hashId}`);
+		/*
 			
 		//
 		//	Create a URL such as
@@ -200,6 +202,7 @@ class FileAreaWebAccess {
 			
 			return `${schema}${Config.contentServers.web.domain}${port}${Config.fileBase.web.path}${hashId}`;
 		}
+		*/
 	}
 
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {
@@ -246,7 +249,7 @@ class FileAreaWebAccess {
 	}
 
 	fileNotFound(resp) {
-		this.webServer.instance.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+		return this.webServer.instance.fileNotFound(resp);
 	}
 
 	routeWebRequestForFile(req, resp) {
