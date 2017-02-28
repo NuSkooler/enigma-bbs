@@ -61,7 +61,7 @@ class PacketHeader {
 		this.prodData 			= 0x47694e45;	//	"ENiG"
 
 		this.capWord			= 0x0001;
-		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);
+		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);	//	swap
 		
 		this.prodCodeHi			= 0xfe;	//	see above
 		this.prodRevHi			= 0;		
@@ -91,14 +91,17 @@ class PacketHeader {
 		this.origNode = address.node;
 
 		//	See FSC-48
-		if(address.point) {
+		//	:TODO: disabled for now until we have separate packet writers for 2, 2+, 2+48, and 2.2
+		/*if(address.point) {		
 			this.auxNet		= address.origNet;
-			this.origNet	= -1;
-			
+			this.origNet	= -1;			
 		} else {
 			this.origNet	= address.net;
 			this.auxNet		= 0;
 		}
+		*/
+		this.origNet		= address.net;
+		this.auxNet			= 0;
 
 		this.origZone	= address.zone;
 		this.origZone2	= address.zone;
@@ -586,9 +589,9 @@ function Packet(options) {
 					if(messageBodyData.tearLine) {
 						msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
                         
-                        if(self.options.keepTearAndOrigin) {
-                            msg.message += `\r\n${messageBodyData.tearLine}\r\n`;
-                        }
+						if(self.options.keepTearAndOrigin) {
+							msg.message += `\r\n${messageBodyData.tearLine}\r\n`;
+						}
 					}
 					
 					if(messageBodyData.seenBy.length > 0) {
@@ -602,9 +605,9 @@ function Packet(options) {
 					if(messageBodyData.originLine) {
 						msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
                         
-                        if(self.options.keepTearAndOrigin) {
-                            msg.message += `${messageBodyData.originLine}\r\n`;
-                        }
+						if(self.options.keepTearAndOrigin) {
+							msg.message += `${messageBodyData.originLine}\r\n`;
+						}
 					}
 					
 					//

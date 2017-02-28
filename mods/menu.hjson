@@ -66,22 +66,27 @@
 							VM1:  {
 								submit:	true
 								focus:	true
+								argName: navSelect
 								//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-								items: [ "login", "apply", "log off" ]
+								items: [ "login", "apply", "forgot pw", "log off" ]
 							}
 						}
 						submit: {
 							*: [
 								{
-									value: { 1: 0 }
+									value: { navSelect: 0 }
 									action:	@menu:login
 								}
 								{
-									value: { 1: 1 },
+									value: { navSelect: 1 },
 									action: @menu:newUserApplicationPre
 								}
 								{
-									value: { 1: 2 },
+									value: { navSelect: 2 }
+									action: @menu:forgotPassword
+								}
+								{
+									value: { navSelect: 3 },
 									action: @menu:logoff
 								}
 							]
@@ -136,6 +141,28 @@
 				cls: true
 				nextTimeout: 2000
 			}
+		}
+
+		forgotPassword: {
+			desc: Forgot password
+			prompt: forgotPasswordPrompt
+			submit: [
+				{
+					value: { username: null }
+					action: @systemMethod:sendForgotPasswordEmail
+					extraArgs: { next: "forgotPasswordSubmitted" }
+				}
+			]
+		}
+
+		forgotPasswordSubmitted: {
+			desc: Forgot password
+			art: FORGOTPWSENT
+			options: {
+				cls: true
+				pause: true
+			}
+			next: @systemMethod:logoff
 		}
 
 		//	:TODO: Prompt Yes/No for logoff confirm
@@ -2276,7 +2303,7 @@
 		}
 
 		////////////////////////////////////////////////////////////////////////
-		//	File Area
+		//	File Base
 		////////////////////////////////////////////////////////////////////////
 
 		fileBase: {
