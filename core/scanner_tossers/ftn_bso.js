@@ -526,6 +526,14 @@ function FTNMessageScanTossModule() {
 		let remainMessageBuf;
 		let remainMessageId;
 		const createTempPacket = !_.isString(exportOpts.nodeConfig.archiveType) || 0 === exportOpts.nodeConfig.archiveType.length; 
+
+		function finalizePacket(cb) {
+			packet.writeTerminator(ws);
+			ws.end();
+			ws.once('finish', () => {
+				return cb(null);
+			});
+		}
 		
 		async.each(messageUuids, (msgUuid, nextUuid) => {
 			let message = new Message();
@@ -534,11 +542,7 @@ function FTNMessageScanTossModule() {
 				[
 					function finalizePrevious(callback) {
 						if(packet && currPacketSize >= self.moduleConfig.packetTargetByteSize) {
-							packet.writeTerminator(ws);
-							ws.end();
-							ws.once('finish', () => {
-								callback(null);
-							});
+							return finalizePacket(callback);
 						} else {
 							callback(null);
 						}
@@ -633,11 +637,7 @@ function FTNMessageScanTossModule() {
 					[
 						function terminateLast(callback) {
 							if(packet) {
-								packet.writeTerminator(ws);
-								ws.end();
-								ws.once('finish', () => {
-									callback(null);
-								});
+								return finalizePacket(callback);
 							} else {
 								callback(null);
 							}
@@ -668,11 +668,7 @@ function FTNMessageScanTossModule() {
 								
 								packet.writeHeader(ws, packetHeader);
 								ws.write(remainMessageBuf);
-								packet.writeTerminator(ws);
-								ws.end();
-								ws.once('finish', () => {
-									callback(null);
-								});
+								return finalizePacket(callback);
 							} else {
 								callback(null);
 							}
