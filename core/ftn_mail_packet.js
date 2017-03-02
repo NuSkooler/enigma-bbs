@@ -930,8 +930,12 @@ Packet.prototype.writeMessageEntry = function(ws, msgEntry) {
 };
 
 Packet.prototype.writeTerminator = function(ws) {
-	ws.write(new Buffer( [ 0 ] ));	//	final extra null term
-	return 1;
+	//
+	//	From FTS-0001.016:
+	//	"A  pseudo-message beginning with the word 0000H signifies the end of the packet."
+	//
+	ws.write(new Buffer( [ 0x00, 0x00 ] ));	//	final extra null term
+	return 2;
 };
 
 Packet.prototype.writeStream = function(ws, messages, options) {
