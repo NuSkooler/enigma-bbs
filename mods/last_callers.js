@@ -105,13 +105,16 @@ exports.getModule = class LastCallersModule extends MenuModule {
 								item.ts		= moment(item.timestamp).format(dateTimeFormat);						
 
 								User.getUserName(item.userId, (err, userName) => {
-									item.userName = userName;
+									item.userName = userName || 'N/A';
 
 									User.loadProperties(item.userId, getPropOpts, (err, props) => {
 										if(!err) {
 											item.location 		= props.location;
 											item.affiliation	= item.affils = props.affiliation;
-										} 
+										} else {
+											item.location		= 'N/A';
+											item.affiliation	= 'N/A';
+										}
 										return next();
 									});
 								});
