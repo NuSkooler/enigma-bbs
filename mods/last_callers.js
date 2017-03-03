@@ -113,7 +113,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
 											item.affiliation	= item.affils = props.affiliation;
 										} else {
 											item.location		= 'N/A';
-											item.affiliation	= 'N/A';
+											item.affiliation	= item.affils = 'N/A';
 										}
 										return next();
 									});
