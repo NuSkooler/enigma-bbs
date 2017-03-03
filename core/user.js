@@ -489,8 +489,8 @@ module.exports = class User {
 				return cb(err);
 			}
 			properties[row.prop_name] = row.prop_value;			
-		}, () => {
-			return cb(null, properties);
+		}, (err) => {
+			return cb(err, err ? null : properties);
 		});
 	}
 
