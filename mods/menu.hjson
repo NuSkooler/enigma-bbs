@@ -341,6 +341,7 @@
 		//	Canceling this form logs off vs falling back to matrix
 		//
 		newUserApplicationSsh: {
+			module: nua
 			art: NUA
 			fallback: logoff
 			options: {
