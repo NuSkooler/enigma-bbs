@@ -105,21 +105,29 @@ exports.getModule = class LastCallersModule extends MenuModule {
 								item.ts		= moment(item.timestamp).format(dateTimeFormat);						
 
 								User.getUserName(item.userId, (err, userName) => {
-									item.userName = userName || 'N/A';
+									if(err) {
+										item.deleted = true;
+										return next(null);
+									} else {
+										item.userName = userName || 'N/A';
 
-									User.loadProperties(item.userId, getPropOpts, (err, props) => {
-										if(!err) {
-											item.location 		= props.location;
-											item.affiliation	= item.affils = props.affiliation;
-										} else {
-											item.location		= 'N/A';
-											item.affiliation	= item.affils = 'N/A';
-										}
-										return next();
-									});
+										User.loadProperties(item.userId, getPropOpts, (err, props) => {
+											if(!err && props) {
+												item.location 		= props.location || 'N/A';
+												item.affiliation	= item.affils = (props.affiliation || 'N/A');
+											} else {
+												item.location		= 'N/A';
+												item.affiliation	= item.affils = 'N/A';
+											}
+											return next(null);
+										});
+									}
 								});
 							},
-							callback
+							err => {
+								loginHistory = loginHistory.filter(lh => true !== lh.deleted);
+								return callback(err);
+							}
 						);
 					},
 					function populateList(callback) {
