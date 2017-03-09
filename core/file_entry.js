@@ -28,6 +28,10 @@ const FILE_WELL_KNOWN_META = {
 	dl_count			: (d) => parseInt(d) || 0,
 	byte_size			: (b) => parseInt(b) || 0,
 	archive_type		: null,
+	short_file_name		: null,	//	e.g. DOS 8.3 filename, avail in some scenarios such as TIC import
+	tic_origin			: null,	//	TIC "Origin"
+	tic_desc			: null,	//	TIC "Desc"
+	tic_ldesc			: null,	//	TIC "Ldesc" joined by '\n'
 };
 
 module.exports = class FileEntry {
@@ -44,13 +48,11 @@ module.exports = class FileEntry {
 		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
 		this.storageTag	= options.storageTag;
+		this.fileSha256	= options.fileSha256;
 	}
 
 	static loadBasicEntry(fileId, dest, cb) {
-		if(!cb && _.isFunction(dest)) {
-			cb = dest;
-			dest = this;
-		}
+		dest = dest || {};
 
 		fileDb.get(
 			`SELECT ${FILE_TABLE_MEMBERS.join(', ')}
@@ -72,7 +74,7 @@ module.exports = class FileEntry {
 					dest[_.camelCase(prop)] = file[prop];
 				});
 
-				return cb(null);
+				return cb(null, dest);
 			}
 		);
 	}
@@ -101,26 +103,51 @@ module.exports = class FileEntry {
 		);
 	}
 
-	persist(cb) {
+	persist(isUpdate, cb) {
+		if(!cb && _.isFunction(isUpdate)) {
+			cb = isUpdate;
+			isUpdate = false;
+		}
+
 		const self = this;
+		let inTransaction = false;
 
 		async.series(
 			[
+				function check(callback) {
+					if(isUpdate && !self.fileId) {
+						return callback(Errors.Invalid('Cannot update file entry without an existing "fileId" member'));
+					}
+					return callback(null);
+				},
 				function startTrans(callback) {
 					return fileDb.run('BEGIN;', callback);
 				},
 				function storeEntry(callback) {
-					fileDb.run(
-						`REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
-						VALUES(?, ?, ?, ?, ?, ?, ?);`,
-						[ self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
-						function inserted(err) {	//	use non-arrow func for 'this' scope / lastID
-							if(!err) {
-								self.fileId = this.lastID;
+					inTransaction = true;
+
+					if(isUpdate) {
+						fileDb.run(
+							`REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
+							VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
+							[ self.fileId, self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
+							err => {
+								return callback(err);
 							}
-							return callback(err);
-						}
-					);
+						);
+					} else {
+						fileDb.run(
+							`REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
+							VALUES(?, ?, ?, ?, ?, ?, ?);`,
+							[ self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
+							function inserted(err) {	//	use non-arrow func for 'this' scope / lastID
+								if(!err) {
+									self.fileId = this.lastID;
+								}
+								return callback(err);
+							}
+						);
+					}
 				},
 				function storeMeta(callback) {
 					async.each(Object.keys(self.meta), (n, next) => {
@@ -143,9 +170,13 @@ module.exports = class FileEntry {
 			],
 			err => {
 				//	:TODO: Log orig err
-				fileDb.run(err ? 'ROLLBACK;' : 'COMMIT;', err => {
+				if(inTransaction) {
+					fileDb.run(err ? 'ROLLBACK;' : 'COMMIT;', err => {
+						return cb(err);
+					});
+				} else {
 					return cb(err);
-				});
+				}
 			}
 		);
 	}
@@ -350,43 +381,67 @@ module.exports = class FileEntry {
 		if(filter.sort && filter.sort.length > 0) {
 			if(Object.keys(FILE_WELL_KNOWN_META).indexOf(filter.sort) > -1) {	//	sorting via a meta value?
 				sql = 
-					`SELECT f.file_id
+					`SELECT DISTINCT f.file_id
 					FROM file f, file_meta m`;
 
-				appendWhereClause(`f.file_id = m.file_id AND m.meta_name="${filter.sort}"`);
+				appendWhereClause(`f.file_id = m.file_id AND m.meta_name = "${filter.sort}"`);
 
 				sqlOrderBy = `${getOrderByWithCast('m.meta_value')} ${sqlOrderDir}`;
 			} else {
 				//	additional special treatment for user ratings: we need to average them
 				if('user_rating' === filter.sort) {
 					sql =
-						`SELECT f.file_id,
+						`SELECT DISTINCT f.file_id,
 							(SELECT IFNULL(AVG(rating), 0) rating 
 							FROM file_user_rating 
 							WHERE file_id = f.file_id)
 							AS avg_rating
-						FROM file f`;
+						FROM file f, file_meta m`;
 					
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
 					sql = 
-						`SELECT f.file_id, f.${filter.sort}
-						FROM file f`;
+						`SELECT DISTINCT f.file_id, f.${filter.sort}
+						FROM file f, file_meta m`;
 
 					sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
 				}
 			}
 		} else {
 			sql = 
-				`SELECT f.file_id
-				FROM file f`;
+				`SELECT DISTINCT f.file_id
+				FROM file f, file_meta m`;
 
 			sqlOrderBy = `${getOrderByWithCast('f.file_id')} ${sqlOrderDir}`;
 		}
-	
 
 		if(filter.areaTag && filter.areaTag.length > 0) {
-			appendWhereClause(`f.area_tag="${filter.areaTag}"`);
+			appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+		}
+
+		if(filter.metaPairs && filter.metaPairs.length > 0) {
+
+			filter.metaPairs.forEach(mp => {
+				if(mp.wcValue) {
+					//	convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
+					mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
+					appendWhereClause(
+						`f.file_id IN (
+							SELECT file_id 
+							FROM file_meta 
+							WHERE meta_name = "${mp.name}" AND meta_value LIKE "${mp.value}"
+						)`
+					);
+				} else {
+					appendWhereClause(
+						`f.file_id IN (
+							SELECT file_id 
+							FROM file_meta 
+							WHERE meta_name = "${mp.name}" AND meta_value = "${mp.value}"
+						)`
+					);
+				}
+			});
 		}
 
 		if(filter.storageTag && filter.storageTag.length > 0) {

@@ -52,7 +52,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Boards
 * WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
-* Support board: &#x2620; BLACK ƒlag &#x2620; (**telnet://blackflag.acid.org:2425**)
+* Exotica: (**telnet://andrew.homeunix.org:2023**)
 * [force9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 

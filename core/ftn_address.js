@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-let _		= require('lodash');
+const _		= require('lodash');
 
 const FTN_ADDRESS_REGEXP = /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
 const FTN_PATTERN_REGEXP = /^([0-9\*]+:)?([0-9\*]+)(\/[0-9\*]+)?(\.[0-9\*]+)?(@[a-z0-9\-\.\*]+)?$/i;

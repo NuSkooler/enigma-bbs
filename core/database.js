@@ -263,7 +263,7 @@ const DB_INIT_TABLE = {
 		dbs.file.run('PRAGMA foreign_keys = ON;');
 
 		dbs.file.run(
-			//	:TODO: should any of this be unique??
+			//	:TODO: should any of this be unique -- file_sha256 unless dupes are allowed on the system
 			`CREATE TABLE IF NOT EXISTS file (
 				file_id				INTEGER PRIMARY KEY,
 				area_tag			VARCHAR NOT NULL,
@@ -279,6 +279,11 @@ const DB_INIT_TABLE = {
 		dbs.file.run(
 			`CREATE INDEX IF NOT EXISTS file_by_area_tag_index
 			ON file (area_tag);`
+		);
+
+		dbs.file.run(
+			`CREATE INDEX IF NOT EXISTS file_by_sha256_index
+			ON file (file_sha256);`
 		);
 
 		dbs.file.run(

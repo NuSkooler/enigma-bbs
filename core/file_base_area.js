@@ -23,6 +23,7 @@ const iconv			= require('iconv-lite');
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
+exports.isValidStorageTag				= isValidStorageTag;
 exports.getAreaStorageDirectoryByTag	= getAreaStorageDirectoryByTag;
 exports.getAreaDefaultStorageDirectory	= getAreaDefaultStorageDirectory;
 exports.getAreaStorageLocations			= getAreaStorageLocations;
@@ -127,6 +128,10 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
 			return cb(err);
 		}
 	);
+}
+
+function isValidStorageTag(storageTag) {
+	return storageTag in Config.fileBase.storageTags;
 }
 
 function getAreaStorageDirectoryByTag(storageTag) {
@@ -428,6 +433,7 @@ function scanFile(filePath, options, iterator, cb) {
 		hashTags	: options.hashTags,	//	Set() or Array
 		fileName	: paths.basename(filePath),
 		storageTag	: options.storageTag,
+		fileSha256	: options.sha256,	//	caller may know this already
 	});
 
 	const stepInfo = {
@@ -455,6 +461,19 @@ function scanFile(filePath, options, iterator, cb) {
 
 	let lastCalcHashPercent;
 
+	//	don't re-calc hashes for any we already have in |options|
+	const hashesToCalc = HASH_NAMES.filter(hn =>  {
+		if('sha256' === hn && fileEntry.fileSha256) {
+			return false;
+		}
+
+		if(`file_${hn}` in fileEntry.meta) {
+			return false;
+		}
+
+		return true;
+	});
+
 	async.waterfall(
 		[
 			function startScan(callback) {
@@ -472,17 +491,19 @@ function scanFile(filePath, options, iterator, cb) {
 			function processPhysicalFileGeneric(callback) {			
 				stepInfo.bytesProcessed = 0;
 
-				const hashes	= {
-					sha1	: crypto.createHash('sha1'),
-					sha256	: crypto.createHash('sha256'),
-					md5		: crypto.createHash('md5'),
-					crc32	:  new CRC32(),
-				};
+				const hashes = {};
+				hashesToCalc.forEach(hashName => {
+					if('crc32' === hashName) {
+						hashes.crc32 = new CRC32;
+					} else {
+						hashes[hashName] = crypto.createHash(hashName);
+					}
+				});
 
 				const stream = fs.createReadStream(filePath);
 
 				function updateHashes(data) {
-					async.each( HASH_NAMES, (hashName, nextHash) => {
+					async.each(hashesToCalc, (hashName, nextHash) => {
 						hashes[hashName].update(data);
 						return nextHash(null);
 					}, () => {
@@ -519,7 +540,7 @@ function scanFile(filePath, options, iterator, cb) {
 				stream.on('end', () => {
 					fileEntry.meta.byte_size = stepInfo.bytesProcessed;
 
-					async.each(HASH_NAMES, (hashName, nextHash) => {						
+					async.each(hashesToCalc, (hashName, nextHash) => {						
 						if('sha256' === hashName) {
 							stepInfo.sha256 = fileEntry.fileSha256 = hashes.sha256.digest('hex');
 						} else if('sha1' === hashName || 'md5' === hashName) {

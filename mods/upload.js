@@ -384,6 +384,11 @@ exports.getModule = class UploadModule extends MenuModule {
 					self.client.log.error(
 						'Failed moving physical upload file', { error : err.message, fileName : newEntry.fileName, source : src, dest : dst }
 					);
+
+					if(dst !== finalPath) {
+						//	name changed; ajust before persist
+						newEntry.fileName = paths.basename(finalPath);
+					}
 					
 					return nextEntry(null);	//	still try next file
 				}

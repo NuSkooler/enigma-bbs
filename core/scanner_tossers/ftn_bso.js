@@ -2,16 +2,26 @@
 'use strict';
 
 //	ENiGMA½
-const MessageScanTossModule	= require('../msg_scan_toss_module.js').MessageScanTossModule;
-const Config				= require('../config.js').config;
-const ftnMailPacket			= require('../ftn_mail_packet.js');
-const ftnUtil				= require('../ftn_util.js');
-const Address				= require('../ftn_address.js');
-const Log					= require('../logger.js').log;
-const ArchiveUtil			= require('../archive_util.js');
-const msgDb					= require('../database.js').dbs.message;
-const Message				= require('../message.js');
+const MessageScanTossModule				= require('../msg_scan_toss_module.js').MessageScanTossModule;
+const Config							= require('../config.js').config;
+const ftnMailPacket						= require('../ftn_mail_packet.js');
+const ftnUtil							= require('../ftn_util.js');
+const Address							= require('../ftn_address.js');
+const Log								= require('../logger.js').log;
+const ArchiveUtil						= require('../archive_util.js');
+const msgDb								= require('../database.js').dbs.message;
+const Message							= require('../message.js');
+const TicFileInfo						= require('../tic_file_info.js');
+const Errors							= require('../enig_error.js').Errors;
+const FileEntry							= require('../file_entry.js');
+const scanFile							= require('../file_base_area.js').scanFile;
+const getFileAreaByTag					= require('../file_base_area.js').getFileAreaByTag;
+const getDescFromFileName				= require('../file_base_area.js').getDescFromFileName;
+const copyFileWithCollisionHandling		= require('../file_util.js').copyFileWithCollisionHandling;
+const getAreaStorageDirectoryByTag		= require('../file_base_area.js').getAreaStorageDirectoryByTag;
+const isValidStorageTag					= require('../file_base_area.js').isValidStorageTag;
 
+//	deps
 const moment				= require('moment');
 const _						= require('lodash');
 const paths					= require('path');
@@ -784,7 +794,7 @@ function FTNMessageScanTossModule() {
 										exportType,
 										exportOpts.fileCase
 									);
-										 
+ 
 									//	directive of '^' = delete file after transfer
 									self.flowFileAppendRefs(flowFilePath, [ newPath ], '^', err => {
 										if(err) {
@@ -1012,23 +1022,37 @@ function FTNMessageScanTossModule() {
 			cb(err);
 		});
 	};
-	
-	this.archivePacketFile = function(type, origPath, label, cb) {
-		if('import' === type && _.isString(self.moduleConfig.retainImportPacketPath)) {
-			const archivePath = paths.join(
-				self.moduleConfig.retainImportPacketPath, 
-				`${label}-${moment().format('YYYY-MM-DDTHH.mm.ss.SSS')}-${paths.basename(origPath)}`);
-				
-			fse.copy(origPath, archivePath, err => {
-				if(err) {
-					Log.warn( { origPath : origPath, archivePath : archivePath }, 'Failed to archive packet file');
-				}
-				cb(null);	//	non-fatal always
-			});
+
+	this.maybeArchiveImportFile = function(origPath, type, status, cb) {
+		//
+		//	type	: pkt|tic|bundle
+		//	status	: good|reject
+		//
+		//	Status of "good" is only applied to pkt files & placed
+		//	in |retain| if set. This is generally used for debugging only.
+		//
+		let archivePath;
+		const ts = moment().format('YYYY-MM-DDTHH.mm.ss.SSS');
+		const fn = paths.basename(origPath);
+
+		if('good' === status && type === 'pkt') {
+			if(!_.isString(self.moduleConfig.paths.retain)) {
+				return cb(null);
+			}
+			
+			archivePath = paths.join(self.moduleConfig.paths.retain, `good-pkt-${ts}--${fn}`);
 		} else {
-			cb(null);	//	NYI
+			archivePath = paths.join(self.moduleConfig.paths.reject, `${status}-${type}--${ts}-${fn}`);
 		}
-	}
+
+		fse.copy(origPath, archivePath, err => {
+			if(err) {
+				Log.warn( { error : err.message, origPath : origPath, archivePath : archivePath, type : type, status : status }, 'Failed to archive packet file');
+			}
+
+			return cb(null);	//	never fatal
+		});
+	};
 	
 	this.importPacketFilesFromDirectory = function(importDir, password, cb) {
 		async.waterfall(
@@ -1060,28 +1084,19 @@ function FTNMessageScanTossModule() {
 					});
 				},
 				function handleProcessedFiles(packetFiles, rejects, callback) {
-					async.each(packetFiles, (packetFile, nextFile) => {
+					async.each(packetFiles, (packetFile, nextFile) => {						
+						//	possibly archive, then remove original
 						const fullPath = paths.join(importDir, packetFile);
-						
-						//
-						//	If scannerTossers::ftn_bso::reainImportPacketPath is set,
-						//	copy each packet file over in the following format:
-						//
-						//	<good|bad>-<msSinceEpoc>-<origPacketFileName.pkt>
-						//
-						if(rejects.indexOf(packetFile) > -1) {
-							self.archivePacketFile('import', fullPath, 'reject', () => {
-								nextFile();
-							});
-							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
-							//nextFile();					
-						} else {
-							self.archivePacketFile('import', fullPath, 'imported', () => {
+						self.maybeArchiveImportFile(
+							fullPath, 
+							'pkt', 
+							rejects.includes(packetFile) ? 'reject' : 'good', 
+							() => {
 								fs.unlink(fullPath, () => {
-									nextFile();
+									return nextFile(null);
 								});
-							});
-						}
+							}
+						);
 					}, err => {
 						callback(err);
 					});
@@ -1093,7 +1108,7 @@ function FTNMessageScanTossModule() {
 		);
 	};
 	
-	this.importMessagesFromDirectory = function(inboundType, importDir, cb) {
+	this.importFromDirectory = function(inboundType, importDir, cb) {
 		async.waterfall(
 			[
 				//	start with .pkt files
@@ -1144,7 +1159,7 @@ function FTNMessageScanTossModule() {
 							err => {
 								if(err) {									
 									Log.warn(
-										{ fileName : bundleFile.path, error : err.toString() },
+										{ path : bundleFile.path, error : err.message },
 										'Failed to extract bundle');
 										
 									rejects.push(bundleFile.path);
@@ -1169,16 +1184,24 @@ function FTNMessageScanTossModule() {
 				},
 				function handleProcessedBundleFiles(bundleFiles, rejects, callback) {
 					async.each(bundleFiles, (bundleFile, nextFile) => {
-						if(rejects.indexOf(bundleFile.path) > -1) {
-							//	:TODO: rename to .bad, perhaps move to a rejects dir + log
-							nextFile();					
-						} else {
-							fs.unlink(bundleFile.path, err => {
-								nextFile();
-							});
-						}
+						self.maybeArchiveImportFile(
+							bundleFile.path,
+							'bundle',
+							rejects.includes(bundleFile.path) ? 'reject' : 'good',
+							() => {
+								fs.unlink(bundleFile.path, err => {
+									Log.error( { path : bundleFile.path, error : err.message }, 'Failed unlinking bundle');
+									return nextFile(null);
+								});
+							}
+						);						
 					}, err => {
 						callback(err);
+					});
+				},
+				function importTicFiles(callback) {
+					self.processTicFilesInDirectory(importDir, err => {
+						return callback(err);
 					});
 				}
 			],
@@ -1218,11 +1241,330 @@ function FTNMessageScanTossModule() {
 	this.exportingEnd = function() {
 		this.exportRunning = false;	
 	};
+
+	this.copyTicAttachment = function(src, dst, isUpdate, cb) {
+		if(isUpdate) {
+			fse.copy(src, dst, err => {
+				return cb(err, dst);
+			});
+		} else {
+			copyFileWithCollisionHandling(src, dst, (err, finalPath) => {
+				return cb(err, finalPath);
+			});
+		}
+	};
+
+	this.getLocalAreaTagsForTic = function() {
+		return _.union(Object.keys(Config.scannerTossers.ftn_bso.ticAreas || {} ), Object.keys(Config.fileBase.areas));
+	};
+
+	this.processSingleTicFile = function(ticFileInfo, cb) {
+		const self = this;
+
+		Log.debug( { tic : ticFileInfo.path, file : ticFileInfo.getAsString('File') }, 'Processing TIC file');
+
+		async.waterfall(
+			[
+				function generalValidation(callback) {
+					const config = {
+						nodes			: Config.scannerTossers.ftn_bso.nodes,
+						defaultPassword	: Config.scannerTossers.ftn_bso.tic.password,
+						localAreaTags	: self.getLocalAreaTagsForTic(),
+					};
+
+					return ticFileInfo.validate(config, (err, localInfo) => {
+						if(err) {
+							return callback(err);
+						}
+
+						//	We may need to map |localAreaTag| back to real areaTag if it's a mapping/alias
+						const mappedLocalAreaTag = _.get(Config.scannerTossers.ftn_bso, [ 'ticAreas', localInfo.areaTag ]);
+
+						if(mappedLocalAreaTag) {
+							if(_.isString(mappedLocalAreaTag.areaTag)) {
+								localInfo.areaTag		= mappedLocalAreaTag.areaTag;
+								localInfo.hashTags		= mappedLocalAreaTag.hashTags;		//	override default for node
+								localInfo.storageTag	= mappedLocalAreaTag.storageTag;	//	override default
+							} else if(_.isString(mappedLocalAreaTag)) {
+								localInfo.areaTag = mappedLocalAreaTag;
+							}
+						}
+
+						return callback(null, localInfo);
+					});
+				},
+				function findExistingItem(localInfo, callback) {
+					//
+					//	We will need to look for an existing item to replace/update if:
+					//	a) The TIC file has a "Replaces" field
+					//	b) The general or node specific |allowReplace| is true
+					//
+					//	Replace specifies a DOS 8.3 *pattern* which is allowed to have
+					//	? and * characters. For example, RETRONET.*
+					//
+					//	Lastly, we will only replace if the item is in the same/specified area
+					//	and that come from the same origin as a previous entry.
+					//
+					const allowReplace	= _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'allowReplace' ] ) || Config.scannerTossers.ftn_bso.tic.allowReplace;
+					const replaces		= ticFileInfo.getAsString('Replaces');
+
+					if(!allowReplace || !replaces) {
+						return callback(null, localInfo);
+					}
+
+					const metaPairs = [
+						{
+							name	: 'short_file_name',
+							value	: replaces.toUpperCase(),	//	we store upper as well
+							wcValue	: true,	//	value may contain wildcards
+						},
+						{
+							name	: 'tic_origin',
+							value	: ticFileInfo.getAsString('Origin'),
+						}
+					];
+
+					FileEntry.findFiles( { metaPairs : metaPairs, areaTag : localInfo.areaTag }, (err, fileIds) => {
+						if(err) {
+							return callback(err);
+						}
+
+						//	0:1 allowed
+						if(1 === fileIds.length) {
+							localInfo.existingFileId = fileIds[0];
+
+							//	fetch old filename - we may need to remove it if replacing with a new name
+							FileEntry.loadBasicEntry(localInfo.existingFileId, {}, (cb, info) => {
+								localInfo.oldFileName 	= info.fileName;
+								localInfo.oldStorageTag	= info.storageTag;
+								return callback(null, localInfo);
+							});
+						} else if(fileIds.legnth > 1) {
+							return callback(Errors.General(`More than one existing entry for TIC in ${localInfo.areaTag} ([${fileIds.join(', ')}])`));
+						} else {
+							return callback(null, localInfo);
+						}
+					});
+				},
+				function scan(localInfo, callback) {
+					let ldesc = ticFileInfo.getAsString('Ldesc', '\n');
+					if(ldesc) {
+						ldesc = ldesc.trim();
+					}
+
+					const scanOpts = {
+						sha256		: localInfo.sha256,	//	*may* have already been calculated
+						meta		: {
+							//	some TIC-related metadata we always want
+							short_file_name		: ticFileInfo.getAsString('File').toUpperCase(),	//	upper to ensure no case issues later; this should be a DOS 8.3 name
+							tic_origin			: ticFileInfo.getAsString('Origin'),
+							tic_desc			: ticFileInfo.getAsString('Desc'),
+							tic_ldesc			: ldesc,
+							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ]) || Config.scannerTossers.ftn_bso.tic.uploadBy,
+						}
+					};
+
+					//
+					//	We may have TIC auto-tagging for this node and/or specific (remote) area
+					//
+					const hashTags = 
+						localInfo.hashTags || 
+						_.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'hashTags' ] );		//	catch-all*/
+
+					if(hashTags) {
+						scanOpts.hashTags = new Set(hashTags.split(/[\s,]+/));
+					}
+
+					if(localInfo.crc32) {
+						scanOpts.meta.file_crc32 = localInfo.crc32.toString(16);	//	again, *may* have already been calculated
+					}
+
+					scanFile(
+						ticFileInfo.filePath,
+						scanOpts,
+						(err, fileEntry) => {
+							localInfo.fileEntry = fileEntry;
+							return callback(err, localInfo);
+						}
+					);
+				},
+				function store(localInfo, callback) {
+					//
+					//	Move file to final area storage and persist to DB
+					//
+					const areaInfo = getFileAreaByTag(localInfo.areaTag);
+					if(!areaInfo) {
+						return callback(Errors.UnexpectedState(`Could not get area for tag ${localInfo.areaTag}`));
+					}
+
+					const storageTag = localInfo.storageTag || areaInfo.storageTags[0];
+					if(!isValidStorageTag(storageTag)) {
+						return callback(Errors.Invalid(`Invalid storage tag: ${storageTag}`));
+					}
+
+					localInfo.fileEntry.storageTag	= storageTag;
+					localInfo.fileEntry.areaTag		= localInfo.areaTag;
+					localInfo.fileEntry.fileName	= ticFileInfo.longFileName;
+
+					//	we default to .DIZ/etc. desc, but use from TIC if needed
+					if(!localInfo.fileEntry.desc || 0 === localInfo.fileEntry.desc.length) {
+						localInfo.fileEntry.desc = ticFileInfo.getAsString('Ldesc') || ticFileInfo.getAsString('Desc') || getDescFromFileName(ticFileInfo.filePath);
+					}
+
+					const areaStorageDir = getAreaStorageDirectoryByTag(storageTag);
+					if(!areaStorageDir) {
+						return callback(Errors.UnexpectedState(`Could not get storage directory for tag ${localInfo.areaTag}`));
+					}
+
+					const isUpdate = localInfo.existingFileId ? true : false;
+
+					if(isUpdate) {
+						//	we need to *update* an existing record/file
+						localInfo.fileEntry.fileId = localInfo.existingFileId;						
+					}
+
+					const dst = paths.join(areaStorageDir, localInfo.fileEntry.fileName);
+
+					self.copyTicAttachment(ticFileInfo.filePath, dst, isUpdate, (err, finalPath) => {
+						if(err) {
+							return callback(err);
+						}
+
+						if(dst !== finalPath) {
+							localInfo.fileEntry.fileName = paths.basename(finalPath);
+						}
+						
+						localInfo.fileEntry.persist(isUpdate, err => {
+							return callback(err, localInfo);
+						});
+					});				
+				},
+				//	:TODO: from here, we need to re-toss files if needed, before they are removed				
+				function cleanupOldFile(localInfo, callback) {
+					if(!localInfo.existingFileId) {
+						return callback(null, localInfo);
+					}
+
+					const oldStorageDir = getAreaStorageDirectoryByTag(localInfo.oldStorageTag);
+					const oldPath 		= paths.join(oldStorageDir, localInfo.oldFileName);
+					
+					fs.unlink(oldPath, err => {
+						if(err) {
+							Log.warn( { error : err.message, oldPath : oldPath }, 'Failed removing old physical file during TIC replacement');
+						} else {
+							Log.debug( { oldPath : oldPath }, 'Removed old physical file during TIC replacement');
+						}
+						return callback(null, localInfo);	//	continue even if err
+					});
+				},
+			],
+			(err, localInfo) => {
+				if(err) {
+					Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.path }, 'Failed import/update TIC record' );
+				} else {
+					Log.debug(
+						{ tic : ticFileInfo.path, file : ticFileInfo.filePath, area : localInfo.areaTag },
+						'TIC imported successfully'
+					);
+				}
+				return cb(err);
+			}
+		);
+	};
+
+	this.removeAssocTicFiles = function(ticFileInfo, cb) {
+		async.each( [ ticFileInfo.path, ticFileInfo.filePath ], (path, nextPath) => {
+			fs.unlink(path, err => {
+				if(err && 'ENOENT' !== err.code) {	//	don't log when the file doesn't exist
+					Log.warn( { error : err.message, path : path }, 'Failed unlinking TIC file');
+				}
+				return nextPath(null);
+			});
+		}, err => {
+			return cb(err);
+		});
+	};
 }
 
 require('util').inherits(FTNMessageScanTossModule, MessageScanTossModule);
 
 //	:TODO: *scheduled* portion of this stuff should probably use event_scheduler - @immediate would still use record().
+
+FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importDir, cb) {
+	//	:TODO: pass in 'inbound' vs 'secInbound' -- pass along to processSingleTicFile() where password will be checked
+
+	const self = this;
+	async.waterfall(
+		[
+			function findTicFiles(callback) {
+				fs.readdir(importDir, (err, files) => {
+					if(err) {
+						return callback(err);
+					}
+
+					return callback(null, files.filter(f => '.tic' === paths.extname(f).toLowerCase()));
+				});
+			},
+			function gatherInfo(ticFiles, callback) {
+				const ticFilesInfo = [];
+
+				async.each(ticFiles, (fileName, nextFile) => {
+					const fullPath = paths.join(importDir, fileName);
+
+					TicFileInfo.createFromFile(fullPath, (err, ticInfo) => {
+						if(err) {
+							Log.warn( { error : err.message, path : fullPath }, 'Failed reading TIC file');
+						} else {
+							ticFilesInfo.push(ticInfo);
+						}
+
+						return nextFile(null);
+					});
+				},
+				err => {
+					return callback(err, ticFilesInfo);
+				});
+			},
+			function process(ticFilesInfo, callback) {
+				async.each(ticFilesInfo, (ticFileInfo, nextTicInfo) => {
+					self.processSingleTicFile(ticFileInfo, err => {
+						if(err) {
+							//	archive rejected TIC stuff (.TIC + attach)
+							async.each( [ ticFileInfo.path, ticFileInfo.filePath ], (path, nextPath) => {
+								if(!path) {	//	possibly rejected due to "File" not existing/etc.									
+									return nextPath(null);
+								}
+
+								self.maybeArchiveImportFile(
+									path, 
+									'tic', 
+									'reject',
+									() => {
+										return nextPath(null);
+									}
+								);
+							}, 
+							() => {
+								self.removeAssocTicFiles(ticFileInfo, () => {
+									return nextTicInfo(null);
+								});
+							});
+						} else {
+							self.removeAssocTicFiles(ticFileInfo, () => {
+								return nextTicInfo(null);
+							});
+						}						
+					});
+				}, err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+};
 
 FTNMessageScanTossModule.prototype.startup = function(cb) {
 	Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
@@ -1348,12 +1690,11 @@ FTNMessageScanTossModule.prototype.performImport = function(cb) {
 		return cb(new Error('Missing or invalid configuration'));
 	}
 	
-	var self = this;
+	const self = this;
 	
 	async.each( [ 'inbound', 'secInbound' ], (inboundType, nextDir) => {
-		self.importMessagesFromDirectory(inboundType, self.moduleConfig.paths[inboundType], err => {
-			
-			nextDir();
+		self.importFromDirectory(inboundType, self.moduleConfig.paths[inboundType], () => {
+			return nextDir(null);
 		});
 	}, cb);
 };
