@@ -1190,7 +1190,9 @@ function FTNMessageScanTossModule() {
 							rejects.includes(bundleFile.path) ? 'reject' : 'good',
 							() => {
 								fs.unlink(bundleFile.path, err => {
-									Log.error( { path : bundleFile.path, error : err.message }, 'Failed unlinking bundle');
+									if(err) {
+										Log.error( { path : bundleFile.path, error : err.message }, 'Failed unlinking bundle');
+									}
 									return nextFile(null);
 								});
 							}
