@@ -500,6 +500,8 @@ function getDefaultConfig() {
 					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
 					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
 					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
+					reject		: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
+					//	set 'retain' to a valid path to keep good pkt files
 				},
 
 				//
@@ -509,6 +511,12 @@ function getDefaultConfig() {
 				//
 				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
 				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
+
+				tic : {
+					secureInOnly	: true,				//	only bring in from secure inbound (|secInbound| path, password protected)
+					uploadBy		: 'ENiGMA TIC',		//	default upload by username (override @ network)
+					allowReplace	: false,			//	use "Replaces" TIC field
+				}
 			}
 		},
 

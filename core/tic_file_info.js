@@ -39,24 +39,25 @@ module.exports = class TicFileInfo {
 
 	getAsString(key, joinWith) {
 		const value = this.get(key);
-
-		//
-		//	We call toString() on values to ensure numbers, addresses, etc. are converted
-		//				
-		joinWith = joinWith || '';
-		if(Array.isArray(value)) {
-			return value.map(v => v.toString() ).join(joinWith);
+		if(value) {
+			//
+			//	We call toString() on values to ensure numbers, addresses, etc. are converted
+			//				
+			joinWith = joinWith || '';
+			if(Array.isArray(value)) {
+				return value.map(v => v.toString() ).join(joinWith);
+			}
+		
+			return value.toString();
 		}
-	
-		return value.toString();
 	}
-
+	
 	get filePath() {
-		return paths.join(paths.dirname(this.path), this.get('File'));
+		return paths.join(paths.dirname(this.path), this.getAsString('File'));
 	}
 
 	get longFileName() {
-		return this.get('Lfile') || this.get('Fullname') || this.get('File');
+		return this.getAsString('Lfile') || this.getAsString('Fullname') || this.getAsString('File');
 	}
 
 	hasRequiredFields() {
@@ -79,7 +80,7 @@ module.exports = class TicFileInfo {
 						return callback(Errors.Invalid('One or more required fields missing from TIC'));
 					}
 
-					const area = self.get('Area').toUpperCase();
+					const area = self.getAsString('Area').toUpperCase();
 
 					const localInfo = {
 						areaTag	: config.localAreaTags.find( areaTag => areaTag.toUpperCase() === area ),
@@ -89,7 +90,7 @@ module.exports = class TicFileInfo {
 						return callback(Errors.Invalid(`No local area for "Area" of ${area}`));
 					}
 
-					const from = self.get('From');
+					const from = self.getAsString('From');
 					localInfo.node = Object.keys(config.nodes).find( nodeAddr => Address.fromString(nodeAddr).isPatternMatch(from) );
 
 					if(!localInfo.node) {
@@ -102,7 +103,7 @@ module.exports = class TicFileInfo {
 						return callback(null, localInfo);	//	no pw validation
 					}
 
-					const passTic = self.get('Pw');
+					const passTic = self.getAsString('Pw');
 					if(passTic !== passActual) {
 						return callback(Errors.Invalid('Bad TIC password'));
 					}
@@ -115,7 +116,7 @@ module.exports = class TicFileInfo {
 					const crc		= new CRC32();
 					let sizeActual	= 0;
 
-					let sha256Tic	= self.get('Sha256');
+					let sha256Tic	= self.getAsString('Sha256');
 					let sha256;
 					if(sha256Tic) {
 						sha256Tic	= sha256Tic.toLowerCase();
@@ -243,6 +244,7 @@ module.exports = class TicFileInfo {
 						break;
 
 					case 'crc' :
+					case 'size' : 
 						value = parseInt(value, 16);
 						break;
 

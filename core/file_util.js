@@ -2,30 +2,43 @@
 'use strict';
 
 //	ENiGMA½
+const EnigAssert	= require('./enigma_assert.js');
 
 //	deps
-const fse		= require('fs-extra');
-const paths		= require('path');
-const async		= require('async');
+const fse			= require('fs-extra');
+const paths			= require('path');
+const async			= require('async');
 
 exports.moveFileWithCollisionHandling		= moveFileWithCollisionHandling;
+exports.copyFileWithCollisionHandling		= copyFileWithCollisionHandling;
 exports.pathWithTerminatingSeparator		= pathWithTerminatingSeparator;
 
-//
-//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc. 
-//	in the case of collisions.
-//
-function moveFileWithCollisionHandling(src, dst, cb) {	
+function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
+	operation			= operation || 'copy';
 	const dstPath		= paths.dirname(dst);
 	const dstFileExt	= paths.extname(dst);
 	const dstFileSuffix	= paths.basename(dst, dstFileExt);
 
+	EnigAssert('move' === operation || 'copy' === operation);
+
 	let renameIndex		= 0;
-	let movedOk			= false;
+	let opOk			= false;
 	let tryDstPath;
 
+	function tryOperation(src, dst, callback) {
+		if('move' === operation) {
+			fse.move(src, tryDstPath, err => {
+				return callback(err);
+			});
+		} else if('copy' === operation) {
+			fse.copy(src, tryDstPath, { overwrite : false, errorOnExist : true }, err => {
+				return callback(err);
+			});
+		}
+	}
+
 	async.until(
-		() => movedOk,	//	until moved OK
+		() => opOk,	//	until moved OK
 		(cb) => {
 			if(0 === renameIndex) {
 				//	try originally supplied path first
@@ -34,9 +47,11 @@ function moveFileWithCollisionHandling(src, dst, cb) {
 				tryDstPath = paths.join(dstPath, `${dstFileSuffix}(${renameIndex})${dstFileExt}`);
 			}
 
-			fse.move(src, tryDstPath, err => {
+			tryOperation(src, tryDstPath, err => {
 				if(err) {
-					if('EEXIST' === err.code) {
+					//	for some reason fs-extra copy doesn't pass err.code
+					//	:TODO: this is dangerous: submit a PR to fs-extra to set EEXIST
+					if('EEXIST' === err.code || 'copy' === operation) {
 						renameIndex += 1;
 						return cb(null);	//	keep trying
 					}
@@ -44,7 +59,7 @@ function moveFileWithCollisionHandling(src, dst, cb) {
 					return cb(err);
 				}
 
-				movedOk = true;
+				opOk = true;
 				return cb(null, tryDstPath);
 			});
 		},
@@ -52,6 +67,18 @@ function moveFileWithCollisionHandling(src, dst, cb) {
 			return cb(err, finalPath);
 		}
 	);	
+}
+
+//
+//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc. 
+//	in the case of collisions.
+//
+function moveFileWithCollisionHandling(src, dst, cb) {
+	return moveOrCopyFileWithCollisionHandling(src, dst, 'move', cb);
+}
+
+function copyFileWithCollisionHandling(src, dst, cb) {
+	return moveOrCopyFileWithCollisionHandling(src, dst, 'copy', cb);
 }
 
 function pathWithTerminatingSeparator(path) {
