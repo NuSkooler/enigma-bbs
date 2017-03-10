@@ -220,7 +220,7 @@ module.exports = class TicFileInfo {
 			let entry;
 			
 			lines.forEach(line => {
-				keyEnd	= line.indexOf(' ');
+				keyEnd	= line.search(/\s/);
 			
 				if(keyEnd < 0) {
 					keyEnd = line.length;
@@ -244,8 +244,11 @@ module.exports = class TicFileInfo {
 						break;
 
 					case 'crc' :
-					case 'size' : 
 						value = parseInt(value, 16);
+						break;
+
+					case 'size' : 
+						value = parseInt(value, 10);
 						break;
 
 					default :
