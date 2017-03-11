@@ -232,7 +232,12 @@ module.exports = class TicFileInfo {
 					return;
 				}
 
-				value	= line.substr(keyEnd + 1).trim();
+				value = line.substr(keyEnd + 1);
+
+				//	don't trim Ldesc; may mess with FILE_ID.DIZ type descriptions
+				if('ldesc' !== key) {
+					value = value.trim();
+				}
 
 				//	convert well known keys to a more reasonable format
 				switch(key) {

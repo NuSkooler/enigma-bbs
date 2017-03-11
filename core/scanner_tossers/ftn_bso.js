@@ -1353,11 +1353,6 @@ function FTNMessageScanTossModule() {
 					});
 				},
 				function scan(localInfo, callback) {
-					let ldesc = ticFileInfo.getAsString('Ldesc', '\n');
-					if(ldesc) {
-						ldesc = ldesc.trim();
-					}
-
 					const scanOpts = {
 						sha256		: localInfo.sha256,	//	*may* have already been calculated
 						meta		: {
@@ -1365,7 +1360,7 @@ function FTNMessageScanTossModule() {
 							short_file_name		: ticFileInfo.getAsString('File').toUpperCase(),	//	upper to ensure no case issues later; this should be a DOS 8.3 name
 							tic_origin			: ticFileInfo.getAsString('Origin'),
 							tic_desc			: ticFileInfo.getAsString('Desc'),
-							tic_ldesc			: ldesc,
+							tic_ldesc			: ticFileInfo.getAsString('Ldesc', '\n'),
 							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ]) || Config.scannerTossers.ftn_bso.tic.uploadBy,
 						}
 					};
