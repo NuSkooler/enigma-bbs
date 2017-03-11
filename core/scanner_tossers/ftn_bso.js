@@ -1041,9 +1041,13 @@ function FTNMessageScanTossModule() {
 			}
 			
 			archivePath = paths.join(self.moduleConfig.paths.retain, `good-pkt-${ts}--${fn}`);
-		} else {
+		} else if('good' !== status) {
 			archivePath = paths.join(self.moduleConfig.paths.reject, `${status}-${type}--${ts}-${fn}`);
+		} else {
+			return cb(null);	//	don't archive non-good/pkt files
 		}
+
+		Log.debug( { origPath : origPath, archivePath : archivePath, type : type, status : status }, 'Archiving import file');
 
 		fse.copy(origPath, archivePath, err => {
 			if(err) {
@@ -1528,7 +1532,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 				});
 			},
 			function process(ticFilesInfo, callback) {
-				async.each(ticFilesInfo, (ticFileInfo, nextTicInfo) => {
+				async.eachSeries(ticFilesInfo, (ticFileInfo, nextTicInfo) => {
 					self.processSingleTicFile(ticFileInfo, err => {
 						if(err) {
 							//	archive rejected TIC stuff (.TIC + attach)
