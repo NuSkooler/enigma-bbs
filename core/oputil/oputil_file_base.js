@@ -9,7 +9,6 @@ const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDataba
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
 const Errors					= require('../../core/enig_error.js').Errors;
-const getDescFromFileName		= require('../../core/file_base_area.js').getDescFromFileName;
 
 const async						= require('async');
 const fs						= require('fs');
@@ -42,6 +41,8 @@ function finalizeEntryAndPersist(fileEntry, cb) {
 				if(false === argv.prompt || ( fileEntry.desc && fileEntry.desc.length > 0 ) ) {
 					return callback(null);
 				}
+
+				const getDescFromFileName = require('../../core/file_base_area.js').getDescFromFileName;
 
 				const questions = [
 					{
