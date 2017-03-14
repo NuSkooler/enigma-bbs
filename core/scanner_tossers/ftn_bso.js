@@ -1360,10 +1360,14 @@ function FTNMessageScanTossModule() {
 							short_file_name		: ticFileInfo.getAsString('File').toUpperCase(),	//	upper to ensure no case issues later; this should be a DOS 8.3 name
 							tic_origin			: ticFileInfo.getAsString('Origin'),
 							tic_desc			: ticFileInfo.getAsString('Desc'),
-							tic_ldesc			: ticFileInfo.getAsString('Ldesc', '\n'),
 							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ]) || Config.scannerTossers.ftn_bso.tic.uploadBy,
 						}
 					};
+
+					const ldesc = ticFileInfo.getAsString('Ldesc', '\n');
+					if(ldesc) {
+						scanOpts.meta.tic_ldesc = ldesc;
+					}
 
 					//
 					//	We may have TIC auto-tagging for this node and/or specific (remote) area
