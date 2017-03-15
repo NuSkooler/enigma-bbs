@@ -136,6 +136,7 @@ function getDefaultConfig() {
 
 			passwordMin			: 6,
 			passwordMax			: 128,
+			badPassFile			: paths.join(__dirname, '../misc/10_million_password_list_top_10000.txt'),	//	https://github.com/danielmiessler/SecLists
 
 			realNameMax			: 32,
 			locationMax			: 32,
