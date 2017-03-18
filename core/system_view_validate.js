@@ -4,6 +4,10 @@
 //	ENiGMA½
 const User		= require('./user.js');
 const Config	= require('./config.js').config;
+const Log		= require('./logger.js').log;
+
+//	deps
+const fs		= require('fs');
 
 exports.validateNonEmpty		= validateNonEmpty;
 exports.validateMessageSubject	= validateMessageSubject;
@@ -98,5 +102,22 @@ function validateBirthdate(data, cb) {
 }
 
 function validatePasswordSpec(data, cb) {
-	return cb((!data || data.length < Config.users.passwordMin) ? new Error('Password too short') : null);
+	if(!data || data.length < Config.users.passwordMin) {
+		return cb(new Error('Password too short'));
+	}
+
+	//	check badpass, if avail
+	fs.readFile(Config.users.badPassFile, 'utf8', (err, passwords) => {
+		if(err) {
+			Log.warn( { error : err.message }, 'Cannot read bad pass file');
+			return cb(null);
+		}
+
+		passwords = passwords.toString().split(/\r\n|\n/g);
+		if(passwords.includes(data)) {
+			return cb(new Error('Password is too common'));
+		}
+
+		return cb(null);
+	});
 }
