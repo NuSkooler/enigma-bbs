@@ -263,6 +263,83 @@ function getDefaultConfig() {
 				}
 			}
 		},
+
+		fileTypes : {
+			//
+			//	File types explicitly known to the system. Here we can configure
+			//	information extraction, archive treatment, etc.
+			//
+			//	MIME types can be found in mime-db: https://github.com/jshttp/mime-db
+			//
+			//	Resources for signature/magic bytes:
+			//	* http://www.garykessler.net/library/file_sigs.html
+			//
+			//
+			//	:TODO: text/x-ansi -> SAUCE extraction for .ans uploads
+
+			//
+			//	Audio
+			//
+			'audio/mpeg' : {
+				desc 		: 'MP3 Audio',
+				infoExtract : {
+					cmd		: `${__dirname}./../util/exif2desc.js`,	//	ensure chmod +x
+					args	: [ '{filePath}' ],
+				},
+			},
+			//
+			//	Archives
+			//
+			'application/zip' : {
+				desc			: 'ZIP Archive',
+				sig				: '504b0304',
+				offset			: 0,
+				archiveHandler	: '7Zip',
+			},
+			'application/x-arj' : {
+				desc			: 'ARJ Archive',
+				sig				: '60ea',
+				offset			: 0,
+				archiveHandler	: 'Arj',
+			},
+			'application/x-rar-compressed' : {
+				desc			: 'RAR Archive',
+				sig				: '526172211a0700',
+				offset			: 0,
+				archiveHandler	: 'Rar',
+			},			
+			'application/gzip' : {
+				desc			: 'Gzip Archive',
+				sig				: '1f8b',
+				offset			: 0,
+				archiveHandler	: '7Zip',
+			},
+			//	:TODO: application/x-bzip
+			'application/x-bzip2' : {
+				desc			: 'BZip2 Archive',
+				sig				: '425a68',
+				offset			: 0,
+				archiveHandler	: '7Zip',				
+			},
+			'application/x-lzh-compressed' : {
+				desc			: 'LHArc Archive',
+				sig				: '2d6c68',
+				offset			: 2,
+				archiveHandler	: 'Lha',				
+			},
+			'application/x-7z-compressed' : {
+				desc			: '7-Zip Archive',
+				sig				: '377abcaf271c',
+				offset			: 0,
+				archiveHandler	: '7Zip',					
+			}
+
+			//	:TODO: update archives::formats to fall here
+			//	* archive handler -> archiveHandler (consider archive if archiveHandler present)
+			//	* sig, offset, ...
+			//	* mime-db -> exts lookup
+			//	* 
+		},
 	
 		archives : {
 			archivers : {
@@ -348,62 +425,6 @@ function getDefaultConfig() {
 					}
 				}
 			},
-
-			formats : {
-				//
-				//	Resources
-				//	* http://www.garykessler.net/library/file_sigs.html
-				//
-				zip	: {
-					sig		: '504b0304',
-					offset	: 0,
-					exts	: [ 'zip' ],
-					handler	: '7Zip',	
-					desc	: 'ZIP Archive',
-				},
-				'7z' : {
-					sig		: '377abcaf271c',
-					offset	: 0,
-					exts	: [ '7z' ],
-					handler	: '7Zip',
-					desc	: '7-Zip Archive',
-				},
-				arj : {
-					sig		: '60ea',
-					offset	: 0,
-					exts	: [ 'arj' ],
-					handler	: 'Arj',
-					desc	: 'ARJ Archive',
-				},
-				rar :  {
-					sig		: '526172211a0700',
-					offset	: 0,
-					exts	: [ 'rar' ],
-					handler	: 'Rar',
-					desc	: 'RAR Archive',
-				},
-				gzip :  {
-					sig		: '1f8b',
-					offset	: 0,
-					exts	: [ 'gz' ],
-					handler	: '7Zip',
-					desc	: 'Gzip Archive',
-				},
-				bzip : {
-					sig		: '425a68',
-					offset	: 0,
-					exts	: [ 'bz2' ],
-					handler	: '7Zip',
-					desc	: 'BZip2 Archive',
-				},
-				lzh :  {
-					sig		: '2d6c68',
-					offset	: 2,
-					exts	: [ 'lzh', 'ice' ],
-					handler	: 'Lha',
-					desc	: 'LHArc Archive',
-				}
-			}
 		},
 		
 		fileTransferProtocols : {

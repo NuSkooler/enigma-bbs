@@ -17,6 +17,7 @@ const Config			= require('../core/config.js').config;
 const DownloadQueue		= require('../core/download_queue.js');
 const FileAreaWeb		= require('../core/file_area_web.js');
 const FileBaseFilters	= require('../core/file_base_filter.js');
+const resolveMimeType	= require('../core/mime_util.js').resolveMimeType;
 
 const cleanControlCodes	= require('../core/string_util.js').cleanControlCodes;
 
@@ -236,9 +237,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		});
 
 		if(entryInfo.archiveType) {
-			entryInfo.archiveTypeDesc = _.has(Config, [ 'archives', 'formats', entryInfo.archiveType, 'desc' ]) ?
-				Config.archives.formats[entryInfo.archiveType].desc :
-				entryInfo.archiveType;
+			const mimeType = resolveMimeType(entryInfo.archiveType);
+			entryInfo.archiveTypeDesc = mimeType ? _.get(Config, [ 'fileTypes', mimeType, 'desc' ] ) || mimeType : entryInfo.archiveType;
 		} else {
 			entryInfo.archiveTypeDesc = 'N/A';
 		}
