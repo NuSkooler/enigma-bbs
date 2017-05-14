@@ -10,6 +10,9 @@ const FileDb			= require('./database.js').dbs.file;
 const ArchiveUtil		= require('./archive_util.js');
 const CRC32				= require('./crc.js').CRC32;
 const Log				= require('./logger.js').log;
+const resolveMimeType	= require('./mime_util.js').resolveMimeType;
+const stringFormat		= require('./string_format.js');
+const wordWrapText		= require('./word_wrap.js').wordWrapText;
 
 //	deps
 const _				= require('lodash');
@@ -19,6 +22,7 @@ const crypto		= require('crypto');
 const paths			= require('path');
 const temptmp		= require('temptmp').createTrackedSession('file_area');
 const iconv			= require('iconv-lite');
+const exec 			= require('child_process').exec;
 
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
@@ -222,7 +226,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	}
 
 	//
-	//	We attempt deteciton in short -> long order
+	//	We attempt detection in short -> long order
 	//
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
 	if(match && match[1]) {
@@ -391,8 +395,52 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 }
 
 function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-	//	:TODO:	implement me!
-	return cb(null);
+
+	async.series(
+		[
+			function processDescFilesStart(callback) {
+				stepInfo.step = 'desc_files_start';
+				return iterator(callback);
+			},
+			function getDescriptions(callback) {
+				const mimeType = resolveMimeType(filePath);
+				if(!mimeType) {
+					return callback(null);
+				}
+
+				const shortDescUtil = _.get(Config, [ 'fileTypes', mimeType, 'shortDescUtil' ]);
+				if(!shortDescUtil || !shortDescUtil.cmd) {
+					return callback(null);
+				}
+
+				const args = (shortDescUtil.args || [ '{filePath} '] ).map( arg => stringFormat(arg, { filePath : filePath } ) );
+				
+				exec(`${shortDescUtil.cmd} ${args.join(' ')}`, (err, stdout) => {
+					if(err) {
+						logDebug(
+							{ error : err.message, cmd : shortDescUtil.cmd, args : args },
+							'Short description command failed'
+						);
+					} else {
+						//
+						//	"...no more than 45 characters long" -- FILE_ID.DIZ v1.9 spec:
+						//	http://www.textfiles.com/computers/fileid.txt
+						//
+						fileEntry.desc = (wordWrapText( (stdout || '').trim(), { width : 45 } ).wrapped || []).join('\n');
+					}
+
+					return callback(null);
+				});
+			},
+			function processDescFilesFinish(callback) {
+				stepInfo.step = 'desc_files_finish';
+				return iterator(callback);
+			},
+		],
+		err => {
+			return cb(err);
+		}
+	);
 }
 
 function addNewFileEntry(fileEntry, filePath, cb) {

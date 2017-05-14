@@ -276,16 +276,24 @@ function getDefaultConfig() {
 			//
 			//
 			//	:TODO: text/x-ansi -> SAUCE extraction for .ans uploads
+			//	:TODO: textual : bool -- if text, we can view. 
+			//	:TODO: asText : { cmd, args[] } -> viewable text
 
 			//
 			//	Audio
 			//
 			'audio/mpeg' : {
-				desc 		: 'MP3 Audio',
-				infoExtract : {
-					cmd		: `${__dirname}./../util/exif2desc.js`,	//	ensure chmod +x
-					args	: [ '{filePath}' ],
+				desc 			: 'MP3 Audio',
+				shortDescUtil : {
+					cmd			: `${__dirname}/../util/exiftool2desc.js`,	//	ensure chmod +x
+					args		: [ '{filePath}' ],
 				},
+			},
+			'application/pdf' : {
+				desc			: 'Adobe PDF',
+				shortDescUtil : {
+					cmd			: `${__dirname}/../util/exiftool2desc.js`
+				}
 			},
 			//
 			//	Archives
