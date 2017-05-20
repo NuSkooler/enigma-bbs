@@ -17,7 +17,7 @@ const wordWrapText		= require('./word_wrap.js').wordWrapText;
 //	deps
 const _				= require('lodash');
 const async			= require('async');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const crypto		= require('crypto');
 const paths			= require('path');
 const temptmp		= require('temptmp').createTrackedSession('file_area');

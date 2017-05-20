@@ -10,7 +10,7 @@ const Config		= require('../../config.js').config;
 const http			= require('http');
 const https			= require('https');
 const _				= require('lodash');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const paths			= require('path');
 const mimeTypes		= require('mime-types');
 

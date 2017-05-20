@@ -4,7 +4,7 @@
 var Config			= require('./config.js').config;
 const StatLog		= require('./stat_log.js');
 
-var fs				= require('fs');
+var fs				= require('graceful-fs');
 var paths			= require('path');
 var _				= require('lodash');
 var moment			= require('moment');

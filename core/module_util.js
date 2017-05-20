@@ -5,7 +5,7 @@
 const Config	= require('./config.js').config;
 
 //	deps
-const fs 		= require('fs');
+const fs 		= require('graceful-fs');
 const paths		= require('path');
 const _			= require('lodash');
 const assert	= require('assert');

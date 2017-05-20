@@ -5,7 +5,7 @@ var Config				= require('./config.js').config;
 var Log					= require('./logger.js').log;
 
 var paths				= require('path');
-var fs					= require('fs');
+var fs					= require('graceful-fs');
 var Gaze				= require('gaze').Gaze;
 var events				= require('events');
 var util				= require('util');

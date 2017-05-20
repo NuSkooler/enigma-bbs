@@ -9,7 +9,7 @@ const aep		= require('./ansi_escape_parser.js');
 const sauce		= require('./sauce.js');
 
 //	deps
-const fs		= require('fs');
+const fs		= require('graceful-fs');
 const paths		= require('path');
 const assert	= require('assert');
 const iconv		= require('iconv-lite');

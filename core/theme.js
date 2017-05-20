@@ -11,7 +11,7 @@ const asset				= require('./asset.js');
 const ViewController	= require('./view_controller.js').ViewController;
 const Errors			= require('./enig_error.js').Errors;
 
-const fs				= require('fs');
+const fs				= require('graceful-fs');
 const paths				= require('path');
 const async				= require('async');
 const _					= require('lodash');

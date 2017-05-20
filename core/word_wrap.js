@@ -245,7 +245,7 @@ function wordWrapText(text, options) {
 
 /*
 const iconv = require('iconv-lite');
-const input = iconv.decode(require('fs').readFileSync('/home/nuskooler/Downloads/msg_out.txt'), 'cp437');
+const input = iconv.decode(require('graceful-fs').readFileSync('/home/nuskooler/Downloads/msg_out.txt'), 'cp437');
 
 const opts = {
 	width : 80,

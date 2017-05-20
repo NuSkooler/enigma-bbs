@@ -17,7 +17,7 @@ const async			= require('async');
 const util			= require('util');
 const _				= require('lodash');
 const mkdirs		= require('fs-extra').mkdirs;
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const paths			= require('path');
 
 //	our main entry point

@@ -11,7 +11,7 @@ const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
 const Errors					= require('../../core/enig_error.js').Errors;
 
 const async						= require('async');
-const fs						= require('fs');
+const fs						= require('graceful-fs');
 const paths						= require('path');
 const _							= require('lodash');
 const moment					= require('moment');

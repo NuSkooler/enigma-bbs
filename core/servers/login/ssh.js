@@ -13,7 +13,7 @@ const stringFormat		= require('../../string_format.js');
 
 //	deps
 const ssh2			= require('ssh2');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const util			= require('util');
 const _				= require('lodash');
 const assert		= require('assert');

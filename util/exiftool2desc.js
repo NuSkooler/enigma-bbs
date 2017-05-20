@@ -7,7 +7,7 @@
 //	:TODO: Make this it's own sep tool/repo
 
 const exiftool		= require('exiftool');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const moment		= require('moment');
 
 const TOOL_VERSION	= '1.0.0.0';
