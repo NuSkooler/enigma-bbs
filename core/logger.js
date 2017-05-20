@@ -4,7 +4,7 @@
 //	deps
 const bunyan	= require('bunyan');
 const paths		= require('path');
-const fs		= require('fs');
+const fs		= require('graceful-fs');
 const _			= require('lodash');
 
 module.exports = class Log {

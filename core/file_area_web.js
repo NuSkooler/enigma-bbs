@@ -20,7 +20,7 @@ const hashids		= require('hashids');
 const moment		= require('moment');
 const paths			= require('path');
 const async			= require('async');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const mimeTypes		= require('mime-types');
 const _				= require('lodash');
 

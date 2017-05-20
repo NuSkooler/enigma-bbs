@@ -509,7 +509,7 @@ function createCleanAnsi(input, options, cb) {
 }
 
 /*
-const fs = require('fs');
+const fs = require('graceful-fs');
 let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
 data = iconv.decode(data, 'cp437');
 createCleanAnsi(data, { width : 79, height : 25 }, (out) => {

@@ -7,7 +7,7 @@ const Errors		= require('./enig_error.js').Errors;
 const EnigAssert	= require('./enigma_assert.js');
 
 //	deps
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const CRC32			= require('./crc.js').CRC32;
 const _				= require('lodash');
 const async			= require('async');

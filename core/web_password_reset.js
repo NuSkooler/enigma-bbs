@@ -15,7 +15,7 @@ const Log					= require('./logger.js').log;
 const async					= require('async');
 const _						= require('lodash');
 const crypto				= require('crypto');
-const fs					= require('fs');
+const fs					= require('graceful-fs');
 const url					= require('url');
 const querystring			= require('querystring');
 

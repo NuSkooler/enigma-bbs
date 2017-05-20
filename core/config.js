@@ -5,7 +5,7 @@
 const miscUtil			= require('./misc_util.js');
 
 //	deps
-const fs				= require('fs');
+const fs				= require('graceful-fs');
 const paths				= require('path');
 const async				= require('async');
 const _					= require('lodash');

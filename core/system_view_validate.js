@@ -7,7 +7,7 @@ const Config	= require('./config.js').config;
 const Log		= require('./logger.js').log;
 
 //	deps
-const fs		= require('fs');
+const fs		= require('graceful-fs');
 
 exports.validateNonEmpty		= validateNonEmpty;
 exports.validateMessageSubject	= validateMessageSubject;

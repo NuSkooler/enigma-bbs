@@ -17,7 +17,7 @@ const _				= require('lodash');
 const pty			= require('ptyw.js');
 const temptmp		= require('temptmp').createTrackedSession('transfer_file');
 const paths			= require('path');
-const fs			= require('fs');
+const fs			= require('graceful-fs');
 const fse			= require('fs-extra');
 
 //	some consts

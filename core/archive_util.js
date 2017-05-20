@@ -8,7 +8,7 @@ const Errors			= require('./enig_error.js').Errors;
 const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 
 //	base/modules
-const fs		= require('fs');
+const fs		= require('graceful-fs');
 const _			= require('lodash');
 const pty		= require('ptyw.js');
 
