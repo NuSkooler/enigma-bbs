@@ -42,7 +42,8 @@
     "ssh2": "^0.5.1",
     "temptmp": "^1.0.0",
     "uuid": "^3.0.1",
-    "uuid-parse": "^1.0.0"
+    "uuid-parse": "^1.0.0",
+    "ws" : "^2.3.1"
   },
   "devDependencies": {},
   "engines": {

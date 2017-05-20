@@ -223,6 +223,14 @@ function getDefaultConfig() {
 				privateKeyPem		: paths.join(__dirname, './../misc/ssh_private_key.pem'),
 				firstMenu			: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
+			},
+			webSocket : {
+				port		: 8810,
+				enabled		: true,	//	:TODO: default to false
+			},
+			secureWebSocket :  {
+				port		: 8811,
+				enabled		: false,
 			}
 		},
 
@@ -264,6 +272,19 @@ function getDefaultConfig() {
 			}
 		},
 
+		infoExtractUtils : {
+			Exiftool2Desc :  {
+				cmd			: `${__dirname}/../util/exiftool2desc.js`,	//	ensure chmod +x
+			},
+			Exiftool : {
+				cmd			: 'exiftool',
+				args		: [ 
+					'-charset', 'utf8', '{filePath}',
+					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize', '--filemodifydate', '--fileaccessdate', '--fileinodechangedate'
+				]
+			}
+		},
+
 		fileTypes : {
 			//
 			//	File types explicitly known to the system. Here we can configure
@@ -284,16 +305,36 @@ function getDefaultConfig() {
 			//
 			'audio/mpeg' : {
 				desc 			: 'MP3 Audio',
-				shortDescUtil : {
-					cmd			: `${__dirname}/../util/exiftool2desc.js`,	//	ensure chmod +x
-					args		: [ '{filePath}' ],
-				},
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
 			},
 			'application/pdf' : {
 				desc			: 'Adobe PDF',
-				shortDescUtil : {
-					cmd			: `${__dirname}/../util/exiftool2desc.js`
-				}
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			//
+			//	Images
+			//
+			'image/jpeg'	: {
+				desc			: 'JPEG Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/png'	: {
+				desc			: 'Portable Network Graphic Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/gif' : {
+				desc			: 'Graphics Interchange Format Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/webp' :  {
+				desc			: 'WebP Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
 			},
 			//
 			//	Archives
@@ -579,8 +620,9 @@ function getDefaultConfig() {
 				"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
 				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',				
 				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
+				'\\(((?:19|20)[0-9]{2})\\)',	//	(19xx) or (20xx) -- do this before 19xx 20xx such that this has priority
+				'\\b((?:19|20)[0-9]{2})\\b',	//	simple 19xx or 20xx with word boundaries
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
-				//	:TODO: "Copyright YYYY someone"
 			],
 
 			web : {
