@@ -396,13 +396,13 @@ module.exports = class FileEntry {
 							FROM file_user_rating 
 							WHERE file_id = f.file_id)
 							AS avg_rating
-						FROM file f, file_meta m`;
+						FROM file f`;
 					
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
 					sql = 
 						`SELECT DISTINCT f.file_id, f.${filter.sort}
-						FROM file f, file_meta m`;
+						FROM file f`;
 
 					sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
 				}
@@ -410,7 +410,7 @@ module.exports = class FileEntry {
 		} else {
 			sql = 
 				`SELECT DISTINCT f.file_id
-				FROM file f, file_meta m`;
+				FROM file f`;
 
 			sqlOrderBy = `${getOrderByWithCast('f.file_id')} ${sqlOrderDir}`;
 		}

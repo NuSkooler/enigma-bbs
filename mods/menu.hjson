@@ -2372,6 +2372,17 @@
 							]
 							focusItemIndex: 1
 						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
 					}
 					
 					submit: {
@@ -2453,6 +2464,17 @@
 								"general", "nfo/readme", "file listing"
 							]
 						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
 					}
 
 					actionKeys: [

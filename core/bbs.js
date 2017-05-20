@@ -21,7 +21,7 @@ const fs			= require('fs');
 const paths			= require('path');
 
 //	our main entry point
-exports.bbsMain	= bbsMain;
+exports.main	= main;
 
 //	object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
@@ -42,7 +42,7 @@ function printHelpAndExit() {
 	process.exit();
 }
 
-function bbsMain() {
+function main() {
 	async.waterfall(
 		[
 			function processArgs(callback) {

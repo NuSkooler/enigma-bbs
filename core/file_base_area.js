@@ -10,6 +10,9 @@ const FileDb			= require('./database.js').dbs.file;
 const ArchiveUtil		= require('./archive_util.js');
 const CRC32				= require('./crc.js').CRC32;
 const Log				= require('./logger.js').log;
+const resolveMimeType	= require('./mime_util.js').resolveMimeType;
+const stringFormat		= require('./string_format.js');
+const wordWrapText		= require('./word_wrap.js').wordWrapText;
 
 //	deps
 const _				= require('lodash');
@@ -19,6 +22,8 @@ const crypto		= require('crypto');
 const paths			= require('path');
 const temptmp		= require('temptmp').createTrackedSession('file_area');
 const iconv			= require('iconv-lite');
+const exec 			= require('child_process').exec;
+const moment		= require('moment');
 
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
@@ -210,7 +215,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	const patterns	= Config.fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
 
 	function getMatch(input) {
-		if(input) {
+		if(input) {			
 			let m;
 			for(let i = 0; i < patterns.length; ++i) {
 				m = patterns[i].exec(input);
@@ -222,8 +227,12 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	}
 
 	//
-	//	We attempt deteciton in short -> long order
+	//	We attempt detection in short -> long order
 	//
+	//	Throw out anything that is current_year + 2 (we give some leway)
+	//	with the assumption that must be wrong.
+	//
+	const maxYear = moment().add(2, 'year').year();
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
 	if(match && match[1]) {
 		let year;
@@ -240,7 +249,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 			year = parseInt(match[1]);
 		}
 
-		if(year) {
+		if(year && year <= maxYear) {
 			fileEntry.meta.est_release_year = year;
 		}
 	}
@@ -390,9 +399,82 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 	);
 }
 
+function getInfoExtractUtilForDesc(mimeType, descType) {
+	let util = _.get(Config, [ 'fileTypes', mimeType, `${descType}DescUtil` ]);
+	if(!_.isString(util)) {
+		return;
+	}
+
+	util = _.get(Config, [ 'infoExtractUtils', util ]);
+	if(!util || !_.isString(util.cmd)) {
+		return;
+	}
+
+	return util;
+}
+
 function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-	//	:TODO:	implement me!
-	return cb(null);
+
+	async.series(
+		[
+			function processDescFilesStart(callback) {
+				stepInfo.step = 'desc_files_start';
+				return iterator(callback);
+			},
+			function getDescriptions(callback) {
+				const mimeType = resolveMimeType(filePath);
+				if(!mimeType) {
+					return callback(null);
+				}
+
+				async.eachSeries( [ 'short', 'long' ], (descType, nextDesc) => {
+					const util = getInfoExtractUtilForDesc(mimeType, descType);
+					if(!util) {
+						return nextDesc(null);
+					}
+
+					const args = (util.args || [ '{filePath} '] ).map( arg => stringFormat(arg, { filePath : filePath } ) );
+
+					exec(`${util.cmd} ${args.join(' ')}`, (err, stdout) => {
+						if(err) {
+							logDebug(
+								{ error : err.message, cmd : util.cmd, args : args },
+								`${_.upperFirst(descType)} description command failed`
+							);
+						} else {
+							stdout = (stdout || '').trim();
+							if(stdout.length > 0) {
+								const key = 'short' === descType ? 'desc' : 'descLong';
+								if('desc' === key) {
+									//
+									//	Word wrap short descriptions to FILE_ID.DIZ spec
+									//
+									//	"...no more than 45 characters long"
+									//
+									//	See http://www.textfiles.com/computers/fileid.txt
+									//
+									stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
+								}
+
+								fileEntry[key] = stdout;
+							}
+						}
+
+						return nextDesc(null);
+					});
+				}, () => {
+					return callback(null);
+				});
+			},
+			function processDescFilesFinish(callback) {
+				stepInfo.step = 'desc_files_finish';
+				return iterator(callback);
+			},
+		],
+		err => {
+			return cb(err);
+		}
+	);
 }
 
 function addNewFileEntry(fileEntry, filePath, cb) {

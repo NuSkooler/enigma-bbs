@@ -378,10 +378,11 @@ function getThemeArt(options, cb) {
 	options.random		= _.isBoolean(options.random) ? options.random : true;	//	FILENAME<n>.EXT support
 
 	//
-	//	We look for themed art in the following manor:
-	//	* Supplied theme via |themeId|
-	//	* Fallback 1: Default theme (if different than |themeId|)
-	//	* General art directory
+	//	We look for themed art in the following order:
+	//	1)	Direct/relative path
+	//	2)	Via theme supplied by |themeId|
+	//	3)	Via default theme
+	//	4)	General art directory
 	//
 	async.waterfall(
 		[
@@ -389,7 +390,7 @@ function getThemeArt(options, cb) {
 				//
 				//	We allow relative (to enigma-bbs) or full paths
 				//
-				if('/' === options.name[0]) {
+				if('/' === options.name.charAt(0)) {
 					//	just take the path as-is
 					options.basePath = paths.dirname(options.name);					
 				} else if(options.name.indexOf('/') > -1) {
@@ -409,41 +410,35 @@ function getThemeArt(options, cb) {
 				}
 
 				options.basePath = paths.join(Config.paths.themes, options.themeId);
-
-				art.getArt(options.name, options, function artLoaded(err, artInfo) {
-					callback(null, artInfo);
+				art.getArt(options.name, options, (err, artInfo) => {
+					return callback(null, artInfo);
 				});
 			},
 			function fromDefaultTheme(artInfo, callback) {
 				if(artInfo || Config.defaults.theme === options.themeId) {
-					callback(null, artInfo);
-				} else {
-					options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
-
-					art.getArt(options.name, options, function artLoaded(err, artInfo) {
-						callback(null, artInfo);
-					});
+					return callback(null, artInfo);
 				}
+				
+				options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
+				art.getArt(options.name, options, (err, artInfo) => {
+					return callback(null, artInfo);
+				});
 			},
 			function fromGeneralArtDir(artInfo, callback) {
 				if(artInfo) {
-					callback(null, artInfo);
-				} else {
-					options.basePath = Config.paths.art;
-
-					art.getArt(options.name, options, function artLoaded(err, artInfo) {
-						callback(err, artInfo);
-					});
+					return callback(null, artInfo);
 				}
+				
+				options.basePath = Config.paths.art;
+				art.getArt(options.name, options, (err, artInfo) => {
+					return callback(err, artInfo);
+				});				
 			}
 		],
 		function complete(err, artInfo) {
 			if(err) {
-				if(options.client) {
-					options.client.log.debug( { error : err.message }, 'Cannot find theme art' );
-				} else {
-					Log.debug( { error : err.message }, 'Cannot find theme art' );
-				}
+				const logger = _.get(options, 'client.log') || Log;
+				logger.debug( { reason : err.message }, 'Cannot find theme art');
 			}
 			return cb(err, artInfo);
 		}

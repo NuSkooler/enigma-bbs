@@ -223,6 +223,14 @@ function getDefaultConfig() {
 				privateKeyPem		: paths.join(__dirname, './../misc/ssh_private_key.pem'),
 				firstMenu			: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
+			},
+			webSocket : {
+				port		: 8810,
+				enabled		: true,	//	:TODO: default to false
+			},
+			secureWebSocket :  {
+				port		: 8811,
+				enabled		: false,
 			}
 		},
 
@@ -262,6 +270,124 @@ function getDefaultConfig() {
 					keyPem	: paths.join(__dirname, './../misc/https_cert_key.pem'),
 				}
 			}
+		},
+
+		infoExtractUtils : {
+			Exiftool2Desc :  {
+				cmd			: `${__dirname}/../util/exiftool2desc.js`,	//	ensure chmod +x
+			},
+			Exiftool : {
+				cmd			: 'exiftool',
+				args		: [ 
+					'-charset', 'utf8', '{filePath}',
+					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize', '--filemodifydate', '--fileaccessdate', '--fileinodechangedate'
+				]
+			}
+		},
+
+		fileTypes : {
+			//
+			//	File types explicitly known to the system. Here we can configure
+			//	information extraction, archive treatment, etc.
+			//
+			//	MIME types can be found in mime-db: https://github.com/jshttp/mime-db
+			//
+			//	Resources for signature/magic bytes:
+			//	* http://www.garykessler.net/library/file_sigs.html
+			//
+			//
+			//	:TODO: text/x-ansi -> SAUCE extraction for .ans uploads
+			//	:TODO: textual : bool -- if text, we can view. 
+			//	:TODO: asText : { cmd, args[] } -> viewable text
+
+			//
+			//	Audio
+			//
+			'audio/mpeg' : {
+				desc 			: 'MP3 Audio',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'application/pdf' : {
+				desc			: 'Adobe PDF',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			//
+			//	Images
+			//
+			'image/jpeg'	: {
+				desc			: 'JPEG Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/png'	: {
+				desc			: 'Portable Network Graphic Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/gif' : {
+				desc			: 'Graphics Interchange Format Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'image/webp' :  {
+				desc			: 'WebP Image',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			//
+			//	Archives
+			//
+			'application/zip' : {
+				desc			: 'ZIP Archive',
+				sig				: '504b0304',
+				offset			: 0,
+				archiveHandler	: '7Zip',
+			},
+			'application/x-arj' : {
+				desc			: 'ARJ Archive',
+				sig				: '60ea',
+				offset			: 0,
+				archiveHandler	: 'Arj',
+			},
+			'application/x-rar-compressed' : {
+				desc			: 'RAR Archive',
+				sig				: '526172211a0700',
+				offset			: 0,
+				archiveHandler	: 'Rar',
+			},			
+			'application/gzip' : {
+				desc			: 'Gzip Archive',
+				sig				: '1f8b',
+				offset			: 0,
+				archiveHandler	: '7Zip',
+			},
+			//	:TODO: application/x-bzip
+			'application/x-bzip2' : {
+				desc			: 'BZip2 Archive',
+				sig				: '425a68',
+				offset			: 0,
+				archiveHandler	: '7Zip',				
+			},
+			'application/x-lzh-compressed' : {
+				desc			: 'LHArc Archive',
+				sig				: '2d6c68',
+				offset			: 2,
+				archiveHandler	: 'Lha',				
+			},
+			'application/x-7z-compressed' : {
+				desc			: '7-Zip Archive',
+				sig				: '377abcaf271c',
+				offset			: 0,
+				archiveHandler	: '7Zip',					
+			}
+
+			//	:TODO: update archives::formats to fall here
+			//	* archive handler -> archiveHandler (consider archive if archiveHandler present)
+			//	* sig, offset, ...
+			//	* mime-db -> exts lookup
+			//	* 
 		},
 	
 		archives : {
@@ -348,62 +474,6 @@ function getDefaultConfig() {
 					}
 				}
 			},
-
-			formats : {
-				//
-				//	Resources
-				//	* http://www.garykessler.net/library/file_sigs.html
-				//
-				zip	: {
-					sig		: '504b0304',
-					offset	: 0,
-					exts	: [ 'zip' ],
-					handler	: '7Zip',	
-					desc	: 'ZIP Archive',
-				},
-				'7z' : {
-					sig		: '377abcaf271c',
-					offset	: 0,
-					exts	: [ '7z' ],
-					handler	: '7Zip',
-					desc	: '7-Zip Archive',
-				},
-				arj : {
-					sig		: '60ea',
-					offset	: 0,
-					exts	: [ 'arj' ],
-					handler	: 'Arj',
-					desc	: 'ARJ Archive',
-				},
-				rar :  {
-					sig		: '526172211a0700',
-					offset	: 0,
-					exts	: [ 'rar' ],
-					handler	: 'Rar',
-					desc	: 'RAR Archive',
-				},
-				gzip :  {
-					sig		: '1f8b',
-					offset	: 0,
-					exts	: [ 'gz' ],
-					handler	: '7Zip',
-					desc	: 'Gzip Archive',
-				},
-				bzip : {
-					sig		: '425a68',
-					offset	: 0,
-					exts	: [ 'bz2' ],
-					handler	: '7Zip',
-					desc	: 'BZip2 Archive',
-				},
-				lzh :  {
-					sig		: '2d6c68',
-					offset	: 2,
-					exts	: [ 'lzh', 'ice' ],
-					handler	: 'Lha',
-					desc	: 'LHArc Archive',
-				}
-			}
 		},
 		
 		fileTransferProtocols : {
@@ -550,8 +620,9 @@ function getDefaultConfig() {
 				"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
 				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',				
 				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
+				'\\(((?:19|20)[0-9]{2})\\)',	//	(19xx) or (20xx) -- do this before 19xx 20xx such that this has priority
+				'\\b((?:19|20)[0-9]{2})\\b',	//	simple 19xx or 20xx with word boundaries
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
-				//	:TODO: "Copyright YYYY someone"
 			],
 
 			web : {

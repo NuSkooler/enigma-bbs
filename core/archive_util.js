@@ -2,9 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const Config		= require('./config.js').config;
-const stringFormat	= require('./string_format.js');
-const Errors		= require('./enig_error.js').Errors;
+const Config			= require('./config.js').config;
+const stringFormat		= require('./string_format.js');
+const Errors			= require('./enig_error.js').Errors;
+const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 
 //	base/modules
 const fs		= require('fs');
@@ -19,9 +20,6 @@ class Archiver {
 		this.decompress	= config.decompress;
 		this.list		= config.list;
 		this.extract	= config.extract;
-
-		/*this.sig		= new Buffer(config.sig, 'hex');
-		this.offset		= config.offset || 0;*/
 	}
 
 	ok() {
@@ -76,39 +74,33 @@ module.exports = class ArchiveUtil {
 			});
 		}
 
-		if(_.has(Config, 'archives.formats')) {
-			Object.keys(Config.archives.formats).forEach(fmtKey => {
+		if(_.isObject(Config.fileTypes)) {
+			Object.keys(Config.fileTypes).forEach(mimeType => {
+				const fileType = Config.fileTypes[mimeType];
+				if(fileType.sig) {
+					fileType.sig 	= new Buffer(fileType.sig, 'hex');
+					fileType.offset	= fileType.offset || 0;
 
-				Config.archives.formats[fmtKey].sig = new Buffer(Config.archives.formats[fmtKey].sig, 'hex');
-				Config.archives.formats[fmtKey].offset = Config.archives.formats[fmtKey].offset || 0;
-
-				const sigLen = Config.archives.formats[fmtKey].offset + Config.archives.formats[fmtKey].sig.length; 
-				if(sigLen > this.longestSignature) {
-					this.longestSignature = sigLen;
-				} 
+					//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
+					const sigLen =fileType.offset + fileType.sig.length;
+					if(sigLen > this.longestSignature) {
+						this.longestSignature = sigLen;
+					}
+				}
 			});
 		}
 	}
-	
-	/*
-	getArchiver(archType) {
-		if(!archType || 0 === archType.length) {
-			return;
-		}
+
+	getArchiver(mimeTypeOrExtension) {
+		mimeTypeOrExtension = resolveMimeType(mimeTypeOrExtension);
 		
-		archType = archType.toLowerCase();
-		return this.archivers[archType];
-	}*/
-
-	getArchiver(archType) {
-		if(!archType || 0 === archType.length) {
+		if(!mimeTypeOrExtension) {	//	lookup returns false on failure
 			return;
 		}
 
-		if(_.has(Config, [ 'archives', 'formats', archType, 'handler' ] ) &&
-			_.has(Config, [ 'archives', 'archivers', Config.archives.formats[archType].handler ] ))
-		{
-			return Config.archives.archivers[ Config.archives.formats[archType].handler ];
+		const archiveHandler = _.get( Config, [ 'fileTypes', mimeTypeOrExtension, 'archiveHandler'] );
+		if(archiveHandler) {
+			return _.get( Config, [ 'archives', 'archivers', archiveHandler ] );
 		}
 	}
 	
@@ -121,10 +113,6 @@ module.exports = class ArchiveUtil {
 	}
 
 	detectType(path, cb) {
-		if(!_.has(Config, 'archives.formats')) {
-			return cb(Errors.DoesNotExist('No formats configured'));
-		}
-
 		fs.open(path, 'r', (err, fd) => {
 			if(err) {
 				return cb(err);
@@ -136,15 +124,19 @@ module.exports = class ArchiveUtil {
 					return cb(err);
 				}
 
-				const archFormat = _.findKey(Config.archives.formats, archFormat => {
-					const lenNeeded = archFormat.offset + archFormat.sig.length;
+				const archFormat = _.findKey(Config.fileTypes, fileTypeInfo => {
+					if(!fileTypeInfo.sig) {
+						return false;
+					}
+
+					const lenNeeded = fileTypeInfo.offset + fileTypeInfo.sig.length;
 
 					if(bytesRead < lenNeeded) {
 						return false;
 					}
 
-					const comp = buf.slice(archFormat.offset, archFormat.offset + archFormat.sig.length);
-					return (archFormat.sig.equals(comp));
+					const comp = buf.slice(fileTypeInfo.offset, fileTypeInfo.offset + fileTypeInfo.sig.length);
+					return (fileTypeInfo.sig.equals(comp));
 				});
 
 				return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
@@ -157,19 +149,13 @@ module.exports = class ArchiveUtil {
 		//	so we have this horrible, horrible hack:
 		let err;
 		proc.once('data', d => {
-			if(_.isString(d) && d.startsWith('execvp(3) failed.: No such file or directory')) {
-				err = new Error(`${action} failed: ${d.trim()}`);
+			if(_.isString(d) && d.startsWith('execvp(3) failed.')) {
+				err = Errors.ExternalProcess(`${action} failed: ${d.trim()}`);
 			}
 		});
 		
 		proc.once('exit', exitCode => {
-			if(exitCode) {
-				return cb(new Error(`${action} failed with exit code: ${exitCode}`));
-			}
-			if(err) {
-				return cb(err);
-			}
-			return cb(null);
+			return cb(exitCode ? Errors.ExternalProcess(`${action} failed with exit code: ${exitCode}`) : err);
 		});	
 	}
 
@@ -177,7 +163,7 @@ module.exports = class ArchiveUtil {
 		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
-			return cb(new Error(`Unknown archive type: ${archType}`));
+			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
 		}
 
 		const fmtObj = {
@@ -205,7 +191,7 @@ module.exports = class ArchiveUtil {
 		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
-			return cb(new Error(`Unknown archive type: ${archType}`));
+			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
 		}
 
 		const fmtObj = {
@@ -235,7 +221,7 @@ module.exports = class ArchiveUtil {
 		const archiver = this.getArchiver(archType);
 		
 		if(!archiver) {
-			return cb(new Error(`Unknown archive type: ${archType}`));			
+			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));			
 		}
 
 		const fmtObj = {
@@ -254,7 +240,7 @@ module.exports = class ArchiveUtil {
 
 		proc.once('exit', exitCode => {
 			if(exitCode) {
-				return cb(new Error(`List failed with exit code: ${exitCode}`));
+				return cb(Errors.ExternalProcess(`List failed with exit code: ${exitCode}`));
 			}
 
 			const entryGroupOrder = archiver.list.entryGroupOrder || { byteSize : 1, fileName : 2 };
