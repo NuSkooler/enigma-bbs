@@ -172,7 +172,13 @@ module.exports = class ArchiveUtil {
 		};
 
 		const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
-		const proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
+
+		let proc;
+		try {
+			proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
+		} catch(e) {
+			return cb(e);
+		}
 
 		return this.spawnHandler(proc, 'Compression', cb);
 	}
@@ -212,7 +218,12 @@ module.exports = class ArchiveUtil {
 			args.splice.apply(args, [fileListPos, 1].concat(fileList));
 		}
 
-		const proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts());
+		let proc;
+		try {
+			proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts());
+		} catch(e) {
+			return cb(e);
+		}
 
 		return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
 	}
@@ -229,7 +240,13 @@ module.exports = class ArchiveUtil {
 		};
 
 		const args	= archiver.list.args.map( arg => stringFormat(arg, fmtObj) );
-		const proc	= pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+		
+		let proc;
+		try {
+			proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
+		} catch(e) {
+			return cb(e);
+		}
 
 		let output = '';
 		proc.on('data', data => {
