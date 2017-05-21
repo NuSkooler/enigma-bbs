@@ -19,6 +19,11 @@ const FILETYPE_HANDLERS = {};
 [ 'PNG', 'JPEG', 'GIF', 'WEBP', 'XCF' ].forEach(ext => FILETYPE_HANDLERS[ext] = imageFile);
 
 function audioFile(metadata) {
+	//	nothing if we don't know at least the author or title
+	if(!metadata.author && !metadata.title) {
+		return;
+	}
+	
 	let desc = `${metadata.artist||'Unknown Artist'} - ${metadata.title||'Unknown'} (`;
 	if(metadata.year) {
 		desc += `${metadata.year}, `;
@@ -28,6 +33,11 @@ function audioFile(metadata) {
 }
 
 function documentFile(metadata) {
+	//	nothing if we don't know at least the author or title
+	if(!metadata.author && !metadata.title) {
+		return;
+	}
+
 	let desc = `${metadata.author||'Unknown Author'} - ${metadata.title||'Unknown'}`;
 	const created = moment(metadata.createdate);
 	if(created.isValid()) {
@@ -86,7 +96,12 @@ function main() {
 				return -1;
 			}
 			
-			console.info(handler(metadata));
+			const info = handler(metadata);
+			if(!info) {
+				return -1;
+			}
+
+			console.info(info);
 			return 0;
 		});
 	});

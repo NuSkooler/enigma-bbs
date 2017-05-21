@@ -95,7 +95,7 @@ const PREDEFINED_MCI_GENERATORS = {
 		const byteSize = StatLog.getUserStatNum(client.user, 'dl_total_bytes');
 		return formatByteSize(byteSize, true);	//	true=withAbbr
 	},
-	UP	: function userNumUploadsclient(client) { return userStatAsString(client, 'ul_total_count', 0); },			//	Obv/2
+	UP	: function userNumUploads(client) { return userStatAsString(client, 'ul_total_count', 0); },			//	Obv/2
 	UK	: function userByteUpload(client) { //	Obv/2 uses UK=uploaded Kbytes
 		const byteSize = StatLog.getUserStatNum(client.user, 'ul_total_bytes');
 		return formatByteSize(byteSize, true);	//	true=withAbbr

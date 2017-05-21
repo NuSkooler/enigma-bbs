@@ -280,7 +280,10 @@ function getDefaultConfig() {
 				cmd			: 'exiftool',
 				args		: [ 
 					'-charset', 'utf8', '{filePath}',
-					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize', '--filemodifydate', '--fileaccessdate', '--fileinodechangedate'
+					//	exclude the following:
+					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize', 
+					'--filemodifydate', '--fileaccessdate', '--fileinodechangedate', '--createdate', '--modifydate',
+					'--metadatadate', '--xmptoolkit'
 				]
 			}
 		},
