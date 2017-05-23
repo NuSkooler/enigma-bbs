@@ -234,6 +234,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	//
 	const maxYear = moment().add(2, 'year').year();
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
+	
 	if(match && match[1]) {
 		let year;
 		if(2 === match[1].length) {

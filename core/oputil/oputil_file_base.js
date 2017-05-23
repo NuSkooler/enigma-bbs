@@ -185,18 +185,24 @@ function getSpecificFileEntry(pattern, cb) {
 
 				const fileEntry = new FileEntry();
 				fileEntry.load(fileId, () => {
-					return callback(null, fileEntry);	//	try sha
+					return callback(null, fileEntry);	//	try SHA
 				});
 			},
 			function getBySha(fileEntry, callback) {
 				if(fileEntry) {
-					return callback(null, fileEntry);	//	already got it by sha
+					return callback(null, fileEntry);	//	already got it by SHA
 				}
 
 				FileEntry.findFileBySha(pattern, (err, fileEntry) => {
-					return callback(err, fileEntry);
+					return callback(null, fileEntry);	//	try by PATH
 				});
-			},
+			}/*,
+			function getByPath(fileEntry, callback) {
+				if(fileEntry) {
+					return callback(null, fileEntry);	//	already got by FILE_ID|SHA
+				}				
+			}
+			*/
 		],
 		(err, fileEntry) => {
 			return cb(err, fileEntry);
@@ -367,12 +373,11 @@ function moveFiles() {
 				//	Each SRC may be PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
 				FileEntry = require('../../core/file_entry.js');
 
-				async.eachSeries(src, (areaAndStorage, next) => {
-					//
-					//	If this entry represents a area tag, it means *all files* in that area
-					//
+				async.eachSeries(src, (areaAndStorage, next) => {					
 					const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
+
 					if(areaInfo) {
+						//	AREA_TAG[@STORAGE_TAG] - all files in area@tag
 						src.areaInfo = areaInfo;
 
 						const findFilter = {
@@ -404,6 +409,7 @@ function moveFiles() {
 
 					} else {
 						//	PATH|FILE_ID|SHA|PARTIAL_SHA
+						//	:TODO: Implement by FILE|PATH support: find first path|file
 						getSpecificFileEntry(areaAndStorage.pattern, (err, fileEntry) => {
 							if(err) {
 								return next(err);
