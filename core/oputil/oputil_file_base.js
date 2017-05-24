@@ -171,41 +171,42 @@ function dumpAreaInfo(areaInfo, areaAndStorageInfo, cb) {
 	return cb(null);
 }
 
-function getSpecificFileEntry(pattern, cb) {
-	//	spec: FILE_ID|SHA|PARTIAL_SHA
+function getFileEntries(pattern, cb) {
+	//	spec: FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
 	const FileEntry = require('../../core/file_entry.js');
 
 	async.waterfall(
 		[
-			function getByFileId(callback) {
+			function tryByFileId(callback) {
 				const fileId = parseInt(pattern);
 				if(!/^[0-9]+$/.test(pattern) || isNaN(fileId)) {
-					return callback(null, null);
+					return callback(null, null);	//	try SHA
 				}
 
 				const fileEntry = new FileEntry();
-				fileEntry.load(fileId, () => {
-					return callback(null, fileEntry);	//	try SHA
+				fileEntry.load(fileId, err => {
+					return callback(null, err ? null : [ fileEntry ] );
 				});
 			},
-			function getBySha(fileEntry, callback) {
-				if(fileEntry) {
-					return callback(null, fileEntry);	//	already got it by SHA
+			function tryByShaOrPartialSha(entries, callback) {
+				if(entries) {
+					return callback(null, entries);	//	already got it by FILE_ID
 				}
 
 				FileEntry.findFileBySha(pattern, (err, fileEntry) => {
-					return callback(null, fileEntry);	//	try by PATH
+					return callback(null, fileEntry ? [ fileEntry ] : null );
 				});
-			}/*,
-			function getByPath(fileEntry, callback) {
-				if(fileEntry) {
-					return callback(null, fileEntry);	//	already got by FILE_ID|SHA
-				}				
+			},
+			function tryByFileNameWildcard(entries, callback) {
+				if(entries) {
+					return callback(null, entries);	//	already got by FILE_ID|SHA
+				}
+
+				return FileEntry.findByFileNameWildcard(pattern, callback);
 			}
-			*/
 		],
-		(err, fileEntry) => {
-			return cb(err, fileEntry);
+		(err, entries) => {
+			return cb(err, entries);
 		}
 	);
 }
@@ -214,8 +215,12 @@ function dumpFileInfo(shaOrFileId, cb) {
 	async.waterfall(
 		[
 			function getEntry(callback) {
-				getSpecificFileEntry(shaOrFileId, (err, fileEntry) => {
-					return callback(err, fileEntry);
+				getFileEntries(shaOrFileId, (err, entries) => {
+					if(err) {
+						return callback(err);
+					}
+
+					return callback(null, entries[0]);
 				});
 			},
 			function dumpInfo(fileEntry, callback) {
@@ -338,7 +343,7 @@ function moveFiles() {
 	//
 	//	oputil fb move SRC [SRC2 ...] DST
 	//
-	//	SRC: PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
+	//	SRC: FILENAME_WC|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
 	//	DST: AREA_TAG[@STORAGE_TAG]
 	//
 	if(argv._.length < 4) {
@@ -408,13 +413,14 @@ function moveFiles() {
 						});
 
 					} else {
-						//	PATH|FILE_ID|SHA|PARTIAL_SHA
-						//	:TODO: Implement by FILE|PATH support: find first path|file
-						getSpecificFileEntry(areaAndStorage.pattern, (err, fileEntry) => {
+						//	FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
+						//	:TODO: FULL_PATH -> entries
+						getFileEntries(areaAndStorage.pattern, (err, entries) => {
 							if(err) {
 								return next(err);
 							}
-							srcEntries.push(fileEntry);
+
+							srcEntries = srcEntries.concat(entries);
 							return next(null);
 						});
 					}
@@ -454,18 +460,30 @@ function moveFiles() {
 	);
 }
 
+function removeFiles() {
+	//
+	//	REMOVE SHA|FILE_ID [SHA|FILE_ID ...]
+}
+
 function handleFileBaseCommand() {
+
+	function errUsage()  {
+		return printUsageAndSetExitCode(
+			getHelpFor('FileBase') + getHelpFor('FileOpsInfo'), 
+			ExitCodes.ERROR
+		);
+	}
+
 	if(true === argv.help) {
-		return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
+		return errUsage();
 	}
 
 	const action = argv._[1];
 
-	switch(action) {
-		case 'info' : return displayFileAreaInfo();
-		case 'scan' : return scanFileAreas();
-		case 'move' : return moveFiles();
-
-		default : return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
-	}
+	return ({
+		info	: displayFileAreaInfo,
+		scan	: scanFileAreas,
+		move	: moveFiles,
+		remove	: removeFiles,
+	}[action] || errUsage)();
 }

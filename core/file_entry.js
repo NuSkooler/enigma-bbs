@@ -353,6 +353,41 @@ module.exports = class FileEntry {
 		);
 	}
 
+	static findByFileNameWildcard(wc, cb) {
+		//	convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
+		wc = wc.replace(/\*/g, '%').replace(/\?/g, '_');
+
+		fileDb.all(
+			`SELECT file_id
+			FROM file
+			WHERE file_name LIKE "${wc}"
+			`,
+			(err, fileIdRows) => {
+				if(err) {
+					return cb(err);
+				}
+
+				if(!fileIdRows || 0 === fileIdRows.length) {
+					return cb(Errors.DoesNotExist('No matches'));
+				}
+
+				const entries = [];
+				async.each(fileIdRows, (row, nextRow) => {
+					const fileEntry = new FileEntry();
+					fileEntry.load(row.file_id, err => {
+						if(!err) {
+							entries.push(fileEntry);
+						}
+						return nextRow(err);
+					});
+				},
+				err => {
+					return cb(err, entries);
+				});
+			}
+		);
+	}
+
 	static findFiles(filter, cb) {
 		filter = filter || {};
 

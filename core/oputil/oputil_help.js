@@ -9,7 +9,7 @@ exports.getHelpFor				= getHelpFor;
 const usageHelp = exports.USAGE_HELP = {
 	General :
 `usage: optutil.js [--version] [--help]
-                   <command> [<args>]
+                  <command> [<args>]
 
 global args:
   -c, --config PATH         specify config path (${getDefaultConfigPath()})
@@ -19,7 +19,6 @@ commands:
   user                      user utilities
   config                    config file management
   fb                        file base management
-
 `,
 	User : 
 `usage: optutil.js user --user USERNAME <args>
@@ -49,23 +48,35 @@ import-areas args:
 `usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
 
 actions:
-  scan AREA_TAG                scan specified areas
-                               AREA_TAG may be suffixed with @STORAGE_TAG; for example: retro@bbs
+  scan AREA_TAG[@STORAGE_TAG]  scan specified area
 
   info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
                                SHA may be a full or partial SHA-256
 
-  move SRC DST                 move entry(s) from SRC to DST where:
-                               SRC may be FILE_ID|SHA|AREA_TAG
-                               DST may be AREA_TAG, optionally suffixed with @STORAGE_TAG; for example: retro@bbs
-                               SHA may be a full or partial SHA-256
-                               multiple instances of SRC may exist: SRC1 SRC2 ...
+  move SRC [SRC...]] DST       move entry(s) from SRC to DST
+                               * SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+                               * DST: AREA_TAG[@STORAGE_TAG]
+
+  remove SHA|FILE_ID           removes a entry from the system
 
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
 
 info args:
   --show-desc                  display short description, if any
+
+remove args:
+  --delete                     also remove underlying physical file
+`,
+  FileOpsInfo :
+`
+general information:
+  AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
+                               example: retro@bbs
+  
+  FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
+  SHA                          full or partial SHA-256
+  FILE_ID                      a file identifier. see file.sqlite3
 `
 };
 
