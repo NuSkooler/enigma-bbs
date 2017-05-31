@@ -28,6 +28,10 @@ function WebSocketClient(ws, req, serverType) {
 		get : () => 'secure' === serverType ? true : false,
 	});
 
+	//
+	//	This bridge makes accessible various calls that client sub classes
+	//	want to access on I/O socket
+	//
 	this.socketBridge = new class SocketBridge extends EventEmitter {
 		constructor(ws) {
 			super();
@@ -84,10 +88,12 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 		//	* insecure websocket (ws://)
 		//	* secure (tls) websocket (wss://)
 		//
-		const insecureConf	= _.get(Config, 'loginServers.webSocket') || { enabled : false };
-		const secureConf	= _.get(Config, 'loginServers.secureWebSocket') || { enabled : false };
+		const config = _.get(Config, 'loginServers.webSocket') || { enabled : false };
+		if(!config || true !== config.enabled || !(config.port || config.securePort)) {
+			return;
+		}
 
-		if(insecureConf.enabled) {
+		if(config.port) {
 			const httpServer = http.createServer( (req, resp) => {
 				//	dummy handler
 				resp.writeHead(200);
@@ -100,10 +106,10 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 			};
 		}
 
-		if(secureConf.enabled) {
+		if(config.securePort) {
 			const httpServer = https.createServer({
-				key		: fs.readFileSync(Config.loginServers.secureWebSocket.keyPem),
-				cert	: fs.readFileSync(Config.loginServers.secureWebSocket.certPem),
+				key		: fs.readFileSync(Config.loginServers.webSocket.keyPem),
+				cert	: fs.readFileSync(Config.loginServers.webSocket.certPem),
 			});
 
 			this.secure = {
@@ -111,10 +117,6 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 				wsServer	: new WebSocketServer( { server : httpServer } ),
 			};
 		}
-	}
-
-	configName(serverType) {
-		return 'secure' === serverType ? 'secureWebSocket' : 'webSocket';
 	}
 
 	listen() {
@@ -125,7 +127,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 			}
 
 			const serverName 	= `${ModuleInfo.name} (${serverType})`;
-			const port			= parseInt( _.get( Config, [ 'loginServers', this.configName(serverType), 'port' ] ) );
+			const port			= parseInt(_.get(Config, [ 'loginServers', 'webSocket', 'secure' === serverType ? 'securePort' : 'port' ] ));
 
 			if(isNaN(port)) {
 				Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );
