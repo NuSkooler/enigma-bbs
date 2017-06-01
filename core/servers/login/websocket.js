@@ -25,7 +25,7 @@ const ModuleInfo = exports.moduleInfo = {
 function WebSocketClient(ws, req, serverType) {
 
 	Object.defineProperty(this, 'isSecure', {
-		get : () => 'secure' === serverType ? true : false,
+		get : () => ('secure' === serverType || true === this.secureProxyConnection) ? true : false,
 	});
 
 	//
@@ -68,6 +68,19 @@ function WebSocketClient(ws, req, serverType) {
 	});
 
 	TelnetClient.call(this, this.socketBridge, this.socketBridge);
+
+	Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
+
+	//
+	//	If the config allows it, look for 'x-forwarded-proto' as "https"
+	//	to override |isSecure|
+	//
+	if(true === _.get(Config, 'loginServers.webSocket.secureProxy') &&
+		'https' === req.headers['x-forwarded-proto'])
+	{
+		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of ${req.headers['x-forwarded-proto']}`);
+		this.secureProxyConnection = true;
+	}
 
 	//	start handshake process
 	this.banner();
