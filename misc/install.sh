@@ -101,7 +101,7 @@ enigma_footer() {
     log "ENiGMA½ installation complete!"
     echo -e "\e[33m"
     cat << EndOfMessage
-If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands:
+If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands (note: if you did not already have node.js installed, you may need to log out/back in to refresh your path):
 
   cd ${ENIGMA_INSTALL_DIR}
   ./oputil.js config new
