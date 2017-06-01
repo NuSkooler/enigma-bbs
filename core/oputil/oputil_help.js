@@ -9,63 +9,74 @@ exports.getHelpFor				= getHelpFor;
 const usageHelp = exports.USAGE_HELP = {
 	General :
 `usage: optutil.js [--version] [--help]
-                   <command> [<args>]
+                  <command> [<args>]
 
 global args:
-  -c, --config PATH         : specify config path (${getDefaultConfigPath()})
-  -n, --no-prompt           : assume defaults/don't prompt for input where possible
+  -c, --config PATH         specify config path (${getDefaultConfigPath()})
+  -n, --no-prompt           assume defaults/don't prompt for input where possible
 
-where <command> is one of:
-  user                      : user utilities
-  config                    : config file management
-  fb                        : file base management
-
+commands:
+  user                      user utilities
+  config                    config file management
+  fb                        file base management
 `,
 	User : 
 `usage: optutil.js user --user USERNAME <args>
 
 valid args:
-  --user USERNAME       : specify username for further actions
-  --password PASS       : set new password 
-  --delete              : delete user
-  --activate            : activate user
-  --deactivate          : deactivate user
+  --user USERNAME       specify username for further actions
+  --password PASS       set new password 
+  --delete              delete user
+  --activate            activate user
+  --deactivate          deactivate user
 `,
 
 	Config : 
 `usage: optutil.js config <action> [<args>]
 
-where <action> is one of:
-  new                      : generate a new/initial configuration
-  import-areas PATH        : import areas using fidonet *.NA or AREAS.BBS file from PATH
+actions:
+  new                      generate a new/initial configuration
+  import-areas PATH        import areas using fidonet *.NA or AREAS.BBS file from PATH
 
-valid import-areas <args>:
-  --conf CONF_TAG          : specify conference tag in which to import areas
-  --network NETWORK        : specify network name/key to associate FTN areas
-  --uplinks UL1,UL2,...    : specify one or more comma separated uplinks
-  --type TYPE              : specifies area import type. valid options are "bbs" and "na"
+import-areas args:
+  --conf CONF_TAG          specify conference tag in which to import areas
+  --network NETWORK        specify network name/key to associate FTN areas
+  --uplinks UL1,UL2,...    specify one or more comma separated uplinks
+  --type TYPE              specifies area import type. valid options are "bbs" and "na"
 `,
 	FileBase :
 `usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
 
-where <action> is one of:
-  scan AREA_TAG                : scan specified areas
-                                 AREA_TAG may be suffixed with @STORAGE_TAG; for example: retro@bbs
+actions:
+  scan AREA_TAG[@STORAGE_TAG]  scan specified area
 
-  info AREA_TAG|SHA|FILE_ID    : display information about areas and/or files
-                                 SHA may be a full or partial SHA-256
+  info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
+                               SHA may be a full or partial SHA-256
 
-  move SRC DST                 : move entry(s) from SRC to DST where:
-                                 SRC may be FILE_ID|SHA|AREA_TAG
-                                 DST may be AREA_TAG, optionally suffixed with @STORAGE_TAG; for example: retro@bbs
-                                 SHA may be a full or partial SHA-256
-                                 multiple instances of SRC may exist: SRC1 SRC2 ...
+  move SRC [SRC...]] DST       move entry(s) from SRC to DST
+                               * SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+                               * DST: AREA_TAG[@STORAGE_TAG]
 
-valid scan <args>:
-  --tags TAG1,TAG2,...         : specify tag(s) to assign to discovered entries
+  remove SHA|FILE_ID           removes a entry from the system
 
-valid info <args>:
-  --show-desc                  : display short description, if any
+scan args:
+  --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
+
+info args:
+  --show-desc                  display short description, if any
+
+remove args:
+  --delete                     also remove underlying physical file
+`,
+  FileOpsInfo :
+`
+general information:
+  AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
+                               example: retro@bbs
+  
+  FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
+  SHA                          full or partial SHA-256
+  FILE_ID                      a file identifier. see file.sqlite3
 `
 };
 

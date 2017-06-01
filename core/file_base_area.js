@@ -22,7 +22,7 @@ const crypto		= require('crypto');
 const paths			= require('path');
 const temptmp		= require('temptmp').createTrackedSession('file_area');
 const iconv			= require('iconv-lite');
-const exec 			= require('child_process').exec;
+const execFile		= require('child_process').execFile;
 const moment		= require('moment');
 
 exports.isInternalArea					= isInternalArea;
@@ -234,6 +234,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	//
 	const maxYear = moment().add(2, 'year').year();
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
+	
 	if(match && match[1]) {
 		let year;
 		if(2 === match[1].length) {
@@ -262,48 +263,16 @@ function logDebug(obj, msg) {
 	}
 }
 
-function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-	const archiveUtil 	= ArchiveUtil.getInstance();
-	const archiveType	= fileEntry.meta.archive_type;	//	we set this previous to populateFileEntryWithArchive()
-
+function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 	async.waterfall(
 		[
-			function getArchiveFileList(callback) {
-				stepInfo.step = 'archive_list_start';
-
-				iterator(err => {
-					if(err) {
-						return callback(err);
-					}
-
-					archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
-						if(err) {
-							stepInfo.step = 'archive_list_failed';
-						} else {
-							stepInfo.step = 'archive_list_finish';
-							stepInfo.archiveEntries = entries || [];
-						}
-
-						iterator(iterErr => {
-							return callback( iterErr, entries || [] );	//	ignore original |err| here
-						});
-					});
-				});
-			},
-			function processDescFilesStart(entries, callback) {
-				stepInfo.step = 'desc_files_start';
-				iterator(err => {
-					return callback(err, entries);
-				});
-			},
-			function extractDescFiles(entries, callback) {
-
+			function extractDescFiles(callback) {
 				//	:TODO: would be nice if these RegExp's were cached
 				//	:TODO: this is long winded...
 
 				const extractList = [];
 
-				const shortDescFile = entries.find( e => {
+				const shortDescFile = archiveEntries.find( e => {
 					return Config.fileBase.fileNamePatterns.desc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
@@ -311,7 +280,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					extractList.push(shortDescFile.fileName);
 				}
 
-				const longDescFile = entries.find( e => {
+				const longDescFile = archiveEntries.find( e => {
 					return Config.fileBase.fileNamePatterns.descLong.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
@@ -328,7 +297,8 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 						return callback(err);
 					}
 
-					archiveUtil.extractTo(filePath, tempDir, archiveType, extractList, err => {
+					const archiveUtil = ArchiveUtil.getInstance();
+					archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
 						if(err) {
 							return callback(err);
 						}				
@@ -384,6 +354,101 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 					return callback(null);
 				});
 			},
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
+function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries, cb) {
+
+	async.waterfall(
+		[
+			function extractToTemp(callback) {
+				//	:TODO: we may want to skip this if the compressed file is too large...
+				temptmp.mkdir( { prefix : 'enigextract-' }, (err, tempDir) => {
+					if(err) {
+						return callback(err);
+					}
+
+					const archiveUtil = ArchiveUtil.getInstance();
+					
+					//	ensure we only extract one - there should only be one anyway -- we also just need the fileName
+					const extractList = archiveEntries.slice(0, 1).map(entry => entry.fileName);
+					
+					archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
+						if(err) {
+							return callback(err);
+						}
+
+						return callback(null, paths.join(tempDir, extractList[0]));
+					});
+				});
+			},
+			function processSingleExtractedFile(extractedFile, callback) {
+				populateFileEntryInfoFromFile(fileEntry, extractedFile, err => {
+					if(!fileEntry.desc) {
+						fileEntry.desc = getDescFromFileName(filePath);
+					}
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			return cb(err);
+		}
+	);
+}
+
+function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, cb) {
+	const archiveUtil 	= ArchiveUtil.getInstance();
+	const archiveType	= fileEntry.meta.archive_type;	//	we set this previous to populateFileEntryWithArchive()
+
+	async.waterfall(
+		[
+			function getArchiveFileList(callback) {
+				stepInfo.step = 'archive_list_start';
+
+				iterator(err => {
+					if(err) {
+						return callback(err);
+					}
+
+					archiveUtil.listEntries(filePath, archiveType, (err, entries) => {
+						if(err) {
+							stepInfo.step = 'archive_list_failed';
+						} else {
+							stepInfo.step = 'archive_list_finish';
+							stepInfo.archiveEntries = entries || [];
+						}
+
+						iterator(iterErr => {
+							return callback( iterErr, entries || [] );	//	ignore original |err| here
+						});
+					});
+				});
+			},
+			function processDescFilesStart(entries, callback) {
+				stepInfo.step = 'desc_files_start';
+				iterator(err => {
+					return callback(err, entries);
+				});
+			},
+			function extractDescFromArchive(entries, callback) {
+				//
+				//	If we have a -single- entry in the archive, extract that file
+				//	and try retrieving info in the non-archive manor. This should
+				//	work for things like zipped up .pdf files.
+				//
+				//	Otherwise, try to find particular desc files such as FILE_ID.DIZ
+				//	and README.1ST
+				//
+				const archDescHandler = (1 === entries.length) ? extractAndProcessSingleArchiveEntry : extractAndProcessDescFiles;
+				archDescHandler(fileEntry, filePath, entries, err => {
+					return callback(err);
+				});
+			},
 			function attemptReleaseYearEstimation(callback) {
 				attemptSetEstimatedReleaseDate(fileEntry);
 				return callback(null);
@@ -413,6 +478,53 @@ function getInfoExtractUtilForDesc(mimeType, descType) {
 	return util;
 }
 
+function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
+	const mimeType = resolveMimeType(filePath);
+	if(!mimeType) {
+		return cb(null);
+	}
+
+	async.eachSeries( [ 'short', 'long' ], (descType, nextDesc) => {
+		const util = getInfoExtractUtilForDesc(mimeType, descType);
+		if(!util) {
+			return nextDesc(null);
+		}
+
+		const args = (util.args || [ '{filePath}'] ).map( arg => stringFormat(arg, { filePath : filePath } ) );
+
+		execFile(util.cmd, args, { timeout : 1000 * 30 }, (err, stdout) => {
+			if(err || !stdout) {
+				const reason = err ? err.message : 'No description produced';
+				logDebug(
+					{ reason : reason, cmd : util.cmd, args : args },
+					`${_.upperFirst(descType)} description command failed`
+				);
+			} else {
+				stdout = (stdout || '').trim();
+				if(stdout.length > 0) {
+					const key = 'short' === descType ? 'desc' : 'descLong';
+					if('desc' === key) {
+						//
+						//	Word wrap short descriptions to FILE_ID.DIZ spec
+						//
+						//	"...no more than 45 characters long"
+						//
+						//	See http://www.textfiles.com/computers/fileid.txt
+						//
+						stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
+					}
+
+					fileEntry[key] = stdout;
+				}
+			}
+
+			return nextDesc(null);
+		});
+	}, () => {
+		return cb(null);
+	});	
+}
+
 function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb) {
 
 	async.series(
@@ -422,48 +534,11 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
 				return iterator(callback);
 			},
 			function getDescriptions(callback) {
-				const mimeType = resolveMimeType(filePath);
-				if(!mimeType) {
-					return callback(null);
-				}
-
-				async.eachSeries( [ 'short', 'long' ], (descType, nextDesc) => {
-					const util = getInfoExtractUtilForDesc(mimeType, descType);
-					if(!util) {
-						return nextDesc(null);
+				populateFileEntryInfoFromFile(fileEntry, filePath, err => {
+					if(!fileEntry.desc) {
+						fileEntry.desc = getDescFromFileName(filePath);
 					}
-
-					const args = (util.args || [ '{filePath} '] ).map( arg => stringFormat(arg, { filePath : filePath } ) );
-
-					exec(`${util.cmd} ${args.join(' ')}`, (err, stdout) => {
-						if(err) {
-							logDebug(
-								{ error : err.message, cmd : util.cmd, args : args },
-								`${_.upperFirst(descType)} description command failed`
-							);
-						} else {
-							stdout = (stdout || '').trim();
-							if(stdout.length > 0) {
-								const key = 'short' === descType ? 'desc' : 'descLong';
-								if('desc' === key) {
-									//
-									//	Word wrap short descriptions to FILE_ID.DIZ spec
-									//
-									//	"...no more than 45 characters long"
-									//
-									//	See http://www.textfiles.com/computers/fileid.txt
-									//
-									stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
-								}
-
-								fileEntry[key] = stdout;
-							}
-						}
-
-						return nextDesc(null);
-					});
-				}, () => {
-					return callback(null);
+					return callback(err);
 				});
 			},
 			function processDescFilesFinish(callback) {
