@@ -104,7 +104,7 @@ enigma_footer() {
 If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands:
 
   cd ${ENIGMA_INSTALL_DIR}
-  ./oputil.js config --new
+  ./oputil.js config new
 
 Additionally, the following support binaires are recommended:
   7zip: Archive support
