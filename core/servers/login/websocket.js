@@ -28,6 +28,8 @@ function WebSocketClient(ws, req, serverType) {
 		get : () => ('secure' === serverType || true === this.proxied) ? true : false,
 	});
 
+	const self = this;
+
 	//
 	//	This bridge makes accessible various calls that client sub classes
 	//	want to access on I/O socket
@@ -48,7 +50,7 @@ function WebSocketClient(ws, req, serverType) {
 
 		get remoteAddress() {
 			//	Support X-Forwarded-For and X-Real-IP headers for proxied connections
-			return (this.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
+			return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
 		}
 	}(ws);
 
@@ -81,6 +83,8 @@ function WebSocketClient(ws, req, serverType) {
 	{
 		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
 		this.proxied = true;
+	} else {
+		this.proxied = false;
 	}
 
 	//	start handshake process
