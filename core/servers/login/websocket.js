@@ -41,7 +41,7 @@ function WebSocketClient(ws, req, serverType) {
 		}
 
 		end() {
-			return ws.terminate();
+			return ws.terminate();			
 		}
 
 		write(data, cb) {
@@ -59,7 +59,8 @@ function WebSocketClient(ws, req, serverType) {
 	});
 
 	ws.on('close', () => {
-		this.end();
+		//	we'll remove client connection which will in turn end() via our SocketBridge above
+		return this.emit('end');
 	});
 
 	//
