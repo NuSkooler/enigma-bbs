@@ -3,6 +3,7 @@
 
 //	ENiGMA½
 const ansi		= require('./ansi_term.js');
+const events    = require('./events.js');
 
 //	deps
 const async		= require('async');
@@ -82,7 +83,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		//
 		if(h < 10 || w < 10) {
 			client.log.warn(
-				{ height : h, width : w }, 
+				{ height : h, width : w },
 				'Ignoring ANSI CPR screen size query response due to very small values');
 			return done(new Error('Term size <= 10 considered invalid'));
 		}
@@ -91,11 +92,11 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		client.term.termWidth	= w;
 
 		client.log.debug(
-			{ 
-				termWidth	: client.term.termWidth, 
-				termHeight	: client.term.termHeight, 
-				source		: 'ANSI CPR' 
-			}, 
+			{
+				termWidth	: client.term.termWidth,
+				termHeight	: client.term.termHeight,
+				source		: 'ANSI CPR'
+			},
 			'Window size updated'
 			);
 
@@ -109,7 +110,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 		return done(new Error('No term size established by CPR within timeout'));
 	}, 2000);
 
-	//	Start the process: Query for CPR 
+	//	Start the process: Query for CPR
 	client.term.rawWrite(ansi.queryScreenSize());
 }
 
@@ -123,7 +124,7 @@ function displayBanner(term) {
 	//	note: intentional formatting:
 	term.pipeWrite(`
 |06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN
-|06Copyright (c) 2014-2017 Bryan Ashby |14- |12http://l33t.codes/ 
+|06Copyright (c) 2014-2017 Bryan Ashby |14- |12http://l33t.codes/
 |06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/
 |00`
 	);
@@ -153,11 +154,11 @@ function connectEntry(client, nextMenu) {
 						if(0 === term.termHeight || 0 === term.termWidth) {
 							//
 							//	We still don't have something good for term height/width.
-							//	Default to DOS size 80x25. 
+							//	Default to DOS size 80x25.
 							//
-							//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing??? 
+							//	:TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing???
 							client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
-							
+
 							term.termHeight	= 25;
 							term.termWidth	= 80;
 						}
@@ -165,8 +166,8 @@ function connectEntry(client, nextMenu) {
 
 					return callback(null);
 				});
-			},			
-		], 
+			},
+		],
 		() => {
 			prepareTerminal(term);
 
@@ -174,6 +175,9 @@ function connectEntry(client, nextMenu) {
 			//	Always show an ENiGMA½ banner
 			//
 			displayBanner(term);
+
+            // fire event
+            events.emit('codes.l33t.enigma.system.connect', {'client': client});
 
 			setTimeout( () => {
 				return client.menuStack.goto(nextMenu);

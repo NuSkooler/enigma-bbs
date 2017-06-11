@@ -25,8 +25,10 @@ const ModuleInfo = exports.moduleInfo = {
 function WebSocketClient(ws, req, serverType) {
 
 	Object.defineProperty(this, 'isSecure', {
-		get : () => ('secure' === serverType || true === this.secureProxyConnection) ? true : false,
+		get : () => ('secure' === serverType || true === this.proxied) ? true : false,
 	});
+
+	const self = this;
 
 	//
 	//	This bridge makes accessible various calls that client sub classes
@@ -39,7 +41,7 @@ function WebSocketClient(ws, req, serverType) {
 		}
 
 		end() {
-			return ws.terminate();
+			return ws.terminate();			
 		}
 
 		write(data, cb) {
@@ -47,7 +49,8 @@ function WebSocketClient(ws, req, serverType) {
 		}
 
 		get remoteAddress() {
-			return req.connection.remoteAddress;
+			//	Support X-Forwarded-For and X-Real-IP headers for proxied connections
+			return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
 		}
 	}(ws);
 
@@ -56,7 +59,8 @@ function WebSocketClient(ws, req, serverType) {
 	});
 
 	ws.on('close', () => {
-		this.end();
+		//	we'll remove client connection which will in turn end() via our SocketBridge above
+		return this.emit('end');
 	});
 
 	//
@@ -75,11 +79,13 @@ function WebSocketClient(ws, req, serverType) {
 	//	If the config allows it, look for 'x-forwarded-proto' as "https"
 	//	to override |isSecure|
 	//
-	if(true === _.get(Config, 'loginServers.webSocket.secureProxy') &&
+	if(true === _.get(Config, 'loginServers.webSocket.proxied') &&
 		'https' === req.headers['x-forwarded-proto'])
 	{
-		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of ${req.headers['x-forwarded-proto']}`);
-		this.secureProxyConnection = true;
+		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
+		this.proxied = true;
+	} else {
+		this.proxied = false;
 	}
 
 	//	start handshake process

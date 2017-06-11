@@ -11,6 +11,7 @@ const logger		= require('./logger.js');
 const database		= require('./database.js');
 const clientConns	= require('./client_connections.js');
 const resolvePath	= require('./misc_util.js').resolvePath;
+const events        = require('./events.js');
 
 //	deps
 const async			= require('async');
@@ -27,7 +28,7 @@ exports.main	= main;
 const initServices = {};
 
 const ENIGMA_COPYRIGHT	= 'ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby';
-const HELP = 
+const HELP =
 `${ENIGMA_COPYRIGHT}
 usage: main.js <args>
 
@@ -60,7 +61,7 @@ function main() {
 				conf.init(resolvePath(configPath), function configInit(err) {
 
 					//
-					//	If the user supplied a path and we can't read/parse it 
+					//	If the user supplied a path and we can't read/parse it
 					//	then it's a fatal error
 					//
 					if(err) {
@@ -84,15 +85,17 @@ function main() {
 					}
 					return callback(err);
 				});
-			},
+			}
 		],
 		function complete(err) {
+            events.registerModules();
+
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
 				console.info(ENIGMA_COPYRIGHT);
-				if(!err) {					
+				if(!err) {
 					console.info(banner);
-				}					
+				}
 				console.info('System started!');
 			});
 
@@ -140,7 +143,7 @@ function shutdownSystem() {
 			},
 			function stopMsgNetwork(callback) {
 				require('./msg_network.js').shutdown(callback);
-			} 
+			}
 		],
 		() => {
 			console.info('Goodbye!');
@@ -173,9 +176,9 @@ function initialize(cb) {
 				process.on('SIGINT', shutdownSystem);
 
 				require('later').date.localTime();	//	use local times for later.js/scheduling
-			
+
 				return callback(null);
-			},			
+			},
 			function initDatabases(callback) {
 				return database.initializeDatabases(callback);
 			},
@@ -195,7 +198,7 @@ function initialize(cb) {
 				//	* Makes this accessible for MCI codes, easy non-blocking access, etc.
 				//	* We do this every time as the op is free to change this information just
 				//	  like any other user
-				//				
+				//
 				const User = require('./user.js');
 
 				async.waterfall(
@@ -223,7 +226,7 @@ function initialize(cb) {
 							opProps.username = opUserName;
 
 							_.each(opProps, (v, k) => {
-								StatLog.setNonPeristentSystemStat(`sysop_${k}`, v); 
+								StatLog.setNonPeristentSystemStat(`sysop_${k}`, v);
 							});
 						}
 
@@ -235,7 +238,7 @@ function initialize(cb) {
 				return require('./predefined_mci.js').init(callback);
 			},
 			function readyMessageNetworkSupport(callback) {
-				return require('./msg_network.js').startup(callback);	
+				return require('./msg_network.js').startup(callback);
 			},
 			function listenConnections(callback) {
 				return require('./listening_server.js').startup(callback);
