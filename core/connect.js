@@ -177,7 +177,7 @@ function connectEntry(client, nextMenu) {
 			displayBanner(term);
 
             // fire event
-            events.emit('codes.l33t.enigma.system.connect', {'client': client});
+            events.emit('codes.l33t.enigma.system.term_detected', {'client': client});
 
 			setTimeout( () => {
 				return client.menuStack.goto(nextMenu);

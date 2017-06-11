@@ -32,7 +32,7 @@ var self = module.exports = {
 			}
 			if (fs.existsSync(modPath)) {
 				var module = require(modPath);
-		
+				
 				if (module.registerEvents !== undefined) {
 					logger.log.debug(modPath+" calling registerEvents function");
 					module.registerEvents();
