@@ -9,3 +9,5 @@ node_modules/
 mods/northern_bloc.hjson
 mods/suprapi/*
 mods/suprapi
+
+.editor-settings

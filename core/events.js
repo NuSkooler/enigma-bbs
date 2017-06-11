@@ -2,10 +2,10 @@
 'use strict';
 
 const Config				= require('./config.js');
-const fs                    = require('fs');
-const path                  = require('path');
-const events                = require('events');
-const logger		        = require('./logger.js');
+const fs					= require('fs');
+const path					= require('path');
+const events				= require('events');
+const logger				= require('./logger.js');
 
 var eventEmitter = new events.EventEmitter();
 
@@ -18,10 +18,10 @@ var self = module.exports = {
 		logger.log.debug("Register listener for "+eventName);
 		eventEmitter.on(eventName, listener);
 	},
-    remove: function(eventName, listener) {
-        logger.log.debug("Remove listener for "+eventName);
-        eventEmitter.removeListener(eventName, listener);
-    },
+	remove: function(eventName, listener) {
+		logger.log.debug("Remove listener for "+eventName);
+		eventEmitter.removeListener(eventName, listener);
+	},
 	registerModules: function() {
 		var mods = fs.readdirSync(Config.config.paths.mods);
 
@@ -32,7 +32,7 @@ var self = module.exports = {
 			}
 			if (fs.existsSync(modPath)) {
 				var module = require(modPath);
-				
+
 				if (module.registerEvents !== undefined) {
 					logger.log.debug(modPath+" calling registerEvents function");
 					module.registerEvents();

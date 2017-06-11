@@ -88,7 +88,7 @@ function main() {
 			}
 		],
 		function complete(err) {
-            events.registerModules();
+			events.registerModules();
 
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
