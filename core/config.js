@@ -100,6 +100,11 @@ function init(configPath, options, cb) {
 		],
 		function complete(err, mergedConfig) {
 			exports.config = mergedConfig;
+
+			exports.config.get = function(path) {
+				return _.get(exports.config, path);
+			};
+
 			return cb(err);
 		}
 	);
