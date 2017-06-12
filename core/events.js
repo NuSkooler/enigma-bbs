@@ -23,25 +23,28 @@ var self = module.exports = {
 		eventEmitter.removeListener(eventName, listener);
 	},
 	registerModules: function() {
-		var mods = fs.readdirSync(Config.config.paths.mods);
+		const moduleUtil = require('./module_util.js');
 
-		mods.forEach(function(item) {
-			var modPath = Config.config.paths.mods+item;
-			if (item.substr(item.length-3) != '.js') {
-				modPath += path.sep+item+'.js';
-			}
-			if (fs.existsSync(modPath)) {
-				var module = require(modPath);
-
-				if (module.registerEvents !== undefined) {
-					logger.log.debug(modPath+" calling registerEvents function");
-					module.registerEvents();
-				} else {
-					logger.log.debug(modPath+" has no registerEvents function");
+		moduleUtil.getModulePaths().forEach(function(modulePath) {
+			var mods = fs.readdirSync(modulePath);
+			mods.forEach(function(item) {
+				var modPath = modulePath+item;
+				if (item.substr(item.length-3) != '.js') {
+					modPath += path.sep+item+'.js';
 				}
-			} else {
-				logger.log.debug(modPath+" - file not found");
-			}
+				if (fs.existsSync(modPath)) {
+					var module = require(modPath);
+
+					if (module.registerEvents !== undefined) {
+						logger.log.debug(modPath+" calling registerEvents function");
+						module.registerEvents();
+					} else {
+						logger.log.debug(modPath+" has no registerEvents function");
+					}
+				} else {
+					logger.log.debug(modPath+" - file not found");
+				}
+			});
 		});
 	}
 }
