@@ -293,9 +293,9 @@ function FTNMessageScanTossModule() {
 		async.detectSeries(EXT_SUFFIXES, (suffix, callback) => {
 			const checkFileName = fileName + suffix; 			
 			fs.stat(paths.join(basePath, checkFileName), err => {
-				callback((err && 'ENOENT' === err.code) ? true : false);
+				callback(null, (err && 'ENOENT' === err.code) ? true : false);
 			});
-		}, finalSuffix => {
+		}, (err, finalSuffix) => {
 			if(finalSuffix) {
 				cb(null, paths.join(basePath, fileName + finalSuffix));
 			} else {
