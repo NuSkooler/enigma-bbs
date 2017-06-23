@@ -9,9 +9,7 @@
 const conf			= require('./config.js');
 const logger		= require('./logger.js');
 const database		= require('./database.js');
-const clientConns	= require('./client_connections.js');
 const resolvePath	= require('./misc_util.js').resolvePath;
-const events        = require('./events.js');
 
 //	deps
 const async			= require('async');
@@ -88,8 +86,6 @@ function main() {
 			}
 		],
 		function complete(err) {
-			events.registerModules();
-
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
 				console.info(ENIGMA_COPYRIGHT);
@@ -114,11 +110,12 @@ function shutdownSystem() {
 	async.series(
 		[
 			function closeConnections(callback) {
-				const activeConnections = clientConns.getActiveConnections();
+				const ClientConns = require('./client_connections.js');
+				const activeConnections = ClientConns.getActiveConnections();
 				let i = activeConnections.length;
 				while(i--) {
 					activeConnections[i].term.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
-					clientConns.removeClient(activeConnections[i]);
+					ClientConns.removeClient(activeConnections[i]);
 				}
 				callback(null);
 			},
@@ -239,6 +236,9 @@ function initialize(cb) {
 			},
 			function readyMessageNetworkSupport(callback) {
 				return require('./msg_network.js').startup(callback);
+			},
+			function readyEvents(callback) {
+				return require('./events.js').startup(callback);
 			},
 			function listenConnections(callback) {
 				return require('./listening_server.js').startup(callback);

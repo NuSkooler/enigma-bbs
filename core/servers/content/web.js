@@ -116,7 +116,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 			//	additional options
 			Object.assign(options, Config.contentServers.web.https.options || {} );
 
-			this.httpsServer = https.createServer(options, this.routeRequest);			
+			this.httpsServer = https.createServer(options, this.routeRequest);
 		}
 	}
 

@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const logger			= require('./logger.js');
-const events            = require('./events.js');
+const Events            = require('./events.js');
 
 //	deps
 const _					= require('lodash');
@@ -77,7 +77,7 @@ function addNewClient(client, clientSock) {
 
 	client.log.info(connInfo, 'Client connected');
 
-	events.emit('codes.l33t.enigma.system.connected', {'client': client});
+	Events.emit('codes.l33t.enigma.system.connected', { client : client, connectionCount : clientConnections.length } );
 
 	return id;
 }
@@ -97,7 +97,7 @@ function removeClient(client) {
 			'Client disconnected'
 			);
 
-		events.emit('codes.l33t.enigma.system.disconnected', {'client': client});
+		Events.emit('codes.l33t.enigma.system.disconnected', { client : client, connectionCount : clientConnections.length } );
 	}
 }
 

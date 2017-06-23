@@ -1,50 +1,73 @@
 /* jslint node: true */
 'use strict';
 
-const Config				= require('./config.js');
-const fs					= require('fs');
-const path					= require('path');
-const events				= require('events');
-const logger				= require('./logger.js');
+const paths				= require('path');
+const events			= require('events');
+const Log				= require('./logger.js').log;
 
-var eventEmitter = new events.EventEmitter();
+//	deps
+const _					= require('lodash');
+const async				= require('async');
+const glob				= require('glob');
 
-var self = module.exports = {
-	emit: function(eventName, args) {
-		logger.log.debug("Emit "+eventName);
-		eventEmitter.emit(eventName, args);
-	},
-	on: function(eventName, listener) {
-		logger.log.debug("Register listener for "+eventName);
-		eventEmitter.on(eventName, listener);
-	},
-	remove: function(eventName, listener) {
-		logger.log.debug("Remove listener for "+eventName);
-		eventEmitter.removeListener(eventName, listener);
-	},
-	registerModules: function() {
-		const moduleUtil = require('./module_util.js');
+module.exports = new class Events extends events.EventEmitter {
+	constructor() {
+		super();
+	}
 
-		moduleUtil.getModulePaths().forEach(function(modulePath) {
-			var mods = fs.readdirSync(modulePath);
-			mods.forEach(function(item) {
-				var modPath = modulePath+item;
-				if (item.substr(item.length-3) != '.js') {
-					modPath += path.sep+item+'.js';
+	addListener(event, listener) {
+		Log.trace( { event : event }, 'Registering event listener');
+		return super.addListener(event, listener);
+	}
+
+	emit(event, ...args) {
+		Log.trace( { event : event }, 'Emitting event');
+		return super.emit(event, args);
+	}
+
+	on(event, listener) {
+		Log.trace( { event : event }, 'Registering event listener');
+		return super.on(event, listener);
+	}
+
+	once(event, listener) {
+		Log.trace( { event : event }, 'Registering single use event listener');
+		return super.once(event, listener);
+	}
+
+	removeListener(event, listener) {
+		Log.trace( { event : event }, 'Removing listener');
+		return super.removeListener(event, listener);
+	}
+
+	startup(cb) {
+		async.each(require('./module_util.js').getModulePaths(), (modulePath, nextPath) => {
+			glob('*{.js,/*.js}', { cwd : modulePath }, (err, files) => {
+				if(err) {
+					return nextPath(err);
 				}
-				if (fs.existsSync(modPath)) {
-					var module = require(modPath);
 
-					if (module.registerEvents !== undefined) {
-						logger.log.debug(modPath+" calling registerEvents function");
-						module.registerEvents();
-					} else {
-						logger.log.debug(modPath+" has no registerEvents function");
+				async.each(files, (moduleName, nextModule) => {
+					modulePath = paths.join(modulePath, moduleName);
+
+					try {
+						const mod = require(modulePath);
+						
+						if(_.isFunction(mod.registerEvents)) {
+							//	:TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
+							mod.registerEvents(this);
+						}
+					} catch(e) {
+
 					}
-				} else {
-					logger.log.debug(modPath+" - file not found");
-				}
+
+					return nextModule(null);
+				}, err => {
+					return nextPath(err);
+				});
 			});
+		}, err => {
+			return cb(err);
 		});
 	}
-}
+};

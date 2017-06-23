@@ -45,7 +45,8 @@
     "uuid-parse": "^1.0.0",
     "ws" : "^3.0.0",
     "graceful-fs" : "^4.1.11",
-    "exiftool" : "^0.0.3"
+    "exiftool" : "^0.0.3",
+    "node-glob" : "^1.2.0"
   },
   "devDependencies": {},
   "engines": {

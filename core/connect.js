@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const ansi		= require('./ansi_term.js');
-const events    = require('./events.js');
+const Events    = require('./events.js');
 
 //	deps
 const async		= require('async');
@@ -177,7 +177,7 @@ function connectEntry(client, nextMenu) {
 			displayBanner(term);
 
 			// fire event
-			events.emit('codes.l33t.enigma.system.term_detected', {'client': client});
+			Events.emit('codes.l33t.enigma.system.term_detected', { client : client } );
 
 			setTimeout( () => {
 				return client.menuStack.goto(nextMenu);

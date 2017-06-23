@@ -297,10 +297,10 @@ function FTNMessageScanTossModule() {
 			});
 		}, (err, finalSuffix) => {
 			if(finalSuffix) {
-				cb(null, paths.join(basePath, fileName + finalSuffix));
-			} else {
-				cb(new Error('Could not acquire a bundle filename!'));
+				return cb(null, paths.join(basePath, fileName + finalSuffix));
 			}
+			
+			return cb(new Error('Could not acquire a bundle filename!'));			
 		});
 	};
 	

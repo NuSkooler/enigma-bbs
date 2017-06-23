@@ -37,14 +37,16 @@ function userLogin(client, username, password, cb) {
 		});
 
 		if(existingClientConnection) {
-			client.log.info( {
-				existingClientId	: existingClientConnection.session.id, 
-				username			: user.username, 
-				userId				: user.userId },
+			client.log.info(
+				{
+					existingClientId	: existingClientConnection.session.id, 
+					username			: user.username, 
+					userId				: user.userId
+				},
 				'Already logged in'
 			);
 
-			var existingConnError = new Error('Already logged in as supplied user');
+			const existingConnError = new Error('Already logged in as supplied user');
 			existingConnError.existingConn = true;
 
 			//	:TODO: We should use EnigError & pass existing connection as second param
@@ -61,24 +63,24 @@ function userLogin(client, username, password, cb) {
 			[
 				function setTheme(callback) {
 					setClientTheme(client, user.properties.theme_id);
-					callback(null);
+					return callback(null);
 				},
 				function updateSystemLoginCount(callback) {
-					StatLog.incrementSystemStat('login_count', 1, callback);
+					return StatLog.incrementSystemStat('login_count', 1, callback);
 				},
 				function recordLastLogin(callback) {
-					StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
+					return StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
 				},
 				function updateUserLoginCount(callback) {
-					StatLog.incrementUserStat(user, 'login_count', 1, callback);						
+					return StatLog.incrementUserStat(user, 'login_count', 1, callback);						
 				},
 				function recordLoginHistory(callback) {
 					const LOGIN_HISTORY_MAX	= 200;	//	history of up to last 200 callers
-					StatLog.appendSystemLogEntry('user_login_history', user.userId, LOGIN_HISTORY_MAX, StatLog.KeepType.Max, callback);
+					return StatLog.appendSystemLogEntry('user_login_history', user.userId, LOGIN_HISTORY_MAX, StatLog.KeepType.Max, callback);
 				}
 			],
-			function complete(err) {
-				cb(err);
+			err => {
+				return cb(err);
 			}
 		);
 	});
