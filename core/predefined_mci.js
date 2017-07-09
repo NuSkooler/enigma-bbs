@@ -37,7 +37,7 @@ function setNextRandomRumor(cb) {
 	});
 }
 
-function getRatio(client, propA, propB) {
+function getUserRatio(client, propA, propB) {
 	const a = StatLog.getUserStatNum(client.user, propA);
 	const b	= StatLog.getUserStatNum(client.user, propB);
 	const ratio	= ~~((a / b) * 100);
@@ -46,6 +46,10 @@ function getRatio(client, propA, propB) {
 
 function userStatAsString(client, statName, defaultValue) {
 	return (StatLog.getUserStat(client.user, statName) || defaultValue).toString();
+}
+
+function sysStatAsString(statName, defaultValue) {
+	return (StatLog.getSystemStat(statName) || defaultValue).toString();
 }
 
 const PREDEFINED_MCI_GENERATORS = {
@@ -101,15 +105,15 @@ const PREDEFINED_MCI_GENERATORS = {
 		return formatByteSize(byteSize, true);	//	true=withAbbr
 	},
 	NR	: function userUpDownRatio(client) {	//	Obv/2
-		return getRatio(client, 'ul_total_count', 'dl_total_count');
+		return getUserRatio(client, 'ul_total_count', 'dl_total_count');
 	},
 	KR	: function userUpDownByteRatio(client) {	//	Obv/2 uses KR=upload/download Kbyte ratio
-		return getRatio(client, 'ul_total_bytes', 'dl_total_bytes');
+		return getUserRatio(client, 'ul_total_bytes', 'dl_total_bytes');
 	},
 
 	MS	: function accountCreatedclient(client) { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
 	PS	: function userPostCount(client) { return userStatAsString(client, 'post_count', 0); },
-	PC	: function userPostCallRatio(client) { return getRatio(client, 'post_count', 'login_count'); },
+	PC	: function userPostCallRatio(client) { return getUserRatio(client, 'post_count', 'login_count'); },
 
 	MD	: function currentMenuDescription(client) {
 		return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
@@ -187,7 +191,16 @@ const PREDEFINED_MCI_GENERATORS = {
 	//
 	//	:TODO: DD - Today's # of downloads (iNiQUiTY)
 	//	
-	//	:TODO: System stat log for total ul/dl, total ul/dl bytes
+	SD	: function systemNumDownloads() { return sysStatAsString('dl_total_count', 0); },
+	SO	: function systemByteDownload() {
+		const byteSize = StatLog.getSystemStatNum('dl_total_bytes');
+		return formatByteSize(byteSize, true);	//	true=withAbbr
+	},
+	SU	: function systemNumUploads() { return sysStatAsString('ul_total_count', 0); },
+	SP	: function systemByteUpload() {
+		const byteSize = StatLog.getSystemStatNum('ul_total_bytes');
+		return formatByteSize(byteSize, true);	//	true=withAbbr
+	},
 
 	//	:TODO: PT - Messages posted *today* (Obv/2)
 	//		-> Include FTN/etc.
