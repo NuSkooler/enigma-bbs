@@ -507,8 +507,8 @@ function createCleanAnsi(input, options, cb) {
 
 	parser.parse(input);
 }
-
 /*
+
 const fs = require('graceful-fs');
 let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
 data = iconv.decode(data, 'cp437');

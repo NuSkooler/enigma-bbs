@@ -473,4 +473,3 @@ function setEmulatedBaudRate(rate) {
 	}[rate] || 0;
 	return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
 }
-

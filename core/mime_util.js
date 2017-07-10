@@ -15,13 +15,18 @@ function startup(cb) {
 	//
 	const ADDITIONAL_EXT_MIMETYPES = {
 		arj				: 'application/x-arj',
-		ans				: 'text/x-ansi',		
+		ans				: 'text/x-ansi',
+		gz				: 'application/gzip',	//	not in mime-types 2.1.15 :(
 	};
 
 	_.forEach(ADDITIONAL_EXT_MIMETYPES, (mimeType, ext) => {
 		//	don't override any entries
 		if(!_.isString(mimeTypes.types[ext])) {
 			mimeTypes[ext] = mimeType;
+		}
+
+		if(!mimeTypes.extensions[mimeType]) {
+			mimeTypes.extensions[mimeType] = [ ext ];
 		}
 	});
 

@@ -65,14 +65,14 @@ module.exports = class FileBaseFilters {
 		let filtersProperty = this.client.user.properties.file_base_filters;
 		let defaulted;
 		if(!filtersProperty) {
-			filtersProperty = JSON.stringify(FileBaseFilters.getDefaultFilters());
+			filtersProperty = JSON.stringify(FileBaseFilters.getBuiltInSystemFilters());
 			defaulted = true;
 		}
 
 		try {
 			this.filters = JSON.parse(filtersProperty);
 		} catch(e) {
-			this.filters = FileBaseFilters.getDefaultFilters();	//	something bad happened; reset everything back to defaults :(
+			this.filters = FileBaseFilters.getBuiltInSystemFilters();	//	something bad happened; reset everything back to defaults :(
 			defaulted = true;
 			this.client.log.error( { error : e.message, property : filtersProperty }, 'Failed parsing file base filters property' );
 		}
@@ -107,20 +107,33 @@ module.exports = class FileBaseFilters {
 		return false;
 	}
 
-	static getDefaultFilters() {
-		const filters = {};
-		
-		const uuid = uuidV4();
-		filters[uuid] = {
-			name	: 'Default',
+	static getBuiltInSystemFilters() {
+		const U_LATEST	= '7458b09d-40ab-4f9b-a0d7-0cf866646329';
+
+		const filters = {
+			[ U_LATEST ] : {
+				name	: 'Latest Additions',
+				areaTag	: '',	//	all
+				terms	: '',	//	*
+				tags	: '',	//	*
+				order	: 'descending',
+				sort	: 'upload_timestamp',
+				uuid	: U_LATEST,
+				system	: true,
+			}
+		};
+		/*
+		filters[U_LATEST] = {
+			name	: 'Latest Additions',
 			areaTag	: '',	//	all
 			terms	: '',	//	*
 			tags	: '',	//	*
 			order	: 'descending',
 			sort	: 'upload_timestamp',
-			uuid	: uuid,
+			uuid	: U_LATEST,
+			system	: true,
 		};
-
+*/
 		return filters;
 	}
 

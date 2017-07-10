@@ -61,7 +61,6 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 		this.menuMethods = {
 			saveFilter : (formData, extraArgs, cb) => {
 				return this.saveCurrentFilter(formData, cb);
-
 			},
 			prevFilter : (formData, extraArgs, cb) => {
 				this.currentFilterIndex -= 1;
@@ -93,7 +92,15 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 				return cb(null);
 			},
 			deleteFilter : (formData, extraArgs, cb) => {
-				const filterUuid = this.filtersArray[this.currentFilterIndex].uuid;
+				const selectedFilter	= this.filtersArray[this.currentFilterIndex];
+				const filterUuid		= selectedFilter.uuid;
+
+				//	cannot delete built-in/system filters
+				if(true === selectedFilter.system) {
+					this.showError('Cannot delete built in filters!');
+					return cb(null);
+				}
+
 				this.filtersArray.splice(this.currentFilterIndex, 1);	//	remove selected entry
 
 				//	remove from stored properties
@@ -142,6 +149,17 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 				return cb(newFocusId);
 			},
 		};
+	}
+
+	showError(errMsg) {
+		const errorView = this.viewControllers.editor.getView(MciViewIds.editor.error);
+		if(errorView) {
+			if(errMsg) {
+				errorView.setText(errMsg);
+			} else {
+				errorView.clearText();
+			}
+		}
 	}
 	
 	mciReady(mciData, cb) {

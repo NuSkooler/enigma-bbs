@@ -92,6 +92,10 @@ class StatLog {
 
 	getSystemStat(statName) { return this.systemStats[statName]; }
 
+	getSystemStatNum(statName) {
+		return parseInt(this.getSystemStat(statName)) || 0;
+	}
+
 	incrementSystemStat(statName, incrementBy, cb) {
 		incrementBy = incrementBy || 1;
 

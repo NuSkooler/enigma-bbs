@@ -17,6 +17,7 @@ const crypto		= require('crypto');
 //
 //	Class to read and hold information from a TIC file
 //
+//	* FTS-5006.001 @ http://www.filegate.net/ftsc/FTS-5006.001
 //	* FSP-1039.001 @ http://ftsc.org/docs/old/fsp-1039.001
 //	* FSC-0087.001 @ http://ftsc.org/docs/fsc-0087.001
 //

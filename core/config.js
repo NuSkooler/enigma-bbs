@@ -368,7 +368,7 @@ function getDefaultConfig() {
 				desc			: 'Gzip Archive',
 				sig				: '1f8b',
 				offset			: 0,
-				archiveHandler	: '7Zip',
+				archiveHandler	: 'TarGz',
 			},
 			//	:TODO: application/x-bzip
 			'application/x-bzip2' : {
@@ -478,6 +478,22 @@ function getDefaultConfig() {
 					extract			: {
 						cmd			: 'unrar',
 						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+					}
+				},
+
+				TarGz : {
+					decompress		: {
+						cmd			: 'tar',
+						args		: [ '-xf', '{archivePath}', '-C', '{extractPath}', '--strip-components=1' ],
+					},
+					list			: {
+						cmd			: 'tar',
+						args		: [ '-tvf', '{archivePath}' ],
+						entryMatch	: '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',						
+					},
+					extract			: {
+						cmd			: 'tar',
+						args		: [ '-xvf', '{archivePath}', '-C', '{extractPath}', '{fileList}' ],
 					}
 				}
 			},

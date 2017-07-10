@@ -212,8 +212,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const entryInfo = currEntry.entryInfo = {
 			fileId				: currEntry.fileId,
 			areaTag				: currEntry.areaTag,
-			areaName			: area.name || 'N/A',
-			areaDesc			: area.desc || 'N/A',
+			areaName			: _.get(area, 'name') || 'N/A',
+			areaDesc			: _.get(area, 'desc') || 'N/A',
 			fileSha256			: currEntry.fileSha256,
 			fileName			: currEntry.fileName,
 			desc				: currEntry.desc || '',
