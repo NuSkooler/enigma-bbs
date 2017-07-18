@@ -1,8 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-const _			= require('lodash');
-const uuidV4	= require('uuid/v4');
+//	deps
+const _						= require('lodash');
+const uuidV4				= require('uuid/v4');
 
 module.exports = class FileBaseFilters {
 	constructor(client) {
@@ -122,22 +123,27 @@ module.exports = class FileBaseFilters {
 				system	: true,
 			}
 		};
-		/*
-		filters[U_LATEST] = {
-			name	: 'Latest Additions',
-			areaTag	: '',	//	all
-			terms	: '',	//	*
-			tags	: '',	//	*
-			order	: 'descending',
-			sort	: 'upload_timestamp',
-			uuid	: U_LATEST,
-			system	: true,
-		};
-*/
+
 		return filters;
 	}
 
 	static getActiveFilter(client) {
 		return new FileBaseFilters(client).get(client.user.properties.file_base_filter_active_uuid);
+	}
+
+	static getFileBaseLastViewedFileIdByUser(user) {
+		return user.properties.user_file_base_last_viewed || 0;
+	}
+
+	static setFileBaseLastViewedFileIdForUser(user, fileId, cb) {
+		const current = FileBaseFilters.getFileBaseLastViewedFileIdByUser(user);
+		if(fileId < current) {
+			if(cb) {
+				cb(null);
+			}
+			return;
+		}
+
+		return user.persistProperty('user_file_base_last_viewed', fileId, cb);
 	}
 };

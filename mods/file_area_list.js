@@ -76,6 +76,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		if(options.extraArgs) {
 			this.filterCriteria	= options.extraArgs.filterCriteria;
+			this.fileList		= options.fileList;
 		}
 
 		this.dlQueue = new DownloadQueue(this.client);

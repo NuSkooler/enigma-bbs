@@ -6,6 +6,9 @@ const msgArea			= require('./message_area.js');
 const MenuModule		= require('./menu_module.js').MenuModule;
 const ViewController	= require('./view_controller.js').ViewController;
 const stringFormat		= require('./string_format.js');
+const FileEntry			= require('./file_entry.js');
+const FileBaseFilters	= require('./file_base_filter.js');
+const Errors			= require('./enig_error.js').Errors;
 
 //	deps
 const _					= require('lodash');
@@ -30,13 +33,21 @@ const MciCodeIds = {
 	ScanStatusList	: 2,	//	VM2 (appends)
 };
 
+const Steps = {
+	MessageConfs	: 'messageConferences',
+	FileBase		: 'fileBase',
+	
+	Finished		: 'finished',
+};
+
 exports.getModule = class NewScanModule extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		this.newScanFullExit	= _.has(options, 'lastMenuResult.fullExit') ? options.lastMenuResult.fullExit : false;
 
-		this.currentStep		= 'messageConferences';
+		this.newScanFullExit	= _.get(options, 'lastMenuResult.fullExit', false);
+
+		this.currentStep		= Steps.MessageConfs;
 		this.currentScanAux		= {};
 
 		//  :TODO: Make this conf/area specific:
@@ -49,13 +60,6 @@ exports.getModule = class NewScanModule extends MenuModule {
 
 	updateScanStatus(statusText) {
 		this.setViewText('allViews', MciCodeIds.ScanStatusLabel, statusText);
-
-		/*
-		view = vc.getView(MciCodeIds.ScanStatusList);
-		//	:TODO: MenuView needs appendItem()
-		if(view) {			
-		}
-		*/
 	}
     
 	newScanMessageConference(cb) {
@@ -87,32 +91,19 @@ exports.getModule = class NewScanModule extends MenuModule {
 			this.currentScanAux.area = this.currentScanAux.area || 0;
 		}
         
-		const currentConf	= this.sortedMessageConfs[this.currentScanAux.conf];
-		const self			= this;
-        
-		async.series(
-			[
-				function scanArea(callback) {
-					//self.currentScanAux.area = self.currentScanAux.area || 0;
-					
-					self.newScanMessageArea(currentConf, () => {
-						if(self.sortedMessageConfs.length > self.currentScanAux.conf + 1) {
-							self.currentScanAux.conf += 1;                            
-							self.currentScanAux.area = 0;
-							
-							self.newScanMessageConference(cb);  //  recursive to next conf
-							//callback(null);
-						} else {
-							self.updateScanStatus(self.scanCompleteMsg);
-							callback(new Error('No more conferences'));
-						} 
-					});
-				}
-			],
-			err => {
-				return cb(err);
+		const currentConf = this.sortedMessageConfs[this.currentScanAux.conf];
+
+		this.newScanMessageArea(currentConf, () => {
+			if(this.sortedMessageConfs.length > this.currentScanAux.conf + 1) {
+				this.currentScanAux.conf += 1;                            
+				this.currentScanAux.area = 0;
+				
+				return this.newScanMessageConference(cb);  //  recursive to next conf
 			}
-        );
+
+			this.updateScanStatus(this.scanCompleteMsg);
+			return cb(Errors.DoesNotExist('No more conferences'));
+		});        
 	}
 	
 	newScanMessageArea(conf, cb) {
@@ -134,7 +125,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 						return callback(null);
 					} else {
 						self.updateScanStatus(self.scanCompleteMsg);
-						return callback(new Error('No more areas'));	//	this will stop our scan
+						return callback(Errors.DoesNotExist('No more areas'));	//	this will stop our scan
 					}
 				},
 				function updateStatusScanStarted(callback) {
@@ -173,6 +164,28 @@ exports.getModule = class NewScanModule extends MenuModule {
 		);
 	}
 
+	newScanFileBase(cb) {
+		//	:TODO: add in steps
+		FileEntry.findFiles(
+			{ newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user) },
+			(err, fileIds) => {
+				if(err || 0 === fileIds.length) {
+					return cb(err ? err : Errors.DoesNotExist('No more new files'));
+				}
+
+				FileBaseFilters.setFileBaseLastViewedFileIdForUser( this.client.user, fileIds[0] );
+
+				const menuOpts = {
+					extraArgs : {
+						fileList : fileIds,				
+					},
+				};
+
+				return this.gotoMenu(this.menuConfig.config.newScanFileBaseList || 'newScanFileBaseList', menuOpts);
+			}
+		);
+	}
+
 	getSaveState() {
 		return {
 			currentStep 	: this.currentStep,
@@ -183,6 +196,26 @@ exports.getModule = class NewScanModule extends MenuModule {
 	restoreSavedState(savedState) {
 		this.currentStep 	= savedState.currentStep;
 		this.currentScanAux	= savedState.currentScanAux;
+	}
+
+	performScanCurrentStep(cb) {
+		switch(this.currentStep) {
+			case Steps.MessageConfs : 
+				this.newScanMessageConference( () => {									
+					this.currentStep = Steps.FileBase;
+					return this.performScanCurrentStep(cb);
+				});
+				break;
+				
+			case Steps.FileBase :
+				this.newScanFileBase( () => {
+					this.currentStep = Steps.Finished;
+					return this.performScanCurrentStep(cb);	
+				});
+				break;
+				
+			default : return cb(null);
+		}
 	}
 
 	mciReady(mciData, cb) {
@@ -213,15 +246,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 						vc.loadFromMenuConfig(loadOpts, callback);
 					},
 					function performCurrentStepScan(callback) {
-						switch(self.currentStep) {
-							case 'messageConferences' :
-								self.newScanMessageConference( () => {
-									callback(null); //  finished
-								});
-								break;	
-								
-							default : return callback(null);
-						}
+						return self.performScanCurrentStep(callback);
 					}
 				],
 				err => {

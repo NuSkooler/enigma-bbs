@@ -510,6 +510,14 @@ module.exports = class FileEntry {
 			);
 		}
 
+		if(_.isString(filter.newerThanTimestamp) && filter.newerThanTimestamp.length > 0) {
+			appendWhereClause(`DATETIME(f.upload_timestamp) > DATETIME("${filter.newerThanTimestamp}", "+1 seconds")`);
+		}
+
+		if(_.isNumber(filter.newerThanFileId)) {
+			appendWhereClause(`file_id > ${filter.newerThanFileId}`);
+		}
+
 		sql += `${sqlWhere} ${sqlOrderBy};`;
 
 		const matchingFileIds = [];

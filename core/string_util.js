@@ -507,6 +507,8 @@ function createCleanAnsi(input, options, cb) {
 
 	parser.parse(input);
 }
+
+//	create2dArray = (rows, columns) => [...Array(rows).keys()].map(i => Array(columns).fill({})) 
 /*
 
 const fs = require('graceful-fs');

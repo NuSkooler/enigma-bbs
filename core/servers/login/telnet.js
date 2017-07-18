@@ -184,6 +184,10 @@ const OPTION_NAMES = Object.keys(OPTIONS).reduce(function(names, name) {
 	return names;
 }, {});
 
+function unknownOption(bufs, i, event) {
+	Log.warn( { bufs : bufs, i : i, event : event }, 'Unknown Telnet option');
+}
+
 const OPTION_IMPLS = {};
 //	:TODO: fill in the rest...
 OPTION_IMPLS.NO_ARGS						=
@@ -421,7 +425,9 @@ function parseOption(bufs, i, event) {
 	const option		= bufs.get(i);	//	:TODO: fix deprecation... [i] is not the same
 	event.optionCode	= option;
 	event.option		= OPTION_NAMES[option];
-	return OPTION_IMPLS[option](bufs, i + 1, event);
+
+	const handler = OPTION_IMPLS[option];
+	return handler ? handler(bufs, i + 1, event) : unknownOption(bufs, i + 1, event);
 }
 
 
