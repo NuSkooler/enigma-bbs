@@ -1,17 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-let Config			= require('./config.js').config;
-let Address			= require('./ftn_address.js');
-let FNV1a			= require('./fnv1a.js');
+let Config					= require('./config.js').config;
+let Address					= require('./ftn_address.js');
+let FNV1a					= require('./fnv1a.js');
+const getCleanEnigmaVersion	= require('./misc_util.js').getCleanEnigmaVersion;
 
-let _				= require('lodash');
-let iconv			= require('iconv-lite');
-let moment			= require('moment');
+let _						= require('lodash');
+let iconv					= require('iconv-lite');
+let moment					= require('moment');
 //let uuid			= require('node-uuid');
-let os				= require('os');
+let os						= require('os');
 
-let packageJson 	= require('../package.json');
+let packageJson 			= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
@@ -146,11 +147,7 @@ function getMessageIdentifier(message, address) {
 //	in which (<os>; <arch>; <nodeVer>) is used instead
 //
 function getProductIdentifier() {
-	const version = packageJson.version
-		.replace(/\-/g, '.')
-		.replace(/alpha/,'a')
-		.replace(/beta/,'b');
-
+	const version = getCleanEnigmaVersion();
 	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
 
 	return `ENiGMA1/2 ${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
