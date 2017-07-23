@@ -1,12 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-var paths					= require('path');
+const paths			= require('path');
 
-exports.isProduction		= isProduction;
-exports.isDevelopment		= isDevelopment;
-exports.valueWithDefault	= valueWithDefault;
-exports.resolvePath			= resolvePath;
+const os			= require('os');
+const packageJson 	= require('../package.json');
+
+exports.isProduction			= isProduction;
+exports.isDevelopment			= isDevelopment;
+exports.valueWithDefault		= valueWithDefault;
+exports.resolvePath				= resolvePath;
+exports.getCleanEnigmaVersion	= getCleanEnigmaVersion;
+exports.getEnigmaUserAgent		= getEnigmaUserAgent;
 
 function isProduction() {
 	var env = process.env.NODE_ENV || 'dev';
@@ -27,4 +32,21 @@ function resolvePath(path) {
 		path = (process.env.HOME || mswCombined || process.env.HOMEPATH || process.env.HOMEDIR || process.cwd()) + path.substr(1);
 	}
 	return paths.resolve(path);
+}
+
+function getCleanEnigmaVersion() {
+	return packageJson.version
+		.replace(/\-/g, '.')
+		.replace(/alpha/,'a')
+		.replace(/beta/,'b')
+		;
+}
+
+//	See also ftn_util.js getTearLine() & getProductIdentifier()
+function getEnigmaUserAgent() {
+	//	can't have 1/2 or ½ in User-Agent according to RFC 1945  :(
+	const version = getCleanEnigmaVersion();
+	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
+
+	return `ENiGMA-BBS/${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }
