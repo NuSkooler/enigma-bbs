@@ -515,7 +515,7 @@ module.exports = class FileEntry {
 		}
 
 		if(_.isNumber(filter.newerThanFileId)) {
-			appendWhereClause(`file_id > ${filter.newerThanFileId}`);
+			appendWhereClause(`f.file_id > ${filter.newerThanFileId}`);
 		}
 
 		sql += `${sqlWhere} ${sqlOrderBy};`;

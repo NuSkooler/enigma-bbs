@@ -132,7 +132,7 @@ module.exports = class FileBaseFilters {
 	}
 
 	static getFileBaseLastViewedFileIdByUser(user) {
-		return user.properties.user_file_base_last_viewed || 0;
+		return parseInt((user.properties.user_file_base_last_viewed || 0));
 	}
 
 	static setFileBaseLastViewedFileIdForUser(user, fileId, cb) {
