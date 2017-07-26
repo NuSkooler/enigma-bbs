@@ -164,10 +164,18 @@ exports.getModule = class ExodusModule extends MenuModule {
 
 					const sshClient = new SSHClient();
 
-					const shellOptions = {
+					const window = {
+						rows		: self.client.term.termHeight,
+						cols		: self.client.term.termWidth,
+						width		: 0,
+						height		: 0,
+						term		: 'vt100',	//	Want to pass |self.client.term.termClient| here, but we end up getting hung up on :(
+					};
+
+					const options = {
 						env : {
 							exodus : ticket,
-						}
+						},
 					};
 
 					sshClient.on('ready', () => {
@@ -177,8 +185,7 @@ exports.getModule = class ExodusModule extends MenuModule {
 							return sshClient.end();
 						});
 
-						sshClient.shell(shellOptions, (err, stream) => {
-
+						sshClient.shell(window, options, (err, stream) => {
 							pipedStream = stream;	//	:TODO: ewwwwwwwww hack
 							self.client.term.output.pipe(stream);
 
@@ -189,6 +196,10 @@ exports.getModule = class ExodusModule extends MenuModule {
 							stream.on('close', () => {
 								restorePipe();
 								return sshClient.end();
+							});
+
+							stream.on('error', err => {
+								Log.warn( { error : err.message }, 'Exodus SSH client stream error');
 							});
 						});
 					});
