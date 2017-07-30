@@ -6,12 +6,12 @@ const baseClient		= require('../../client.js');
 const Log				= require('../../logger.js').log;
 const LoginServerModule	= require('../../login_server_module.js');
 const Config			= require('../../config.js').config;
+const EnigAssert		= require('../../enigma_assert.js');
 
 //	deps
 const net 			= require('net');
 const buffers		= require('buffers');
 const binary		= require('binary');
-const assert		= require('assert');
 const util			= require('util');
 
 //var debug	= require('debug')('telnet');
@@ -228,10 +228,10 @@ OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
 			.word8('ttype')
 			.word8('is')
 			.tap(function(vars) {
-				assert(vars.iac1 === COMMANDS.IAC);
-				assert(vars.sb === COMMANDS.SB);
-				assert(vars.ttype === OPTIONS.TERMINAL_TYPE);
-				assert(vars.is === SB_COMMANDS.IS);
+				EnigAssert(vars.iac1 === COMMANDS.IAC);
+				EnigAssert(vars.sb === COMMANDS.SB);
+				EnigAssert(vars.ttype === OPTIONS.TERMINAL_TYPE);
+				EnigAssert(vars.is === SB_COMMANDS.IS);
 			});
 
 		//	eat up the rest
@@ -279,11 +279,11 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 			.word8('iac2')
 			.word8('se')
 			.tap(function(vars) {
-				assert(vars.iac1 == COMMANDS.IAC);
-				assert(vars.sb == COMMANDS.SB);
-				assert(vars.naws == OPTIONS.WINDOW_SIZE);
-				assert(vars.iac2 == COMMANDS.IAC);
-				assert(vars.se == COMMANDS.SE);
+				EnigAssert(vars.iac1 == COMMANDS.IAC);
+				EnigAssert(vars.sb == COMMANDS.SB);
+				EnigAssert(vars.naws == OPTIONS.WINDOW_SIZE);
+				EnigAssert(vars.iac2 == COMMANDS.IAC);
+				EnigAssert(vars.se == COMMANDS.SE);
 
 				event.cols	= event.columns	= event.width = vars.width;
 				event.rows	= event.height = vars.height;
@@ -326,10 +326,10 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 			.word8('newEnv')
 			.word8('isOrInfo')	//	initial=IS, updates=INFO
 			.tap(function(vars) {
-				assert(vars.iac1 === COMMANDS.IAC);
-				assert(vars.sb === COMMANDS.SB);
-				assert(vars.newEnv === OPTIONS.NEW_ENVIRONMENT || vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP);
-				assert(vars.isOrInfo === SB_COMMANDS.IS || vars.isOrInfo === SB_COMMANDS.INFO);
+				EnigAssert(vars.iac1 === COMMANDS.IAC);
+				EnigAssert(vars.sb === COMMANDS.SB);
+				EnigAssert(vars.newEnv === OPTIONS.NEW_ENVIRONMENT || vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP);
+				EnigAssert(vars.isOrInfo === SB_COMMANDS.IS || vars.isOrInfo === SB_COMMANDS.INFO);
 
 				event.type = vars.isOrInfo;
 
@@ -398,8 +398,8 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 const MORE_DATA_REQUIRED	= 0xfeedface;
 
 function parseBufs(bufs) {
-	assert(bufs.length >= 2);
-	assert(bufs.get(0) === COMMANDS.IAC);
+	EnigAssert(bufs.length >= 2);
+	EnigAssert(bufs.get(0) === COMMANDS.IAC);
 	return parseCommand(bufs, 1, {});
 }
 
@@ -472,7 +472,7 @@ function TelnetClient(input, output) {
 				break;
 			}
 
-			assert(bufs.length > (i + 1));
+			EnigAssert(bufs.length > (i + 1));
 			
 			if(i > 0) {
 				self.emit('data', bufs.splice(0, i).toBuffer());
@@ -511,14 +511,25 @@ function TelnetClient(input, output) {
 	});
 
 	this.input.on('error', err => {
-		self.log.debug( { err : err }, 'Socket error');
-		self.emit('end');
+		this.connectionDebug( { err : err }, 'Socket error' );
+		return self.emit('end');
 	});
 
-	this.connectionDebug = (info, msg) => {
+	this.connectionTrace = (info, msg) => {
 		if(Config.loginServers.telnet.traceConnections) {
-			self.log.trace(info, 'Telnet: ' + msg);
+			const logger = self.log || Log;
+			return logger.trace(info, `Telnet: ${msg}`);
 		}
+	};
+
+	this.connectionDebug = (info, msg) => {
+		const logger = self.log || Log;
+		return logger.debug(info, `Telnet: ${msg}`);
+	};
+
+	this.connectionWarn = (info, msg) => {
+		const logger = self.log || Log;
+		return logger.warn(info, `Telnet: ${msg}`);
 	};
 }
 
@@ -553,7 +564,7 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 		this.requestNewEnvironment();
 	} else {
 		//	:TODO: temporary:
-		this.connectionDebug(evt, 'WILL');
+		this.connectionTrace(evt, 'WILL');
 	}
 };
 
@@ -561,7 +572,7 @@ TelnetClient.prototype.handleWontCommand = function(evt) {
 	if('new environment' === evt.option) {
 		this.dont.new_environment();
 	} else {
-		this.connectionDebug(evt, 'WONT');
+		this.connectionTrace(evt, 'WONT');
 	}
 };
 
@@ -580,12 +591,12 @@ TelnetClient.prototype.handleDoCommand = function(evt) {
 		this.wont.encrypt();
 	} else {
 		//	:TODO: temporary:
-		this.connectionDebug(evt, 'DO');
+		this.connectionTrace(evt, 'DO');
 	}
 };
 
 TelnetClient.prototype.handleDontCommand = function(evt) {
-	this.connectionDebug(evt, 'DONT');
+	this.connectionTrace(evt, 'DONT');
 };
 
 TelnetClient.prototype.handleSbCommand = function(evt) {
@@ -619,24 +630,26 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 			} else if('COLUMNS' === name && 0 === self.term.termWidth) {
 				self.term.termWidth = parseInt(evt.envVars[name]);
 				self.clearMciCache();	//	term size changes = invalidate cache
-				self.log.debug({ termWidth : self.term.termWidth, source : 'NEW-ENVIRON'}, 'Window width updated');
+				self.connectionDebug({ termWidth : self.term.termWidth, source : 'NEW-ENVIRON'}, 'Window width updated');
 			} else if('ROWS' === name && 0 === self.term.termHeight) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
 				self.clearMciCache();	//	term size changes = invalidate cache
-				self.log.debug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
+				self.connectionDebug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
 			} else {			
 				if(name in self.term.env) {
-					assert(
-						SB_COMMANDS.INFO === evt.type || SB_COMMANDS.IS === evt.type, 
-						'Unexpected type: ' + evt.type);
 
-					self.log.warn(
+					EnigAssert(
+						SB_COMMANDS.INFO === evt.type || SB_COMMANDS.IS === evt.type, 
+						'Unexpected type: ' + evt.type
+					);
+
+					self.connectionWarn(
 						{ varName : name, value : evt.envVars[name], existingValue : self.term.env[name] }, 
-						'Environment variable already exists');
+						'Environment variable already exists'
+					);
 				} else {
 					self.term.env[name] = evt.envVars[name];
-					self.log.debug(
-						{ varName : name, value : evt.envVars[name] }, 'New environment variable');
+					self.connectionDebug( { varName : name, value : evt.envVars[name] }, 'New environment variable' );
 				}
 			}
 		});
@@ -659,9 +672,9 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 
 		self.clearMciCache();	//	term size changes = invalidate cache
 
-		self.log.debug({ termWidth : evt.width , termHeight : evt.height, source : 'NAWS' }, 'Window size updated');
+		self.connectionDebug({ termWidth : evt.width , termHeight : evt.height, source : 'NAWS' }, 'Window size updated');
 	} else {
-		self.log(evt, 'SB');
+		self.connectionDebug(evt, 'SB');
 	}
 };
 
@@ -672,7 +685,7 @@ const IGNORED_COMMANDS = [];
 
 
 TelnetClient.prototype.handleMiscCommand = function(evt) {
-	assert(evt.command !== 'undefined' && evt.command.length > 0);
+	EnigAssert(evt.command !== 'undefined' && evt.command.length > 0);
 
 	//
 	//	See:
