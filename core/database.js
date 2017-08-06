@@ -367,13 +367,6 @@ const DB_INIT_TABLE = {
 				expire_timestamp	DATETIME NOT NULL
 			);`
 		);
-/*
-		dbs.file.run(
-			`CREATE TABLE IF NOT EXISTS user_file_last_upload_timestamp (
-				user_id				INTEGER PRIMARY KEY NOT NULL,
-				upload_timestamp	DATETIME NOT NULL
-			);`
-		);*/
 
 		return cb(null);
 	}
