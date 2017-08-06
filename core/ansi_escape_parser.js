@@ -85,104 +85,63 @@ function ANSIEscapeParser(options) {
 	};
 
 	function literal(text) {
-		let charCode;		
-		let pos;
-		let start	= 0;
 		const len	= text.length;
+		let pos		= 0;
+		let start	= 0;
+		let charCode;
 
-		function emitLiteral() {
-			self.emit('literal', text.slice(start, pos));
-			start = pos;
-		}
-
-		for(pos = 0; pos < len; ++pos) {
-			charCode = text.charCodeAt(pos) & 0xff;	//	ensure 8bit clean
+		while(pos < len) {
+			charCode = text.charCodeAt(pos) & 0xff;	//	8bit clean
 
 			switch(charCode) {
-				case CR : 
-					emitLiteral();
-										
+				case CR :
+					self.emit('literal', text.slice(start, pos));
+					start = pos;
+
 					self.column = 1;
-
 					self.positionUpdated();
-					break;
-
-				case LF :
-					emitLiteral();
-
-					self.row += 1;
-
-					self.positionUpdated();
-					break;
-
-				default :
-					if(self.column > self.termWidth) {
-						//
-						//	Emit data up to this point so it can be drawn before the postion update
-						//
-						emitLiteral();
-
-						self.column = 1;
-						self.row	+= 1;
-						
-						self.positionUpdated();
-
-						
-					} else {
-						self.column += 1;
-					}
-					break;
-			}
-		}
-
-		self.emit('literal', text.slice(start));
-
-		if(self.column > self.termWidth) {
-			self.column = 1;
-			self.row	+= 1;
-			self.positionUpdated();
-		}
-	}
-
-	function literal2(text) {
-		var charCode;
-
-		var len = text.length;
-		for(var i = 0; i < len; i++) {
-			charCode = text.charCodeAt(i) & 0xff;	//	ensure 8 bit
-			switch(charCode) {
-				case CR : 
-					self.column = 1;
 					break;
 
 				case LF : 
-					self.row++;
+					self.emit('literal', text.slice(start, pos));
+					start = pos;
+
+					self.row += 1;
 					self.positionUpdated();
-					//self.rowUpdated();		
 					break;
 
 				default :
-					//	wrap
 					if(self.column > self.termWidth) {
+						self.emit('literal', text.slice(start, pos));
+						start = pos;
+
 						self.column = 1;
-						self.row++;
-						//self.rowUpdated();
+						self.row	+= 1;
 						self.positionUpdated();
+
+						//self.emit('literal', text.slice(pos - 1, pos));
+						//start = pos;
 					} else {
 						self.column += 1;
 					}
 					break;
 			}
 
-			if(self.row === self.termHeight) {
-				self.scrollBack		+= 1;
-				self.row			-= 1;
-
-				self.positionUpdated();
-			}
+			++pos;
 		}
 
-		self.emit('literal', text);
+		if(self.column > self.termWidth) {
+			self.emit('literal', text.slice(start, pos - 1));
+			start = pos - 1;
+			
+			self.column = 1;
+			self.row	+= 1;
+			self.positionUpdated();		
+
+			self.emit('literal', text.slice(start, pos));
+		} else {
+			self.emit('literal', text.slice(start));
+		}
 	}
 
 	function getProcessedMCI(mci) {
