@@ -102,7 +102,7 @@ function ANSIEscapeParser(options) {
 					self.positionUpdated();
 					break;
 
-				case LF : 
+				case LF :
 					self.emit('literal', text.slice(start, pos));
 					start = pos;
 
