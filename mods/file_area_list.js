@@ -8,7 +8,6 @@ const ansi				= require('../core/ansi_term.js');
 const theme				= require('../core/theme.js');
 const FileEntry			= require('../core/file_entry.js');
 const stringFormat		= require('../core/string_format.js');
-const createCleanAnsi	= require('../core/string_util.js').createCleanAnsi;
 const FileArea			= require('../core/file_base_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
 const ErrNotEnabled		= require('../core/enig_error.js').ErrorReasons.NotEnabled;
@@ -18,8 +17,6 @@ const DownloadQueue		= require('../core/download_queue.js');
 const FileAreaWeb		= require('../core/file_area_web.js');
 const FileBaseFilters	= require('../core/file_base_filter.js');
 const resolveMimeType	= require('../core/mime_util.js').resolveMimeType;
-
-const cleanControlCodes	= require('../core/string_util.js').cleanControlCodes;
 
 //	deps
 const async				= require('async');
@@ -377,21 +374,19 @@ exports.getModule = class FileAreaList extends MenuModule {
 				function populateViews(callback) {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
-						if(descView) {					
-							createCleanAnsi(
+						if(descView) {
+							descView.setAnsi(
 								self.currentFileEntry.desc, 
-								{ height : self.client.termHeight, width : descView.dimens.width },
-								cleanDesc => {
-									//	:TODO: use cleanDesc -- need to finish createCleanAnsi() !!
-									//descView.setText(cleanDesc);
-									descView.setText( self.currentFileEntry.desc );
-
+								{
+									prepped			: false,
+									forceLineTerm	: true
+								},
+								() => {
 									self.updateQueueIndicator();
 									self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
-
 									return callback(null);
 								}
-							);							
+							);
 						}
 					} else {
 						self.updateQueueIndicator();

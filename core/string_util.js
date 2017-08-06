@@ -21,7 +21,7 @@ exports.renderStringLength			= renderStringLength;
 exports.formatByteSizeAbbr			= formatByteSizeAbbr;
 exports.formatByteSize				= formatByteSize;
 exports.cleanControlCodes			= cleanControlCodes;
-exports.createCleanAnsi				= createCleanAnsi;
+exports.prepAnsi					= prepAnsi;
 
 //	:TODO: create Unicode verison of this
 const VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -373,48 +373,35 @@ function cleanControlCodes(input, options) {
 	return cleaned;
 }
 
-function createCleanAnsi(input, options, cb) {
-
+function prepAnsi(input, options, cb) {
 	if(!input) {
-		return cb('');
+		return cb(null, '');
 	}
 
-	options.width	= options.width || 80;
-	options.height	= options.height || 25;
-	
-	const canvas = new Array(options.height);
-	for(let i = 0; i < options.height; ++i) {
-		canvas[i] = new Array(options.width);
-		for(let j = 0; j < options.width; ++j) {
-			canvas[i][j] = {};
-		}
-	}
+	options.termWidth	= options.termWidth 	|| 80;
+	options.termHeight	= options.termHeight	|| 25;
 
-	const parserOpts = {
-		termHeight	: options.height,
-		termWidth	: options.width,
+	options.cols	= options.cols || options.termWidth		|| 80;
+	options.rows	= options.rows || options.termHeight	|| 25;
+
+	options.startCol = options.startCol || 1;
+
+	const canvas = Array.from( { length : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
+	const parser = new ANSIEscapeParser( { termHeight : options.termHeight, termWidth : options.termWidth } );
+
+	const state = {
+		row	: 0,
+		col	: 0,
 	};
 
-	const parser = new ANSIEscapeParser(parserOpts);
+	let lastRow = 0;
 
-	const canvasPos = {
-		col : 0,
-		row : 0,
-	};
+	parser.on('position update', (row, col) => {
+		state.row	= row - 1;
+		state.col	= col - 1;
 
-	let sgr;
-
-	function ensureCell() {
-		//	we've pre-allocated a matrix, but allow for > supplied dimens up front. They will be trimmed @ finalize
-		if(!canvas[canvasPos.row]) {
-			canvas[canvasPos.row] = new Array(options.width);
-			for(let j = 0; j < options.width; ++j) {
-				canvas[canvasPos.row][j] = {};
-			}
-		}
-		canvas[canvasPos.row][canvasPos.col]	= canvas[canvasPos.row][canvasPos.col] || {};
-		//canvas[canvasPos.row][0].width 			= Math.max(canvas[canvasPos.row][0].width || 0, canvasPos.col); 
-	}
+		lastRow		= Math.max(state.row, lastRow);
+	});
 
 	parser.on('literal', literal => {
 		//
@@ -422,99 +409,83 @@ function createCleanAnsi(input, options, cb) {
 		//
 		literal = literal.replace(/\r?\n|[\r\u2028\u2029]/g, '');
 
-		for(let i = 0; i < literal.length; ++i) {
-			const c = literal.charAt(i);
+		for(let c of literal) {
+			if(state.col < options.cols && state.row < options.rows) {
+				canvas[state.row][state.col].char = c;
 
-			ensureCell();
-
-			canvas[canvasPos.row][canvasPos.col].char	= c;
-						
-			if(sgr) {
-				canvas[canvasPos.row][canvasPos.col].sgr = sgr;
-				sgr = null;
+				if(state.sgr) {
+					canvas[state.row][state.col].sgr = state.sgr;
+					state.sgr = null;
+				}
 			}
 
-			canvasPos.col += 1;
+			state.col += 1;
 		}
 	});
 
 	parser.on('control', (match, opCode) => {
-		if('m' !== opCode) {
-			return;	//	don't care'
+		//
+		//	Movement is handled via 'position update', so we really only care about
+		//	display opCodes
+		//
+		switch(opCode) {
+			case 'm' 	: 
+				state.sgr = (state.sgr || '') + match;
+				break;
+				
+			default		: 
+				if(-1 === [ 'C' ].indexOf(opCode)) {
+					console.log(`ignore opCode: ${opCode}`);	//	:TODO: REMOVE ME
+				}
 		}
-		sgr = match;
 	});
 
-	parser.on('position update', (row, col) => {
-		canvasPos.row	= row - 1;
-		canvasPos.col	= Math.min(col - 1, options.width);
-	});
+	function getLastPopulatedColumn(row) {
+		let col = row.length;
+		while(--col > 0) {
+			if(row[col].char || row[col].sgr) {
+				break;
+			}
+		}
+		return col;
+	}
 
 	parser.on('complete', () => {
-		for(let row = 0; row < options.height; ++row) {
-			let col = 0;
+		let output = '';
+		let lastSgr = '';
+		canvas.slice(0, lastRow + 1).forEach(row => {
+			const lastCol = getLastPopulatedColumn(row) + 1;
 
-			//while(col <= canvas[row][0].width) {
-			while(col < options.width) {
-				if(!canvas[row][col].char) {
-					canvas[row][col].char = ' ';
-					if(!canvas[row][col].sgr) {
-						//	:TODO: fix duplicate SGR's in a row here - we just need one per sequence
-						canvas[row][col].sgr = ANSI.reset();
-					} 
+			let i;
+			for(i = 0; i < lastCol; ++i) {
+				const col = row[i];
+				if(col.sgr) {
+					lastSgr = col.sgr;
 				}
-
-				col += 1;
+				output += `${col.sgr || ''}${col.char || ' '}`;
 			}
 
-			//	:TODO: end *all* with CRLF - general usage will be width : 79 - prob update defaults
-
-			if(col <= options.width) {
-				canvas[row][col] = canvas[row][col] || {};
-
-				canvas[row][col].char = '\r\n';
-				canvas[row][col].sgr = ANSI.reset();
-
-				//	:TODO: don't splice, just reset + fill with ' ' till end
-				for(let fillCol = col; fillCol <= options.width; ++fillCol) {
-					canvas[row][fillCol].char = ' ';
-				}
-				
-				//canvas[row] = canvas[row].splice(0, col + 1);
-				//canvas[row][options.width - 1].char = '\r\n';
-
-				
-			} else {
-				canvas[row] = canvas[row].splice(0, options.width + 1);				
+			if(i < row.length) {
+				output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
 			}
-		
-		}
 
-		let out = '';
-		for(let row = 0; row < options.height; ++row) {
-			out += canvas[row].map( col => {
-				let c = col.sgr || '';
-				c += col.char;
-				return c;
-			}).join('');
-			
-		}
+			if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
+				output += '\r\n';
+			}
+		});
 
-		//	:TODO: finalize: @ any non-char cell, reset sgr & set to ' '
-		//	:TODO: finalize: after sgr established, omit anything > supplied dimens
-		return cb(out);
+		return cb(null, output);
 	});
 
 	parser.parse(input);
 }
-
-//	create2dArray = (rows, columns) => [...Array(rows).keys()].map(i => Array(columns).fill({})) 
 /*
-
 const fs = require('graceful-fs');
-let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
+//let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
+//let data = fs.readFileSync('/home/nuskooler/dev/enigma-bbs/mods/themes/nu-xibalba/MATRIX1.ANS');
+let data = fs.readFileSync('/home/nuskooler/Downloads/ansi_diz_test/file_id.diz.2.ans');
 data = iconv.decode(data, 'cp437');
-createCleanAnsi(data, { width : 79, height : 25 }, (out) => {
+prepAnsi(data, { cols : 45, rows : 25 }, (err, out) => {
 	out = iconv.encode(out, 'cp437');
 	fs.writeFileSync('/home/nuskooler/Downloads/art4.ans', out);
 });
