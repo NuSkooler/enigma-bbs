@@ -509,7 +509,70 @@ function MultiLineEditTextView(options) {
 			});
 	};
 
-	//	:TODO: rename to insertRawText()
+	this.splitText = function(text) {
+		return text.replace(/\b/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+	};
+
+	this.setTextLines = function(lines, index, termWithEol) {
+		if(0 === index && (0 === self.textLines.length || (self.textLines.length === 1 && '' === self.textLines[0].text) )) {
+			//	quick path: just set the things
+			self.textLines = lines.slice(0, -1).map(l => {
+				return { text : l };
+			}).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+		} else {
+			//	insert somewhere in textLines...
+			if(index > self.textLines.length) {
+				//	fill with empty
+				self.textLines.splice(
+					self.textLines.length,
+					0,
+					...Array.from( { length : index - self.textLines.length } ).map( () => { return { text : '' }; } )
+				);
+			}
+
+			const newLines = lines.slice(0, -1).map(l => {
+				return { text : l };
+			}).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+
+			self.textLines.splice(
+				index,
+				0,
+				...newLines
+			);
+		}
+	};
+
+	this.setAnsiWithOptions = function(ansi, options, cb) {
+
+		function setLines(text) {
+			self.setTextLines( self.splitText(text), 0 );
+			self.cursorStartOfDocument();
+
+			if(cb) {
+				return cb(null);
+			}
+		}
+
+		if(options.prepped) {
+			return setLines(ansi);
+		}
+
+		strUtil.prepAnsi(
+			ansi,
+			{
+				termWidth		: this.client.termWidth,
+				termHeight		: this.client.termHeight,
+				cols			: this.dimens.width,
+				height			: 5000,	//	 :TODO: 'auto' needed here!
+				startCol		: this.position.col,
+				forceLineTerm	: options.forceLineTerm,
+			},
+			(err, preppedAnsi) => {
+				return setLines(err ? ansi : preppedAnsi);
+			}
+		);
+	};
+
 	this.insertRawText = function(text, index, col) {
 		//
 		//	Perform the following on |text|:
@@ -542,23 +605,34 @@ function MultiLineEditTextView(options) {
 			index = self.textLines.length;
 		}
 
-		text = text
-			.replace(/\b/g, '')
-			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+		text = self.splitText(text);
 
 		let wrapped;
+		text.forEach(line => {
+			wrapped = self.wordWrapSingleLine(
+				line,	 	//	line to wrap
+				'expand', 	//	tabHandling
+				self.dimens.width
+			).wrapped;
 
+			self.setTextLines(wrapped, index, true);	//	true=termWithEol
+			index += wrapped.length;
+		});
+		/*
 		for(let i = 0; i < text.length; ++i) {
 			wrapped = self.wordWrapSingleLine(
 				text[i], 	//	input
 				'expand', 	//	tabHandling
-				self.dimens.width).wrapped;
+				self.dimens.width
+			).wrapped;
 
 			for(let j = 0; j < wrapped.length - 1; ++j) {
 				self.textLines.splice(index++, 0, { text : wrapped[j] } );
 			}
+
 			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true } );
 		}
+		*/
 	};
 
 	this.getAbsolutePosition = function(row, col) {
@@ -996,8 +1070,6 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	//text = require('graceful-fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
-
 	this.textLines = [ ];
 	this.addText(text);
 	/*this.insertRawText(text);
@@ -1007,6 +1079,11 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	} else if(this.isPreviewMode()) {
 		this.cursorStartOfDocument();
 	}*/
+};
+
+MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : false }, cb) {
+	this.textLines = [ ];
+	return this.setAnsiWithOptions(ansi, options, cb);
 };
 
 MultiLineEditTextView.prototype.addText = function(text) {
@@ -1032,7 +1109,9 @@ MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 			} 
 			break;
 
-		case 'autoScroll'	: this.autoScroll = value; break;
+		case 'autoScroll'	: 
+			this.autoScroll = value;
+			break;
 
 		case 'tabSwitchesView' :
 			this.tabSwitchesView = value; 
