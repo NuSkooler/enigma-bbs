@@ -41,10 +41,12 @@ function WebSocketClient(ws, req, serverType) {
 		}
 
 		end() {
-			return ws.terminate();			
+			return ws.close();
 		}
 
 		write(data, cb) {
+			cb = cb || ( () => { /* eat it up */} );	//	handle data writes after close
+
 			return this.ws.send(data, { binary : true }, cb);
 		}
 
