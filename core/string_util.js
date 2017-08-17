@@ -22,6 +22,8 @@ exports.formatByteSizeAbbr			= formatByteSizeAbbr;
 exports.formatByteSize				= formatByteSize;
 exports.cleanControlCodes			= cleanControlCodes;
 exports.prepAnsi					= prepAnsi;
+exports.isAnsi						= isAnsi;
+exports.splitTextAtTerms			= splitTextAtTerms;
 
 //	:TODO: create Unicode verison of this
 const VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
@@ -324,8 +326,8 @@ function formatByteSize(byteSize, withAbbr, decimals) {
 //const REGEXP_ANSI_CONTROL_CODES		= /(\x1b\x5b)([\?=;0-9]*?)([0-9A-ORZcf-npsu=><])/g;
 const REGEXP_ANSI_CONTROL_CODES		= /(?:\x1b\x5b)([\?=;0-9]*?)([A-ORZcf-npsu=><])/g;
 const ANSI_OPCODES_ALLOWED_CLEAN	= [
-	'A', 'B',	//	up, down
-	'C', 'D',	//	right, left
+	//'A', 'B',	//	up, down
+	//'C', 'D',	//	right, left
 	'm',		//	color
 ];
 
@@ -434,9 +436,7 @@ function prepAnsi(input, options, cb) {
 				break;
 				
 			default		: 
-				if(-1 === [ 'C' ].indexOf(opCode)) {
-					console.log(`ignore opCode: ${opCode}`);	//	:TODO: REMOVE ME
-				}
+				break;
 		}
 	});
 
@@ -479,14 +479,45 @@ function prepAnsi(input, options, cb) {
 
 	parser.parse(input);
 }
+
+function isAnsi(input) {
+	//
+	//	* ANSI found - limited, just colors
+	//	* Full ANSI art
+	//	* 
+	//	
+	//	FULL ANSI art:
+	//	* SAUCE present & reports as ANSI art
+	//	* ANSI clear screen within first 2-3 codes
+	//	* ANSI movement codes (goto, right, left, etc.)
+	//	
+	//	* 
+	/*
+	readSAUCE(input, (err, sauce) => {
+		if(!err && ('ANSi' === sauce.fileType || 'ANSiMation' === sauce.fileType)) {
+			return cb(null, 'ansi');
+		}
+	});
+	*/
+
+	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[0-9]{1,3}[ABCDEFGJKLMSTrsuHfhlm]/g;
+	return ( input.match(ANSI_DET_REGEXP) || [] ).length > 4;	//	:TODO: do this reasonably, e.g. a percent or soemthing
+}
+
+function splitTextAtTerms(s) {
+	return s.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+}
 /*
 const fs = require('graceful-fs');
 //let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
 //let data = fs.readFileSync('/home/nuskooler/dev/enigma-bbs/mods/themes/nu-xibalba/MATRIX1.ANS');
-let data = fs.readFileSync('/home/nuskooler/Downloads/ansi_diz_test/file_id.diz.2.ans');
-data = iconv.decode(data, 'cp437');
-prepAnsi(data, { cols : 45, rows : 25 }, (err, out) => {
+//let data = fs.readFileSync('/home/nuskooler/Downloads/ansi_diz_test/file_id.diz.2.ans');
+let data = fs.readFileSync('/home/nuskooler/Downloads/acidunder.ans');
+data = data.toString().replace(/\n/g,'\r\n');
+//data = iconv.decode(data, 'cp437');
+prepAnsi(data, { cols : 80, rows : 50 }, (err, out) => {
 	out = iconv.encode(out, 'cp437');
 	fs.writeFileSync('/home/nuskooler/Downloads/art4.ans', out);
 });
+
 */

@@ -10,10 +10,10 @@ const Message						= require('./message.js');
 const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
 const getMessageAreaByTag			= require('./message_area.js').getMessageAreaByTag;
 const User							= require('./user.js');
-const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
+const { isAnsi, cleanControlCodes }	= require('./string_util.js');
 
 //	deps
 const async							= require('async');
@@ -344,9 +344,24 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					this.initHeaderViewMode();
 					this.initFooterViewMode();
 
-					var bodyMessageView = this.viewControllers.body.getView(1);
+					const bodyMessageView = this.viewControllers.body.getView(1);
 					if(bodyMessageView && _.has(this, 'message.message')) {
-						bodyMessageView.setText(cleanControlCodes(this.message.message));
+						//
+						//	We handle ANSI messages differently than standard messages -- this is required as
+						//	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+						//	how the author wanted it
+						//
+						if(isAnsi(this.message.message)) {
+							bodyMessageView.setAnsi(
+								this.message.message.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
+								{
+									prepped			: false,
+									forceLineTerm	: true
+								}
+							);
+						} else {
+							bodyMessageView.setText(cleanControlCodes(this.message.message));
+						}
 					}
 				}
 			}
@@ -848,9 +863,29 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					}
 				},
 				function loadQuoteLines(callback) {
-					var quoteView = self.viewControllers.quoteBuilder.getView(3);
-					quoteView.setItems(self.replyToMessage.getQuoteLines(quoteView.dimens.width));
-					callback(null);
+					const quoteView = self.viewControllers.quoteBuilder.getView(3);
+					const bodyView	= self.viewControllers.body.getView(1);
+
+					self.replyToMessage.getQuoteLines(
+						{
+							termWidth			: self.client.term.termWidth,
+							termHeight			: self.client.term.termHeight,
+							cols				: quoteView.dimens.width,
+							startCol			: quoteView.position.col,
+							ansiResetSgr		: bodyView.styleSGR1,
+							ansiFocusPrefixSgr	: quoteView.styleSGR2,
+						},
+						(err, quoteLines, focusQuoteLines) => {
+							if(err) {
+								return callback(err);
+							}
+
+							quoteView.setItems(quoteLines);
+							quoteView.setFocusItems(focusQuoteLines);
+
+							return callback(null);
+						}
+					);
 				},
 				function setViewFocus(callback) {
 					self.viewControllers.quoteBuilder.getView(1).setFocus(false);

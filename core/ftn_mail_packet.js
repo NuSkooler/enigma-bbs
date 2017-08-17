@@ -480,8 +480,8 @@ function Packet(options) {
 						Log.debug( { encoding : encoding, error : e.toString() }, 'Error decoding. Falling back to ASCII');
 						decoded = iconv.decode(messageBodyBuffer, 'ascii');
 					}
-					//const messageLines = iconv.decode(messageBodyBuffer, encoding).replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
-					const messageLines	= decoded.replace(/\xec/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+					
+					const messageLines	= strUtil.splitTextAtTerms(decoded.replace(/\xec/g, ''));
 					let endOfMessage	= false;
 
 					messageLines.forEach(line => {

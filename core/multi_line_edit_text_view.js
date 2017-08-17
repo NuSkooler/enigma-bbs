@@ -165,43 +165,49 @@ function MultiLineEditTextView(options) {
 		return self.textLines.length;
 	};
 
+	this.toggleTextCursor = function(action) {
+		self.client.term.rawWrite(`${self.getSGRFor('text')}${'hide' === action ? ansi.hideCursor() : ansi.showCursor()}`);
+	};
+
 	this.redrawRows = function(startRow, endRow) {
-		self.client.term.rawWrite(self.getSGRFor('text') + ansi.hideCursor());
+		self.toggleTextCursor('hide');
 
-		var startIndex	= self.getTextLinesIndex(startRow);
-		var endIndex	= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
-		var absPos		= self.getAbsolutePosition(startRow, 0);
+		const startIndex	= self.getTextLinesIndex(startRow);
+		const endIndex		= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
+		const absPos		= self.getAbsolutePosition(startRow, 0);
 
-		for(var i = startIndex; i < endIndex; ++i) {
+		for(let i = startIndex; i < endIndex; ++i) {
 			self.client.term.write(
-				ansi.goto(absPos.row++, absPos.col) +
-				self.getRenderText(i), false);
+				`${self.getSGRFor('text')}${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`, 
+				false	//	convertLineFeeds
+			);
 		}
 
-		self.client.term.rawWrite(ansi.showCursor());
+		self.toggleTextCursor('show');
 
 		return absPos.row - self.position.row;	//	row we ended on
 	};
 
 	this.eraseRows = function(startRow, endRow) {
-		self.client.term.rawWrite(self.getSGRFor('text') + ansi.hideCursor());
+		self.toggleTextCursor('hide');
 
-		var absPos		= self.getAbsolutePosition(startRow, 0);
-		var absPosEnd	= self.getAbsolutePosition(endRow, 0);
-		var eraseFiller	= new Array(self.dimens.width).join(' ');
+		const absPos		= self.getAbsolutePosition(startRow, 0);
+		const absPosEnd		= self.getAbsolutePosition(endRow, 0);
+		const eraseFiller	= ' '.repeat(self.dimens.width);//new Array(self.dimens.width).join(' ');
 
 		while(absPos.row < absPosEnd.row) {
 			self.client.term.write(
-				ansi.goto(absPos.row++, absPos.col) +
-				eraseFiller, false);
+				`${ansi.goto(absPos.row++, absPos.col)}${eraseFiller}`,
+				false	//	convertLineFeeds
+			);
 		}
 
-		self.client.term.rawWrite(ansi.showCursor());
+		self.toggleTextCursor('show');
 	};
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex <= self.textLines.length);
-		var lastRow = self.redrawRows(0, self.dimens.height);
+		const lastRow = self.redrawRows(0, self.dimens.height);
 
 		self.eraseRows(lastRow, self.dimens.height);
 		/*
@@ -255,11 +261,14 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.getRenderText = function(index) {
-		var text = self.getVisibleText(index);
-		var remain	= self.dimens.width - text.length;
+		let text 		= self.getVisibleText(index);
+		const remain	= self.dimens.width - text.length;
+
 		if(remain > 0) {
-			text += new Array(remain + 1).join(' ');
+			text += ' '.repeat(remain + 1);
+//			text += new Array(remain + 1).join(' ');
 		}
+
 		return text;
 	};
 
@@ -509,10 +518,6 @@ function MultiLineEditTextView(options) {
 			});
 	};
 
-	this.splitText = function(text) {
-		return text.replace(/\b/g, '').split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
-	};
-
 	this.setTextLines = function(lines, index, termWithEol) {
 		if(0 === index && (0 === self.textLines.length || (self.textLines.length === 1 && '' === self.textLines[0].text) )) {
 			//	quick path: just set the things
@@ -545,7 +550,7 @@ function MultiLineEditTextView(options) {
 	this.setAnsiWithOptions = function(ansi, options, cb) {
 
 		function setLines(text) {
-			self.setTextLines( self.splitText(text), 0 );
+			self.setTextLines( strUtil.splitTextAtTerms(text), 0 );
 			self.cursorStartOfDocument();
 
 			if(cb) {
@@ -605,7 +610,7 @@ function MultiLineEditTextView(options) {
 			index = self.textLines.length;
 		}
 
-		text = self.splitText(text);
+		text = strUtil.splitTextAtTerms(text);
 
 		let wrapped;
 		text.forEach(line => {

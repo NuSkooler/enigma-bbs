@@ -6,6 +6,13 @@ const wordWrapText			= require('./word_wrap.js').wordWrapText;
 const ftnUtil				= require('./ftn_util.js');
 const createNamedUUID		= require('./uuid_util.js').createNamedUUID;
 const getISOTimestampString	= require('./database.js').getISOTimestampString;
+const Errors				= require('./enig_error.js').Errors;
+const ANSI					= require('./ansi_term.js');
+
+const { 
+	prepAnsi, isAnsi, 
+	splitTextAtTerms
+}							= require('./string_util.js');
 
 //	deps
 const uuidParse				= require('uuid-parse');
@@ -429,33 +436,167 @@ Message.prototype.getFTNQuotePrefix = function(source) {
 	return ftnUtil.getQuotePrefix(this[source]);
 };
 
-Message.prototype.getQuoteLines = function(width, options) {
-	//	:TODO: options.maxBlankLines = 1
-
-	options = options || {};
+Message.prototype.getQuoteLines = function(options, cb) {
+	if(!options.termWidth || !options.termHeight || !options.cols) {
+		return cb(Errors.MissingParam());
+	}
 	
-	//
-	//	Include FSC-0032 style quote prefixes?
-	//
-	//	See http://ftsc.org/docs/fsc-0032.001
-	//
-	if(!_.isBoolean(options.includePrefix)) {
-		options.includePrefix = true;
+	options.startCol			= options.startCol || 1;
+	options.includePrefix 		= _.get(options, 'includePrefix', true);
+	options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+	options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
+	
+	/*
+		Some long text that needs to be wrapped and quoted should look right after
+		doing so, don't ya think? yeah I think so		
+
+		Nu> Some long text that needs to be wrapped and quoted should look right 
+		Nu> after doing so, don't ya think? yeah I think so
+
+		Ot> Nu> Some long text that needs to be wrapped and quoted should look 
+		Ot> Nu> right after doing so, don't ya think? yeah I think so
+
+	*/
+	const quotePrefix = options.includePrefix ? this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') : '';
+
+	function getWrapped(text, extraPrefix) {
+		extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
+
+		const wrapOpts = {
+			width		: options.cols - (quotePrefix.length + extraPrefix.length),
+			tabHandling	: 'expand',
+			tabWidth	: 4,
+		};
+		
+		return wordWrapText(text, wrapOpts).wrapped.map( (w, i) => {
+			return i === 0 ? `${quotePrefix}${w}` : `${quotePrefix}${extraPrefix}${w}`;
+		});
 	}
 
-	var quoteLines = [];
+	if(isAnsi(this.message)) {
+		prepAnsi(
+			this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
+			{
+				termWidth		: options.termWidth,
+				termHeight		: options.termHeight,
+				cols			: options.cols - quotePrefix.length,
+				rows			: 5000,	//	:TODO: Need 'auto'
+				startCol		: options.startCol,
+				forceLineTerm	: true,				
+			},
+			(err, prepped) => {
+				prepped = prepped || this.message;
+				
+				//const reset 	= ANSI.reset() + ANSI.white();	//	:TODO: this is quite borked...
+				let lastSgr = '';
+				const split = splitTextAtTerms(prepped);
+				
+				const quoteLines		= [];
+				const focusQuoteLines	= [];
 
-	var origLines = this.message
+				//
+				//	Create items (standard) and inverted items for focus views
+				//
+				split.forEach(l => {
+					quoteLines.push(`${options.ansiResetSgr}${quotePrefix}${lastSgr}${l}`);
+					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}${quotePrefix}${lastSgr}${l}`);
+				
+					lastSgr = (l.match(/(?:\x1b\x5b)[0-9]{1,3}[m](?!.*(?:\x1b\x5b)[0-9]{1,3}[m])/) || [])[0] || '';	//	eslint-disable-line no-control-regex
+				});				
+
+				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;//ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true );
+				
+				return cb(null, quoteLines, focusQuoteLines);
+			}
+		);
+	} else {
+		const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}\> )+(?:[A-Za-z0-9]{2}\>)*) */;
+		const quoted	= [];
+		const input		= this.message.trim().replace(/\b/g, '');
+	
+		//	find *last* tearline
+		let tearLinePos = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
+		tearLinePos = tearLinePos ? tearLinePos.index : input.length;	//	we just want the index or the entire string
+		
+		input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
+			//
+			//	For each paragraph, a state machine:
+			//	- New line - line
+			//	- New (pre)quoted line - quote_line
+			//	- Continuation of new/quoted line
+			//
+			//	:TODO: fix extra space in quoted quotes, e.g. "Nu>  Su> blah blah"
+			let state;
+			let buf = '';
+			let quoteMatch;
+			paragraph.split(/\r?\n/).forEach(line => {
+				quoteMatch = line.match(QUOTE_RE);
+
+				switch(state) {
+					case 'line' :
+						if(quoteMatch) {
+							quoted.push(...getWrapped(buf, quoteMatch[1]));
+							state = 'quote_line';
+							buf = line;
+						} else {
+							buf += ` ${line}`;
+						}
+						break;
+						
+					case 'quote_line' :
+						if(quoteMatch) {
+							const rem = line.slice(quoteMatch[0].length);
+							if(!buf.startsWith(quoteMatch[0])) {
+								quoted.push(...getWrapped(buf, quoteMatch[1]));
+								buf = rem;
+							} else {
+								buf += ` ${rem}`;
+							}
+						} else {
+							quoted.push(...getWrapped(buf));
+							buf = line;
+							state = 'line';
+						}
+						break;
+							
+					default :
+						state	= quoteMatch ? 'quote_line' : 'line';
+						buf		= 'line' === state ? line : _.trimStart(line);
+						break;
+				}		
+			});
+			
+			quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
+		});
+		
+		input.slice(tearLinePos).split(/\r?\n/).forEach(l => {
+			quoted.push(...getWrapped(l));
+		});
+
+		return cb(null, quoted);
+	}
+};
+
+Message.prototype.getQuoteLines2 = function(width, options = { includePrefix : true } ) {
+	//	:TODO: options.maxBlankLines = 1
+
+	//
+	//	See FSC-0032 for quote prefix/spec @ http://ftsc.org/docs/fsc-0032.001
+	//
+	const quoteLines = [];
+
+	const origLines = this.message
 		.trim()
 		.replace(/\b/g, '')
-		.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);	
+		.split(/(?:\r\n|[\n\v\f\r\x85\u2028\u2029])(?:\r\n|[\n\v\f\r\x85\u2028\u2029])/);
+	//	.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 	
-	var quotePrefix = '';	//	we need this init even if blank
+	let quotePrefix = '';	//	we need this init even if blank
 	if(options.includePrefix) {
 		quotePrefix = this.getFTNQuotePrefix(options.prefixSource || 'fromUserName');
 	}
 
-	var wrapOpts = {
+	const wrapOpts = {
 		width		: width - quotePrefix.length,
 		tabHandling	: 'expand',
 		tabWidth	: 4,
@@ -465,7 +606,7 @@ Message.prototype.getQuoteLines = function(width, options) {
 		return quotePrefix + l;
 	}
 
-	var wrapped;
+	let wrapped;
 	for(var i = 0; i < origLines.length; ++i) {
 		wrapped = wordWrapText(origLines[i], wrapOpts).wrapped;
 		Array.prototype.push.apply(quoteLines, _.map(wrapped, addPrefix));
