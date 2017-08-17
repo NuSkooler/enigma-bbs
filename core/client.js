@@ -120,6 +120,7 @@ function Client(input, output) {
 			//	* Irssi ConnectBot (Android)
 			//
 			'63;1;2'		: 'arctel',
+			'50;86;84;88'	: 'vtx',
 		}[deviceAttr];
 
 		if(!termClient) {
