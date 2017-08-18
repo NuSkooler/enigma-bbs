@@ -480,7 +480,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 				termWidth		: options.termWidth,
 				termHeight		: options.termHeight,
 				cols			: options.cols - quotePrefix.length,
-				rows			: 5000,	//	:TODO: Need 'auto'
+				rows			: 'auto',
 				startCol		: options.startCol,
 				forceLineTerm	: true,				
 			},

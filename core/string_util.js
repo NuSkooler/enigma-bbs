@@ -384,11 +384,11 @@ function prepAnsi(input, options, cb) {
 	options.termHeight	= options.termHeight	|| 25;
 
 	options.cols	= options.cols || options.termWidth		|| 80;
-	options.rows	= options.rows || options.termHeight	|| 25;
+	options.rows	= options.rows || options.termHeight	|| 'auto';
 
 	options.startCol = options.startCol || 1;
 
-	const canvas = Array.from( { length : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
+	const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
 	const parser = new ANSIEscapeParser( { termHeight : options.termHeight, termWidth : options.termWidth } );
 
 	const state = {
@@ -397,6 +397,14 @@ function prepAnsi(input, options, cb) {
 	};
 
 	let lastRow = 0;
+
+	function ensureRow(row) {
+		if(Array.isArray(canvas[row])) {
+			return;
+		}
+		
+		canvas[row] = Array.from( { length : options.cols}, () => new Object() );
+	}
 
 	parser.on('position update', (row, col) => {
 		state.row	= row - 1;
@@ -412,7 +420,9 @@ function prepAnsi(input, options, cb) {
 		literal = literal.replace(/\r?\n|[\r\u2028\u2029]/g, '');
 
 		for(let c of literal) {
-			if(state.col < options.cols && state.row < options.rows) {
+			if(state.col < options.cols && ('auto' === options.rows || state.row < options.rows)) {
+				ensureRow(state.row);
+
 				canvas[state.row][state.col].char = c;
 
 				if(state.sgr) {

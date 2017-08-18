@@ -569,7 +569,7 @@ function MultiLineEditTextView(options) {
 				termWidth		: this.client.termWidth,
 				termHeight		: this.client.termHeight,
 				cols			: this.dimens.width,
-				height			: 5000,	//	 :TODO: 'auto' needed here!
+				rows			: 'auto',
 				startCol		: this.position.col,
 				forceLineTerm	: options.forceLineTerm,
 			},
