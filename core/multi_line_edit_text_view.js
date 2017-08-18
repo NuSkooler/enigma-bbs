@@ -177,8 +177,9 @@ function MultiLineEditTextView(options) {
 		const absPos		= self.getAbsolutePosition(startRow, 0);
 
 		for(let i = startIndex; i < endIndex; ++i) {
-			self.client.term.write(
-				`${self.getSGRFor('text')}${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`, 
+			//${self.getSGRFor('text')}
+			self.client.term.write(				
+				`${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`, 
 				false	//	convertLineFeeds
 			);
 		}
