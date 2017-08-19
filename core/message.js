@@ -445,6 +445,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 	options.includePrefix 		= _.get(options, 'includePrefix', true);
 	options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
+	options.isAnsi				= options.isAnsi || isAnsi(this.message);
 	
 	/*
 		Some long text that needs to be wrapped and quoted should look right after
@@ -473,7 +474,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 		});
 	}
 
-	if(isAnsi(this.message)) {
+	if(options.isAnsi) {
 		prepAnsi(
 			this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
 			{
@@ -506,7 +507,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 
 				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;//ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true );
 				
-				return cb(null, quoteLines, focusQuoteLines);
+				return cb(null, quoteLines, focusQuoteLines, true);
 			}
 		);
 	} else {
@@ -573,44 +574,6 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			quoted.push(...getWrapped(l));
 		});
 
-		return cb(null, quoted);
+		return cb(null, quoted, null, false);
 	}
-};
-
-Message.prototype.getQuoteLines2 = function(width, options = { includePrefix : true } ) {
-	//	:TODO: options.maxBlankLines = 1
-
-	//
-	//	See FSC-0032 for quote prefix/spec @ http://ftsc.org/docs/fsc-0032.001
-	//
-	const quoteLines = [];
-
-	const origLines = this.message
-		.trim()
-		.replace(/\b/g, '')
-		.split(/(?:\r\n|[\n\v\f\r\x85\u2028\u2029])(?:\r\n|[\n\v\f\r\x85\u2028\u2029])/);
-	//	.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
-	
-	let quotePrefix = '';	//	we need this init even if blank
-	if(options.includePrefix) {
-		quotePrefix = this.getFTNQuotePrefix(options.prefixSource || 'fromUserName');
-	}
-
-	const wrapOpts = {
-		width		: width - quotePrefix.length,
-		tabHandling	: 'expand',
-		tabWidth	: 4,
-	};
-
-	function addPrefix(l) {
-		return quotePrefix + l;
-	}
-
-	let wrapped;
-	for(var i = 0; i < origLines.length; ++i) {
-		wrapped = wordWrapText(origLines[i], wrapOpts).wrapped;
-		Array.prototype.push.apply(quoteLines, _.map(wrapped, addPrefix));
-	}
-
-	return quoteLines;
 };
