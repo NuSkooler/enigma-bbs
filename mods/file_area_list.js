@@ -17,6 +17,7 @@ const DownloadQueue		= require('../core/download_queue.js');
 const FileAreaWeb		= require('../core/file_area_web.js');
 const FileBaseFilters	= require('../core/file_base_filter.js');
 const resolveMimeType	= require('../core/mime_util.js').resolveMimeType;
+const isAnsi			= require('../core/string_util.js').isAnsi;
 
 //	deps
 const async				= require('async');
@@ -614,17 +615,37 @@ exports.getModule = class FileAreaList extends MenuModule {
 						case 'nfo' :
 							{
 								const nfoView = self.viewControllers.detailsNfo.getView(MciViewIds.detailsNfo.nfo);
-								if(nfoView) {
+								if(!nfoView) {
+									return callback(null);
+								}
+
+								if(isAnsi(self.currentFileEntry.entryInfo.descLong)) {
+									nfoView.setAnsi(
+										self.currentFileEntry.entryInfo.descLong,
+										{
+											prepped			: false,
+											forceLineTerm	: true,
+										},
+										() => {
+											return callback(null);
+										}
+									);
+								} else {
 									nfoView.setText(self.currentFileEntry.entryInfo.descLong);
+									return callback(null);
 								}
 							}
 							break;
 
 						case 'fileList' :
 							self.populateFileListing();
-							break;
-					}
+							return callback(null);
 
+						default :
+							return callback(null);
+					}
+				},
+				function setLabels(callback) {
 					self.populateCustomLabels(name, MciViewIds[name].customRangeStart);
 					return callback(null);
 				}
