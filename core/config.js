@@ -352,6 +352,12 @@ function getDefaultConfig() {
 				offset			: 0,
 				archiveHandler	: '7Zip',
 			},
+			/*
+			'application/x-cbr' : {
+				desc			: 'Comic Book Archive',
+				sig				: '504b0304',
+			},
+			*/
 			'application/x-arj' : {
 				desc			: 'ARJ Archive',
 				sig				: '60ea',
