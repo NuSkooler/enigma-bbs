@@ -319,7 +319,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	buildMessage() {
 		const headerValues = this.viewControllers.header.getFormData().value;
 
-		var msgOpts = {
+		const msgOpts = {
 			areaTag			: this.messageAreaTag,
 			toUserName		: headerValues.to,
 			fromUserName	: this.client.user.username,
@@ -329,6 +329,14 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
 		if(this.isReply()) {
 			msgOpts.replyToMsgId	= this.replyToMessage.messageId;
+
+			if(this.replyIsAnsi) {
+				//
+				//	Ensure first characters indicate ANSI for detection down
+				//	the line (other boards/etc.)
+				//
+				msgOpts.message = `${ansi.normal()}${msgOpts.message}`;
+			}
 		}
 
 		this.message = new Message(msgOpts);
@@ -875,10 +883,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 							ansiResetSgr		: bodyView.styleSGR1,
 							ansiFocusPrefixSgr	: quoteView.styleSGR2,
 						},
-						(err, quoteLines, focusQuoteLines) => {
+						(err, quoteLines, focusQuoteLines, replyIsAnsi) => {
 							if(err) {
 								return callback(err);
 							}
+
+							self.replyIsAnsi = replyIsAnsi;
 
 							quoteView.setItems(quoteLines);
 							quoteView.setFocusItems(focusQuoteLines);
