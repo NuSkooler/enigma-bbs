@@ -482,7 +482,7 @@ function TelnetClient(input, output) {
 			
 			if(MORE_DATA_REQUIRED === i) {
 				break;				
-			} else {
+			} else if(i) {
 				if(i.option) {
 					self.emit(i.option, i);	//	"transmit binary", "echo", ...
 				}
