@@ -459,6 +459,11 @@ function TelnetClient(input, output) {
 	};
 
 	this.dataHandler = function(b) {
+		if(!Buffer.isBuffer(b)) {
+			EnigAssert(false, `Cannot push non-buffer ${typeof b}`);
+			return;
+		}
+
 		bufs.push(b);
 
 		let i;
