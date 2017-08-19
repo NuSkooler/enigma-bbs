@@ -472,7 +472,7 @@
 				0: {
 					mci: {
 						TL1: {
-							argName: 	from
+							argName: from
 						}
 						ET2: {
 							argName: to
@@ -721,7 +721,7 @@
 		}
 
 		newScanMessageList: {
-			desc: Viewing New Message List
+			desc: New Messages
 			module: msg_list
 			art: NEWMSGS
 			config: {
@@ -1916,50 +1916,49 @@
 							}
 						}
 
-						submit: {
-							*: [
-								{
-									value: { 1: 0 }
-									action: @method:editModeMenuSave
-								}
-								{
-									value: { 1: 1 }
-									action: @systemMethod:prevMenu
-								}
-								{
-									value: { 1: 2 },
-									action: @method:editModeMenuQuote
-								}
-								{
-									value: { 1: 3 }
-									action: @method:editModeMenuHelp
-								}
-							]
-						}
-
-						actionKeys: [
+					submit: {
+						*: [
 							{
-								keys: [ "escape" ]
-								action: @method:editModeEscPressed
-							}
-							{
-								keys: [ "s", "shift + s" ]
+								value: { 1: 0 }
 								action: @method:editModeMenuSave
 							}
 							{
-								keys: [ "d", "shift + d" ]
+								value: { 1: 1 }
 								action: @systemMethod:prevMenu
 							}
 							{
-								keys: [ "q", "shift + q" ]
+								value: { 1: 2 },
 								action: @method:editModeMenuQuote
 							}
 							{
-								keys: [ "?" ]
+								value: { 1: 3 }
 								action: @method:editModeMenuHelp
 							}
 						]
 					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:editModeEscPressed
+						}
+						{
+							keys: [ "s", "shift + s" ]
+							action: @method:editModeMenuSave
+						}
+						{
+							keys: [ "d", "shift + d" ]
+							action: @systemMethod:prevMenu
+						}
+						{
+							keys: [ "q", "shift + q" ]
+							action: @method:editModeMenuQuote
+						}
+						{
+							keys: [ "?" ]
+							action: @method:editModeMenuHelp
+						}
+					]
 				}
 
 				//	Quote builder
