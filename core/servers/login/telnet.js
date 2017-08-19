@@ -544,6 +544,11 @@ util.inherits(TelnetClient, baseClient.Client);
 //	Telnet Command/Option handling
 ///////////////////////////////////////////////////////////////////////////////
 TelnetClient.prototype.handleTelnetEvent = function(evt) {
+	
+	if(!evt.command) {
+		return this.connectionWarn( { evt : evt }, 'No command for event');
+	}
+
 	//	handler name e.g. 'handleWontCommand'
 	const handlerName = `handle${evt.command.charAt(0).toUpperCase()}${evt.command.substr(1)}Command`;
 
