@@ -399,10 +399,6 @@ function getSGRFromGraphicRendition(graphicRendition, initialReset) {
 		}
 	});
 
-	if(!styleCount) {
-		sgrSeq.push(0);
-	}
-
 	if(graphicRendition.fg) {
 		sgrSeq.push(graphicRendition.fg);
 	}
@@ -411,7 +407,7 @@ function getSGRFromGraphicRendition(graphicRendition, initialReset) {
 		sgrSeq.push(graphicRendition.bg);
 	}
 
-	if(initialReset) {
+	if(0 === styleCount || initialReset) {
 		sgrSeq.unshift(0);
 	}
 
