@@ -42,7 +42,7 @@ function Message(options) {
 	this.fromUserName	= options.fromUserName || '';
 	this.subject		= options.subject || '';
 	this.message		= options.message || '';
-	
+		
 	if(_.isDate(options.modTimestamp) || moment.isMoment(options.modTimestamp)) {
 		this.modTimestamp = moment(options.modTimestamp);
 	} else if(_.isString(options.modTimestamp)) {
@@ -89,6 +89,7 @@ Message.SystemMetaNames = {
 	LocalToUserID			: 'local_to_user_id',
 	LocalFromUserID			: 'local_from_user_id',
 	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
+	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
 };
 
 Message.StateFlags0 = {
@@ -445,7 +446,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 	options.includePrefix 		= _.get(options, 'includePrefix', true);
 	options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
-	options.isAnsi				= options.isAnsi || isAnsi(this.message);
+	options.isAnsi				= options.isAnsi || isAnsi(this.message);	//	:TODO: If this.isAnsi, use that setting
 	
 	/*
 		Some long text that needs to be wrapped and quoted should look right after
@@ -488,7 +489,6 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			(err, prepped) => {
 				prepped = prepped || this.message;
 				
-				//const reset 	= ANSI.reset() + ANSI.white();	//	:TODO: this is quite borked...
 				let lastSgr = '';
 				const split = splitTextAtTerms(prepped);
 				
@@ -505,7 +505,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 					lastSgr = (l.match(/(?:\x1b\x5b)[0-9]{1,3}[m](?!.*(?:\x1b\x5b)[0-9]{1,3}[m])/) || [])[0] || '';	//	eslint-disable-line no-control-regex
 				});				
 
-				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;//ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true );
+				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
 				
 				return cb(null, quoteLines, focusQuoteLines, true);
 			}
