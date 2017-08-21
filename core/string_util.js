@@ -8,6 +8,7 @@ const ANSI				= require('./ansi_term.js');
 
 //	deps
 const iconv				= require('iconv-lite');
+const _					= require('lodash');
 
 exports.stylizeString				= stylizeString;
 exports.pad							= pad;
@@ -23,6 +24,7 @@ exports.formatByteSize				= formatByteSize;
 exports.cleanControlCodes			= cleanControlCodes;
 exports.prepAnsi					= prepAnsi;
 exports.isAnsi						= isAnsi;
+exports.isAnsiLine					= isAnsiLine;
 exports.splitTextAtTerms			= splitTextAtTerms;
 
 //	:TODO: create Unicode verison of this
@@ -380,13 +382,12 @@ function prepAnsi(input, options, cb) {
 		return cb(null, '');
 	}
 
-	options.termWidth	= options.termWidth 	|| 80;
-	options.termHeight	= options.termHeight	|| 25;
-
-	options.cols	= options.cols || options.termWidth		|| 80;
-	options.rows	= options.rows || options.termHeight	|| 'auto';
-
-	options.startCol = options.startCol || 1;
+	options.termWidth			= options.termWidth 	|| 80;
+	options.termHeight			= options.termHeight	|| 25;
+	options.cols				= options.cols || options.termWidth		|| 80;
+	options.rows				= options.rows || options.termHeight	|| 'auto';
+	options.startCol			= options.startCol || 1;
+	options.preserveTextLines	= options.preserveTextLines || false;
 
 	const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
 	const parser = new ANSIEscapeParser( { termHeight : options.termHeight, termWidth : options.termWidth } );
@@ -463,24 +464,52 @@ function prepAnsi(input, options, cb) {
 	parser.on('complete', () => {
 		let output = '';
 		let lastSgr = '';
+		let line;
+		let textState = 'new';
 		canvas.slice(0, lastRow + 1).forEach(row => {
 			const lastCol = getLastPopulatedColumn(row) + 1;
 
 			let i;
+			line = '';
 			for(i = 0; i < lastCol; ++i) {
 				const col = row[i];
 				if(col.sgr) {
 					lastSgr = col.sgr;
 				}
-				output += `${col.sgr || ''}${col.char || ' '}`;
+				line += `${col.sgr || ''}${col.char || ' '}`;
 			}
 
-			if(i < row.length) {
-				output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
-			}
+			if(options.preserveTextLines && !isAnsiLine(line)) {
+				switch(textState) {
+					case 'new'	: 
+						line = _.trimStart(line); 
+						if(line) {
+							textState = 'cont';
+						}
+						break;
 
-			if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
-				output += '\r\n';
+					case 'cont'	:
+						line = ' ' + line;
+						break;
+				}
+
+				output += line;
+			} else {
+				if('cont' === textState) {
+					output += '\r\n';
+				}
+
+				textState = 'new';
+
+				output += line;
+
+				if(i < row.length) {
+					output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
+				}
+
+				if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
+					output += '\r\n';
+				}
 			}
 		});
 
@@ -488,6 +517,10 @@ function prepAnsi(input, options, cb) {
 	});
 
 	parser.parse(input);
+}
+
+function isAnsiLine(line) {
+	return isAnsi(line);// || renderStringLength(line) < line.length;
 }
 
 function isAnsi(input) {
@@ -510,8 +543,9 @@ function isAnsi(input) {
 	});
 	*/
 
-	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[0-9]{1,3}[ABCDEFGJKLMSTrsuHfhlm]/g;
-	return ( input.match(ANSI_DET_REGEXP) || [] ).length > 4;	//	:TODO: do this reasonably, e.g. a percent or soemthing
+	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[\?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g;
+	const m = input.match(ANSI_DET_REGEXP) || []; 
+	return m.length >= 4;	//	:TODO: do this reasonably, e.g. a percent or soemthing
 }
 
 function splitTextAtTerms(s) {
