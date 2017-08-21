@@ -390,11 +390,14 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnKludge.TID = ftnUtil.getProductIdentifier(); 
 		
 		//
-		//	Determine CHRS and actual internal encoding name
-		//	Try to preserve anything already here
+		//	Determine CHRS and actual internal encoding name. If the message has an
+		//	explicit encoding set, use it. Otherwise, try to preserve any CHRS/encoding already set.
 		//
-		let encoding = options.nodeConfig.encoding || 'utf8';
-		if(message.meta.FtnKludge.CHRS) {
+		let encoding = options.nodeConfig.encoding || Config.scannerTossers.ftn_bso.packetMsgEncoding || 'utf8';
+		const explicitEncoding = _.get(message.meta, 'System.explicit_encoding');
+		if(explicitEncoding) {
+			encoding = explicitEncoding;
+		} else if(message.meta.FtnKludge.CHRS) {
 			const encFromChars = ftnUtil.getEncodingFromCharacterSetIdentifier(message.meta.FtnKludge.CHRS);
 			if(encFromChars) {
 				encoding = encFromChars;
