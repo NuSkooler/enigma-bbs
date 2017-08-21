@@ -14,6 +14,7 @@ const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const { isAnsi, cleanControlCodes }	= require('./string_util.js');
+const Config						= require('./config.js').config;
 
 //	deps
 const async							= require('async');
@@ -324,7 +325,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			toUserName		: headerValues.to,
 			fromUserName	: this.client.user.username,
 			subject			: headerValues.subject,
-			message			: this.viewControllers.body.getFormData().value.message,
+			message			: this.viewControllers.body.getFormData().value.message,			
 		};
 
 		if(this.isReply()) {
@@ -333,9 +334,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			if(this.replyIsAnsi) {
 				//
 				//	Ensure first characters indicate ANSI for detection down
-				//	the line (other boards/etc.)
+				//	the line (other boards/etc.). We also set explicit_encoding
+				//	to packetAnsiMsgEncoding (generally cp437) as various boards 
+				//	really don't like ANSI messages in UTF-8 encoding (they should!)
 				//
-				msgOpts.message = `${ansi.normal()}${msgOpts.message}`;
+				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
+				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
 			}
 		}
 
@@ -363,8 +367,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 							bodyMessageView.setAnsi(
 								this.message.message.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
 								{
-									prepped			: false,
-									forceLineTerm	: true
+									prepped				: false,
+									forceLineTerm		: true,
+									preserveTextLines	: this.message.replyToMsgId ? true : false,
 								}
 							);
 						} else {
@@ -973,8 +978,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		var quoteLines 		= quoteMsgView.getData();
 		
 		if(quoteLines.trim().length > 0) {
-			msgView.addText(quoteMsgView.getData() + '\n');
-		
+			msgView.addText(quoteMsgView.getData() + '\n');		
 		}
 		
 		quoteMsgView.setText('');

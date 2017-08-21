@@ -511,12 +511,14 @@ function MultiLineEditTextView(options) {
 		}
 
 		return wordWrapText(
-			s, {
+			s, 
+			{
 				width		: width,
 				tabHandling	: tabHandling || 'expand',
 				tabWidth	: self.tabWidth,
 				tabChar		: '\t',
-			});
+			}
+		);
 	};
 
 	this.setTextLines = function(lines, index, termWithEol) {
@@ -551,7 +553,31 @@ function MultiLineEditTextView(options) {
 	this.setAnsiWithOptions = function(ansi, options, cb) {
 
 		function setLines(text) {
+			/*
 			self.setTextLines( strUtil.splitTextAtTerms(text), 0 );
+			self.cursorStartOfDocument();
+			*/
+			text = strUtil.splitTextAtTerms(text);
+
+			let index = 0;
+			let wrapped;
+
+			text.forEach(line => {
+				if(strUtil.isAnsiLine(line)) {
+					self.setTextLines( [ line ], index, true);	//	true=termWithEol
+					index += 1;
+				} else {
+					wrapped = self.wordWrapSingleLine(
+						line,	 	//	line to wrap
+						'expand', 	//	tabHandling
+						self.dimens.width
+					).wrapped;
+
+					self.setTextLines(wrapped, index, true);	//	true=termWithEol
+					index += wrapped.length;
+				}
+			});
+
 			self.cursorStartOfDocument();
 
 			if(cb) {
@@ -566,12 +592,13 @@ function MultiLineEditTextView(options) {
 		strUtil.prepAnsi(
 			ansi,
 			{
-				termWidth		: this.client.termWidth,
-				termHeight		: this.client.termHeight,
-				cols			: this.dimens.width,
-				rows			: 'auto',
-				startCol		: this.position.col,
-				forceLineTerm	: options.forceLineTerm,
+				termWidth			: this.client.termWidth,
+				termHeight			: this.client.termHeight,
+				cols				: this.dimens.width,
+				rows				: 'auto',
+				startCol			: this.position.col,
+				forceLineTerm		: options.forceLineTerm,
+				preserveTextLines	: options.preserveTextLines,
 			},
 			(err, preppedAnsi) => {
 				return setLines(err ? ansi : preppedAnsi);
