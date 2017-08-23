@@ -44,14 +44,10 @@ function ANSIEscapeParser(options) {
 		self.row	+= rows;
 
 		self.column	= Math.max(self.column, 1);
-		self.column	= Math.min(self.column, self.termWidth);
-		self.row	= Math.max(self.row, 1);		
-		self.row	= Math.min(self.row, self.termHeight);
-
-//		self.emit('move cursor', self.column, self.row);
+		self.column	= Math.min(self.column, self.termWidth);	//	can't move past term width
+		self.row	= Math.max(self.row, 1);
 		
 		self.positionUpdated();
-		//self.rowUpdated();
 	};
 
 	self.saveCursorPosition = function() {
