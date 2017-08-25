@@ -12,6 +12,7 @@ const _					= require('lodash');
 
 exports.stylizeString				= stylizeString;
 exports.pad							= pad;
+exports.insert						= insert;
 exports.replaceAt					= replaceAt;
 exports.isPrintable					= isPrintable;
 exports.stripAllLineFeeds			= stripAllLineFeeds;
@@ -170,6 +171,10 @@ function pad(s, len, padChar, dir, stringSGR, padSGR, useRenderLen) {
 	}
 
 	return stringSGR + s;
+}
+
+function insert(s, index, substr) {
+	return `${s.slice(0, index)}${substr}${s.slice(index)}`;
 }
 
 function replaceAt(s, n, t) {
@@ -484,6 +489,10 @@ function prepAnsi(input, options, cb) {
 					case 'new'	: 
 						line = _.trimStart(line); 
 						if(line) {
+							if(output) {
+								output += '\r\n';
+							}
+							
 							textState = 'cont';
 						}
 						break;
@@ -543,6 +552,7 @@ function isAnsi(input) {
 	});
 	*/
 
+	//	:TODO: if a similar method is kept, use exec() until threshold
 	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[\?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g;
 	const m = input.match(ANSI_DET_REGEXP) || []; 
 	return m.length >= 4;	//	:TODO: do this reasonably, e.g. a percent or soemthing
