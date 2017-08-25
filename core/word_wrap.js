@@ -24,7 +24,13 @@ function wordWrapText2(text, options) {
 	options.tabWidth	= options.tabWidth || 4;
 	options.tabChar		= options.tabChar || ' ';		
 	
-	const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
+	//const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
+	//
+	//	For a given word, match 0->options.width chars -- alwasy include a full trailing ESC
+	//	sequence if present!
+	//
+	//	:TODO: Need to create ansi.getMatchRegex or something - this is used all over
+	const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]|.{0,${options.width}}`, 'g');
 	
 	let m;
 	let word;
