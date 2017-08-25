@@ -437,6 +437,11 @@ Message.prototype.getFTNQuotePrefix = function(source) {
 	return ftnUtil.getQuotePrefix(this[source]);
 };
 
+Message.prototype.getTearLinePosition = function(input) {
+	const m = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
+	return m ? m.index : -1;
+};
+
 Message.prototype.getQuoteLines = function(options, cb) {
 	if(!options.termWidth || !options.termHeight || !options.cols) {
 		return cb(Errors.MissingParam());
@@ -502,7 +507,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 					quoteLines.push(`${options.ansiResetSgr}${quotePrefix}${lastSgr}${l}`);
 					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}${quotePrefix}${lastSgr}${l}`);
 				
-					lastSgr = (l.match(/(?:\x1b\x5b)[0-9]{1,3}[m](?!.*(?:\x1b\x5b)[0-9]{1,3}[m])/) || [])[0] || '';	//	eslint-disable-line no-control-regex
+					lastSgr = (l.match(/(?:\x1b\x5b)[\?=;0-9]*m(?!.*(?:\x1b\x5b)[\?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
 				});				
 
 				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
@@ -516,8 +521,8 @@ Message.prototype.getQuoteLines = function(options, cb) {
 		const input		= this.message.trim().replace(/\b/g, '');
 	
 		//	find *last* tearline
-		let tearLinePos = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
-		tearLinePos = tearLinePos ? tearLinePos.index : input.length;	//	we just want the index or the entire string
+		let tearLinePos = this.getTearLinePosition(input);
+		tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;	//	we just want the index or the entire string
 		
 		input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
 			//
@@ -526,7 +531,11 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			//	- New (pre)quoted line - quote_line
 			//	- Continuation of new/quoted line
 			//
-			//	:TODO: fix extra space in quoted quotes, e.g. "Nu>  Su> blah blah"
+			//	:TODO: keep lines as-is that
+			//	- have extended ASCII
+			//	- have tabs or "   " (3+ spaces), e.g. pre-formatting
+			//  - contain pipe codes
+			//  			
 			let state;
 			let buf = '';
 			let quoteMatch;
@@ -562,7 +571,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 							
 					default :
 						state	= quoteMatch ? 'quote_line' : 'line';
-						buf		= 'line' === state ? line : _.trimStart(line);
+						buf		= 'line' === state ? line : line.replace(/\s/, '');//_.trimStart(line);
 						break;
 				}		
 			});
