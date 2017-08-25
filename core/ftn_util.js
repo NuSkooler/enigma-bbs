@@ -165,8 +165,18 @@ function getUTCTimeZoneOffset() {
 
 //	Get a FSC-0032 style quote prefixes
 function getQuotePrefix(name) {
-	//	:TODO: Add support for real names (e.g. with spaces) -> initials
-	return ' ' + name[0].toUpperCase() + name[1].toLowerCase() + '> ';
+	let initials;
+	
+	const parts = name.split(' ');
+	if(parts.length > 1) {
+		//	First & Last initials - (Bryan Ashby -> BA)
+		initials = `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+	} else {
+		//	Just use the first two - (NuSkooler -> Nu)
+		initials = _.capitalize(name.slice(0, 2));
+	}
+
+	return ` ${initials}> `;
 }
 
 //
