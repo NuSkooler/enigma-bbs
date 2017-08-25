@@ -13,7 +13,7 @@ const User							= require('./user.js');
 const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
-const { isAnsi, cleanControlCodes }	= require('./string_util.js');
+const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
 const Config						= require('./config.js').config;
 
 //	deps
@@ -211,21 +211,21 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			},
 			appendQuoteEntry: function(formData, extraArgs, cb) {
 				//	:TODO: Dont' use magic # ID's here			
-				var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
+				const quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
 
 				if(self.newQuoteBlock) {
 					self.newQuoteBlock = false;
 					quoteMsgView.addText(self.getQuoteByHeader());
 				}
 				
-				var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
+				const quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
 				quoteMsgView.addText(quoteText);
 
 				//
 				//	If this is *not* the last item, advance. Otherwise, do nothing as we
 				//	don't want to jump back to the top and repeat already quoted lines
 				//
-				var quoteListView = self.viewControllers.quoteBuilder.getView(3);
+				const quoteListView = self.viewControllers.quoteBuilder.getView(3);
 				if(quoteListView.getData() !== quoteListView.getCount() - 1) {
 					quoteListView.focusNext();
 				} else {
@@ -317,7 +317,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		}
 	}
 
-	buildMessage() {
+	buildMessage(cb) {
 		const headerValues = this.viewControllers.header.getFormData().value;
 
 		const msgOpts = {
@@ -344,6 +344,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		}
 
 		this.message = new Message(msgOpts);
+
+		return cb(null);
 	}
 	
 	setMessage(message) {
@@ -356,16 +358,27 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					this.initHeaderViewMode();
 					this.initFooterViewMode();
 
-					const bodyMessageView = this.viewControllers.body.getView(1);
+					const bodyMessageView	= this.viewControllers.body.getView(1);
+					let msg					= this.message.message;
+
 					if(bodyMessageView && _.has(this, 'message.message')) {
 						//
 						//	We handle ANSI messages differently than standard messages -- this is required as
 						//	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
 						//	how the author wanted it
 						//
-						if(isAnsi(this.message.message)) {
+						if(isAnsi(msg)) {
+							//
+							//	Find tearline - we want to color it differently.
+							//
+							const tearLinePos = this.message.getTearLinePosition(msg);
+
+							if(tearLinePos > -1) {
+								msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
+							}
+
 							bodyMessageView.setAnsi(
-								this.message.message.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
+								msg.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
 								{
 									prepped				: false,
 									forceLineTerm		: true,
@@ -373,7 +386,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 								}
 							);
 						} else {
-							bodyMessageView.setText(cleanControlCodes(this.message.message));
+							bodyMessageView.setText(cleanControlCodes(msg));
 						}
 					}
 				}
@@ -388,9 +401,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			[
 				function buildIfNecessary(callback) {
 					if(self.isEditMode()) {
-						self.buildMessage();	//	creates initial self.message
+						return self.buildMessage(callback);	//	creates initial self.message
 					}
-					callback(null);
+
+					return callback(null);
 				},
 				function populateLocalUserInfo(callback) {
 					if(self.isLocalEmail()) {
@@ -972,13 +986,17 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	
 	quoteBuilderFinalize() {
 		//	:TODO: fix magic #'s
-		var quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
-		var msgView			= this.viewControllers.body.getView(1);
-		
-		var quoteLines 		= quoteMsgView.getData();
+		const quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
+		const msgView		= this.viewControllers.body.getView(1);
+				
+		let quoteLines 		= quoteMsgView.getData();
 		
 		if(quoteLines.trim().length > 0) {
-			msgView.addText(quoteMsgView.getData() + '\n');		
+			if(this.replyIsAnsi) {
+				const bodyMessageView = this.viewControllers.body.getView(1);
+				quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
+			}
+			msgView.addText(`${quoteLines}\n`);
 		}
 		
 		quoteMsgView.setText('');
