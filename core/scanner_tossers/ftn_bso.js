@@ -608,16 +608,22 @@ function FTNMessageScanTossModule() {
 						callback(null);					
 					},
 					function appendMessage(callback) {
-						const msgBuf	= packet.getMessageEntryBuffer(message, exportOpts);
-						currPacketSize	+= msgBuf.length;
+						packet.getMessageEntryBuffer(message, exportOpts, (err, msgBuf) => {
+							if(err) {
+								return callback(err);
+							}
+
+							currPacketSize	+= msgBuf.length;
 						
-						if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
-							remainMessageBuf	= msgBuf;	//	save for next packet	
-							remainMessageId 	= message.messageId;						
-						} else {
-							ws.write(msgBuf);
-						}
-						callback(null);
+							if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
+								remainMessageBuf	= msgBuf;	//	save for next packet	
+								remainMessageId 	= message.messageId;						
+							} else {
+								ws.write(msgBuf);
+							}
+							
+							return callback(null);
+						});												
 					},
 					function storeStateFlags0Meta(callback) {
 						message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), err => {

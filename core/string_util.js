@@ -217,8 +217,9 @@ function stringFromNullTermBuffer(buf, encoding) {
 }
 
 const PIPE_REGEXP			= /(\|[A-Z\d]{2})/g;
-const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
-const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
+//const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
+//const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
+const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI.getFullMatchRegExp().source, 'g');
 
 //
 //	Similar to substr() but works with ANSI/Pipe code strings
@@ -393,6 +394,7 @@ function prepAnsi(input, options, cb) {
 	options.rows				= options.rows || options.termHeight	|| 'auto';
 	options.startCol			= options.startCol || 1;
 	options.preserveTextLines	= options.preserveTextLines || false;
+	options.exportMode			= options.exportMode || false;
 
 	const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
 	const parser = new ANSIEscapeParser( { termHeight : options.termHeight, termWidth : options.termWidth } );
@@ -516,11 +518,80 @@ function prepAnsi(input, options, cb) {
 					output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
 				}
 
-				if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
+				//if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
+				if(options.startCol + i < options.termWidth || options.forceLineTerm) {
 					output += '\r\n';
 				}
 			}
 		});
+
+		if(options.exportMode) {
+			//
+			//	If we're in export mode, we do some additional hackery:
+			//	
+			//	* Hard wrap ALL lines at <= 79 *characters* (not visible columns)
+			//	  if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
+			//	  represents chars to get back to the position we were previously at
+			//
+			//	* Replace contig spaces with ESC[<N>C as well to save... space.
+			//
+			//	:TODO: this would be better to do as part of the processing above, but this will do for now
+			const MAX_CHARS	= 79 - 8;	//	79 max, - 8 for max ESC seq's we may prefix a line with
+			let exportOutput = '';			
+			
+			let m;
+			let afterSeq;
+			let wantMore;
+			let renderStart;
+
+			splitTextAtTerms(output).forEach(fullLine => {
+				renderStart = 0;
+
+				while(fullLine.length > 0) {
+					let splitAt;
+					const ANSI_REGEXP = ANSI.getFullMatchRegExp();
+					wantMore = true;
+
+					while((m = ANSI_REGEXP.exec(fullLine))) {
+						afterSeq = m.index + m[0].length;
+
+						if(afterSeq < MAX_CHARS) {
+							//	after current seq
+							splitAt = afterSeq;
+						} else {
+							if(m.index < MAX_CHARS) {
+								//	before last found seq
+								splitAt = m.index;
+								wantMore = false;	//	can't eat up any more
+							}
+							
+							break;	//	seq's beyond this point are >= MAX_CHARS
+						}
+					}
+
+					if(splitAt) {
+						if(wantMore) {
+							splitAt = Math.min(fullLine.length, MAX_CHARS - 1);
+						}
+					} else {
+						splitAt = Math.min(fullLine.length, MAX_CHARS - 1);
+					}
+
+					const part = fullLine.slice(0, splitAt);
+					fullLine = fullLine.slice(splitAt);
+					renderStart += renderStringLength(part);
+					exportOutput += `${part}\r\n`;
+
+					if(fullLine.length > 0) {	//	more to go for this line?
+						exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;	
+					} else {
+						exportOutput += ANSI.up();
+					}
+				}
+			});
+
+			return cb(null, exportOutput);
+		}
 
 		return cb(null, output);
 	});
@@ -561,17 +632,17 @@ function isAnsi(input) {
 function splitTextAtTerms(s) {
 	return s.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
 }
+
+
 /*
 const fs = require('graceful-fs');
-//let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
+let data = fs.readFileSync('/home/nuskooler/Downloads/art3.ans');
 //let data = fs.readFileSync('/home/nuskooler/dev/enigma-bbs/mods/themes/nu-xibalba/MATRIX1.ANS');
 //let data = fs.readFileSync('/home/nuskooler/Downloads/ansi_diz_test/file_id.diz.2.ans');
-let data = fs.readFileSync('/home/nuskooler/Downloads/acidunder.ans');
-data = data.toString().replace(/\n/g,'\r\n');
-//data = iconv.decode(data, 'cp437');
-prepAnsi(data, { cols : 80, rows : 50 }, (err, out) => {
+data = fs.readFileSync('/home/nuskooler/ownCloud/temp/BS-AUW.ANS');
+data = iconv.decode(data, 'cp437');
+prepAnsi(data, { cols : 80, rows : 50, exportMode : true, forceLineTerm : true }, (err, out) => {
 	out = iconv.encode(out, 'cp437');
 	fs.writeFileSync('/home/nuskooler/Downloads/art4.ans', out);
 });
-
 */
