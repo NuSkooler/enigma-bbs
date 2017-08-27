@@ -10,8 +10,8 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Unlimited multi node support (for all those BBS "callers"!)
  * **Highly** customizable via [HJSON](http://hjson.org/) based configuration, menus, and themes in addition to JavaScript based mods
  * [MCI support](docs/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
- * Telnet, **SSH**, and both secure and non-secure WebSocket access built in! Additional servers are easy to implement
-  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
+ * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
+ * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior
  * [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
  * Renegade style pipe color codes
@@ -22,13 +22,12 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * [Message networks](docs/msg_networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
  * [Gazelle](https://github.com/WhatCD/Gazelle) inspirted File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](docs/web_server.md). Legacy X/Y/Z modem also supported!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
+ * ANSI support in the Full Screen Editor (FSE), file descriptions, and so on
  
 ## In the Works
 * More ES6+ usage, and **documentation**!
 * More ACS support coverage
 * SysOp dashboard (ye ol' WFC)
-* Missing functionality such as message FTS, user coloring of messages in the FST, etc.
-* String localization
 * A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 
 ## Known Issues
@@ -46,13 +45,14 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
+* [VTX](https://github.com/codewar65/VTX_ClientServer) (Try [Xibalba using VTX](https://l33t.codes/vtx/xibalba.html)!)
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
 
 ## Boards
-* WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510**)
-* Exotica: (**telnet://andrew.homeunix.org:2023**)
+* WQH: :skull: Xibalba :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
+* [Exotica](https://exoticabbs.com/): (**telnet://exoticabbs.com:8888**)
 * [force9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 
@@ -64,6 +64,7 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 (See the [Quickstart](docs/index.md#quickstart) for more information)
 
 ## Special Thanks
+* [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
 * [Caphood](http://www.reddit.com/user/Caphood), supreme SysOp of [BLACK ƒlag](http://www.bbsnexus.com/directory/listing/blackflag.html) BBS
