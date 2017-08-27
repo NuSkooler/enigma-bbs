@@ -11,7 +11,8 @@ const ANSI					= require('./ansi_term.js');
 
 const { 
 	prepAnsi, isAnsi, 
-	splitTextAtTerms
+	splitTextAtTerms, 
+	renderSubstr
 }							= require('./string_util.js');
 
 //	deps
@@ -486,7 +487,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			{
 				termWidth		: options.termWidth,
 				termHeight		: options.termHeight,
-				cols			: options.cols - quotePrefix.length,
+				cols			: options.cols,
 				rows			: 'auto',
 				startCol		: options.startCol,
 				forceLineTerm	: true,				
@@ -501,14 +502,17 @@ Message.prototype.getQuoteLines = function(options, cb) {
 				const focusQuoteLines	= [];
 
 				//
-				//	Create items (standard) and inverted items for focus views
+				//	Do not include quote prefixes (e.g. XX> ) on ANSI replies (and therefor quote builder)
+				//	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to 
+				//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
+				//	the trick and allow them to leave them alone!
 				//
 				split.forEach(l => {
-					quoteLines.push(`${options.ansiResetSgr}${quotePrefix}${lastSgr}${l}`);
-					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}${quotePrefix}${lastSgr}${l}`);
-				
+					quoteLines.push(`${lastSgr}${l}`);
+					
+					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 0, l.length - 2)}`);
 					lastSgr = (l.match(/(?:\x1b\x5b)[\?=;0-9]*m(?!.*(?:\x1b\x5b)[\?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
-				});				
+				});
 
 				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
 				

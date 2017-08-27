@@ -212,9 +212,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			appendQuoteEntry: function(formData, extraArgs, cb) {
 				//	:TODO: Dont' use magic # ID's here			
 				const quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
-
+				
 				if(self.newQuoteBlock) {
 					self.newQuoteBlock = false;
+
+					//	:TODO: If replying to ANSI, add a blank sepration line here
+
 					quoteMsgView.addText(self.getQuoteByHeader());
 				}
 				
@@ -325,7 +328,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			toUserName		: headerValues.to,
 			fromUserName	: this.client.user.username,
 			subject			: headerValues.subject,
-			message			: this.viewControllers.body.getFormData().value.message,			
+			//	:TODO: don't hard code 1 here:
+			message			: this.viewControllers.body.getView(1).getData( { forceLineTerms : this.replyIsAnsi } ),
 		};
 
 		if(this.isReply()) {
@@ -382,7 +386,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 								{
 									prepped				: false,
 									forceLineTerm		: true,
-									preserveTextLines	: this.message.replyToMsgId ? true : false,
 								}
 							);
 						} else {

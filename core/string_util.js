@@ -18,6 +18,7 @@ exports.isPrintable					= isPrintable;
 exports.stripAllLineFeeds			= stripAllLineFeeds;
 exports.debugEscapedString			= debugEscapedString;
 exports.stringFromNullTermBuffer	= stringFromNullTermBuffer;
+exports.stringToNullTermBuffer		= stringToNullTermBuffer;
 exports.renderSubstr				= renderSubstr;
 exports.renderStringLength			= renderStringLength;
 exports.formatByteSizeAbbr			= formatByteSizeAbbr;
@@ -216,6 +217,12 @@ function stringFromNullTermBuffer(buf, encoding) {
 	return iconv.decode(buf.slice(0, nullPos), encoding || 'utf-8');
 }
 
+function stringToNullTermBuffer(s, options = { encoding : 'utf8', maxBufLen : -1 } ) {
+	let buf = iconv.encode( `${s}\0`, options.encoding ).slice(0, options.maxBufLen);
+	buf[buf.length - 1] = '\0';	//	make abs sure we null term even if truncated
+	return buf;
+}
+
 const PIPE_REGEXP			= /(\|[A-Z\d]{2})/g;
 //const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
 //const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
@@ -393,7 +400,6 @@ function prepAnsi(input, options, cb) {
 	options.cols				= options.cols || options.termWidth		|| 80;
 	options.rows				= options.rows || options.termHeight	|| 'auto';
 	options.startCol			= options.startCol || 1;
-	options.preserveTextLines	= options.preserveTextLines || false;
 	options.exportMode			= options.exportMode || false;
 
 	const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
@@ -472,7 +478,7 @@ function prepAnsi(input, options, cb) {
 		let output = '';
 		let lastSgr = '';
 		let line;
-		let textState = 'new';
+
 		canvas.slice(0, lastRow + 1).forEach(row => {
 			const lastCol = getLastPopulatedColumn(row) + 1;
 
@@ -486,42 +492,15 @@ function prepAnsi(input, options, cb) {
 				line += `${col.sgr || ''}${col.char || ' '}`;
 			}
 
-			if(options.preserveTextLines && !isAnsiLine(line)) {
-				switch(textState) {
-					case 'new'	: 
-						line = _.trimStart(line); 
-						if(line) {
-							if(output) {
-								output += '\r\n';
-							}
-							
-							textState = 'cont';
-						}
-						break;
+			output += line;
 
-					case 'cont'	:
-						line = ' ' + line;
-						break;
-				}
+			if(i < row.length) {
+				output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
+			}
 
-				output += line;
-			} else {
-				if('cont' === textState) {
-					output += '\r\n';
-				}
-
-				textState = 'new';
-
-				output += line;
-
-				if(i < row.length) {
-					output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}${lastSgr}`;
-				}
-
-				//if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
-				if(options.startCol + i < options.termWidth || options.forceLineTerm) {
-					output += '\r\n';
-				}
+			//if(options.startCol + options.cols < options.termWidth || options.forceLineTerm) {
+			if(options.startCol + i < options.termWidth || options.forceLineTerm) {
+				output += '\r\n';
 			}
 		});
 

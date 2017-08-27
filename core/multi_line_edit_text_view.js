@@ -283,14 +283,15 @@ function MultiLineEditTextView(options) {
 		return lines;
 	};
 
-	this.getOutputText = function(startIndex, endIndex, eolMarker) {
-		let lines   = self.getTextLines(startIndex, endIndex);
-		let text    = '';
-		var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+	this.getOutputText = function(startIndex, endIndex, eolMarker, options) {
+		const lines	= self.getTextLines(startIndex, endIndex);
+		let text	= '';
+		const re	= new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
 
 		lines.forEach(line => {
 			text += line.text.replace(re, '\t');
-			if(eolMarker && line.eol) {
+			
+			if(options.forceLineTerms || (eolMarker && line.eol)) {
 				text += eolMarker;
 			}
 		});
@@ -598,7 +599,6 @@ function MultiLineEditTextView(options) {
 				rows				: 'auto',
 				startCol			: this.position.col,
 				forceLineTerm		: options.forceLineTerm,
-				preserveTextLines	: options.preserveTextLines,
 			},
 			(err, preppedAnsi) => {
 				return setLines(err ? ansi : preppedAnsi);
@@ -651,21 +651,6 @@ function MultiLineEditTextView(options) {
 			self.setTextLines(wrapped, index, true);	//	true=termWithEol
 			index += wrapped.length;
 		});
-		/*
-		for(let i = 0; i < text.length; ++i) {
-			wrapped = self.wordWrapSingleLine(
-				text[i], 	//	input
-				'expand', 	//	tabHandling
-				self.dimens.width
-			).wrapped;
-
-			for(let j = 0; j < wrapped.length - 1; ++j) {
-				self.textLines.splice(index++, 0, { text : wrapped[j] } );
-			}
-
-			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true } );
-		}
-		*/
 	};
 
 	this.getAbsolutePosition = function(row, col) {
@@ -1129,8 +1114,8 @@ MultiLineEditTextView.prototype.addText = function(text) {
 	}
 };
 
-MultiLineEditTextView.prototype.getData = function() {
-	return this.getOutputText(0, this.textLines.length, '\r\n');
+MultiLineEditTextView.prototype.getData = function(options = { forceLineTerms : false } ) {
+	return this.getOutputText(0, this.textLines.length, '\r\n', options);
 };
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {

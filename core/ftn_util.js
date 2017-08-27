@@ -163,7 +163,10 @@ function getUTCTimeZoneOffset() {
 	return moment().format('ZZ').replace(/\+/, '');
 }
 
-//	Get a FSC-0032 style quote prefixes
+//
+//	Get a FSC-0032 style quote prefix
+//	http://ftsc.org/docs/fsc-0032.001
+//	
 function getQuotePrefix(name) {
 	let initials;
 	

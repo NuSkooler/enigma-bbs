@@ -668,17 +668,12 @@ function Packet(options) {
 					const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
 					dateTimeBuffer.copy(basicHeader, 14);
 
-					//	toUserName & fromUserName: up to 36 bytes in length, NULL term'd
-					//	:TODO: DRY...
-					let toUserNameBuf = iconv.encode(message.toUserName + '\0', 'CP437').slice(0, 36);
-					toUserNameBuf[toUserNameBuf.length - 1] = '\0';	//	ensure it's null term'd
-					
-					let fromUserNameBuf = iconv.encode(message.fromUserName + '\0', 'CP437').slice(0, 36);
-					fromUserNameBuf[fromUserNameBuf.length - 1] = '\0';	//	ensure it's null term'd
-					
-					//	subject: up to 72 bytes in length, NULL term'd
-					let subjectBuf = iconv.encode(message.subject + '\0', 'CP437').slice(0, 72);
-					subjectBuf[subjectBuf.length - 1] = '\0';	//	ensure it's null term'd
+					//
+					//	To, from, and subject must be NULL term'd and have max lengths as per spec.
+					//
+					const toUserNameBuf 	= strUtil.stringToNullTermBuffer(message.toUserName, { encoding : 'cp437', maxBufLen : 36 } );
+					const fromUserNameBuf	= strUtil.stringToNullTermBuffer(message.fromUserName, { encoding : 'cp437', maxBufLen : 36 } );
+					const subjectBuf		= strUtil.stringToNullTermBuffer(message.subject, { encoding : 'cp437', maxBufLen : 72 } );
 
 					//
 					//	message: unbound length, NULL term'd
@@ -686,7 +681,6 @@ function Packet(options) {
 					//	We need to build in various special lines - kludges, area,
 					//	seen-by, etc.
 					//
-					//	:TODO: Put this in it's own method
 					let msgBody = '';
 
 					//
@@ -717,7 +711,6 @@ function Packet(options) {
 						{
 							cols				: 80,
 							rows				: 'auto',
-							preserveTextLines	: true,
 							forceLineTerm		: true,
 							exportMode			: true,
 						},
