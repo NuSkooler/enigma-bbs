@@ -31,6 +31,7 @@ const miscUtil	= require('./misc_util.js');
 const assert	= require('assert');
 const _			= require('lodash');
 
+exports.getFullMatchRegExp			= getFullMatchRegExp;
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
 exports.sgr							= sgr;
@@ -171,6 +172,12 @@ const SGRValues = {
 	cyanBG			: 46,
 	whiteBG			: 47,
 };
+
+function getFullMatchRegExp(flags = 'g') {
+	//	:TODO: expand this a bit - see strip-ansi/etc.
+	//	:TODO: \u009b ?
+	return new RegExp(/[\u001b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/, flags);	//	eslint-disable-line no-control-regex
+}
 
 function getFGColorValue(name) {
 	return SGRValues[name];
