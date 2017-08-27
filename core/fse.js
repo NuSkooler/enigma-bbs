@@ -701,16 +701,18 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 							break;
 							
 						case 'edit' :
-							const fromView = self.viewControllers.header.getView(1);
-							const area = getMessageAreaByTag(self.messageAreaTag);
-							if(area && area.realNames) {
-								fromView.setText(self.client.user.properties.real_name || self.client.user.username);
-							} else {
-								fromView.setText(self.client.user.username);
-							}
-							
-							if(self.replyToMessage) {
-								self.initHeaderReplyEditMode();
+							{
+								const fromView = self.viewControllers.header.getView(1);
+								const area = getMessageAreaByTag(self.messageAreaTag);
+								if(area && area.realNames) {
+									fromView.setText(self.client.user.properties.real_name || self.client.user.username);
+								} else {
+									fromView.setText(self.client.user.username);
+								}
+
+								if(self.replyToMessage) {
+									self.initHeaderReplyEditMode();
+								}
 							}
 							break;
 					}
