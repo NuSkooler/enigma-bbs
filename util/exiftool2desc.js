@@ -17,6 +17,7 @@ const FILETYPE_HANDLERS = {};
 [ 'AIFF', 'APE', 'FLAC', 'OGG', 'MP3' ].forEach(ext => FILETYPE_HANDLERS[ext] = audioFile);
 [ 'PDF', 'DOC', 'DOCX', 'DOCM', 'ODB', 'ODC', 'ODF', 'ODG', 'ODI', 'ODP', 'ODS', 'ODT' ].forEach(ext => FILETYPE_HANDLERS[ext] = documentFile);
 [ 'PNG', 'JPEG', 'GIF', 'WEBP', 'XCF' ].forEach(ext => FILETYPE_HANDLERS[ext] = imageFile);
+[ 'MP4', 'MOV', 'AVI', 'MKV', 'MPG', 'MPEG', 'M4V', 'WMV' ].forEach(ext => FILETYPE_HANDLERS[ext] = videoFile);
 
 function audioFile(metadata) {
 	//	nothing if we don't know at least the author or title
@@ -30,6 +31,10 @@ function audioFile(metadata) {
 	}
 	desc += `${metadata.audioBitrate})`;
 	return desc;
+}
+
+function videoFile(metadata) {
+	return `${metadata.fileType} video(${metadata.imageSize}px, ${metadata.duration}, ${metadata.audioBitsPerSample}/${metadata.audioSampleRate} audio)`;
 }
 
 function documentFile(metadata) {

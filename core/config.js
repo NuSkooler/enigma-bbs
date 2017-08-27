@@ -321,6 +321,24 @@ function getDefaultConfig() {
 				longDescUtil	: 'Exiftool',
 			},
 			//
+			//	Video
+			//
+			'video/mp4' : {
+				desc			: 'MPEG Video',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'video/x-matroska ' : {
+				desc			: 'Matroska Video',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'video/x-msvideo' : {
+				desc			: 'Audio Video Interleave',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			//
 			//	Images
 			//
 			'image/jpeg'	: {
