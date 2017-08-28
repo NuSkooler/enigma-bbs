@@ -10,7 +10,7 @@ const Errors				= require('./enig_error.js').Errors;
 const ANSI					= require('./ansi_term.js');
 
 const { 
-	prepAnsi, isAnsi, 
+	prepAnsi, isAnsi, isFormattedLine,
 	splitTextAtTerms, 
 	renderSubstr
 }							= require('./string_util.js');
@@ -481,6 +481,20 @@ Message.prototype.getQuoteLines = function(options, cb) {
 		});
 	}
 
+	function getFormattedLine(line) {
+		//	for pre-formatted text, we just append a line truncated to fit
+		let newLen;
+		const total = line.length + quotePrefix.length;
+
+		if(total > options.cols) {
+			newLen = options.cols - total;
+		} else {
+			newLen = total;
+		}
+
+		return `${quotePrefix}${line.slice(0, newLen)}`;
+	}
+
 	if(options.isAnsi) {
 		prepAnsi(
 			this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
@@ -507,6 +521,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 				//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
 				//	the trick and allow them to leave them alone!
 				//
+				//	:TODO: The way this bumps to the right is super annoying -- it would be nice to just invert the entire line
 				split.forEach(l => {
 					quoteLines.push(`${lastSgr}${l}`);
 					
@@ -522,7 +537,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 	} else {
 		const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}\> )+(?:[A-Za-z0-9]{2}\>)*) */;
 		const quoted	= [];
-		const input		= this.message.trim().replace(/\b/g, '');
+		const input		= _.trimEnd(this.message).replace(/\b/g, '');
 	
 		//	find *last* tearline
 		let tearLinePos = this.getTearLinePosition(input);
@@ -535,23 +550,42 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			//	- New (pre)quoted line - quote_line
 			//	- Continuation of new/quoted line
 			//
-			//	:TODO: keep lines as-is that
-			//	- have extended ASCII
-			//	- have tabs or "   " (3+ spaces), e.g. pre-formatting
-			//  - contain pipe codes
-			//  			
+			//	Also:
+			//	- Detect pre-formatted lines & try to keep them as-is
+			//
 			let state;
 			let buf = '';
 			let quoteMatch;
+
+			if(quoted.length > 0) {
+				//
+				//	Preserve paragraph seperation.
+				//
+				//	FSC-0032 states something about leaving blank lines fully blank
+				//	(without a prefix) but it seems nicer (and more consistent with other systems)
+				//	to put 'em in.
+				//
+				quoted.push(quotePrefix);
+			}
+
 			paragraph.split(/\r?\n/).forEach(line => {
+				if(0 === line.trim().length) {
+					//	see blank line notes above
+					return quoted.push(quotePrefix);
+				}
+
 				quoteMatch = line.match(QUOTE_RE);
 
 				switch(state) {
 					case 'line' :
 						if(quoteMatch) {
-							quoted.push(...getWrapped(buf, quoteMatch[1]));
-							state = 'quote_line';
-							buf = line;
+							if(isFormattedLine(line)) {
+								quoted.push(getFormattedLine(line.replace(/\s/, '')));
+							} else {
+								quoted.push(...getWrapped(buf, quoteMatch[1]));
+								state = 'quote_line';
+								buf = line;
+							}
 						} else {
 							buf += ` ${line}`;
 						}
@@ -574,8 +608,12 @@ Message.prototype.getQuoteLines = function(options, cb) {
 						break;
 							
 					default :
-						state	= quoteMatch ? 'quote_line' : 'line';
-						buf		= 'line' === state ? line : line.replace(/\s/, '');//_.trimStart(line);
+						if(isFormattedLine(line)) {
+							quoted.push(getFormattedLine(line));
+						} else {
+							state	= quoteMatch ? 'quote_line' : 'line';
+							buf		= 'line' === state ? line : line.replace(/\s/, '');	//	trim *first* leading space, if any
+						}
 						break;
 				}		
 			});

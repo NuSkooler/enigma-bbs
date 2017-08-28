@@ -27,6 +27,7 @@ exports.cleanControlCodes			= cleanControlCodes;
 exports.prepAnsi					= prepAnsi;
 exports.isAnsi						= isAnsi;
 exports.isAnsiLine					= isAnsiLine;
+exports.isFormattedLine				= isFormattedLine;
 exports.splitTextAtTerms			= splitTextAtTerms;
 
 //	:TODO: create Unicode verison of this
@@ -582,6 +583,31 @@ function isAnsiLine(line) {
 	return isAnsi(line);// || renderStringLength(line) < line.length;
 }
 
+//
+//	Returns true if the line is considered "formatted". A line is
+//	considered formatted if it contains:
+//	* ANSI
+//	* Pipe codes
+//	* Extended (CP437) ASCII - https://www.ascii-codes.com/
+//	* Tabs
+//	* Contigous 3+ spaces before the end of the line
+//
+function isFormattedLine(line) {
+	if(renderStringLength(line) < line.length) {
+		return true;	//	ANSI or Pipe Codes
+	}
+
+	if(line.match(/[\t\x00-\x1f\x80-\xff]/)) {	//	eslint-disable-line no-control-regex
+		return true;
+	}
+
+	if(_.trimEnd(line).match(/[ ]{3,}/)) {
+		return true;
+	}
+
+	return false;
+}
+
 function isAnsi(input) {
 	//
 	//	* ANSI found - limited, just colors
@@ -603,7 +629,7 @@ function isAnsi(input) {
 	*/
 
 	//	:TODO: if a similar method is kept, use exec() until threshold
-	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[\?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g;
+	const ANSI_DET_REGEXP = /(?:\x1b\x5b)[\?=;0-9]*?[ABCDEFGHJKLMSTfhlmnprsu]/g;	//	eslint-disable-line no-control-regex
 	const m = input.match(ANSI_DET_REGEXP) || []; 
 	return m.length >= 4;	//	:TODO: do this reasonably, e.g. a percent or soemthing
 }
