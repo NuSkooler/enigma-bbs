@@ -193,10 +193,10 @@ function ANSIEscapeParser(options) {
 				});
 
 				if(self.mciReplaceChar.length > 0) {
-					//self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
 					const sgrCtrl = ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase);
+					
 					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[\;m]/).slice(0, 3));
-					//self.emit('control', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase)); 
+
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -391,6 +391,8 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
+				self.graphicRendition.reset = false;
+
 				for(let i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 
@@ -408,8 +410,12 @@ function ANSIEscapeParser(options) {
 								delete self.graphicRendition.negative;
 								delete self.graphicRendition.invisible;
 
-								self.graphicRendition.fg = 39;
-								self.graphicRendition.bg = 49;
+								delete self.graphicRendition.fg;
+								delete self.graphicRendition.bg;
+
+								self.graphicRendition.reset = true;
+								//self.graphicRendition.fg = 39;
+								//self.graphicRendition.bg = 49;
 								break;
 
 							case 1 :
@@ -445,6 +451,8 @@ function ANSIEscapeParser(options) {
 						}
 					}
 				}
+
+				self.emit('sgr update', self.graphicRendition);
 				break;	//	m
 
 			//	:TODO: s, u, K

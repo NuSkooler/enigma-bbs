@@ -343,7 +343,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				//	really don't like ANSI messages in UTF-8 encoding (they should!)
 				//
 				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
-				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
+				//	:TODO: change to <ansi>\r\nESC[A<message>
+				//msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
+				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
 			}
 		}
 

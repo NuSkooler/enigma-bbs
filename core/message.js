@@ -10,10 +10,12 @@ const Errors				= require('./enig_error.js').Errors;
 const ANSI					= require('./ansi_term.js');
 
 const { 
-	prepAnsi, isAnsi, isFormattedLine,
+	isAnsi, isFormattedLine,
 	splitTextAtTerms, 
 	renderSubstr
 }							= require('./string_util.js');
+
+const ansiPrep				= require('./ansi_prep.js');
 
 //	deps
 const uuidParse				= require('uuid-parse');
@@ -496,7 +498,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 	}
 
 	if(options.isAnsi) {
-		prepAnsi(
+		ansiPrep(
 			this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
 			{
 				termWidth		: options.termWidth,

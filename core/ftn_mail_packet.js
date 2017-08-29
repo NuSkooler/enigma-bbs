@@ -7,6 +7,7 @@ const sauce			= require('./sauce.js');
 const Address		= require('./ftn_address.js');
 const strUtil		= require('./string_util.js');
 const Log			= require('./logger.js').log;
+const ansiPrep		= require('./ansi_prep.js');
 
 const _				= require('lodash');
 const assert		= require('assert');
@@ -706,7 +707,7 @@ function Packet(options) {
 						return callback(null, basicHeader, toUserNameBuf, fromUserNameBuf, subjectBuf, msgBody, message.message);
 					}
 
-					strUtil.prepAnsi(
+					ansiPrep(
 						message.message,
 						{
 							cols				: 80,

@@ -6,6 +6,7 @@ const strUtil		= require('./string_util.js');
 const ansi			= require('./ansi_term.js');
 const colorCodes	= require('./color_codes.js');
 const wordWrapText	= require('./word_wrap.js').wordWrapText;
+const ansiPrep		= require('./ansi_prep.js');
 
 const assert		= require('assert');
 const _				= require('lodash');
@@ -590,7 +591,7 @@ function MultiLineEditTextView(options) {
 			return setLines(ansi);
 		}
 
-		strUtil.prepAnsi(
+		ansiPrep(
 			ansi,
 			{
 				termWidth			: this.client.termWidth,
