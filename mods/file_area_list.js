@@ -376,18 +376,23 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
 						if(descView) {
-							descView.setAnsi(
-								self.currentFileEntry.desc, 
-								{
-									prepped			: false,
-									forceLineTerm	: true
-								},
-								() => {
-									self.updateQueueIndicator();
-									self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
-									return callback(null);
-								}
-							);
+							if(isAnsi(self.currentFileEntry.desc)) {
+								descView.setAnsi(
+									self.currentFileEntry.desc,
+									{
+										prepped			: false,
+										forceLineTerm	: true
+									},
+									() => {
+										self.updateQueueIndicator();
+										self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
+										return callback(null);
+									}
+								);
+							} else {
+								descView.setText(self.currentFileEntry.desc);
+								return callback(null);
+							}
 						}
 					} else {
 						self.updateQueueIndicator();
