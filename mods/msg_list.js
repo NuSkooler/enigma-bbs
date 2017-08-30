@@ -49,6 +49,8 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
 		this.messageAreaTag = config.messageAreaTag;
 
+		this.lastMessageReachedExit = _.get(options, 'lastMenuResult.lastMessageReached', false);
+
 		if(options.extraArgs) {
 			//
 			//	|extraArgs| can override |messageAreaTag| provided by config
@@ -73,6 +75,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 							messageAreaTag		: self.messageAreaTag,
 							messageList			: self.messageList,
 							messageIndex		: formData.value.message,
+							lastMessageNextExit	: true,
 						}
 					};
 
@@ -107,6 +110,10 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 	}
 
 	enter() {
+		if(this.lastMessageReachedExit) {
+			return this.prevMenu();
+		}
+
 		super.enter();
 
 		//

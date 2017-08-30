@@ -22,8 +22,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 		this.editorMode			= 'view';
 
 		if(_.isObject(options.extraArgs)) {
-			this.messageList		= options.extraArgs.messageList;
-			this.messageIndex		= options.extraArgs.messageIndex;
+			this.messageList			= options.extraArgs.messageList;
+			this.messageIndex			= options.extraArgs.messageIndex;
+			this.lastMessageNextExit	= options.extraArgs.lastMessageNextExit;
 		}
 
 		this.messageList	= this.messageList || [];
@@ -39,6 +40,12 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 					self.messageIndex++;
 
 					return self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid, cb);
+				}
+
+				//	auto-exit if no more to go?
+				if(self.lastMessageNextExit) {
+					self.lastMessageReached = true;
+					return self.prevMenu(cb);
 				}
 
 				return cb(null);
@@ -120,6 +127,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 	}
 
 	getMenuResult() {
-		return this.messageIndex;
+		return {
+			messageIndex 		: this.messageIndex,
+			lastMessageReached	: this.lastMessageReached,
+		};
 	}
 };

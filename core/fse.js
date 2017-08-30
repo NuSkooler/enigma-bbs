@@ -169,7 +169,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				}
 				cb(newFocusViewId);
 			},
-			
 			headerSubmit : function(formData, extraArgs, cb) {
 				self.switchToBody();
 				return cb(null);
