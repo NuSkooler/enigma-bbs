@@ -372,7 +372,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 						return self.populateCurrentEntryInfo(callback);
 					});
 				},
-				function populateViews(callback) {
+				function populateDesc(callback) {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
 						if(descView) {
@@ -384,8 +384,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 										forceLineTerm	: true
 									},
 									() => {
-										self.updateQueueIndicator();
-										self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
 										return callback(null);
 									}
 								);
@@ -395,11 +393,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 							}
 						}
 					} else {
-						self.updateQueueIndicator();
-						self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
-
 						return callback(null);
 					}
+				},
+				function populateAdditionalViews(callback) {
+					self.updateQueueIndicator();
+					self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
+					return callback(null);
 				}
 			],
 			err => {				

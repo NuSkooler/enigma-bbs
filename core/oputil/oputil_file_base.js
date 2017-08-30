@@ -85,7 +85,7 @@ function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 	);
 }
 
-const SCAN_IGNORE_FILENAMES = [ 'DESCRIPT.ION', 'FILES.BBS' ];
+const SCAN_EXCLUDE_FILENAMES = [ 'DESCRIPT.ION', 'FILES.BBS' ];
 
 function loadDescHandler(path, cb) {
 	const DescIon = require('../../core/descript_ion_file.js');
@@ -128,8 +128,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 						async.eachSeries(files, (fileName, nextFile) => {
 							const fullPath = paths.join(physDir, fileName);
 
-							if(SCAN_IGNORE_FILENAMES.includes(fileName.toUpperCase())) {
-								process.stdout.write(`Ignoring ${fullPath}`);
+							if(SCAN_EXCLUDE_FILENAMES.includes(fileName.toUpperCase())) {
+								console.info(`Excluding ${fullPath}`);
 								return nextFile(null);
 							}
 
