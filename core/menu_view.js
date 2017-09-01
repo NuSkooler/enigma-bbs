@@ -113,6 +113,14 @@ MenuView.prototype.focusPrevious = function() {
 	this.emit('index update', this.focusedItemIndex);
 };
 
+MenuView.prototype.focusNextPageItem = function() {
+	this.emit('index update', this.focusedItemIndex);
+};
+
+MenuView.prototype.focusPreviousPageItem = function() {
+	this.emit('index update', this.focusedItemIndex);
+};
+
 MenuView.prototype.setFocusItemIndex = function(index) {
 	this.focusedItemIndex = index;
 };
