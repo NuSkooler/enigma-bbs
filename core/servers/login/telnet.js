@@ -439,6 +439,8 @@ function TelnetClient(input, output) {
 	let bufs	= buffers();
 	this.bufs	= bufs;
 
+	this.sentDont = {};	//	DON'T's we've already sent
+
 	this.setInputOutput(input, output);
 
 	this.negotiationsComplete	= false;	//	are we in the 'negotiation' phase?
@@ -579,7 +581,13 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 };
 
 TelnetClient.prototype.handleWontCommand = function(evt) {
-	if('new environment' === evt.option) {
+	if(this.sentDont[evt.option]) {
+		return this.connectionTrace(evt, 'WONT - DON\'T already sent');
+	}
+
+	this.sentDont[evt.option] = true;
+
+	if('new environment' === evt.option) {		
 		this.dont.new_environment();
 	} else {
 		this.connectionTrace(evt, 'WONT');
