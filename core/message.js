@@ -523,11 +523,10 @@ Message.prototype.getQuoteLines = function(options, cb) {
 				//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
 				//	the trick and allow them to leave them alone!
 				//
-				//	:TODO: The way this bumps to the right is super annoying -- it would be nice to just invert the entire line
 				split.forEach(l => {
 					quoteLines.push(`${lastSgr}${l}`);
 					
-					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 0, l.length - 2)}`);
+					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 1, l.length - 1)}`);
 					lastSgr = (l.match(/(?:\x1b\x5b)[\?=;0-9]*m(?!.*(?:\x1b\x5b)[\?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
 				});
 
