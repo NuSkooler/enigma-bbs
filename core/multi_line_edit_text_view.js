@@ -63,7 +63,7 @@ const _				= require('lodash');
 //	*
 
 
-var SPECIAL_KEY_MAP_DEFAULT = {
+const SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
 	exit			: [ 'esc' ],
 	backspace		: [ 'backspace' ],
@@ -503,10 +503,6 @@ function MultiLineEditTextView(options) {
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
-	this.getStringLength = function(s) {
-		return self.isPreviewMode() ? colorCodes.enigmaStrLen(s) : s.length;
-	};
-
 	this.wordWrapSingleLine = function(s, tabHandling, width) {
 		if(!_.isNumber(width)) {
 			width = self.dimens.width;
@@ -555,10 +551,6 @@ function MultiLineEditTextView(options) {
 	this.setAnsiWithOptions = function(ansi, options, cb) {
 
 		function setLines(text) {
-			/*
-			self.setTextLines( strUtil.splitTextAtTerms(text), 0 );
-			self.cursorStartOfDocument();
-			*/
 			text = strUtil.splitTextAtTerms(text);
 
 			let index = 0;

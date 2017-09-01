@@ -15,7 +15,6 @@ const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTe
 const Log								= require('../core/logger.js').log;
 const Errors							= require('../core/enig_error.js').Errors;
 const FileEntry							= require('../core/file_entry.js');
-const enigmaToAnsi						= require('../core/color_codes.js').enigmaToAnsi;
 
 //	deps
 const async								= require('async');

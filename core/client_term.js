@@ -169,7 +169,7 @@ ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
 	var conv = {
 		enigma		: enigmaToAnsi,
 		renegade	: renegadeToAnsi,
-	}[spec] || enigmaToAnsi;
+	}[spec] || renegadeToAnsi;
 	
 	this.write(conv(s, this), null, cb);	//	null = use default for |convertLineFeeds|
 };
