@@ -72,10 +72,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		if(options.extraArgs) {
-			this.filterCriteria	= options.extraArgs.filterCriteria;
-			this.fileList		= options.fileList;
-		}
+		this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
+		this.fileList			= _.get(options, 'extraArgs.fileList');
 
 		this.dlQueue = new DownloadQueue(this.client);
 
@@ -354,6 +352,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			[
 				function fetchEntryData(callback) {
 					if(self.fileList) {
+						self.fileListPosition = 0;
 						return callback(null);
 					}
 					return self.loadFileIds(false, callback);	//	false=do not force
