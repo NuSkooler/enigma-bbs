@@ -249,9 +249,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const userRatingTicked		= config.userRatingTicked || '*';
 		const userRatingUnticked	= config.userRatingUnticked || '';					
 		entryInfo.userRating		= ~~Math.round(entryInfo.userRating) || 0;	//	be safe!
-		entryInfo.userRatingString	= new Array(entryInfo.userRating + 1).join(userRatingTicked);
+		entryInfo.userRatingString	= userRatingTicked.repeat(entryInfo.userRating);
 		if(entryInfo.userRating < 5) {
-			entryInfo.userRatingString += new Array( (5 - entryInfo.userRating) + 1).join(userRatingUnticked);
+			entryInfo.userRatingString += userRatingUnticked.repeat( (5 - entryInfo.userRating) );
 		}
 
 		FileAreaWeb.getExistingTempDownloadServeItem(this.client, this.currentFileEntry, (err, serveItem) => {
