@@ -140,15 +140,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
 		if(_.isNumber(this.menuConfig.options.baudRate)) {
 			//	:TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
+			this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
 			initSeq += ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate);
 		}
 
 		if(this.cls) {
+			this.client.term.rawWrite(ansi.resetScreen());
 			initSeq += ansi.resetScreen();
 		}
 
 		if(initSeq) {
-			this.client.term.rawWrite(initSeq);
+	//		this.client.term.rawWrite(initSeq);
 		}
 
 		return cb(null);
