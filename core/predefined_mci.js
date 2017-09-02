@@ -88,7 +88,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	UT	: function themeId(client) { return userStatAsString(client, 'theme_id', ''); },
 	UC	: function loginCount(client) { return userStatAsString(client, 'login_count', 0); },
 	ND	: function connectedNode(client) { return client.node.toString(); },
-	IP	: function clientIpAddress(client) { return client.remoteAddress; },
+	IP	: function clientIpAddress(client) { return client.remoteAddress.replace(/^::ffff:/, ''); },	//	convert any :ffff: IPv4's to 32bit version
 	ST	: function serverName(client) { return client.session.serverName; },
 	FN	: function activeFileBaseFilterName(client) {
 		const activeFilter = FileBaseFilters.getActiveFilter(client);
