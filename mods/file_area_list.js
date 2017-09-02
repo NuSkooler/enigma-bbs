@@ -115,7 +115,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 				return this.displayDetailsPage(cb);
 			},
 			detailsQuit : (formData, extraArgs, cb) => {
-				this.viewControllers.details.setFocus(false);
+				[ 'detailsNfo', 'detailsFileList', 'details' ].forEach(n => {
+					const vc = this.viewControllers[n];
+					if(vc) {
+						vc.detachClientEvents();
+					}
+				});
+
 				return this.displayBrowsePage(true, cb);	//	true=clearScreen
 			},
 			toggleQueue : (formData, extraArgs, cb) => {
