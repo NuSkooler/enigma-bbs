@@ -157,7 +157,7 @@ function getArt(name, options, cb) {
 			//  Ignore anything not allowed in |options.types|
 			//
 			const fext = paths.extname(file);
-			if(!options.type.includes(fext.toLowerCase())) {
+			if(!options.types.includes(fext.toLowerCase())) {
 				return false;
 			}
 
