@@ -492,3 +492,13 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 	return handler;
 };
 
+Client.prototype.terminalSupports = function(query) {
+	switch(query) {
+		case 'vtx_audio' :
+			//	https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+			return this.termClient === 'vtx';
+		
+		default : 
+			return false;
+	}
+};
