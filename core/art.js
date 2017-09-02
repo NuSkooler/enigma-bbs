@@ -157,18 +157,19 @@ function getArt(name, options, cb) {
 			//  Ignore anything not allowed in |options.types|
 			//
 			const fext = paths.extname(file);
-			if(options.types.indexOf(fext.toLowerCase()) < 0) {
+			if(!options.type.includes(fext.toLowerCase())) {
 				return false;
 			}
 
 			const bn = paths.basename(file, fext).toLowerCase();
 			if(options.random) {
 				const suppliedBn = paths.basename(name, fext).toLowerCase();
+			
 				//
 				//  Random selection enabled. We'll allow for
 				//  basename1.ext, basename2.ext, ...
 				//
-				if(bn.indexOf(suppliedBn) !== 0) {
+				if(!bn.startsWith(suppliedBn)) {
 					return false;
 				}
 
@@ -239,7 +240,11 @@ function display(client, art, options, cb) {
 	}
 
 	options.mciReplaceChar 	= options.mciReplaceChar || ' ';
-	options.disableMciCache	= options.disableMciCache || false;  
+	options.disableMciCache	= options.disableMciCache || false;
+
+	//	:TODO: this is going to be broken into two approaches controlled via options:
+	//	1) Standard - use internal tracking of locations for MCI -- no CPR's/etc.
+	//	2) CPR driven
 
 	if(!_.isBoolean(options.iceColors)) {
 		//	try to detect from SAUCE
@@ -281,7 +286,6 @@ function display(client, art, options, cb) {
 
 		return cb(null, mciMap, extraInfo);
 	}
-
 
 	if(!options.disableMciCache) {		
 		artHash	= farmhash.hash32(art);
@@ -335,14 +339,14 @@ function display(client, art, options, cb) {
 				}
 
 				mciCprQueue.push(mapKey);
-				client.term.write(ansi.queryPos(), false);
+				client.term.rawWrite(ansi.queryPos());
 			}
 
 		});
 	}
 
 	ansiParser.on('literal', literal => client.term.write(literal, false) );	
-	ansiParser.on('control', control => client.term.write(control, false) );
+	ansiParser.on('control', control => client.term.rawWrite(control) );
 
 	ansiParser.on('complete', () => {
 		parseComplete = true;
@@ -352,29 +356,35 @@ function display(client, art, options, cb) {
 		}		
 	});
 
-	let ansiFontSeq;
+	let initSeq = '';
 	if(options.font) {
-		ansiFontSeq = ansi.setSyncTermFontWithAlias(options.font);
+		initSeq = ansi.setSyncTermFontWithAlias(options.font);
 	} else if(options.sauce) {
 		let fontName = getFontNameFromSAUCE(options.sauce);
 		if(fontName) {
 			fontName = ansi.getSyncTERMFontFromAlias(fontName);
 		}
 
-		//	don't set default (CP437) from SAUCE
-		if(fontName && 'cp437' !== fontName) {
-			ansiFontSeq = ansi.setSyncTERMFont(fontName);
+		//
+		//	Set SyncTERM font if we're switching only. Most terminals
+		//	that support this ESC sequence can only show *one* font
+		//	at a time. This applies to detection only (e.g. SAUCE).
+		//	If explicit, we'll set it no matter what (above)
+		//
+		if(fontName && client.term.currentSyncFont != fontName) {
+			client.term.currentSyncFont = fontName;
+			initSeq = ansi.setSyncTERMFont(fontName);
 		}
 	}
 
-	if(ansiFontSeq) {
-		client.term.write(ansiFontSeq, false);
+	if(options.iceColors) {
+		initSeq += ansi.blinkToBrightIntensity();
 	}
 
-	if(options.iceColors) {
-		client.term.write(ansi.blinkToBrightIntensity(), false);
+	if(initSeq) {
+		client.term.rawWrite(initSeq);
 	}
 
 	ansiParser.reset(art);
-	ansiParser.parse();	
+	return ansiParser.parse();
 }

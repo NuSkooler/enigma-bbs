@@ -44,7 +44,13 @@ module.exports = class DescriptIonFile {
 				}
 
 				const fileName	= parts[1] || parts[2];
-				const desc		= parts[3].replace(/\\r\\n|\\n/g, '\r\n');	//	un-escape CR/LF's
+
+				//
+				//	Un-escape CR/LF's
+				//	- escapped \r and/or \n
+				//	- BBBS style @n - See https://www.bbbs.net/sysop.html
+				//
+				const desc		= parts[3].replace(/\\r\\n|\\n|[^@]@n/g, '\r\n');
 
 				descIonFile.entries.set(
 					fileName,

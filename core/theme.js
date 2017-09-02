@@ -374,8 +374,8 @@ function getThemeArt(options, cb) {
 	//	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
 	//	:TODO: Some of these options should only be set if not provided!
 	options.asAnsi		= true;	//	always convert to ANSI
-	options.readSauce	= true;	//	read SAUCE, if avail
-	options.random		= _.isBoolean(options.random) ? options.random : true;	//	FILENAME<n>.EXT support
+	options.readSauce	= true;	//	read SAUCE, if avail	
+	options.random		= _.get(options, 'random', true);	//	FILENAME<n>.EXT support
 
 	//
 	//	We look for themed art in the following order:
@@ -450,34 +450,20 @@ function displayThemeArt(options, cb) {
 	assert(_.isObject(options.client));
 	assert(_.isString(options.name));
 
-	getThemeArt(options, function themeArt(err, artInfo) {
+	getThemeArt(options, (err, artInfo) => {
 		if(err) {
-			cb(err);
-		} else {
-			//	:TODO: just use simple merge of options -> displayOptions
-			/*
-			var dispOptions = {
-				art				: artInfo.data,
-				sauce			: artInfo.sauce,
-				client			: options.client,
-				font			: options.font,
-				trailingLF		: options.trailingLF,
-			};
-
-			art.display(dispOptions, function displayed(err, mciMap, extraInfo) {
-				cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
-			});
-			*/
-			const displayOpts = {
-				sauce		: artInfo.sauce,
-				font		: options.font,
-				trailingLF	: options.trailingLF,
-			};
-
-			art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
-				return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
-			});
+			return cb(err);
 		}
+		//	:TODO: just use simple merge of options -> displayOptions
+		const displayOpts = {
+			sauce		: artInfo.sauce,
+			font		: options.font,
+			trailingLF	: options.trailingLF,
+		};
+
+		art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
+			return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
+		});
 	});
 }
 
@@ -566,8 +552,10 @@ function displayThemedPrompt(name, client, options, cb) {
 
 				//
 				//	If we did *not* clear the screen, don't let the font change
-				//	as it will mess with the output of the existing art displayed in a terminal
-				//				
+				//	doing so messes things up -- most terminals that support font
+				//	changing can only display a single font at at time.
+				//
+				//	:TODO: We can use term detection to do nifty things like avoid this kind of kludge:
 				const dispOptions = Object.assign( {}, promptConfig.options );
 				if(!options.clearScreen) {
 					dispOptions.font = 'not_really_a_font!';	//	kludge :)

@@ -32,6 +32,8 @@ function ClientTerminal(output) {
 	var termWidth		= 0;
 	var termClient		= 'unknown';
 
+	this.currentSyncFont	= 'not_set';
+
 	//	Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
 	this.env			= {};
 

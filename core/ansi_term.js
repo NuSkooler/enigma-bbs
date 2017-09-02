@@ -296,7 +296,6 @@ const FONT_ALIAS_TO_SYNCTERM_MAP = {
 	'amiga_microknight'		: 'microknight',
 	'amiga_microknight+'	: 'microknight_plus',
 
-
 	'atari'					: 'atari',
 	'atarist'				: 'atari',
 
