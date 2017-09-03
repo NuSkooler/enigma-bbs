@@ -95,6 +95,7 @@ function ANSIEscapeParser(options) {
 					start = pos;
 
 					self.column = 1;
+					
 					self.positionUpdated();
 					break;
 
@@ -103,20 +104,19 @@ function ANSIEscapeParser(options) {
 					start = pos;
 
 					self.row += 1;
+
 					self.positionUpdated();
 					break;
 
 				default :
-					if(self.column > self.termWidth) {
-						self.emit('literal', text.slice(start, pos));
-						start = pos;
+					if(self.column === self.termWidth) {
+						self.emit('literal', text.slice(start, pos + 1));
+						start = pos + 1;
 
 						self.column = 1;
 						self.row	+= 1;
-						self.positionUpdated();
 
-						//self.emit('literal', text.slice(pos - 1, pos));
-						//start = pos;
+						self.positionUpdated();
 					} else {
 						self.column += 1;
 					}
@@ -126,17 +126,19 @@ function ANSIEscapeParser(options) {
 			++pos;
 		}
 
+		//
+		//	Finalize this chunk
+		//
 		if(self.column > self.termWidth) {
-			self.emit('literal', text.slice(start, pos - 1));
-			start = pos - 1;
-			
 			self.column = 1;
 			self.row	+= 1;
-			self.positionUpdated();		
+			
+			self.positionUpdated();
+		}
 
-			self.emit('literal', text.slice(start, pos));
-		} else {
-			self.emit('literal', text.slice(start));
+		const rem = text.slice(start);
+		if(rem) {
+			self.emit('literal', rem);
 		}
 	}
 
