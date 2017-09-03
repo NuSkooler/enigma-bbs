@@ -554,8 +554,14 @@ function MultiLineEditTextView(options) {
 			text = strUtil.splitTextAtTerms(text);
 
 			let index = 0;
-			let wrapped;
+		//	let wrapped;
 
+			text.forEach(line => {
+				self.setTextLines( [ line ], index, true);	//	true=termWithEol
+				index += 1;
+			});
+
+			/*
 			text.forEach(line => {
 				if(strUtil.isAnsiLine(line)) {
 					self.setTextLines( [ line ], index, true);	//	true=termWithEol
@@ -571,6 +577,7 @@ function MultiLineEditTextView(options) {
 					index += wrapped.length;
 				}
 			});
+			*/
 
 			self.cursorStartOfDocument();
 
@@ -586,8 +593,8 @@ function MultiLineEditTextView(options) {
 		ansiPrep(
 			ansi,
 			{
-				termWidth			: this.client.termWidth,
-				termHeight			: this.client.termHeight,
+				termWidth			: this.client.term.termWidth,
+				termHeight			: this.client.term.termHeight,
 				cols				: this.dimens.width,
 				rows				: 'auto',
 				startCol			: this.position.col,
