@@ -113,7 +113,7 @@ module.exports = class FileBaseFilters {
 
 		const filters = {
 			[ U_LATEST ] : {
-				name	: 'Latest Additions',
+				name	: 'By Date Added',
 				areaTag	: '',	//	all
 				terms	: '',	//	*
 				tags	: '',	//	*
