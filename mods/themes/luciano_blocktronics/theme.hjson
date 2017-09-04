@@ -3,6 +3,7 @@
 		name: Mystery Skull
 		author: Luciano Ayres
 		group: blocktronics
+		enabled: true
 	}
 
 	customization: {

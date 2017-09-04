@@ -10,6 +10,7 @@ const getFullConfig		= require('./config_util.js').getFullConfig;
 const asset				= require('./asset.js');
 const ViewController	= require('./view_controller.js').ViewController;
 const Errors			= require('./enig_error.js').Errors;
+const ErrorReasons		= require('./enig_error.js').ErrorReasons;
 
 const fs				= require('graceful-fs');
 const paths				= require('path');
@@ -80,24 +81,27 @@ function refreshThemeHelpers(theme) {
 
 function loadTheme(themeID, cb) {
 
-	var path = paths.join(Config.paths.themes, themeID, 'theme.hjson');
+	const path = paths.join(Config.paths.themes, themeID, 'theme.hjson');
 
-	configCache.getConfigWithOptions( { filePath : path, forceReCache : true }, function loaded(err, theme) {
+	configCache.getConfigWithOptions( { filePath : path, forceReCache : true }, (err, theme) => {
 		if(err) {
-			cb(err);
-		} else {
-			if(!_.isObject(theme.info) || 
-				!_.isString(theme.info.name) ||
-				!_.isString(theme.info.author))
-			{
-				cb(new Error('Invalid or missing "info" section!'));
-				return;
-			}
-
-			refreshThemeHelpers(theme);
-
-			cb(null, theme, path);
+			return cb(err);
 		}
+		
+		if(!_.isObject(theme.info) || 
+			!_.isString(theme.info.name) ||
+			!_.isString(theme.info.author))
+		{
+			return cb(Errors.Invalid('Invalid or missing "info" section'));
+		}
+
+		if(false === _.get(theme, 'info.enabled')) {
+			return cb(Errors.General('Theme is not enalbed', ErrorReasons.ErrNotEnabled));
+		}
+
+		refreshThemeHelpers(theme);
+
+		return cb(null, theme, path);
 	});
 }
 
@@ -261,69 +265,72 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 }
 
 function initAvailableThemes(cb) {
-	var menuConfig;
-	var promptConfig;
    
 	async.waterfall(
 		[
 			function loadMenuConfig(callback) {
-				getFullConfig(Config.general.menuFile, function gotConfig(err, mc) {
-					menuConfig = mc;
-					callback(err);
+				getFullConfig(Config.general.menuFile, (err, menuConfig) => {
+					return callback(err, menuConfig);
 				});
 			},
-			function loadPromptConfig(callback) {
-				getFullConfig(Config.general.promptFile, function gotConfig(err, pc) {
-					promptConfig = pc;
-					callback(err); 
+			function loadPromptConfig(menuConfig, callback) {
+				getFullConfig(Config.general.promptFile, (err, promptConfig) => {
+					return callback(err, menuConfig, promptConfig);
 				});
 			},
-			function getDir(callback) {
-				fs.readdir(Config.paths.themes, function dirRead(err, files) {
-					callback(err, files);
-				});
-			},
-			function filterFiles(files, callback) {				
-				var filtered = files.filter(function filter(file) {
-					return fs.statSync(paths.join(Config.paths.themes, file)).isDirectory(); 
-				});
-				callback(null, filtered);
-			},
-			function populateAvailable(filtered, callback) {
-                //  :TODO: this is a bit broken with callback placement and configCache.on() handler
-                
-				filtered.forEach(function themeEntry(themeId) {
-					loadTheme(themeId, function themeLoaded(err, theme, themePath) {
-						if(!err) {
-							availableThemes[themeId] = getMergedTheme(menuConfig, promptConfig, theme);
+			function getThemeDirectories(menuConfig, promptConfig, callback) {
+				fs.readdir(Config.paths.themes, (err, files) =>  {
+					if(err) {
+						return callback(err);
+					}
 
-							configCache.on('recached', function recached(path) {
-								if(themePath === path) {									
-									loadTheme(themeId, function reloaded(err, reloadedTheme) {
-										Log.debug( { info : theme.info }, 'Theme recached' );
+					return callback(
+						null, 
+						menuConfig, 
+						promptConfig, 
+						files.filter( f => {
+							//	sync normally not allowed -- initAvailableThemes() is a startup-only method, however
+							return fs.statSync(paths.join(Config.paths.themes, f)).isDirectory();
+						})
+					);
+				});
+			},
+			function populateAvailable(menuConfig, promptConfig, themeDirectories, callback) {
+				async.each(themeDirectories, (themeId, nextThemeDir) => {	//	theme dir = theme ID
+					loadTheme(themeId, (err, theme, themePath) => {
+						if(err) {
+							if(ErrorReasons.NotEnabled !== err.reasonCode) {
+								Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
+							}
 
-										availableThemes[themeId] = reloadedTheme;
-									});
-								}
-							});
-
-							Log.debug( { info : theme.info }, 'Theme loaded');
-						} else {
-							Log.warn( { themeId : themeId, error : err.toString() }, 'Failed to load theme');
+							return nextThemeDir(null);	//	try next
 						}
-					});
 
+						availableThemes[themeId] = getMergedTheme(menuConfig, promptConfig, theme);
+
+						configCache.on('recached', recachedPath => {
+							if(themePath === recachedPath) {
+								loadTheme(themeId, (err, reloadedTheme) => {
+									if(!err) {
+										//	:TODO: This is still broken - Need to reapply *latest* menu config and prompt configs to theme at very least
+										Log.debug( { info : theme.info }, 'Theme recached' );
+										availableThemes[themeId] = getMergedTheme(menuConfig, promptConfig, reloadedTheme);
+									} else if(ErrorReasons.NotEnabled === err.reasonCode) {
+										//	:TODO: we need to disable this theme -- users may be using it! We'll need to re-assign them if so
+									}
+								});
+							}
+						});
+
+						return nextThemeDir(null);
+					});
+				}, err => {
+					return callback(err);
 				});
-				callback(null);
 			}
 		],
-		function onComplete(err) {
-			if(err) {
-				cb(err);
-				return;
-			}
-
-			cb(null, availableThemes.length);
+		err => {
+			return cb(err, availableThemes ? availableThemes.length : 0);
 		}
 	);
 }
@@ -340,17 +347,24 @@ function getRandomTheme() {
 }
 
 function setClientTheme(client, themeId) {
-	var desc;
+	let logMsg;
 
-	try {
-		client.currentTheme = getAvailableThemes()[themeId];
-		desc = 'Set client theme';        
-	} catch(e) {
-		client.currentTheme = getAvailableThemes()[Config.defaults.theme];
-		desc = 'Failed setting theme by supplied ID; Using default';
+	const availThemes = getAvailableThemes();
+
+	client.currentTheme = availThemes[themeId];
+	if(client.currentTheme) {
+		logMsg = 'Set client theme';
+	} else {
+		client.currentTheme = availThemes[Config.defaults.theme];
+		if(client.currentTheme) {
+			logMsg = 'Failed setting theme by supplied ID; Using default';
+		} else {
+			client.currentTheme = availThemes[Object.keys(availThemes)[0]];
+			logMsg = 'Failed setting theme by system default ID; Using the first one we can find';
+		}
 	}
-
-	client.log.debug( { themeId : themeId, info : client.currentTheme.info }, desc);
+	
+	client.log.debug( { themeId : themeId, info : client.currentTheme.info }, logMsg);
 }
 
 function getThemeArt(options, cb) {
