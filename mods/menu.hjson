@@ -761,6 +761,166 @@
 			}
 		}
 
+		newScanFileBaseList: {
+			module: file_area_list
+			desc: New Files
+			config: {
+				art: {
+					browse: FNEWBRWSE
+					details: FDETAIL
+					detailsGeneral: FDETGEN
+					detailsNfo: FDETNFO
+					detailsFileList: FDETLST
+					help: FBHELP
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						MT1: {
+							mode: preview
+							ansiView: true
+						}
+
+						HM2: {
+							focus: true
+							submit: true
+							argName: navSelect							
+							items: [
+								"prev", "next", "details", "toggle queue", "rate", "help", "quit"
+							]
+							focusItemIndex: 1
+						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
+					}
+					
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:prevFile
+							}
+							{
+								value: { navSelect: 1 }
+								action: @method:nextFile
+							}
+							{
+								value: { navSelect: 2 }
+								action: @method:viewDetails
+							}
+							{
+								value: { navSelect: 3 }
+								action: @method:toggleQueue
+							}
+							{
+								value: { navSelect: 4 }
+								action: @menu:fileBaseGetRatingForSelectedEntry
+							}							
+							{
+								value: { navSelect: 5 }
+								action: @method:displayHelp
+							}
+							{
+								value: { navSelect: 6 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "w", "shift + w" ]
+							action: @method:showWebDownloadLink
+						}
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+						{
+							keys: [ "t", "shift + t" ]
+							action: @method:toggleQueue
+						}
+						{
+							keys: [ "v", "shift + v" ]
+							action: @method:viewDetails
+						}
+						{
+							keys: [ "r", "shift + r" ]
+							action: @menu:fileBaseGetRatingForSelectedEntry
+						}
+						{
+							keys: [ "?" ]
+							action: @method:displayHelp
+						}
+					]
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focus: true
+							submit: true
+							argName: navSelect
+							items: [
+								"general", "nfo/readme", "file listing"
+							]
+						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @method:detailsQuit
+						}
+					]
+				}
+
+				2: {
+					//	details - general
+					mci: {}					
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							mode: preview
+						}
+					}
+				}
+
+				4: {
+					//	details - file listing
+					mci: {
+						VM1: {
+
+						}
+					}
+				}
+			}
+		}
+
 		///////////////////////////////////////////////////////////////////////
 		//	Main Menu
 		///////////////////////////////////////////////////////////////////////
@@ -2312,8 +2472,12 @@
 			prompt: fileMenuCommand
 			submit: [
 				{
-					value: { menuOption: "B" }
+					value: { menuOption: "L" }
 					action: @menu:fileBaseListEntries
+				}
+				{
+					value: { menuOption: "B" }
+					action: @menu:fileBaseBrowseByAreaSelect
 				}
 				{
 					value: { menuOption: "F" }
@@ -2505,6 +2669,38 @@
 
 						}
 					}
+				}
+			}
+		}
+
+		fileBaseBrowseByAreaSelect: {
+			desc: Browsing File Areas
+			module: file_base_area_select
+			art: FAREASEL
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							argName: areaSelect
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { areaSelect: null }
+								action: @method:selectArea
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
 				}
 			}
 		}

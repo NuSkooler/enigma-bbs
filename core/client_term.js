@@ -185,3 +185,4 @@ ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
 	return iconv.encode(s, this.outputEncoding);
 };
 
+
