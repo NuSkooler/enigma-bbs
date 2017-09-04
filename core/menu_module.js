@@ -136,21 +136,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	}
 
 	beforeArt(cb) {
-		let initSeq = '';
-
 		if(_.isNumber(this.menuConfig.options.baudRate)) {
 			//	:TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
 			this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
-			initSeq += ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate);
 		}
 
 		if(this.cls) {
 			this.client.term.rawWrite(ansi.resetScreen());
-			initSeq += ansi.resetScreen();
-		}
-
-		if(initSeq) {
-	//		this.client.term.rawWrite(initSeq);
 		}
 
 		return cb(null);
@@ -333,11 +325,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
 				formId			: formId,
 			};
 
-			return vc.loadFromMenuConfig(loadOpts, cb);
+			return vc.loadFromMenuConfig(loadOpts, err => {
+				return cb(err, vc);
+			});
 		}
 
 		this.viewControllers[name].setFocus(true);
-		return cb(null);
+
+		return cb(null, this.viewControllers[name]);
 	}
 
 	prepViewControllerWithArt(name, formId, options, cb) {
