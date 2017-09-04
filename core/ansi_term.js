@@ -17,12 +17,22 @@
 //		* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
 //		* http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
 //
+//	VTX
+//		* https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+//
 //	General
 //		* http://en.wikipedia.org/wiki/ANSI_escape_code
 //		* http://www.inwap.com/pdp10/ansicode.txt
 //
 //	Other Implementations
 //		* https://github.com/chjj/term.js/blob/master/src/term.js
+//
+//
+//	For a board, we need to support the semi-standard ANSI-BBS "spec" which
+//	is bastardized mix of DOS ANSI.SYS, cterm.txt, bansi.txt and a little other.
+//	This gives us NetRunner, SyncTERM, EtherTerm, most *nix terminals, compatibilitiy
+//	with legit oldschool DOS terminals, and so on. 
+//
 
 //	ENiGMA½
 const miscUtil	= require('./misc_util.js');
