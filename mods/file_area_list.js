@@ -75,6 +75,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 		this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
 		this.fileList			= _.get(options, 'extraArgs.fileList');
 
+		if(this.fileList) {
+			//	we'll need to adjust position as well!
+			this.fileListPosition = 0;
+		}
+
 		this.dlQueue = new DownloadQueue(this.client);
 
 		if(!this.filterCriteria) {
@@ -351,8 +356,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		async.series(
 			[
 				function fetchEntryData(callback) {
-					if(self.fileList) {
-						self.fileListPosition = 0;
+					if(self.fileList) {						
 						return callback(null);
 					}
 					return self.loadFileIds(false, callback);	//	false=do not force
