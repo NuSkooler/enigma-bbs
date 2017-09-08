@@ -14,7 +14,6 @@ function startup(cb) {
 	//	Add in types (not yet) supported by mime-db -- and therefor, mime-types
 	//
 	const ADDITIONAL_EXT_MIMETYPES = {
-		arj				: 'application/x-arj',
 		ans				: 'text/x-ansi',
 		gz				: 'application/gzip',	//	not in mime-types 2.1.15 :(
 	};
