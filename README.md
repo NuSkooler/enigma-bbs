@@ -61,7 +61,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 <br>
-(See the [Quickstart](docs/index.md#quickstart) for more information)
+Please see the [Quickstart](docs/index.md) for more information.
 
 ## Special Thanks
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
