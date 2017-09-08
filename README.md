@@ -60,7 +60,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ```
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
-<br>
+
 Please see the [Quickstart](docs/index.md) for more information.
 
 ## Special Thanks
