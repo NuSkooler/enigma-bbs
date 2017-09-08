@@ -284,7 +284,7 @@ class FileAreaWebAccess {
 
 					resp.on('finish', () => {
 						//	transfer completed fully
-						this.updateDownloadStatsForUserId(servedItem.userId, stats.size);
+						this.updateDownloadStatsForUserIdAndSystemAndSystem(servedItem.userId, stats.size);
 					});
 
 					const headers = {
@@ -301,7 +301,7 @@ class FileAreaWebAccess {
 		});
 	}
 
-	updateDownloadStatsForUserId(userId, dlBytes, cb) {
+	updateDownloadStatsForUserIdAndSystem(userId, dlBytes, cb) {
 		async.waterfall(
 			[
 				function fetchActiveUser(callback) {

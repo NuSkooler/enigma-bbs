@@ -1,8 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-const _			= require('lodash');
-const uuidV4	= require('uuid/v4');
+//	deps
+const _						= require('lodash');
+const uuidV4				= require('uuid/v4');
 
 module.exports = class FileBaseFilters {
 	constructor(client) {
@@ -65,14 +66,14 @@ module.exports = class FileBaseFilters {
 		let filtersProperty = this.client.user.properties.file_base_filters;
 		let defaulted;
 		if(!filtersProperty) {
-			filtersProperty = JSON.stringify(FileBaseFilters.getDefaultFilters());
+			filtersProperty = JSON.stringify(FileBaseFilters.getBuiltInSystemFilters());
 			defaulted = true;
 		}
 
 		try {
 			this.filters = JSON.parse(filtersProperty);
 		} catch(e) {
-			this.filters = FileBaseFilters.getDefaultFilters();	//	something bad happened; reset everything back to defaults :(
+			this.filters = FileBaseFilters.getBuiltInSystemFilters();	//	something bad happened; reset everything back to defaults :(
 			defaulted = true;
 			this.client.log.error( { error : e.message, property : filtersProperty }, 'Failed parsing file base filters property' );
 		}
@@ -107,18 +108,20 @@ module.exports = class FileBaseFilters {
 		return false;
 	}
 
-	static getDefaultFilters() {
-		const filters = {};
-		
-		const uuid = uuidV4();
-		filters[uuid] = {
-			name	: 'Default',
-			areaTag	: '',	//	all
-			terms	: '',	//	*
-			tags	: '',	//	*
-			order	: 'descending',
-			sort	: 'upload_timestamp',
-			uuid	: uuid,
+	static getBuiltInSystemFilters() {
+		const U_LATEST	= '7458b09d-40ab-4f9b-a0d7-0cf866646329';
+
+		const filters = {
+			[ U_LATEST ] : {
+				name	: 'By Date Added',
+				areaTag	: '',	//	all
+				terms	: '',	//	*
+				tags	: '',	//	*
+				order	: 'descending',
+				sort	: 'upload_timestamp',
+				uuid	: U_LATEST,
+				system	: true,
+			}
 		};
 
 		return filters;
@@ -126,5 +129,21 @@ module.exports = class FileBaseFilters {
 
 	static getActiveFilter(client) {
 		return new FileBaseFilters(client).get(client.user.properties.file_base_filter_active_uuid);
+	}
+
+	static getFileBaseLastViewedFileIdByUser(user) {
+		return parseInt((user.properties.user_file_base_last_viewed || 0));
+	}
+
+	static setFileBaseLastViewedFileIdForUser(user, fileId, cb) {
+		const current = FileBaseFilters.getFileBaseLastViewedFileIdByUser(user);
+		if(fileId < current) {
+			if(cb) {
+				cb(null);
+			}
+			return;
+		}
+
+		return user.persistProperty('user_file_base_last_viewed', fileId, cb);
 	}
 };

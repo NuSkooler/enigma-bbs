@@ -15,6 +15,7 @@ const async		= require('async');
 exports.loadModuleEx			= loadModuleEx;
 exports.loadModule				= loadModule;
 exports.loadModulesForCategory	= loadModulesForCategory;
+exports.getModulePaths			= getModulePaths;
 
 function loadModuleEx(options, cb) {
 	assert(_.isObject(options));
@@ -25,7 +26,7 @@ function loadModuleEx(options, cb) {
 
 	if(_.isObject(modConfig) && false === modConfig.enabled) {
 		const err	= new Error(`Module "${options.name}" is disabled`);
-		err.code	= 'EENIGMODDISABLED'; 
+		err.code	= 'EENIGMODDISABLED';
 		return cb(err);
 	}
 
@@ -36,7 +37,7 @@ function loadModuleEx(options, cb) {
 	//
 	let mod;
 	let modPath = paths.join(options.path, `${options.name}.js`);	//	general case first
-	try {		
+	try {
 		mod = require(modPath);
 	} catch(e) {
 		if('MODULE_NOT_FOUND' === e.code) {
@@ -48,7 +49,7 @@ function loadModuleEx(options, cb) {
 			}
 		} else {
 			return cb(e);
-		}		
+		}
 	}
 
 	if(!_.isObject(mod.moduleInfo)) {
@@ -75,7 +76,7 @@ function loadModule(name, category, cb) {
 }
 
 function loadModulesForCategory(category, iterator, complete) {
-	
+
 	fs.readdir(Config.paths[category], (err, files) => {
 		if(err) {
 			return iterator(err);
@@ -96,4 +97,13 @@ function loadModulesForCategory(category, iterator, complete) {
 			}
 		});
 	});
+}
+
+function getModulePaths() {
+	return [
+		Config.paths.mods,
+		Config.paths.loginServers,
+		Config.paths.contentServers,
+		Config.paths.scannerTossers,
+	];
 }

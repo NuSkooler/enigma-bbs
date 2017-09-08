@@ -5,10 +5,10 @@
 const MenuView		= require('./menu_view.js').MenuView;
 const ansi			= require('./ansi_term.js');
 const strUtil		= require('./string_util.js');
-const colorCodes	= require('./color_codes.js');
 
 //	deps
 const util			= require('util');
+const _				= require('lodash');
 
 exports.VerticalMenuView		= VerticalMenuView;
 
@@ -19,6 +19,14 @@ function VerticalMenuView(options) {
 	MenuView.call(this, options);
 
 	const self = this;
+
+	//	we want page up/page down by default
+	if(!_.isObject(options.specialKeyMap)) {
+		Object.assign(this.specialKeyMap, {
+			'page up'		: [ 'page up' ],
+			'page down'		: [ 'page down' ],
+		});
+	}
 
 	this.performAutoScale = function() {
 		if(this.autoScale.height) {
@@ -99,7 +107,7 @@ VerticalMenuView.prototype.redraw = function() {
 		let row			= this.position.row + 1;
 		const endRow	= (row + this.oldDimens.height) - 2;
 		
-		while(row < endRow) {
+		while(row <= endRow) {
 			seq += ansi.goto(row, this.position.col) + blank;
 			row += 1;
 		}
@@ -160,6 +168,10 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 			this.focusPrevious();
 		} else if(this.isKeyMapped('down', key.name)) {
 			this.focusNext();
+		} else if(this.isKeyMapped('page up', key.name)) {
+			this.focusPreviousPageItem();
+		} else if( this.isKeyMapped('page down', key.name)) {
+			this.focusNextPageItem();
 		}
 	}
 
@@ -243,6 +255,54 @@ VerticalMenuView.prototype.focusPrevious = function() {
 	VerticalMenuView.super_.prototype.focusPrevious.call(this);
 };
 
+VerticalMenuView.prototype.focusPreviousPageItem = function() {
+	//
+	//	Jump to current - up to page size or top
+	//	If already at the top, jump to bottom
+	//
+	if(0 === this.focusedItemIndex) {
+		return this.focusPrevious();	//	will jump to bottom
+	}
+
+	const index = Math.max(this.focusedItemIndex - this.dimens.height, 0);
+
+	if(index < this.viewWindow.top) {
+		this.oldDimens = Object.assign({}, this.dimens);
+	}
+
+	this.setFocusItemIndex(index);
+
+	return VerticalMenuView.super_.prototype.focusPreviousPageItem.call(this);
+};
+
+VerticalMenuView.prototype.focusNextPageItem = function() {
+	//
+	//	Jump to current + up to page size or bottom
+	//	If already at the bottom, jump to top
+	//	
+	if(this.items.length - 1 === this.focusedItemIndex) {
+		return this.focusNext();	//	will jump to top
+	}
+
+	const index = Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length - 1);
+
+	if(index > this.viewWindow.bottom) {
+		this.oldDimens = Object.assign({}, this.dimens);
+
+		this.focusedItemIndex = index;
+
+		this.viewWindow = {
+			top		: this.focusedItemIndex,
+			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+		};
+
+		this.redraw();
+	} else {
+		this.setFocusItemIndex(index);
+	}
+
+	return VerticalMenuView.super_.prototype.focusNextPageItem.call(this);
+};
 
 VerticalMenuView.prototype.setFocusItems = function(items) {
 	VerticalMenuView.super_.prototype.setFocusItems.call(this, items);

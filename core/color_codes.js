@@ -23,6 +23,8 @@ exports.pipeToAnsi			= exports.renegadeToAnsi		= renegadeToAnsi;
 //	* fromWWIV(): <ctrl-c><0-7>
 //	* fromSyncronet(): <ctrl-a><colorCode>
 //	See http://wiki.synchro.net/custom:colors
+
+//	:TODO: rid of enigmaToAnsi() -- never really use. Instead, create bbsToAnsi() that supports renegade, PCB, WWIV, etc...
 function enigmaToAnsi(s, client) {
 	if(-1 == s.indexOf('|')) {
 		return s;	//	no pipe codes present
@@ -31,7 +33,7 @@ function enigmaToAnsi(s, client) {
 	var result	= '';
 	var re		= /\|([A-Z\d]{2}|\|)/g;
 	var m;
-    var lastIndex = 0;
+	var lastIndex = 0;
 	while((m = re.exec(s))) {
 		var val = m[1];
 
@@ -65,18 +67,18 @@ function enigmaToAnsi(s, client) {
 			}
 
 			result += s.substr(lastIndex, m.index - lastIndex) + attr;			
-	    }
+		}
 
-	    lastIndex = re.lastIndex;
+		lastIndex = re.lastIndex;
 	}
 
-    result = (0 === result.length ? s : result + s.substr(lastIndex));
+	result = (0 === result.length ? s : result + s.substr(lastIndex));
     
-    return result;
+	return result;
 }
 
 function stripEnigmaCodes(s) {
-    return s.replace(/\|[A-Z\d]{2}/g, '');
+	return s.replace(/\|[A-Z\d]{2}/g, '');
 }
 
 function enigmaStrLen(s) {

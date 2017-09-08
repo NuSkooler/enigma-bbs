@@ -6,6 +6,7 @@ const strUtil		= require('./string_util.js');
 const ansi			= require('./ansi_term.js');
 const colorCodes	= require('./color_codes.js');
 const wordWrapText	= require('./word_wrap.js').wordWrapText;
+const ansiPrep		= require('./ansi_prep.js');
 
 const assert		= require('assert');
 const _				= require('lodash');
@@ -62,7 +63,7 @@ const _				= require('lodash');
 //	*
 
 
-var SPECIAL_KEY_MAP_DEFAULT = {
+const SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
 	exit			: [ 'esc' ],
 	backspace		: [ 'backspace' ],
@@ -165,43 +166,50 @@ function MultiLineEditTextView(options) {
 		return self.textLines.length;
 	};
 
+	this.toggleTextCursor = function(action) {
+		self.client.term.rawWrite(`${self.getSGRFor('text')}${'hide' === action ? ansi.hideCursor() : ansi.showCursor()}`);
+	};
+
 	this.redrawRows = function(startRow, endRow) {
-		self.client.term.rawWrite(self.getSGRFor('text') + ansi.hideCursor());
+		self.toggleTextCursor('hide');
 
-		var startIndex	= self.getTextLinesIndex(startRow);
-		var endIndex	= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
-		var absPos		= self.getAbsolutePosition(startRow, 0);
+		const startIndex	= self.getTextLinesIndex(startRow);
+		const endIndex		= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
+		const absPos		= self.getAbsolutePosition(startRow, 0);
 
-		for(var i = startIndex; i < endIndex; ++i) {
-			self.client.term.write(
-				ansi.goto(absPos.row++, absPos.col) +
-				self.getRenderText(i), false);
+		for(let i = startIndex; i < endIndex; ++i) {
+			//${self.getSGRFor('text')}
+			self.client.term.write(				
+				`${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`, 
+				false	//	convertLineFeeds
+			);
 		}
 
-		self.client.term.rawWrite(ansi.showCursor());
+		self.toggleTextCursor('show');
 
 		return absPos.row - self.position.row;	//	row we ended on
 	};
 
 	this.eraseRows = function(startRow, endRow) {
-		self.client.term.rawWrite(self.getSGRFor('text') + ansi.hideCursor());
+		self.toggleTextCursor('hide');
 
-		var absPos		= self.getAbsolutePosition(startRow, 0);
-		var absPosEnd	= self.getAbsolutePosition(endRow, 0);
-		var eraseFiller	= new Array(self.dimens.width).join(' ');
+		const absPos		= self.getAbsolutePosition(startRow, 0);
+		const absPosEnd		= self.getAbsolutePosition(endRow, 0);
+		const eraseFiller	= ' '.repeat(self.dimens.width);//new Array(self.dimens.width).join(' ');
 
 		while(absPos.row < absPosEnd.row) {
 			self.client.term.write(
-				ansi.goto(absPos.row++, absPos.col) +
-				eraseFiller, false);
+				`${ansi.goto(absPos.row++, absPos.col)}${eraseFiller}`,
+				false	//	convertLineFeeds
+			);
 		}
 
-		self.client.term.rawWrite(ansi.showCursor());
+		self.toggleTextCursor('show');
 	};
 
 	this.redrawVisibleArea = function() {
 		assert(self.topVisibleIndex <= self.textLines.length);
-		var lastRow = self.redrawRows(0, self.dimens.height);
+		const lastRow = self.redrawRows(0, self.dimens.height);
 
 		self.eraseRows(lastRow, self.dimens.height);
 		/*
@@ -255,11 +263,14 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.getRenderText = function(index) {
-		var text = self.getVisibleText(index);
-		var remain	= self.dimens.width - text.length;
+		let text 		= self.getVisibleText(index);
+		const remain	= self.dimens.width - text.length;
+
 		if(remain > 0) {
-			text += new Array(remain + 1).join(' ');
+			text += ' '.repeat(remain + 1);
+//			text += new Array(remain + 1).join(' ');
 		}
+
 		return text;
 	};
 
@@ -273,14 +284,15 @@ function MultiLineEditTextView(options) {
 		return lines;
 	};
 
-	this.getOutputText = function(startIndex, endIndex, eolMarker) {
-		let lines   = self.getTextLines(startIndex, endIndex);
-		let text    = '';
-		var re      = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+	this.getOutputText = function(startIndex, endIndex, eolMarker, options) {
+		const lines	= self.getTextLines(startIndex, endIndex);
+		let text	= '';
+		const re	= new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
 
 		lines.forEach(line => {
 			text += line.text.replace(re, '\t');
-			if(eolMarker && line.eol) {
+			
+			if(options.forceLineTerms || (eolMarker && line.eol)) {
 				text += eolMarker;
 			}
 		});
@@ -491,25 +503,90 @@ function MultiLineEditTextView(options) {
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
-	this.getStringLength = function(s) {
-		return self.isPreviewMode() ? colorCodes.enigmaStrLen(s) : s.length;
-	};
-
 	this.wordWrapSingleLine = function(s, tabHandling, width) {
 		if(!_.isNumber(width)) {
 			width = self.dimens.width;
 		}
 
 		return wordWrapText(
-			s, {
+			s, 
+			{
 				width		: width,
 				tabHandling	: tabHandling || 'expand',
 				tabWidth	: self.tabWidth,
 				tabChar		: '\t',
-			});
+			}
+		);
 	};
 
-	//	:TODO: rename to insertRawText()
+	this.setTextLines = function(lines, index, termWithEol) {
+		if(0 === index && (0 === self.textLines.length || (self.textLines.length === 1 && '' === self.textLines[0].text) )) {
+			//	quick path: just set the things
+			self.textLines = lines.slice(0, -1).map(l => {
+				return { text : l };
+			}).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+		} else {
+			//	insert somewhere in textLines...
+			if(index > self.textLines.length) {
+				//	fill with empty
+				self.textLines.splice(
+					self.textLines.length,
+					0,
+					...Array.from( { length : index - self.textLines.length } ).map( () => { return { text : '' }; } )
+				);
+			}
+
+			const newLines = lines.slice(0, -1).map(l => {
+				return { text : l };
+			}).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+
+			self.textLines.splice(
+				index,
+				0,
+				...newLines
+			);
+		}
+	};
+
+	this.setAnsiWithOptions = function(ansi, options, cb) {
+
+		function setLines(text) {
+			text = strUtil.splitTextAtTerms(text);
+
+			let index = 0;
+
+			text.forEach(line => {
+				self.setTextLines( [ line ], index, true);	//	true=termWithEol
+				index += 1;
+			});
+
+			self.cursorStartOfDocument();
+
+			if(cb) {
+				return cb(null);
+			}
+		}
+
+		if(options.prepped) {
+			return setLines(ansi);
+		}
+
+		ansiPrep(
+			ansi,
+			{
+				termWidth			: this.client.term.termWidth,
+				termHeight			: this.client.term.termHeight,
+				cols				: this.dimens.width,
+				rows				: 'auto',
+				startCol			: this.position.col,
+				forceLineTerm		: options.forceLineTerm,
+			},
+			(err, preppedAnsi) => {
+				return setLines(err ? ansi : preppedAnsi);
+			}
+		);
+	};
+
 	this.insertRawText = function(text, index, col) {
 		//
 		//	Perform the following on |text|:
@@ -542,23 +619,19 @@ function MultiLineEditTextView(options) {
 			index = self.textLines.length;
 		}
 
-		text = text
-			.replace(/\b/g, '')
-			.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+		text = strUtil.splitTextAtTerms(text);
 
 		let wrapped;
-
-		for(let i = 0; i < text.length; ++i) {
+		text.forEach(line => {
 			wrapped = self.wordWrapSingleLine(
-				text[i], 	//	input
+				line,	 	//	line to wrap
 				'expand', 	//	tabHandling
-				self.dimens.width).wrapped;
+				self.dimens.width
+			).wrapped;
 
-			for(let j = 0; j < wrapped.length - 1; ++j) {
-				self.textLines.splice(index++, 0, { text : wrapped[j] } );
-			}
-			self.textLines.splice(index++, 0, { text : wrapped[wrapped.length - 1], eol : true } );
-		}
+			self.setTextLines(wrapped, index, true);	//	true=termWithEol
+			index += wrapped.length;
+		});
 	};
 
 	this.getAbsolutePosition = function(row, col) {
@@ -996,8 +1069,6 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 };
 
 MultiLineEditTextView.prototype.setText = function(text) {
-	//text = require('graceful-fs').readFileSync('/home/nuskooler/Downloads/test_text.txt', { encoding : 'utf-8'});
-
 	this.textLines = [ ];
 	this.addText(text);
 	/*this.insertRawText(text);
@@ -1007,6 +1078,11 @@ MultiLineEditTextView.prototype.setText = function(text) {
 	} else if(this.isPreviewMode()) {
 		this.cursorStartOfDocument();
 	}*/
+};
+
+MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : false }, cb) {
+	this.textLines = [ ];
+	return this.setAnsiWithOptions(ansi, options, cb);
 };
 
 MultiLineEditTextView.prototype.addText = function(text) {
@@ -1019,8 +1095,8 @@ MultiLineEditTextView.prototype.addText = function(text) {
 	}
 };
 
-MultiLineEditTextView.prototype.getData = function() {
-	return this.getOutputText(0, this.textLines.length, '\r\n');
+MultiLineEditTextView.prototype.getData = function(options = { forceLineTerms : false } ) {
+	return this.getOutputText(0, this.textLines.length, '\r\n', options);
 };
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
@@ -1032,7 +1108,9 @@ MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 			} 
 			break;
 
-		case 'autoScroll'	: this.autoScroll = value; break;
+		case 'autoScroll'	: 
+			this.autoScroll = value;
+			break;
 
 		case 'tabSwitchesView' :
 			this.tabSwitchesView = value; 

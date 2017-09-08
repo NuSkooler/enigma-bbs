@@ -34,10 +34,25 @@ exports.handleFileBaseCommand			= handleFileBaseCommand;
 
 let fileArea;	//	required during init
 
-function finalizeEntryAndPersist(fileEntry, cb) {
+function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 	async.series(
 		[
-			function getDescIfNeeded(callback) {
+			function getDescFromHandlerIfNeeded(callback) {
+				if((fileEntry.desc && fileEntry.desc.length > 0 ) && !argv['desc-file']) {
+					return callback(null);	//	we have a desc already and are NOT overriding with desc file
+				}
+
+				if(!descHandler) {
+					return callback(null);	//	not much we can do!
+				}
+
+				const desc = descHandler.getDescription(fileEntry.fileName);
+				if(desc) {
+					fileEntry.desc = desc;
+				}
+				return callback(null);
+			},
+			function getDescFromUserIfNeeded(callback) {
 				if(false === argv.prompt || ( fileEntry.desc && fileEntry.desc.length > 0 ) ) {
 					return callback(null);
 				}
@@ -70,6 +85,18 @@ function finalizeEntryAndPersist(fileEntry, cb) {
 	);
 }
 
+const SCAN_EXCLUDE_FILENAMES = [ 'DESCRIPT.ION', 'FILES.BBS' ];
+
+function loadDescHandler(path, cb) {
+	const DescIon = require('../../core/descript_ion_file.js');
+
+	//	:TODO: support FILES.BBS also
+
+	DescIon.createFromFile(path, (err, descHandler) => {
+		return cb(err, descHandler);
+	});
+}
+
 function scanFileAreaForChanges(areaInfo, options, cb) {
 
 	const storageLocations = fileArea.getAreaStorageLocations(areaInfo).filter(sl => {
@@ -79,9 +106,18 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 	});
 	
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
-		async.series(
+		async.waterfall(
 			[
-				function scanPhysFiles(callback) {
+				function initDescFile(callback) {
+					if(options.descFileHandler) {
+						return callback(null, options.descFileHandler);	//	we're going to use the global handler
+					}
+
+					loadDescHandler(paths.join(storageLoc.dir, 'DESCRIPT.ION'), (err, descHandler) => {
+						return callback(null, descHandler);
+					});
+				},
+				function scanPhysFiles(descHandler, callback) {
 					const physDir = storageLoc.dir;
 
 					fs.readdir(physDir, (err, files) => {
@@ -91,6 +127,11 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
 						async.eachSeries(files, (fileName, nextFile) => {
 							const fullPath = paths.join(physDir, fileName);
+
+							if(SCAN_EXCLUDE_FILENAMES.includes(fileName.toUpperCase())) {
+								console.info(`Excluding ${fullPath}`);
+								return nextFile(null);
+							}
 
 							fs.stat(fullPath, (err, stats) => {
 								if(err) {
@@ -115,9 +156,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 											//	:TODO: Log me!!!
 											console.info(`Error: ${err.message}`);											
 											return nextFile(null);	//	try next anyway
-										}
-
-										
+										}								
 
 										if(dupeEntries.length > 0) {
 											//	:TODO: Handle duplidates -- what to do here???
@@ -131,7 +170,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 												});
 											}
 
-											finalizeEntryAndPersist(fileEntry, err => {
+											finalizeEntryAndPersist(fileEntry, descHandler, err => {
 												return nextFile(err);
 											});
 										}
@@ -304,12 +343,29 @@ function scanFileAreas() {
 		options.tags = tags.split(',');
 	}
 
+	options.descFile = argv['desc-file'];	//	--desc-file or --desc-file PATH
+	
 	options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
 
 	async.series(
 		[
 			function init(callback) {
 				return initConfigAndDatabases(callback);
+			},
+			function initGlobalDescHandler(callback) {		
+				//
+				//	If options.descFile is a String, it represents a FILE|PATH. We'll init
+				//	the description handler now. Else, we'll attempt to look for a description 
+				//	file in each storage location.
+				//
+				if(!_.isString(options.descFile)) {
+					return callback(null);
+				}
+
+				loadDescHandler(options.descFile, (err, descHandler) => {
+					options.descFileHandler = descHandler;
+					return callback(null);
+				});
 			},
 			function scanAreas(callback) {
 				fileArea = require('../../core/file_base_area.js');

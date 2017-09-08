@@ -8,7 +8,6 @@ const ansi				= require('../core/ansi_term.js');
 const theme				= require('../core/theme.js');
 const FileEntry			= require('../core/file_entry.js');
 const stringFormat		= require('../core/string_format.js');
-const createCleanAnsi	= require('../core/string_util.js').createCleanAnsi;
 const FileArea			= require('../core/file_base_area.js');
 const Errors			= require('../core/enig_error.js').Errors;
 const ErrNotEnabled		= require('../core/enig_error.js').ErrorReasons.NotEnabled;
@@ -18,8 +17,7 @@ const DownloadQueue		= require('../core/download_queue.js');
 const FileAreaWeb		= require('../core/file_area_web.js');
 const FileBaseFilters	= require('../core/file_base_filter.js');
 const resolveMimeType	= require('../core/mime_util.js').resolveMimeType;
-
-const cleanControlCodes	= require('../core/string_util.js').cleanControlCodes;
+const isAnsi			= require('../core/string_util.js').isAnsi;
 
 //	deps
 const async				= require('async');
@@ -74,8 +72,12 @@ exports.getModule = class FileAreaList extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		if(options.extraArgs) {
-			this.filterCriteria	= options.extraArgs.filterCriteria;
+		this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
+		this.fileList			= _.get(options, 'extraArgs.fileList');
+
+		if(this.fileList) {
+			//	we'll need to adjust position as well!
+			this.fileListPosition = 0;
 		}
 
 		this.dlQueue = new DownloadQueue(this.client);
@@ -116,7 +118,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 				return this.displayDetailsPage(cb);
 			},
 			detailsQuit : (formData, extraArgs, cb) => {
-				this.viewControllers.details.setFocus(false);
+				[ 'detailsNfo', 'detailsFileList', 'details' ].forEach(n => {
+					const vc = this.viewControllers[n];
+					if(vc) {
+						vc.detachClientEvents();
+					}
+				});
+
 				return this.displayBrowsePage(true, cb);	//	true=clearScreen
 			},
 			toggleQueue : (formData, extraArgs, cb) => {
@@ -212,8 +220,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const entryInfo = currEntry.entryInfo = {
 			fileId				: currEntry.fileId,
 			areaTag				: currEntry.areaTag,
-			areaName			: area.name || 'N/A',
-			areaDesc			: area.desc || 'N/A',
+			areaName			: _.get(area, 'name') || 'N/A',
+			areaDesc			: _.get(area, 'desc') || 'N/A',
 			fileSha256			: currEntry.fileSha256,
 			fileName			: currEntry.fileName,
 			desc				: currEntry.desc || '',
@@ -250,9 +258,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const userRatingTicked		= config.userRatingTicked || '*';
 		const userRatingUnticked	= config.userRatingUnticked || '';					
 		entryInfo.userRating		= ~~Math.round(entryInfo.userRating) || 0;	//	be safe!
-		entryInfo.userRatingString	= new Array(entryInfo.userRating + 1).join(userRatingTicked);
+		entryInfo.userRatingString	= userRatingTicked.repeat(entryInfo.userRating);
 		if(entryInfo.userRating < 5) {
-			entryInfo.userRatingString += new Array( (5 - entryInfo.userRating) + 1).join(userRatingUnticked);
+			entryInfo.userRatingString += userRatingUnticked.repeat( (5 - entryInfo.userRating) );
 		}
 
 		FileAreaWeb.getExistingTempDownloadServeItem(this.client, this.currentFileEntry, (err, serveItem) => {
@@ -348,7 +356,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		async.series(
 			[
 				function fetchEntryData(callback) {
-					if(self.fileList) {
+					if(self.fileList) {						
 						return callback(null);
 					}
 					return self.loadFileIds(false, callback);	//	false=do not force
@@ -373,31 +381,34 @@ exports.getModule = class FileAreaList extends MenuModule {
 						return self.populateCurrentEntryInfo(callback);
 					});
 				},
-				function populateViews(callback) {
+				function populateDesc(callback) {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
-						if(descView) {					
-							createCleanAnsi(
-								self.currentFileEntry.desc, 
-								{ height : self.client.termHeight, width : descView.dimens.width },
-								cleanDesc => {
-									//	:TODO: use cleanDesc -- need to finish createCleanAnsi() !!
-									//descView.setText(cleanDesc);
-									descView.setText( self.currentFileEntry.desc );
-
-									self.updateQueueIndicator();
-									self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
-
-									return callback(null);
-								}
-							);							
+						if(descView) {
+							if(isAnsi(self.currentFileEntry.desc)) {
+								descView.setAnsi(
+									self.currentFileEntry.desc,
+									{
+										prepped			: false,
+										forceLineTerm	: true
+									},
+									() => {
+										return callback(null);
+									}
+								);
+							} else {
+								descView.setText(self.currentFileEntry.desc);
+								return callback(null);
+							}
 						}
 					} else {
-						self.updateQueueIndicator();
-						self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
-
 						return callback(null);
 					}
+				},
+				function populateAdditionalViews(callback) {
+					self.updateQueueIndicator();
+					self.populateCustomLabels('browse', MciViewIds.browse.customRangeStart);
+					return callback(null);
 				}
 			],
 			err => {				
@@ -618,17 +629,37 @@ exports.getModule = class FileAreaList extends MenuModule {
 						case 'nfo' :
 							{
 								const nfoView = self.viewControllers.detailsNfo.getView(MciViewIds.detailsNfo.nfo);
-								if(nfoView) {
+								if(!nfoView) {
+									return callback(null);
+								}
+
+								if(isAnsi(self.currentFileEntry.entryInfo.descLong)) {
+									nfoView.setAnsi(
+										self.currentFileEntry.entryInfo.descLong,
+										{
+											prepped			: false,
+											forceLineTerm	: true,
+										},
+										() => {
+											return callback(null);
+										}
+									);
+								} else {
 									nfoView.setText(self.currentFileEntry.entryInfo.descLong);
+									return callback(null);
 								}
 							}
 							break;
 
 						case 'fileList' :
 							self.populateFileListing();
-							break;
-					}
+							return callback(null);
 
+						default :
+							return callback(null);
+					}
+				},
+				function setLabels(callback) {
 					self.populateCustomLabels(name, MciViewIds[name].customRangeStart);
 					return callback(null);
 				}

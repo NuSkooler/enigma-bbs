@@ -96,6 +96,10 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 							});
 						});
 					});
+
+					sshClient.on('error', err => {
+						self.client.log.info(`DoorParty SSH client error: ${err.message}`);
+					});
 					
 					sshClient.on('close', () => {
 						restorePipe();

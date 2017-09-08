@@ -13,7 +13,7 @@ const WebSocketServer	= require('ws').Server;
 const http				= require('http');
 const https				= require('https');
 const fs				= require('graceful-fs');
-const EventEmitter		= require('events');
+const Writable			= require('stream');
 
 const ModuleInfo = exports.moduleInfo = {
 	name		: 'WebSocket',
@@ -34,18 +34,29 @@ function WebSocketClient(ws, req, serverType) {
 	//	This bridge makes accessible various calls that client sub classes
 	//	want to access on I/O socket
 	//
-	this.socketBridge = new class SocketBridge extends EventEmitter {
+	this.socketBridge = new class SocketBridge extends Writable {
 		constructor(ws) {
 			super();
 			this.ws = ws;
 		}
 
 		end() {
-			return ws.terminate();			
+			return ws.close();
 		}
 
 		write(data, cb) {
+			cb = cb || ( () => { /* eat it up */} );	//	handle data writes after close
+
 			return this.ws.send(data, { binary : true }, cb);
+		}
+
+		//	we need to fake some streaming work
+		unpipe() {
+			Log.trace('WebSocket SocketBridge unpipe()');
+		}
+
+		resume() {
+			Log.trace('WebSocket SocketBridge resume()');
 		}
 
 		get remoteAddress() {

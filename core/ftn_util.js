@@ -1,17 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-let Config			= require('./config.js').config;
-let Address			= require('./ftn_address.js');
-let FNV1a			= require('./fnv1a.js');
+let Config					= require('./config.js').config;
+let Address					= require('./ftn_address.js');
+let FNV1a					= require('./fnv1a.js');
+const getCleanEnigmaVersion	= require('./misc_util.js').getCleanEnigmaVersion;
 
-let _				= require('lodash');
-let iconv			= require('iconv-lite');
-let moment			= require('moment');
+let _						= require('lodash');
+let iconv					= require('iconv-lite');
+let moment					= require('moment');
 //let uuid			= require('node-uuid');
-let os				= require('os');
+let os						= require('os');
 
-let packageJson 	= require('../package.json');
+let packageJson 			= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
@@ -146,11 +147,7 @@ function getMessageIdentifier(message, address) {
 //	in which (<os>; <arch>; <nodeVer>) is used instead
 //
 function getProductIdentifier() {
-	const version = packageJson.version
-		.replace(/\-/g, '.')
-		.replace(/alpha/,'a')
-		.replace(/beta/,'b');
-
+	const version = getCleanEnigmaVersion();
 	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
 
 	return `ENiGMA1/2 ${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
@@ -166,10 +163,23 @@ function getUTCTimeZoneOffset() {
 	return moment().format('ZZ').replace(/\+/, '');
 }
 
-//	Get a FSC-0032 style quote prefixes
+//
+//	Get a FSC-0032 style quote prefix
+//	http://ftsc.org/docs/fsc-0032.001
+//	
 function getQuotePrefix(name) {
-	//	:TODO: Add support for real names (e.g. with spaces) -> initials
-	return ' ' + name[0].toUpperCase() + name[1].toLowerCase() + '> ';
+	let initials;
+	
+	const parts = name.split(' ');
+	if(parts.length > 1) {
+		//	First & Last initials - (Bryan Ashby -> BA)
+		initials = `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+	} else {
+		//	Just use the first two - (NuSkooler -> Nu)
+		initials = _.capitalize(name.slice(0, 2));
+	}
+
+	return ` ${initials}> `;
 }
 
 //

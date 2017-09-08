@@ -71,9 +71,13 @@ function initializeDatabases(cb) {
 	});
 }
 
+function enableForeignKeys(db) {
+	db.run('PRAGMA foreign_keys = ON;');
+}
+
 const DB_INIT_TABLE = {
 	system : (cb) => {
-		dbs.system.run('PRAGMA foreign_keys = ON;');
+		enableForeignKeys(dbs.system);
 
 		//	Various stat/event logging - see stat_log.js
 		dbs.system.run(
@@ -110,7 +114,7 @@ const DB_INIT_TABLE = {
 	},
 
 	user : (cb) => {
-		dbs.user.run('PRAGMA foreign_keys = ON;');
+		enableForeignKeys(dbs.user);
 
 		dbs.user.run(
 			`CREATE TABLE IF NOT EXISTS user ( 
@@ -152,7 +156,7 @@ const DB_INIT_TABLE = {
 	},
 
 	message : (cb) => {
-		dbs.message.run('PRAGMA foreign_keys = ON;');
+		enableForeignKeys(dbs.message);
 
 		dbs.message.run(
 			`CREATE TABLE IF NOT EXISTS message (
@@ -260,7 +264,7 @@ const DB_INIT_TABLE = {
 	},
 
 	file : (cb) => {
-		dbs.file.run('PRAGMA foreign_keys = ON;');
+		enableForeignKeys(dbs.file);
 
 		dbs.file.run(
 			//	:TODO: should any of this be unique -- file_sha256 unless dupes are allowed on the system

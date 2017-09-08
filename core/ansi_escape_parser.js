@@ -44,14 +44,10 @@ function ANSIEscapeParser(options) {
 		self.row	+= rows;
 
 		self.column	= Math.max(self.column, 1);
-		self.column	= Math.min(self.column, self.termWidth);
-		self.row	= Math.max(self.row, 1);		
-		self.row	= Math.min(self.row, self.termHeight);
-
-//		self.emit('move cursor', self.column, self.row);
+		self.column	= Math.min(self.column, self.termWidth);	//	can't move past term width
+		self.row	= Math.max(self.row, 1);
 		
 		self.positionUpdated();
-		//self.rowUpdated();
 	};
 
 	self.saveCursorPosition = function() {
@@ -85,30 +81,27 @@ function ANSIEscapeParser(options) {
 	};
 
 	function literal(text) {
-		let charCode;		
-		let pos;
-		let start	= 0;
 		const len	= text.length;
+		let pos		= 0;
+		let start	= 0;
+		let charCode;
 
-		function emitLiteral() {
-			self.emit('literal', text.slice(start, pos));
-			start = pos;
-		}
-
-		for(pos = 0; pos < len; ++pos) {
-			charCode = text.charCodeAt(pos) & 0xff;	//	ensure 8bit clean
+		while(pos < len) {
+			charCode = text.charCodeAt(pos) & 0xff;	//	8bit clean
 
 			switch(charCode) {
-				case CR : 
-					emitLiteral();
-										
-					self.column = 1;
+				case CR :
+					self.emit('literal', text.slice(start, pos));
+					start = pos;
 
+					self.column = 1;
+					
 					self.positionUpdated();
 					break;
 
 				case LF :
-					emitLiteral();
+					self.emit('literal', text.slice(start, pos));
+					start = pos;
 
 					self.row += 1;
 
@@ -116,73 +109,37 @@ function ANSIEscapeParser(options) {
 					break;
 
 				default :
-					if(self.column > self.termWidth) {
-						//
-						//	Emit data up to this point so it can be drawn before the postion update
-						//
-						emitLiteral();
+					if(self.column === self.termWidth) {
+						self.emit('literal', text.slice(start, pos + 1));
+						start = pos + 1;
 
 						self.column = 1;
 						self.row	+= 1;
-						
-						self.positionUpdated();
 
-						
+						self.positionUpdated();
 					} else {
 						self.column += 1;
 					}
 					break;
 			}
+
+			++pos;
 		}
 
-		self.emit('literal', text.slice(start));
-
+		//
+		//	Finalize this chunk
+		//
 		if(self.column > self.termWidth) {
 			self.column = 1;
 			self.row	+= 1;
+			
 			self.positionUpdated();
 		}
-	}
 
-	function literal2(text) {
-		var charCode;
-
-		var len = text.length;
-		for(var i = 0; i < len; i++) {
-			charCode = text.charCodeAt(i) & 0xff;	//	ensure 8 bit
-			switch(charCode) {
-				case CR : 
-					self.column = 1;
-					break;
-
-				case LF : 
-					self.row++;
-					self.positionUpdated();
-					//self.rowUpdated();		
-					break;
-
-				default :
-					//	wrap
-					if(self.column > self.termWidth) {
-						self.column = 1;
-						self.row++;
-						//self.rowUpdated();
-						self.positionUpdated();
-					} else {
-						self.column += 1;
-					}
-					break;
-			}
-
-			if(self.row === self.termHeight) {
-				self.scrollBack		+= 1;
-				self.row			-= 1;
-
-				self.positionUpdated();
-			}
+		const rem = text.slice(start);
+		if(rem) {
+			self.emit('literal', rem);
 		}
-
-		self.emit('literal', text);
 	}
 
 	function getProcessedMCI(mci) {
@@ -238,10 +195,10 @@ function ANSIEscapeParser(options) {
 				});
 
 				if(self.mciReplaceChar.length > 0) {
-					//self.emit('chunk', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase));
 					const sgrCtrl = ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase);
+					
 					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[\;m]/).slice(0, 3));
-					//self.emit('control', ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase)); 
+
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
@@ -436,6 +393,8 @@ function ANSIEscapeParser(options) {
 
 			//	set graphic rendition
 			case 'm' :
+				self.graphicRendition.reset = false;
+
 				for(let i = 0, len = args.length; i < len; ++i) {
 					arg = args[i];
 
@@ -453,8 +412,12 @@ function ANSIEscapeParser(options) {
 								delete self.graphicRendition.negative;
 								delete self.graphicRendition.invisible;
 
-								self.graphicRendition.fg = 39;
-								self.graphicRendition.bg = 49;
+								delete self.graphicRendition.fg;
+								delete self.graphicRendition.bg;
+
+								self.graphicRendition.reset = true;
+								//self.graphicRendition.fg = 39;
+								//self.graphicRendition.bg = 49;
 								break;
 
 							case 1 :
@@ -490,6 +453,8 @@ function ANSIEscapeParser(options) {
 						}
 					}
 				}
+
+				self.emit('sgr update', self.graphicRendition);
 				break;	//	m
 
 			//	:TODO: s, u, K

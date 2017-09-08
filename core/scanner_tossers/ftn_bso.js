@@ -293,14 +293,14 @@ function FTNMessageScanTossModule() {
 		async.detectSeries(EXT_SUFFIXES, (suffix, callback) => {
 			const checkFileName = fileName + suffix; 			
 			fs.stat(paths.join(basePath, checkFileName), err => {
-				callback((err && 'ENOENT' === err.code) ? true : false);
+				callback(null, (err && 'ENOENT' === err.code) ? true : false);
 			});
-		}, finalSuffix => {
+		}, (err, finalSuffix) => {
 			if(finalSuffix) {
-				cb(null, paths.join(basePath, fileName + finalSuffix));
-			} else {
-				cb(new Error('Could not acquire a bundle filename!'));
+				return cb(null, paths.join(basePath, fileName + finalSuffix));
 			}
+			
+			return cb(new Error('Could not acquire a bundle filename!'));			
 		});
 	};
 	
@@ -390,11 +390,14 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnKludge.TID = ftnUtil.getProductIdentifier(); 
 		
 		//
-		//	Determine CHRS and actual internal encoding name
-		//	Try to preserve anything already here
+		//	Determine CHRS and actual internal encoding name. If the message has an
+		//	explicit encoding set, use it. Otherwise, try to preserve any CHRS/encoding already set.
 		//
-		let encoding = options.nodeConfig.encoding || 'utf8';
-		if(message.meta.FtnKludge.CHRS) {
+		let encoding = options.nodeConfig.encoding || Config.scannerTossers.ftn_bso.packetMsgEncoding || 'utf8';
+		const explicitEncoding = _.get(message.meta, 'System.explicit_encoding');
+		if(explicitEncoding) {
+			encoding = explicitEncoding;
+		} else if(message.meta.FtnKludge.CHRS) {
 			const encFromChars = ftnUtil.getEncodingFromCharacterSetIdentifier(message.meta.FtnKludge.CHRS);
 			if(encFromChars) {
 				encoding = encFromChars;
@@ -605,16 +608,22 @@ function FTNMessageScanTossModule() {
 						callback(null);					
 					},
 					function appendMessage(callback) {
-						const msgBuf	= packet.getMessageEntryBuffer(message, exportOpts);
-						currPacketSize	+= msgBuf.length;
+						packet.getMessageEntryBuffer(message, exportOpts, (err, msgBuf) => {
+							if(err) {
+								return callback(err);
+							}
+
+							currPacketSize	+= msgBuf.length;
 						
-						if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
-							remainMessageBuf	= msgBuf;	//	save for next packet	
-							remainMessageId 	= message.messageId;						
-						} else {
-							ws.write(msgBuf);
-						}
-						callback(null);
+							if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
+								remainMessageBuf	= msgBuf;	//	save for next packet	
+								remainMessageId 	= message.messageId;						
+							} else {
+								ws.write(msgBuf);
+							}
+							
+							return callback(null);
+						});												
 					},
 					function storeStateFlags0Meta(callback) {
 						message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), err => {

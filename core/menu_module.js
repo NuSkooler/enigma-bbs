@@ -325,11 +325,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
 				formId			: formId,
 			};
 
-			return vc.loadFromMenuConfig(loadOpts, cb);
+			return vc.loadFromMenuConfig(loadOpts, err => {
+				return cb(err, vc);
+			});
 		}
 
 		this.viewControllers[name].setFocus(true);
-		return cb(null);
+
+		return cb(null, this.viewControllers[name]);
 	}
 
 	prepViewControllerWithArt(name, formId, options, cb) {

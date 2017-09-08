@@ -16,50 +16,6 @@ const SPACE_CHARS		= [
 
 const REGEXP_WORD_WRAP = new RegExp(`\t|[${SPACE_CHARS.join('')}]`, 'g'); 
 
-/*
-//
-//	ANSI & pipe codes we indend to strip
-//
-//	See also https://github.com/chalk/ansi-regex/blob/master/index.js
-//
-//	:TODO: Consolidate this, regexp's in ansi_escape_parser, and strutil. Need more complete set that includes common standads, bansi, and cterm.txt
-//	renderStringLength() from strUtil does not account for ESC[<N>C (e.g. go forward)
-const REGEXP_CONTROL_CODES = /(\|[\d]{2})|(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
-
-function getRenderLength(s) {
-	let m;
-	let pos;
-	let len = 0;
-
-	REGEXP_CONTROL_CODES.lastIndex = 0;	//	reset
-	
-	//
-	//	Loop counting only literal (non-control) sequences
-	//	paying special attention to ESC[<N>C which means forward <N>
-	//	
-	do {
-		pos	= REGEXP_CONTROL_CODES.lastIndex;
-		m	= REGEXP_CONTROL_CODES.exec(s);
-		
-		if(null !== m) {
-			if(m.index > pos) {
-				len += s.slice(pos, m.index).length;
-			}
-			
-			if('C' === m[3]) {	//	ESC[<N>C is foward/right
-				len += parseInt(m[2], 10) || 0;
-			}
-		}  
-	} while(0 !== REGEXP_CONTROL_CODES.lastIndex);
-	
-	if(pos < s.length) {
-		len += s.slice(pos).length;
-	}
-	
-	return len;
-}
-*/
-
 function wordWrapText2(text, options) {
 	assert(_.isObject(options));
 	assert(_.isNumber(options.width));
@@ -68,7 +24,13 @@ function wordWrapText2(text, options) {
 	options.tabWidth	= options.tabWidth || 4;
 	options.tabChar		= options.tabChar || ' ';		
 	
-	const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
+	//const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
+	//
+	//	For a given word, match 0->options.width chars -- alwasy include a full trailing ESC
+	//	sequence if present!
+	//
+	//	:TODO: Need to create ansi.getMatchRegex or something - this is used all over
+	const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}\\x1b\\[[\\?=;0-9]*[ABCDEFGHJKLMSTfhlmnprsu]|.{0,${options.width}}`, 'g');
 	
 	let m;
 	let word;

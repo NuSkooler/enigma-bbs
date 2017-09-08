@@ -6,6 +6,16 @@ const wordWrapText			= require('./word_wrap.js').wordWrapText;
 const ftnUtil				= require('./ftn_util.js');
 const createNamedUUID		= require('./uuid_util.js').createNamedUUID;
 const getISOTimestampString	= require('./database.js').getISOTimestampString;
+const Errors				= require('./enig_error.js').Errors;
+const ANSI					= require('./ansi_term.js');
+
+const { 
+	isAnsi, isFormattedLine,
+	splitTextAtTerms, 
+	renderSubstr
+}							= require('./string_util.js');
+
+const ansiPrep				= require('./ansi_prep.js');
 
 //	deps
 const uuidParse				= require('uuid-parse');
@@ -35,7 +45,7 @@ function Message(options) {
 	this.fromUserName	= options.fromUserName || '';
 	this.subject		= options.subject || '';
 	this.message		= options.message || '';
-	
+		
 	if(_.isDate(options.modTimestamp) || moment.isMoment(options.modTimestamp)) {
 		this.modTimestamp = moment(options.modTimestamp);
 	} else if(_.isString(options.modTimestamp)) {
@@ -82,6 +92,7 @@ Message.SystemMetaNames = {
 	LocalToUserID			: 'local_to_user_id',
 	LocalFromUserID			: 'local_from_user_id',
 	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
+	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
 };
 
 Message.StateFlags0 = {
@@ -429,47 +440,192 @@ Message.prototype.getFTNQuotePrefix = function(source) {
 	return ftnUtil.getQuotePrefix(this[source]);
 };
 
-Message.prototype.getQuoteLines = function(width, options) {
-	//	:TODO: options.maxBlankLines = 1
+Message.prototype.getTearLinePosition = function(input) {
+	const m = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
+	return m ? m.index : -1;
+};
 
-	options = options || {};
+Message.prototype.getQuoteLines = function(options, cb) {
+	if(!options.termWidth || !options.termHeight || !options.cols) {
+		return cb(Errors.MissingParam());
+	}
 	
-	//
-	//	Include FSC-0032 style quote prefixes?
-	//
-	//	See http://ftsc.org/docs/fsc-0032.001
-	//
-	if(!_.isBoolean(options.includePrefix)) {
-		options.includePrefix = true;
-	}
-
-	var quoteLines = [];
-
-	var origLines = this.message
-		.trim()
-		.replace(/\b/g, '')
-		.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);	
+	options.startCol			= options.startCol || 1;
+	options.includePrefix 		= _.get(options, 'includePrefix', true);
+	options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+	options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
+	options.isAnsi				= options.isAnsi || isAnsi(this.message);	//	:TODO: If this.isAnsi, use that setting
 	
-	var quotePrefix = '';	//	we need this init even if blank
-	if(options.includePrefix) {
-		quotePrefix = this.getFTNQuotePrefix(options.prefixSource || 'fromUserName');
+	/*
+		Some long text that needs to be wrapped and quoted should look right after
+		doing so, don't ya think? yeah I think so		
+
+		Nu> Some long text that needs to be wrapped and quoted should look right 
+		Nu> after doing so, don't ya think? yeah I think so
+
+		Ot> Nu> Some long text that needs to be wrapped and quoted should look 
+		Ot> Nu> right after doing so, don't ya think? yeah I think so
+
+	*/
+	const quotePrefix = options.includePrefix ? this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') : '';
+
+	function getWrapped(text, extraPrefix) {
+		extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
+
+		const wrapOpts = {
+			width		: options.cols - (quotePrefix.length + extraPrefix.length),
+			tabHandling	: 'expand',
+			tabWidth	: 4,
+		};
+		
+		return wordWrapText(text, wrapOpts).wrapped.map( (w, i) => {
+			return i === 0 ? `${quotePrefix}${w}` : `${quotePrefix}${extraPrefix}${w}`;
+		});
 	}
 
-	var wrapOpts = {
-		width		: width - quotePrefix.length,
-		tabHandling	: 'expand',
-		tabWidth	: 4,
-	};
+	function getFormattedLine(line) {
+		//	for pre-formatted text, we just append a line truncated to fit
+		let newLen;
+		const total = line.length + quotePrefix.length;
 
-	function addPrefix(l) {
-		return quotePrefix + l;
+		if(total > options.cols) {
+			newLen = options.cols - total;
+		} else {
+			newLen = total;
+		}
+
+		return `${quotePrefix}${line.slice(0, newLen)}`;
 	}
 
-	var wrapped;
-	for(var i = 0; i < origLines.length; ++i) {
-		wrapped = wordWrapText(origLines[i], wrapOpts).wrapped;
-		Array.prototype.push.apply(quoteLines, _.map(wrapped, addPrefix));
-	}
+	if(options.isAnsi) {
+		ansiPrep(
+			this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
+			{
+				termWidth		: options.termWidth,
+				termHeight		: options.termHeight,
+				cols			: options.cols,
+				rows			: 'auto',
+				startCol		: options.startCol,
+				forceLineTerm	: true,				
+			},
+			(err, prepped) => {
+				prepped = prepped || this.message;
+				
+				let lastSgr = '';
+				const split = splitTextAtTerms(prepped);
+				
+				const quoteLines		= [];
+				const focusQuoteLines	= [];
 
-	return quoteLines;
+				//
+				//	Do not include quote prefixes (e.g. XX> ) on ANSI replies (and therefor quote builder)
+				//	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to 
+				//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
+				//	the trick and allow them to leave them alone!
+				//
+				split.forEach(l => {
+					quoteLines.push(`${lastSgr}${l}`);
+					
+					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 1, l.length - 1)}`);
+					lastSgr = (l.match(/(?:\x1b\x5b)[\?=;0-9]*m(?!.*(?:\x1b\x5b)[\?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
+				});
+
+				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
+				
+				return cb(null, quoteLines, focusQuoteLines, true);
+			}
+		);
+	} else {
+		const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}\> )+(?:[A-Za-z0-9]{2}\>)*) */;
+		const quoted	= [];
+		const input		= _.trimEnd(this.message).replace(/\b/g, '');
+	
+		//	find *last* tearline
+		let tearLinePos = this.getTearLinePosition(input);
+		tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;	//	we just want the index or the entire string
+		
+		input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
+			//
+			//	For each paragraph, a state machine:
+			//	- New line - line
+			//	- New (pre)quoted line - quote_line
+			//	- Continuation of new/quoted line
+			//
+			//	Also:
+			//	- Detect pre-formatted lines & try to keep them as-is
+			//
+			let state;
+			let buf = '';
+			let quoteMatch;
+
+			if(quoted.length > 0) {
+				//
+				//	Preserve paragraph seperation.
+				//
+				//	FSC-0032 states something about leaving blank lines fully blank
+				//	(without a prefix) but it seems nicer (and more consistent with other systems)
+				//	to put 'em in.
+				//
+				quoted.push(quotePrefix);
+			}
+
+			paragraph.split(/\r?\n/).forEach(line => {
+				if(0 === line.trim().length) {
+					//	see blank line notes above
+					return quoted.push(quotePrefix);
+				}
+
+				quoteMatch = line.match(QUOTE_RE);
+
+				switch(state) {
+					case 'line' :
+						if(quoteMatch) {
+							if(isFormattedLine(line)) {
+								quoted.push(getFormattedLine(line.replace(/\s/, '')));
+							} else {
+								quoted.push(...getWrapped(buf, quoteMatch[1]));
+								state = 'quote_line';
+								buf = line;
+							}
+						} else {
+							buf += ` ${line}`;
+						}
+						break;
+						
+					case 'quote_line' :
+						if(quoteMatch) {
+							const rem = line.slice(quoteMatch[0].length);
+							if(!buf.startsWith(quoteMatch[0])) {
+								quoted.push(...getWrapped(buf, quoteMatch[1]));
+								buf = rem;
+							} else {
+								buf += ` ${rem}`;
+							}
+						} else {
+							quoted.push(...getWrapped(buf));
+							buf = line;
+							state = 'line';
+						}
+						break;
+							
+					default :
+						if(isFormattedLine(line)) {
+							quoted.push(getFormattedLine(line));
+						} else {
+							state	= quoteMatch ? 'quote_line' : 'line';
+							buf		= 'line' === state ? line : line.replace(/\s/, '');	//	trim *first* leading space, if any
+						}
+						break;
+				}		
+			});
+			
+			quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
+		});
+		
+		input.slice(tearLinePos).split(/\r?\n/).forEach(l => {
+			quoted.push(...getWrapped(l));
+		});
+
+		return cb(null, quoted, null, false);
+	}
 };

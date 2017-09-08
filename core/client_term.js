@@ -32,6 +32,8 @@ function ClientTerminal(output) {
 	var termWidth		= 0;
 	var termClient		= 'unknown';
 
+	this.currentSyncFont	= 'not_set';
+
 	//	Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
 	this.env			= {};
 
@@ -169,7 +171,7 @@ ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
 	var conv = {
 		enigma		: enigmaToAnsi,
 		renegade	: renegadeToAnsi,
-	}[spec] || enigmaToAnsi;
+	}[spec] || renegadeToAnsi;
 	
 	this.write(conv(s, this), null, cb);	//	null = use default for |convertLineFeeds|
 };
@@ -182,4 +184,5 @@ ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
 	}
 	return iconv.encode(s, this.outputEncoding);
 };
+
 

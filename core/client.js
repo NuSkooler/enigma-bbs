@@ -120,6 +120,7 @@ function Client(input, output) {
 			//	* Irssi ConnectBot (Android)
 			//
 			'63;1;2'		: 'arctel',
+			'50;86;84;88'	: 'vtx',
 		}[deviceAttr];
 
 		if(!termClient) {
@@ -491,3 +492,13 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 	return handler;
 };
 
+Client.prototype.terminalSupports = function(query) {
+	switch(query) {
+		case 'vtx_audio' :
+			//	https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+			return this.termClient === 'vtx';
+		
+		default : 
+			return false;
+	}
+};

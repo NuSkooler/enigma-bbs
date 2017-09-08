@@ -472,7 +472,7 @@
 				0: {
 					mci: {
 						TL1: {
-							argName: 	from
+							argName: from
 						}
 						ET2: {
 							argName: to
@@ -721,7 +721,7 @@
 		}
 
 		newScanMessageList: {
-			desc: Viewing New Message List
+			desc: New Messages
 			module: msg_list
 			art: NEWMSGS
 			config: {
@@ -757,6 +757,166 @@
 							action: @method:fullExit
 						}
 					]
+				}
+			}
+		}
+
+		newScanFileBaseList: {
+			module: file_area_list
+			desc: New Files
+			config: {
+				art: {
+					browse: FNEWBRWSE
+					details: FDETAIL
+					detailsGeneral: FDETGEN
+					detailsNfo: FDETNFO
+					detailsFileList: FDETLST
+					help: FBHELP
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						MT1: {
+							mode: preview
+							ansiView: true
+						}
+
+						HM2: {
+							focus: true
+							submit: true
+							argName: navSelect							
+							items: [
+								"prev", "next", "details", "toggle queue", "rate", "help", "quit"
+							]
+							focusItemIndex: 1
+						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
+					}
+					
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:prevFile
+							}
+							{
+								value: { navSelect: 1 }
+								action: @method:nextFile
+							}
+							{
+								value: { navSelect: 2 }
+								action: @method:viewDetails
+							}
+							{
+								value: { navSelect: 3 }
+								action: @method:toggleQueue
+							}
+							{
+								value: { navSelect: 4 }
+								action: @menu:fileBaseGetRatingForSelectedEntry
+							}							
+							{
+								value: { navSelect: 5 }
+								action: @method:displayHelp
+							}
+							{
+								value: { navSelect: 6 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "w", "shift + w" ]
+							action: @method:showWebDownloadLink
+						}
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+						{
+							keys: [ "t", "shift + t" ]
+							action: @method:toggleQueue
+						}
+						{
+							keys: [ "v", "shift + v" ]
+							action: @method:viewDetails
+						}
+						{
+							keys: [ "r", "shift + r" ]
+							action: @menu:fileBaseGetRatingForSelectedEntry
+						}
+						{
+							keys: [ "?" ]
+							action: @method:displayHelp
+						}
+					]
+				}
+
+				1: {
+					mci: {
+						HM1: {
+							focus: true
+							submit: true
+							argName: navSelect
+							items: [
+								"general", "nfo/readme", "file listing"
+							]
+						}
+
+						//	:TODO: these can be removed once the hack is not required:
+						TL10: {}
+						TL11: {}
+						TL12: {}
+						TL13: {}
+						TL14: {}
+						TL15: {}
+						TL16: {}
+						TL17: {}
+						TL18: {}
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @method:detailsQuit
+						}
+					]
+				}
+
+				2: {
+					//	details - general
+					mci: {}					
+				}
+
+				3: {
+					//	details - nfo/readme
+					mci: {
+						MT1: {
+							mode: preview
+						}
+					}
+				}
+
+				4: {
+					//	details - file listing
+					mci: {
+						VM1: {
+
+						}
+					}
 				}
 			}
 		}
@@ -1916,50 +2076,49 @@
 							}
 						}
 
-						submit: {
-							*: [
-								{
-									value: { 1: 0 }
-									action: @method:editModeMenuSave
-								}
-								{
-									value: { 1: 1 }
-									action: @systemMethod:prevMenu
-								}
-								{
-									value: { 1: 2 },
-									action: @method:editModeMenuQuote
-								}
-								{
-									value: { 1: 3 }
-									action: @method:editModeMenuHelp
-								}
-							]
-						}
-
-						actionKeys: [
+					submit: {
+						*: [
 							{
-								keys: [ "escape" ]
-								action: @method:editModeEscPressed
-							}
-							{
-								keys: [ "s", "shift + s" ]
+								value: { 1: 0 }
 								action: @method:editModeMenuSave
 							}
 							{
-								keys: [ "d", "shift + d" ]
+								value: { 1: 1 }
 								action: @systemMethod:prevMenu
 							}
 							{
-								keys: [ "q", "shift + q" ]
+								value: { 1: 2 },
 								action: @method:editModeMenuQuote
 							}
 							{
-								keys: [ "?" ]
+								value: { 1: 3 }
 								action: @method:editModeMenuHelp
 							}
 						]
 					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @method:editModeEscPressed
+						}
+						{
+							keys: [ "s", "shift + s" ]
+							action: @method:editModeMenuSave
+						}
+						{
+							keys: [ "d", "shift + d" ]
+							action: @systemMethod:prevMenu
+						}
+						{
+							keys: [ "q", "shift + q" ]
+							action: @method:editModeMenuQuote
+						}
+						{
+							keys: [ "?" ]
+							action: @method:editModeMenuHelp
+						}
+					]
 				}
 
 				//	Quote builder
@@ -2313,8 +2472,12 @@
 			prompt: fileMenuCommand
 			submit: [
 				{
-					value: { menuOption: "B" }
+					value: { menuOption: "L" }
 					action: @menu:fileBaseListEntries
+				}
+				{
+					value: { menuOption: "B" }
+					action: @menu:fileBaseBrowseByAreaSelect
 				}
 				{
 					value: { menuOption: "F" }
@@ -2506,6 +2669,38 @@
 
 						}
 					}
+				}
+			}
+		}
+
+		fileBaseBrowseByAreaSelect: {
+			desc: Browsing File Areas
+			module: file_base_area_select
+			art: FAREASEL
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							focus: true
+							argName: areaSelect
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { areaSelect: null }
+								action: @method:selectArea
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
 				}
 			}
 		}

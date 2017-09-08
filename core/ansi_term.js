@@ -17,12 +17,22 @@
 //		* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
 //		* http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
 //
+//	VTX
+//		* https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
+//
 //	General
 //		* http://en.wikipedia.org/wiki/ANSI_escape_code
 //		* http://www.inwap.com/pdp10/ansicode.txt
 //
 //	Other Implementations
 //		* https://github.com/chjj/term.js/blob/master/src/term.js
+//
+//
+//	For a board, we need to support the semi-standard ANSI-BBS "spec" which
+//	is bastardized mix of DOS ANSI.SYS, cterm.txt, bansi.txt and a little other.
+//	This gives us NetRunner, SyncTERM, EtherTerm, most *nix terminals, compatibilitiy
+//	with legit oldschool DOS terminals, and so on. 
+//
 
 //	ENiGMA½
 const miscUtil	= require('./misc_util.js');
@@ -31,6 +41,7 @@ const miscUtil	= require('./misc_util.js');
 const assert	= require('assert');
 const _			= require('lodash');
 
+exports.getFullMatchRegExp			= getFullMatchRegExp;
 exports.getFGColorValue				= getFGColorValue;
 exports.getBGColorValue				= getBGColorValue;
 exports.sgr							= sgr;
@@ -172,6 +183,12 @@ const SGRValues = {
 	whiteBG			: 47,
 };
 
+function getFullMatchRegExp(flags = 'g') {
+	//	:TODO: expand this a bit - see strip-ansi/etc.
+	//	:TODO: \u009b ?
+	return new RegExp(/[\u001b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/, flags);	//	eslint-disable-line no-control-regex
+}
+
 function getFGColorValue(name) {
 	return SGRValues[name];
 }
@@ -289,7 +306,6 @@ const FONT_ALIAS_TO_SYNCTERM_MAP = {
 	'amiga_microknight'		: 'microknight',
 	'amiga_microknight+'	: 'microknight_plus',
 
-
 	'atari'					: 'atari',
 	'atarist'				: 'atari',
 
@@ -399,10 +415,6 @@ function getSGRFromGraphicRendition(graphicRendition, initialReset) {
 		}
 	});
 
-	if(!styleCount) {
-		sgrSeq.push(0);
-	}
-
 	if(graphicRendition.fg) {
 		sgrSeq.push(graphicRendition.fg);
 	}
@@ -411,7 +423,7 @@ function getSGRFromGraphicRendition(graphicRendition, initialReset) {
 		sgrSeq.push(graphicRendition.bg);
 	}
 
-	if(initialReset) {
+	if(0 === styleCount || initialReset) {
 		sgrSeq.unshift(0);
 	}
 
@@ -473,4 +485,3 @@ function setEmulatedBaudRate(rate) {
 	}[rate] || 0;
 	return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
 }
-

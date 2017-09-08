@@ -1,6 +1,6 @@
 {
   "name": "enigma-bbs",
-  "version": "0.0.6-alpha",
+  "version": "0.0.7-alpha",
   "description": "ENiGMA½ Bulletin Board System",
   "author": "Bryan Ashby <bryan@l33t.codes>",
   "license": "BSD-2-Clause",
@@ -39,13 +39,14 @@
     "ptyw.js": "NuSkooler/ptyw.js",
     "sanitize-filename": "^1.6.1",
     "sqlite3": "^3.1.1",
-    "ssh2": "^0.5.1",
+    "ssh2": "^0.5.5",
     "temptmp": "^1.0.0",
     "uuid": "^3.0.1",
     "uuid-parse": "^1.0.0",
     "ws" : "^3.0.0",
     "graceful-fs" : "^4.1.11",
-    "exiftool" : "^0.0.3"
+    "exiftool" : "^0.0.3",
+    "node-glob" : "^1.2.0"
   },
   "devDependencies": {},
   "engines": {

@@ -10,10 +10,11 @@ const Message						= require('./message.js');
 const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
 const getMessageAreaByTag			= require('./message_area.js').getMessageAreaByTag;
 const User							= require('./user.js');
-const cleanControlCodes				= require('./string_util.js').cleanControlCodes;
 const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
+const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
+const Config						= require('./config.js').config;
 
 //	deps
 const async							= require('async');
@@ -168,7 +169,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				}
 				cb(newFocusViewId);
 			},
-			
 			headerSubmit : function(formData, extraArgs, cb) {
 				self.switchToBody();
 				return cb(null);
@@ -210,21 +210,24 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			},
 			appendQuoteEntry: function(formData, extraArgs, cb) {
 				//	:TODO: Dont' use magic # ID's here			
-				var quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
-
+				const quoteMsgView = self.viewControllers.quoteBuilder.getView(1);
+				
 				if(self.newQuoteBlock) {
 					self.newQuoteBlock = false;
+
+					//	:TODO: If replying to ANSI, add a blank sepration line here
+
 					quoteMsgView.addText(self.getQuoteByHeader());
 				}
 				
-				var quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
+				const quoteText = self.viewControllers.quoteBuilder.getView(3).getItem(formData.value.quote);
 				quoteMsgView.addText(quoteText);
 
 				//
 				//	If this is *not* the last item, advance. Otherwise, do nothing as we
 				//	don't want to jump back to the top and repeat already quoted lines
 				//
-				var quoteListView = self.viewControllers.quoteBuilder.getView(3);
+				const quoteListView = self.viewControllers.quoteBuilder.getView(3);
 				if(quoteListView.getData() !== quoteListView.getCount() - 1) {
 					quoteListView.focusNext();
 				} else {
@@ -316,22 +319,38 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		}
 	}
 
-	buildMessage() {
+	buildMessage(cb) {
 		const headerValues = this.viewControllers.header.getFormData().value;
 
-		var msgOpts = {
+		const msgOpts = {
 			areaTag			: this.messageAreaTag,
 			toUserName		: headerValues.to,
 			fromUserName	: this.client.user.username,
 			subject			: headerValues.subject,
-			message			: this.viewControllers.body.getFormData().value.message,
+			//	:TODO: don't hard code 1 here:
+			message			: this.viewControllers.body.getView(1).getData( { forceLineTerms : this.replyIsAnsi } ),
 		};
 
 		if(this.isReply()) {
 			msgOpts.replyToMsgId	= this.replyToMessage.messageId;
+
+			if(this.replyIsAnsi) {
+				//
+				//	Ensure first characters indicate ANSI for detection down
+				//	the line (other boards/etc.). We also set explicit_encoding
+				//	to packetAnsiMsgEncoding (generally cp437) as various boards 
+				//	really don't like ANSI messages in UTF-8 encoding (they should!)
+				//
+				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
+				//	:TODO: change to <ansi>\r\nESC[A<message>
+				//msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
+				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
+			}
 		}
 
 		this.message = new Message(msgOpts);
+
+		return cb(null);
 	}
 	
 	setMessage(message) {
@@ -344,9 +363,35 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					this.initHeaderViewMode();
 					this.initFooterViewMode();
 
-					var bodyMessageView = this.viewControllers.body.getView(1);
+					const bodyMessageView	= this.viewControllers.body.getView(1);
+					let msg					= this.message.message;
+
 					if(bodyMessageView && _.has(this, 'message.message')) {
-						bodyMessageView.setText(cleanControlCodes(this.message.message));
+						//
+						//	We handle ANSI messages differently than standard messages -- this is required as
+						//	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+						//	how the author wanted it
+						//
+						if(isAnsi(msg)) {
+							//
+							//	Find tearline - we want to color it differently.
+							//
+							const tearLinePos = this.message.getTearLinePosition(msg);
+
+							if(tearLinePos > -1) {
+								msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
+							}
+
+							bodyMessageView.setAnsi(
+								msg.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
+								{
+									prepped				: false,
+									forceLineTerm		: true,
+								}
+							);
+						} else {
+							bodyMessageView.setText(cleanControlCodes(msg));
+						}
 					}
 				}
 			}
@@ -360,9 +405,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 			[
 				function buildIfNecessary(callback) {
 					if(self.isEditMode()) {
-						self.buildMessage();	//	creates initial self.message
+						return self.buildMessage(callback);	//	creates initial self.message
 					}
-					callback(null);
+
+					return callback(null);
 				},
 				function populateLocalUserInfo(callback) {
 					if(self.isLocalEmail()) {
@@ -659,16 +705,18 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 							break;
 							
 						case 'edit' :
-							const fromView = self.viewControllers.header.getView(1);
-							const area = getMessageAreaByTag(self.messageAreaTag);
-							if(area && area.realNames) {
-								fromView.setText(self.client.user.properties.real_name || self.client.user.username);
-							} else {
-								fromView.setText(self.client.user.username);
-							}
-							
-							if(self.replyToMessage) {
-								self.initHeaderReplyEditMode();
+							{
+								const fromView = self.viewControllers.header.getView(1);
+								const area = getMessageAreaByTag(self.messageAreaTag);
+								if(area && area.realNames) {
+									fromView.setText(self.client.user.properties.real_name || self.client.user.username);
+								} else {
+									fromView.setText(self.client.user.username);
+								}
+
+								if(self.replyToMessage) {
+									self.initHeaderReplyEditMode();
+								}
 							}
 							break;
 					}
@@ -848,9 +896,31 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					}
 				},
 				function loadQuoteLines(callback) {
-					var quoteView = self.viewControllers.quoteBuilder.getView(3);
-					quoteView.setItems(self.replyToMessage.getQuoteLines(quoteView.dimens.width));
-					callback(null);
+					const quoteView = self.viewControllers.quoteBuilder.getView(3);
+					const bodyView	= self.viewControllers.body.getView(1);
+
+					self.replyToMessage.getQuoteLines(
+						{
+							termWidth			: self.client.term.termWidth,
+							termHeight			: self.client.term.termHeight,
+							cols				: quoteView.dimens.width,
+							startCol			: quoteView.position.col,
+							ansiResetSgr		: bodyView.styleSGR1,
+							ansiFocusPrefixSgr	: quoteView.styleSGR2,
+						},
+						(err, quoteLines, focusQuoteLines, replyIsAnsi) => {
+							if(err) {
+								return callback(err);
+							}
+
+							self.replyIsAnsi = replyIsAnsi;
+
+							quoteView.setItems(quoteLines);
+							quoteView.setFocusItems(focusQuoteLines);
+
+							return callback(null);
+						}
+					);
 				},
 				function setViewFocus(callback) {
 					self.viewControllers.quoteBuilder.getView(1).setFocus(false);
@@ -922,14 +992,17 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	
 	quoteBuilderFinalize() {
 		//	:TODO: fix magic #'s
-		var quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
-		var msgView			= this.viewControllers.body.getView(1);
-		
-		var quoteLines 		= quoteMsgView.getData();
+		const quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
+		const msgView		= this.viewControllers.body.getView(1);
+				
+		let quoteLines 		= quoteMsgView.getData();
 		
 		if(quoteLines.trim().length > 0) {
-			msgView.addText(quoteMsgView.getData() + '\n');
-		
+			if(this.replyIsAnsi) {
+				const bodyMessageView = this.viewControllers.body.getView(1);
+				quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
+			}
+			msgView.addText(`${quoteLines}\n`);
 		}
 		
 		quoteMsgView.setText('');

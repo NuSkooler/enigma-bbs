@@ -100,6 +100,11 @@ function init(configPath, options, cb) {
 		],
 		function complete(err, mergedConfig) {
 			exports.config = mergedConfig;
+
+			exports.config.get = function(path) {
+				return _.get(exports.config, path);
+			};
+
 			return cb(err);
 		}
 	);
@@ -316,6 +321,24 @@ function getDefaultConfig() {
 				longDescUtil	: 'Exiftool',
 			},
 			//
+			//	Video
+			//
+			'video/mp4' : {
+				desc			: 'MPEG Video',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'video/x-matroska ' : {
+				desc			: 'Matroska Video',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			'video/x-msvideo' : {
+				desc			: 'Audio Video Interleave',
+				shortDescUtil	: 'Exiftool2Desc',
+				longDescUtil	: 'Exiftool',
+			},
+			//
 			//	Images
 			//
 			'image/jpeg'	: {
@@ -347,6 +370,12 @@ function getDefaultConfig() {
 				offset			: 0,
 				archiveHandler	: '7Zip',
 			},
+			/*
+			'application/x-cbr' : {
+				desc			: 'Comic Book Archive',
+				sig				: '504b0304',
+			},
+			*/
 			'application/x-arj' : {
 				desc			: 'ARJ Archive',
 				sig				: '60ea',
@@ -363,7 +392,7 @@ function getDefaultConfig() {
 				desc			: 'Gzip Archive',
 				sig				: '1f8b',
 				offset			: 0,
-				archiveHandler	: '7Zip',
+				archiveHandler	: 'TarGz',
 			},
 			//	:TODO: application/x-bzip
 			'application/x-bzip2' : {
@@ -474,6 +503,22 @@ function getDefaultConfig() {
 						cmd			: 'unrar',
 						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
 					}
+				},
+
+				TarGz : {
+					decompress		: {
+						cmd			: 'tar',
+						args		: [ '-xf', '{archivePath}', '-C', '{extractPath}', '--strip-components=1' ],
+					},
+					list			: {
+						cmd			: 'tar',
+						args		: [ '-tvf', '{archivePath}' ],
+						entryMatch	: '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',						
+					},
+					extract			: {
+						cmd			: 'tar',
+						args		: [ '-xvf', '{archivePath}', '-C', '{extractPath}', '{fileList}' ],
+					}
 				}
 			},
 		},
@@ -582,8 +627,10 @@ function getDefaultConfig() {
 				//	Actual sizes may be slightly larger when we must place a full
 				//	PKT contents *somewhere*
 				//
-				packetTargetByteSize : 512000,		//	512k, before placing messages in a new pkt
-				bundleTargetByteSize : 2048000,		//	2M, before creating another archive
+				packetTargetByteSize	: 512000,		//	512k, before placing messages in a new pkt
+				bundleTargetByteSize	: 2048000,		//	2M, before creating another archive
+				packetMsgEncoding		: 'utf8',		//	default packet encoding. Override per node if desired.
+				packetAnsiMsgEncoding	: 'cp437',		//	packet encoding for *ANSI ART* messages
 
 				tic : {
 					secureInOnly	: true,				//	only bring in from secure inbound (|secInbound| path, password protected)

@@ -74,6 +74,11 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 * `AN`: Current active node count
 * `TC`: Total login/calls to system
 * `RR`: Displays a random rumor
+* `SD`: Total downloads, system wide
+* `SO`: Total downloaded amount, system wide (formatted to appropriate bytes/megs/etc.)
+* `SU`: Total uploads, system wide
+* `SP`: Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.)
+
 
 A special `XY` MCI code may also be utilized for placement identification when creating menus.
 

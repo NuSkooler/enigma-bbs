@@ -2,7 +2,7 @@
 ENiGMA½ is a modern from scratch BBS package written in Node.js.
 
 # Quickstart
-TL;DR? This should get you started...
+Unless you have a compelling reason to do otherwise, please use **The Easy Way** below.
 
 ## The Easy Way
 Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can simply execute the `install.sh` script to get everything up and running. Simply cut + paste the following into your terminal:
@@ -13,7 +13,7 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 
 For other environments such as Windows, see **The Manual Way** below.
 
-## The Manual Way
+## The Manual Way (aka Advanced)
 For Windows environments or if you simply like to do things manually, read on...
 
 ### Prerequisites
@@ -61,7 +61,7 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 `oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
 
 ```bash
-./oputil.js config --new
+./oputil.js config new
 ```
 
 (You wil be asked a series of basic questions)
