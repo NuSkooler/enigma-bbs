@@ -2,7 +2,7 @@
 ENiGMA½ is a modern from scratch BBS package written in Node.js.
 
 # Quickstart
-TL;DR? This should get you started...
+Unless you have a compelling reason to do otherwise, please use **The Easy Way** below.
 
 ## The Easy Way
 Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can simply execute the `install.sh` script to get everything up and running. Simply cut + paste the following into your terminal:

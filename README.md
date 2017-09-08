@@ -13,7 +13,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior
- * [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
+ * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
  * Renegade style pipe color codes
  * [SQLite](http://sqlite.org/) storage of users, message areas, and so on
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption
@@ -39,9 +39,9 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **chat.freenode.net**
+* Discussion on [fsxNet](http://bbs.geek.nz/#fsxNet) available on many boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
-* ENiGMA discussion on [fsxNet](http://bbs.geek.nz/#fsxNet)
 
 ## Terminal Clients
 ENiGMA has been tested with many terminals. However, the following are suggested for BBSing:
