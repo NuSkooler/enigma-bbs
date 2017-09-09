@@ -3,14 +3,12 @@
 
 //	enigma-bbs
 const MenuModule						= require('../core/menu_module.js').MenuModule;
-const Config							= require('../core/config.js').config;
 const stringFormat						= require('../core/string_format.js');
-const ViewController					= require('../core/view_controller.js').ViewController;
 const getSortedAvailableFileAreas		= require('../core/file_base_area.js').getSortedAvailableFileAreas;
+const StatLog							= require('../core/stat_log.js');
 
 //	deps
-const async			= require('async');
-const _				= require('lodash');
+const async								= require('async');
 
 exports.moduleInfo = {
 	name	: 'File Area Selector',
@@ -60,25 +58,47 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
 				return cb(err);
 			}
 
-			this.prepViewController('allViews', 0, { mciMap : mciData.menu }, (err, vc) => {
-				if(err) {
+			const self = this;
+
+			async.series(
+				[
+					function mergeAreaStats(callback) {
+						const areaStats = StatLog.getSystemStat('file_base_area_stats') || { areas : {} };
+
+						self.availAreas.forEach(area => {
+							const stats = areaStats.areas[area.areaTag];
+							area.totalFiles = stats ? stats.files : 0;
+							area.totalBytes	= stats ? stats.bytes : 0;
+						});
+
+						return callback(null);
+					},
+					function prepView(callback) {
+						self.prepViewController('allViews', 0, { mciMap : mciData.menu }, (err, vc) => {
+							if(err) {
+								return callback(err);
+							}
+
+							const areaListView = vc.getView(MciViewIds.areaList);
+
+							const areaListFormat = self.config.areaListFormat || '{name}';
+
+							areaListView.setItems(self.availAreas.map(a => stringFormat(areaListFormat, a) ) );
+
+							if(self.config.areaListFocusFormat) {
+								areaListView.setFocusItems(self.availAreas.map(a => stringFormat(self.config.areaListFocusFormat, a) ) );
+							}
+
+							areaListView.redraw();
+
+							return callback(null);
+						});
+					}
+				],
+				err => {
 					return cb(err);
 				}
-
-				const areaListView = vc.getView(MciViewIds.areaList);
-
-				const areaListFormat = this.config.areaListFormat || '{name}';
-
-				areaListView.setItems(this.availAreas.map(a => stringFormat(areaListFormat, a) ) );
-
-				if(this.config.areaListFocusFormat) {
-					areaListView.setFocusItems(this.availAreas.map(a => stringFormat(this.config.areaListFocusFormat, a) ) );
-				}
-
-				areaListView.redraw();
-
-				return cb(null);
-			});
+			);
 		});
 	}
 };
