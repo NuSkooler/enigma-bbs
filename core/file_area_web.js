@@ -284,7 +284,7 @@ class FileAreaWebAccess {
 
 					resp.on('finish', () => {
 						//	transfer completed fully
-						this.updateDownloadStatsForUserIdAndSystemAndSystem(servedItem.userId, stats.size);
+						this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size);
 					});
 
 					const headers = {
