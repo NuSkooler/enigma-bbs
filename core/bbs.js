@@ -234,6 +234,17 @@ function initialize(cb) {
 					}
 				);
 			},
+			function initFileAreaStats(callback) {
+				const getAreaStats = require('./file_base_area.js').getAreaStats;
+				getAreaStats( (err, stats) => {
+					if(!err) {
+						const StatLog = require('./stat_log.js');
+						StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
+					}
+
+					return callback(null);
+				});
+			},
 			function initMCI(callback) {
 				return require('./predefined_mci.js').init(callback);
 			},

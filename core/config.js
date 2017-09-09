@@ -713,6 +713,11 @@ function getDefaultConfig() {
 					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
 				},
 
+				updateFileAreaStats : {
+					schedule	: 'every 1 hours',
+					action		: '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
+				},
+
 				forgotPasswordMaintenance : {
 					schedule	: 'every 24 hours',
 					action		: '@method:core/web_password_reset.js:performMaintenanceTask',

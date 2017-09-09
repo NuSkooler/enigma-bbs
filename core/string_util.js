@@ -326,9 +326,7 @@ function formatByteSizeAbbr(byteSize) {
 	return SIZE_ABBRS[Math.floor(Math.log(byteSize) / Math.log(1024))];
 }
 
-function formatByteSize(byteSize, withAbbr, decimals) {
-	withAbbr = withAbbr || false; 
-	decimals = decimals || 3;
+function formatByteSize(byteSize, withAbbr = false, decimals = 2) {
 	const i		= 0 === byteSize ? byteSize : Math.floor(Math.log(byteSize) / Math.log(1024));
 	let result	= parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals));
 	if(withAbbr) {

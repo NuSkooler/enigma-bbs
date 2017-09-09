@@ -13,6 +13,7 @@ const Log				= require('./logger.js').log;
 const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 const stringFormat		= require('./string_format.js');
 const wordWrapText		= require('./word_wrap.js').wordWrapText;
+const StatLog			= require('./stat_log.js');
 
 //	deps
 const _				= require('lodash');
@@ -39,6 +40,10 @@ exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
 exports.scanFile						= scanFile;
 exports.scanFileAreaForChanges			= scanFileAreaForChanges;
 exports.getDescFromFileName				= getDescFromFileName;
+exports.getAreaStats					= getAreaStats;
+
+//	for scheduler:
+exports.updateAreaStatsScheduledEvent	= updateAreaStatsScheduledEvent;
 
 const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	Invalid				: '',
@@ -856,4 +861,64 @@ function getDescFromFileName(fileName) {
 	const name  = paths.basename(fileName, ext);
 
 	return _.upperFirst(name.replace(/[\-_.+]/g, ' ').replace(/\s+/g, ' '));
+}
+
+//
+//	Return an object of stats about an area(s)
+//
+//	{
+//		
+//		totalFiles : <totalFileCount>,
+//		totalBytes : <totalByteSize>,
+//		areas : {
+//			<areaTag> : {
+//				files : <fileCount>,
+//				bytes : <byteSize>
+//			}
+//		}
+//	}
+//
+function getAreaStats(cb) {	
+	FileDb.all(
+		`SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
+		FROM file f, file_meta m
+		WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
+		GROUP BY f.area_tag;`,
+		(err, statRows) => {
+			if(err) {
+				return cb(err);
+			}
+
+			if(!statRows || 0 === statRows.length) {
+				return cb(Errors.DoesNotExist('No file areas to acquire stats from'));
+			}
+
+			return cb(
+				null,
+				statRows.reduce( (stats, v) => {
+					stats.totalFiles = (stats.totalFiles || 0) + v.total_files;
+					stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
+
+					stats.areas = stats.areas || {};
+					
+					stats.areas[v.area_tag] = {
+						files 	: v.total_files,
+						bytes	: v.total_byte_size,
+					};
+					return stats;
+				}, {})
+			);
+		}
+	);
+}
+
+//	method exposed for event scheduler
+function updateAreaStatsScheduledEvent(args, cb) {
+	getAreaStats( (err, stats) => {		
+		if(!err) {
+			StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);	
+		}
+
+		return cb(err);
+	});
 }

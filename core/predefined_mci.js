@@ -201,12 +201,20 @@ const PREDEFINED_MCI_GENERATORS = {
 		const byteSize = StatLog.getSystemStatNum('ul_total_bytes');
 		return formatByteSize(byteSize, true);	//	true=withAbbr
 	},
+	TF	: function totalFilesOnSystem() {
+		const areaStats = StatLog.getSystemStat('file_base_area_stats');
+		return _.get(areaStats, 'totalFiles', 0).toString();
+	},
+	TB	: function totalBytesOnSystem() {
+		const areaStats		= StatLog.getSystemStat('file_base_area_stats');
+		const totalBytes	= parseInt(_.get(areaStats, 'totalBytes', 0));
+		return formatByteSize(totalBytes, true);	//	true=withAbbr
+	},
 
 	//	:TODO: PT - Messages posted *today* (Obv/2)
 	//		-> Include FTN/etc.
 	//	:TODO: NT - New users today (Obv/2)
 	//	:TODO: CT - Calls *today* (Obv/2)
-	//	:TODO: TF - Total files on the system (Obv/2)
 	//	:TODO: FT - Files uploaded/added *today* (Obv/2)
 	//	:TODO: DD - Files downloaded *today* (iNiQUiTY)
 	//	:TODO: TP - total message/posts on the system (Obv/2)
