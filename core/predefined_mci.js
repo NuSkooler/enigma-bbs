@@ -45,11 +45,11 @@ function getUserRatio(client, propA, propB) {
 }
 
 function userStatAsString(client, statName, defaultValue) {
-	return (StatLog.getUserStat(client.user, statName) || defaultValue).toString();
+	return (StatLog.getUserStat(client.user, statName) || defaultValue).toLocaleString();
 }
 
 function sysStatAsString(statName, defaultValue) {
-	return (StatLog.getSystemStat(statName) || defaultValue).toString();
+	return (StatLog.getSystemStat(statName) || defaultValue).toLocaleString();
 }
 
 const PREDEFINED_MCI_GENERATORS = {
@@ -177,7 +177,7 @@ const PREDEFINED_MCI_GENERATORS = {
 
 	AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
-	TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toString(); },
+	TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toLocaleString(); },
 
 	RR	: function randomRumor() {
 		//	start the process of picking another random one
@@ -203,7 +203,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	},
 	TF	: function totalFilesOnSystem() {
 		const areaStats = StatLog.getSystemStat('file_base_area_stats');
-		return _.get(areaStats, 'totalFiles', 0).toString();
+		return _.get(areaStats, 'totalFiles', 0).toLocaleString();
 	},
 	TB	: function totalBytesOnSystem() {
 		const areaStats		= StatLog.getSystemStat('file_base_area_stats');
