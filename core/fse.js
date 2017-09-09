@@ -995,14 +995,14 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		const quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
 		const msgView		= this.viewControllers.body.getView(1);
 				
-		let quoteLines 		= quoteMsgView.getData();
+		let quoteLines 		= quoteMsgView.getData().trim();
 		
-		if(quoteLines.trim().length > 0) {
+		if(quoteLines.length > 0) {
 			if(this.replyIsAnsi) {
 				const bodyMessageView = this.viewControllers.body.getView(1);
 				quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
 			}
-			msgView.addText(`${quoteLines}\n`);
+			msgView.addText(`${quoteLines}\n\n`);
 		}
 		
 		quoteMsgView.setText('');
