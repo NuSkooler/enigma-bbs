@@ -2,12 +2,15 @@
 'use strict';
 
 const EnigError				= require('./enig_error.js').EnigError;
-const pad					= require('./string_util.js').pad;
-const stylizeString			= require('./string_util.js').stylizeString;
-const renderStringLength	= require('./string_util.js').renderStringLength;
-const renderSubstr			= require('./string_util.js').renderSubstr;
-const formatByteSize		= require('./string_util.js').formatByteSize;
-const formatByteSizeAbbr	= require('./string_util.js').formatByteSizeAbbr;		
+
+const {
+	pad,
+	stylizeString, 
+	renderStringLength,
+	renderSubstr,
+	formatByteSize, formatByteSizeAbbr,
+	formatCount, formatCountAbbr,
+}							= require('./string_util.js');
 
 //	deps
 const _				= require('lodash');
@@ -273,6 +276,9 @@ const transformers = {
 	sizeWithAbbr		: (n) => formatByteSize(n, true, 2),
 	sizeWithoutAbbr		: (n) => formatByteSize(n, false, 2),
 	sizeAbbr			: (n) => formatByteSizeAbbr(n),
+	countWithAbbr		: (n) => formatCount(n, true, 0),
+	countWithoutAbbr	: (n) => formatCount(n, false, 0),
+	countAbbr			: (n) => formatCountAbbr(n),
 };
 
 function transformValue(transformerName, value) {

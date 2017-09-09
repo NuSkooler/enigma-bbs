@@ -23,6 +23,8 @@ exports.renderSubstr				= renderSubstr;
 exports.renderStringLength			= renderStringLength;
 exports.formatByteSizeAbbr			= formatByteSizeAbbr;
 exports.formatByteSize				= formatByteSize;
+exports.formatCountAbbr				= formatCountAbbr;
+exports.formatCount					= formatCount;
 exports.cleanControlCodes			= cleanControlCodes;
 exports.isAnsi						= isAnsi;
 exports.isAnsiLine					= isAnsiLine;
@@ -316,21 +318,40 @@ function renderStringLength(s) {
 	return len;
 }
 
-const SIZE_ABBRS = [ 'B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB' ];	//	:) 
+const BYTE_SIZE_ABBRS = [ 'B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB' ];	//	:) 
 
 function formatByteSizeAbbr(byteSize) {
 	if(0 === byteSize) {
-		return SIZE_ABBRS[0];	//	B
+		return BYTE_SIZE_ABBRS[0];	//	B
 	}
 	
-	return SIZE_ABBRS[Math.floor(Math.log(byteSize) / Math.log(1024))];
+	return BYTE_SIZE_ABBRS[Math.floor(Math.log(byteSize) / Math.log(1024))];
 }
 
 function formatByteSize(byteSize, withAbbr = false, decimals = 2) {
 	const i		= 0 === byteSize ? byteSize : Math.floor(Math.log(byteSize) / Math.log(1024));
 	let result	= parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals));
 	if(withAbbr) {
-		result += ` ${SIZE_ABBRS[i]}`; 
+		result += ` ${BYTE_SIZE_ABBRS[i]}`; 
+	}
+	return result;
+}
+
+const COUNT_ABBRS = [ '', 'K', 'M', 'B', 'T', 'P', 'E', 'Z', 'Y' ];
+
+function formatCountAbbr(count) {
+	if(count < 1000) {
+		return '';
+	}
+
+	return COUNT_ABBRS[Math.floor(Math.log(count) / Math.log(1000))];
+}
+
+function formatCount(count, withAbbr = false, decimals = 2) {
+	const i		= 0 === count ? count : Math.floor(Math.log(count) / Math.log(1000));
+	let result	= parseFloat((count / Math.pow(1000, i)).toFixed(decimals));
+	if(withAbbr) {
+		result += `${COUNT_ABBRS[i]}`; 
 	}
 	return result;
 }
