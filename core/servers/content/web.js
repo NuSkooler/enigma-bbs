@@ -148,7 +148,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 
 		const routeKey = route.getRouteKey();
 		if(routeKey in this.routes) {
-			Log.warn( { route : route }, 'Cannot add route: duplicate method/path combination exists' );
+			Log.warn( { route : route, routeKey : routeKey }, 'Cannot add route: duplicate method/path combination exists' );
 			return false;
 		}
 
