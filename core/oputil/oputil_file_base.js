@@ -34,7 +34,7 @@ exports.handleFileBaseCommand			= handleFileBaseCommand;
 
 let fileArea;	//	required during init
 
-function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
+function finalizeEntryAndPersist(isUpdate, fileEntry, descHandler, cb) {
 	async.series(
 		[
 			function getDescFromHandlerIfNeeded(callback) {
@@ -53,18 +53,24 @@ function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 				return callback(null);
 			},
 			function getDescFromUserIfNeeded(callback) {
-				if(false === argv.prompt || ( fileEntry.desc && fileEntry.desc.length > 0 ) ) {
+				if(fileEntry.desc && fileEntry.desc.length > 0 ) {
 					return callback(null);
 				}
 
-				const getDescFromFileName = require('../../core/file_base_area.js').getDescFromFileName;
+				const getDescFromFileName	= require('../../core/file_base_area.js').getDescFromFileName;
+				const descFromFile			= getDescFromFileName(fileEntry.fileName);
+				
+				if(false === argv.prompt) {
+					fileEntry.desc = descFromFile;
+					return callback(null);
+				}
 
 				const questions = [
 					{
 						name	: 'desc',
 						message	: `Description for ${fileEntry.fileName}:`,
 						type	: 'input',
-						default	: getDescFromFileName(fileEntry.fileName),
+						default	: descFromFile,
 					}
 				];
 
@@ -74,7 +80,7 @@ function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 				});
 			},
 			function persist(callback) {
-				fileEntry.persist( err => {
+				fileEntry.persist(isUpdate, err => {
 					return callback(err);
 				});
 			}
@@ -104,6 +110,12 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 			return !asi.storageTag || sl.storageTag === asi.storageTag;
 		});
 	});
+
+	function updateTags(fe) {
+		if(Array.isArray(options.tags)) {
+			fe.hashTags = new Set(options.tags);
+		}
+	}
 	
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
 		async.waterfall(
@@ -153,27 +165,58 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 									},
 									(err, fileEntry, dupeEntries) => {
 										if(err) {
-											//	:TODO: Log me!!!
 											console.info(`Error: ${err.message}`);											
 											return nextFile(null);	//	try next anyway
-										}								
+										}
 
-										if(dupeEntries.length > 0) {
-											//	:TODO: Handle duplidates -- what to do here???
+										//
+										//	We'll update the entry if the following conditions are met:
+										//	* We have a single duplicate, and:
+										//	* --update-desc was passed or the existing entry's desc or
+										//	  longDesc are blank/empty
+										//
+										if(argv['update'] && 1 === dupeEntries.length) {
+											const FileEntry		= require('../../core/file_entry.js');
+											const existingEntry	= new FileEntry();
+
+											return existingEntry.load(dupeEntries[0].fileId, err => {
+												if(err) {
+													console.info('Dupe (cannot update)');
+													return nextFile(null);
+												}
+
+												//
+												//	Update only if tags or desc changed
+												//
+												const optTags	= Array.isArray(options.tags) ? new Set(options.tags) : existingEntry.hashTags;
+												const tagsEq	= _.isEqual(optTags, existingEntry.hashTags);
+
+												if( tagsEq && 
+													fileEntry.desc === existingEntry.desc && 
+													fileEntry.descLong == existingEntry.descLong)
+												{
+													console.info('Dupe');
+													return nextFile(null);
+												}
+
+												console.info('Dupe (updating)');
+												updateTags(existingEntry);
+
+												finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
+													return nextFile(err);
+												});
+											});
+										} else if(dupeEntries.length > 0) {
 											console.info('Dupe');
 											return nextFile(null);
-										} else {
-											console.info('Done!');
-											if(Array.isArray(options.tags)) {
-												options.tags.forEach(tag => {
-													fileEntry.hashTags.add(tag);
-												});
-											}
-
-											finalizeEntryAndPersist(fileEntry, descHandler, err => {
-												return nextFile(err);
-											});
 										}
+										
+										console.info('Done!');
+										updateTags(fileEntry);
+										
+										finalizeEntryAndPersist(false, fileEntry, descHandler, err => {
+											return nextFile(err);
+										});
 									}
 								);
 							});
@@ -518,7 +561,7 @@ function moveFiles() {
 
 function removeFiles() {
 	//
-	//	REMOVE SHA|FILE_ID [SHA|FILE_ID ...]
+	//	REMOVE FILENAME_WC|SHA|FILE_ID [SHA|FILE_ID ...]
 }
 
 function handleFileBaseCommand() {

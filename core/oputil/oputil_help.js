@@ -65,6 +65,7 @@ scan args:
                                other sources such as FILE_ID.DIZ.
                                if PATH is specified, use DESCRIPT.ION at PATH instead
                                of looking in specific storage locations
+  --update                     attempt to update information for existing entries                               
 
 info args:
   --show-desc                  display short description, if any
