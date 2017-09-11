@@ -520,6 +520,10 @@ module.exports = class FileEntry {
 
 		sql += `${sqlWhere} ${sqlOrderBy};`;
 
+		if(_.isNumber(filter.limit)) {
+			sql += `LIMIT ${filter.limit}`;
+		}
+
 		const matchingFileIds = [];
 		fileDb.each(sql, (err, fileId) => {
 			if(fileId) {
