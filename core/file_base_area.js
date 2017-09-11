@@ -65,6 +65,10 @@ function getAvailableFileAreas(client, options) {
 			return true;
 		}
 
+		if(options.skipAcsCheck) {
+			return false;	//	no ACS checks (below)
+		}
+
 		if(options.writeAcs && !client.acs.hasFileAreaWrite(areaInfo)) {
 			return true;	//	omit
 		}
@@ -900,7 +904,7 @@ function getAreaStats(cb) {
 					stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
 
 					stats.areas = stats.areas || {};
-					
+
 					stats.areas[v.area_tag] = {
 						files 	: v.total_files,
 						bytes	: v.total_byte_size,
