@@ -623,6 +623,10 @@ function isFormattedLine(line) {
 }
 
 function isAnsi(input) {
+	if(!input || 0 === input.length) {
+		return false;
+	}
+	
 	//
 	//	* ANSI found - limited, just colors
 	//	* Full ANSI art

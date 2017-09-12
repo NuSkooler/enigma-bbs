@@ -1068,9 +1068,9 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 };
 
-MultiLineEditTextView.prototype.setText = function(text) {
+MultiLineEditTextView.prototype.setText = function(text, options = { scrollMode : 'default' } ) {
 	this.textLines = [ ];
-	this.addText(text);
+	this.addText(text, options);
 	/*this.insertRawText(text);
 
 	if(this.isEditMode()) {
@@ -1085,13 +1085,27 @@ MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : f
 	return this.setAnsiWithOptions(ansi, options, cb);
 };
 
-MultiLineEditTextView.prototype.addText = function(text) {
+MultiLineEditTextView.prototype.addText = function(text, options = { scrollMode : 'default' }) {
 	this.insertRawText(text);
 
-	if(this.isEditMode() || this.autoScroll) {
-		this.cursorEndOfDocument();
-	} else {
-		this.cursorStartOfDocument();
+	switch(options.scrollMode) {
+		case 'default' :
+			if(this.isEditMode() || this.autoScroll) {
+				this.cursorEndOfDocument();
+			} else {
+				this.cursorStartOfDocument();
+			}
+			break;
+
+		case 'top' :
+		case 'start' :
+			this.cursorStartOfDocument();
+			break;
+
+		case 'end' :
+		case 'bottom' :
+			this.cursorEndOfDocument();
+			break;
 	}
 };
 

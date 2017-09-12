@@ -15,6 +15,7 @@ const pathWithTerminatingSeparator		= require('../core/file_util.js').pathWithTe
 const Log								= require('../core/logger.js').log;
 const Errors							= require('../core/enig_error.js').Errors;
 const FileEntry							= require('../core/file_entry.js');
+const isAnsi							= require('../core/string_util.js').isAnsi;
 
 //	deps
 const async								= require('async');
@@ -421,9 +422,8 @@ exports.getModule = class UploadModule extends MenuModule {
 					return nextEntry(err);
 				}
 
-				//	if the file entry did *not* have a desc, take the user desc
-				if(!this.fileEntryHasDetectedDesc(newEntry)) {
-					newEntry.desc = newValues.shortDesc.trim();
+				if(!newEntry.descIsAnsi) {
+					newEntry.desc = _.trimEnd(newValues.shortDesc);
 				}
 
 				if(newValues.estYear.length > 0) {
@@ -659,14 +659,16 @@ exports.getModule = class UploadModule extends MenuModule {
 	displayFileDetailsPageForUploadEntry(fileEntry, cb) {
 		const self = this;
 		
-		async.series(
+		async.waterfall(
 			[
 				function prepArtAndViewController(callback) {
 					return self.prepViewControllerWithArt(
 						'fileDetails', 
 						FormIds.fileDetails,
 						{ clearScreen : true, trailingLF : false }, 
-						callback
+						err => {
+							return callback(err);
+						}
 					);
 				},
 				function populateViews(callback) {
@@ -679,18 +681,32 @@ exports.getModule = class UploadModule extends MenuModule {
 					tagsView.setText( Array.from(fileEntry.hashTags).join(',') );	//	:TODO: optional 'hashTagsSep' like file list/browse
 					yearView.setText(fileEntry.meta.est_release_year || '');
 
-					if(self.fileEntryHasDetectedDesc(fileEntry)) {
-						descView.setPropertyValue('mode', 'preview');
-						descView.setText(fileEntry.desc);						
-						descView.acceptsFocus = false;
-						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.tags);						
-					} else {
-						descView.setPropertyValue('mode', 'edit');
-						descView.setText(getDescFromFileName(fileEntry.fileName));	//	try to come up with something good as a default
-						descView.acceptsFocus = true;
-						self.viewControllers.fileDetails.switchFocus(MciViewIds.fileDetails.desc);
-					}
+					if(isAnsi(fileEntry.desc)) {
+						fileEntry.descIsAnsi = true;
 
+						return descView.setAnsi(
+							fileEntry.desc,
+							{
+								prepped			: false,
+								forceLineTerm	: true,
+							},
+							() => {
+								return callback(null, descView, 'preview', MciViewIds.fileDetails.tags);
+							}
+						);
+					} else {
+						const hasDesc = self.fileEntryHasDetectedDesc(fileEntry);
+						descView.setText(
+							hasDesc ? fileEntry.desc : getDescFromFileName(fileEntry.fileName),
+							{ scrollMode : 'top' }	//	override scroll mode; we want to be @ top
+						);
+						return callback(null, descView, 'edit', hasDesc ? MciViewIds.fileDetails.tags : MciViewIds.fileDetails.desc);
+					}
+				},
+				function finalizeViews(descView, descViewMode, focusId, callback) {
+					descView.setPropertyValue('mode', descViewMode);
+					descView.acceptsFocus	= 'preview' === descViewMode ? false : true;
+					self.viewControllers.fileDetails.switchFocus(focusId);
 					return callback(null);
 				}
 			],
