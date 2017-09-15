@@ -2762,6 +2762,7 @@
 								"rating",
 								"estimated year",
 								"size",
+								"filename",
 							]
 							argName: sortByIndex
 						}

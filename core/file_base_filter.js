@@ -24,6 +24,7 @@ module.exports = class FileBaseFilters {
 			'user_rating',
 			'est_release_year',
 			'byte_size',
+			'file_name',
 		];			
 	}
 
