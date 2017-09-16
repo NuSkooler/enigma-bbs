@@ -3,7 +3,10 @@
 
 //	ENiGMA½
 const MenuModule			= require('../core/menu_module.js').MenuModule;
-const getModDatabasePath	= require('../core/database.js').getModDatabasePath;
+const { 
+	getModDatabasePath,
+	getTransactionDatabase
+}							= require('../core/database.js').getModDatabasePath;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const ansi					= require('../core/ansi_term.js');
 const theme					= require('../core/theme.js');
@@ -392,10 +395,10 @@ exports.getModule = class BBSListModule extends MenuModule {
 		async.series(
 			[
 				function openDatabase(callback) {
-					self.database = new sqlite3.Database(
+					self.database = getTransactionDatabase(new sqlite3.Database(
 						getModDatabasePath(moduleInfo),
 						callback
-					);
+					));
 				},
 				function createTables(callback) {
 					self.database.serialize( () => {

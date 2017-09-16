@@ -110,9 +110,8 @@ module.exports = class FileEntry {
 		}
 
 		const self = this;
-		let inTransaction = false;
 
-		async.series(
+		async.waterfall(
 			[
 				function check(callback) {
 					if(isUpdate && !self.fileId) {
@@ -121,22 +120,20 @@ module.exports = class FileEntry {
 					return callback(null);
 				},
 				function startTrans(callback) {
-					return fileDb.run('BEGIN;', callback);
+					return fileDb.beginTransaction(callback);
 				},
-				function storeEntry(callback) {
-					inTransaction = true;
-
+				function storeEntry(trans, callback) {
 					if(isUpdate) {
-						fileDb.run(
+						trans.run(
 							`REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
 							VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
 							[ self.fileId, self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
 							err => {
-								return callback(err);
+								return callback(err, trans);
 							}
 						);
 					} else {
-						fileDb.run(
+						trans.run(
 							`REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
 							VALUES(?, ?, ?, ?, ?, ?, ?);`,
 							[ self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
@@ -144,34 +141,34 @@ module.exports = class FileEntry {
 								if(!err) {
 									self.fileId = this.lastID;
 								}
-								return callback(err);
+								return callback(err, trans);
 							}
 						);
 					}
 				},
-				function storeMeta(callback) {
+				function storeMeta(trans, callback) {
 					async.each(Object.keys(self.meta), (n, next) => {
 						const v = self.meta[n];
-						return FileEntry.persistMetaValue(self.fileId, n, v, next);
+						return FileEntry.persistMetaValue(self.fileId, n, v, trans, next);
 					}, 
 					err => {
-						return callback(err);
+						return callback(err, trans);
 					});
 				},
-				function storeHashTags(callback) {
+				function storeHashTags(trans, callback) {
 					const hashTagsArray = Array.from(self.hashTags);
 					async.each(hashTagsArray, (hashTag, next) => {
-						return FileEntry.persistHashTag(self.fileId, hashTag, next);
+						return FileEntry.persistHashTag(self.fileId, hashTag, trans, next);
 					},
 					err => {
-						return callback(err);
+						return callback(err, trans);
 					});					
 				}
 			],
-			err => {
+			(err, trans) => {
 				//	:TODO: Log orig err
-				if(inTransaction) {
-					fileDb.run(err ? 'ROLLBACK;' : 'COMMIT;', err => {
+				if(trans) {
+					trans[err ? 'rollback' : 'commit'](err => {
 						return cb(err);
 					});
 				} else {
@@ -207,8 +204,13 @@ module.exports = class FileEntry {
 		);
 	}
 
-	static persistMetaValue(fileId, name, value, cb) {
-		return fileDb.run(
+	static persistMetaValue(fileId, name, value, transOrDb, cb) {
+		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+			cb = transOrDb;
+			transOrDb = fileDb;
+		}
+
+		return transOrDb.run(
 			`REPLACE INTO file_meta (file_id, meta_name, meta_value)
 			VALUES (?, ?, ?);`,
 			[ fileId, name, value ],
@@ -249,15 +251,20 @@ module.exports = class FileEntry {
 		);
 	}
 
-	static persistHashTag(fileId, hashTag, cb) {
-		fileDb.serialize( () => {
+	static persistHashTag(fileId, hashTag, transOrDb, cb) {
+		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+			cb = transOrDb;
+			transOrDb = fileDb;
+		}
+
+		transOrDb.serialize( () => {
 			fileDb.run(
 				`INSERT OR IGNORE INTO hash_tag (hash_tag)
 				VALUES (?);`, 
 				[ hashTag ]
 			);
 
-			fileDb.run(
+			transOrDb.run(
 				`REPLACE INTO file_hash_tag (hash_tag_id, file_id)
 				VALUES (
 					(SELECT hash_tag_id

@@ -321,8 +321,13 @@ Message.prototype.load = function(options, cb) {
 	);
 };
 
-Message.prototype.persistMetaValue = function(category, name, value, cb) {
-	const metaStmt = msgDb.prepare(
+Message.prototype.persistMetaValue = function(category, name, value, transOrDb, cb) {
+	if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+		cb = transOrDb;
+		transOrDb = msgDb;
+	}
+
+	const metaStmt = transOrDb.prepare(
 		`INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
 		VALUES (?, ?, ?, ?);`);
 		
@@ -341,18 +346,6 @@ Message.prototype.persistMetaValue = function(category, name, value, cb) {
 	});
 };
 
-Message.startTransaction = function(cb) {
-	msgDb.run('BEGIN;', err => {
-		cb(err);
-	});
-};
-
-Message.endTransaction = function(hadError, cb) {
-	msgDb.run(hadError ? 'ROLLBACK;' : 'COMMIT;', err => {
-		cb(err);
-	});	
-};
-
 Message.prototype.persist = function(cb) {
 
 	if(!this.isValid()) {
@@ -361,14 +354,12 @@ Message.prototype.persist = function(cb) {
 
 	const self = this;
 	
-	async.series(
+	async.waterfall(
 		[
 			function beginTransaction(callback) {
-				Message.startTransaction(err => {
-					return callback(err);
-				});
+				return msgDb.beginTransaction(callback);
 			},
-			function storeMessage(callback) {
+			function storeMessage(trans, callback) {
 				//	generate a UUID for this message if required (general case)
 				const msgTimestamp = moment();
 				if(!self.uuid) {
@@ -379,7 +370,7 @@ Message.prototype.persist = function(cb) {
 						self.message);
 				}
 
-				msgDb.run(
+				trans.run(
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
 					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
@@ -388,13 +379,13 @@ Message.prototype.persist = function(cb) {
 							self.messageId = this.lastID;
 						}
 
-						return callback(err);
+						return callback(err, trans);
 					}
 				);
 			},
-			function storeMeta(callback) {
+			function storeMeta(trans, callback) {
 				if(!self.meta) {
-					return callback(null);
+					return callback(null, trans);
 				}
 				/*
 					Example of self.meta:
@@ -410,7 +401,7 @@ Message.prototype.persist = function(cb) {
 				*/
 				async.each(Object.keys(self.meta), (category, nextCat) => {
 					async.each(Object.keys(self.meta[category]), (name, nextName) => {
-						self.persistMetaValue(category, name, self.meta[category][name], err => {
+						self.persistMetaValue(category, name, self.meta[category][name], trans, err => {
 							nextName(err);
 						});
 					}, err => {
@@ -418,18 +409,22 @@ Message.prototype.persist = function(cb) {
 					});
 						
 				}, err => {
-					callback(err);
+					callback(err, trans);
 				});					
 			},
-			function storeHashTags(callback) {
+			function storeHashTags(trans, callback) {
 				//	:TODO: hash tag support
-				return callback(null);
+				return callback(null, trans);
 			}
 		],
-		err => {
-			Message.endTransaction(err, transErr => {
-				return cb(err ? err : transErr, self.messageId);
-			});
+		(err, trans) => {
+			if(trans) {
+				trans[err ? 'rollback' : 'commit'](transErr => {
+					return cb(err ? err : transErr, self.messageId);
+				});
+			} else {
+				return cb(err);
+			}
 		}
 	);
 };

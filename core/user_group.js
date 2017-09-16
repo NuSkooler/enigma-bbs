@@ -33,8 +33,13 @@ function getGroupsForUser(userId, cb) {
 	});
 }
 
-function addUserToGroup(userId, groupName, cb) {
-	userDb.run(
+function addUserToGroup(userId, groupName, transOrDb, cb) {
+	if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+		cb = transOrDb;
+		transOrDb = userDb;
+	}
+
+	transOrDb.run(
 		'REPLACE INTO user_group_member (group_name, user_id) ' +
 		'VALUES(?, ?);',
 		[ groupName, userId ],
@@ -44,10 +49,10 @@ function addUserToGroup(userId, groupName, cb) {
 	);
 }
 
-function addUserToGroups(userId, groups, cb) {
+function addUserToGroups(userId, groups, transOrDb, cb) {
 
 	async.each(groups, function item(groupName, next) {
-		addUserToGroup(userId, groupName, next);
+		addUserToGroup(userId, groupName, transOrDb, next);
 	}, function complete(err) {
 		cb(err);
 	});

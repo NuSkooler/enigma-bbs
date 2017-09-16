@@ -3,7 +3,10 @@
 
 //	ENiGMA½
 const MenuModule			= require('../core/menu_module.js').MenuModule;
-const getModDatabasePath	= require('../core/database.js').getModDatabasePath;
+const { 
+	getModDatabasePath,
+	getTransactionDatabase
+}							= require('../core/database.js').getModDatabasePath;
 const ViewController		= require('../core/view_controller.js').ViewController;
 const theme					= require('../core/theme.js');
 const ansi					= require('../core/ansi_term.js');
@@ -263,12 +266,12 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 		async.series(
 			[
 				function openDatabase(callback) {
-					self.db = new sqlite3.Database(
+					self.db = getTransactionDatabase(new sqlite3.Database(
 						getModDatabasePath(exports.moduleInfo), 
 						err => {
 							return callback(err);
 						}
-					);
+					));
 				},
 				function createTables(callback) {
 					self.db.run(
