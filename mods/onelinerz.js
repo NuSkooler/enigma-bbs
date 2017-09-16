@@ -3,10 +3,12 @@
 
 //	ENiGMA½
 const MenuModule			= require('../core/menu_module.js').MenuModule;
-const { 
+
+const {
 	getModDatabasePath,
 	getTransactionDatabase
-}							= require('../core/database.js').getModDatabasePath;
+}							= require('../core/database.js');
+
 const ViewController		= require('../core/view_controller.js').ViewController;
 const theme					= require('../core/theme.js');
 const ansi					= require('../core/ansi_term.js');
