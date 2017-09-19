@@ -6,7 +6,7 @@ const conf			= require('./config.js');
 
 //	deps
 const sqlite3		= require('sqlite3');
-const sqlite3Trans	= require('sqlite3-transactions');
+const sqlite3Trans	= require('sqlite3-trans');
 const paths			= require('path');
 const async			= require('async');
 const _				= require('lodash');
@@ -24,7 +24,7 @@ exports.initializeDatabases			= initializeDatabases;
 exports.dbs							= dbs;
 
 function getTransactionDatabase(db) {
-	return new sqlite3Trans.TransactionDatabase(db);
+	return sqlite3Trans.wrap(db);
 }
 
 function getDatabasePath(name) {
@@ -61,7 +61,7 @@ function getISOTimestampString(ts) {
 
 function initializeDatabases(cb) {
 	async.eachSeries( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
-		dbs[dbName] = new sqlite3Trans.TransactionDatabase(new sqlite3.Database(getDatabasePath(dbName), err => {
+		dbs[dbName] = sqlite3Trans.wrap(new sqlite3.Database(getDatabasePath(dbName), err => {
 			if(err) {
 				return cb(err);
 			}
