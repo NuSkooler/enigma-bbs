@@ -274,7 +274,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			} else {
 				const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
-				entryInfo.webDlLink		= serveItem.url;
+				entryInfo.webDlLink		= ansi.getVtxHyperlink(this.client, serveItem.url) + serveItem.url;
 				entryInfo.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
 			}
 
@@ -497,7 +497,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 							const webDlExpireTimeFormat = self.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
-							self.currentFileEntry.entryInfo.webDlLink 	= url;
+							self.currentFileEntry.entryInfo.webDlLink 	= ansi.getVtxHyperlink(self.client, url) + url;
 							self.currentFileEntry.entryInfo.webDlExpire	= expireTime.format(webDlExpireTimeFormat);
 
 							return callback(null);

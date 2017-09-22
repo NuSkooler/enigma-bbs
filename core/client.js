@@ -493,10 +493,15 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 };
 
 Client.prototype.terminalSupports = function(query) {
+	const termClient = this.term.termClient;
+
 	switch(query) {
 		case 'vtx_audio' :
 			//	https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
-			return this.termClient === 'vtx';
+			return 'vtx' === termClient;
+
+		case 'vtx_hyperlink' :
+			return termClient === 'vtx';
 		
 		default : 
 			return false;

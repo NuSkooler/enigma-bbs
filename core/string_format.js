@@ -271,8 +271,10 @@ const transformers = {
 	styleMixed			: (s) => stylizeString(s, 'mixed'),
 	styleL33t			: (s) => stylizeString(s, 'l33t'),
 
+	//	:TODO:
 	//	toMegs(), toKilobytes(), ... 
 	//	toList(), toCommaList(), 
+	
 	sizeWithAbbr		: (n) => formatByteSize(n, true, 2),
 	sizeWithoutAbbr		: (n) => formatByteSize(n, false, 2),
 	sizeAbbr			: (n) => formatByteSizeAbbr(n),

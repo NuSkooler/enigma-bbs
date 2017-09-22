@@ -56,7 +56,7 @@ exports.getSyncTERMFontFromAlias	= getSyncTERMFontFromAlias;
 exports.setSyncTermFontWithAlias	= setSyncTermFontWithAlias;
 exports.setCursorStyle				= setCursorStyle;
 exports.setEmulatedBaudRate			= setEmulatedBaudRate;
-
+exports.getVtxHyperlink		= getVtxHyperlink;
 
 //
 //	See also
@@ -484,4 +484,15 @@ function setEmulatedBaudRate(rate) {
 		115200		: 11,
 	}[rate] || 0;
 	return 0 === speed ? exports.emulationSpeed() : exports.emulationSpeed(1, speed);
+}
+
+function getVtxHyperlink(client, url, text) {
+	if(!client.terminalSupports('vtx_hyperlink')) {
+		return '';
+	}
+
+	text = text || url;
+
+	url = url.split('').map(c => c.charCodeAt(0)).join(';');
+	return `${ESC_CSI}1;${text.length};1;1;${url}\\`;
 }
