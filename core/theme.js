@@ -580,7 +580,11 @@ function displayThemedPrompt(name, client, options, cb) {
 					client,
 					dispOptions,
 					(err, artInfo) => {
-						return callback(err, promptConfig, artInfo);
+						if(err) {
+							return callback(err);
+						}
+
+						return callback(null, promptConfig, artInfo);
 					}
 				);
 			},
