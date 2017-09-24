@@ -653,8 +653,9 @@ function getDefaultConfig() {
 			fileNamePatterns: {
 				//	These are NOT case sensitive
 				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
+				//	Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
 				desc		: [ 
-					'^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
+					'^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
 				],
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
