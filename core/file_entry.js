@@ -11,6 +11,7 @@ const async					= require('async');
 const _						= require('lodash');
 const paths					= require('path');
 const fse					= require('fs-extra');
+const { unlink }			= require('graceful-fs');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
@@ -541,6 +542,40 @@ module.exports = class FileEntry {
 		});
 	}
 
+	static removeEntry(srcFileEntry, options, cb) {
+		if(!_.isFunction(cb) && _.isFunction(options)) {
+			cb = options;
+			options = {};
+		}
+
+		async.series(
+			[
+				function removeFromDatabase(callback) {
+					fileDb.run(
+						`DELETE FROM file
+						WHERE file_id = ?;`,
+						[ srcFileEntry.fileId ],
+						err => {
+							return callback(err);
+						}
+					);
+				},
+				function optionallyRemovePhysicalFile(callback) {
+					if(true !== options.removePhysFile) {
+						return callback(null);
+					}
+
+					unlink(srcFileEntry.filePath, err => {
+						return callback(err);
+					});
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
+	}
+
 	static moveEntry(srcFileEntry, destAreaTag, destStorageTag, destFileName, cb) {
 		if(!cb && _.isFunction(destFileName)) {
 			cb = destFileName;
@@ -549,7 +584,6 @@ module.exports = class FileEntry {
 
 		const srcPath	= srcFileEntry.filePath;
 		const dstDir	= FileEntry.getAreaStorageDirectoryByTag(destStorageTag);
-		
 		
 		if(!dstDir) {
 			return cb(Errors.Invalid('Invalid storage tag'));

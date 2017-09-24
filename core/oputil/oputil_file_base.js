@@ -438,6 +438,62 @@ function scanFileAreas() {
 	);
 }
 
+function expandFileTargets(targets, cb) {
+	let entries = [];
+
+	//	Each entry may be PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
+	const FileEntry = require('../../core/file_entry.js');
+
+	async.eachSeries(targets, (areaAndStorage, next) => {
+		const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
+
+		if(areaInfo) {
+			//	AREA_TAG[@STORAGE_TAG] - all files in area@tag
+			const findFilter = {
+				areaTag : areaAndStorage.areaTag,
+			};
+
+			if(areaAndStorage.storageTag) {
+				findFilter.storageTag = areaAndStorage.storageTag;
+			}
+
+			FileEntry.findFiles(findFilter, (err, fileIds) => {
+				if(err) {
+					return next(err);
+				}
+
+				async.each(fileIds, (fileId, nextFileId) => {
+					const fileEntry = new FileEntry();
+					fileEntry.load(fileId, err => {
+						if(!err) {
+							entries.push(fileEntry);
+						}
+						return nextFileId(err);
+					});
+				},
+				err => {
+					return next(err);
+				});
+			});
+
+		} else {
+			//	FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
+			//	:TODO: FULL_PATH -> entries
+			getFileEntries(areaAndStorage.pattern, (err, fileEntries) => {
+				if(err) {
+					return next(err);
+				}
+
+				entries = entries.concat(fileEntries);
+				return next(null);
+			});
+		}
+	},
+	err => {
+		return cb(err, entries);
+	});
+}
+
 function moveFiles() {
 	//
 	//	oputil fb move SRC [SRC2 ...] DST
@@ -450,8 +506,9 @@ function moveFiles() {
 	}
 
 	const moveArgs = argv._.slice(2);
-	let src = getAreaAndStorage(moveArgs.slice(0, -1));
-	let dst = getAreaAndStorage(moveArgs.slice(-1))[0];
+	const src = getAreaAndStorage(moveArgs.slice(0, -1));
+	const dst = getAreaAndStorage(moveArgs.slice(-1))[0];
+
 	let FileEntry;
 
 	async.waterfall(
@@ -465,8 +522,6 @@ function moveFiles() {
 				});
 			},
 			function validateAndExpandSourceAndDest(callback) {
-				let srcEntries = [];
-
 				const areaInfo = fileArea.getFileAreaByTag(dst.areaTag);
 				if(areaInfo) {
 					dst.areaInfo = areaInfo;
@@ -474,57 +529,9 @@ function moveFiles() {
 					return callback(Errors.DoesNotExist('Invalid or unknown destination area'));
 				}
 
-				//	Each SRC may be PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
 				FileEntry = require('../../core/file_entry.js');
 
-				async.eachSeries(src, (areaAndStorage, next) => {					
-					const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
-
-					if(areaInfo) {
-						//	AREA_TAG[@STORAGE_TAG] - all files in area@tag
-						src.areaInfo = areaInfo;
-
-						const findFilter = {
-							areaTag : areaAndStorage.areaTag,
-						};
-
-						if(areaAndStorage.storageTag) {
-							findFilter.storageTag = areaAndStorage.storageTag;
-						}
-
-						FileEntry.findFiles(findFilter, (err, fileIds) => {
-							if(err) {
-								return next(err);
-							}
-
-							async.each(fileIds, (fileId, nextFileId) => {
-								const fileEntry = new FileEntry();
-								fileEntry.load(fileId, err => {
-									if(!err) {
-										srcEntries.push(fileEntry);
-									}
-									return nextFileId(err);
-								});
-							}, 
-							err => {
-								return next(err);
-							});
-						});
-
-					} else {
-						//	FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
-						//	:TODO: FULL_PATH -> entries
-						getFileEntries(areaAndStorage.pattern, (err, entries) => {
-							if(err) {
-								return next(err);
-							}
-
-							srcEntries = srcEntries.concat(entries);
-							return next(null);
-						});
-					}
-				},
-				err => {
+				expandFileTargets(src, (err, srcEntries) => {
 					return callback(err, srcEntries);
 				});
 			},
@@ -555,13 +562,80 @@ function moveFiles() {
 					return callback(err);
 				});
 			}
-		]
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
 	);
 }
 
 function removeFiles() {
 	//
-	//	REMOVE FILENAME_WC|SHA|FILE_ID [SHA|FILE_ID ...]
+	//	oputil fb rm|remove|del|delete SRC [SRC2 ...]
+	//
+	//	SRC: FILENAME_WC|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
+	//
+	//	AREA_TAG[@STORAGE_TAG] remove all entries matching
+	//	supplied area/storage tags
+	//
+	//	--phys-file removes backing physical file(s)
+	//
+	if(argv._.length < 3) {
+		return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
+	}
+
+	const removePhysFile = argv['phys-file'];
+
+	const src =  getAreaAndStorage(argv._.slice(2));
+
+	async.waterfall(
+		[
+			function init(callback) {
+				return initConfigAndDatabases( err => {
+					if(!err) {
+						fileArea = require('../../core/file_base_area.js');
+					}
+					return callback(err);
+				});
+			},
+			function expandSources(callback) {
+				expandFileTargets(src, (err, srcEntries) => {
+					return callback(err, srcEntries);
+				});
+			},
+			function removeEntries(srcEntries, callback) {
+				const FileEntry = require('../../core/file_entry.js');
+
+				const extraOutput = removePhysFile ? ' (including physical file)' : '';
+
+				async.eachSeries(srcEntries, (entry, nextEntry) => {
+
+					process.stdout.write(`Removing ${entry.filePath}${extraOutput}... `);
+
+					FileEntry.removeEntry(entry, { removePhysFile }, err => {
+						if(err) {
+							console.info(`Failed: ${err.message}`);
+						} else {
+							console.info('Done');
+						}
+
+						return nextEntry(err);
+					});
+				}, err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
+	);
 }
 
 function handleFileBaseCommand() {
@@ -582,7 +656,13 @@ function handleFileBaseCommand() {
 	return ({
 		info	: displayFileAreaInfo,
 		scan	: scanFileAreas,
+
+		mv		: moveFiles,
 		move	: moveFiles,
+
+		rm		: removeFiles,
 		remove	: removeFiles,
+		del		: removeFiles,
+		delete	: removeFiles,
 	}[action] || errUsage)();
 }

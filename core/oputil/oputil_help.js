@@ -45,7 +45,7 @@ import-areas args:
   --type TYPE              specifies area import type. valid options are "bbs" and "na"
 `,
 	FileBase :
-`usage: oputil.js fb <action> [<args>] <AREA_TAG|SHA|FILE_ID[@STORAGE_TAG] ...> [<args>]
+`usage: oputil.js fb <action> [<args>]
 
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
@@ -53,14 +53,16 @@ actions:
   info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
                                SHA may be a full or partial SHA-256
 
-  move SRC [SRC...]] DST       move entry(s) from SRC to DST
-                               * SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
-                               * DST: AREA_TAG[@STORAGE_TAG]
+  mv SRC [SRC...] DST          move entry(s) from SRC to DST
+                               SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+                               DST: AREA_TAG[@STORAGE_TAG]
 
-  remove SHA|FILE_ID           removes a entry from the system
+  rm SRC [SRC...]              remove entry(s) from the system matching SRC
+                               SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
 
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
+
   --desc-file [PATH]           prefer file descriptions from DESCRIPT.ION file over
                                other sources such as FILE_ID.DIZ.
                                if PATH is specified, use DESCRIPT.ION at PATH instead
@@ -71,7 +73,7 @@ info args:
   --show-desc                  display short description, if any
 
 remove args:
-  --delete                     also remove underlying physical file
+  --phys-file                  also remove underlying physical file
 `,
   FileOpsInfo :
 `
