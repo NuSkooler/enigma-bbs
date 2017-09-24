@@ -501,7 +501,7 @@ Client.prototype.terminalSupports = function(query) {
 			return 'vtx' === termClient;
 
 		case 'vtx_hyperlink' :
-			return termClient === 'vtx';
+			return 'vtx' === termClient;
 		
 		default : 
 			return false;
