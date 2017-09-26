@@ -374,6 +374,15 @@ const DB_INIT_TABLE = {
 			);`
 		);
 
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_web_serve_batch (
+				hash_id		VARCHAR NOT NULL,
+				file_id		INTEGER NOT NULL,
+
+				UNIQUE(hash_id, file_id)
+			);`
+		);
+
 		return cb(null);
 	}
 };
