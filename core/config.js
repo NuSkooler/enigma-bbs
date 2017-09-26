@@ -689,14 +689,21 @@ function getDefaultConfig() {
 			//	Non-absolute paths are relative to |areaStoragePrefix|.
 			// 
 			storageTags : {
-				sys_msg_attach	: 'msg_attach',
+				sys_msg_attach		: 'sys_msg_attach',
+				sys_temp_download	: 'sys_temp_download',
 			},
 
 			areas: {
 				system_message_attachment : {
-					name		: 'Message attachments',
+					name		: 'System Message Attachments',
 					desc		: 'File attachments to messages',
-					storageTags	: 'sys_msg_attach',	//	may be string or array of strings
+					storageTags	: [ 'sys_msg_attach' ],
+				},
+
+				system_temporary_download : {
+					name		: 'System Temporary Downloads',
+					desc		: 'Temporary downloadables',
+					storageTags	: [ 'sys_temp_download' ],
 				}
 			}
 		},
