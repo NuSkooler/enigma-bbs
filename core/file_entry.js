@@ -11,7 +11,8 @@ const async					= require('async');
 const _						= require('lodash');
 const paths					= require('path');
 const fse					= require('fs-extra');
-const { unlink }			= require('graceful-fs');
+const { unlink, readFile }	= require('graceful-fs');
+const crypto				= require('crypto');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
@@ -120,6 +121,26 @@ module.exports = class FileEntry {
 					}
 					return callback(null);
 				},
+				function calcSha256IfNeeded(callback) {
+					if(self.fileSha256) {
+						return callback(null);
+					}
+
+					if(isUpdate) {
+						return callback(Errors.MissingParam('fileSha256 property must be set for updates!'));
+					}
+
+					readFile(self.filePath, (err, data) => {
+						if(err) {
+							return callback(err);
+						}
+
+						const sha256 = crypto.createHash('sha256');
+						sha256.update(data);
+						self.fileSha256 = sha256.digest('hex');
+						return callback(null);
+					});
+				},
 				function startTrans(callback) {
 					return fileDb.beginTransaction(callback);
 				},
@@ -169,8 +190,8 @@ module.exports = class FileEntry {
 			(err, trans) => {
 				//	:TODO: Log orig err
 				if(trans) {
-					trans[err ? 'rollback' : 'commit'](err => {
-						return cb(err);
+					trans[err ? 'rollback' : 'commit'](transErr => {
+						return cb(transErr ? transErr : err);
 					});
 				} else {
 					return cb(err);
@@ -459,7 +480,12 @@ module.exports = class FileEntry {
 		}
 
 		if(filter.areaTag && filter.areaTag.length > 0) {
-			appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+			if(Array.isArray(filter.areaTag)) {
+				const areaList = filter.areaTag.map(t => `"${t}"`).join(', ');
+				appendWhereClause(`f.area_tag IN(${areaList})`);
+			} else {
+				appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+			}
 		}
 
 		if(filter.metaPairs && filter.metaPairs.length > 0) {
