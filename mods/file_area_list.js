@@ -675,7 +675,13 @@ exports.getModule = class FileAreaList extends MenuModule {
 	loadFileIds(force, cb) {
 		if(force || (_.isUndefined(this.fileList) || _.isUndefined(this.fileListPosition))) {
 			this.fileListPosition	= 0;
-			FileEntry.findFiles(this.filterCriteria, (err, fileIds) => {
+
+			const filterCriteria = Object.assign({}, this.filterCriteria);
+			if(!filterCriteria.areaTag) {
+				filterCriteria.areaTag = FileArea.getAvailableFileAreaTags(this.client);
+			}
+
+			FileEntry.findFiles(filterCriteria, (err, fileIds) => {
 				this.fileList = fileIds;
 				return cb(err);
 			});
