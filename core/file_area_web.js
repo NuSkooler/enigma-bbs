@@ -22,14 +22,7 @@ const paths			= require('path');
 const async			= require('async');
 const fs			= require('graceful-fs');
 const mimeTypes		= require('mime-types');
-const _				= require('lodash');
-
-	/*
-		:TODO:
-		* Load temp download URLs @ startup & set expire timers via scheduler.
-		* At creation, set expire timer via scheduler
-		* 
-	*/
+const yazl			= require('yazl');
 
 function notEnabledError() {
 	return Errors.General('Web server is not enabled', ErrNotEnabled);
@@ -59,7 +52,7 @@ class FileAreaWebAccess {
 						const routeAdded = self.webServer.instance.addRoute({
 							method	: 'GET',
 							path	: Config.fileBase.web.routePath,
-							handler	: self.routeWebRequestForFile.bind(self),
+							handler	: self.routeWebRequest.bind(self),
 						});
 						return callback(routeAdded ? null : Errors.General('Failed adding route'));
 					} else {
@@ -79,6 +72,13 @@ class FileAreaWebAccess {
 
 	isEnabled() {
 		return this.webServer.instance.isEnabled();
+	}
+
+	static getHashIdTypes() {
+		return {
+			SingleFile		: 0,
+			BatchArchive	: 1,
+		};
 	}
 
 	load(cb) {
@@ -141,12 +141,14 @@ class FileAreaWebAccess {
 			WHERE hash_id = ?`,
 			[ hashId ],
 			(err, result) => {
-				if(err) {
-					return cb(err);
+				if(err || !result) {
+					return cb(err ? err : Errors.DoesNotExist('Invalid or missing hash ID'));
 				}
 
 				const decoded = this.hashids.decode(hashId);
-				if(!result || 2 !== decoded.length) {
+
+				//	decode() should provide an array of [ userId, hashIdType, id, ... ]
+				if(!Array.isArray(decoded) || decoded.length < 3) {
 					return cb(Errors.Invalid('Invalid or unknown hash ID'));
 				}
 
@@ -155,7 +157,8 @@ class FileAreaWebAccess {
 					{
 						hashId			: hashId,
 						userId			: decoded[0],
-						fileId			: decoded[1],
+						hashIdType		: decoded[1],
+						fileIds			: decoded.slice(2),
 						expireTimestamp	: moment(result.expire_timestamp),
 					}
 				);
@@ -163,46 +166,26 @@ class FileAreaWebAccess {
 		);
 	}
 
-	getHashId(client, fileEntry) {
-		//
-		//	Hashid is a unique combination of userId & fileId
-		//
-		return this.hashids.encode(client.user.userId, fileEntry.fileId);
+	getSingleFileHashId(client, fileEntry) {
+		return this.getHashId(client, FileAreaWebAccess.getHashIdTypes().SingleFile, [ fileEntry.fileId ] );
 	}
 
-	buildTempDownloadLink(client, fileEntry, hashId) {		
-		hashId = hashId || this.getHashId(client, fileEntry);
+	getBatchArchiveHashId(client, batchId) {
+		return this.getHashId(client, FileAreaWebAccess.getHashIdTypes().BatchArchive, batchId);
+	}
+
+	getHashId(client, hashIdType, identifier) {
+		return this.hashids.encode(client.user.userId, hashIdType, identifier);
+	}
+
+	buildSingleFileTempDownloadLink(client, fileEntry, hashId) {
+		hashId = hashId || this.getSingleFileHashId(client, fileEntry);
 
 		return this.webServer.instance.buildUrl(`${Config.fileBase.web.path}${hashId}`);
-		/*
-			
-		//
-		//	Create a URL such as
-		//	https://l33t.codes:44512/f/qFdxyZr
-		//
-		//	Prefer HTTPS over HTTP. Be explicit about the port
-		//	only if non-standard.
-		//		
-		let schema;
-		let port;
-		if(_.isString(Config.contentServers.web.overrideUrlPrefix)) {
-			return `${Config.contentServers.web.overrideUrlPrefix}${Config.fileBase.web.path}${hashId}`;
-		} else {
-			if(Config.contentServers.web.https.enabled) {
-				schema	= 'https://';
-				port	=  (443 === Config.contentServers.web.https.port) ?
-					'' :
-					`:${Config.contentServers.web.https.port}`;
-			} else {
-				schema	= 'http://';
-				port	= (80 === Config.contentServers.web.http.port) ?
-					'' :
-					`:${Config.contentServers.web.http.port}`;
-			}
-			
-			return `${schema}${Config.contentServers.web.domain}${port}${Config.fileBase.web.path}${hashId}`;
-		}
-		*/
+	}
+
+	buildBatchArchiveTempDownloadLink(client, hashId) {
+		return this.webServer.instance.buildUrl(`${Config.fileBase.web.path}${hashId}`);
 	}
 
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {
@@ -210,16 +193,34 @@ class FileAreaWebAccess {
 			return cb(notEnabledError());
 		}	
 
-		const hashId = this.getHashId(client, fileEntry);
+		const hashId = this.getSingleFileHashId(client, fileEntry);
 		this.loadServedHashId(hashId, (err, servedItem) => {
 			if(err) {
 				return cb(err);
 			}
 
-			servedItem.url = this.buildTempDownloadLink(client, fileEntry); 
+			servedItem.url = this.buildSingleFileTempDownloadLink(client, fileEntry); 
 
 			return cb(null, servedItem);
 		});		
+	}
+
+	_addOrUpdateHashIdRecord(dbOrTrans, hashId, expireTime, cb) {
+		//	add/update rec with hash id and (latest) timestamp
+		dbOrTrans.run(
+			`REPLACE INTO file_web_serve (hash_id, expire_timestamp)
+			VALUES (?, ?);`,
+			[ hashId, getISOTimestampString(expireTime) ],
+			err => {
+				if(err) {
+					return cb(err);
+				}
+
+				this.scheduleExpire(hashId, expireTime);
+				
+				return cb(null);
+			}
+		);
 	}
 
 	createAndServeTempDownload(client, fileEntry, options, cb) {
@@ -227,32 +228,60 @@ class FileAreaWebAccess {
 			return cb(notEnabledError());
 		}
 
-		const hashId		= this.getHashId(client, fileEntry);
-		const url			= this.buildTempDownloadLink(client, fileEntry, hashId);		
+		const hashId		= this.getSingleFileHashId(client, fileEntry);
+		const url			= this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
 		options.expireTime	= options.expireTime || moment().add(2, 'days');
 
-		//	add/update rec with hash id and (latest) timestamp
-		FileDb.run(
-			`REPLACE INTO file_web_serve (hash_id, expire_timestamp)
-			VALUES (?, ?);`,
-			[ hashId, getISOTimestampString(options.expireTime) ],
-			err => {
+		this._addOrUpdateHashIdRecord(FileDb, hashId, options.expireTime, err => {
+			return cb(err, url);
+		});
+	}
+
+	createAndServeTempBatchDownload(client, fileEntries, options, cb) {
+		if(!this.isEnabled()) {
+			return cb(notEnabledError());
+		}
+
+		const batchId		= moment().utc().unix();
+		const hashId		= this.getBatchArchiveHashId(client, batchId);
+		const url			= this.buildBatchArchiveTempDownloadLink(client, hashId);
+		options.expireTime	= options.expireTime || moment().add(2, 'days');
+
+		FileDb.beginTransaction( (err, trans) => {
+			if(err) {
+				return cb(err);
+			}
+
+			this._addOrUpdateHashIdRecord(trans, hashId, options.expireTime, err => {
 				if(err) {
-					return cb(err);
+					return trans.rollback( () => {
+						return cb(err);
+					});
 				}
 
-				this.scheduleExpire(hashId, options.expireTime);
-				
-				return cb(null, url);
-			}
-		);
+				async.eachSeries(fileEntries, (entry, nextEntry) => {
+					trans.run(
+						`INSERT INTO file_web_serve_batch (hash_id, file_id)
+						VALUES (?, ?);`,
+						[ hashId, entry.fileId ],
+						err => {
+							return nextEntry(err);
+						}
+					);
+				}, err => {
+					trans[err ? 'rollback' : 'commit']( () => {
+						return cb(err, url);
+					});
+				});
+			});
+		});
 	}
 
 	fileNotFound(resp) {
 		return this.webServer.instance.fileNotFound(resp);
 	}
 
-	routeWebRequestForFile(req, resp) {
+	routeWebRequest(req, resp) {
 		const hashId = paths.basename(req.url);
 
 		this.loadServedHashId(hashId, (err, servedItem) => {
@@ -261,44 +290,157 @@ class FileAreaWebAccess {
 				return this.fileNotFound(resp);
 			}
 
-			const fileEntry = new FileEntry();
-			fileEntry.load(servedItem.fileId, err => {
+			const hashIdTypes = FileAreaWebAccess.getHashIdTypes();
+			switch(servedItem.hashIdType) {
+				case hashIdTypes.SingleFile :
+					return this.routeWebRequestForSingleFile(servedItem, req, resp);
+
+				case hashIdTypes.BatchArchive :
+					return this.routeWebRequestForBatchArchive(servedItem, req, resp);
+
+				default :
+					return this.fileNotFound(resp);
+			}
+		});
+	}
+
+	routeWebRequestForSingleFile(servedItem, req, resp) {
+		const fileEntry = new FileEntry();
+
+		servedItem.fileId = servedItem.fileIds[0];
+
+		fileEntry.load(servedItem.fileId, err => {
+			if(err) {
+				return this.fileNotFound(resp);
+			}
+
+			const filePath = fileEntry.filePath;
+			if(!filePath) {
+				return this.fileNotFound(resp);
+			}
+
+			fs.stat(filePath, (err, stats) => {
 				if(err) {
 					return this.fileNotFound(resp);
 				}
 
-				const filePath = fileEntry.filePath;
-				if(!filePath) {
+				resp.on('close', () => {
+					//	connection closed *before* the response was fully sent
+					//	:TODO: Log and such
+				});
+
+				resp.on('finish', () => {
+					//	transfer completed fully
+					this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size);
+				});
+
+				const headers = {
+					'Content-Type'			: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
+					'Content-Length'		: stats.size,
+					'Content-Disposition'	: `attachment; filename="${fileEntry.fileName}"`,
+				};
+
+				const readStream = fs.createReadStream(filePath);
+				resp.writeHead(200, headers);
+				return readStream.pipe(resp);
+			});
+		});
+	}
+
+	routeWebRequestForBatchArchive(servedItem, req, resp) {
+		//
+		//	We are going to build an on-the-fly zip file stream of 1:n
+		//	files in the batch.
+		//
+		//	First, collect all file IDs
+		//
+		const self = this;
+
+		async.waterfall(
+			[
+				function fetchFileIds(callback) {
+					FileDb.all(
+						`SELECT file_id
+						FROM file_web_serve_batch
+						WHERE hash_id = ?;`,
+						[ servedItem.hashId ],
+						(err, fileIdRows) => {
+							if(err || !Array.isArray(fileIdRows) || 0 === fileIdRows.length) {
+								return callback(Errors.DoesNotExist('Could not get file IDs for batch'));
+							}
+
+							return callback(null, fileIdRows.map(r => r.file_id));
+						}
+					);
+				},
+				function loadFileEntries(fileIds, callback) {
+					const filePaths = [];
+					async.eachSeries(fileIds, (fileId, nextFileId) => {
+						const fileEntry = new FileEntry();
+						fileEntry.load(fileId, err => {
+							if(!err) {
+								filePaths.push(fileEntry.filePath);
+							}
+							return nextFileId(err);
+						});
+					}, err => {
+						if(err) {
+							return callback(Errors.DoesNotExist('Coudl not load file IDs for batch'));
+						}
+
+						return callback(null, filePaths);
+					});
+				},
+				function createAndServeStream(filePaths, callback) {
+					const zipFile = new yazl.ZipFile();
+
+					filePaths.forEach(fp => {
+						zipFile.addFile(
+							fp,					//	path to physical file
+							paths.basename(fp),	//	filename/path *stored in archive*
+							{
+								compress : false,	//	:TODO: do this smartly - if ext is in set = false, else true via isArchive() or such... mimeDB has this for us.
+							}
+						);
+					});
+
+					zipFile.end( finalZipSize => {
+						if(-1 === finalZipSize) {
+							return callback(Errors.UnexpectedState('Unable to acquire final zip size'));
+						}
+
+						resp.on('close', () => {
+							//	connection closed *before* the response was fully sent
+							//	:TODO: Log and such
+						});
+
+						resp.on('finish', () => {
+							//	transfer completed fully
+							self.updateDownloadStatsForUserIdAndSystem(servedItem.userId, finalZipSize);
+						});
+
+						const batchFileName = `batch_${servedItem.hashId}.zip`;
+
+						const headers = {
+							'Content-Type'			: mimeTypes.contentType(batchFileName) || mimeTypes.contentType('.bin'),
+							'Content-Length'		: finalZipSize,
+							'Content-Disposition'	: `attachment; filename="${batchFileName}"`,
+						};
+
+						resp.writeHead(200, headers);
+						return zipFile.outputStream.pipe(resp);
+					});
+				}
+			],
+			err => {
+				if(err) {
+					//	:TODO: Log me!
 					return this.fileNotFound(resp);
 				}
 
-				fs.stat(filePath, (err, stats) => {
-					if(err) {
-						return this.fileNotFound(resp);
-					}
-
-					resp.on('close', () => {
-						//	connection closed *before* the response was fully sent
-						//	:TODO: Log and such
-					});
-
-					resp.on('finish', () => {
-						//	transfer completed fully
-						this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size);
-					});
-
-					const headers = {
-						'Content-Type'			: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
-						'Content-Length'		: stats.size,
-						'Content-Disposition'	: `attachment; filename="${fileEntry.fileName}"`, 
-					};
-
-					const readStream = fs.createReadStream(filePath);
-					resp.writeHead(200, headers);
-					return readStream.pipe(resp);
-				});
-			});									
-		});
+				//	...otherwise, we would have called resp() already.
+			}
+		);
 	}
 
 	updateDownloadStatsForUserIdAndSystem(userId, dlBytes, cb) {

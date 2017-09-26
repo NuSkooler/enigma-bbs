@@ -47,7 +47,8 @@
     "temptmp": "^1.0.0",
     "uuid": "^3.1.0",
     "uuid-parse": "^1.0.0",
-    "ws": "^3.1.0"
+    "ws": "^3.1.0",
+    "yazl" : "^2.4.2"
   },
   "devDependencies": {},
   "engines": {
