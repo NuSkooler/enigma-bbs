@@ -2,13 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-const msgArea			= require('./message_area.js');
-const MenuModule		= require('./menu_module.js').MenuModule;
-const ViewController	= require('./view_controller.js').ViewController;
-const stringFormat		= require('./string_format.js');
-const FileEntry			= require('./file_entry.js');
-const FileBaseFilters	= require('./file_base_filter.js');
-const Errors			= require('./enig_error.js').Errors;
+const msgArea						= require('./message_area.js');
+const MenuModule					= require('./menu_module.js').MenuModule;
+const ViewController				= require('./view_controller.js').ViewController;
+const stringFormat					= require('./string_format.js');
+const FileEntry						= require('./file_entry.js');
+const FileBaseFilters				= require('./file_base_filter.js');
+const Errors						= require('./enig_error.js').Errors;
+const { getAvailableFileAreaTags }	= require('./file_base_area.js');
 
 //	deps
 const _					= require('lodash');
@@ -166,8 +167,13 @@ exports.getModule = class NewScanModule extends MenuModule {
 
 	newScanFileBase(cb) {
 		//	:TODO: add in steps
+		const filterCriteria = {
+			newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user),
+			areaTag			: getAvailableFileAreaTags(this.client),
+		};
+
 		FileEntry.findFiles(
-			{ newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user) },
+			filterCriteria,
 			(err, fileIds) => {
 				if(err || 0 === fileIds.length) {
 					return cb(err ? err : Errors.DoesNotExist('No more new files'));
