@@ -28,6 +28,7 @@ const moment		= require('moment');
 
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
+exports.getAvailableFileAreaTags		= getAvailableFileAreaTags;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
 exports.isValidStorageTag				= isValidStorageTag;
 exports.getAreaStorageDirectoryByTag	= getAreaStorageDirectoryByTag;
@@ -48,10 +49,11 @@ exports.updateAreaStatsScheduledEvent	= updateAreaStatsScheduledEvent;
 const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	Invalid				: '',
 	MessageAreaAttach	: 'system_message_attachment',
+	TempDownloads		: 'system_temporary_download',
 };
 
 function isInternalArea(areaTag) {
-	return areaTag === WellKnownAreaTags.MessageAreaAttach;
+	return [ WellKnownAreaTags.MessageAreaAttach, WellKnownAreaTags.TempDownloads ].includes(areaTag);
 }
 
 function getAvailableFileAreas(client, options) {
@@ -75,6 +77,10 @@ function getAvailableFileAreas(client, options) {
 
 		return !client.acs.hasFileAreaRead(areaInfo);
 	});
+}
+
+function getAvailableFileAreaTags(client, options) {
+	return _.map(getAvailableFileAreas(client, options), area => area.areaTag);
 }
 
 function getSortedAvailableFileAreas(client, options) {
