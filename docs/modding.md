@@ -10,3 +10,6 @@ See [Menu System](menu_system.md)
 Take a look at how the default `luciano_blocktronics` theme found under `mods/themes` works!
 
 TODO document me!
+
+## Add-On Modules
+See [Mods](mods.md)
