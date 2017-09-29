@@ -280,7 +280,7 @@ module.exports = class FileEntry {
 		}
 
 		transOrDb.serialize( () => {
-			fileDb.run(
+			transOrDb.run(
 				`INSERT OR IGNORE INTO hash_tag (hash_tag)
 				VALUES (?);`, 
 				[ hashTag ]
