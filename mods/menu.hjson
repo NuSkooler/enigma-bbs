@@ -2934,6 +2934,64 @@
 			}
 		}
 
+		fileBaseWebDownloadManager: {
+			desc: Web D/L Manager
+			module: file_base_web_download_manager
+			config: {
+				art: {
+					queueManager: FWDLMGR
+					batchList: BATDLINF
+				}
+				emptyQueueMenu: fileBaseDownloadManagerEmptyQueue
+			}
+			form: {
+				0: {
+					mci: {
+						VM1: {
+							argName: queueItem
+						}
+						HM2: {
+							focus: true
+							items: [ "get batch link", "quit", "help" ]
+							argName: navSelect
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { navSelect: 0 }
+								action: @method:getBatchLink
+							}
+							{
+								value: { navSelect: 1 }
+								action: @systemMethod:prevMenu
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "b", "shift + b" ]
+							action: @method:getBatchLink
+						}
+						{
+							keys: [ "delete", "r", "shift + r" ]
+							action: @method:removeItem
+						}
+						{
+							keys: [ "c", "shift + c" ]
+							action: @method:clearQueue
+						}
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
 		fileBaseDownloadManagerEmptyQueue: {
 			desc: Empty Download Queue
 			art: FEMPTYQ
