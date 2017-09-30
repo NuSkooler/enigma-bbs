@@ -172,10 +172,10 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 										//
 										//	We'll update the entry if the following conditions are met:
 										//	* We have a single duplicate, and:
-										//	* --update-desc was passed or the existing entry's desc or
+										//	* --update was passed or the existing entry's desc or
 										//	  longDesc are blank/empty
 										//
-										if(argv['update'] && 1 === dupeEntries.length) {
+										if(argv.update && 1 === dupeEntries.length) {
 											const FileEntry		= require('../../core/file_entry.js');
 											const existingEntry	= new FileEntry();
 
@@ -200,6 +200,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 												}
 
 												console.info('Dupe (updating)');
+												existingEntry.desc 		= fileEntry.desc;
+												existingEntry.descLong	= fileEntry.descLong;
 												updateTags(existingEntry);
 
 												finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
