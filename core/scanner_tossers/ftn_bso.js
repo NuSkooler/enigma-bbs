@@ -1289,6 +1289,7 @@ function FTNMessageScanTossModule() {
 
 					return ticFileInfo.validate(config, (err, localInfo) => {
 						if(err) {
+							Log.trace( { reason : err.message }, 'Validation failure');
 							return callback(err);
 						}
 
@@ -1349,10 +1350,17 @@ function FTNMessageScanTossModule() {
 							localInfo.existingFileId = fileIds[0];
 
 							//	fetch old filename - we may need to remove it if replacing with a new name
-							FileEntry.loadBasicEntry(localInfo.existingFileId, {}, (cb, info) => {
-								localInfo.oldFileName 	= info.fileName;
-								localInfo.oldStorageTag	= info.storageTag;
-								return callback(null, localInfo);
+							FileEntry.loadBasicEntry(localInfo.existingFileId, {}, (err, info) => {
+								if(info) {
+									Log.trace(
+										{ fileId : localInfo.existingFileId, oldFileName : info.fileName, oldStorageTag : info.storageTag },
+										'Existing TIC file target to be replaced'
+									);
+
+									localInfo.oldFileName 	= info.fileName;
+									localInfo.oldStorageTag	= info.storageTag;
+								}
+								return callback(null, localInfo);	//	continue even if we couldn't find an old match
 							});
 						} else if(fileIds.legnth > 1) {
 							return callback(Errors.General(`More than one existing entry for TIC in ${localInfo.areaTag} ([${fileIds.join(', ')}])`));
@@ -1397,6 +1405,10 @@ function FTNMessageScanTossModule() {
 						ticFileInfo.filePath,
 						scanOpts,
 						(err, fileEntry) => {
+							if(err) {
+								Log.trace( { reason : err.message }, 'Scanning failed');
+							}
+
 							localInfo.fileEntry = fileEntry;
 							return callback(err, localInfo);
 						}
@@ -1441,6 +1453,7 @@ function FTNMessageScanTossModule() {
 
 					self.copyTicAttachment(ticFileInfo.filePath, dst, isUpdate, (err, finalPath) => {
 						if(err) {
+							Log.info( { reason : err.message }, 'Failed to copy TIC attachment');
 							return callback(err);
 						}
 
@@ -1474,7 +1487,7 @@ function FTNMessageScanTossModule() {
 			],
 			(err, localInfo) => {
 				if(err) {
-					Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.path }, 'Failed import/update TIC record' );
+					Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.filePath }, 'Failed import/update TIC record' );
 				} else {
 					Log.debug(
 						{ tic : ticFileInfo.path, file : ticFileInfo.filePath, area : localInfo.areaTag },
