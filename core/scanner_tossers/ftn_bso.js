@@ -1321,7 +1321,7 @@ function FTNMessageScanTossModule() {
 					//	Lastly, we will only replace if the item is in the same/specified area
 					//	and that come from the same origin as a previous entry.
 					//
-					const allowReplace	= _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'allowReplace' ] ) || Config.scannerTossers.ftn_bso.tic.allowReplace;
+					const allowReplace	= _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'allowReplace' ], Config.scannerTossers.ftn_bso.tic.allowReplace);
 					const replaces		= ticFileInfo.getAsString('Replaces');
 
 					if(!allowReplace || !replaces) {
@@ -1377,7 +1377,7 @@ function FTNMessageScanTossModule() {
 							short_file_name		: ticFileInfo.getAsString('File').toUpperCase(),	//	upper to ensure no case issues later; this should be a DOS 8.3 name
 							tic_origin			: ticFileInfo.getAsString('Origin'),
 							tic_desc			: ticFileInfo.getAsString('Desc'),
-							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ]) || Config.scannerTossers.ftn_bso.tic.uploadBy,
+							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ], Config.scannerTossers.ftn_bso.tic.uploadBy),
 						}
 					};
 
@@ -1432,9 +1432,25 @@ function FTNMessageScanTossModule() {
 					localInfo.fileEntry.areaTag		= localInfo.areaTag;
 					localInfo.fileEntry.fileName	= ticFileInfo.longFileName;
 
-					//	we default to .DIZ/etc. desc, but use from TIC if needed
-					if(!localInfo.fileEntry.desc || 0 === localInfo.fileEntry.desc.length) {
-						localInfo.fileEntry.desc = ticFileInfo.getAsString('Ldesc') || ticFileInfo.getAsString('Desc') || getDescFromFileName(ticFileInfo.filePath);
+					//
+					//	We may now have two descriptions: from .DIZ/etc. or the TIC itself.
+					//	Determine which one to use using |descPriority| and availability.
+					//
+					//	We will still fallback as needed from <priority1> -> <priority2> -> <fromFileName>
+					//
+					const descPriority = _.get(
+						Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'descPriority' ],
+						Config.scannerTossers.ftn_bso.tic.descPriority
+					);
+
+					if('tic' === descPriority) {
+						const origDesc = localInfo.fileEntry.desc;
+						localInfo.fileEntry.desc = ticFileInfo.getAsString('Ldesc') || origDesc || getDescFromFileName(ticFileInfo.filePath);
+					} else {
+						//	see if we got desc from .DIZ/etc.
+						const fromDescFile = 'descFile' === localInfo.fileEntry.descSrc;
+						localInfo.fileEntry.desc = fromDescFile ? localInfo.fileEntry.desc : ticFileInfo.getAsString('Ldesc');
+						localInfo.fileEntry.desc = localInfo.fileEntry.desc || getDescFromFileName(ticFileInfo.filePath);
 					}
 
 					const areaStorageDir = getAreaStorageDirectoryByTag(storageTag);

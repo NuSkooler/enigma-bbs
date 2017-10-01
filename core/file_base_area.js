@@ -356,7 +356,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 							//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
 							//
 							//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-							fileEntry[descType] = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+							fileEntry[descType]			= iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+							fileEntry[`${descType}Src`]	= 'descFile';
 							return next(null);
 						});
 					});
@@ -404,7 +405,8 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 			function processSingleExtractedFile(extractedFile, callback) {
 				populateFileEntryInfoFromFile(fileEntry, extractedFile, err => {
 					if(!fileEntry.desc) {
-						fileEntry.desc = getDescFromFileName(filePath);
+						fileEntry.desc		= getDescFromFileName(filePath);
+						fileEntry.descSrc	= 'fileName';
 					}
 					return callback(err);
 				});
@@ -529,7 +531,8 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
 						stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
 					}
 
-					fileEntry[key] = stdout;
+					fileEntry[key]			= stdout;
+					fileEntry[`${key}Src`]	= 'infoTool';
 				}
 			}
 
@@ -551,7 +554,8 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
 			function getDescriptions(callback) {
 				populateFileEntryInfoFromFile(fileEntry, filePath, err => {
 					if(!fileEntry.desc) {
-						fileEntry.desc = getDescFromFileName(filePath);
+						fileEntry.desc		= getDescFromFileName(filePath);
+						fileEntry.descSrc	= 'fileName';
 					}
 					return callback(err);
 				});

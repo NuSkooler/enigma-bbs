@@ -639,6 +639,7 @@ function getDefaultConfig() {
 					secureInOnly	: true,				//	only bring in from secure inbound (|secInbound| path, password protected)
 					uploadBy		: 'ENiGMA TIC',		//	default upload by username (override @ network)
 					allowReplace	: false,			//	use "Replaces" TIC field
+					descPriority	: 'diz',			//	May be diz=.DIZ/etc., or tic=from TIC Ldesc
 				}
 			}
 		},
