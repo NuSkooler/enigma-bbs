@@ -6,7 +6,6 @@ var Log					= require('./logger.js').log;
 
 var paths				= require('path');
 var fs					= require('graceful-fs');
-var Gaze				= require('gaze').Gaze;
 var events				= require('events');
 var util				= require('util');
 var assert				= require('assert');
@@ -18,7 +17,7 @@ function ConfigCache() {
 
 	var self 	= this;
 	this.cache	= {};	//	filePath -> HJSON
-	this.gaze	= new Gaze();
+	//this.gaze	= new Gaze();
 
 	this.reCacheConfigFromFile = function(filePath, cb) {
 		fs.readFile(filePath, { encoding : 'utf-8' }, function fileRead(err, data) {
@@ -32,7 +31,7 @@ function ConfigCache() {
 		});
 	};
 
-
+/*
 	this.gaze.on('error', function gazeErr(err) {
 
 	});
@@ -50,6 +49,7 @@ function ConfigCache() {
 			}
 		});
 	});
+	*/
 
 }
 
@@ -58,13 +58,13 @@ util.inherits(ConfigCache, events.EventEmitter);
 ConfigCache.prototype.getConfigWithOptions = function(options, cb) {
 	assert(_.isString(options.filePath));
 
-	var self		= this;
+//	var self		= this;
 	var isCached	= (options.filePath in this.cache);
 
 	if(options.forceReCache || !isCached) {
 		this.reCacheConfigFromFile(options.filePath, function fileCached(err, config) {
 			if(!err && !isCached) {
-				self.gaze.add(options.filePath);
+				//self.gaze.add(options.filePath);
 			}
 			cb(err, config, true);
 		});
