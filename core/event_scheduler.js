@@ -10,8 +10,9 @@ const _						= require('lodash');
 const later					= require('later');
 const path					= require('path');
 const pty					= require('ptyw.js');
-const gaze					= require('gaze');
+const sane					= require('sane');
 const moment				= require('moment');
+const paths					= require('path');
 
 exports.getModule				= EventSchedulerModule;
 exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
@@ -209,13 +210,13 @@ EventSchedulerModule.prototype.startup = function(cb) {
 				Log.warn( { eventName : schedEvent.name }, 'Invalid scheduled event entry');
 				return;
 			}
-			
+
 			Log.debug(
 				{ 
 					eventName	: schedEvent.name,
 					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
 					action		: schedEvent.action,
-					next		: moment(later.schedule(schedEvent.schedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a')
+					next		: schedEvent.schedule.sched ? moment(later.schedule(schedEvent.schedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a') : 'N/A',
 				},
 				'Scheduled event loaded'
 			);
@@ -226,12 +227,21 @@ EventSchedulerModule.prototype.startup = function(cb) {
 				}, schedEvent.schedule.sched));
 			}
 
-			if(schedEvent.schedule.watchFile) {				
-				gaze(schedEvent.schedule.watchFile, (err, watcher) => {
-					//	:TODO: should track watched files & stop watching @ shutdown
-					watcher.on('all', (watchEvent, watchedPath) => {
-						if(schedEvent.schedule.watchFile === watchedPath) {
-							self.performAction(schedEvent, `Watch file: ${watchedPath}`);
+			if(schedEvent.schedule.watchFile) {
+				const watcher = sane(
+					paths.dirname(schedEvent.schedule.watchFile),
+					{
+						glob : `**/${paths.basename(schedEvent.schedule.watchFile)}`
+					}
+				);
+
+				//	:TODO: should track watched files & stop watching @ shutdown?
+
+				[ 'change', 'add', 'delete' ].forEach(event => {
+					watcher.on(event, (fileName, fileRoot) => {
+						const eventPath = paths.join(fileRoot, fileName);
+						if(schedEvent.schedule.watchFile === eventPath) {
+							self.performAction(schedEvent, `Watch file: ${eventPath}`);
 						}
 					});
 				});

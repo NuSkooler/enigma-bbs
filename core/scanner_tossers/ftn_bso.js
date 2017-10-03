@@ -30,7 +30,7 @@ const fs					= require('graceful-fs');
 const later					= require('later');
 const temptmp				= require('temptmp').createTrackedSession('ftn_bso');
 const assert				= require('assert');
-const gaze					= require('gaze');
+const sane					= require('sane');
 const fse					= require('fs-extra');
 const iconv					= require('iconv-lite');
 const uuidV4				= require('uuid/v4');
@@ -1683,10 +1683,18 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 				}
 				
 				if(_.isString(importSchedule.watchFile)) {
-					gaze(importSchedule.watchFile, (err, watcher) => {
-						watcher.on('all', (event, watchedPath) => {
-							if(importSchedule.watchFile === watchedPath) {
-								tryImportNow(`Performing import/toss due to @watch: ${watchedPath} (${event})`);	
+					const watcher = sane(
+						paths.dirname(importSchedule.watchFile),
+						{
+							glob : `**/${paths.basename(importSchedule.watchFile)}`
+						}
+					);
+
+					[ 'change', 'add', 'delete' ].forEach(event => {
+						watcher.on(event, (fileName, fileRoot) => {
+							const eventPath = paths.join(fileRoot, fileName);
+							if(paths.join(fileRoot, fileName) === importSchedule.watchFile) {
+								tryImportNow(`Performing import/toss due to @watch: ${eventPath} (${event})`);
 							}
 						});
 					});
