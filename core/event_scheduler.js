@@ -13,6 +13,7 @@ const pty					= require('ptyw.js');
 const sane					= require('sane');
 const moment				= require('moment');
 const paths					= require('path');
+const fse					= require('fs-extra');
 
 exports.getModule				= EventSchedulerModule;
 exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
@@ -244,6 +245,12 @@ EventSchedulerModule.prototype.startup = function(cb) {
 							self.performAction(schedEvent, `Watch file: ${eventPath}`);
 						}
 					});
+				});
+
+				fse.exists(schedEvent.schedule.watchFile, exists => {
+					if(exists) {
+						self.performAction(schedEvent, `Watch file: ${schedEvent.schedule.watchFile}`);
+					}
 				});
 			}
 		});
