@@ -1698,6 +1698,16 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 							}
 						});
 					});
+
+					//
+					//	If the watch file already exists, kick off now
+					//	https://github.com/NuSkooler/enigma-bbs/issues/122
+					//
+					fse.exists(importSchedule.watchFile, exists => {
+						if(exists) {
+							tryImportNow(`Performing import/toss due to @watch: ${importSchedule.watchFile} (initial exists)`);
+						}
+					});
 				}
 			}
 		}
