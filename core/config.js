@@ -99,11 +99,15 @@ function init(configPath, options, cb) {
 			}
 		],
 		function complete(err, mergedConfig) {
-			exports.config = mergedConfig;
-
-			exports.config.get = function(path) {
-				return _.get(exports.config, path);
-			};
+                        if (typeof(mergedConfig) == 'undefined') {
+                                exports.config = {};
+                        } else {
+                                exports.config = Object.assign(mergedConfig, {
+                                        "get": function(path) {
+                                                return _.get(exports.config, path);
+                                        }
+                                });
+                        }
 
 			return cb(err);
 		}
