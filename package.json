@@ -4,9 +4,8 @@
   "description": "ENiGMA½ Bulletin Board System",
   "author": "Bryan Ashby <bryan@l33t.codes>",
   "license": "BSD-2-Clause",
-  "main": "./core/bbs",
   "scripts": {
-    "start": "node main"
+    "start": "node main.js"
   },
   "repository": {
     "type": "git",
