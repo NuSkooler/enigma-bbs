@@ -77,9 +77,12 @@ Below is an _example_ configuration. It is recommended that you at least **start
 
 	loginServers: {
 		ssh: {
-	    	privateKeyPass: YOUR_PK_PASS
-	    	enabled: true /* set to false to disable the SSH server */
-	    }
+	    		privateKeyPass: YOUR_PK_PASS
+	    		enabled: true /* set to false to disable the SSH server */
+	    	}
+		telnet: {                                                                                                                                                                                              
+			port: 8888                                                                                                                                                                                         
+    		}                                                                                                                                                                                                      
 	}
 
 	messageConferences: {
@@ -87,15 +90,14 @@ Below is an _example_ configuration. It is recommended that you at least **start
 			name: Local
 			desc: Local Discussions
 			default: true
-
-		    areas: {
-		    	local_music: {
+			areas: {
+		    		local_music: {
 					name: Music Discussion
 					desc: Music, bands, etc.
 					default: true
+	        		}
 	        	}
-	        }
-	    }
+	    	}
 	}
 }
 ```
