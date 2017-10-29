@@ -48,6 +48,7 @@ Below is a **sample** `config.hjson` illustrating various (but certainly not all
 {
 	general: {
 		boardName: A Sample BBS
+		menuFile: your_bbs.hjson # copy of menu.hjson file (and adapt to your needs)
 	}
 
 	defaults: {
