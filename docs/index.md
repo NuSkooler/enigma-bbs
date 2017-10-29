@@ -107,7 +107,7 @@ Below is an _example_ configuration. It is recommended that you at least **start
 ./main.js
 ```
 
-Read the Points of Interest below for more info.
+Read the Points of Interest below for more info. Also check-out all the other documentation files in the [docs](.) directory.
 
 ## Points of Interest
 * **The first user you create via register/applying (user ID = 1) will be automatically be added to the `sysops` group. And thus becomes SysOp.** (aka root)
