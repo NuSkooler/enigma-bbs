@@ -108,7 +108,7 @@ Below is an _example_ configuration. It is recommended that you at least **start
 ```
 
 
-*Note #1:* The first user who register/apply (user ID = 1) will be automatically be added to the sysop group. And thus becomes SysOp.
+*Note #1:* The first user who register/apply (user ID = 1) will be automatically be added to the `sysops` group. And thus becomes SysOp.
 
 *Note #2:* All data is stored by default in Sqlite3 database files within the `db` sub folder, including user data, messages, system logs and file meta data.
 
