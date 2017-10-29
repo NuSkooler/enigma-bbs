@@ -1,6 +1,6 @@
 # ENiGMA½ BBS Software
 
-![alt text](docs/images/enigma-bbs.png "ENiGMA½ BBS")
+![ENiGMA½ BBS](docs/images/enigma-bbs.png "ENiGMA½ BBS")
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
