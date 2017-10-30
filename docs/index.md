@@ -107,18 +107,21 @@ Below is an _example_ configuration. It is recommended that you at least **start
 ./main.js
 ```
 
+Read the Points of Interest below for more info. Also check-out all the other documentation files in the [docs](.) directory.
+
+## Points of Interest
+* **The first user you create via register/applying (user ID = 1) will be automatically be added to the `sysops` group. And thus becomes SysOp.** (aka root)
+* Default port for Telnet is 8888 and for SSH 8889
+  * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
+* All data is stored by default in Sqlite3 database files, within the `db` sub folder. Including user data, messages, system logs and file meta data.
+* You may want to tail the logfile with Bunyan. See Monitoring Logs below.
+
 ## Monitoring Logs
 Logs are produced by Bunyan which outputs each entry as a JSON object. To tail logs in a colorized and pretty pretty format, issue the following command:
     
     tail -F /path/to/enigma-bbs/logs/enigma-bbs.log | /path/to/enigma-bbs/node_modules/bunyan/bin/bunyan
 
 ENiGMA½ does not produce much to standard out. See below for tailing the log file to see what's going on.
-
-## Points of Interest
-* Default ports are 8888 (Telnet) and 8889 (SSH)
-  * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
-* **The first user you create via applying is the SysOp** (aka root)
-* You may want to tail the logfile with Bunyan. See Monitoring Logs above.
 
 # Advanced Installation
 If you've become convinced you would like a "production" BBS running ENiGMA½ a more advanced installation may be in order. 
