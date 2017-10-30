@@ -158,6 +158,11 @@ exports.getModule = class WebServerModule extends ServerModule {
 
 	routeRequest(req, resp) {
 		const route = _.find(this.routes, r => r.matchesRequest(req) );
+
+		if(!route && '/' === req.url) {
+			return this.routeIndex(req, resp);
+		}
+
 		return route ? route.handler(req, resp) : this.accessDenied(resp);
 	}
 
@@ -196,9 +201,20 @@ exports.getModule = class WebServerModule extends ServerModule {
 		return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
 	}
 
+	routeIndex(req, resp) {
+		const filePath = paths.join(Config.contentServers.web.staticRoot, 'index.html');
+
+		return this.returnStaticPage(filePath, resp);
+	}
+
 	routeStaticFile(req, resp) {
 		const fileName = req.url.substr(req.url.indexOf('/', 1));
 		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
+
+		return this.returnStaticPage(filePath, resp);
+	}
+
+	returnStaticPage(filePath, resp) {
 		const self = this;
 
 		fs.stat(filePath, (err, stats) => {
