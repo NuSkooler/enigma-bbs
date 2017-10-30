@@ -223,7 +223,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 			}
 
 			const headers = {
-				'Content-Type'		: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
+				'Content-Type'		: mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
 				'Content-Length'	: stats.size,
 			};
 
