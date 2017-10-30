@@ -1,7 +1,7 @@
 # File Bases
 Starting with version 0.0.4-alpha, ENiGMA½ has support for File Bases! Documentation below covers setup of file area(s), but first some information on what to expect:
 
-## A Different Appoach
+## A Different Approach
 ENiGMA½ has strayed away from the old familure setup here and instead takes a more modern approach:
 * [Gazelle](https://whatcd.github.io/Gazelle/) inspired system for searching & browsing files
 * No File Conferences (just areas!)

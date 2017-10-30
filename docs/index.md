@@ -24,7 +24,7 @@ For Windows environments or if you simply like to do things manually, read on...
   
  
 ### New to Node
-If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type enviornments (Please consider the `install.sh` approach unless you really want to manually install!):
+If you're new to Node.js and/or do not care about Node itself and just want to get ENiGMA½ running these steps should get you going on most \*nix type environments (Please consider the `install.sh` approach unless you really want to manually install!):
 
 ```bash
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.0/install.sh | bash
@@ -64,7 +64,7 @@ The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`
 ./oputil.js config new
 ```
 
-(You wil be asked a series of basic questions)
+(You will be asked a series of basic questions)
 
 #### Example Starting Configuration
 Below is an _example_ configuration. It is recommended that you at least **start with a generated configuration using oputil.js described above**.

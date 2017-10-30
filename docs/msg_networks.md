@@ -100,9 +100,74 @@ A node entry starts with a FTN style address (up to 5D) **as a key** in `config.
 #### TIC Support
 ENiGMA½ supports TIC files. This is handled by mapping TIC areas to local file areas.
 
-Under a given node (described above) TIC configuration may be supplied.
+Under a given node (like the one configured above), TIC configuration may be supplied:
 
-TODO
+```hjson
+{
+  scannerTossers: {
+    ftn_bso: {
+      nodes: {
+        "46:*": {
+          packetType: 2+
+          packetPassword: mypass
+          encoding: cp437
+          archiveType: zip
+          tic: {
+            password: TESTY-TEST
+            uploadBy: Agoranet TIC
+            allowReplace: true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+You then need to configure the mapping between TIC areas you want to carry, and the file 
+base area for them to be tossed to. Start by creating a storage tag and file base, if you haven't 
+already:
+
+````hjson
+fileBase: {
+    areaStoragePrefix: /home/bbs/file_areas/
+    
+    storageTags: {
+        msg_network: "msg_network"
+    }
+    
+    areas: {
+        msgNetworks: {
+            name: Message Networks
+            desc: Message networks news & info
+            storageTags: [
+                "msg_network"
+            ]
+        }
+    }
+}
+
+````
+and then create the mapping between the TIC area and the file area created:
+
+````hjson
+ticAreas: {
+    agn_node: {
+        areaTag: msgNetworks
+        hashTags: agoranet,nodelist
+        storageTag: msg_network
+    }
+    
+    agn_info: {
+        areaTag: msgNetworks
+        hashTags: agoranet,infopack
+        storageTag: msg_network
+    }
+}
+
+````
+Multiple TIC areas can be mapped to a single file base area. 
+
 
 #### Scheduling
 Schedules can be defined for importing and exporting via `import` and `export` under `schedule`. Each entry is allowed a "free form" text and/or special indicators for immediate export or watch file triggers.
