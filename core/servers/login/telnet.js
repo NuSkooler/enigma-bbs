@@ -88,6 +88,7 @@ const SB_COMMANDS = {
 //
 //	Resources
 //		* http://mars.netanya.ac.il/~unesco/cdrom/booklet/HTML/NETWORKING/node300.html
+//		* http://www.networksorcery.com/enp/protocol/telnet.htm
 //
 const OPTIONS = {
 	TRANSMIT_BINARY			: 0,	// http://tools.ietf.org/html/rfc856
@@ -186,6 +187,8 @@ const OPTION_NAMES = Object.keys(OPTIONS).reduce(function(names, name) {
 
 function unknownOption(bufs, i, event) {
 	Log.warn( { bufs : bufs, i : i, event : event }, 'Unknown Telnet option');
+	event.buf = bufs.splice(0, i).toBuffer();
+	return event;
 }
 
 const OPTION_IMPLS = {};
