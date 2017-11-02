@@ -194,6 +194,22 @@ doorParty: {
 
 Fill in `username`, `password`, and `bbsTag` with credentials provided to you and you should be in business!
 
+## The CombatNet Module
+The `combatnet` module provides native support for [CombatNet](http://combatnet.us/). Add the following to your menu config:
+
+````hjson
+combatNet: {
+    desc: Using CombatNet
+    module: @systemModule:combatnet
+    config: {
+        bbsTag: CBNxxx
+        password: XXXXXXXXX
+    }
+}
+````
+Update `bbsTag` (in the format CBNxxx) and `password` with the details provided when you register, then
+you should be ready to rock!
+
 # Resources
 
 ### DOSBox
