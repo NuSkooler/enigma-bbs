@@ -1646,6 +1646,10 @@
 					action: @menu:doorParty
 				}
 				{
+                    value: { command: "CN" }
+                    action: @menu:combatNet
+                }
+				{
 					value: { command: "AGENT" }
 					action: @menu:telnetBridgeAgency
 				}
@@ -1689,7 +1693,7 @@
 			}
 		}
 
-		//	DoorParty! support. You'll need to registger to obtain credentials
+		//	DoorParty! support. You'll need to register to obtain credentials
 		doorParty: {
 			desc: Using DoorParty!
 			module: @systemModule:door_party
@@ -1699,6 +1703,16 @@
 				bbsTag: XX
 			}
 		}
+
+        //	CombatNet support. You'll need to register at http://combatnet.us/ to obtain credentials
+        combatNet: {
+            desc: Using CombatNet
+            module: @systemModule:combatnet
+            config: {
+                bbsTag: CBNxxx
+                password: XXXXXXXXX
+            }
+        }
 
 		telnetBridgeAgency: {
 			desc: Connected to HappyLand BBS
