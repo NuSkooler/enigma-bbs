@@ -42,6 +42,7 @@
     "node-glob": "^1.2.0",
     "nodemailer": "^4.1.0",
     "ptyw.js": "NuSkooler/ptyw.js",
+    "rlogin": "^1.0.0",
     "sane": "^2.2.0",
     "sanitize-filename": "^1.6.1",
     "sqlite3": "^3.1.9",
