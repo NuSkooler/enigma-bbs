@@ -2,22 +2,23 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule		= require('../core/menu_module.js').MenuModule;
-const ViewController	= require('../core/view_controller.js').ViewController;
-const ansi				= require('../core/ansi_term.js');
-const theme				= require('../core/theme.js');
-const FileEntry			= require('../core/file_entry.js');
-const stringFormat		= require('../core/string_format.js');
-const FileArea			= require('../core/file_base_area.js');
-const Errors			= require('../core/enig_error.js').Errors;
-const ErrNotEnabled		= require('../core/enig_error.js').ErrorReasons.NotEnabled;
-const ArchiveUtil		= require('../core/archive_util.js');
-const Config			= require('../core/config.js').config;
-const DownloadQueue		= require('../core/download_queue.js');
-const FileAreaWeb		= require('../core/file_area_web.js');
-const FileBaseFilters	= require('../core/file_base_filter.js');
-const resolveMimeType	= require('../core/mime_util.js').resolveMimeType;
-const isAnsi			= require('../core/string_util.js').isAnsi;
+const MenuModule			= require('../core/menu_module.js').MenuModule;
+const ViewController		= require('../core/view_controller.js').ViewController;
+const ansi					= require('../core/ansi_term.js');
+const theme					= require('../core/theme.js');
+const FileEntry				= require('../core/file_entry.js');
+const stringFormat			= require('../core/string_format.js');
+const FileArea				= require('../core/file_base_area.js');
+const Errors				= require('../core/enig_error.js').Errors;
+const ErrNotEnabled			= require('../core/enig_error.js').ErrorReasons.NotEnabled;
+const ArchiveUtil			= require('../core/archive_util.js');
+const Config				= require('../core/config.js').config;
+const DownloadQueue			= require('../core/download_queue.js');
+const FileAreaWeb			= require('../core/file_area_web.js');
+const FileBaseFilters		= require('../core/file_base_filter.js');
+const resolveMimeType		= require('../core/mime_util.js').resolveMimeType;
+const isAnsi				= require('../core/string_util.js').isAnsi;
+const controlCodesToAnsi	= require('../core/color_codes.js').controlCodesToAnsi;
 
 //	deps
 const async				= require('async');
@@ -385,9 +386,19 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(_.isString(self.currentFileEntry.desc)) {
 						const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
 						if(descView) {
-							if(isAnsi(self.currentFileEntry.desc)) {
+							//
+							//	For descriptions we want to support as many color code systems
+							//	as we can for coverage of what is found in the while (e.g. Renegade
+							//	pipes, PCB @X##, etc.)
+							//
+							//	MLTEV doesn't support all of this, so convert. If we produced ANSI
+							//	esc sequences, we'll proceed with specialization, else just treat
+							//	it as text.
+							//
+							const desc = controlCodesToAnsi(self.currentFileEntry.desc);
+							if(desc.length != self.currentFileEntry.desc.length || isAnsi(desc)) {
 								descView.setAnsi(
-									self.currentFileEntry.desc,
+									desc,
 									{
 										prepped			: false,
 										forceLineTerm	: true
