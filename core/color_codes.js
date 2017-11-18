@@ -87,6 +87,46 @@ function enigmaStrLen(s) {
 	return stripEnigmaCodes(s).length;
 }
 
+function ansiSgrFromRenegadeColorCode(cc) {
+	return ansi.sgr({
+		0	: [ 'reset', 'black' ],
+		1	: [ 'reset', 'blue' ],
+		2	: [ 'reset', 'green' ],
+		3	: [ 'reset', 'cyan' ],
+		4	: [ 'reset', 'red' ],
+		5	: [ 'reset', 'magenta' ],
+		6	: [ 'reset', 'yellow' ],
+		7	: [ 'reset', 'white' ],
+
+		8	: [ 'bold', 'black' ],
+		9	: [ 'bold', 'blue' ],
+		10	: [ 'bold', 'green' ],
+		11	: [ 'bold', 'cyan' ],
+		12	: [ 'bold', 'red' ],
+		13	: [ 'bold', 'magenta' ],
+		14	: [ 'bold', 'yellow' ],
+		15	: [ 'bold', 'white' ],
+
+		16	: [ 'blackBG' ],
+		17 	: [ 'blueBG' ],
+		18	: [ 'greenBG' ],
+		19	: [ 'cyanBG' ],
+		20	: [ 'redBG' ],
+		21	: [ 'magentaBG' ],
+		22	: [ 'yellowBG' ],
+		23	: [ 'whiteBG' ],
+
+		24	: [ 'bold', 'blackBG' ],
+		25	: [ 'bold', 'blueBG' ],
+		26	: [ 'bold', 'greenBG' ],
+		27	: [ 'bold', 'cyanBG' ],
+		28	: [ 'bold', 'redBG' ],
+		29	: [ 'bold', 'magentaBG' ],
+		30	: [ 'bold', 'yellowBG' ],
+		31	: [ 'bold', 'whiteBG' ],
+	}[cc] || 'normal');
+}
+
 function renegadeToAnsi(s, client) {
 	if(-1 == s.indexOf('|')) {
 		return s;	//	no pipe codes present
@@ -113,35 +153,7 @@ function renegadeToAnsi(s, client) {
 		if(_.isString(val)) {
 			result += s.substr(lastIndex, m.index - lastIndex) + val;
 		} else {
-			var attr = ansi.sgr({
-				0	: [ 'reset', 'black' ],
-				1	: [ 'reset', 'blue' ],
-				2	: [ 'reset', 'green' ],
-				3	: [ 'reset', 'cyan' ],
-				4	: [ 'reset', 'red' ],
-				5	: [ 'reset', 'magenta' ],
-				6	: [ 'reset', 'yellow' ],
-				7	: [ 'reset', 'white' ],
-
-				8	: [ 'bold', 'black' ],
-				9	: [ 'bold', 'blue' ],
-				10	: [ 'bold', 'green' ],
-				11	: [ 'bold', 'cyan' ],
-				12	: [ 'bold', 'red' ],
-				13	: [ 'bold', 'magenta' ],
-				14	: [ 'bold', 'yellow' ],
-				15	: [ 'bold', 'white' ],
-
-				16	: [ 'blackBG' ],
-				17 	: [ 'blueBG' ],
-				18	: [ 'greenBG' ],
-				19	: [ 'cyanBG' ],
-				20	: [ 'redBG' ],
-				21	: [ 'magentaBG' ],
-				22	: [ 'yellowBG' ],
-				23	: [ 'whiteBG' ],
-			}[val] || 'normal');
-
+			const attr = ansiSgrFromRenegadeColorCode(val);
 			result += s.substr(lastIndex, m.index - lastIndex) + attr;
 		}
 
@@ -190,35 +202,7 @@ function controlCodesToAnsi(s, client) {
 				if(_.isString(v)) {
 					result += s.substr(lastIndex, m.index - lastIndex) + v;
 				} else {
-					v = ansi.sgr({
-						0	: [ 'reset', 'black' ],
-						1	: [ 'reset', 'blue' ],
-						2	: [ 'reset', 'green' ],
-						3	: [ 'reset', 'cyan' ],
-						4	: [ 'reset', 'red' ],
-						5	: [ 'reset', 'magenta' ],
-						6	: [ 'reset', 'yellow' ],
-						7	: [ 'reset', 'white' ],
-
-						8	: [ 'bold', 'black' ],
-						9	: [ 'bold', 'blue' ],
-						10	: [ 'bold', 'green' ],
-						11	: [ 'bold', 'cyan' ],
-						12	: [ 'bold', 'red' ],
-						13	: [ 'bold', 'magenta' ],
-						14	: [ 'bold', 'yellow' ],
-						15	: [ 'bold', 'white' ],
-
-						16	: [ 'blackBG' ],
-						17 	: [ 'blueBG' ],
-						18	: [ 'greenBG' ],
-						19	: [ 'cyanBG' ],
-						20	: [ 'redBG' ],
-						21	: [ 'magentaBG' ],
-						22	: [ 'yellowBG' ],
-						23	: [ 'whiteBG' ],
-					}[v] || 'normal');
-
+					v = ansiSgrFromRenegadeColorCode(v);
 					result += s.substr(lastIndex, m.index - lastIndex) + v;
 				}
 				break;
