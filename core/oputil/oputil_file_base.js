@@ -173,7 +173,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 										//	We'll update the entry if the following conditions are met:
 										//	* We have a single duplicate, and:
 										//	* --update was passed or the existing entry's desc,
-										//	  longDesc, or yearEst are blank/empty
+										//	  longDesc, or est_release_year meta are blank/empty
 										//
 										if(argv.update && 1 === dupeEntries.length) {
 											const FileEntry		= require('../../core/file_entry.js');
@@ -205,7 +205,11 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 												//	don't allow overwrite of values if new version is blank
 												existingEntry.desc 					= fileEntry.desc || existingEntry.desc;
 												existingEntry.descLong				= fileEntry.descLong || existingEntry.descLong;
-												existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year || existingEntry.meta.est_release_year;
+
+												if(fileEntry.meta.est_release_year) {
+													existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year;
+												}
+
 												updateTags(existingEntry);
 
 												finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
