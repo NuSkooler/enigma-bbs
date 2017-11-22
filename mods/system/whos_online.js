@@ -2,10 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../core/menu_module.js').MenuModule;
-const ViewController		= require('../core/view_controller.js').ViewController;
-const getActiveNodeList		= require('../core/client_connections.js').getActiveNodeList;
-const stringFormat			= require('../core/string_format.js');
+const MenuModule			= require('../../core/menu_module.js').MenuModule;
+const ViewController		= require('../../core/view_controller.js').ViewController;
+const getActiveNodeList		= require('../../core/client_connections.js').getActiveNodeList;
+const stringFormat			= require('../../core/string_format.js');
 
 //	deps
 const async					= require('async');

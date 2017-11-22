@@ -2,10 +2,10 @@
 'use strict';
 
 //	enigma-bbs
-const MenuModule						= require('../core/menu_module.js').MenuModule;
-const stringFormat						= require('../core/string_format.js');
-const getSortedAvailableFileAreas		= require('../core/file_base_area.js').getSortedAvailableFileAreas;
-const StatLog							= require('../core/stat_log.js');
+const MenuModule						= require('../../core/menu_module.js').MenuModule;
+const stringFormat						= require('../../core/string_format.js');
+const getSortedAvailableFileAreas		= require('../../core/file_base_area.js').getSortedAvailableFileAreas;
+const StatLog							= require('../../core/stat_log.js');
 
 //	deps
 const async								= require('async');

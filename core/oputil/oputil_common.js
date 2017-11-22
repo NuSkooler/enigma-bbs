@@ -45,7 +45,7 @@ function printUsageAndSetExitCode(errMsg, exitCode) {
 }
 
 function getDefaultConfigPath() {
-	return resolvePath('~/.config/enigma-bbs/config.hjson');
+    return './config/config.hjson';
 }
 
 function getConfigPath() {

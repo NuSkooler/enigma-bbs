@@ -2,10 +2,10 @@
 'use strict';
 
 //	enigma-bbs
-const MenuModule		= require('../core/menu_module.js').MenuModule;
-const Config			= require('../core/config.js').config;
-const stringFormat		= require('../core/string_format.js');
-const ViewController	= require('../core/view_controller.js').ViewController;
+const MenuModule		= require('../../core/menu_module.js').MenuModule;
+const Config			= require('../../core/config.js').config;
+const stringFormat		= require('../../core/string_format.js');
+const ViewController	= require('../../core/view_controller.js').ViewController;
 
 //	deps
 const async			= require('async');

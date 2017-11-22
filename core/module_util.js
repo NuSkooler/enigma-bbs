@@ -102,6 +102,7 @@ function loadModulesForCategory(category, iterator, complete) {
 function getModulePaths() {
 	return [
 		Config.paths.mods,
+		Config.paths.userMods,
 		Config.paths.loginServers,
 		Config.paths.contentServers,
 		Config.paths.scannerTossers,

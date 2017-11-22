@@ -2,16 +2,16 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../core/menu_module.js').MenuModule;
-const ViewController		= require('../core/view_controller.js').ViewController;
-const DownloadQueue			= require('../core/download_queue.js');
-const theme					= require('../core/theme.js');
-const ansi					= require('../core/ansi_term.js');
-const Errors				= require('../core/enig_error.js').Errors;
-const stringFormat			= require('../core/string_format.js');
-const FileAreaWeb			= require('../core/file_area_web.js');
-const ErrNotEnabled			= require('../core/enig_error.js').ErrorReasons.NotEnabled;
-const Config				= require('../core/config.js').config;
+const MenuModule			= require('../../core/menu_module.js').MenuModule;
+const ViewController		= require('../../core/view_controller.js').ViewController;
+const DownloadQueue			= require('../../core/download_queue.js');
+const theme					= require('../../core/theme.js');
+const ansi					= require('../../core/ansi_term.js');
+const Errors				= require('../../core/enig_error.js').Errors;
+const stringFormat			= require('../../core/string_format.js');
+const FileAreaWeb			= require('../../core/file_area_web.js');
+const ErrNotEnabled			= require('../../core/enig_error.js').ErrorReasons.NotEnabled;
+const Config				= require('../../core/config.js').config;
 
 //	deps
 const async					= require('async');

@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-var FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
+var FullScreenEditorModule		= require('../../core/fse.js').FullScreenEditorModule;
 
 exports.getModule				= AreaReplyFSEModule;
 

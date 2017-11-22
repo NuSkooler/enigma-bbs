@@ -2,10 +2,10 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule					= require('../core/menu_module.js').MenuModule;
-const ViewController				= require('../core/view_controller.js').ViewController;
-const getSortedAvailableFileAreas	= require('../core/file_base_area.js').getSortedAvailableFileAreas;
-const FileBaseFilters				= require('../core/file_base_filter.js');
+const MenuModule					= require('../../core/menu_module.js').MenuModule;
+const ViewController				= require('../../core/view_controller.js').ViewController;
+const getSortedAvailableFileAreas	= require('../../core/file_base_area.js').getSortedAvailableFileAreas;
+const FileBaseFilters				= require('../../core/file_base_filter.js');
 
 //	deps
 const async							= require('async');

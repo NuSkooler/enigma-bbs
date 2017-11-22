@@ -111,11 +111,8 @@ function init(configPath, options, cb) {
 }
 
 function getDefaultPath() {
-	const base = miscUtil.resolvePath('~/');
-	if(base) {
-		//	e.g. /home/users/joeuser/.config/enigma-bbs/config.hjson
-		return paths.join(base, '.config', 'enigma-bbs', 'config.hjson');
-	}
+	//	e.g. /enigma-bbs-install-path/config/config.hjson
+	return './config/config.hjson';
 }
 
 function getDefaultConfig() {
@@ -193,15 +190,17 @@ function getDefaultConfig() {
 		},	
 
 		paths		: {
-			mods				: paths.join(__dirname, './../mods/'),
+			config				: paths.join(__dirname, './../config/'),
+			mods				: paths.join(__dirname, './../mods/system'),
+			userMods			: paths.join(__dirname, './../mods/user'),
 			loginServers		: paths.join(__dirname, './servers/login/'),
 			contentServers		: paths.join(__dirname, './servers/content/'),
 
 			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
 			mailers				: paths.join(__dirname, './mailers/')		,
 
-			art					: paths.join(__dirname, './../mods/art/'),
-			themes				: paths.join(__dirname, './../mods/themes/'),
+			art					: paths.join(__dirname, './../art/general/'),
+			themes				: paths.join(__dirname, './../art/themes/'),
 			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
 			db					: paths.join(__dirname, './../db/'),
 			modsDb				: paths.join(__dirname, './../db/mods/'),				
