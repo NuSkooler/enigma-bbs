@@ -191,8 +191,7 @@ function getDefaultConfig() {
 
 		paths		: {
 			config				: paths.join(__dirname, './../config/'),
-			mods				: paths.join(__dirname, './../mods/system'),
-			userMods			: paths.join(__dirname, './../mods/user'),
+			mods				: paths.join(__dirname, './../mods/'),
 			loginServers		: paths.join(__dirname, './servers/login/'),
 			contentServers		: paths.join(__dirname, './servers/content/'),
 
