@@ -2,13 +2,13 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../../core/menu_module.js').MenuModule;
-const ViewController		= require('../../core/view_controller.js').ViewController;
-const theme					= require('../../core/theme.js');
-const resetScreen			= require('../../core/ansi_term.js').resetScreen;
-const StatLog				= require('../../core/stat_log.js');
-const renderStringLength	= require('../../core/string_util.js').renderStringLength;
-const stringFormat			= require('../../core/string_format.js');
+const MenuModule			= require('./menu_module.js').MenuModule;
+const ViewController		= require('./view_controller.js').ViewController;
+const theme					= require('./theme.js');
+const resetScreen			= require('./ansi_term.js').resetScreen;
+const StatLog				= require('./stat_log.js');
+const renderStringLength	= require('./string_util.js').renderStringLength;
+const stringFormat			= require('./string_format.js');
 
 //	deps
 const async					= require('async');

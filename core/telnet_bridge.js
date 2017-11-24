@@ -2,9 +2,9 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule				= require('../../core/menu_module.js').MenuModule;
-const resetScreen				= require('../../core/ansi_term.js').resetScreen;
-const setSyncTermFontWithAlias	= require('../../core/ansi_term.js').setSyncTermFontWithAlias;
+const MenuModule				= require('./menu_module.js').MenuModule;
+const resetScreen				= require('./ansi_term.js').resetScreen;
+const setSyncTermFontWithAlias	= require('./ansi_term.js').setSyncTermFontWithAlias;
 
 //	deps
 const async			= require('async');

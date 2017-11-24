@@ -2,14 +2,14 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../../core/menu_module.js').MenuModule;
-const ViewController		= require('../../core/view_controller.js').ViewController;
-const DownloadQueue			= require('../../core/download_queue.js');
-const theme					= require('../../core/theme.js');
-const ansi					= require('../../core/ansi_term.js');
-const Errors				= require('../../core/enig_error.js').Errors;
-const stringFormat			= require('../../core/string_format.js');
-const FileAreaWeb			= require('../../core/file_area_web.js');
+const MenuModule			= require('./menu_module.js').MenuModule;
+const ViewController		= require('./view_controller.js').ViewController;
+const DownloadQueue			= require('./download_queue.js');
+const theme					= require('./theme.js');
+const ansi					= require('./ansi_term.js');
+const Errors				= require('./enig_error.js').Errors;
+const stringFormat			= require('./string_format.js');
+const FileAreaWeb			= require('./file_area_web.js');
 
 //	deps
 const async					= require('async');

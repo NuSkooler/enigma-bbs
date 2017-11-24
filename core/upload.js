@@ -2,20 +2,20 @@
 'use strict';
 
 //	enigma-bbs
-const MenuModule						= require('../../core/menu_module.js').MenuModule;
-const stringFormat						= require('../../core/string_format.js');
-const getSortedAvailableFileAreas		= require('../../core/file_base_area.js').getSortedAvailableFileAreas;
-const getAreaDefaultStorageDirectory	= require('../../core/file_base_area.js').getAreaDefaultStorageDirectory;
-const scanFile							= require('../../core/file_base_area.js').scanFile;
-const getFileAreaByTag					= require('../../core/file_base_area.js').getFileAreaByTag;
-const getDescFromFileName				= require('../../core/file_base_area.js').getDescFromFileName;
-const ansiGoto							= require('../../core/ansi_term.js').goto;
-const moveFileWithCollisionHandling		= require('../../core/file_util.js').moveFileWithCollisionHandling;
-const pathWithTerminatingSeparator		= require('../../core/file_util.js').pathWithTerminatingSeparator;
-const Log								= require('../../core/logger.js').log;
-const Errors							= require('../../core/enig_error.js').Errors;
-const FileEntry							= require('../../core/file_entry.js');
-const isAnsi							= require('../../core/string_util.js').isAnsi;
+const MenuModule						= require('./menu_module.js').MenuModule;
+const stringFormat						= require('./string_format.js');
+const getSortedAvailableFileAreas		= require('./file_base_area.js').getSortedAvailableFileAreas;
+const getAreaDefaultStorageDirectory	= require('./file_base_area.js').getAreaDefaultStorageDirectory;
+const scanFile							= require('./file_base_area.js').scanFile;
+const getFileAreaByTag					= require('./file_base_area.js').getFileAreaByTag;
+const getDescFromFileName				= require('./file_base_area.js').getDescFromFileName;
+const ansiGoto							= require('./ansi_term.js').goto;
+const moveFileWithCollisionHandling		= require('./file_util.js').moveFileWithCollisionHandling;
+const pathWithTerminatingSeparator		= require('./file_util.js').pathWithTerminatingSeparator;
+const Log								= require('./logger.js').log;
+const Errors							= require('./enig_error.js').Errors;
+const FileEntry							= require('./file_entry.js');
+const isAnsi							= require('./string_util.js').isAnsi;
 
 //	deps
 const async								= require('async');

@@ -220,7 +220,7 @@
 		}
 
 		newUserApplication: {
-			module: nua
+			module: @systemModule:nua
 			art: NUA
 			options: {
 				menuFlags: [ "noHistory" ]
@@ -341,7 +341,7 @@
 		//	Canceling this form logs off vs falling back to matrix
 		//
 		newUserApplicationSsh: {
-			module: nua
+			module: @systemModule:nua
 			art: NUA
 			fallback: logoff
 			options: {
@@ -445,7 +445,7 @@
 
 		newUserFeedbackToSysOp: {
 			desc: Feedback to SysOp
-			module: msg_area_post_fse
+			module: @systemModule:msg_area_post_fse
 			next: [
 				{
 					acs: AS2
@@ -579,7 +579,7 @@
 
 		fullLoginSequenceLastCallers: {
 			desc: Last Callers
-			module: last_callers
+			module: @systemModule:last_callers
 			art: LASTCALL
 			options: {
 				pause: true
@@ -589,7 +589,7 @@
 		}
 		fullLoginSequenceWhosOnline: {
 			desc: Who's Online
-			module: whos_online
+			module: @systemModule:whos_online
 			art: WHOSON
 			options: { pause: true }
 			next: fullLoginSequenceOnelinerz
@@ -597,7 +597,7 @@
 
 		fullLoginSequenceOnelinerz: {
 			desc: Viewing Onelinerz
-			module: onelinerz
+			module: @systemModule:onelinerz
 			next: [
 				{
 					//	calls >= 2
@@ -732,7 +732,7 @@
 
 		newScanMessageList: {
 			desc: New Messages
-			module: msg_list
+			module: @systemModule:msg_list
 			art: NEWMSGS
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -772,7 +772,7 @@
 		}
 
 		newScanFileBaseList: {
-			module: file_area_list
+			module: @systemModule:file_area_list
 			desc: New Files
 			config: {
 				art: {
@@ -1019,14 +1019,14 @@
 
 		mainMenuLastCallers: {
 			desc: Last Callers
-			module: last_callers
+			module: @systemModule:last_callers
 			art: LASTCALL
 			options: { pause: true }
 		}
 
 		mainMenuWhosOnline: {
 			desc: Who's Online
-			module: whos_online
+			module: @systemModule:whos_online
 			art: WHOSON
 			options: { pause: true }
 		}
@@ -1045,7 +1045,7 @@
 
 		mainMenuUserList: {
 			desc: User Listing
-			module: user_list
+			module: @systemModule:user_list
 			art: USERLST
 			form: {
 				0: {
@@ -1166,7 +1166,7 @@
 
 		mainMenuFeedbackToSysOp: {
 			desc: Feedback to SysOp
-			module: msg_area_post_fse
+			module: @systemModule:msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -1286,7 +1286,7 @@
 
 		mainMenuOnelinerz: {
 			desc: Viewing Onelinerz
-			module: onelinerz
+			module: @systemModule:onelinerz
 			options: {
 				cls: true
 			}
@@ -1372,7 +1372,7 @@
 
 		mainMenuRumorz: {
 			desc: Rumorz
-			module: rumorz
+			module: @systemModule:rumorz
 			options: {
 				cls: true
 			}
@@ -1458,7 +1458,7 @@
 
 		ercClient: {
 			art: erc
-			module: erc_client
+			module: @systemModule:erc_client
 			config: {
 				host: localhost
         		port: 5001
@@ -1510,7 +1510,7 @@
 
 		bbsList: {
 			desc: Viewing BBS List
-			module: bbs_list
+			module: @systemModule:bbs_list
 			options: {
 				cls: true
 			}
@@ -1661,7 +1661,7 @@
 		//
 		doorPimpWars: {
 			desc: Playing PimpWars
-			module: abracadabra
+			module: @systemModule:abracadabra
 			config: {
 				name: PimpWars
 				dropFileType: DORINFO
@@ -1684,7 +1684,7 @@
 		//
 		doorTradeWars2002BBSLink: {
 			desc: Playing TW 2002 (BBSLink)
-			module: bbs_link
+			module: @systemModule:bbs_link
 			config: {
 				sysCode: XXXXXXXX
 				authCode: XXXXXXXX
@@ -1716,7 +1716,7 @@
 
 		telnetBridgeAgency: {
 			desc: Connected to HappyLand BBS
-			module: telnet_bridge
+			module: @systemModule:telnet_bridge
 			config: {
 				host: agency.bbs.geek.nz
 			}
@@ -1779,7 +1779,7 @@
 
 		messageAreaChangeCurrentConference: {
 			art: CCHANGE
-			module: msg_conf_list
+			module: @systemModule:msg_conf_list
 			form: {
 				0: {
 					mci: {
@@ -1810,7 +1810,7 @@
 		messageAreaChangeCurrentArea: {
 			//	:TODO: rename this art to ACHANGE
 			art: CHANGE
-			module: msg_area_list
+			module: @systemModule:msg_area_list
 			form: {
 				0: {
 					mci: {
@@ -1839,7 +1839,7 @@
 		}
 
 		messageAreaMessageList: {
-			module: msg_list
+			module: @systemModule:msg_list
 			art: MSGLIST
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -1875,7 +1875,7 @@
 		}
 
 		messageAreaViewPost:  {
-			module: msg_area_view_fse
+			module: @systemModule:msg_area_view_fse
 			config: {
 				art: {
 					header:		MSGVHDR
@@ -1991,7 +1991,7 @@
 		}
 
 		messageAreaReplyPost: {
-			module: msg_area_post_fse
+			module: @systemModule:msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2150,7 +2150,7 @@
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		messageAreaNewPost: {
 			desc: Posting message,
-			module: msg_area_post_fse
+			module: @systemModule:msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2306,7 +2306,7 @@
 
 		mailMenuCreateMessage: {
 			desc: Mailing Someone
-			module: msg_area_post_fse
+			module: @systemModule:msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2423,7 +2423,7 @@
 		}
 
 		mailMenuInbox: {
-			module: msg_list
+			module: @systemModule:msg_list
 			art: MSGLIST
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -2501,7 +2501,7 @@
 		}
 
 		fileBaseListEntries: {
-			module: file_area_list
+			module: @systemModule:file_area_list
 			desc: Browsing Files
 			config: {
 				art: {
@@ -2669,7 +2669,7 @@
 
 		fileBaseBrowseByAreaSelect: {
 			desc: Browsing File Areas
-			module: file_base_area_select
+			module: @systemModule:file_base_area_select
 			art: FAREASEL
 			form: {
 				0: {
@@ -2725,7 +2725,7 @@
 		}
 
 		fileBaseSearch: {
-			module: file_base_search
+			module: @systemModule:file_base_search
 			desc: Searching Files
 			art: FSEARCH
 			form: {
@@ -2799,7 +2799,7 @@
 
 		fileAreaFilterEditor: {
 			desc: File Filter Editor
-			module: file_area_filter_edit
+			module: @systemModule:file_area_filter_edit
 			art: FFILEDT
 			form: {
 				0: {
@@ -2889,7 +2889,7 @@
 
 		fileBaseDownloadManager: {
 			desc: Download Manager
-			module: file_base_download_manager
+			module: @systemModule:file_base_download_manager
 			config: {
 				art: {
 					queueManager: FDLMGR
@@ -2950,7 +2950,7 @@
 
 		fileBaseWebDownloadManager: {
 			desc: Web D/L Manager
-			module: file_base_web_download_manager
+			module: @systemModule:file_base_web_download_manager
 			config: {
 				art: {
 					queueManager: FWDLMGR
@@ -3017,7 +3017,7 @@
 
 		fileTransferProtocolSelection: {
 			desc: Protocol selection
-			module: file_transfer_protocol_select
+			module: @systemModule:file_transfer_protocol_select
 			art: FPROSEL
 			form: {
 				0: {
@@ -3049,7 +3049,7 @@
 
 		fileBaseUploadFiles: {
 			desc: Uploading
-			module: upload
+			module: @systemModule:upload
 			config: {
 				art: {
 					options: ULOPTS
