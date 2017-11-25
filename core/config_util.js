@@ -7,7 +7,7 @@ const paths				= require('path');
 exports.getFullConfig	= getFullConfig;
 
 function getFullConfig(filePath, cb) {
-	//	|filePath| is assumed to be in 'mods' if it's only a file name
+	//	|filePath| is assumed to be in the config path if it's only a file name
 	if('.' === paths.dirname(filePath)) {
 		filePath = paths.join(Config.paths.config, filePath);
 	}

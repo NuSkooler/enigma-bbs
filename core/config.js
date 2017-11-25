@@ -111,8 +111,8 @@ function init(configPath, options, cb) {
 }
 
 function getDefaultPath() {
-	//	e.g. /enigma-bbs-install-path/config/config.hjson
-	return './config/config.hjson';
+	//	e.g. /enigma-bbs-install-path/config/
+	return './config/';
 }
 
 function getDefaultConfig() {

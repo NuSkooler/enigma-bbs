@@ -45,11 +45,12 @@ function printUsageAndSetExitCode(errMsg, exitCode) {
 }
 
 function getDefaultConfigPath() {
-    return './config/config.hjson';
+    return './config/';
 }
 
 function getConfigPath() {
-	return argv.config ? argv.config : config.getDefaultPath();
+	const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
+	return baseConfigPath + 'config.hjson';
 }
 
 function initConfig(cb) {
