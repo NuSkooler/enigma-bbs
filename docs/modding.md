@@ -7,7 +7,7 @@ See [Configuration](config.md)
 See [Menu System](menu_system.md)
 
 ## Theming
-Take a look at how the default `luciano_blocktronics` theme found under `mods/themes` works!
+Take a look at how the default `luciano_blocktronics` theme found under `art/themes` works!
 
 TODO document me!
 

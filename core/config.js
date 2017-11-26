@@ -124,8 +124,8 @@ function getDefaultConfig() {
 
 			loginAttempts	: 3,
 
-			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./mods)
-			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./mods)
+			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./config)
+			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./config)
 		},
 
 		//	:TODO: see notes below about 'theme' section - move this!
@@ -215,18 +215,18 @@ function getDefaultConfig() {
 			},
 			ssh : {
 				port				: 8889,
-				enabled				: false,    //  defualt to false as PK/pass in config.hjson are required
+				enabled				: false,    //  default to false as PK/pass in config.hjson are required
 
 				//
 				//	Private key in PEM format
 				//	
 				//	Generating your PK:
-				//	> openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
+				//	> openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
 				//
 				//	Then, set servers.ssh.privateKeyPass to the password you use above
 				//	in your config.hjson
 				//
-				privateKeyPem		: paths.join(__dirname, './../misc/ssh_private_key.pem'),
+				privateKeyPem		: paths.join(__dirname, './../config/ssh_private_key.pem'),
 				firstMenu			: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
@@ -234,8 +234,8 @@ function getDefaultConfig() {
 				port		: 8810,	//	ws://
 				enabled		: false,
 				securePort	: 8811,	//	wss:// - must provide certPem and keyPem
-				certPem		: paths.join(__dirname, './../misc/https_cert.pem'),
-				keyPem		: paths.join(__dirname, './../misc/https_cert_key.pem'),
+				certPem		: paths.join(__dirname, './../config/https_cert.pem'),
+				keyPem		: paths.join(__dirname, './../config/https_cert_key.pem'),
 			},
 		},
 
@@ -271,8 +271,8 @@ function getDefaultConfig() {
 				https : {
 					enabled	: false,
 					port	: 8443,
-					certPem	: paths.join(__dirname, './../misc/https_cert.pem'),
-					keyPem	: paths.join(__dirname, './../misc/https_cert_key.pem'),
+					certPem	: paths.join(__dirname, './../config/https_cert.pem'),
+					keyPem	: paths.join(__dirname, './../config/https_cert_key.pem'),
 				}
 			}
 		},
