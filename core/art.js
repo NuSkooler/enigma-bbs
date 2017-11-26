@@ -14,7 +14,7 @@ const paths		= require('path');
 const assert	= require('assert');
 const iconv		= require('iconv-lite');
 const _			= require('lodash');
-const farmhash	= require('farmhash');
+const xxhash	= require('xxhash');
 
 exports.getArt							= getArt;
 exports.getArtFromPath					= getArtFromPath;
@@ -288,7 +288,7 @@ function display(client, art, options, cb) {
 	}
 
 	if(!options.disableMciCache) {		
-		artHash	= farmhash.hash32(art);
+		artHash	= xxhash.hash(new Buffer(art), 0xCAFEBABE);
 
 		//	see if we have a mciMap cached for this art
 		if(client.mciCache) {
