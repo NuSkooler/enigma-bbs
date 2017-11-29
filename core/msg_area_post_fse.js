@@ -1,8 +1,8 @@
 /* jslint node: true */
 'use strict';
 
-const FullScreenEditorModule	= require('../core/fse.js').FullScreenEditorModule;
-const persistMessage			= require('../core/message_area.js').persistMessage; 
+const FullScreenEditorModule	= require('./fse.js').FullScreenEditorModule;
+const persistMessage			= require('./message_area.js').persistMessage;
 
 const _							= require('lodash');
 const async					 	= require('async');

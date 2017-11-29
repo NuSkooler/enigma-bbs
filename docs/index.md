@@ -51,11 +51,11 @@ npm install
 ## Generate a SSH Private Key
 To utilize the SSH server, a SSH Private Key will need generated. This step can be skipped if you do not wish to enable SSH access.
 ```bash
-openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
+openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
 ```
 
 ### Create a Minimal Config
-The main system configuration is handled via `~/.config/enigma-bbs/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
+The main system configuration is handled via `/enigma-bbs-install-path/config/config.hjson`. This is a [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](config.md) for more information.
 
 #### Via oputil.js
 `oputil.js` can be utilized to generate your **initial** configuration. **This is the recommended way for all new users**:
@@ -110,7 +110,7 @@ Below is an _example_ configuration. It is recommended that you at least **start
 Read the Points of Interest below for more info. Also check-out all the other documentation files in the [docs](.) directory.
 
 ## Points of Interest
-* **The first user you create via register/applying (user ID = 1) will be automatically be added to the `sysops` group. And thus becomes SysOp.** (aka root)
+* **The first user you create via register/applying (user ID = 1) will be automatically be added to the `sysops` group, and thus becomes SysOp.** (aka root)
 * Default port for Telnet is 8888 and for SSH 8889
   * Note that on *nix systems port such as telnet/23 are privileged (e.g. require root). See [this SO article](http://stackoverflow.com/questions/16573668/best-practices-when-running-node-js-with-port-80-ubuntu-linode) for some tips on using these ports on your system if desired.
 * All data is stored by default in Sqlite3 database files, within the `db` sub folder. Including user data, messages, system logs and file meta data.

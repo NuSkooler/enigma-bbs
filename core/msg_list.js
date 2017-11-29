@@ -2,11 +2,11 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule					= require('../core/menu_module.js').MenuModule;
-const ViewController				= require('../core/view_controller.js').ViewController;
-const messageArea					= require('../core/message_area.js');
-const stringFormat					= require('../core/string_format.js');
-const MessageAreaConfTempSwitcher	= require('../core/mod_mixins.js').MessageAreaConfTempSwitcher;
+const MenuModule					= require('./menu_module.js').MenuModule;
+const ViewController				= require('./view_controller.js').ViewController;
+const messageArea					= require('./message_area.js');
+const stringFormat					= require('./string_format.js');
+const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 
 //	deps
 const async				= require('async');

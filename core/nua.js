@@ -2,12 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule	= require('../core/menu_module.js').MenuModule;
-const User			= require('../core/user.js');
-const theme			= require('../core/theme.js');
-const login			= require('../core/system_menu_method.js').login;
-const Config		= require('../core/config.js').config;
-const messageArea	= require('../core/message_area.js');
+const MenuModule	= require('./menu_module.js').MenuModule;
+const User			= require('./user.js');
+const theme			= require('./theme.js');
+const login			= require('./system_menu_method.js').login;
+const Config		= require('./config.js').config;
+const messageArea	= require('./message_area.js');
 
 exports.moduleInfo = {
 	name	: 'NUA',

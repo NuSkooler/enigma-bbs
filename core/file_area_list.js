@@ -2,23 +2,23 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../core/menu_module.js').MenuModule;
-const ViewController		= require('../core/view_controller.js').ViewController;
-const ansi					= require('../core/ansi_term.js');
-const theme					= require('../core/theme.js');
-const FileEntry				= require('../core/file_entry.js');
-const stringFormat			= require('../core/string_format.js');
-const FileArea				= require('../core/file_base_area.js');
-const Errors				= require('../core/enig_error.js').Errors;
-const ErrNotEnabled			= require('../core/enig_error.js').ErrorReasons.NotEnabled;
-const ArchiveUtil			= require('../core/archive_util.js');
-const Config				= require('../core/config.js').config;
-const DownloadQueue			= require('../core/download_queue.js');
-const FileAreaWeb			= require('../core/file_area_web.js');
-const FileBaseFilters		= require('../core/file_base_filter.js');
-const resolveMimeType		= require('../core/mime_util.js').resolveMimeType;
-const isAnsi				= require('../core/string_util.js').isAnsi;
-const controlCodesToAnsi	= require('../core/color_codes.js').controlCodesToAnsi;
+const MenuModule			= require('./menu_module.js').MenuModule;
+const ViewController		= require('./view_controller.js').ViewController;
+const ansi					= require('./ansi_term.js');
+const theme					= require('./theme.js');
+const FileEntry				= require('./file_entry.js');
+const stringFormat			= require('./string_format.js');
+const FileArea				= require('./file_base_area.js');
+const Errors				= require('./enig_error.js').Errors;
+const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
+const ArchiveUtil			= require('./archive_util.js');
+const Config				= require('./config.js').config;
+const DownloadQueue			= require('./download_queue.js');
+const FileAreaWeb			= require('./file_area_web.js');
+const FileBaseFilters		= require('./file_base_filter.js');
+const resolveMimeType		= require('./mime_util.js').resolveMimeType;
+const isAnsi				= require('./string_util.js').isAnsi;
+const controlCodesToAnsi	= require('./color_codes.js').controlCodesToAnsi;
 
 //	deps
 const async				= require('async');

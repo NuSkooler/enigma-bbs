@@ -1,8 +1,8 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule	= require('../core/menu_module.js').MenuModule;
-const resetScreen	= require('../core/ansi_term.js').resetScreen;
+const MenuModule	= require('./menu_module.js').MenuModule;
+const resetScreen	= require('./ansi_term.js').resetScreen;
 
 const async			= require('async');
 const _				= require('lodash');

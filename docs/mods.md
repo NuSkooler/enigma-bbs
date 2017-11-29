@@ -1,5 +1,5 @@
 # Mods
-
+Custom mods should be added to `/enigma-install-path/mods`.
 
 ## Existing Mods
 * **Married Bob Fetch Event**: An event for fetching the latest Married Bob ANSI's for display on you board. ACiDic release [ACD-MB4E.ZIP](https://l33t.codes/outgoing/ACD/ACD-MB4E.ZIP). Can also be [found on GitHub](https://github.com/NuSkooler/enigma-bbs-married_bob_evt)

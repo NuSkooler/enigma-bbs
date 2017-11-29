@@ -1,8 +1,8 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule	= require('../core/menu_module.js').MenuModule;
-const stringFormat	= require('../core/string_format.js');
+const MenuModule	= require('./menu_module.js').MenuModule;
+const stringFormat	= require('./string_format.js');
 
 //	deps
 const async			= require('async');

@@ -2,8 +2,8 @@
 'use strict';
 
 //	ENiGMA½
-const FullScreenEditorModule		= require('../core/fse.js').FullScreenEditorModule;
-const Message						= require('../core/message.js');
+const FullScreenEditorModule		= require('./fse.js').FullScreenEditorModule;
+const Message						= require('./message.js');
 
 //	deps
 const _							= require('lodash');

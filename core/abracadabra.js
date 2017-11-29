@@ -1,11 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule		= require('../core/menu_module.js').MenuModule;
-const DropFile			= require('../core/dropfile.js').DropFile;
-const door				= require('../core/door.js');
-const theme				= require('../core/theme.js');
-const ansi				= require('../core/ansi_term.js');
+const MenuModule		= require('./menu_module.js').MenuModule;
+const DropFile			= require('./dropfile.js').DropFile;
+const door				= require('./door.js');
+const theme				= require('./theme.js');
+const ansi				= require('./ansi_term.js');
 
 const async				= require('async');
 const assert			= require('assert');

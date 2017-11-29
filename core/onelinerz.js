@@ -2,17 +2,17 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../core/menu_module.js').MenuModule;
+const MenuModule			= require('./menu_module.js').MenuModule;
 
 const {
 	getModDatabasePath,
 	getTransactionDatabase
-}							= require('../core/database.js');
+}							= require('./database.js');
 
-const ViewController		= require('../core/view_controller.js').ViewController;
-const theme					= require('../core/theme.js');
-const ansi					= require('../core/ansi_term.js');
-const stringFormat			= require('../core/string_format.js');
+const ViewController		= require('./view_controller.js').ViewController;
+const theme					= require('./theme.js');
+const ansi					= require('./ansi_term.js');
+const stringFormat			= require('./string_format.js');
 
 //	deps
 const sqlite3				= require('sqlite3');

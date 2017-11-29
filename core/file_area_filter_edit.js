@@ -2,11 +2,11 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule					= require('../core/menu_module.js').MenuModule;
-const ViewController				= require('../core/view_controller.js').ViewController;
-const getSortedAvailableFileAreas	= require('../core/file_base_area.js').getSortedAvailableFileAreas;
-const FileBaseFilters				= require('../core/file_base_filter.js');
-const stringFormat					= require('../core/string_format.js');
+const MenuModule					= require('./menu_module.js').MenuModule;
+const ViewController				= require('./view_controller.js').ViewController;
+const getSortedAvailableFileAreas	= require('./file_base_area.js').getSortedAvailableFileAreas;
+const FileBaseFilters				= require('./file_base_filter.js');
+const stringFormat					= require('./string_format.js');
 
 //	deps
 const async				= require('async');

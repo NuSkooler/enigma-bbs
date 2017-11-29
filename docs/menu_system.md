@@ -3,7 +3,7 @@ ENiGMA½'s menu system is highly flexible and moddable. The possibilities are al
 
 This document and others will refer to `menu.hjson`. This should be seen as an alias to `yourboardname.hjson` (or whatever you reference in `config.hjson` using the `menuFile` property — see below). By modifying your `menu.hjson` you will be able to create a custom experience unique to your board.
 
-The default `menu.hjson` file lives within the `mods` directory. It is **highly recommended** to specify another file by setting the `menuFile` property in your `config.hjson` file:
+The default `menu.hjson` file lives within the `config` directory. It is **highly recommended** to specify another file by setting the `menuFile` property in your `config.hjson` file:
 ```hjson
 general: {
   /* Can also specify a full path */
