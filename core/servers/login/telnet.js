@@ -541,6 +541,13 @@ function TelnetClient(input, output) {
 		const logger = self.log || Log;
 		return logger.warn(info, `Telnet: ${msg}`);
 	};
+
+	this.readyNow = () => {
+		if(!this.didReady) {
+			this.didReady = true;
+			this.emit('ready', { firstMenu : Config.loginServers.telnet.firstMenu } );
+		}
+	};
 }
 
 util.inherits(TelnetClient, baseClient.Client);
@@ -633,10 +640,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 
 		self.negotiationsComplete = true;	//	:TODO: throw in a array of what we've taken care. Complete = array satisified or timeout
 
-		if(!self.didReady) {
-			self.didReady = true;
-			self.emit('ready', { firstMenu : Config.loginServers.telnet.firstMenu } );
-		}
+		self.readyNow();
 	} else if('new environment' === evt.option) {
 		//
 		//	Handling is as follows:
@@ -832,6 +836,18 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
 			client.banner();
 
 			this.handleNewClient(client, sock, ModuleInfo);
+
+			//
+			//	Set a timeout and attempt to proceed even if we don't know
+			//	the term type yet, which is the preferred trigger
+			//	for moving along
+			//
+			setTimeout( () => {
+				if(!client.didReady) {
+					Log.info('Proceeding after 3s without knowing term type');
+					client.readyNow();
+				}
+			}, 3000);
 		});
 
 		this.server.on('error', err => {
