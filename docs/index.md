@@ -11,6 +11,7 @@ Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can s
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
+
 For other environments such as Windows, see **The Manual Way** below.
 
 ## The Manual Way (aka Advanced)
@@ -106,6 +107,23 @@ Below is an _example_ configuration. It is recommended that you at least **start
 ```bash
 ./main.js
 ```
+
+
+## With Docker
+
+This repo provides a basic Docker image that you can also use if you'd prefer to run ENiGMA½ inside of a Docker container. This image does not support SSH and will
+require you to have an existing config file already.
+
+To build the image, clone the repo and then from the root of the repo run:
+
+`docker build -t enigma .`
+
+This will build a docker image based off of the master branch. To start the container run the following command:
+
+`docker run -d -p 8888:8888 -v /your/local/config/location:/opt/enigma-conf enigma`
+
+Where `/your/local/config/location` is the local directory where your ENiGMA½ config is located
+
 
 Read the Points of Interest below for more info. Also check-out all the other documentation files in the [docs](.) directory.
 
