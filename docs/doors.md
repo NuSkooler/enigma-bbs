@@ -183,7 +183,7 @@ The module `door_party` provides native support for [DoorParty!](http://www.thro
 ```hjson
 doorParty: {
     desc: Using DoorParty!
-    module: @systemModule:door_party
+    module: door_party
     config: {
         username: XXXXXXXX
         password: XXXXXXXX
@@ -200,7 +200,7 @@ The `combatnet` module provides native support for [CombatNet](http://combatnet.
 ````hjson
 combatNet: {
     desc: Using CombatNet
-    module: @systemModule:combatnet
+    module: combatnet
     config: {
         bbsTag: CBNxxx
         password: XXXXXXXXX

@@ -44,11 +44,15 @@ ENiGMA 0.0.8-alpha comes with some structure changes:
 * `./mods` is now reserved for actual user addon modules
 * Themes have been moved from `./mods/themes` to `./art/themes`
 
+With the change to the `./mods` directory, `@systemModule` is now implied for `module` declarations in `menu.hjson`. To use a user module in `./mods` you must specify `@userModule`!
+
 With the above changes, you'll need to to at least:
 * Move your `~/.config/enigma-bbs/config.hjson` to `./config/config.hjson` or utlize the `--config` option. 
 * Move your `prompt.hjson` and `menu.hjson` (e.g. `myboardname.hjson`) to `./config`
 * Move any non-theme art files, and theme directories to their appropriate locations mentioned above
 * Move any module directories such as `message_post_evt` to `./mods/`
+* Move any certificates, pub/private keys, etc. from `./misc` to `./config`
+* Specify user modules as `@userModule:my_module_name`
 
 # 0.0.6-alpha to 0.0.7-alpha
 No issues

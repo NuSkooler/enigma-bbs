@@ -220,7 +220,7 @@
 		}
 
 		newUserApplication: {
-			module: @systemModule:nua
+			module: nua
 			art: NUA
 			options: {
 				menuFlags: [ "noHistory" ]
@@ -341,7 +341,7 @@
 		//	Canceling this form logs off vs falling back to matrix
 		//
 		newUserApplicationSsh: {
-			module: @systemModule:nua
+			module: nua
 			art: NUA
 			fallback: logoff
 			options: {
@@ -445,7 +445,7 @@
 
 		newUserFeedbackToSysOp: {
 			desc: Feedback to SysOp
-			module: @systemModule:msg_area_post_fse
+			module: msg_area_post_fse
 			next: [
 				{
 					acs: AS2
@@ -579,7 +579,7 @@
 
 		fullLoginSequenceLastCallers: {
 			desc: Last Callers
-			module: @systemModule:last_callers
+			module: last_callers
 			art: LASTCALL
 			options: {
 				pause: true
@@ -589,7 +589,7 @@
 		}
 		fullLoginSequenceWhosOnline: {
 			desc: Who's Online
-			module: @systemModule:whos_online
+			module: whos_online
 			art: WHOSON
 			options: { pause: true }
 			next: fullLoginSequenceOnelinerz
@@ -597,7 +597,7 @@
 
 		fullLoginSequenceOnelinerz: {
 			desc: Viewing Onelinerz
-			module: @systemModule:onelinerz
+			module: onelinerz
 			next: [
 				{
 					//	calls >= 2
@@ -709,7 +709,7 @@
 
 		fullLoginSequenceNewScan: {
 			desc: Performing New Scan
-			module: @systemModule:new_scan
+			module: new_scan
 			art: NEWSCAN
 			next: fullLoginSequenceSysStats
 			config: {
@@ -732,7 +732,7 @@
 
 		newScanMessageList: {
 			desc: New Messages
-			module: @systemModule:msg_list
+			module: msg_list
 			art: NEWMSGS
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -772,7 +772,7 @@
 		}
 
 		newScanFileBaseList: {
-			module: @systemModule:file_area_list
+			module: file_area_list
 			desc: New Files
 			config: {
 				art: {
@@ -1019,14 +1019,14 @@
 
 		mainMenuLastCallers: {
 			desc: Last Callers
-			module: @systemModule:last_callers
+			module: last_callers
 			art: LASTCALL
 			options: { pause: true }
 		}
 
 		mainMenuWhosOnline: {
 			desc: Who's Online
-			module: @systemModule:whos_online
+			module: whos_online
 			art: WHOSON
 			options: { pause: true }
 		}
@@ -1045,7 +1045,7 @@
 
 		mainMenuUserList: {
 			desc: User Listing
-			module: @systemModule:user_list
+			module: user_list
 			art: USERLST
 			form: {
 				0: {
@@ -1066,7 +1066,7 @@
 		}
 
 		mainMenuUserConfig: {
-			module: @systemModule:user_config
+			module: user_config
 			art: CONFSCR
 			form: {
 				0: {
@@ -1157,7 +1157,7 @@
 
 		mainMenuGlobalNewScan: {
 			desc: Performing New Scan
-			module: @systemModule:new_scan
+			module: new_scan
 			art: NEWSCAN
 			config: {
 				messageListMenu: newScanMessageList
@@ -1166,7 +1166,7 @@
 
 		mainMenuFeedbackToSysOp: {
 			desc: Feedback to SysOp
-			module: @systemModule:msg_area_post_fse
+			module: msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -1286,7 +1286,7 @@
 
 		mainMenuOnelinerz: {
 			desc: Viewing Onelinerz
-			module: @systemModule:onelinerz
+			module: onelinerz
 			options: {
 				cls: true
 			}
@@ -1372,7 +1372,7 @@
 
 		mainMenuRumorz: {
 			desc: Rumorz
-			module: @systemModule:rumorz
+			module: rumorz
 			options: {
 				cls: true
 			}
@@ -1458,7 +1458,7 @@
 
 		ercClient: {
 			art: erc
-			module: @systemModule:erc_client
+			module: erc_client
 			config: {
 				host: localhost
         		port: 5001
@@ -1510,7 +1510,7 @@
 
 		bbsList: {
 			desc: Viewing BBS List
-			module: @systemModule:bbs_list
+			module: bbs_list
 			options: {
 				cls: true
 			}
@@ -1661,7 +1661,7 @@
 		//
 		doorPimpWars: {
 			desc: Playing PimpWars
-			module: @systemModule:abracadabra
+			module: abracadabra
 			config: {
 				name: PimpWars
 				dropFileType: DORINFO
@@ -1684,7 +1684,7 @@
 		//
 		doorTradeWars2002BBSLink: {
 			desc: Playing TW 2002 (BBSLink)
-			module: @systemModule:bbs_link
+			module: bbs_link
 			config: {
 				sysCode: XXXXXXXX
 				authCode: XXXXXXXX
@@ -1696,7 +1696,7 @@
 		//	DoorParty! support. You'll need to register to obtain credentials
 		doorParty: {
 			desc: Using DoorParty!
-			module: @systemModule:door_party
+			module: door_party
 			config: {
 				username: XXXXXXXX
 				password: XXXXXXXX
@@ -1707,7 +1707,7 @@
         //	CombatNet support. You'll need to register at http://combatnet.us/ to obtain credentials
         combatNet: {
             desc: Using CombatNet
-            module: @systemModule:combatnet
+            module: combatnet
             config: {
                 bbsTag: CBNxxx
                 password: XXXXXXXXX
@@ -1716,7 +1716,7 @@
 
 		telnetBridgeAgency: {
 			desc: Connected to HappyLand BBS
-			module: @systemModule:telnet_bridge
+			module: telnet_bridge
 			config: {
 				host: agency.bbs.geek.nz
 			}
@@ -1779,7 +1779,7 @@
 
 		messageAreaChangeCurrentConference: {
 			art: CCHANGE
-			module: @systemModule:msg_conf_list
+			module: msg_conf_list
 			form: {
 				0: {
 					mci: {
@@ -1810,7 +1810,7 @@
 		messageAreaChangeCurrentArea: {
 			//	:TODO: rename this art to ACHANGE
 			art: CHANGE
-			module: @systemModule:msg_area_list
+			module: msg_area_list
 			form: {
 				0: {
 					mci: {
@@ -1839,7 +1839,7 @@
 		}
 
 		messageAreaMessageList: {
-			module: @systemModule:msg_list
+			module: msg_list
 			art: MSGLIST
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -1875,7 +1875,7 @@
 		}
 
 		messageAreaViewPost:  {
-			module: @systemModule:msg_area_view_fse
+			module: msg_area_view_fse
 			config: {
 				art: {
 					header:		MSGVHDR
@@ -1991,7 +1991,7 @@
 		}
 
 		messageAreaReplyPost: {
-			module: @systemModule:msg_area_post_fse
+			module: msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2150,7 +2150,7 @@
 		//	:TODO: messageAreaSelect (change msg areas -> call @systemMethod -> fallback to menu
 		messageAreaNewPost: {
 			desc: Posting message,
-			module: @systemModule:msg_area_post_fse
+			module: msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2306,7 +2306,7 @@
 
 		mailMenuCreateMessage: {
 			desc: Mailing Someone
-			module: @systemModule:msg_area_post_fse
+			module: msg_area_post_fse
 			config: {
 				art: {
 					header:				MSGEHDR
@@ -2423,7 +2423,7 @@
 		}
 
 		mailMenuInbox: {
-			module: @systemModule:msg_list
+			module: msg_list
 			art: MSGLIST
 			config: {
 				menuViewPost: messageAreaViewPost
@@ -2501,7 +2501,7 @@
 		}
 
 		fileBaseListEntries: {
-			module: @systemModule:file_area_list
+			module: file_area_list
 			desc: Browsing Files
 			config: {
 				art: {
@@ -2669,7 +2669,7 @@
 
 		fileBaseBrowseByAreaSelect: {
 			desc: Browsing File Areas
-			module: @systemModule:file_base_area_select
+			module: file_base_area_select
 			art: FAREASEL
 			form: {
 				0: {
@@ -2725,7 +2725,7 @@
 		}
 
 		fileBaseSearch: {
-			module: @systemModule:file_base_search
+			module: file_base_search
 			desc: Searching Files
 			art: FSEARCH
 			form: {
@@ -2799,7 +2799,7 @@
 
 		fileAreaFilterEditor: {
 			desc: File Filter Editor
-			module: @systemModule:file_area_filter_edit
+			module: file_area_filter_edit
 			art: FFILEDT
 			form: {
 				0: {
@@ -2889,7 +2889,7 @@
 
 		fileBaseDownloadManager: {
 			desc: Download Manager
-			module: @systemModule:file_base_download_manager
+			module: file_base_download_manager
 			config: {
 				art: {
 					queueManager: FDLMGR
@@ -2950,7 +2950,7 @@
 
 		fileBaseWebDownloadManager: {
 			desc: Web D/L Manager
-			module: @systemModule:file_base_web_download_manager
+			module: file_base_web_download_manager
 			config: {
 				art: {
 					queueManager: FWDLMGR
@@ -3017,7 +3017,7 @@
 
 		fileTransferProtocolSelection: {
 			desc: Protocol selection
-			module: @systemModule:file_transfer_protocol_select
+			module: file_transfer_protocol_select
 			art: FPROSEL
 			form: {
 				0: {
@@ -3049,7 +3049,7 @@
 
 		fileBaseUploadFiles: {
 			desc: Uploading
-			module: @systemModule:upload
+			module: upload
 			config: {
 				art: {
 					options: ULOPTS
@@ -3187,7 +3187,7 @@
 
 		sendFilesToUser: {
 			desc: Downloading
-			module: @systemModule:file_transfer
+			module: file_transfer
 			config: {
 				//	defaults - generally use extraArgs
 				protocol: zmodem8kSexyz
@@ -3197,7 +3197,7 @@
 
 		recvFilesFromUser: {
 			desc: Uploading
-			module: @systemModule:file_transfer
+			module: file_transfer
 			config: {
 				//	defaults - generally use extraArgs
 				protocol: zmodem8kSexyz
@@ -3569,7 +3569,7 @@
 			"art" : "test.ans"
 		},
 		"demoFullScreenEditor" : {
-			"module"	: "@systemModule:fse",
+			"module"	: "fse",
 			"config"	: {
 				"editorType"	: "netMail",
 				"art"			: {
