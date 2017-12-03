@@ -112,7 +112,7 @@ exports.getModule = class FileBaseSearch extends MenuModule {
 			extraArgs	: {
 				filterCriteria	: filterCriteria,				
 			},
-			menuFlags	: [ 'noHistory' ],
+			menuFlags	: [ 'popParent' ],
 		};
 
 		return this.gotoMenu(this.menuConfig.config.fileBaseListEntriesMenu || 'fileBaseListEntries', menuOpts, cb);

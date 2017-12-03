@@ -215,16 +215,14 @@
 			desc: Applying
 			options: {
 				pause: true
-				cls: true				
+				cls: true
+				menuFlags: [ "noHistory" ]
 			}
 		}
 
 		newUserApplication: {
 			module: nua
 			art: NUA
-			options: {
-				menuFlags: [ "noHistory" ]
-			}
 			next: [
 				{
 					//	Initial SysOp does not send feedback to themselves
@@ -333,6 +331,7 @@
 			options: {
 				pause: true
 				cls: true
+				menuFlags: [ "noHistory" ]
 			}
 		}
 
@@ -344,9 +343,6 @@
 			module: nua
 			art: NUA
 			fallback: logoff
-			options: {
-				menuFlags: [ "noHistory" ]
-			}
 			next: newUserFeedbackToSysOpPreamble
 			form: {
 				0: {
@@ -2720,7 +2716,7 @@
 			art: FBNORES
 			options: {
 				pause: true
-				menuFlags: [ "noHistory" ]
+				menuFlags: [ "noHistory", "popParent" ]
 			}
 		}
 
@@ -3011,7 +3007,7 @@
 			art: FEMPTYQ
 			options: {
 				pause: true
-				menuFlags: [ "noHistory" ]
+				menuFlags: [ "noHistory", "popParent" ]
 			}
 		}
 

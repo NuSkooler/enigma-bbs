@@ -129,15 +129,19 @@ module.exports = class MenuStack {
 			} else {
 				self.client.log.debug( { menuName : name }, 'Goto menu module');
 
+				const menuFlags = (options && Array.isArray(options.menuFlags)) ? options.menuFlags : modInst.menuConfig.options.menuFlags;
+
 				if(currentModuleInfo) {
 					//	save stack state
 					currentModuleInfo.savedState = currentModuleInfo.instance.getSaveState();
 
 					currentModuleInfo.instance.leave();
 
-					const menuFlags = (options && Array.isArray(options.menuFlags)) ? options.menuFlags : modInst.menuConfig.options.menuFlags;
+					if(currentModuleInfo.menuFlags.includes('noHistory')) {
+						this.pop();
+					}
 
-					if(menuFlags.includes('noHistory')) {
+					if(menuFlags.includes('popParent')) {
 						this.pop().instance.leave();	//	leave & remove current
 					}
 				}
@@ -146,6 +150,7 @@ module.exports = class MenuStack {
 					name		: name,
 					instance	: modInst,
 					extraArgs	: loadOpts.extraArgs,
+					menuFlags	: menuFlags,
 				});
 
 				//	restore previous state if requested
