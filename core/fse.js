@@ -264,12 +264,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	isEditMode() {
 		return 'edit' === this.editorMode;
 	}
-	
+
 	isViewMode() {
 		return 'view' === this.editorMode;
 	}
 
-	isLocalEmail() {
+	isPrivateMail() {
 		return Message.WellKnownAreaTags.Private === this.messageAreaTag;
 	}
 
@@ -411,7 +411,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					return callback(null);
 				},
 				function populateLocalUserInfo(callback) {
-					if(self.isLocalEmail()) {
+					if(self.isPrivateMail()) {
 						self.message.setLocalFromUserId(self.client.user.userId);
 						
 						if(self.toUserId > 0) {

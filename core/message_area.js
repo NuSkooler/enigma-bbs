@@ -347,13 +347,13 @@ function getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, what)
 		'COUNT() AS count' : 
 		'message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count';
 
-	let sql = 
+	let sql =
 		`SELECT ${selectWhat}
 		FROM message
 		WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
 
 	if(Message.isPrivateAreaTag(areaTag)) {
-		sql += 
+		sql +=
 			` AND message_id in (
 				SELECT message_id 
 				FROM message_meta 

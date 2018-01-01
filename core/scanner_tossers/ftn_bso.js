@@ -20,6 +20,7 @@ const getDescFromFileName				= require('../file_base_area.js').getDescFromFileNa
 const copyFileWithCollisionHandling		= require('../file_util.js').copyFileWithCollisionHandling;
 const getAreaStorageDirectoryByTag		= require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag					= require('../file_base_area.js').isValidStorageTag;
+const User								= require('../user.js');
 
 //	deps
 const moment				= require('moment');
@@ -310,22 +311,17 @@ function FTNMessageScanTossModule() {
 		message.meta.FtnProperty = message.meta.FtnProperty || {};
 		message.meta.FtnKludge = message.meta.FtnKludge || {};
 
-		//	:TODO: Only set DEST information for EchoMail - NetMail should already have it in message
 		message.meta.FtnProperty.ftn_orig_node		= options.network.localAddress.node;
-		//message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
 		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
-		//message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
 		message.meta.FtnProperty.ftn_cost			= 0;
 
 		//	tear line and origin can both go in EchoMail & NetMail
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();
 		message.meta.FtnProperty.ftn_origin			= ftnUtil.getOrigin(options.network.localAddress);
 
-		//	:TODO: Need an explicit isNetMail() check or more generally
-		let ftnAttribute =
-			ftnMailPacket.Packet.Attribute.Local;	//	message from our system
+		let ftnAttribute = ftnMailPacket.Packet.Attribute.Local;	//	message from our system
 
-		if(message.isPrivate()) {
+		if(self.isNetMailMessage(message)) {
 			//	These should be set for Private/NetMail already
 			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_node)));
 			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_network)));
@@ -438,7 +434,6 @@ function FTNMessageScanTossModule() {
 
 		options.encoding = encoding;	//	save for later
 		message.meta.FtnKludge.CHRS = ftnUtil.getCharacterSetIdentifierByEncoding(encoding);
-		//	:TODO: FLAGS kludge?
 	};
 
 	this.setReplyKludgeFromReplyToMsgId = function(message, cb) {
@@ -565,7 +560,6 @@ function FTNMessageScanTossModule() {
 		async.series(
 			[
 				function generalPrep(callback) {
-					//	:TODO: Double check Via spec -- seems like it may be wrong
 					self.prepareMessage(message, exportOpts);
 
 					return self.setReplyKludgeFromReplyToMsgId(message, callback);
@@ -886,8 +880,6 @@ function FTNMessageScanTossModule() {
 								return callback(err);
 							}
 
-
-
 							exportOpts.nodeConfig	= config;
 							exportOpts.destAddress	= routeAddress;
 							exportOpts.fileCase		= config.fileCase || 'lower';
@@ -904,9 +896,8 @@ function FTNMessageScanTossModule() {
 						});
 					},
 					function createOutgoingDir(callback) {
-						//	ensure outgoing NetMail directory exists						
+						//	ensure outgoing NetMail directory exists
 						return fse.mkdirs(exportOpts.outgoingDir, callback);
-						//return fse.mkdirs(Config.scannerTossers.ftn_bso.paths.outboundNetMail, callback);
 					},
 					function exportPacket(callback) {
 						return self.exportNetMailMessagePacket(message, exportOpts, callback);
@@ -915,7 +906,6 @@ function FTNMessageScanTossModule() {
 						const newExt = exportOpts.fileCase === 'lower' ? '.pkt' : '.PKT';
 						exportOpts.exportedToPath = paths.join(
 							exportOpts.outgoingDir,
-							//Config.scannerTossers.ftn_bso.paths.outboundNetMail,
 							`${paths.basename(exportOpts.pktFileName, paths.extname(exportOpts.pktFileName))}${newExt}`
 						);
 
@@ -1107,14 +1097,29 @@ function FTNMessageScanTossModule() {
 		});
 	};
 
-	this.importEchoMailToArea = function(localAreaTag, header, message, cb) {
+	this.getLocalUserNameFromAlias = function(lookup) {
+		lookup = lookup.toLowerCase();
+
+		const aliases = _.get(Config, 'messageNetworks.ftn.netMail.aliases');
+		if(!aliases) {
+			return lookup;	//	keep orig
+		}
+
+		const alias = _.find(aliases, (localName, alias) => {
+			return alias.toLowerCase() === lookup;
+		});
+
+		return alias || lookup;
+	};
+
+	this.importMailToArea = function(config, header, message, cb) {
 		async.series(
 			[
 				function validateDestinationAddress(callback) {
 					const localNetworkPattern = `${message.meta.FtnProperty.ftn_dest_network}/${message.meta.FtnProperty.ftn_dest_node}`;
 					const localNetworkName = self.getNetworkNameByAddressPattern(localNetworkPattern);
 
-					callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
+					return callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
 				},
 				function checkForDupeMSGID(callback) {
 					//
@@ -1135,23 +1140,49 @@ function FTNMessageScanTossModule() {
 					});
 				},
 				function basicSetup(callback) {
-					message.areaTag = localAreaTag;
+					message.areaTag = config.localAreaTag;
 
 					//
 					//	If we *allow* dupes (disabled by default), then just generate
 					//	a random UUID. Otherwise, don't assign the UUID just yet. It will be
 					//	generated at persist() time and should be consistent across import/exports
 					//
-					if(Config.messageNetworks.ftn.areas[localAreaTag].allowDupes) {
+					if(true === _.get(Config, [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
 						//	just generate a UUID & therefor always allow for dupes
 						message.uuid = uuidV4();
 					}
 
-					callback(null);
+					return callback(null);
 				},
 				function setReplyToMessageId(callback) {
 					self.setReplyToMsgIdFtnReplyKludge(message, () => {
-						callback(null);
+						return callback(null);
+					});
+				},
+				function setupPrivateMessage(callback) {
+					//
+					//	If this is a private message (e.g. NetMail) we set the local user ID
+					//
+					if(Message.WellKnownAreaTags.Private !== config.localAreaTag) {
+						return callback(null);
+					}
+
+					const lookupName = self.getLocalUserNameFromAlias(message.toUserName);
+
+					//	:TODO: take into account aliasing, e.g. "root" -> SysOp
+					User.getUserIdAndName(lookupName, (err, localToUserId, localUserName) => {
+						if(err) {
+							return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
+						}
+
+						//	we do this after such that error cases can be preseved above
+						if(lookupName !== message.toUserName) {
+							message.toUserName = localUserName;
+						}
+
+						//	set the meta information - used elsehwere for retrieval
+						message.meta.System[Message.SystemMetaNames.LocalToUserID] = localToUserId;
+						return callback(null);
 					});
 				},
 				function persistImport(callback) {
@@ -1160,7 +1191,7 @@ function FTNMessageScanTossModule() {
 
 					//	save to disc
 					message.persist(err => {
-						callback(err);
+						return callback(err);
 					});
 				}
 			],
@@ -1214,45 +1245,15 @@ function FTNMessageScanTossModule() {
 				const message = entryData;
 				const areaTag = message.meta.FtnProperty.ftn_area;
 
+				let localAreaTag;
 				if(areaTag) {
-					//
-					//	EchoMail
-					//
-					const localAreaTag = self.getLocalAreaTagByFtnAreaTag(areaTag);
-					if(localAreaTag) {
-						message.uuid = Message.createMessageUUID(
-							localAreaTag,
-							message.modTimestamp,
-							message.subject,
-							message.message);
+					localAreaTag = self.getLocalAreaTagByFtnAreaTag(areaTag);
 
-						self.appendTearAndOrigin(message);
-
-						self.importEchoMailToArea(localAreaTag, packetHeader, message, err => {
-							if(err) {
-								//	bump area fail stats
-								importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
-
-								if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
-									const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
-									Log.info(
-										{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId },
-										'Not importing non-unique message');
-
-									return next(null);
-								}
-							} else {
-								//	bump area success
-								importStats.areaSuccess[localAreaTag] = (importStats.areaSuccess[localAreaTag] || 0) + 1;
-							}
-
-							return next(err);
-						});
-					} else {
+					if(!localAreaTag) {
 						//
 						//	No local area configured for this import
 						//
-						//	:TODO: Handle the "catch all" case, if configured
+						//	:TODO: Handle the "catch all" area bucket case if configured
 						Log.warn( { areaTag : areaTag }, 'No local area configured for this packet file!');
 
 						//	bump generic failure
@@ -1262,11 +1263,49 @@ function FTNMessageScanTossModule() {
 					}
 				} else {
 					//
-					//	NetMail
+					//	No area tag: If marked private in attributes, this is a NetMail
 					//
-					Log.warn('NetMail import not yet implemented!');
-					return next(null);
+					if(message.meta.FtnProperty.ftn_attr_flags & ftnMailPacket.Packet.Attribute.Private) {
+						localAreaTag = Message.WellKnownAreaTags.Private;
+					} else {
+						Log.warn('Non-private message without area tag');
+						importStats.otherFail += 1;
+						return next(null);
+					}
 				}
+
+				message.uuid = Message.createMessageUUID(
+					localAreaTag,
+					message.modTimestamp,
+					message.subject,
+					message.message);
+
+				self.appendTearAndOrigin(message);
+
+				const importConfig = {
+					localAreaTag	: localAreaTag,
+				};
+
+				self.importMailToArea(importConfig, packetHeader, message, err => {
+					if(err) {
+						//	bump area fail stats
+						importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
+
+						if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
+							const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
+							Log.info(
+								{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId },
+								'Not importing non-unique message');
+
+							return next(null);
+						}
+					} else {
+						//	bump area success
+						importStats.areaSuccess[localAreaTag] = (importStats.areaSuccess[localAreaTag] || 0) + 1;
+					}
+
+					return next(err);
+				});
 			}
 		}, err => {
 			//
