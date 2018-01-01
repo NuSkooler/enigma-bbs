@@ -2051,11 +2051,11 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 
 	let self = this;
 
-	function tryImportNow(reasonDesc) {
+	function tryImportNow(reasonDesc, extraInfo) {
 		if(!importing) {
 			importing = true;
 
-			Log.info( { module : exports.moduleInfo.name }, reasonDesc);
+			Log.info( Object.assign({ module : exports.moduleInfo.name }, extraInfo), reasonDesc);
 
 			self.performImport( () => {
 				importing = false;
@@ -2129,7 +2129,7 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 						watcher.on(event, (fileName, fileRoot) => {
 							const eventPath = paths.join(fileRoot, fileName);
 							if(paths.join(fileRoot, fileName) === importSchedule.watchFile) {
-								tryImportNow(`Performing import/toss due to @watch: ${eventPath} (${event})`);
+								tryImportNow('Performing import/toss due to @watch', { eventPath, event } );
 							}
 						});
 					});
@@ -2140,7 +2140,7 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 					//
 					fse.exists(importSchedule.watchFile, exists => {
 						if(exists) {
-							tryImportNow(`Performing import/toss due to @watch: ${importSchedule.watchFile} (initial exists)`);
+							tryImportNow('Performing import/toss due to @watch', { eventPath : importSchedule.watchFile, event : 'initial exists' } );
 						}
 					});
 				}
