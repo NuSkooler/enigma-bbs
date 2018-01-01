@@ -72,6 +72,20 @@
 			}
 		}
 
+		loginSequenceFlavorSelect: {
+			art: LOGINSEL
+			mci: {
+				TM1: {
+					argName: promptValue
+					items: [ "yes", "no" ]
+					focus: true
+					focusItemIndex: 1
+					hotKeys: { Y: 0, N: 1 }
+					hotKeySubmit: true
+				}
+			}
+		}
+
 		loginGlobalNewScan: {
 			art: GNSPMPT
 			mci: {

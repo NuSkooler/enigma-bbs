@@ -43,14 +43,14 @@ exports.moduleInfo = {
 
 /*
 	:TODO:
-	* Support (approx) max bundle size 
+	* Support (approx) max bundle size
 	* Support NetMail
 		* NetMail needs explicit isNetMail()  check
 		* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
 	* Validate packet passwords!!!!
 		=> secure vs insecure landing areas
-	
-*/ 
+
+*/
 
 exports.getModule = FTNMessageScanTossModule;
 
@@ -58,32 +58,31 @@ const SCHEDULE_REGEXP	= /(?:^|or )?(@watch\:|@immediate)([^\0]+)?$/;
 
 function FTNMessageScanTossModule() {
 	MessageScanTossModule.call(this);
-	
-	let self = this;
+
+	const self = this;
 
 	this.archUtil = ArchiveUtil.getInstance();
 
 	if(_.has(Config, 'scannerTossers.ftn_bso')) {
-		this.moduleConfig = Config.scannerTossers.ftn_bso;	
+		this.moduleConfig = Config.scannerTossers.ftn_bso;
 	}
-	
+
 	this.getDefaultNetworkName = function() {
 		if(this.moduleConfig.defaultNetwork) {
 			return this.moduleConfig.defaultNetwork.toLowerCase();
 		}
-		
+
 		const networkNames = Object.keys(Config.messageNetworks.ftn.networks);
 		if(1 === networkNames.length) {
 			return networkNames[0].toLowerCase();
 		}
 	};
-	
-	
+
 	this.getDefaultZone = function(networkName) {
 		if(_.isNumber(Config.messageNetworks.ftn.networks[networkName].defaultZone)) {
 			return Config.messageNetworks.ftn.networks[networkName].defaultZone;
 		}
-		
+
 		//	non-explicit: default to local address zone
 		const networkLocalAddress = Config.messageNetworks.ftn.networks[networkName].localAddress;
 		if(networkLocalAddress) {
@@ -91,45 +90,45 @@ function FTNMessageScanTossModule() {
 			return addr.zone;
 		}
 	};
-	
+
 	/*
 	this.isDefaultDomainZone = function(networkName, address) {
-		const defaultNetworkName 	= this.getDefaultNetworkName();		 
+		const defaultNetworkName 	= this.getDefaultNetworkName();
 		return(networkName === defaultNetworkName && address.zone === this.moduleConfig.defaultZone);
 	};
 	*/
-	
+
 	this.getNetworkNameByAddress = function(remoteAddress) {
 		return _.findKey(Config.messageNetworks.ftn.networks, network => {
-			const localAddress = Address.fromString(network.localAddress);			
+			const localAddress = Address.fromString(network.localAddress);
 			return !_.isUndefined(localAddress) && localAddress.isEqual(remoteAddress);
 		});
 	};
-	
+
 	this.getNetworkNameByAddressPattern = function(remoteAddressPattern) {
 		return _.findKey(Config.messageNetworks.ftn.networks, network => {
-			const localAddress = Address.fromString(network.localAddress);			
+			const localAddress = Address.fromString(network.localAddress);
 			return !_.isUndefined(localAddress) && localAddress.isPatternMatch(remoteAddressPattern);
-		});	
+		});
 	};
-	
+
 	this.getLocalAreaTagByFtnAreaTag = function(ftnAreaTag) {
 		ftnAreaTag = ftnAreaTag.toUpperCase();	//	always compare upper
 		return _.findKey(Config.messageNetworks.ftn.areas, areaConf => {
 			return areaConf.tag.toUpperCase() === ftnAreaTag;
 		});
 	};
-	
+
 	this.getExportType = function(nodeConfig) {
-		return _.isString(nodeConfig.exportType) ? nodeConfig.exportType.toLowerCase() : 'crash';	
+		return _.isString(nodeConfig.exportType) ? nodeConfig.exportType.toLowerCase() : 'crash';
 	};
-	
+
 	/*
 	this.getSeenByAddresses = function(messageSeenBy) {
 		if(!_.isArray(messageSeenBy)) {
 			messageSeenBy = [ messageSeenBy ];
 		}
-		
+
 		let seenByAddrs = [];
 		messageSeenBy.forEach(sb => {
 			seenByAddrs = seenByAddrs.concat(ftnUtil.parseAbbreviatedNetNodeList(sb));
@@ -137,13 +136,13 @@ function FTNMessageScanTossModule() {
 		return seenByAddrs;
 	};
 	*/
-	
+
 	this.messageHasValidMSGID = function(msg) {
-		return _.isString(msg.meta.FtnKludge.MSGID) && msg.meta.FtnKludge.MSGID.length > 0;	
+		return _.isString(msg.meta.FtnKludge.MSGID) && msg.meta.FtnKludge.MSGID.length > 0;
 	};
-	
+
 	/*
-	this.getOutgoingPacketDir = function(networkName, destAddress) {
+	this.getOutgoingEchoMailPacketDir = function(networkName, destAddress) {
 		let dir = this.moduleConfig.paths.outbound;
 		if(!this.isDefaultDomainZone(networkName, destAddress)) {
 			const hexZone = `000${destAddress.zone.toString(16)}`.substr(-3);
@@ -152,31 +151,31 @@ function FTNMessageScanTossModule() {
 		return dir;
 	};
 	*/
-	
-	this.getOutgoingPacketDir = function(networkName, destAddress) {
+
+	this.getOutgoingEchoMailPacketDir = function(networkName, destAddress) {
 		networkName = networkName.toLowerCase();
-		
+
 		let dir = this.moduleConfig.paths.outbound;
-		
-		const defaultNetworkName 	= this.getDefaultNetworkName();	
+
+		const defaultNetworkName 	= this.getDefaultNetworkName();
 		const defaultZone			= this.getDefaultZone(networkName);
-		
+
 		let zoneExt;
 		if(defaultZone !== destAddress.zone) {
 			zoneExt = '.' + `000${destAddress.zone.toString(16)}`.substr(-3);
 		} else {
 			zoneExt = '';
 		}
-		
+
 		if(defaultNetworkName === networkName) {
 			dir = paths.join(dir, `outbound${zoneExt}`);
 		} else {
 			dir = paths.join(dir, `${networkName}${zoneExt}`);
 		}
-		
+
 		return dir;
 	};
-	
+
 	this.getOutgoingPacketFileName = function(basePath, messageId, isTemp, fileCase) {
 		//
 		//	Generating an outgoing packet file name comes with a few issues:
@@ -189,15 +188,15 @@ function FTNMessageScanTossModule() {
 		//	There are a lot of systems in use here for the name:
 		//	*	HEX CRC16/32 of data
 		//	*	HEX UNIX timestamp
-		//	*	Mystic at least at one point, used Hex8(day of month + seconds past midnight + hundredths of second) 
+		//	*	Mystic at least at one point, used Hex8(day of month + seconds past midnight + hundredths of second)
 		//		See https://groups.google.com/forum/#!searchin/alt.bbs.mystic/netmail$20filename/alt.bbs.mystic/m1xLnY8i1pU/YnG2excdl6MJ
 		//	* 	SBBSEcho uses DDHHMMSS - see https://github.com/ftnapps/pkg-sbbs/blob/master/docs/fidonet.txt
 		//	*	We already have a system for 8-character serial number gernation that is
 		//		used for e.g. in FTS-0009.001 MSGIDs... let's use that!
-		// 		
+		//
 		const name		= ftnUtil.getMessageSerialNumber(messageId);
 		const ext		= (true === isTemp) ? 'pk_' : 'pkt';
-		
+
 		let fileName = `${name}.${ext}`;
 		if('upper' === fileCase) {
 			fileName = fileName.toUpperCase();
@@ -205,10 +204,10 @@ function FTNMessageScanTossModule() {
 
 		return paths.join(basePath, fileName);
 	};
-	
+
 	this.getOutgoingFlowFileExtension = function(destAddress, flowType, exportType, fileCase) {
 		let ext;
-		
+
 		switch(flowType) {
 			case 'mail'		: ext = `${exportType.toLowerCase()[0]}ut`; break;
 			case 'ref'		: ext = `${exportType.toLowerCase()[0]}lo`; break;
@@ -220,20 +219,20 @@ function FTNMessageScanTossModule() {
 		if('upper' === fileCase) {
 			ext = ext.toUpperCase();
 		}
-		
-		return ext;	
+
+		return ext;
 	};
 
 	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType, fileCase) {
-		let basename;			
-		
+		let basename;
+
 		const ext = self.getOutgoingFlowFileExtension(
-			destAddress, 
-			flowType, 
-			exportType, 
+			destAddress,
+			flowType,
+			exportType,
 			fileCase
 		);
-		
+
 		if(destAddress.point) {
 
 		} else {
@@ -242,32 +241,32 @@ function FTNMessageScanTossModule() {
 			//	node. This seems to match what Mystic does
 			//
 			basename =
-				`0000${destAddress.net.toString(16)}`.substr(-4) + 
-				`0000${destAddress.node.toString(16)}`.substr(-4);			
+				`0000${destAddress.net.toString(16)}`.substr(-4) +
+				`0000${destAddress.node.toString(16)}`.substr(-4);
 		}
 
 		if('upper' === fileCase) {
 			basename = basename.toUpperCase();
 		}
-		
+
 		return paths.join(basePath, `${basename}.${ext}`);
 	};
-	
+
 	this.flowFileAppendRefs = function(filePath, fileRefs, directive, cb) {
 		const appendLines = fileRefs.reduce( (content, ref) => {
 			return content + `${directive}${ref}\n`;
 		}, '');
-		
+
 		fs.appendFile(filePath, appendLines, err => {
 			cb(err);
 		});
 	};
-	
+
 	this.getOutgoingBundleFileName = function(basePath, sourceAddress, destAddress, cb) {
 		//
 		//	Base filename is constructed as such:
-		//	*	If this |destAddress| is *not* a point address, we use NNNNnnnn where 
-		//		NNNN is 0 padded hex of dest net - source net and and nnnn is 0 padded 
+		//	*	If this |destAddress| is *not* a point address, we use NNNNnnnn where
+		//		NNNN is 0 padded hex of dest net - source net and and nnnn is 0 padded
 		//		hex of dest node - source node.
 		//	*	If |destAddress| is a point, NNNN becomes 0000 and nnnn becomes 'p' +
 		//		3 digit 0 padded hex point
@@ -279,19 +278,19 @@ function FTNMessageScanTossModule() {
 			const pointHex = `000${destAddress.point}`.substr(-3);
 			basename = `0000p${pointHex}`;
 		} else {
-			basename = 
-				`0000${Math.abs(sourceAddress.net - destAddress.net).toString(16)}`.substr(-4) + 
-				`0000${Math.abs(sourceAddress.node - destAddress.node).toString(16)}`.substr(-4);			
+			basename =
+				`0000${Math.abs(sourceAddress.net - destAddress.net).toString(16)}`.substr(-4) +
+				`0000${Math.abs(sourceAddress.node - destAddress.node).toString(16)}`.substr(-4);
 		}
-		
+
 		//
 		//	We need to now find the first entry that does not exist starting
 		//	with dd0 to ddz
 		//
-		const EXT_SUFFIXES = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');		
+		const EXT_SUFFIXES = '0123456789abcdefghijklmnopqrstuvwxyz'.split('');
 		let fileName = `${basename}.${moment().format('dd').toLowerCase()}`;
 		async.detectSeries(EXT_SUFFIXES, (suffix, callback) => {
-			const checkFileName = fileName + suffix; 			
+			const checkFileName = fileName + suffix;
 			fs.stat(paths.join(basePath, checkFileName), err => {
 				callback(null, (err && 'ENOENT' === err.code) ? true : false);
 			});
@@ -299,32 +298,40 @@ function FTNMessageScanTossModule() {
 			if(finalSuffix) {
 				return cb(null, paths.join(basePath, fileName + finalSuffix));
 			}
-			
-			return cb(new Error('Could not acquire a bundle filename!'));			
+
+			return cb(new Error('Could not acquire a bundle filename!'));
 		});
 	};
-	
+
 	this.prepareMessage = function(message, options) {
 		//
 		//	Set various FTN kludges/etc.
 		//
 		message.meta.FtnProperty = message.meta.FtnProperty || {};
 		message.meta.FtnKludge = message.meta.FtnKludge || {};
-		
-		message.meta.FtnProperty.ftn_orig_node		= options.network.localAddress.node;
-		message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
-		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
-		message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
-		message.meta.FtnProperty.ftn_cost			= 0;
-		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();		
 
-		//	:TODO: Need an explicit isNetMail() check
-		let ftnAttribute = 
+		//	:TODO: Only set DEST information for EchoMail - NetMail should already have it in message
+		message.meta.FtnProperty.ftn_orig_node		= options.network.localAddress.node;
+		//message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
+		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
+		//message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
+		message.meta.FtnProperty.ftn_cost			= 0;
+
+		//	tear line and origin can both go in EchoMail & NetMail
+		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();
+		message.meta.FtnProperty.ftn_origin			= ftnUtil.getOrigin(options.network.localAddress);
+
+		//	:TODO: Need an explicit isNetMail() check or more generally
+		let ftnAttribute =
 			ftnMailPacket.Packet.Attribute.Local;	//	message from our system
-		
+
 		if(message.isPrivate()) {
+			//	These should be set for Private/NetMail already
+			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_node)));
+			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_network)));
+
 			ftnAttribute |= ftnMailPacket.Packet.Attribute.Private;
-			
+
 			//
 			//	NetMail messages need a FRL-1005.001 "Via" line
 			//	http://ftsc.org/docs/frl-1005.001
@@ -334,7 +341,25 @@ function FTNMessageScanTossModule() {
 			}
 			message.meta.FtnKludge.Via = message.meta.FtnKludge.Via || [];
 			message.meta.FtnKludge.Via.push(ftnUtil.getVia(options.network.localAddress));
+
+			//
+			//	We need to set INTL, and possibly FMPT and/or TOPT
+			//	See http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
+			//
+			message.meta.FtnKludge.INTL = ftnUtil.getIntl(options.network.localAddress, options.destAddress);
+
+			if(_.isNumber(options.network.localAddress.point) && options.network.localAddress.point > 0) {
+				message.meta.FtnKludge.FMPT = options.network.localAddress.point;
+			}
+
+			if(_.get(message, 'meta.FtnProperty.ftn_dest_point', 0) > 0) {
+				message.meta.FtnKludge.TOPT = message.meta.FtnProperty.ftn_dest_point;
+			}
 		} else {
+			//	We need to set some destination info for EchoMail
+			message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
+			message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
+
 			//
 			//	Set appropriate attribute flag for export type
 			//
@@ -343,52 +368,51 @@ function FTNMessageScanTossModule() {
 				case 'hold'		: ftnAttribute |= ftnMailPacket.Packet.Attribute.Hold; break;
 				//	:TODO: Others?
 			}
-			
+
 			//
 			//	EchoMail requires some additional properties & kludges
-			//		
-			message.meta.FtnProperty.ftn_origin		= ftnUtil.getOrigin(options.network.localAddress);
-			message.meta.FtnProperty.ftn_area		= Config.messageNetworks.ftn.areas[message.areaTag].tag;
-			
+			//
+			message.meta.FtnProperty.ftn_area = Config.messageNetworks.ftn.areas[message.areaTag].tag;
+
 			//
 			//	When exporting messages, we should create/update SEEN-BY
 			//	with remote address(s) we are exporting to.
 			//
-			const seenByAdditions = 
+			const seenByAdditions =
 				[ `${options.network.localAddress.net}/${options.network.localAddress.node}` ].concat(Config.messageNetworks.ftn.areas[message.areaTag].uplinks);
-			message.meta.FtnProperty.ftn_seen_by = 
+			message.meta.FtnProperty.ftn_seen_by =
 				ftnUtil.getUpdatedSeenByEntries(message.meta.FtnProperty.ftn_seen_by, seenByAdditions);
 
 			//
 			//	And create/update PATH for ourself
 			//
-			message.meta.FtnKludge.PATH = 
+			message.meta.FtnKludge.PATH =
 				ftnUtil.getUpdatedPathEntries(message.meta.FtnKludge.PATH, options.network.localAddress);
 		}
-		
+
 		message.meta.FtnProperty.ftn_attr_flags = ftnAttribute;
-		
+
 		//
 		//	Additional kludges
 		//
 		//	Check for existence of MSGID as we may already have stored it from a previous
 		//	export that failed to finish
-		//	
+		//
 		if(!message.meta.FtnKludge.MSGID) {
 			message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(message, options.network.localAddress);
 		}
-			
+
 		message.meta.FtnKludge.TZUTC = ftnUtil.getUTCTimeZoneOffset();
-			
+
 		//
 		//	According to FSC-0046:
-		//	
+		//
 		//	"When a Conference Mail processor adds a TID to a message, it may not
 		//	add a PID. An existing TID should, however, be replaced. TIDs follow
 		//	the same format used for PIDs, as explained above."
 		//
-		message.meta.FtnKludge.TID = ftnUtil.getProductIdentifier(); 
-		
+		message.meta.FtnKludge.TID = ftnUtil.getProductIdentifier();
+
 		//
 		//	Determine CHRS and actual internal encoding name. If the message has an
 		//	explicit encoding set, use it. Otherwise, try to preserve any CHRS/encoding already set.
@@ -403,77 +427,77 @@ function FTNMessageScanTossModule() {
 				encoding = encFromChars;
 			}
 		}
-		
+
 		//
 		//	Ensure we ended up with something useable. If not, back to utf8!
 		//
 		if(!iconv.encodingExists(encoding)) {
 			Log.debug( { encoding : encoding }, 'Unknown encoding. Falling back to utf8');
 			encoding = 'utf8';
-		} 
-		
+		}
+
 		options.encoding = encoding;	//	save for later
 		message.meta.FtnKludge.CHRS = ftnUtil.getCharacterSetIdentifierByEncoding(encoding);
-		//	:TODO: FLAGS kludge? 		
+		//	:TODO: FLAGS kludge?
 	};
-	
+
 	this.setReplyKludgeFromReplyToMsgId = function(message, cb) {
 		//
 		//	Look up MSGID kludge for |message.replyToMsgId|, if any.
 		//	If found, we can create a REPLY kludge with the previously
 		//	discovered MSGID.
 		//
-		
+
 		if(0 === message.replyToMsgId) {
 			return cb(null);	//	nothing to do
 		}
-		
-		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {			
+
+		Message.getMetaValuesByMessageId(message.replyToMsgId, 'FtnKludge', 'MSGID', (err, msgIdVal) => {
 			if(!err) {
-				assert(_.isString(msgIdVal), 'Expected string but got ' + (typeof msgIdVal) + ' (' + msgIdVal + ')');			
+				assert(_.isString(msgIdVal), 'Expected string but got ' + (typeof msgIdVal) + ' (' + msgIdVal + ')');
 				//	got a MSGID - create a REPLY
 				message.meta.FtnKludge.REPLY = msgIdVal;
 			}
-			
+
 			cb(null);	//	this method always passes
-		});	
+		});
 	};
-	
+
 	//	check paths, Addresses, etc.
 	this.isAreaConfigValid = function(areaConfig) {
 		if(!areaConfig || !_.isString(areaConfig.tag) || !_.isString(areaConfig.network)) {
 			return false;
 		}
-		
+
 		if(_.isString(areaConfig.uplinks)) {
 			areaConfig.uplinks = areaConfig.uplinks.split(' ');
 		}
-		
+
 		return (_.isArray(areaConfig.uplinks));
 	};
-	
-	
+
+
 	this.hasValidConfiguration = function() {
 		if(!_.has(this, 'moduleConfig.nodes') || !_.has(Config, 'messageNetworks.ftn.areas')) {
 			return false;
 		}
-		
+
 		//	:TODO: need to check more!
-		
+
 		return true;
 	};
-	
+
 	this.parseScheduleString = function(schedStr) {
 		if(!schedStr) {
 			return;	//	nothing to parse!
 		}
-		
+
 		let schedule = {};
-		
+
 		const m = SCHEDULE_REGEXP.exec(schedStr);
 		if(m) {
 			schedStr = schedStr.substr(0, m.index).trim();
-			
+
 			if('@watch:' === m[1]) {
 				schedule.watchFile = m[2];
 			} else if('@immediate' === m[1]) {
@@ -485,46 +509,112 @@ function FTNMessageScanTossModule() {
 			const sched = later.parse.text(schedStr);
 			if(-1 === sched.error) {
 				schedule.sched = sched;
-			}	
+			}
 		}
-		
+
 		//	return undefined if we couldn't parse out anything useful
 		if(!_.isEmpty(schedule)) {
 			return schedule;
-		} 
+		}
 	};
-	
+
 	this.getAreaLastScanId = function(areaTag, cb) {
-		const sql = 
+		const sql =
 			`SELECT area_tag, message_id
 			FROM message_area_last_scan
 			WHERE scan_toss = "ftn_bso" AND area_tag = ?
 			LIMIT 1;`;
-			
+
 		msgDb.get(sql, [ areaTag ], (err, row) => {
-			cb(err, row ? row.message_id : 0);
+			return cb(err, row ? row.message_id : 0);
 		});
 	};
-	
+
 	this.setAreaLastScanId = function(areaTag, lastScanId, cb) {
 		const sql =
 			`REPLACE INTO message_area_last_scan (scan_toss, area_tag, message_id)
 			VALUES ("ftn_bso", ?, ?);`;
-		
+
 		msgDb.run(sql, [ areaTag, lastScanId ], err => {
-			cb(err);
+			return cb(err);
 		});
 	};
-	
+
+	this.getNodeConfigByAddress = function(addr) {
+		addr = _.isString(addr) ? Address.fromString(addr) : addr;
+
+		//	:TODO: sort wildcard nodes{} entries by most->least explicit according to FTN hierarchy
+		return _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
+			return addr.isPatternMatch(nodeAddrWildcard);
+		});
+	};
+
+	//	:TODO: deprecate this in favor of getNodeConfigByAddress()
 	this.getNodeConfigKeyByAddress = function(uplink) {
-		//	:TODO: sort by least # of '*' & take top?
 		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
 			return Address.fromString(addr).isPatternMatch(uplink);
 		})[0];
 
 		return nodeKey;
 	};
-	
+
+	this.exportNetMailMessagePacket = function(message, exportOpts, cb) {
+		//
+		//	For NetMail, we always create a *single* packet per message.
+		//
+		async.series(
+			[
+				function generalPrep(callback) {
+					//	:TODO: Double check Via spec -- seems like it may be wrong
+					self.prepareMessage(message, exportOpts);
+
+					return self.setReplyKludgeFromReplyToMsgId(message, callback);
+				},
+				function createPacket(callback) {
+					const packet = new ftnMailPacket.Packet();
+
+					const packetHeader = new ftnMailPacket.PacketHeader(
+						exportOpts.network.localAddress,
+						exportOpts.destAddress,
+						exportOpts.nodeConfig.packetType
+					);
+
+					packetHeader.password = exportOpts.nodeConfig.packetPassword || '';
+
+					//	use current message ID for filename seed
+					exportOpts.pktFileName = self.getOutgoingPacketFileName(
+						self.exportTempDir,
+						message.messageId,
+						false,	//	createTempPacket=false
+						exportOpts.fileCase
+					);
+
+					const ws = fs.createWriteStream(exportOpts.pktFileName);
+
+					packet.writeHeader(ws, packetHeader);
+
+					packet.getMessageEntryBuffer(message, exportOpts, (err, msgBuf) => {
+						if(err) {
+							return callback(err);
+						}
+
+						ws.write(msgBuf);
+
+						packet.writeTerminator(ws);
+
+						ws.end();
+						ws.once('finish', () => {
+							return callback(null);
+						});
+					});
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
+	};
+
 	this.exportMessagesByUuid = function(messageUuids, exportOpts, cb) {
 		//
 		//	This method has a lot of madness going on:
@@ -538,7 +628,7 @@ function FTNMessageScanTossModule() {
 		let ws;
 		let remainMessageBuf;
 		let remainMessageId;
-		const createTempPacket = !_.isString(exportOpts.nodeConfig.archiveType) || 0 === exportOpts.nodeConfig.archiveType.length; 
+		const createTempPacket = !_.isString(exportOpts.nodeConfig.archiveType) || 0 === exportOpts.nodeConfig.archiveType.length;
 
 		function finalizePacket(cb) {
 			packet.writeTerminator(ws);
@@ -547,10 +637,10 @@ function FTNMessageScanTossModule() {
 				return cb(null);
 			});
 		}
-		
+
 		async.each(messageUuids, (msgUuid, nextUuid) => {
 			let message = new Message();
-			
+
 			async.series(
 				[
 					function finalizePrevious(callback) {
@@ -565,47 +655,47 @@ function FTNMessageScanTossModule() {
 							if(err) {
 								return callback(err);
 							}
-							
+
 							//	General preperation
 							self.prepareMessage(message, exportOpts);
-							
+
 							self.setReplyKludgeFromReplyToMsgId(message, err => {
 								callback(err);
 							});
 						});
 					},
-					function createNewPacket(callback) {			
-						if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {					
+					function createNewPacket(callback) {
+						if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
 							packet = new ftnMailPacket.Packet();
-							
+
 							const packetHeader = new ftnMailPacket.PacketHeader(
 								exportOpts.network.localAddress,
 								exportOpts.destAddress,
 								exportOpts.nodeConfig.packetType);
 
 							packetHeader.password = exportOpts.nodeConfig.packetPassword || '';
-							
+
 							//	use current message ID for filename seed
 							const pktFileName = self.getOutgoingPacketFileName(
-								self.exportTempDir, 
-								message.messageId, 
+								self.exportTempDir,
+								message.messageId,
 								createTempPacket,
 								exportOpts.fileCase
 							);
 
 							exportedFiles.push(pktFileName);
-							
+
 							ws = fs.createWriteStream(pktFileName);
-							
+
 							currPacketSize = packet.writeHeader(ws, packetHeader);
-							
+
 							if(remainMessageBuf) {
 								currPacketSize += packet.writeMessageEntry(ws, remainMessageBuf);
 								remainMessageBuf = null;
-							}						
+							}
 						}
-						
-						callback(null);					
+
+						callback(null);
 					},
 					function appendMessage(callback) {
 						packet.getMessageEntryBuffer(message, exportOpts, (err, msgBuf) => {
@@ -614,16 +704,16 @@ function FTNMessageScanTossModule() {
 							}
 
 							currPacketSize	+= msgBuf.length;
-						
+
 							if(currPacketSize >= self.moduleConfig.packetTargetByteSize) {
-								remainMessageBuf	= msgBuf;	//	save for next packet	
-								remainMessageId 	= message.messageId;						
+								remainMessageBuf	= msgBuf;	//	save for next packet
+								remainMessageId 	= message.messageId;
 							} else {
 								ws.write(msgBuf);
 							}
-							
+
 							return callback(null);
-						});												
+						});
 					},
 					function storeStateFlags0Meta(callback) {
 						message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), err => {
@@ -641,9 +731,9 @@ function FTNMessageScanTossModule() {
 							});
 						} else {
 							callback(null);
-						}					
+						}
 					}
-				], 
+				],
 				err => {
 					nextUuid(err);
 				}
@@ -665,26 +755,26 @@ function FTNMessageScanTossModule() {
 							if(remainMessageBuf) {
 								//	:TODO: DRY this with the code above -- they are basically identical
 								packet = new ftnMailPacket.Packet();
-											
+
 								const packetHeader = new ftnMailPacket.PacketHeader(
 									exportOpts.network.localAddress,
 									exportOpts.destAddress,
 									exportOpts.nodeConfig.packetType);
 
 								packetHeader.password = exportOpts.nodeConfig.packetPassword || '';
-								
+
 								//	use current message ID for filename seed
 								const pktFileName = self.getOutgoingPacketFileName(
-									self.exportTempDir, 
-									remainMessageId, 
+									self.exportTempDir,
+									remainMessageId,
 									createTempPacket,
 									exportOpts.filleCase
 								);
 
 								exportedFiles.push(pktFileName);
-								
+
 								ws = fs.createWriteStream(pktFileName);
-								
+
 								packet.writeHeader(ws, packetHeader);
 								ws.write(remainMessageBuf);
 								return finalizePacket(callback);
@@ -696,18 +786,168 @@ function FTNMessageScanTossModule() {
 					err => {
 						cb(err, exportedFiles);
 					}
-				);	
-			}			
+				);
+			}
 		});
 	};
-		
-	this.exportMessagesToUplinks = function(messageUuids, areaConfig, cb) {
+
+	this.getNetMailRoute = function(dstAddr) {
+		//
+		//	messageNetworks.ftn.netMail.routes{} full|wildcard -> full adddress lookup
+		//
+		const routes = _.get(Config, 'messageNetworks.ftn.netMail.routes');
+		if(!routes) {
+			return;
+		}
+
+		return _.find(routes, (route, addrWildcard) => {
+			return dstAddr.isPatternMatch(addrWildcard);
+		});
+
+		/*
+		const route = _.find(routes, (route, addrWildcard) => {
+			return dstAddr.isPatternMatch(addrWildcard);
+		});
+
+		if(route && route.address) {
+			return Address.fromString(route.address);
+		}
+		*/
+	};
+
+	this.getAcceptableNetMailNetworkInfoFromAddress = function(dstAddr, cb) {
+		//
+		//	Attempt to find an acceptable network configuration using the following
+		//	lookup order (most to least explicit config):
+		//
+		//	1) Routes: messageNetworks.ftn.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
+		//		- Where we send may not be where dstAddress is (it's routed!); use network found in route
+		//		  for local address
+		//	2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
+		//		- Where we send is direct to dstAddr; use scannerTossers.ftn_bso.defaultNetwork to
+		//		  for local address
+		//	3) Nodelist DB lookup (use default config)
+		//		- Where we send is direct to dstAddr
+		//
+		//const routeAddress = this.getNetMailRouteAddress(dstAddr) || dstAddr;
+		const route = this.getNetMailRoute(dstAddr);
+
+		let routeAddress;
+		let networkName;
+		if(route) {
+			routeAddress	= Address.fromString(route.address);
+			networkName		= route.network || Config.scannerTossers.ftn_bso.defaultNetwork;
+		} else {
+			routeAddress	= dstAddr;
+			networkName		= Config.scannerTossers.ftn_bso.defaultNetwork;
+		}
+
+		const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
+			return routeAddress.isPatternMatch(nodeAddrWildcard);
+		}) || {
+			packetType	: '2+',
+			encoding	: Config.scannerTossers.ftn_bso.packetMsgEncoding,
+		};
+
+		return cb(
+			config ? null : Errors.DoesNotExist(`No configuration found for ${dstAddr.toString()}`),
+			config, routeAddress, networkName
+		);
+	};
+
+	this.exportNetMailMessagesToUplinks = function(messagesOrMessageUuids, cb) {
+		//	for each message/UUID, find where to send the thing
+		async.each(messagesOrMessageUuids, (msgOrUuid, nextMessageOrUuid) => {
+
+			const exportOpts = {};
+			const message = new Message();
+
+			async.series(
+				[
+					function loadMessage(callback) {
+						if(_.isString(msgOrUuid)) {
+							message.load( { uuid : msgOrUuid }, err => {
+								return callback(err, message);
+							});
+						} else {
+							return callback(null, msgOrUuid);
+						}
+					},
+					function discoverUplink(callback) {
+						const dstAddr = new Address({
+							zone	: parseInt(message.meta.FtnProperty.ftn_dest_zone),
+							net		: parseInt(message.meta.FtnProperty.ftn_dest_network),
+							node	: parseInt(message.meta.FtnProperty.ftn_dest_node),
+							point	: parseInt(message.meta.FtnProperty.ftn_dest_point) || null,	//	point is optional
+						});
+
+						return self.getAcceptableNetMailNetworkInfoFromAddress(dstAddr, (err, config, routeAddress, networkName) => {
+							if(err) {
+								return callback(err);
+							}
+
+
+
+							exportOpts.nodeConfig	= config;
+							exportOpts.destAddress	= routeAddress;
+							exportOpts.fileCase		= config.fileCase || 'lower';
+							exportOpts.network		= Config.messageNetworks.ftn.networks[networkName];
+							exportOpts.networkName	= networkName;
+
+							if(!exportOpts.network) {
+								return callback(Errors.DoesNotExist(`No configuration found for network ${networkName}`));
+							}
+
+							return callback(null);
+						});
+					},
+					function createOutgoingDir(callback) {
+						//	ensure outgoing NetMail directory exists
+						return fse.mkdirs(Config.scannerTossers.ftn_bso.paths.outboundNetMail, callback);
+					},
+					function exportPacket(callback) {
+						return self.exportNetMailMessagePacket(message, exportOpts, callback);
+					},
+					function moveToOutgoing(callback) {
+						const newExt = exportOpts.fileCase === 'lower' ? '.pkt' : '.PKT';
+						const newPath = paths.join(
+							Config.scannerTossers.ftn_bso.paths.outboundNetMail,
+							`${paths.basename(exportOpts.pktFileName, paths.extname(exportOpts.pktFileName))}${newExt}`
+						);
+
+						return fse.move(exportOpts.pktFileName, newPath, callback);
+					},
+					function storeStateFlags0Meta(callback) {
+						return message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), callback);
+					},
+					function storeMsgIdMeta(callback) {
+						//	Store meta as if we had imported this message -- for later reference
+						if(message.meta.FtnKludge.MSGID) {
+							return message.persistMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.MSGID, callback);
+						}
+
+						return callback(null);
+					}
+				],
+				err => {
+					if(err) {
+						Log.warn( { error :err.message }, 'Error exporting message' );
+					}
+					return nextMessageOrUuid(null);
+				}
+			);
+		}, err => {
+			return cb(err);
+		});
+	};
+
+	this.exportEchoMailMessagesToUplinks = function(messageUuids, areaConfig, cb) {
 		async.each(areaConfig.uplinks, (uplink, nextUplink) => {
 			const nodeConfigKey = self.getNodeConfigKeyByAddress(uplink);
 			if(!nodeConfigKey) {
 				return nextUplink();
 			}
-			
+
 			const exportOpts = {
 				nodeConfig		: self.moduleConfig.nodes[nodeConfigKey],
 				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
@@ -715,14 +955,14 @@ function FTNMessageScanTossModule() {
 				networkName		: areaConfig.network,
 				fileCase		: self.moduleConfig.nodes[nodeConfigKey].fileCase || 'lower',
 			};
-				
+
 			if(_.isString(exportOpts.network.localAddress)) {
-				exportOpts.network.localAddress = Address.fromString(exportOpts.network.localAddress); 
+				exportOpts.network.localAddress = Address.fromString(exportOpts.network.localAddress);
 			}
-			
-			const outgoingDir 	= self.getOutgoingPacketDir(exportOpts.networkName, exportOpts.destAddress);
+
+			const outgoingDir 	= self.getOutgoingEchoMailPacketDir(exportOpts.networkName, exportOpts.destAddress);
 			const exportType	= self.getExportType(exportOpts.nodeConfig);
-			
+
 			async.waterfall(
 				[
 					function createOutgoingDir(callback) {
@@ -746,17 +986,17 @@ function FTNMessageScanTossModule() {
 								if(err) {
 									return callback(err);
 								}
-								
+
 								//	adjust back to temp path
 								const tempBundlePath = paths.join(self.exportTempDir, paths.basename(bundlePath));
-								
+
 								self.archUtil.compressTo(
-									exportOpts.nodeConfig.archiveType, 
+									exportOpts.nodeConfig.archiveType,
 									tempBundlePath,
 									exportedFileNames, err => {
 										callback(err, [ tempBundlePath ] );
 									}
-								);	
+								);
 							});
 						} else {
 							callback(null, exportedFileNames);
@@ -769,18 +1009,18 @@ function FTNMessageScanTossModule() {
 								//
 								//	For a given temporary .pk_ file, we need to move it to the outoing
 								//	directory with the appropriate BSO style filename.
-								// 
+								//
 								const newExt = self.getOutgoingFlowFileExtension(
 									exportOpts.destAddress,
-									'mail', 
+									'mail',
 									exportType,
 									exportOpts.fileCase
 								);
-									
+
 								const newPath = paths.join(
-									outgoingDir, 
+									outgoingDir,
 									`${paths.basename(oldPath, ext)}${newExt}`);
-																		
+
 								fse.move(oldPath, newPath, nextFile);
 							} else {
 								const newPath = paths.join(outgoingDir, paths.basename(oldPath));
@@ -789,25 +1029,25 @@ function FTNMessageScanTossModule() {
 										Log.warn(
 											{ oldPath : oldPath, newPath : newPath, error : err.toString() },
 											'Failed moving temporary bundle file!');
-											
+
 										return nextFile();
 									}
-									
+
 									//
 									//	For bundles, we need to append to the appropriate flow file
 									//
 									const flowFilePath = self.getOutgoingFlowFileName(
-										outgoingDir, 
+										outgoingDir,
 										exportOpts.destAddress,
 										'ref',
 										exportType,
 										exportOpts.fileCase
 									);
- 
+
 									//	directive of '^' = delete file after transfer
 									self.flowFileAppendRefs(flowFilePath, [ newPath ], '^', err => {
 										if(err) {
-											Log.warn( { path : flowFilePath }, 'Failed appending flow reference record!');			
+											Log.warn( { path : flowFilePath }, 'Failed appending flow reference record!');
 										}
 										nextFile();
 									});
@@ -823,10 +1063,10 @@ function FTNMessageScanTossModule() {
 					}
 					nextUplink();
 				}
-			);			
+			);
 		}, cb);	//	complete
 	};
-	
+
 	this.setReplyToMsgIdFtnReplyKludge = function(message, cb) {
 		//
 		//	Given a FTN REPLY kludge, set |message.replyToMsgId|, if possible,
@@ -838,12 +1078,12 @@ function FTNMessageScanTossModule() {
 			//	nothing to do
 			return cb();
 		}
-		
+
 		Message.getMessageIdsByMetaValue('FtnKludge', 'MSGID', message.meta.FtnKludge.REPLY, (err, msgIds) => {
 			if(msgIds && msgIds.length > 0) {
 				//	expect a single match, but dupe checking is not perfect - warn otherwise
 				if(1 === msgIds.length) {
-					message.replyToMsgId = msgIds[0];	
+					message.replyToMsgId = msgIds[0];
 				} else {
 					Log.warn( { msgIds : msgIds, replyKludge :  message.meta.FtnKludge.REPLY }, 'Found 2:n MSGIDs matching REPLY kludge!');
 				}
@@ -851,14 +1091,14 @@ function FTNMessageScanTossModule() {
 			cb();
 		});
 	};
-	
+
 	this.importEchoMailToArea = function(localAreaTag, header, message, cb) {
 		async.series(
 			[
-				function validateDestinationAddress(callback) {			
-					const localNetworkPattern = `${message.meta.FtnProperty.ftn_dest_network}/${message.meta.FtnProperty.ftn_dest_node}`;					
+				function validateDestinationAddress(callback) {
+					const localNetworkPattern = `${message.meta.FtnProperty.ftn_dest_network}/${message.meta.FtnProperty.ftn_dest_node}`;
 					const localNetworkName = self.getNetworkNameByAddressPattern(localNetworkPattern);
-					
+
 					callback(_.isString(localNetworkName) ? null : new Error('Packet destination is not us'));
 				},
 				function checkForDupeMSGID(callback) {
@@ -881,7 +1121,7 @@ function FTNMessageScanTossModule() {
 				},
 				function basicSetup(callback) {
 					message.areaTag = localAreaTag;
-					
+
 					//
 					//	If we *allow* dupes (disabled by default), then just generate
 					//	a random UUID. Otherwise, don't assign the UUID just yet. It will be
@@ -891,8 +1131,8 @@ function FTNMessageScanTossModule() {
 						//	just generate a UUID & therefor always allow for dupes
 						message.uuid = uuidV4();
 					}
-					
-					callback(null);	
+
+					callback(null);
 				},
 				function setReplyToMessageId(callback) {
 					self.setReplyToMsgIdFtnReplyKludge(message, () => {
@@ -902,15 +1142,15 @@ function FTNMessageScanTossModule() {
 				function persistImport(callback) {
 					//	mark as imported
 					message.meta.System.state_flags0 = Message.StateFlags0.Imported.toString();
-					
+
 					//	save to disc
 					message.persist(err => {
-						callback(err);						
+						callback(err);
 					});
 				}
-			], 
+			],
 			err => {
-				cb(err);	
+				cb(err);
 			}
 		);
 	};
@@ -924,37 +1164,37 @@ function FTNMessageScanTossModule() {
 			message.message += `${message.meta.FtnProperty.ftn_origin}\r\n`;
 		}
 	};
-	
+
 	//
-	//	Ref. implementations on import: 
+	//	Ref. implementations on import:
 	//	*	https://github.com/larsks/crashmail/blob/26e5374710c7868dab3d834be14bf4041041aae5/crashmail/pkt.c
 	//		https://github.com/larsks/crashmail/blob/26e5374710c7868dab3d834be14bf4041041aae5/crashmail/handle.c
 	//
 	this.importMessagesFromPacketFile = function(packetPath, password, cb) {
 		let packetHeader;
-				
+
 		const packetOpts = { keepTearAndOrigin : false };	//	needed so we can calc message UUID without these; we'll add later
-		
+
 		let importStats = {
 			areaSuccess	: {},	//	areaTag->count
 			areaFail	: {},	//	areaTag->count
 			otherFail	: 0,
 		};
-        
+
 		new ftnMailPacket.Packet(packetOpts).read(packetPath, (entryType, entryData, next) => {
 			if('header' === entryType) {
 				packetHeader = entryData;
-				
+
 				const localNetworkName = self.getNetworkNameByAddress(packetHeader.destAddress);
 				if(!_.isString(localNetworkName)) {
 					const addrString = new Address(packetHeader.destAddress).toString();
 					return next(new Error(`No local configuration for packet addressed to ${addrString}`));
 				} else {
-					
-					//	:TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!					
+
+					//	:TODO: password needs validated - need to determine if it will use the same node config (which can have wildcards) or something else?!
 					return next(null);
 				}
-				
+
 			} else if('message' === entryType) {
 				const message = entryData;
 				const areaTag = message.meta.FtnProperty.ftn_area;
@@ -972,37 +1212,37 @@ function FTNMessageScanTossModule() {
 							message.message);
 
 						self.appendTearAndOrigin(message);
-						
+
 						self.importEchoMailToArea(localAreaTag, packetHeader, message, err => {
 							if(err) {
 								//	bump area fail stats
 								importStats.areaFail[localAreaTag] = (importStats.areaFail[localAreaTag] || 0) + 1;
-								
+
 								if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
 									const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
 									Log.info(
-										{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId }, 
+										{ area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId },
 										'Not importing non-unique message');
-									
+
 									return next(null);
 								}
 							} else {
 								//	bump area success
 								importStats.areaSuccess[localAreaTag] = (importStats.areaSuccess[localAreaTag] || 0) + 1;
 							}
-															
+
 							return next(err);
 						});
 					} else {
 						//
 						//	No local area configured for this import
 						//
-						//	:TODO: Handle the "catch all" case, if configured 
+						//	:TODO: Handle the "catch all" case, if configured
 						Log.warn( { areaTag : areaTag }, 'No local area configured for this packet file!');
-						
+
 						//	bump generic failure
 						importStats.otherFail += 1;
-						
+
 						return next(null);
 					}
 				} else {
@@ -1027,7 +1267,7 @@ function FTNMessageScanTossModule() {
 			} else {
 				Log.info(finalStats, 'Import complete');
 			}
-			
+
 			cb(err);
 		});
 	};
@@ -1048,7 +1288,7 @@ function FTNMessageScanTossModule() {
 			if(!_.isString(self.moduleConfig.paths.retain)) {
 				return cb(null);
 			}
-			
+
 			archivePath = paths.join(self.moduleConfig.paths.retain, `good-pkt-${ts}--${fn}`);
 		} else if('good' !== status) {
 			archivePath = paths.join(self.moduleConfig.paths.reject, `${status}-${type}--${ts}-${fn}`);
@@ -1066,7 +1306,7 @@ function FTNMessageScanTossModule() {
 			return cb(null);	//	never fatal
 		});
 	};
-	
+
 	this.importPacketFilesFromDirectory = function(importDir, password, cb) {
 		async.waterfall(
 			[
@@ -1081,12 +1321,12 @@ function FTNMessageScanTossModule() {
 				function importPacketFiles(packetFiles, callback) {
 					let rejects = [];
 					async.eachSeries(packetFiles, (packetFile, nextFile) => {
-						self.importMessagesFromPacketFile(paths.join(importDir, packetFile), '', err => {							
+						self.importMessagesFromPacketFile(paths.join(importDir, packetFile), '', err => {
 							if(err) {
-								Log.debug( 
-									{ path : paths.join(importDir, packetFile), error : err.toString() }, 
+								Log.debug(
+									{ path : paths.join(importDir, packetFile), error : err.toString() },
 									'Failed to import packet file');
-								
+
 								rejects.push(packetFile);
 							}
 							nextFile();
@@ -1097,13 +1337,13 @@ function FTNMessageScanTossModule() {
 					});
 				},
 				function handleProcessedFiles(packetFiles, rejects, callback) {
-					async.each(packetFiles, (packetFile, nextFile) => {						
+					async.each(packetFiles, (packetFile, nextFile) => {
 						//	possibly archive, then remove original
 						const fullPath = paths.join(importDir, packetFile);
 						self.maybeArchiveImportFile(
-							fullPath, 
-							'pkt', 
-							rejects.includes(packetFile) ? 'reject' : 'good', 
+							fullPath,
+							'pkt',
+							rejects.includes(packetFile) ? 'reject' : 'good',
 							() => {
 								fs.unlink(fullPath, () => {
 									return nextFile(null);
@@ -1120,7 +1360,7 @@ function FTNMessageScanTossModule() {
 			}
 		);
 	};
-	
+
 	this.importFromDirectory = function(inboundType, importDir, cb) {
 		async.waterfall(
 			[
@@ -1138,7 +1378,7 @@ function FTNMessageScanTossModule() {
 							const fext = paths.extname(f);
 							return bundleRegExp.test(fext);
 						});
-						
+
 						async.map(files, (file, transform) => {
 							const fullPath = paths.join(importDir, file);
 							self.archUtil.detectType(fullPath, (err, archName) => {
@@ -1151,48 +1391,48 @@ function FTNMessageScanTossModule() {
 				},
 				function importBundles(bundleFiles, callback) {
 					let rejects = [];
-					
+
 					async.each(bundleFiles, (bundleFile, nextFile) => {
 						if(_.isUndefined(bundleFile.archName)) {
-							Log.warn( 
+							Log.warn(
 								{ fileName : bundleFile.path },
 								'Unknown bundle archive type');
-					
+
 							rejects.push(bundleFile.path);
-										
+
 							return nextFile();	//	unknown archive type
 						}
 
 						Log.debug( { bundleFile : bundleFile }, 'Processing bundle' );
-						
+
 						self.archUtil.extractTo(
 							bundleFile.path,
 							self.importTempDir,
 							bundleFile.archName,
 							err => {
-								if(err) {									
+								if(err) {
 									Log.warn(
 										{ path : bundleFile.path, error : err.message },
 										'Failed to extract bundle');
-										
+
 									rejects.push(bundleFile.path);
 								}
-								
-								nextFile();		
+
+								nextFile();
 							}
 						);
 					}, err => {
 						if(err) {
 							return callback(err);
 						}
-						
+
 						//
 						//	All extracted - import .pkt's
 						//
 						self.importPacketFilesFromDirectory(self.importTempDir, '', err => {
 							//	:TODO: handle |err|
 							callback(null, bundleFiles, rejects);
-						});					
+						});
 					});
 				},
 				function handleProcessedBundleFiles(bundleFiles, rejects, callback) {
@@ -1209,7 +1449,7 @@ function FTNMessageScanTossModule() {
 									return nextFile(null);
 								});
 							}
-						);						
+						);
 					}, err => {
 						callback(err);
 					});
@@ -1225,41 +1465,45 @@ function FTNMessageScanTossModule() {
 			}
 		);
 	};
-	
+
 	this.createTempDirectories = function(cb) {
 		temptmp.mkdir( { prefix : 'enigftnexport-' }, (err, tempDir) => {
 			if(err) {
 				return cb(err);
 			}
-			
+
 			self.exportTempDir = tempDir;
-			
+
 			temptmp.mkdir( { prefix : 'enigftnimport-' }, (err, tempDir) => {
 				self.importTempDir = tempDir;
-				
+
 				cb(err);
 			});
 		});
 	};
-	
+
 	//	Starts an export block - returns true if we can proceed
 	this.exportingStart = function() {
 		if(!this.exportRunning) {
 			this.exportRunning = true;
 			return true;
 		}
-		
+
 		return false;
 	};
 
 	//	ends an export block
-	this.exportingEnd = function() {
-		this.exportRunning = false;	
+	this.exportingEnd = function(cb) {
+		this.exportRunning = false;
+
+		if(cb) {
+			return cb(null);
+		}
 	};
 
 	this.copyTicAttachment = function(src, dst, isUpdate, cb) {
 		if(isUpdate) {
-			fse.copy(src, dst, err => {
+			fse.copy(src, dst, { overwrite : true }, err => {
 				return cb(err, dst);
 			});
 		} else {
@@ -1274,8 +1518,6 @@ function FTNMessageScanTossModule() {
 	};
 
 	this.processSingleTicFile = function(ticFileInfo, cb) {
-		const self = this;
-
 		Log.debug( { tic : ticFileInfo.path, file : ticFileInfo.getAsString('File') }, 'Processing TIC file');
 
 		async.waterfall(
@@ -1389,8 +1631,8 @@ function FTNMessageScanTossModule() {
 					//
 					//	We may have TIC auto-tagging for this node and/or specific (remote) area
 					//
-					const hashTags = 
-						localInfo.hashTags || 
+					const hashTags =
+						localInfo.hashTags ||
 						_.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'hashTags' ] );		//	catch-all*/
 
 					if(hashTags) {
@@ -1462,7 +1704,7 @@ function FTNMessageScanTossModule() {
 
 					if(isUpdate) {
 						//	we need to *update* an existing record/file
-						localInfo.fileEntry.fileId = localInfo.existingFileId;						
+						localInfo.fileEntry.fileId = localInfo.existingFileId;
 					}
 
 					const dst = paths.join(areaStorageDir, localInfo.fileEntry.fileName);
@@ -1476,13 +1718,13 @@ function FTNMessageScanTossModule() {
 						if(dst !== finalPath) {
 							localInfo.fileEntry.fileName = paths.basename(finalPath);
 						}
-						
+
 						localInfo.fileEntry.persist(isUpdate, err => {
 							return callback(err, localInfo);
 						});
-					});				
+					});
 				},
-				//	:TODO: from here, we need to re-toss files if needed, before they are removed				
+				//	:TODO: from here, we need to re-toss files if needed, before they are removed
 				function cleanupOldFile(localInfo, callback) {
 					if(!localInfo.existingFileId) {
 						return callback(null, localInfo);
@@ -1490,7 +1732,7 @@ function FTNMessageScanTossModule() {
 
 					const oldStorageDir = getAreaStorageDirectoryByTag(localInfo.oldStorageTag);
 					const oldPath 		= paths.join(oldStorageDir, localInfo.oldFileName);
-					
+
 					fs.unlink(oldPath, err => {
 						if(err) {
 							Log.warn( { error : err.message, oldPath : oldPath }, 'Failed removing old physical file during TIC replacement');
@@ -1526,6 +1768,145 @@ function FTNMessageScanTossModule() {
 		}, err => {
 			return cb(err);
 		});
+	};
+
+
+	this.performEchoMailExport = function(cb) {
+		//
+		//	Select all messages with a |message_id| > |lastScanId|.
+		//	Additionally exclude messages with the System state_flags0 which will be present for
+		//	imported or already exported messages
+		//
+		//	NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
+		//
+		const getNewUuidsSql =
+			`SELECT message_id, message_uuid
+			FROM message m
+			WHERE area_tag = ? AND message_id > ? AND
+				(SELECT COUNT(message_id) 
+				FROM message_meta 
+				WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
+			ORDER BY message_id;`
+			;
+
+		async.each(Object.keys(Config.messageNetworks.ftn.areas), (areaTag, nextArea) => {
+			const areaConfig = Config.messageNetworks.ftn.areas[areaTag];
+			if(!this.isAreaConfigValid(areaConfig)) {
+				return nextArea();
+			}
+
+			//
+			//	For each message that is newer than that of the last scan
+			//	we need to export to each configured associated uplink(s)
+			//
+			async.waterfall(
+				[
+					function getLastScanId(callback) {
+						self.getAreaLastScanId(areaTag, callback);
+					},
+					function getNewUuids(lastScanId, callback) {
+						msgDb.all(getNewUuidsSql, [ areaTag, lastScanId ], (err, rows) => {
+							if(err) {
+								callback(err);
+							} else {
+								if(0 === rows.length) {
+									let nothingToDoErr = new Error('Nothing to do!');
+									nothingToDoErr.noRows = true;
+									callback(nothingToDoErr);
+								} else {
+									callback(null, rows);
+								}
+							}
+						});
+					},
+					function exportToConfiguredUplinks(msgRows, callback) {
+						const uuidsOnly = msgRows.map(r => r.message_uuid);	//	convert to array of UUIDs only
+						self.exportEchoMailMessagesToUplinks(uuidsOnly, areaConfig, err => {
+							const newLastScanId = msgRows[msgRows.length - 1].message_id;
+
+							Log.info(
+								{ areaTag : areaTag, messagesExported : msgRows.length, newLastScanId : newLastScanId },
+								'Export complete');
+
+							callback(err, newLastScanId);
+						});
+					},
+					function updateLastScanId(newLastScanId, callback) {
+						self.setAreaLastScanId(areaTag, newLastScanId, callback);
+					}
+				],
+				() => {
+					return nextArea();
+				}
+			);
+		},
+		err => {
+			return cb(err);
+		});
+	};
+
+	this.performNetMailExport = function(cb) {
+		//
+		//	Select all messages with a |message_id| > |lastScanId| in the private area
+		//	that also *do not* have a local user ID meta value but *do* have a FTN dest
+		//	network meta value.
+		//
+		//	Just like EchoMail, we additionally exclude messages with the System state_flags0
+		//	which will be present for imported or already exported messages
+		//
+		//	NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
+		//
+		//	:TODO: fill out the rest of the consts here
+		//	:TODO: this statement is crazy ugly
+		const getNewUuidsSql =
+			`SELECT message_id, message_uuid
+			FROM message m
+			WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND 
+				(SELECT COUNT(message_id)
+				FROM message_meta
+				WHERE message_id = m.message_id AND meta_category = 'System' AND 
+					(meta_name = 'state_flags0' OR meta_name='local_to_user_id')) = 0
+			AND
+				(SELECT COUNT(message_id)
+				FROM message_meta
+				WHERE message_id = m.message_id AND meta_category='FtnProperty' AND meta_name='ftn_dest_network') = 1
+			ORDER BY message_id;
+			`;
+
+		async.waterfall(
+			[
+				function getLastScanId(callback) {
+					return self.getAreaLastScanId(Message.WellKnownAreaTags.Private, callback);
+				},
+				function getNewUuids(lastScanId, callback) {
+					msgDb.all(getNewUuidsSql, [ lastScanId ], (err, rows) => {
+						if(err) {
+							return callback(err);
+						}
+
+						if(0 === rows.length) {
+							return cb(null);	//	note |cb| -- early bail out!
+						}
+
+						return callback(null, rows);
+					});
+				},
+				function exportMessages(rows, callback) {
+					const messageUuids = rows.map(r => r.message_uuid);
+					return self.exportNetMailMessagesToUplinks(messageUuids, callback);
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
+	};
+
+	this.isNetMailMessage = function(message) {
+		return message.isPrivate() &&
+			null === _.get(message.meta, 'System.LocalToUserID', null) &&
+			null !== _.get(message.meta, 'FtnProperty.ftn_dest_network')
+			;
 	};
 }
 
@@ -1574,19 +1955,19 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 						if(err) {
 							//	archive rejected TIC stuff (.TIC + attach)
 							async.each( [ ticFileInfo.path, ticFileInfo.filePath ], (path, nextPath) => {
-								if(!path) {	//	possibly rejected due to "File" not existing/etc.									
+								if(!path) {	//	possibly rejected due to "File" not existing/etc.
 									return nextPath(null);
 								}
 
 								self.maybeArchiveImportFile(
-									path, 
-									'tic', 
+									path,
+									'tic',
 									'reject',
 									() => {
 										return nextPath(null);
 									}
 								);
-							}, 
+							},
 							() => {
 								self.removeAssocTicFiles(ticFileInfo, () => {
 									return nextTicInfo(null);
@@ -1596,7 +1977,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 							self.removeAssocTicFiles(ticFileInfo, () => {
 								return nextTicInfo(null);
 							});
-						}						
+						}
 					});
 				}, err => {
 					return callback(err);
@@ -1611,59 +1992,59 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 
 FTNMessageScanTossModule.prototype.startup = function(cb) {
 	Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
-	
+
 	let importing = false;
-	
+
 	let self = this;
-				
+
 	function tryImportNow(reasonDesc) {
 		if(!importing) {
 			importing = true;
-			
+
 			Log.info( { module : exports.moduleInfo.name }, reasonDesc);
-			
+
 			self.performImport( () => {
 				importing = false;
 			});
 		}
 	}
-	
+
 	this.createTempDirectories(err => {
 		if(err) {
 			Log.warn( { error : err.toStrong() }, 'Failed creating temporary directories!');
 			return cb(err);
 		}
-	
+
 		if(_.isObject(this.moduleConfig.schedule)) {
 			const exportSchedule = this.parseScheduleString(this.moduleConfig.schedule.export);
 			if(exportSchedule) {
 				Log.debug(
-					{ 
-						schedule	: this.moduleConfig.schedule.export,						
+					{
+						schedule	: this.moduleConfig.schedule.export,
 						schedOK		: -1 === exportSchedule.sched.error,
 						next		: moment(later.schedule(exportSchedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a'),
 						immediate	: exportSchedule.immediate ? true : false,
 					},
 					'Export schedule loaded'
 				);
-				
+
 				if(exportSchedule.sched) {
 					this.exportTimer = later.setInterval( () => {
 						if(this.exportingStart()) {
 							Log.info( { module : exports.moduleInfo.name }, 'Performing scheduled message scan/export...');
-							
+
 							this.performExport( () => {
 								this.exportingEnd();
 							});
 						}
 					}, exportSchedule.sched);
 				}
-				
+
 				if(_.isBoolean(exportSchedule.immediate)) {
 					this.exportImmediate = exportSchedule.immediate;
 				}
 			}
-			
+
 			const importSchedule = this.parseScheduleString(this.moduleConfig.schedule.import);
 			if(importSchedule) {
 				Log.debug(
@@ -1675,13 +2056,13 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 					},
 					'Import schedule loaded'
 				);
-				
-				if(importSchedule.sched) {					
+
+				if(importSchedule.sched) {
 					this.importTimer = later.setInterval( () => {
-						tryImportNow('Performing scheduled message import/toss...');						
+						tryImportNow('Performing scheduled message import/toss...');
 					}, importSchedule.sched);
 				}
-				
+
 				if(_.isString(importSchedule.watchFile)) {
 					const watcher = sane(
 						paths.dirname(importSchedule.watchFile),
@@ -1711,22 +2092,22 @@ FTNMessageScanTossModule.prototype.startup = function(cb) {
 				}
 			}
 		}
-		
+
 		FTNMessageScanTossModule.super_.prototype.startup.call(this, cb);
 	});
 };
 
 FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 	Log.info('FidoNet Scanner/Tosser shutting down');
-	
+
 	if(this.exportTimer) {
 		this.exportTimer.clear();
 	}
-	
+
 	if(this.importTimer) {
 		this.importTimer.clear();
 	}
-	
+
 	//
 	//	Clean up temp dir/files we created
 	//
@@ -1737,9 +2118,9 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 			paths		: paths,
 			sessionId	: temptmp.sessionId,
 		};
-		
+
 		Log.trace(fullStats, 'Temporary directories cleaned up');
-			
+
 		FTNMessageScanTossModule.super_.prototype.shutdown.call(this, cb);
 	});
 
@@ -1750,9 +2131,9 @@ FTNMessageScanTossModule.prototype.performImport = function(cb) {
 	if(!this.hasValidConfiguration()) {
 		return cb(new Error('Missing or invalid configuration'));
 	}
-	
+
 	const self = this;
-	
+
 	async.each( [ 'inbound', 'secInbound' ], (inboundType, nextDir) => {
 		self.importFromDirectory(inboundType, self.moduleConfig.paths[inboundType], () => {
 			return nextDir(null);
@@ -1768,77 +2149,18 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
 	if(!this.hasValidConfiguration()) {
 		return cb(new Error('Missing or invalid configuration'));
 	}
-	
-	//
-	//	Select all messages with a |message_id| > |lastScanId|.
-	//	Additionally exclude messages with the System state_flags0 which will be present for
-	//	imported or already exported messages
-	//
-	//	NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
-	//
-	const getNewUuidsSql = 
-		`SELECT message_id, message_uuid
-		FROM message m
-		WHERE area_tag = ? AND message_id > ? AND
-			(SELECT COUNT(message_id) 
-			FROM message_meta 
-			WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
-		ORDER BY message_id;`;
-		
-	let self = this;		
-		
-	async.each(Object.keys(Config.messageNetworks.ftn.areas), (areaTag, nextArea) => {
-		const areaConfig = Config.messageNetworks.ftn.areas[areaTag];
-		if(!this.isAreaConfigValid(areaConfig)) {
-			return nextArea();
-		}
-		
-		//
-		//	For each message that is newer than that of the last scan
-		//	we need to export to each configured associated uplink(s)
-		//
-		async.waterfall(
-			[
-				function getLastScanId(callback) {
-					self.getAreaLastScanId(areaTag, callback);
-				},
-				function getNewUuids(lastScanId, callback) {
-					msgDb.all(getNewUuidsSql, [ areaTag, lastScanId ], (err, rows) => {
-						if(err) {
-							callback(err);
-						} else {
-							if(0 === rows.length) {
-								let nothingToDoErr = new Error('Nothing to do!');
-								nothingToDoErr.noRows = true;
-								callback(nothingToDoErr);
-							} else {
-								callback(null, rows);
-							}
-						}
-					});
-				},
-				function exportToConfiguredUplinks(msgRows, callback) {
-					const uuidsOnly = msgRows.map(r => r.message_uuid);	//	convert to array of UUIDs only
-					self.exportMessagesToUplinks(uuidsOnly, areaConfig, err => {
-						const newLastScanId = msgRows[msgRows.length - 1].message_id; 
-						
-						Log.info(
-							{ areaTag : areaTag, messagesExported : msgRows.length, newLastScanId : newLastScanId }, 
-							'Export complete');
-							
-						callback(err, newLastScanId);
-					});					
-				},
-				function updateLastScanId(newLastScanId, callback) {
-					self.setAreaLastScanId(areaTag, newLastScanId, callback);
-				}
-			],
-			() => {
-				return nextArea();
+
+	const self = this;
+
+	async.eachSeries( [ 'EchoMail', 'NetMail' ], (type, nextType) => {
+		self[`perform${type}Export`]( err => {
+			if(err) {
+				Log.warn( { error : err.message, type : type }, 'Error(s) during export' );
 			}
-		);
-	}, err => {
-		return cb(err);
+			return nextType(null);	//	try next, always
+		});
+	}, () => {
+		return cb(null);
 	});
 };
 
@@ -1849,27 +2171,37 @@ FTNMessageScanTossModule.prototype.record = function(message) {
 	if(true !== this.exportImmediate || !this.hasValidConfiguration()) {
 		return;
 	}
-	
-	if(message.isPrivate()) {
-		//	:TODO: support NetMail
+
+	const info = { uuid : message.uuid, subject : message.subject };
+
+	function exportLog(err) {
+		if(err) {
+			Log.warn(info, 'Failed exporting message');
+		} else {
+			Log.info(info, 'Message exported');
+		}
+	}
+
+	if(this.isNetMailMessage(message)) {
+		Object.assign(info, { type : 'NetMail' } );
+
+		if(this.exportingStart()) {
+			this.exportNetMailMessagesToUplinks( [ message.uuid ], err => {
+				this.exportingEnd( () => exportLog(err) );
+			});
+		}
 	} else if(message.areaTag) {
+		Object.assign(info, { type : 'EchoMail' } );
+
 		const areaConfig = Config.messageNetworks.ftn.areas[message.areaTag];
 		if(!this.isAreaConfigValid(areaConfig)) {
 			return;
 		}
-				
+
 		if(this.exportingStart()) {
-			this.exportMessagesToUplinks( [ message.uuid ], areaConfig, err => {
-				const info = { uuid : message.uuid, subject : message.subject };
-			
-				if(err) {
-					Log.warn(info, 'Failed exporting message');
-				} else {
-					Log.info(info, 'Message exported');
-				}
-				
-				this.exportingEnd();
+			this.exportEchoMailMessagesToUplinks( [ message.uuid ], areaConfig, err => {
+				this.exportingEnd( () => exportLog(err) );
 			});
-		}		
-	}		
+		}
+	}
 };

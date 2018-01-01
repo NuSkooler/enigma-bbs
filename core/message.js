@@ -124,11 +124,13 @@ Message.FtnPropertyNames = {
 //	Note: kludges are stored with their names as-is
 
 Message.prototype.setLocalToUserId = function(userId) {
-	this.meta.System.local_to_user_id = userId;
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.LocalToUserID] = userId;
 };
 
 Message.prototype.setLocalFromUserId = function(userId) {
-	this.meta.System.local_from_user_id = userId;
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
 };
 
 Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {

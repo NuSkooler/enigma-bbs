@@ -26,6 +26,7 @@ exports.getUTCTimeZoneOffset		= getUTCTimeZoneOffset;
 exports.getOrigin					= getOrigin;
 exports.getTearLine					= getTearLine;
 exports.getVia						= getVia;
+exports.getIntl						= getIntl;
 exports.getAbbreviatedNetNodeList	= getAbbreviatedNetNodeList;
 exports.parseAbbreviatedNetNodeList	= parseAbbreviatedNetNodeList;
 exports.getUpdatedSeenByEntries		= getUpdatedSeenByEntries;
@@ -220,6 +221,20 @@ function getVia(address) {
 		.replace(/beta/,'b');
 
 	return `${addrStr} @${dateTime} ENiGMA1/2 ${version}`;
+}
+
+//
+//	Creates a INTL kludge value as per FTS-4001
+//	http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
+//
+function getIntl(toAddress, fromAddress) {
+	//
+	//	INTL differs from 'standard' kludges in that there is no ':' after "INTL"
+	//
+	//	"<SOH>"INTL "<destination address>" "<origin address><CR>"
+	//	"...These addresses shall be given on the form <zone>:<net>/<node>"
+	//
+	return `${toAddress.toString('3D')} ${fromAddress.toString('3D')}`;
 }
 
 function getAbbreviatedNetNodeList(netNodes) {

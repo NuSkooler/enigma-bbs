@@ -393,9 +393,19 @@ function Packet(options) {
 		};
 
 		function addKludgeLine(line) {
-			const sepIndex 	= line.indexOf(':');
-			const key		= line.substr(0, sepIndex).toUpperCase();
-			const value		= line.substr(sepIndex + 1).trim();
+			//
+			//	We have to special case INTL/TOPT/FMPT as they don't contain
+			//	a ':' name/value separator like the rest of the kludge lines... because stupdity.
+			//
+			let key = line.substr(0, 4);
+			let value;
+			if( ['INTL', 'TOPT', 'FMPT' ].includes(key)) {
+				value = line.substr(4).trim();
+			} else {
+				const sepIndex = line.indexOf(':');
+				key		= line.substr(0, sepIndex).toUpperCase();
+				value	= line.substr(sepIndex + 1).trim();
+			}
 
 			//
 			//	Allow mapped value to be either a key:value if there is only
@@ -639,7 +649,7 @@ function Packet(options) {
 		
 	this.getMessageEntryBuffer = function(message, options, cb) {
 		
-		function getAppendMeta(k, m) {
+		function getAppendMeta(k, m, sepChar=':') {
 			let append = '';
 			if(m) {
 				let a = m;
@@ -647,7 +657,7 @@ function Packet(options) {
 					a = [ a ];
 				}
 				a.forEach(v => {
-					append += `${k}: ${v}\r`;
+					append += `${k}${sepChar} ${v}\r`;
 				});
 			}
 			return append;
@@ -693,10 +703,21 @@ function Packet(options) {
 						msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`;	//	note: no ^A (0x01)
 					}
 					
+					//	:TODO: DRY with similar function in this file!
 					Object.keys(message.meta.FtnKludge).forEach(k => {
-						//	we want PATH to be last
-						if('PATH' !== k) {
-							msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
+						switch(k) {
+							case 'PATH' :
+								break;	//	skip & save for last
+
+							case 'FMPT' :
+							case 'TOPT' :
+							case 'INTL' : 
+								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k], '');	// no sepChar
+								break;
+
+							default		: 
+								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k]); 
+								break;
 						}
 					});
 
@@ -810,14 +831,14 @@ function Packet(options) {
 		//	:TODO: Put this in it's own method
 		let msgBody = '';
 
-		function appendMeta(k, m) {
+		function appendMeta(k, m, sepChar=':') {
 			if(m) {
 				let a = m;
 				if(!_.isArray(a)) {
 					a = [ a ];
 				}
 				a.forEach(v => {
-					msgBody += `${k}: ${v}\r`;
+					msgBody += `${k}${sepChar} ${v}\r`;
 				});
 			}
 		}
@@ -832,9 +853,14 @@ function Packet(options) {
 		}
 		
 		Object.keys(message.meta.FtnKludge).forEach(k => {
-			//	we want PATH to be last
-			if('PATH' !== k) {
-				appendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
+			switch(k) {
+				case 'PATH' : break;	//	skip & save for last
+
+				case 'FMPT' :
+				case 'TOPT' :
+				case 'INTL' : appendMeta(`\x01${k}`, message.meta.FtnKludge[k], ''); break;	//	no sepChar
+
+				default		: appendMeta(`\x01${k}`, message.meta.FtnKludge[k]); break;
 			}
 		});
 

@@ -8,7 +8,7 @@ const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
-const Errors					= require('../../core/enig_error.js').Errors;
+const Errors					= require('../enig_error.js').Errors;
 
 const async						= require('async');
 const fs						= require('graceful-fs');

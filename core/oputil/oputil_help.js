@@ -84,6 +84,14 @@ general information:
   FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
   SHA                          full or partial SHA-256
   FILE_ID                      a file identifier. see file.sqlite3
+`,
+  MessageBase :
+  `usage: oputil.js mb <action> [<args>]
+
+  actions:
+  areafix CMD1 CMD2 ... ADDR  sends an AreaFix NetMail to ADDR with the supplied command(s)
+                              one or more commands may be supplied. commands that are multi
+                              part such as "%COMPRESS ZIP" should be quoted.
 `
 };
 

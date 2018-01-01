@@ -19,7 +19,7 @@ function hasMessageConferenceAndArea(config) {
 	assert(_.isObject(config.messageConferences));  //  we create one ourself!
 
 	const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
-		return 'system_internal' !== confTag; 
+		return 'system_internal' !== confTag;
 	});
 
 	if(0 === nonInternalConfs.length) {
@@ -53,12 +53,12 @@ function init(configPath, options, cb) {
 				if(!_.isString(configPath)) {
 					return callback(null, { } );
 				}
-				
+
 				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
 					if(err) {
 						return callback(err);
 					}
-				
+
 					let configJson;
 					try {
 						configJson = hjson.parse(configData, options);
@@ -70,7 +70,7 @@ function init(configPath, options, cb) {
 				});				
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				
+
 				const mergedConfig = _.mergeWith(
 					getDefaultConfig(), 
 					configJson, (conf1, conf2) => {
@@ -616,10 +616,11 @@ function getDefaultConfig() {
 		scannerTossers : {
 			ftn_bso : {
 				paths : {
-					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
-					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
-					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
-					reject		: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
+					outbound		: paths.join(__dirname, './../mail/ftn_out/'),
+					inbound			: paths.join(__dirname, './../mail/ftn_in/'),
+					secInbound		: paths.join(__dirname, './../mail/ftn_secin/'),
+					reject			: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
+					outboundNetMail	: paths.join(__dirname, './../mail/ftn_netmail_out/'),
 					//	set 'retain' to a valid path to keep good pkt files
 				},
 
