@@ -893,6 +893,8 @@ function FTNMessageScanTossModule() {
 							exportOpts.fileCase		= config.fileCase || 'lower';
 							exportOpts.network		= Config.messageNetworks.ftn.networks[networkName];
 							exportOpts.networkName	= networkName;
+							exportOpts.outgoingDir	= self.getOutgoingEchoMailPacketDir(exportOpts.networkName, exportOpts.destAddress);
+							exportOpts.exportType	= self.getExportType(config);
 
 							if(!exportOpts.network) {
 								return callback(Errors.DoesNotExist(`No configuration found for network ${networkName}`));
@@ -902,20 +904,33 @@ function FTNMessageScanTossModule() {
 						});
 					},
 					function createOutgoingDir(callback) {
-						//	ensure outgoing NetMail directory exists
-						return fse.mkdirs(Config.scannerTossers.ftn_bso.paths.outboundNetMail, callback);
+						//	ensure outgoing NetMail directory exists						
+						return fse.mkdirs(exportOpts.outgoingDir, callback);
+						//return fse.mkdirs(Config.scannerTossers.ftn_bso.paths.outboundNetMail, callback);
 					},
 					function exportPacket(callback) {
 						return self.exportNetMailMessagePacket(message, exportOpts, callback);
 					},
 					function moveToOutgoing(callback) {
 						const newExt = exportOpts.fileCase === 'lower' ? '.pkt' : '.PKT';
-						const newPath = paths.join(
-							Config.scannerTossers.ftn_bso.paths.outboundNetMail,
+						exportOpts.exportedToPath = paths.join(
+							exportOpts.outgoingDir,
+							//Config.scannerTossers.ftn_bso.paths.outboundNetMail,
 							`${paths.basename(exportOpts.pktFileName, paths.extname(exportOpts.pktFileName))}${newExt}`
 						);
 
-						return fse.move(exportOpts.pktFileName, newPath, callback);
+						return fse.move(exportOpts.pktFileName, exportOpts.exportedToPath, callback);
+					},
+					function prepareFloFile(callback) {
+						const flowFilePath = self.getOutgoingFlowFileName(
+							exportOpts.outgoingDir,
+							exportOpts.destAddress,
+							'ref',
+							exportOpts.exportType,
+							exportOpts.fileCase
+						);
+
+						return self.flowFileAppendRefs(flowFilePath, [ exportOpts.exportedToPath ], '^', callback);
 					},
 					function storeStateFlags0Meta(callback) {
 						return message.persistMetaValue('System', 'state_flags0', Message.StateFlags0.Exported.toString(), callback);
