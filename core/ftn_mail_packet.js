@@ -397,10 +397,10 @@ function Packet(options) {
 			//	We have to special case INTL/TOPT/FMPT as they don't contain
 			//	a ':' name/value separator like the rest of the kludge lines... because stupdity.
 			//
-			let key = line.substr(0, 4);
+			let key = line.substr(0, 4).trim();
 			let value;
-			if( ['INTL', 'TOPT', 'FMPT' ].includes(key)) {
-				value = line.substr(4).trim();
+			if( ['INTL', 'TOPT', 'FMPT', 'Via' ].includes(key)) {
+				value = line.substr(key.length).trim();
 			} else {
 				const sepIndex = line.indexOf(':');
 				key		= line.substr(0, sepIndex).toUpperCase();
@@ -709,13 +709,14 @@ function Packet(options) {
 							case 'PATH' :
 								break;	//	skip & save for last
 
+							case 'Via' :
 							case 'FMPT' :
 							case 'TOPT' :
-							case 'INTL' : 
+							case 'INTL' :
 								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k], '');	// no sepChar
 								break;
 
-							default		: 
+							default		:
 								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k]); 
 								break;
 						}
@@ -856,6 +857,7 @@ function Packet(options) {
 			switch(k) {
 				case 'PATH' : break;	//	skip & save for last
 
+				case 'Via' :
 				case 'FMPT' :
 				case 'TOPT' :
 				case 'INTL' : appendMeta(`\x01${k}`, message.meta.FtnKludge[k], ''); break;	//	no sepChar

@@ -427,7 +427,7 @@ module.exports = class User {
 			WHERE id = (
 				SELECT user_id
 				FROM user_property
-				WHERE prop_name='real_name' AND prop_value=?
+				WHERE prop_name='real_name' AND prop_value LIKE ?
 			);`,
 			[ realName ],
 			(err, row) => {
