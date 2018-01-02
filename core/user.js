@@ -414,10 +414,46 @@ module.exports = class User {
 				if(row) {
 					return cb(null, row.id, row.user_name);
 				}
-				
+
 				return cb(Errors.DoesNotExist('No matching username'));
 			}
 		);
+	}
+
+	static getUserIdAndNameByRealName(realName, cb) {
+		userDb.get(
+			`SELECT id, user_name
+			FROM user
+			WHERE id = (
+				SELECT user_id
+				FROM user_property
+				WHERE prop_name='real_name' AND prop_value=?
+			);`,
+			[ realName ],
+			(err, row) => {
+				if(err) {
+					return cb(err);
+				}
+
+				if(row) {
+					return cb(null, row.id, row.user_name);
+				}
+
+				return cb(Errors.DoesNotExist('No matching real name'));
+			}
+		);
+	}
+
+	static getUserIdAndNameByLookup(lookup, cb) {
+		User.getUserIdAndName(lookup, (err, userId, userName) => {
+			if(err) {
+				User.getUserIdAndNameByRealName(lookup, (err, userId, userName) => {
+					return cb(err, userId, userName);
+				});
+			} else {
+				return cb(null, userId, userName);
+			}
+		});
 	}
 
 	static getUserName(userId, cb) {

@@ -332,17 +332,20 @@ function FTNMessageScanTossModule() {
 			//	NetMail messages need a FRL-1005.001 "Via" line
 			//	http://ftsc.org/docs/frl-1005.001
 			//
+			//	:TODO: 	We need to do this when FORWARDING NetMail
+			/*
 			if(_.isString(message.meta.FtnKludge.Via)) {
 				message.meta.FtnKludge.Via = [ message.meta.FtnKludge.Via ];
 			}
 			message.meta.FtnKludge.Via = message.meta.FtnKludge.Via || [];
 			message.meta.FtnKludge.Via.push(ftnUtil.getVia(options.network.localAddress));
+			*/
 
 			//
 			//	We need to set INTL, and possibly FMPT and/or TOPT
 			//	See http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
 			//
-			message.meta.FtnKludge.INTL = ftnUtil.getIntl(options.network.localAddress, options.destAddress);
+			message.meta.FtnKludge.INTL = ftnUtil.getIntl(options.destAddress, options.network.localAddress);
 
 			if(_.isNumber(options.network.localAddress.point) && options.network.localAddress.point > 0) {
 				message.meta.FtnKludge.FMPT = options.network.localAddress.point;
@@ -1169,8 +1172,7 @@ function FTNMessageScanTossModule() {
 
 					const lookupName = self.getLocalUserNameFromAlias(message.toUserName);
 
-					//	:TODO: take into account aliasing, e.g. "root" -> SysOp
-					User.getUserIdAndName(lookupName, (err, localToUserId, localUserName) => {
+					User.getUserIdAndNameByLookup(lookupName, (err, localToUserId, localUserName) => {
 						if(err) {
 							return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
 						}
