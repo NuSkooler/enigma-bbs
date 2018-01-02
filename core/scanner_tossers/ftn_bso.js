@@ -1959,7 +1959,7 @@ function FTNMessageScanTossModule() {
 	this.isNetMailMessage = function(message) {
 		return message.isPrivate() &&
 			null === _.get(message.meta, 'System.LocalToUserID', null) &&
-			null !== _.get(message.meta, 'FtnProperty.ftn_dest_network')
+			null !== _.get(message.meta, 'FtnProperty.ftn_dest_network', null)
 			;
 	};
 }
