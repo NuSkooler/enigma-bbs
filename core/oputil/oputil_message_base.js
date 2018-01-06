@@ -55,7 +55,7 @@ function areaFix() {
 				const User = require('../user.js');
 
 				if(argv.from) {
-					User.getUserIdAndName(argv.from, (err, userId, fromName) => {
+					User.getUserIdAndNameByLookup(argv.from, (err, userId, fromName) => {
 						if(err) {
 							return callback(null, ftnAddr, argv.from, 0);
 						}

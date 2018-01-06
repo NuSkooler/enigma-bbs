@@ -413,13 +413,13 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				function populateLocalUserInfo(callback) {
 					if(self.isPrivateMail()) {
 						self.message.setLocalFromUserId(self.client.user.userId);
-						
+
 						if(self.toUserId > 0) {
 							self.message.setLocalToUserId(self.toUserId);
 							callback(null);
 						} else {
 							//	we need to look it up
-							User.getUserIdAndName(self.message.toUserName, function userInfo(err, toUserId) {
+							User.getUserIdAndNameByLookup(self.message.toUserName, function userInfo(err, toUserId) {
 								if(err) {
 									callback(err);
 								} else {

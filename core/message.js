@@ -112,7 +112,7 @@ Message.FtnPropertyNames = {
 	FtnDestZone			: 'ftn_dest_zone',
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
-		
+
 	FtnAttribute		: 'ftn_attribute',
 
 	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
