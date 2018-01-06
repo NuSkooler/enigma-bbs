@@ -308,16 +308,18 @@ function FTNMessageScanTossModule() {
 		//
 		//	Set various FTN kludges/etc.
 		//
+		const localAddress = new Address(options.network.localAddress);	//	ensure we have an Address obj not a string version
+
 		message.meta.FtnProperty = message.meta.FtnProperty || {};
 		message.meta.FtnKludge = message.meta.FtnKludge || {};
 
-		message.meta.FtnProperty.ftn_orig_node		= options.network.localAddress.node;
-		message.meta.FtnProperty.ftn_orig_network	= options.network.localAddress.net;
+		message.meta.FtnProperty.ftn_orig_node		= localAddress.node;
+		message.meta.FtnProperty.ftn_orig_network	= localAddress.net;
 		message.meta.FtnProperty.ftn_cost			= 0;
 
 		//	tear line and origin can both go in EchoMail & NetMail
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();
-		message.meta.FtnProperty.ftn_origin			= ftnUtil.getOrigin(options.network.localAddress);
+		message.meta.FtnProperty.ftn_origin			= ftnUtil.getOrigin(localAddress);
 
 		let ftnAttribute = ftnMailPacket.Packet.Attribute.Local;	//	message from our system
 
@@ -345,10 +347,10 @@ function FTNMessageScanTossModule() {
 			//	We need to set INTL, and possibly FMPT and/or TOPT
 			//	See http://retro.fidoweb.ru/docs/index=ftsc&doc=FTS-4001&enc=mac
 			//
-			message.meta.FtnKludge.INTL = ftnUtil.getIntl(options.destAddress, options.network.localAddress);
+			message.meta.FtnKludge.INTL = ftnUtil.getIntl(options.destAddress, localAddress);
 
-			if(_.isNumber(options.network.localAddress.point) && options.network.localAddress.point > 0) {
-				message.meta.FtnKludge.FMPT = options.network.localAddress.point;
+			if(_.isNumber(localAddress.point) && localAddress.point > 0) {
+				message.meta.FtnKludge.FMPT = localAddress.point;
 			}
 
 			if(_.get(message, 'meta.FtnProperty.ftn_dest_point', 0) > 0) {
@@ -378,15 +380,14 @@ function FTNMessageScanTossModule() {
 			//	with remote address(s) we are exporting to.
 			//
 			const seenByAdditions =
-				[ `${options.network.localAddress.net}/${options.network.localAddress.node}` ].concat(Config.messageNetworks.ftn.areas[message.areaTag].uplinks);
+				[ `${localAddress.net}/${localAddress.node}` ].concat(Config.messageNetworks.ftn.areas[message.areaTag].uplinks);
 			message.meta.FtnProperty.ftn_seen_by =
 				ftnUtil.getUpdatedSeenByEntries(message.meta.FtnProperty.ftn_seen_by, seenByAdditions);
 
 			//
 			//	And create/update PATH for ourself
 			//
-			message.meta.FtnKludge.PATH =
-				ftnUtil.getUpdatedPathEntries(message.meta.FtnKludge.PATH, options.network.localAddress);
+			message.meta.FtnKludge.PATH = ftnUtil.getUpdatedPathEntries(message.meta.FtnKludge.PATH, localAddress);
 		}
 
 		message.meta.FtnProperty.ftn_attr_flags = ftnAttribute;
@@ -398,7 +399,7 @@ function FTNMessageScanTossModule() {
 		//	export that failed to finish
 		//
 		if(!message.meta.FtnKludge.MSGID) {
-			message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(message, options.network.localAddress);
+			message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(message, localAddress);
 		}
 
 		message.meta.FtnKludge.TZUTC = ftnUtil.getUTCTimeZoneOffset();

@@ -19,15 +19,6 @@ const moment		= require('moment');
 
 exports.Packet			= Packet;
 
-/*
-	:TODO: things
-	* Test SAUCE ignore/extraction
-	* FSP-1010 for netmail (see SBBS)
-	* Syncronet apparently uses odd origin lines
-	* Origin lines starting with "#" instead of "*" ?
-
-*/
-
 const FTN_PACKET_HEADER_SIZE	= 58;	//	fixed header size
 const FTN_PACKET_HEADER_TYPE	= 2;
 const FTN_PACKET_MESSAGE_TYPE	= 2;
@@ -63,7 +54,7 @@ class PacketHeader {
 
 		this.capWord			= 0x0001;
 		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);	//	swap
-		
+
 		this.prodCodeHi			= 0xfe;	//	see above
 		this.prodRevHi			= 0;		
 	}
@@ -358,9 +349,9 @@ function Packet(options) {
 		buffer.writeUInt16LE(packetHeader.origPoint, 50);
 		buffer.writeUInt16LE(packetHeader.destPoint, 52);
 		buffer.writeUInt32LE(packetHeader.prodData, 54);
-		
+
 		ws.write(buffer);
-		
+
 		return buffer.length;
 	};
 
@@ -646,9 +637,29 @@ function Packet(options) {
 				});			
 			});
 	};
-		
+
+	this.sanatizeFtnProperties = function(message) {
+		[
+			Message.FtnPropertyNames.FtnOrigNode,
+			Message.FtnPropertyNames.FtnDestNode,
+			Message.FtnPropertyNames.FtnOrigNetwork,
+			Message.FtnPropertyNames.FtnDestNetwork,
+			Message.FtnPropertyNames.FtnAttrFlags,
+			Message.FtnPropertyNames.FtnCost,
+			Message.FtnPropertyNames.FtnOrigZone,
+			Message.FtnPropertyNames.FtnDestZone,
+			Message.FtnPropertyNames.FtnOrigPoint,
+			Message.FtnPropertyNames.FtnDestPoint,
+			Message.FtnPropertyNames.FtnAttribute,
+		].forEach( propName => {
+			if(message.meta.FtnProperty[propName]) {
+				message.meta.FtnProperty[propName] = parseInt(message.meta.FtnProperty[propName]) || 0;
+			}
+		});
+	};
+
 	this.getMessageEntryBuffer = function(message, options, cb) {
-		
+
 		function getAppendMeta(k, m, sepChar=':') {
 			let append = '';
 			if(m) {
@@ -667,7 +678,10 @@ function Packet(options) {
 			[
 				function prepareHeaderAndKludges(callback) {
 					const basicHeader = new Buffer(34);
-		
+
+					//	ensure address FtnProperties are numbers
+					self.sanatizeFtnProperties(message);
+
 					basicHeader.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
 					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
 					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_node, 4);

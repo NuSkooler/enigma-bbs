@@ -189,7 +189,7 @@ function getQuotePrefix(name) {
 //
 function getOrigin(address) {
 	const origin = _.has(Config, 'messageNetworks.originLine') ? 
-		Config.messageNetworks.originLine : 
+		Config.messageNetworks.originLine :
 		Config.general.boardName;
 
 	const addrStr = new Address(address).toString('5D');
