@@ -822,8 +822,9 @@ function FTNMessageScanTossModule() {
 		//		- Where we send may not be where dstAddress is (it's routed!); use network found in route
 		//		  for local address
 		//	2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
-		//		- Where we send is direct to dstAddr; use scannerTossers.ftn_bso.defaultNetwork to
-		//		  for local address
+		//		- Where we send is direct to dstAddr;
+		//		- Attempt to match address in messageNetworks.ftn.networks{}, else
+		//		  use scannerTossers.ftn_bso.defaultNetwork to for local address
 		//	3) Nodelist DB lookup (use default config)
 		//		- Where we send is direct to dstAddr
 		//
@@ -836,8 +837,12 @@ function FTNMessageScanTossModule() {
 			routeAddress	= Address.fromString(route.address);
 			networkName		= route.network || Config.scannerTossers.ftn_bso.defaultNetwork;
 		} else {
-			routeAddress	= dstAddr;
-			networkName		= Config.scannerTossers.ftn_bso.defaultNetwork;
+			routeAddress = dstAddr;
+
+			networkName	= this.getNetworkNameByAddressPattern(`${dstAddr.zone}:${dstAddr.net}/*`);
+			if(!networkName) {
+				networkName		= Config.scannerTossers.ftn_bso.defaultNetwork;
+			}
 		}
 
 		const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {

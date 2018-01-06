@@ -112,7 +112,7 @@ function areaFix() {
 				//	:TODO: Persist message in private outgoing (sysop out box) (TBD: implementation)
 				message.persist(err => {
 					if(!err) {
-						console.log('AreaFix message persisted and will be exported as per configuration');
+						console.log('AreaFix message persisted and will be exported at next scheduled scan');
 					}
 					return callback(err);
 				});
