@@ -399,7 +399,11 @@ function FTNMessageScanTossModule() {
 		//	export that failed to finish
 		//
 		if(!message.meta.FtnKludge.MSGID) {
-			message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(message, localAddress);
+			message.meta.FtnKludge.MSGID = ftnUtil.getMessageIdentifier(
+				message,
+				localAddress,
+				message.isPrivate()	// true = isNetMail
+			);
 		}
 
 		message.meta.FtnKludge.TZUTC = ftnUtil.getUTCTimeZoneOffset();
@@ -819,31 +823,28 @@ function FTNMessageScanTossModule() {
 		//	lookup order (most to least explicit config):
 		//
 		//	1) Routes: messageNetworks.ftn.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
-		//		- Where we send may not be where dstAddress is (it's routed!); use network found in route
-		//		  for local address
+		//		- Where we send may not be where dstAddress is (it's routed!)
 		//	2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
-		//		- Where we send is direct to dstAddr;
-		//		- Attempt to match address in messageNetworks.ftn.networks{}, else
-		//		  use scannerTossers.ftn_bso.defaultNetwork to for local address
-		//	3) Nodelist DB lookup (use default config)
 		//		- Where we send is direct to dstAddr
 		//
-		//const routeAddress = this.getNetMailRouteAddress(dstAddr) || dstAddr;
+		//	In both cases, attempt to look up Zone:Net/* to discover local "from" network/address
+		//	falling back to Config.scannerTossers.ftn_bso.defaultNetwork
+		//
 		const route = this.getNetMailRoute(dstAddr);
 
 		let routeAddress;
 		let networkName;
 		if(route) {
 			routeAddress	= Address.fromString(route.address);
-			networkName		= route.network || Config.scannerTossers.ftn_bso.defaultNetwork;
+			networkName		= route.network;
 		} else {
 			routeAddress = dstAddr;
-
-			networkName	= this.getNetworkNameByAddressPattern(`${dstAddr.zone}:${dstAddr.net}/*`);
-			if(!networkName) {
-				networkName		= Config.scannerTossers.ftn_bso.defaultNetwork;
-			}
 		}
+
+		networkName = networkName || 
+			this.getNetworkNameByAddressPattern(`${routeAddress.zone}:${routeAddress.net}/*`) ||
+			Config.scannerTossers.ftn_bso.defaultNetwork
+			;
 
 		const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
 			return routeAddress.isPatternMatch(nodeAddrWildcard);
