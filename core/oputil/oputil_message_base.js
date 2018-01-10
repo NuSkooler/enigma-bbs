@@ -79,7 +79,7 @@ function areaFix() {
 				//
 				const messageBody = argv._.slice(2, -1).map(arg => {
 					return arg.replace(/["']/g, '');
-				}).join('\n') + '\n';
+				}).join('\r\n') + '\n';
 
 				const Message = require('../message.js');
 
