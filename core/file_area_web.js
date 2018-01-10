@@ -284,6 +284,8 @@ class FileAreaWebAccess {
 	routeWebRequest(req, resp) {
 		const hashId = paths.basename(req.url);
 
+		Log.debug( { hashId : hashId, url : req.url }, 'File area web request');
+
 		this.loadServedHashId(hashId, (err, servedItem) => {
 
 			if(err) {
@@ -305,6 +307,8 @@ class FileAreaWebAccess {
 	}
 
 	routeWebRequestForSingleFile(servedItem, req, resp) {
+		Log.debug( { servedItem : servedItem }, 'Single file web request');
+
 		const fileEntry = new FileEntry();
 
 		servedItem.fileId = servedItem.fileIds[0];
@@ -348,6 +352,8 @@ class FileAreaWebAccess {
 	}
 
 	routeWebRequestForBatchArchive(servedItem, req, resp) {
+		Log.debug( { servedItem : servedItem }, 'Batch file web request');
+
 		//
 		//	We are going to build an on-the-fly zip file stream of 1:n
 		//	files in the batch.
@@ -392,7 +398,13 @@ class FileAreaWebAccess {
 					});
 				},
 				function createAndServeStream(filePaths, callback) {
+					Log.trace( { filePaths : filePaths }, 'Creating zip archive for batch web request');
+
 					const zipFile = new yazl.ZipFile();
+
+					zipFile.on('error', err => {
+						Log.warn( { error : err.message }, 'Error adding file to batch web request archive');
+					});
 
 					filePaths.forEach(fp => {
 						zipFile.addFile(
