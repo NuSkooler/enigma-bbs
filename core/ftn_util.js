@@ -135,9 +135,20 @@ function getMessageSerialNumber(messageId) {
 //
 //	ENiGMA½: <messageId>.<areaTag>@<5dFtnAddress> <serial>
 //
-function getMessageIdentifier(message, address) {
+//	0.0.8-alpha:
+//	Made compliant with FTN spec *when exporting NetMail* due to
+//	Mystic rejecting messages with the true-unique version.
+//	Strangely, Synchronet uses the unique format and Mystic does
+//	OK with it. Will need to research further. Note also that
+//	g00r00 was kind enough to fix Mystic to allow for the Sync/Enig
+//	format, but that will only help when using newer Mystic versions.
+//
+function getMessageIdentifier(message, address, isNetMail = false) {
 	const addrStr = new Address(address).toString('5D');
-	return `${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message.messageId)}`;
+	return isNetMail ? 
+		`${addrStr} ${getMessageSerialNumber(message.messageId)}` :
+		`${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message.messageId)}`
+		;
 }
 
 //
