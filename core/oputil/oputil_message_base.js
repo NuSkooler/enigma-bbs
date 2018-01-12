@@ -90,17 +90,12 @@ function areaFix() {
 					message			: messageBody,
 					areaTag			: Message.WellKnownAreaTags.Private,	//	mark private
 					meta			: {
-						FtnProperty : {
-							[ Message.FtnPropertyNames.FtnDestZone ]	: ftnAddr.zone,
-							[ Message.FtnPropertyNames.FtnDestNetwork ]	: ftnAddr.net,							
-							[ Message.FtnPropertyNames.FtnDestNode ]	: ftnAddr.node,
+						System		: {
+							[ Message.SystemMetaNames.RemoteToUser ]	: ftnAddr.toString(),			//	where to send it
+							[ Message.SystemMetaNames.ExternalFlavor ]	: Message.ExternalFlavors.FTN,	//	on FTN-style network
 						}
 					}
 				});
-
-				if(ftnAddr.point) {
-					message.meta.FtnProperty[Message.FtnPropertyNames.FtnDestPoint] = ftnAddr.point;
-				}
 
 				if(0 !== fromUserId) {
 					message.setLocalFromUserId(fromUserId);
@@ -109,7 +104,6 @@ function areaFix() {
 				return callback(null, message);
 			},
 			function persistMessage(message, callback) {
-				//	:TODO: Persist message in private outgoing (sysop out box) (TBD: implementation)
 				message.persist(err => {
 					if(!err) {
 						console.log('AreaFix message persisted and will be exported at next scheduled scan');

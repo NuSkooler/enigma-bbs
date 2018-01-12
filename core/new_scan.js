@@ -170,6 +170,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 		const filterCriteria = {
 			newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user),
 			areaTag			: getAvailableFileAreaTags(this.client),
+			order			: 'ascending',	//	oldest first
 		};
 
 		FileEntry.findFiles(
@@ -179,11 +180,11 @@ exports.getModule = class NewScanModule extends MenuModule {
 					return cb(err ? err : Errors.DoesNotExist('No more new files'));
 				}
 
-				FileBaseFilters.setFileBaseLastViewedFileIdForUser( this.client.user, fileIds[0] );
+				FileBaseFilters.setFileBaseLastViewedFileIdForUser( this.client.user, fileIds[fileIds.length - 1] );
 
 				const menuOpts = {
 					extraArgs : {
-						fileList : fileIds,				
+						fileList : fileIds,
 					},
 				};
 

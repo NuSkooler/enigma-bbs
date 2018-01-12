@@ -411,30 +411,42 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					return callback(null);
 				},
 				function populateLocalUserInfo(callback) {
-					if(self.isPrivateMail()) {
-						self.message.setLocalFromUserId(self.client.user.userId);
-
-						if(self.toUserId > 0) {
-							self.message.setLocalToUserId(self.toUserId);
-							callback(null);
-						} else {
-							//	we need to look it up
-							User.getUserIdAndNameByLookup(self.message.toUserName, function userInfo(err, toUserId) {
-								if(err) {
-									callback(err);
-								} else {
-									self.message.setLocalToUserId(toUserId);
-									callback(null);
-								}
-							});							
-						}
-					} else {
-						callback(null);
+					if(!self.isPrivateMail()) {
+						return callback(null);
 					}
+
+					//	:TODO: shouldn't local from user ID be set for all mail?
+					self.message.setLocalFromUserId(self.client.user.userId);
+
+					if(self.toUserId > 0) {
+						self.message.setLocalToUserId(self.toUserId);
+						return callback(null);
+					}
+
+					//
+					//	If the message we're replying to is from a remote user
+					//	don't try to look up the local user ID. Instead, mark the mail
+					//	for export with the remote to address.
+					//
+					if(self.replyToMessage.isFromRemoteUser()) {
+						self.message.setRemoteToUser(self.replyToMessage.meta.System[Message.SystemMetaNames.RemoteFromUser]);
+						self.message.setExternalFlavor(self.replyToMessage.meta.System[Message.SystemMetaNames.ExternalFlavor]);
+						return callback(null);
+					}
+
+					//	we need to look it up
+					User.getUserIdAndNameByLookup(self.message.toUserName, (err, toUserId) => {
+						if(err) {
+							return callback(err);
+						}
+
+						self.message.setLocalToUserId(toUserId);
+						return callback(null);
+					});
 				}
 			],
-			function complete(err) {
-				cb(err, self.message);
+			err => {
+				return cb(err, self.message);
 			}
 		);
 	}

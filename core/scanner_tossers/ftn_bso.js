@@ -45,12 +45,8 @@ exports.moduleInfo = {
 /*
 	:TODO:
 	* Support (approx) max bundle size
-	* Support NetMail
-		* NetMail needs explicit isNetMail()  check
-		* NetMail filename / location / etc. is still unknown - need to post on groups & get real answers
 	* Validate packet passwords!!!!
 		=> secure vs insecure landing areas
-
 */
 
 exports.getModule = FTNMessageScanTossModule;
@@ -878,12 +874,7 @@ function FTNMessageScanTossModule() {
 						}
 					},
 					function discoverUplink(callback) {
-						const dstAddr = new Address({
-							zone	: parseInt(message.meta.FtnProperty.ftn_dest_zone),
-							net		: parseInt(message.meta.FtnProperty.ftn_dest_network),
-							node	: parseInt(message.meta.FtnProperty.ftn_dest_node),
-							point	: parseInt(message.meta.FtnProperty.ftn_dest_point) || null,	//	point is optional
-						});
+						const dstAddr = new Address(message.meta.System[Message.SystemMetaNames.RemoteToUser]);
 
 						return self.getAcceptableNetMailNetworkInfoFromAddress(dstAddr, (err, config, routeAddress, networkName) => {
 							if(err) {
@@ -1152,6 +1143,9 @@ function FTNMessageScanTossModule() {
 				function basicSetup(callback) {
 					message.areaTag = config.localAreaTag;
 
+					//	indicate this was imported from FTN
+					message.meta.System[Message.SystemMetaNames.ExternalFlavor] = Message.ExternalFlavors.FTN;
+
 					//
 					//	If we *allow* dupes (disabled by default), then just generate
 					//	a random UUID. Otherwise, don't assign the UUID just yet. It will be
@@ -1175,6 +1169,22 @@ function FTNMessageScanTossModule() {
 					//
 					if(Message.WellKnownAreaTags.Private !== config.localAreaTag) {
 						return callback(null);
+					}
+
+					//
+					//	Create a meta value for the *remote* from user. In the case here with FTN,
+					//	their fully qualified FTN from address
+					//
+					const intlKludge = _.get(message, 'meta.FtnKludge.INTL');					
+					if(intlKludge && intlKludge.length > 0) {
+						let fromAddress = intlKludge.split(' ')[0];
+
+						const fromPointKludge = _.get(message, 'meta.FtnKludge.FMPT');
+						if(fromPointKludge) {
+							fromAddress += `.${fromPointKludge}`;
+						}
+
+						message.meta.System[Message.SystemMetaNames.RemoteFromUser] = fromAddress;
 					}
 
 					const lookupName = self.getLocalUserNameFromAlias(message.toUserName);
@@ -1911,8 +1921,7 @@ function FTNMessageScanTossModule() {
 	this.performNetMailExport = function(cb) {
 		//
 		//	Select all messages with a |message_id| > |lastScanId| in the private area
-		//	that also *do not* have a local user ID meta value but *do* have a FTN dest
-		//	network meta value.
+		//	that are schedule for export to FTN-style networks.
 		//
 		//	Just like EchoMail, we additionally exclude messages with the System state_flags0
 		//	which will be present for imported or already exported messages
@@ -1927,12 +1936,18 @@ function FTNMessageScanTossModule() {
 			WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND 
 				(SELECT COUNT(message_id)
 				FROM message_meta
-				WHERE message_id = m.message_id AND meta_category = 'System' AND 
-					(meta_name = 'state_flags0' OR meta_name='local_to_user_id')) = 0
+				WHERE message_id = m.message_id
+					AND meta_category = 'System'
+					AND (meta_name = 'state_flags0' OR meta_name = 'local_to_user_id')
+				) = 0
 			AND
 				(SELECT COUNT(message_id)
 				FROM message_meta
-				WHERE message_id = m.message_id AND meta_category='FtnProperty' AND meta_name='ftn_dest_network') = 1
+				WHERE message_id = m.message_id
+					AND meta_category = 'System' 
+					AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
+					AND meta_value = '${Message.ExternalFlavors.FTN}'
+				) = 1
 			ORDER BY message_id;
 			`;
 
@@ -1967,8 +1982,8 @@ function FTNMessageScanTossModule() {
 
 	this.isNetMailMessage = function(message) {
 		return message.isPrivate() &&
-			null === _.get(message.meta, 'System.LocalToUserID', null) &&
-			null !== _.get(message.meta, 'FtnProperty.ftn_dest_network', null)
+			null === _.get(message, 'meta.System.LocalToUserID', null) &&
+			Message.ExternalFlavors.FTN === _.get(message, 'meta.System.external_flavor', null)
 			;
 	};
 }

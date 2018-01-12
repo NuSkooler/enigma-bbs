@@ -76,6 +76,10 @@ function Message(options) {
 	this.isPrivate = function() {
 		return Message.isPrivateAreaTag(this.areaTag);
 	};
+
+	this.isFromRemoteUser = function() {
+		return null !== _.get(this, 'meta.System.remote_from_user', null);
+	};
 }
 
 Message.WellKnownAreaTags = {
@@ -93,6 +97,14 @@ Message.SystemMetaNames = {
 	LocalFromUserID			: 'local_from_user_id',
 	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
 	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
+	ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.ExternalFlavors
+	RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address	
+	RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address	
+};
+
+//	Types for Message.SystemMetaNames.ExternalFlavor meta
+Message.ExternalFlavors = {
+	FTN			: 'ftn',	//	FTN style
 };
 
 Message.StateFlags0 = {
@@ -131,6 +143,16 @@ Message.prototype.setLocalToUserId = function(userId) {
 Message.prototype.setLocalFromUserId = function(userId) {
 	this.meta.System = this.meta.System || {};
 	this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
+};
+
+Message.prototype.setRemoteToUser = function(remoteTo) {
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.RemoteToUser] = remoteTo;
+};
+
+Message.prototype.setExternalFlavor = function(flavor) {
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.ExternalFlavor] = flavor;
 };
 
 Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
