@@ -56,7 +56,7 @@ exports.getModule = class FileBaseSearch extends MenuModule {
 					},
 					function populateAreas(callback) {
 						self.availAreas = [ { name : '-ALL-' } ].concat(getSortedAvailableFileAreas(self.client) || []);
-						
+
 						const areasView = vc.getView(MciViewIds.search.area);
 						areasView.setItems( self.availAreas.map( a => a.name ) );
 						areasView.redraw();
