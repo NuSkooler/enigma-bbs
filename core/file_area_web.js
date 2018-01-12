@@ -152,16 +152,18 @@ class FileAreaWebAccess {
 					return cb(Errors.Invalid('Invalid or unknown hash ID'));
 				}
 
-				return cb(
-					null,
-					{
-						hashId			: hashId,
-						userId			: decoded[0],
-						hashIdType		: decoded[1],
-						fileIds			: decoded.slice(2),
-						expireTimestamp	: moment(result.expire_timestamp),
-					}
-				);
+				const servedItem = {
+					hashId			: hashId,
+					userId			: decoded[0],
+					hashIdType		: decoded[1],
+					expireTimestamp	: moment(result.expire_timestamp),
+				};
+
+				if(FileAreaWebAccess.getHashIdTypes().SingleFile === servedItem.hashIdType) {
+					servedItem.fileIds = decoded.slice(2);
+				}
+
+				return cb(null, servedItem);
 			}
 		);
 	}
