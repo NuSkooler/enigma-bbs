@@ -2,17 +2,19 @@
 'use strict';
 
 //	ENiGMA½
-const msgDb				= require('./database.js').dbs.message;
-const Config			= require('./config.js').config;
-const Message			= require('./message.js');
-const Log				= require('./logger.js').log;
-const msgNetRecord		= require('./msg_network.js').recordMessage;
-const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
+const msgDb						= require('./database.js').dbs.message;
+const Config					= require('./config.js').config;
+const Message					= require('./message.js');
+const Log						= require('./logger.js').log;
+const msgNetRecord				= require('./msg_network.js').recordMessage;
+const sortAreasOrConfs			= require('./conf_area_util.js').sortAreasOrConfs;
+const { getISOTimestampString } = require('./database.js');
 
 //	deps
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
+const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -28,6 +30,7 @@ exports.tempChangeMessageConfAndArea		= tempChangeMessageConfAndArea;
 exports.getMessageListForArea				= getMessageListForArea;
 exports.getNewMessageCountInAreaForUser		= getNewMessageCountInAreaForUser;
 exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
+exports.getMessageIdNewerThanTimestampByArea	= getMessageIdNewerThanTimestampByArea;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 exports.persistMessage						= persistMessage;
@@ -482,6 +485,28 @@ function getMessageListForArea(options, areaTag, cb) {
 	);
 }
 
+function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
+	if(moment.isMoment(newerThanTimestamp)) {
+		newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
+	}
+
+	msgDb.get(
+		`SELECT message_id 
+		FROM message
+		WHERE area_tag = ? AND DATETIME(modified_timestamp) > DATETIME("${newerThanTimestamp}", "+1 seconds")
+		ORDER BY modified_timestamp ASC
+		LIMIT 1;`,
+		[ areaTag ],
+		(err, row) => {
+			if(err) {
+				return cb(err);
+			}
+
+			return cb(null, row ? row.message_id : null);
+		}
+	);
+}
+
 function getMessageAreaLastReadId(userId, areaTag, cb) {
 	msgDb.get(
 		'SELECT message_id '					+
@@ -494,7 +519,12 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
 	);
 }
 
-function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
+function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
+	if(!cb && _.isFunction(allowOlder)) {
+		cb = allowOlder;
+		allowOlder = false;
+	}
+
 	//	:TODO: likely a better way to do this...
 	async.waterfall(
 		[
@@ -505,7 +535,7 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 				});
 			},
 			function update(lastId, callback) {
-				if(messageId > lastId) {
+				if(allowOlder || messageId > lastId) {
 					msgDb.run(
 						'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) '	+
 						'VALUES (?, ?, ?);',
