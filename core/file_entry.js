@@ -13,10 +13,11 @@ const paths					= require('path');
 const fse					= require('fs-extra');
 const { unlink, readFile }	= require('graceful-fs');
 const crypto				= require('crypto');
+const moment				= require('moment');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
-	'desc', 'desc_long', 'upload_timestamp' 
+	'desc', 'desc_long', 'upload_timestamp'
 ];
 
 const FILE_WELL_KNOWN_META = {
@@ -424,7 +425,11 @@ module.exports = class FileEntry {
 		let sqlWhere = '';
 		let sqlOrderBy;
 		const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
-		
+
+		if(moment.isMoment(filter.newerThanTimestamp)) {
+			filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
+		}
+
 		function getOrderByWithCast(ob) {
 			if( [ 'dl_count', 'est_release_year', 'byte_size' ].indexOf(filter.sort) > -1 ) {
 				return `ORDER BY CAST(${ob} AS INTEGER)`;
@@ -444,7 +449,7 @@ module.exports = class FileEntry {
 
 		if(filter.sort && filter.sort.length > 0) {
 			if(Object.keys(FILE_WELL_KNOWN_META).indexOf(filter.sort) > -1) {	//	sorting via a meta value?
-				sql = 
+				sql =
 					`SELECT DISTINCT f.file_id
 					FROM file f, file_meta m`;
 
@@ -461,7 +466,7 @@ module.exports = class FileEntry {
 							WHERE file_id = f.file_id)
 							AS avg_rating
 						FROM file f`;
-					
+
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
 					sql = 
@@ -472,7 +477,7 @@ module.exports = class FileEntry {
 				}
 			}
 		} else {
-			sql = 
+			sql =
 				`SELECT DISTINCT f.file_id
 				FROM file f`;
 
@@ -552,11 +557,13 @@ module.exports = class FileEntry {
 			appendWhereClause(`f.file_id > ${filter.newerThanFileId}`);
 		}
 
-		sql += `${sqlWhere} ${sqlOrderBy};`;
+		sql += `${sqlWhere} ${sqlOrderBy}`;
 
 		if(_.isNumber(filter.limit)) {
-			sql += `LIMIT ${filter.limit}`;
+			sql += ` LIMIT ${filter.limit}`;
 		}
+
+		sql += ';';
 
 		const matchingFileIds = [];
 		fileDb.each(sql, (err, fileId) => {
