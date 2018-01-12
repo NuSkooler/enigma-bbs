@@ -136,9 +136,14 @@ module.exports = class FileBaseFilters {
 		return parseInt((user.properties.user_file_base_last_viewed || 0));
 	}
 
-	static setFileBaseLastViewedFileIdForUser(user, fileId, cb) {
+	static setFileBaseLastViewedFileIdForUser(user, fileId, allowOlder, cb) {
+		if(!cb && _.isFunction(allowOlder)) {
+			cb = allowOlder;
+			allowOlder = false;
+		}
+
 		const current = FileBaseFilters.getFileBaseLastViewedFileIdByUser(user);
-		if(fileId < current) {
+		if(!allowOlder && fileId < current) {
 			if(cb) {
 				cb(null);
 			}
