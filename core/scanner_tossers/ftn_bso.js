@@ -1113,6 +1113,32 @@ function FTNMessageScanTossModule() {
 		return alias || lookup;
 	};
 
+	this.getAddressesFromNetMailMessage = function(message) {
+		const intlKludge = _.get(message, 'meta.FtnKludge.INTL');
+
+		if(!intlKludge) {
+			return {};
+		}
+
+		let [ to, from ] = intlKludge.split(' ');
+		if(!to || !from) {
+			return {};
+		}
+
+		const fromPoint = _.get(message, 'meta.FtnKludge.FMPT');
+		const toPoint	= _.get(message, 'meta.FtnKludge.TOPT');
+
+		if(fromPoint) {
+			from += `.${fromPoint}`;
+		}
+
+		if(toPoint) {
+			to += `.${toPoint}`;
+		}
+
+		return { to : Address.fromString(to), from : Address.fromString(from) };
+	};
+
 	this.importMailToArea = function(config, header, message, cb) {
 		async.series(
 			[
@@ -1175,17 +1201,13 @@ function FTNMessageScanTossModule() {
 					//	Create a meta value for the *remote* from user. In the case here with FTN,
 					//	their fully qualified FTN from address
 					//
-					const intlKludge = _.get(message, 'meta.FtnKludge.INTL');					
-					if(intlKludge && intlKludge.length > 0) {
-						let fromAddress = intlKludge.split(' ')[0];
+					const { from } = self.getAddressesFromNetMailMessage(message);
 
-						const fromPointKludge = _.get(message, 'meta.FtnKludge.FMPT');
-						if(fromPointKludge) {
-							fromAddress += `.${fromPointKludge}`;
-						}
-
-						message.meta.System[Message.SystemMetaNames.RemoteFromUser] = fromAddress;
+					if(!from) {
+						return callback(Errors.Invalid('Cannot import FTN NetMail without valid INTL line'));
 					}
+
+					message.meta.System[Message.SystemMetaNames.RemoteFromUser] = from.toString();
 
 					const lookupName = self.getLocalUserNameFromAlias(message.toUserName);
 
