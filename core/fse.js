@@ -342,8 +342,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				//	really don't like ANSI messages in UTF-8 encoding (they should!)
 				//
 				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
-				//	:TODO: change to <ansi>\r\nESC[A<message>
-				//msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
 				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
 			}
 		}
@@ -428,7 +426,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					//	don't try to look up the local user ID. Instead, mark the mail
 					//	for export with the remote to address.
 					//
-					if(self.replyToMessage.isFromRemoteUser()) {
+					if(self.replyToMessage && self.replyToMessage.isFromRemoteUser()) {
 						self.message.setRemoteToUser(self.replyToMessage.meta.System[Message.SystemMetaNames.RemoteFromUser]);
 						self.message.setExternalFlavor(self.replyToMessage.meta.System[Message.SystemMetaNames.ExternalFlavor]);
 						return callback(null);
