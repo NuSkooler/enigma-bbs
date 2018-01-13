@@ -20,6 +20,15 @@ module.exports = class Address {
 		}
 	}
 
+	static isValidAddress(addr) {
+		return addr && addr.isValid();
+	}
+
+	isValid() {
+		//	FTN address is valid if we have at least a net/node
+		return _.isNumber(this.net) && _.isNumber(this.node);
+	}
+
 	isEqual(other) {
 		if(_.isString(other)) {
 			other = Address.fromString(other);
