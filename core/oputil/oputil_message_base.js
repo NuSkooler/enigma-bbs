@@ -92,7 +92,7 @@ function areaFix() {
 					meta			: {
 						System		: {
 							[ Message.SystemMetaNames.RemoteToUser ]	: ftnAddr.toString(),			//	where to send it
-							[ Message.SystemMetaNames.ExternalFlavor ]	: Message.ExternalFlavors.FTN,	//	on FTN-style network
+							[ Message.SystemMetaNames.ExternalFlavor ]	: Message.AddressFlavor.FTN,	//	on FTN-style network
 						}
 					}
 				});

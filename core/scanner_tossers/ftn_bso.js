@@ -1170,7 +1170,7 @@ function FTNMessageScanTossModule() {
 					message.areaTag = config.localAreaTag;
 
 					//	indicate this was imported from FTN
-					message.meta.System[Message.SystemMetaNames.ExternalFlavor] = Message.ExternalFlavors.FTN;
+					message.meta.System[Message.SystemMetaNames.ExternalFlavor] = Message.AddressFlavor.FTN;
 
 					//
 					//	If we *allow* dupes (disabled by default), then just generate
@@ -1968,7 +1968,7 @@ function FTNMessageScanTossModule() {
 				WHERE message_id = m.message_id
 					AND meta_category = 'System' 
 					AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
-					AND meta_value = '${Message.ExternalFlavors.FTN}'
+					AND meta_value = '${Message.AddressFlavor.FTN}'
 				) = 1
 			ORDER BY message_id;
 			`;
@@ -2005,7 +2005,7 @@ function FTNMessageScanTossModule() {
 	this.isNetMailMessage = function(message) {
 		return message.isPrivate() &&
 			null === _.get(message, 'meta.System.LocalToUserID', null) &&
-			Message.ExternalFlavors.FTN === _.get(message, 'meta.System.external_flavor', null)
+			Message.AddressFlavor.FTN === _.get(message, 'meta.System.external_flavor', null)
 			;
 	};
 }

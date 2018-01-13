@@ -15,6 +15,7 @@ const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
 const Config						= require('./config.js').config;
+const { getAddressedToInfo } 		= require('./mail_util.js');
 
 //	deps
 const async							= require('async');
@@ -429,6 +430,18 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					if(self.replyToMessage && self.replyToMessage.isFromRemoteUser()) {
 						self.message.setRemoteToUser(self.replyToMessage.meta.System[Message.SystemMetaNames.RemoteFromUser]);
 						self.message.setExternalFlavor(self.replyToMessage.meta.System[Message.SystemMetaNames.ExternalFlavor]);
+						return callback(null);
+					}
+
+					//
+					//	Detect if the user is attempting to send to a remote mail type that we support
+					//
+					//	:TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
+					const addressedToInfo = getAddressedToInfo(self.message.toUserName);
+					if(addressedToInfo.name && Message.AddressFlavor.FTN === addressedToInfo.flavor) {
+						self.message.setRemoteToUser(addressedToInfo.remote);
+						self.message.setExternalFlavor(addressedToInfo.flavor);
+						self.message.toUserName = addressedToInfo.name;
 						return callback(null);
 					}
 
