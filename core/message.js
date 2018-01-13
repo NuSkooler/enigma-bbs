@@ -97,14 +97,16 @@ Message.SystemMetaNames = {
 	LocalFromUserID			: 'local_from_user_id',
 	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
 	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
-	ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.ExternalFlavors
-	RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address	
-	RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address	
+	ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
+	RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address
+	RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address
 };
 
 //	Types for Message.SystemMetaNames.ExternalFlavor meta
-Message.ExternalFlavors = {
+Message.AddressFlavor = {
+	Local		: 'local',	//	local / non-remote addressing
 	FTN			: 'ftn',	//	FTN style
+	Email		: 'email',
 };
 
 Message.StateFlags0 = {
