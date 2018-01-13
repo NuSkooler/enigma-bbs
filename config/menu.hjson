@@ -2324,7 +2324,7 @@
 						ET2: {
 							argName: to
 							focus: true
-							validate: @systemMethod:validateUserNameExists
+							validate: @systemMethod:validateGeneralMailAddressedTo
 						}
 						ET3: {
 							argName: subject
