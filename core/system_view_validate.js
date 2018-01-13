@@ -2,9 +2,11 @@
 'use strict';
 
 //	ENiGMA½
-const User		= require('./user.js');
-const Config	= require('./config.js').config;
-const Log		= require('./logger.js').log;
+const User						= require('./user.js');
+const Config					= require('./config.js').config;
+const Log						= require('./logger.js').log;
+const { getAddressedToInfo } 	= require('./mail_util.js');
+const Message					= require('./message.js');
 
 //	deps
 const fs		= require('graceful-fs');
@@ -14,6 +16,7 @@ exports.validateMessageSubject				= validateMessageSubject;
 exports.validateUserNameAvail 				= validateUserNameAvail;
 exports.validateUserNameExists				= validateUserNameExists;
 exports.validateUserNameOrRealNameExists	= validateUserNameOrRealNameExists;
+exports.validateGeneralMailAddressedTo		= validateGeneralMailAddressedTo;
 exports.validateEmailAvail					= validateEmailAvail;
 exports.validateBirthdate					= validateBirthdate;
 exports.validatePasswordSpec				= validatePasswordSpec;
@@ -55,28 +58,42 @@ function validateUserNameAvail(data, cb) {
 	}
 }
 
-function validateUserNameExists(data, cb) {
-	const invalidUserNameError = new Error('Invalid username');
+const invalidUserNameError = () => new Error('Invalid username');
 
+function validateUserNameExists(data, cb) {
 	if(0 === data.length) {
-		return cb(invalidUserNameError);
+		return cb(invalidUserNameError());
 	}
 
 	User.getUserIdAndName(data, (err) => {
-		return cb(err ? invalidUserNameError : null);
+		return cb(err ? invalidUserNameError() : null);
 	});
 }
 
 function validateUserNameOrRealNameExists(data, cb) {
-	const invalidUserNameError = new Error('Invalid username');
-
 	if(0 === data.length) {
-		return cb(invalidUserNameError);
+		return cb(invalidUserNameError());
 	}
 
 	User.getUserIdAndNameByLookup(data, err => {
-		return cb(err ? invalidUserNameError : null);
+		return cb(err ? invalidUserNameError() : null);
 	});
+}
+
+function validateGeneralMailAddressedTo(data, cb) {
+	//
+	//	Allow any supported addressing:
+	//	- Local username or real name
+	//	- Supported remote flavors such as FTN, email, ...
+	//
+	//	:TODO: remove hard-coded FTN check here. We need a decent way to register global supported flavors with modules.
+	const addressedToInfo = getAddressedToInfo(data);
+
+	if(Message.AddressFlavor.FTN === addressedToInfo.flavor) {
+		return cb(null);
+	}
+
+	return validateUserNameOrRealNameExists(data, cb);
 }
 
 function validateEmailAvail(data, cb) {
