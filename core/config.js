@@ -598,8 +598,9 @@ function getDefaultConfig() {
 
 				areas : {
 					private_mail : {
-						name	: 'Private Mail',
-						desc	: 'Private user to user mail/email',
+						name					: 'Private Mail',
+						desc					: 'Private user to user mail/email',
+						maxExternalSentAgeDays	: 30,	//	max external "outbox" item age
 					},
 
 					local_bulletin : {

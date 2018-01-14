@@ -1884,7 +1884,11 @@ function FTNMessageScanTossModule() {
 			ORDER BY message_id;`
 			;
 
-		async.each(Object.keys(Config.messageNetworks.ftn.areas), (areaTag, nextArea) => {
+		//	we shouldn't, but be sure we don't try to pick up private mail here
+		const areaTags = Object.keys(Config.messageNetworks.ftn.areas)
+			.filter(areaTag => Message.WellKnownAreaTags.Private !== areaTag);
+
+		async.each(areaTags, (areaTag, nextArea) => {
 			const areaConfig = Config.messageNetworks.ftn.areas[areaTag];
 			if(!this.isAreaConfigValid(areaConfig)) {
 				return nextArea();
@@ -1948,10 +1952,10 @@ function FTNMessageScanTossModule() {
 		//	Just like EchoMail, we additionally exclude messages with the System state_flags0
 		//	which will be present for imported or already exported messages
 		//
-		//	NOTE: If StateFlags0 starts to use additional bits, we'll likely need to check them here!
 		//
 		//	:TODO: fill out the rest of the consts here
 		//	:TODO: this statement is crazy ugly
+		//	:TODO: this should really check for extenral "flavor" and not-already-exported state_flags0
 		const getNewUuidsSql =
 			`SELECT message_id, message_uuid
 			FROM message m

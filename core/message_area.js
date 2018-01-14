@@ -598,11 +598,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
 				LIMIT -1 OFFSET ${areaInfo.maxMessages}
 			);`,
 			[ areaInfo.areaTag.toLowerCase() ],
-			err => {
+			function result(err) {	//	no arrow func; need this
 				if(err) {
-					Log.error( { areaInfo : areaInfo, err : err, type : 'maxMessages' }, 'Error trimming message area');
+					Log.error( { areaInfo : areaInfo, error : err.message, type : 'maxMessages' }, 'Error trimming message area');
 				} else {
-					Log.debug( { areaInfo : areaInfo, type : 'maxMessages' }, 'Area trimmed successfully');
+					Log.debug( { areaInfo : areaInfo, type : 'maxMessages', count : this.changes }, 'Area trimmed successfully');
 				}
 				return cb(err);
 			}	
@@ -618,21 +618,25 @@ function trimMessageAreasScheduledEvent(args, cb) {
 			`DELETE FROM message
 			WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
 			[ areaInfo.areaTag ],
-			err => {
+			function result(err) {	//	no arrow func; need this
 				if(err) {
-					Log.warn( { areaInfo : areaInfo, err : err, type : 'maxAgeDays' }, 'Error trimming message area');
+					Log.warn( { areaInfo : areaInfo, error : err.message, type : 'maxAgeDays' }, 'Error trimming message area');
 				} else {
-					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays' }, 'Area trimmed successfully');
+					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays', count : this.changes }, 'Area trimmed successfully');
 				}
 				return cb(err);
 			}
 		);
 	}
-	
+
 	async.waterfall(
-		[			
+		[
 			function getAreaTags(callback) {
-				let areaTags = [];
+				const areaTags = [];
+
+				//
+				//	We use SQL here vs API such that no-longer-used tags are picked up
+				//
 				msgDb.each(
 					`SELECT DISTINCT area_tag
 					FROM message;`,
@@ -640,7 +644,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
 						if(err) {
 							return callback(err);
 						}
-						areaTags.push(row.area_tag);
+
+						//	We treat private mail special
+						if(!Message.isPrivateAreaTag(row.area_tag)) {
+							areaTags.push(row.area_tag);
+						}
 					},
 					err => {
 						return callback(err, areaTags);
@@ -652,30 +660,26 @@ function trimMessageAreasScheduledEvent(args, cb) {
 
 				//	determine maxMessages & maxAgeDays per area
 				areaTags.forEach(areaTag => {
-					
+
 					let maxMessages = Config.messageAreaDefaults.maxMessages;
 					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
-					
+
 					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf here
 					if(area) {
-						if(area.maxMessages) {
-							maxMessages = area.maxMessages;
-						}
-						if(area.maxAgeDays) {
-							maxAgeDays = area.maxAgeDays;
-						}
+						maxMessages = area.maxMessages || maxMessages;
+						maxAgeDays	= area.maxAgeDays || maxAgeDays;
 					}
 
 					areaInfos.push( {
 						areaTag		: areaTag,
 						maxMessages	: maxMessages,
 						maxAgeDays	: maxAgeDays,
-					} );					
+					} );
 				});
 
 				return callback(null, areaInfos);
 			},
-			function trimAreas(areaInfos, callback) {
+			function trimGeneralAreas(areaInfos, callback) {
 				async.each(
 					areaInfos,
 					(areaInfo, next) => {
@@ -691,11 +695,50 @@ function trimMessageAreasScheduledEvent(args, cb) {
 					},
 					callback
 				);
-			}			
+			},
+			function trimExternalPrivateSentMail(callback) {
+				//
+				//	*External* (FTN, email, ...) outgoing is cleaned up *after export*
+				//	if it is older than the configured |maxExternalSentAgeDays| days
+				//
+				//	Outgoing externally exported private mail is:
+				//	- In the 'private_mail' area
+				//	- Marked exported (state_flags0 exported bit set)
+				//	- Marked with any external flavor (we don't mark local)
+				//
+				const maxExternalSentAgeDays = _.get(
+					Config,
+					'messageConferences.system_internal.areas.private_mail.maxExternalSentAgeDays',
+					30
+				);
+
+				msgDb.run(
+					`DELETE FROM message
+					WHERE message_id IN (
+						SELECT m.message_id
+						FROM message m
+						JOIN message_meta mms
+							ON m.message_id = mms.message_id AND
+							(mms.meta_category='System' AND mms.meta_name='${Message.SystemMetaNames.StateFlags0}' AND (mms.meta_value & ${Message.StateFlags0.Exported} = ${Message.StateFlags0.Exported}))
+						JOIN message_meta mmf
+							ON m.message_id = mmf.message_id AND
+							(mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
+						WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND	DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
+					);`,
+					function results(err) {	//	no arrow func; need this
+						if(err) {
+							Log.warn( { error : err.message }, 'Error trimming private externally sent messages');
+						} else {
+							Log.debug( { count : this.changes }, 'Private externally sent messages trimmed successfully');
+						}
+					}
+				);
+
+				return callback(null);
+			}
 		],
 		err => {
 			return cb(err);
 		}
 	);
-	
 }

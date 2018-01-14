@@ -990,7 +990,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		this.viewControllers.body.switchFocus(1);
 
 		this.observeEditorEvents();
-	};
+	}
 
 	switchToFooter() {
 		this.viewControllers.header.setFocus(false);
