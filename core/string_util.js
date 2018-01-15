@@ -135,23 +135,21 @@ function stylizeString(s, style) {
 	return s;
 }
 
-//	Based on http://www.webtoolkit.info/
-//	:TODO: Look into lodash padLeft, padRight, etc.
-function pad(s, len, padChar, dir, stringSGR, padSGR, useRenderLen) {
-	len				= miscUtil.valueWithDefault(len, 0);
-	padChar			= miscUtil.valueWithDefault(padChar, ' ');
-	dir				= miscUtil.valueWithDefault(dir, 'right');
-	stringSGR		= miscUtil.valueWithDefault(stringSGR, '');
-	padSGR			= miscUtil.valueWithDefault(padSGR, '');
-	useRenderLen 	= miscUtil.valueWithDefault(useRenderLen, true);
+function pad(s, len, padChar, justify, stringSGR, padSGR, useRenderLen) {
+	len				= len || 0;
+	padChar			= padChar || ' ';
+	justify			= justify || 'left';
+	stringSGR		= stringSGR || '';
+	padSGR			= padSGR || '';
+	useRenderLen 	= _.isUndefined(useRenderLen) ? true : useRenderLen;
 
 	const renderLen	= useRenderLen ? renderStringLength(s) : s.length;
 	const padlen	= len >= renderLen ? len - renderLen : 0;
 
-	switch(dir) {
+	switch(justify) {
 		case 'L' :
 		case 'left' :
-			s = padSGR + new Array(padlen).join(padChar) + stringSGR + s;
+			s = `${stringSGR}${s}${padSGR}${Array(padlen).join(padChar)}`;
 			break;
 
 		case 'C' :
@@ -160,13 +158,13 @@ function pad(s, len, padChar, dir, stringSGR, padSGR, useRenderLen) {
 			{
 				const right	= Math.ceil(padlen / 2);
 				const left	= padlen - right;
-				s			= padSGR + new Array(left + 1).join(padChar) + stringSGR + s + padSGR + new Array(right + 1).join(padChar);
+				s			= `${padSGR}${Array(left + 1).join(padChar)}${stringSGR}${s}${padSGR}${Array(right + 1).join(padChar)}`;
 			}
 			break;
 
 		case 'R' :
 		case 'right' :
-			s = stringSGR + s + padSGR + new Array(padlen).join(padChar);
+			s = `${padSGR}${Array(padlen).join(padChar)}${stringSGR}${s}`;
 			break;
 
 		default : break;

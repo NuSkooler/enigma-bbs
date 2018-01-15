@@ -122,10 +122,10 @@ function quote(s) {
 
 function getPadAlign(align) {
 	return {
-		'<' : 'right',
-		'>' : 'left',
+		'<' : 'left',
+		'>' : 'right',
 		'^' : 'center',
-	}[align] || '<';
+	}[align] || '>';
 }
 
 function formatString(value, tokens) {

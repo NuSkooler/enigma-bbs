@@ -32,7 +32,7 @@ function TextView(options) {
 	}
 
 	this.fillChar			= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
-	this.justify			= options.justify || 'right';
+	this.justify			= options.justify || 'left';
 	this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
 	this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
 

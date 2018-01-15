@@ -722,15 +722,15 @@
 					}
 					SM4: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM5: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM6: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					BT7: {
 						focusTextStyle: first lower
@@ -748,15 +748,15 @@
 					}
 					SM3: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM4: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM5: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					ET6: {
 						width: 26
@@ -826,7 +826,7 @@
 					mci: {
 						SM1: {
 							width: 14
-							justify: right
+							justify: left
 							focusTextStyle: first lower
 						}
 
