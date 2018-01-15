@@ -349,8 +349,8 @@ function FTNMessageScanTossModule() {
 				message.meta.FtnKludge.FMPT = localAddress.point;
 			}
 
-			if(_.get(message, 'meta.FtnProperty.ftn_dest_point', 0) > 0) {
-				message.meta.FtnKludge.TOPT = message.meta.FtnProperty.ftn_dest_point;
+			if(_.isNumber(options.destAddress.point) && options.destAddress.point > 0) {
+				message.meta.FtnKludge.TOPT = options.destAddress.point;
 			}
 		} else {
 			//	We need to set some destination info for EchoMail
@@ -1954,8 +1954,7 @@ function FTNMessageScanTossModule() {
 		//
 		//
 		//	:TODO: fill out the rest of the consts here
-		//	:TODO: this statement is crazy ugly
-		//	:TODO: this should really check for extenral "flavor" and not-already-exported state_flags0
+		//	:TODO: this statement is crazy ugly -- use JOIN / NOT EXISTS for state_flags & 0x02
 		const getNewUuidsSql =
 			`SELECT message_id, message_uuid
 			FROM message m

@@ -1767,6 +1767,10 @@
 					action: @systemMethod:nextArea
 				}
 				{
+					value: { command: "D" }
+					action: @menu:messageAreaSetNewScanDate
+				}
+				{
 					value: 1
 					action: @menu:messageArea
 				}
@@ -1790,6 +1794,47 @@
 							{
 								value: { conf: null }
 								action: @method:changeConference
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		messageAreaSetNewScanDate: {
+			module: set_newscan_date
+			desc: Message Base
+			art: SETMNSDATE
+			config: {
+				target: message
+				scanDateFormat: YYYYMMDD
+			}
+			form: {
+				0: {
+					mci: {
+						ME1: {
+							focus: true
+							submit: true
+							argName: scanDate
+							maskPattern: "####/##/##"
+						}
+						SM2: {
+							argName: targetSelection
+							submit: false
+							justify: right
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { scanDate: null }
+								action: @method:scanDateSubmit
 							}
 						]
 					}
@@ -2493,7 +2538,47 @@
 					value: { menuOption: "S" }
 					action: @menu:fileBaseSearch
 				}
+				{
+					value: { menuOption: "P" }
+					action: @menu:fileBaseSetNewScanDate
+				}
 			]
+		}
+
+		fileBaseSetNewScanDate: {
+			module: set_newscan_date
+			desc: File Base
+			art: SETFNSDATE
+			config: {
+				target: file
+				scanDateFormat: YYYYMMDD
+			}
+			form: {
+				0: {
+					mci: {
+						ME1: {
+							focus: true
+							submit: true
+							argName: scanDate
+							maskPattern: "####/##/##"
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { scanDate: null }
+								action: @method:scanDateSubmit
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
 		}
 
 		fileBaseListEntries: {
