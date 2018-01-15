@@ -37,12 +37,12 @@ var MciViewIds = {
 function ErcClientModule(options) {
 	MenuModule.prototype.ctorShim.call(this, options);
 
-	const self			= this;  
+	const self			= this;
 	this.config			= options.menuConfig.config;
 
 	this.chatEntryFormat	= this.config.chatEntryFormat || '[{bbsTag}] {userName}: {message}';
-	this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';	
-	
+	this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';
+
 	this.finishedLoading = function() {
 		async.waterfall(
 			[
@@ -63,12 +63,12 @@ function ErcClientModule(options) {
 					};
 
 					const chatMessageView = self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
-					
+
 					chatMessageView.setText('Connecting to server...');
 					chatMessageView.redraw();
-					
+
 					self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
-					
+
 					//	:TODO: Track actual client->enig connection for optional prevMenu @ final CB
 					self.chatConnection = net.createConnection(connectOpts.port, connectOpts.host);
 
@@ -98,12 +98,12 @@ function ErcClientModule(options) {
 							}
 
 							chatMessageView.addText(text);
-					
+
 							if(chatMessageView.getLineCount() > 30) {	//	:TODO: should probably be ChatDisplay.height?
 								chatMessageView.deleteLine(0);
 								chatMessageView.scrollDown();
 							}
-							
+
 							chatMessageView.redraw();
 							self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
 						}

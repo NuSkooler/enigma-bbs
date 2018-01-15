@@ -43,7 +43,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 		const config = this.menuConfig.config;
 
 		this.target			= config.target || 'message';
-		this.scanDateFormat	= config.scanDateFormat || 'YYYYMMDD';		
+		this.scanDateFormat	= config.scanDateFormat || 'YYYYMMDD';
 
 		this.menuMethods = {
 			scanDateSubmit : (formData, extraArgs, cb) => {
@@ -232,7 +232,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 						const scanDateView = vc.getView(MciViewIds.main.scanDate);
 
 						//	:TODO: MaskTextEditView needs some love: If setText() with input that matches the mask, we should ignore the non-mask chars! Hack in place for now
-						const scanDateFormat = self.scanDateFormat.replace(/[\/\-. ]/g, '');
+						const scanDateFormat = self.scanDateFormat.replace(/[/\-. ]/g, '');
 						scanDateView.setText(today.format(scanDateFormat));
 
 						if('message' === self.target) {

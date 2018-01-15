@@ -5,7 +5,7 @@ const messageArea	= require('../core/message_area.js');
 
 
 exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
-	
+
 	tempMessageConfAndAreaSwitch(messageAreaTag) {
 		messageAreaTag = messageAreaTag || this.messageAreaTag;
 		if(!messageAreaTag) {
@@ -14,7 +14,7 @@ exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
 
 		this.prevMessageConfAndArea = {
 			confTag	: this.client.user.properties.message_conf_tag,
-			areaTag	: this.client.user.properties.message_area_tag,		
+			areaTag	: this.client.user.properties.message_area_tag,
 		};
 
 		if(!messageArea.tempChangeMessageConfAndArea(this.client, this.messageAreaTag)) {
@@ -25,7 +25,7 @@ exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
 	tempMessageConfAndAreaRestore() {
 		if(this.prevMessageConfAndArea) {
 			this.client.user.properties.message_conf_tag = this.prevMessageConfAndArea.confTag;
-			this.client.user.properties.message_area_tag = this.prevMessageConfAndArea.areaTag;		
+			this.client.user.properties.message_area_tag = this.prevMessageConfAndArea.areaTag;
 		}
 	}
 };

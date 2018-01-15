@@ -13,13 +13,12 @@ const Log					= require('./logger.js').log;
 
 //	deps
 const async					= require('async');
-const _						= require('lodash');
 const crypto				= require('crypto');
 const fs					= require('graceful-fs');
 const url					= require('url');
 const querystring			= require('querystring');
 
-const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT = 
+const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT =
 	`%USERNAME%:
 a password reset has been requested for your account on %BOARDNAME%.
     
@@ -46,7 +45,7 @@ class WebPasswordReset {
 		}
 
 		async.waterfall(
-			[			
+			[
 				function getEmailAddress(callback) {
 					if(!username) {
 						return callback(Errors.MissingParam('Missing "username"'));
@@ -81,7 +80,7 @@ class WebPasswordReset {
 							email_password_reset_token		: token,
 							email_password_reset_token_ts	: getISOTimestampString(),
 						};
-						
+
 						//	we simply place the reset token in the user's properties
 						user.persistProperties(newProperties, err => {
 							return callback(err, user);
@@ -111,13 +110,13 @@ class WebPasswordReset {
 							.replace(/%USERNAME%/g, 	user.username)
 							.replace(/%TOKEN%/g,		user.properties.email_password_reset_token)
 							.replace(/%RESET_URL%/g,	resetUrl)
-							;
+						;
 					}
 
 					textTemplate = replaceTokens(textTemplate);
 					if(htmlTemplate) {
 						htmlTemplate = replaceTokens(htmlTemplate);
-					}					
+					}
 
 					const message = {
 						to		: `${user.properties.display_name||user.username} <${user.properties.email_address}>`,
@@ -128,7 +127,11 @@ class WebPasswordReset {
 					};
 
 					sendMail(message, (err, info) => {
-						//	:TODO: Log me!
+						if(err) {
+							Log.warn( { error : err.message }, 'Failed sending password reset email' );
+						} else {
+							Log.debug( { info : info }, 'Successfully sent password reset email');
+						}
 
 						return callback(err);
 					});
@@ -162,7 +165,7 @@ class WebPasswordReset {
 				path		: '^\\/reset_password\\?token\\=[a-f0-9]+$',	//	Config.contentServers.web.forgotPasswordPageTemplate
 				handler		: WebPasswordReset.routeResetPasswordGet,
 			},
-				//	POST handler for performing the actual reset
+			//	POST handler for performing the actual reset
 			{
 				method		: 'POST',
 				path		: '^\\/reset_password$',

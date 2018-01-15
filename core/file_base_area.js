@@ -61,8 +61,8 @@ function getAvailableFileAreas(client, options) {
 
 	//	perform ACS check per conf & omit internal if desired
 	const allAreas = _.map(Config.fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
-	
-	return _.omitBy(allAreas, areaInfo => {        
+
+	return _.omitBy(allAreas, areaInfo => {
 		if(!options.includeSystemInternal && isInternalArea(areaInfo.areaTag)) {
 			return true;
 		}
@@ -102,7 +102,7 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 	defaultArea = _.findKey(Config.fileBase.areas, (area, areaTag) => {
 		return WellKnownAreaTags.MessageAreaAttach !== areaTag && (true === disableAcsCheck || client.acs.hasFileAreaRead(area));
 	});
-    
+
 	return defaultArea;
 }
 
@@ -110,7 +110,7 @@ function getFileAreaByTag(areaTag) {
 	const areaInfo = Config.fileBase.areas[areaTag];
 	if(areaInfo) {
 		areaInfo.areaTag	= areaTag;	//	convienence!
-		areaInfo.storage	= getAreaStorageLocations(areaInfo); 
+		areaInfo.storage	= getAreaStorageLocations(areaInfo);
 		return areaInfo;
 	}
 }
@@ -165,13 +165,13 @@ function getAreaDefaultStorageDirectory(areaInfo) {
 }
 
 function getAreaStorageLocations(areaInfo) {
-	
-	const storageTags = Array.isArray(areaInfo.storageTags) ? 
-		areaInfo.storageTags : 
+
+	const storageTags = Array.isArray(areaInfo.storageTags) ?
+		areaInfo.storageTags :
 		[ areaInfo.storageTags || '' ];
 
 	const avail = Config.fileBase.storageTags;
-	
+
 	return _.compact(storageTags.map(storageTag => {
 		if(avail[storageTag]) {
 			return {
@@ -230,7 +230,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	const patterns	= Config.fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
 
 	function getMatch(input) {
-		if(input) {			
+		if(input) {
 			let m;
 			for(let i = 0; i < patterns.length; ++i) {
 				m = patterns[i].exec(input);
@@ -249,7 +249,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 	//
 	const maxYear = moment().add(2, 'year').year();
 	const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
-	
+
 	if(match && match[1]) {
 		let year;
 		if(2 === match[1].length) {
@@ -316,7 +316,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 					archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
 						if(err) {
 							return callback(err);
-						}				
+						}
 
 						const descFiles = {
 							desc		: shortDescFile ? paths.join(tempDir, shortDescFile.fileName) : null,
@@ -327,7 +327,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 					});
 				});
 			},
-			function readDescFiles(descFiles, callback) {				
+			function readDescFiles(descFiles, callback) {
 				async.each(Object.keys(descFiles), (descType, next) => {
 					const path = descFiles[descType];
 					if(!path) {
@@ -341,7 +341,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 
 						//	skip entries that are too large
 						const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
-					
+
 						if(Config.fileBase[maxFileSizeKey] && stats.size > Config.fileBase[maxFileSizeKey]) {
 							logDebug( { byteSize : stats.size, maxByteSize : Config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
 							return next(null);
@@ -353,7 +353,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 							}
 
 							//
-							//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
+							//	Assume FILE_ID.DIZ, NFO files, etc. are CP437.
 							//
 							//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
 							fileEntry[descType]			= iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
@@ -389,10 +389,10 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 					}
 
 					const archiveUtil = ArchiveUtil.getInstance();
-					
+
 					//	ensure we only extract one - there should only be one anyway -- we also just need the fileName
 					const extractList = archiveEntries.slice(0, 1).map(entry => entry.fileName);
-					
+
 					archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
 						if(err) {
 							return callback(err);
@@ -540,7 +540,7 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
 		});
 	}, () => {
 		return cb(null);
-	});	
+	});
 }
 
 function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb) {
@@ -584,10 +584,6 @@ function addNewFileEntry(fileEntry, filePath, cb) {
 			return cb(err);
 		}
 	);
-}
-
-function updateFileEntry(fileEntry, filePath, cb) {
-
 }
 
 const HASH_NAMES =  [ 'sha1', 'sha256', 'md5', 'crc32' ];
@@ -664,7 +660,7 @@ function scanFile(filePath, options, iterator, cb) {
 					return callIter(callback);
 				});
 			},
-			function processPhysicalFileGeneric(callback) {			
+			function processPhysicalFileGeneric(callback) {
 				stepInfo.bytesProcessed = 0;
 
 				const hashes = {};
@@ -690,7 +686,7 @@ function scanFile(filePath, options, iterator, cb) {
 				stream.on('data', data => {
 					stream.pause();	//	until iterator compeltes
 
-					stepInfo.bytesProcessed		+= data.length;		
+					stepInfo.bytesProcessed		+= data.length;
 					stepInfo.calcHashPercent	= Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
 
 					//
@@ -710,13 +706,13 @@ function scanFile(filePath, options, iterator, cb) {
 
 							updateHashes(data);
 						});
-					}					
+					}
 				});
 
 				stream.on('end', () => {
 					fileEntry.meta.byte_size = stepInfo.bytesProcessed;
 
-					async.each(hashesToCalc, (hashName, nextHash) => {						
+					async.each(hashesToCalc, (hashName, nextHash) => {
 						if('sha256' === hashName) {
 							stepInfo.sha256 = fileEntry.fileSha256 = hashes.sha256.digest('hex');
 						} else if('sha1' === hashName || 'md5' === hashName) {
@@ -747,7 +743,9 @@ function scanFile(filePath, options, iterator, cb) {
 						populateFileEntryWithArchive(fileEntry, filePath, stepInfo, callIter, err => {
 							if(err) {
 								populateFileEntryNonArchive(fileEntry, filePath, stepInfo, callIter, err => {
-									//	:TODO: log err
+									if(err) {
+										logDebug( { error : err.message }, 'Non-archive file entry population failed');
+									}
 									return callback(null);	//	ignore err
 								});
 							} else {
@@ -756,7 +754,9 @@ function scanFile(filePath, options, iterator, cb) {
 						});
 					} else {
 						populateFileEntryNonArchive(fileEntry, filePath, stepInfo, callIter, err => {
-							//	:TODO: log err
+							if(err) {
+								logDebug( { error : err.message }, 'Non-archive file entry population failed');
+							}
 							return callback(null);	//	ignore err
 						});
 					}
@@ -773,7 +773,7 @@ function scanFile(filePath, options, iterator, cb) {
 					return callback(null, dupeEntries);
 				});
 			}
-		], 
+		],
 		(err, dupeEntries) => {
 			if(err) {
 				return cb(err);
@@ -858,12 +858,12 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
 					//	:TODO: Look @ db entries for area that were *not* processed above
 					return callback(null);
 				}
-			], 
+			],
 			err => {
 				return nextLocation(err);
 			}
 		);
-	}, 
+	},
 	err => {
 		return cb(err);
 	});
@@ -874,14 +874,14 @@ function getDescFromFileName(fileName) {
 	const ext   = paths.extname(fileName);
 	const name  = paths.basename(fileName, ext);
 
-	return _.upperFirst(name.replace(/[\-_.+]/g, ' ').replace(/\s+/g, ' '));
+	return _.upperFirst(name.replace(/[-_.+]/g, ' ').replace(/\s+/g, ' '));
 }
 
 //
 //	Return an object of stats about an area(s)
 //
 //	{
-//		
+//
 //		totalFiles : <totalFileCount>,
 //		totalBytes : <totalByteSize>,
 //		areas : {
@@ -892,7 +892,7 @@ function getDescFromFileName(fileName) {
 //		}
 //	}
 //
-function getAreaStats(cb) {	
+function getAreaStats(cb) {
 	FileDb.all(
 		`SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
 		FROM file f, file_meta m
@@ -928,9 +928,9 @@ function getAreaStats(cb) {
 
 //	method exposed for event scheduler
 function updateAreaStatsScheduledEvent(args, cb) {
-	getAreaStats( (err, stats) => {		
+	getAreaStats( (err, stats) => {
 		if(!err) {
-			StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);	
+			StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
 		}
 
 		return cb(err);

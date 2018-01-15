@@ -13,7 +13,7 @@ class ACS {
 	constructor(client) {
 		this.client = client;
 	}
-	
+
 	check(acs, scope, defaultAcs) {
 		acs = acs ? acs[scope] : defaultAcs;
 		acs = acs || defaultAcs;
@@ -22,7 +22,7 @@ class ACS {
 		} catch(e) {
 			Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
 			return false;
-		}		
+		}
 	}
 
 	//

@@ -78,19 +78,19 @@ module.exports = class MenuStack {
 
 		//	:TODO: leave() should really take a cb...
 		this.pop().instance.leave();	//	leave & remove current
-	
+
 		const previousModuleInfo = this.pop();	//	get previous
 
 		if(previousModuleInfo) {
 			const opts = {
-				extraArgs		: previousModuleInfo.extraArgs, 
+				extraArgs		: previousModuleInfo.extraArgs,
 				savedState		: previousModuleInfo.savedState,
 				lastMenuResult	: menuResult,
 			};
 
 			return this.goto(previousModuleInfo.name, opts, cb);
 		}
-		
+
 		return cb(Errors.MenuStack('No previous menu available', 'NOPREV'));
 	}
 
@@ -106,14 +106,14 @@ module.exports = class MenuStack {
 
 		if(currentModuleInfo && name === currentModuleInfo.name) {
 			if(cb) {
-				cb(Errors.MenuStack('Already at supplied menu', 'ALREADYTHERE'));				
+				cb(Errors.MenuStack('Already at supplied menu', 'ALREADYTHERE'));
 			}
 			return;
 		}
 
 		const loadOpts = {
 			name		: name,
-			client		: self.client, 
+			client		: self.client,
 		};
 
 		if(_.isObject(options)) {

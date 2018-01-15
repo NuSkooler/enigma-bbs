@@ -23,7 +23,7 @@ class Archiver {
 	}
 
 	ok() {
-		return this.canCompress() && this.canDecompress(); 
+		return this.canCompress() && this.canDecompress();
 	}
 
 	can(what) {
@@ -41,7 +41,7 @@ class Archiver {
 }
 
 module.exports = class ArchiveUtil {
-	
+
 	constructor() {
 		this.archivers = {};
 		this.longestSignature = 0;
@@ -93,7 +93,7 @@ module.exports = class ArchiveUtil {
 
 	getArchiver(mimeTypeOrExtension) {
 		mimeTypeOrExtension = resolveMimeType(mimeTypeOrExtension);
-		
+
 		if(!mimeTypeOrExtension) {	//	lookup returns false on failure
 			return;
 		}
@@ -103,21 +103,23 @@ module.exports = class ArchiveUtil {
 			return _.get( Config, [ 'archives', 'archivers', archiveHandler ] );
 		}
 	}
-	
+
 	haveArchiver(archType) {
 		return this.getArchiver(archType) ? true : false;
 	}
 
-	detectTypeWithBuf(buf, cb) {
-		//	:TODO: implement me!		
+	//	:TODO: implement me:
+	/*
+	detectTypeWithBuf(buf, cb) {		
 	}
+	*/
 
 	detectType(path, cb) {
 		fs.open(path, 'r', (err, fd) => {
 			if(err) {
 				return cb(err);
 			}
-			
+
 			const buf = new Buffer(this.longestSignature);
 			fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
 				if(err) {
@@ -140,7 +142,7 @@ module.exports = class ArchiveUtil {
 				});
 
 				return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
-			});			
+			});
 		});
 	}
 
@@ -153,15 +155,15 @@ module.exports = class ArchiveUtil {
 				err = Errors.ExternalProcess(`${action} failed: ${d.trim()}`);
 			}
 		});
-		
+
 		proc.once('exit', exitCode => {
 			return cb(exitCode ? Errors.ExternalProcess(`${action} failed with exit code: ${exitCode}`) : err);
-		});	
+		});
 	}
 
 	compressTo(archType, archivePath, files, cb) {
 		const archiver = this.getArchiver(archType);
-		
+
 		if(!archiver) {
 			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
 		}
@@ -189,13 +191,13 @@ module.exports = class ArchiveUtil {
 		if(!cb && _.isFunction(fileList)) {
 			cb = fileList;
 			fileList = [];
-			haveFileList = false;	
+			haveFileList = false;
 		} else {
 			haveFileList = true;
 		}
 
 		const archiver = this.getArchiver(archType);
-		
+
 		if(!archiver) {
 			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
 		}
@@ -211,7 +213,7 @@ module.exports = class ArchiveUtil {
 		const args = archiver[action].args.map( arg => {
 			return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
 		});
-		
+
 		const fileListPos = args.indexOf('{fileList}');
 		if(fileListPos > -1) {
 			//	replace {fileList} with 0:n sep file list arguments
@@ -230,9 +232,9 @@ module.exports = class ArchiveUtil {
 
 	listEntries(archivePath, archType, cb) {
 		const archiver = this.getArchiver(archType);
-		
+
 		if(!archiver) {
-			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));			
+			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
 		}
 
 		const fmtObj = {
@@ -240,7 +242,7 @@ module.exports = class ArchiveUtil {
 		};
 
 		const args	= archiver.list.args.map( arg => stringFormat(arg, fmtObj) );
-		
+
 		let proc;
 		try {
 			proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
@@ -251,7 +253,7 @@ module.exports = class ArchiveUtil {
 		let output = '';
 		proc.on('data', data => {
 			//	:TODO: hack for: execvp(3) failed.: No such file or directory
-			
+
 			output += data;
 		});
 
@@ -273,16 +275,16 @@ module.exports = class ArchiveUtil {
 			}
 
 			return cb(null, entries);
-		});	
+		});
 	}
-	
+
 	getPtyOpts() {
 		return {
 			//	:TODO: cwd
 			name	: 'enigma-archiver',
 			cols	: 80,
 			rows	: 24,
-			env		: process.env,	
+			env		: process.env,
 		};
 	}
 };

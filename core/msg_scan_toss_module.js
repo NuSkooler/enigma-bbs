@@ -13,12 +13,12 @@ function MessageScanTossModule() {
 require('util').inherits(MessageScanTossModule, PluginModule);
 
 MessageScanTossModule.prototype.startup = function(cb) {
-	cb(null);
+	return cb(null);
 };
 
 MessageScanTossModule.prototype.shutdown = function(cb) {
-	cb(null);
+	return cb(null);
 };
 
-MessageScanTossModule.prototype.record = function(message) {
+MessageScanTossModule.prototype.record = function(/*message*/) {
 };

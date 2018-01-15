@@ -4,13 +4,12 @@
 //	ENiGMA½
 const TextView				= require('./text_view.js').TextView;
 const EditTextView			= require('./edit_text_view.js').EditTextView;
-const ButtonView				= require('./button_view.js').ButtonView;
+const ButtonView			= require('./button_view.js').ButtonView;
 const VerticalMenuView		= require('./vertical_menu_view.js').VerticalMenuView;
-const HorizontalMenuView		= require('./horizontal_menu_view.js').HorizontalMenuView;
-const SpinnerMenuView			= require('./spinner_menu_view.js').SpinnerMenuView;
-const ToggleMenuView			= require('./toggle_menu_view.js').ToggleMenuView;
+const HorizontalMenuView	= require('./horizontal_menu_view.js').HorizontalMenuView;
+const SpinnerMenuView		= require('./spinner_menu_view.js').SpinnerMenuView;
+const ToggleMenuView		= require('./toggle_menu_view.js').ToggleMenuView;
 const MaskEditTextView		= require('./mask_edit_text_view.js').MaskEditTextView;
-//const StatusBarView			= require('./status_bar_view.js').StatusBarView;
 const KeyEntryView			= require('./key_entry_view.js');
 const MultiLineEditTextView	= require('./multi_line_edit_text_view.js').MultiLineEditTextView;
 const getPredefinedMCIValue	= require('./predefined_mci.js').getPredefinedMCIValue;
@@ -37,7 +36,7 @@ MCIViewFactory.UserViewCodes = [
 	'XY',
 ];
 
-MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
+MCIViewFactory.prototype.createFromMCI = function(mci) {
 	assert(mci.code);
 	assert(mci.id > 0);
 	assert(mci.position);
@@ -78,7 +77,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 	//
 	switch(mci.code) {
 		//	Text Label (Text View)
-		case 'TL' : 
+		case 'TL' :
 			setOption(0,	'textStyle');
 			setOption(1,	'justify');
 			setWidth(2);
@@ -105,14 +104,14 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 			break;
 
 		//	Multi Line Edit Text
-		case 'MT' : 
+		case 'MT' :
 			//	:TODO: apply params
 			view = new MultiLineEditTextView(options);
 			break;
 
 		//	Pre-defined Label (Text View)
 		//	:TODO: Currently no real point of PL -- @method replaces this pretty much... probably remove
-		case 'PL' : 
+		case 'PL' :
 			if(mci.args.length > 0) {
 				options.text = getPredefinedMCIValue(this.client, mci.args[0]);
 				if(options.text) {
@@ -126,7 +125,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 			break;
 
 		//	Button
-		case 'BT' : 
+		case 'BT' :
 			if(mci.args.length > 0) {
 				options.dimens = { width : parseInt(mci.args[0], 10) };
 			}
@@ -144,14 +143,14 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 			setOption(0,		'itemSpacing');
 			setOption(1, 		'justify');
 			setOption(2, 		'textStyle');
-			
+
 			setFocusOption(0,	'focusTextStyle');
 
 			view = new VerticalMenuView(options);
 			break;
 
 		//	Horizontal Menu
-		case 'HM' : 
+		case 'HM' :
 			setOption(0,		'itemSpacing');
 			setOption(1,		'textStyle');
 
@@ -165,7 +164,7 @@ MCIViewFactory.prototype.createFromMCI = function(mci, cb) {
 			setOption(1, 		'justify');
 
 			setFocusOption(0,	'focusTextStyle');
-			
+
 			view = new SpinnerMenuView(options);
 			break;
 

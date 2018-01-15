@@ -85,7 +85,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 			fileDetailsContinue : (formData, extraArgs, cb) => {
 				//	see displayFileDetailsPageForUploadEntry() for this hackery:
-				cb(null);				
+				cb(null);
 				return this.fileDetailsCurrentEntrySubmitCallback(null, formData.value);	//	move on to the next entry, if any
 			},
 
@@ -119,7 +119,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 				return cb(null);
 			}
-		};	
+		};
 	}
 
 	getSaveState() {
@@ -143,12 +143,12 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	isBlindUpload() { return 'blind' === this.uploadType; }
 	isFileTransferComplete() { return !_.isUndefined(this.recvFilePaths); }
-	
+
 	initSequence() {
 		const self = this;
 
 		if(0 === this.availAreas.length) {
-			//	
+			//
 			return this.gotoMenu(this.menuConfig.config.noUploadAreasAvailMenu || 'fileBaseNoUploadAreasAvail');
 		}
 
@@ -185,7 +185,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 			//	need a terminator for various external protocols
 			this.tempRecvDirectory = pathWithTerminatingSeparator(tempRecvDirectory);
-		
+
 			const modOpts = {
 				extraArgs : {
 					recvDirectory	: this.tempRecvDirectory,	//	we'll move files from here to their area container once processed/confirmed
@@ -203,8 +203,8 @@ exports.getModule = class UploadModule extends MenuModule {
 			//	Upon completion, we'll re-enter the module with some file paths handed to us
 			//
 			return this.gotoMenu(
-				this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection', 
-				modOpts, 
+				this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection',
+				modOpts,
 				cb
 			);
 		});
@@ -219,7 +219,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		const fmtObj = Object.assign( {}, stepInfo);
 		let stepIndicatorFmt = '';
-		let logStepFmt;	
+		let logStepFmt;
 
 		const fmtConfig = this.menuConfig.config;
 
@@ -228,7 +228,7 @@ exports.getModule = class UploadModule extends MenuModule {
 
 		const indicator = { };
 		const self = this;
-		
+
 		function updateIndicator(mci, isFinished) {
 			indicator.mci = mci;
 
@@ -253,7 +253,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				updateIndicator(MciViewIds.processing.calcHashIndicator);
 				break;
 
-			case 'hash_finish' : 
+			case 'hash_finish' :
 				stepIndicatorFmt = fmtConfig.calcHashCompleteFormat || 'Finished calculating hash/checksums';
 				updateIndicator(MciViewIds.processing.calcHashIndicator, true);
 				break;
@@ -263,7 +263,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				updateIndicator(MciViewIds.processing.archiveListIndicator);
 				break;
 
-			case 'archive_list_finish' : 
+			case 'archive_list_finish' :
 				fmtObj.archivedFileCount = stepInfo.archiveEntries.length;
 				stepIndicatorFmt = fmtConfig.extractArchiveListFinishFormat || 'Archive list extracted ({archivedFileCount} files)';
 				updateIndicator(MciViewIds.processing.archiveListIndicator, true);
@@ -273,7 +273,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				stepIndicatorFmt = fmtConfig.extractArchiveListFailedFormat || 'Archive list extraction failed';
 				break;
 
-			case 'desc_files_start' : 
+			case 'desc_files_start' :
 				stepIndicatorFmt = fmtConfig.processingDescFilesFormat || 'Processing description files';
 				updateIndicator(MciViewIds.processing.descFileIndicator);
 				break;
@@ -289,7 +289,7 @@ exports.getModule = class UploadModule extends MenuModule {
 		}
 
 		fmtObj.stepIndicatorText = stringFormat(stepIndicatorFmt, fmtObj);
-		
+
 		if(this.hasProcessingArt) {
 			this.updateCustomViewTextsWithFilter('processing', MciViewIds.processing.customRangeStart, fmtObj, { appendMultiLine : true } );
 
@@ -339,7 +339,7 @@ exports.getModule = class UploadModule extends MenuModule {
 				return nextScanStep(null);
 			}
 
-			self.client.log.debug('Scanning file', { filePath : filePath } );		
+			self.client.log.debug('Scanning file', { filePath : filePath } );
 
 			scanFile(filePath, scanOpts, handleScanStep, (err, fileEntry, dupeEntries) => {
 				if(err) {
@@ -389,7 +389,7 @@ exports.getModule = class UploadModule extends MenuModule {
 						//	name changed; ajust before persist
 						newEntry.fileName = paths.basename(finalPath);
 					}
-					
+
 					return nextEntry(null);	//	still try next file
 				}
 
@@ -474,7 +474,7 @@ exports.getModule = class UploadModule extends MenuModule {
 							if(err) {
 								return nextDupe(err);
 							}
-							
+
 							const areaInfo = getFileAreaByTag(dupe.areaTag);
 							if(areaInfo) {
 								dupe.areaName 	= areaInfo.name;
@@ -553,12 +553,12 @@ exports.getModule = class UploadModule extends MenuModule {
 						return callback(null, scanResults);
 					}
 
-					return self.displayDupesPage(scanResults.dupes, () => {						
+					return self.displayDupesPage(scanResults.dupes, () => {
 						return callback(null, scanResults);
 					});
 				},
 				function prepDetails(scanResults, callback) {
-					return self.prepDetailsForUpload(scanResults, callback);					
+					return self.prepDetailsForUpload(scanResults, callback);
 				},
 				function startMovingAndPersistingToDatabase(scanResults, callback) {
 					//
@@ -583,14 +583,14 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	displayOptionsPage(cb) {
 		const self = this;
-		
+
 		async.series(
 			[
 				function prepArtAndViewController(callback) {
 					return self.prepViewControllerWithArt(
-						'options', 
-						FormIds.options, 
-						{ clearScreen : true, trailingLF : false }, 
+						'options',
+						FormIds.options,
+						{ clearScreen : true, trailingLF : false },
 						callback
 					);
 				},
@@ -621,7 +621,7 @@ exports.getModule = class UploadModule extends MenuModule {
 							fileNameView.setText(sanatizeFilename(fileNameView.getData()));
 						}
 					});
-					
+
 					self.uploadType = 'blind';
 					uploadTypeView.setFocusItemIndex(0);	//	default to blind
 					fileNameView.setText(blindFileNameText);
@@ -658,14 +658,14 @@ exports.getModule = class UploadModule extends MenuModule {
 
 	displayFileDetailsPageForUploadEntry(fileEntry, cb) {
 		const self = this;
-		
+
 		async.waterfall(
 			[
 				function prepArtAndViewController(callback) {
 					return self.prepViewControllerWithArt(
-						'fileDetails', 
+						'fileDetails',
 						FormIds.fileDetails,
-						{ clearScreen : true, trailingLF : false }, 
+						{ clearScreen : true, trailingLF : false },
 						err => {
 							return callback(err);
 						}

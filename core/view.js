@@ -39,7 +39,7 @@ function View(options) {
 	var self			= this;
 
 	this.client			= options.client;
-	
+
 	this.cursor			= options.cursor || 'show';
 	this.cursorStyle	= options.cursorStyle || 'default';
 
@@ -72,7 +72,7 @@ function View(options) {
 	} else {
 		this.dimens = {
 			width	: options.width || 0,
-			height	: 0 
+			height	: 0
 		};
 	}
 
@@ -106,7 +106,7 @@ function View(options) {
 	this.restoreCursor = function() {
 		//this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
 		this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
-	};	
+	};
 }
 
 util.inherits(View, events.EventEmitter);
@@ -150,7 +150,7 @@ View.prototype.setDimension = function(dimens) {
 
 View.prototype.setHeight = function(height) {
 	height	= parseInt(height) || 1;
-	height	= Math.min(height, this.client.term.termHeight); 
+	height	= Math.min(height, this.client.term.termHeight);
 
 	this.dimens.height		= height;
 	this.autoScale.height	= false;
@@ -182,9 +182,9 @@ View.prototype.setPropertyValue = function(propName, value) {
 		case 'height'	: this.setHeight(value); break;
 		case 'width'	: this.setWidth(value); break;
 		case 'focus'	: this.setFocus(value); break;
-		
-		case 'text'		: 
-			if('setText' in this) {				
+
+		case 'text'		:
+			if('setText' in this) {
 				this.setText(value);
 			}
 			break;
@@ -248,7 +248,7 @@ View.prototype.setFocus = function(focused) {
 	this.restoreCursor();
 };
 
-View.prototype.onKeyPress = function(ch, key) {	
+View.prototype.onKeyPress = function(ch, key) {
 	enigAssert(this.hasFocus,		'View does not have focus');
 	enigAssert(this.acceptsInput,	'View does not accept input');
 

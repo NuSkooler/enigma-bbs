@@ -15,7 +15,7 @@ exports.VerticalMenuView		= VerticalMenuView;
 function VerticalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
 	options.justify = options.justify || 'right';	//	:TODO: default to center
-	
+
 	MenuView.call(this, options);
 
 	const self = this;
@@ -80,7 +80,7 @@ function VerticalMenuView(options) {
 
 		self.client.term.write(
 			ansi.goto(item.row, self.position.col) +
-			sgr + 
+			sgr +
 			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
 		);
 	};
@@ -89,7 +89,7 @@ function VerticalMenuView(options) {
 util.inherits(VerticalMenuView, MenuView);
 
 VerticalMenuView.prototype.redraw = function() {
-	VerticalMenuView.super_.prototype.redraw.call(this);	
+	VerticalMenuView.super_.prototype.redraw.call(this);
 
 	//	:TODO: rename positionCacheExpired to something that makese sense; combine methods for such
 	if(this.positionCacheExpired) {
@@ -106,14 +106,14 @@ VerticalMenuView.prototype.redraw = function() {
 		let seq			= ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
 		let row			= this.position.row + 1;
 		const endRow	= (row + this.oldDimens.height) - 2;
-		
+
 		while(row <= endRow) {
 			seq += ansi.goto(row, this.position.col) + blank;
 			row += 1;
 		}
 		this.client.term.write(seq);
 		delete this.oldDimens;
-	}	
+	}
 
 	if(this.items.length) {
 		let row = this.position.row;
@@ -206,7 +206,7 @@ VerticalMenuView.prototype.removeItem = function(index) {
 VerticalMenuView.prototype.focusNext = function() {
 	if(this.items.length - 1 === this.focusedItemIndex) {
 		this.focusedItemIndex = 0;
-		
+
 		this.viewWindow = {
 			top		: 0,
 			bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
@@ -228,7 +228,7 @@ VerticalMenuView.prototype.focusNext = function() {
 VerticalMenuView.prototype.focusPrevious = function() {
 	if(0 === this.focusedItemIndex) {
 		this.focusedItemIndex = this.items.length - 1;
-		
+
 		this.viewWindow = {
 			//top		: this.items.length - this.maxVisibleItems,
 			top		: Math.max(this.items.length - this.maxVisibleItems, 0),
@@ -279,7 +279,7 @@ VerticalMenuView.prototype.focusNextPageItem = function() {
 	//
 	//	Jump to current + up to page size or bottom
 	//	If already at the bottom, jump to top
-	//	
+	//
 	if(this.items.length - 1 === this.focusedItemIndex) {
 		return this.focusNext();	//	will jump to top
 	}

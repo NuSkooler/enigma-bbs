@@ -23,10 +23,10 @@ const packageJson 	= require('../package.json');
 			authCode: XXXXX
 			schemeCode: XXXX
 			door: lord
-			
+
 			//	default hoss: games.bbslink.net
 			host: games.bbslink.net
-			
+
 			//	defualt port: 23
 			port: 23
 		}
@@ -49,7 +49,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
 		this.config			= options.menuConfig.config;
 		this.config.host	= this.config.host || 'games.bbslink.net';
 		this.config.port	= this.config.port || 23;
-	}	
+	}
 
 	initSequence() {
 		let token;
@@ -141,7 +141,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
 						self.client.once('end', function clientEnd() {
 							self.client.log.info('Connection ended. Terminating BBSLink connection');
 							clientTerminated = true;
-							bridgeConnection.end();						
+							bridgeConnection.end();
 						});
 					});
 
@@ -170,7 +170,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
 			],
 			function complete(err) {
 				if(err) {
-					self.client.log.warn( { error : err.toString() }, 'BBSLink connection error');					
+					self.client.log.warn( { error : err.toString() }, 'BBSLink connection error');
 				}
 
 				if(!clientTerminated) {

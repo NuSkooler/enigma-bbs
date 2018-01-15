@@ -59,8 +59,6 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 
 				return this.gotoMenu(this.menuConfig.config.fileTransferProtocolSelection || 'fileTransferProtocolSelection', modOpts, cb);
 			},
-			viewItemInfo : (formData, extraArgs, cb) => {
-			},
 			removeItem : (formData, extraArgs, cb) => {
 				const selectedItem = this.dlQueue.items[formData.value.queueItem];
 				if(!selectedItem) {
@@ -74,7 +72,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 			},
 			clearQueue : (formData, extraArgs, cb) => {
 				this.dlQueue.clear();
-								
+
 				//	:TODO: broken: does not redraw menu properly - needs fixed!
 				return this.removeItemsFromDownloadQueueView('all', cb);
 			}
@@ -230,10 +228,10 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					}
-					
+
 					self.viewControllers[name].setFocus(true);
 					return callback(null);
-										
+
 				},
 			],
 			err => {

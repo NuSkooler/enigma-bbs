@@ -26,7 +26,7 @@ const moment			= require('moment');
 	MCI codes:
 
 	VM1			: Message list
-	TL2			: Message info 1: { msgNumSelected, msgNumTotal }	
+	TL2			: Message info 1: { msgNumSelected, msgNumTotal }
 */
 
 exports.moduleInfo = {
@@ -84,9 +84,9 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 					//	due to the size of |messageList|. See https://github.com/trentm/node-bunyan/issues/189
 					//
 					modOpts.extraArgs.toJSON = function() {
-						const logMsgList = (this.messageList.length <= 4) ? 
-							this.messageList : 
-							this.messageList.slice(0, 2).concat(this.messageList.slice(-2)); 
+						const logMsgList = (this.messageList.length <= 4) ?
+							this.messageList :
+							this.messageList.slice(0, 2).concat(this.messageList.slice(-2));
 
 						return {
 							messageAreaTag		: this.messageAreaTag,
@@ -158,14 +158,14 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						if(_.isArray(self.messageList)) {
 							return callback(0 === self.messageList.length ? new Error('No messages in area') : null);
 						}
-						
+
 						messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
 							if(!msgList || 0 === msgList.length) {
 								return callback(new Error('No messages in area'));
 							}
-							
+
 							self.messageList = msgList;
-							return callback(err);						
+							return callback(err);
 						});
 					},
 					function getLastReadMesageId(callback) {
@@ -187,15 +187,15 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
 							if(_.isUndefined(self.initialFocusIndex) && listItem.messageId > self.lastReadId) {
 								self.initialFocusIndex = index;
-							}					
+							}
 						});
 						return callback(null);
 					},
 					function populateList(callback) {
-						const msgListView			= vc.getView(MCICodesIDs.MsgList);	
-						const listFormat			= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';				
+						const msgListView			= vc.getView(MCICodesIDs.MsgList);
+						const listFormat			= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';
 						const focusListFormat		= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
-						const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}'; 
+						const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
 
 						//	:TODO: This can take a very long time to load large lists. What we need is to implement the "owner draw" concept in
 						//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
@@ -211,10 +211,10 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						msgListView.on('index update', idx => {
 							self.setViewText(
 								'allViews',
-								MCICodesIDs.MsgInfo1, 
+								MCICodesIDs.MsgInfo1,
 								stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.messageList.length } ));
 						});
-						
+
 						if(self.initialFocusIndex > 0) {
 							//	note: causes redraw()
 							msgListView.setFocusItemIndex(self.initialFocusIndex);
@@ -228,29 +228,29 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						const messageInfo1Format = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
 						self.setViewText(
 							'allViews',
-							MCICodesIDs.MsgInfo1, 
+							MCICodesIDs.MsgInfo1,
 							stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.messageList.length } ));
 						return callback(null);
 					},
-				],		
+				],
 				err => {
 					if(err) {
-						self.client.log.error( { error : err.message }, 'Error loading message list');				
+						self.client.log.error( { error : err.message }, 'Error loading message list');
 					}
 					return cb(err);
 				}
 			);
-		});			
+		});
 	}
 
 	getSaveState() {
-		return { initialFocusIndex : this.initialFocusIndex };	
+		return { initialFocusIndex : this.initialFocusIndex };
 	}
 
 	restoreSavedState(savedState) {
 		if(savedState) {
 			this.initialFocusIndex = savedState.initialFocusIndex;
-		}	
+		}
 	}
 
 	getMenuResult() {

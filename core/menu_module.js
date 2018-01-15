@@ -17,17 +17,17 @@ const assert				= require('assert');
 const _						= require('lodash');
 
 exports.MenuModule = class MenuModule extends PluginModule {
-	
+
 	constructor(options) {
-		super(options);	
+		super(options);
 
 		this.menuName			= options.menuName;
 		this.menuConfig			= options.menuConfig;
 		this.client				= options.client;
 		this.menuConfig.options	= options.menuConfig.options || {};
-		this.menuMethods		= {};	//	methods called from @method's		
+		this.menuMethods		= {};	//	methods called from @method's
 		this.menuConfig.config	= this.menuConfig.config || {};
-		
+
 		this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config.menus.cls;
 
 		this.viewControllers	= {};
@@ -70,7 +70,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 						}
 					);
 				},
-				function moveToPromptLocation(callback) {												
+				function moveToPromptLocation(callback) {
 					if(self.menuConfig.prompt) {
 						//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
 					}
@@ -171,10 +171,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	}
 
 	nextMenu(cb) {
-		if(!this.haveNext()) {		
+		if(!this.haveNext()) {
 			return this.prevMenu(cb);	//	no next, go to prev
 		}
-		
+
 		return this.client.menuStack.next(cb);
 	}
 
@@ -210,7 +210,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	haveNext() {
 		return (_.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next));
 	}
-	
+
 	autoNextMenu(cb) {
 		const self = this;
 
@@ -221,8 +221,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
 				return self.prevMenu(cb);
 			}
 		}
-        
-		if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {	
+
+		if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {
 			if(this.hasNextTimeout()) {
 				setTimeout( () => {
 					return gotoNextMenu();
@@ -297,10 +297,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		if(options.clearScreen) {
 			this.client.term.rawWrite(ansi.resetScreen());
 		}
-		
+
 		return theme.displayThemedAsset(
-			name, 
-			this.client, 
+			name,
+			this.client,
 			Object.assign( { font : this.menuConfig.config.font }, options ),
 			(err, artData) => {
 				if(cb) {
@@ -361,7 +361,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	pausePrompt(position, cb) {
 		if(!cb && _.isFunction(position)) {
 			cb = position;
-			position = null;		
+			position = null;
 		}
 
 		this.optionalMoveToPosition(position);
@@ -390,7 +390,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		if(!view) {
 			return;
 		}
-		
+
 		if(appendMultiLine && (view instanceof MultiLineEditTextView)) {
 			view.addText(text);
 		} else {
@@ -401,7 +401,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
 		options = options || {};
 
-		let textView;					
+		let textView;
 		let customMciId = startId;
 		const config	= this.menuConfig.config;
 		const endId		= options.endId || 99;	//	we'll fail to get a view before 99

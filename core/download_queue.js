@@ -59,14 +59,14 @@ module.exports = class DownloadQueue {
 	}
 
 	toProperty() { return JSON.stringify(this.client.user.downloadQueue); }
-	
+
 	loadFromProperty(prop) {
 		try {
 			this.client.user.downloadQueue = JSON.parse(prop);
 		} catch(e) {
 			this.client.user.downloadQueue = [];
 
-			this.client.log.error( { error : e.message, property : prop }, 'Failed parsing download queue property'); 			
+			this.client.log.error( { error : e.message, property : prop }, 'Failed parsing download queue property');
 		}
-	}	
+	}
 };

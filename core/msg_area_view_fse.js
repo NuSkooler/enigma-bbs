@@ -69,7 +69,7 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 					case 'down arrow'	: bodyView.scrollDocumentUp(); break;
 					case 'up arrow'		: bodyView.scrollDocumentDown(); break;
 					case 'page up'		: bodyView.keyPressPageUp(); break;
-					case 'page down'	: bodyView.keyPressPageDown(); break;			
+					case 'page down'	: bodyView.keyPressPageDown(); break;
 				}
 
 				//	:TODO: need to stop down/page down if doing so would push the last
@@ -83,13 +83,13 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 					const modOpts = {
 						extraArgs : {
 							messageAreaTag		: self.messageAreaTag,
-							replyToMessage		: self.message,	
-						}				
+							replyToMessage		: self.message,
+						}
 					};
 
 					return self.gotoMenu(extraArgs.menu, modOpts, cb);
 				}
-				
+
 				self.client.log(extraArgs, 'Missing extraArgs.menu');
 				return cb(null);
 			}

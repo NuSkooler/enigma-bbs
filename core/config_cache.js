@@ -58,7 +58,7 @@ util.inherits(ConfigCache, events.EventEmitter);
 ConfigCache.prototype.getConfigWithOptions = function(options, cb) {
 	assert(_.isString(options.filePath));
 
-//	var self		= this;
+	//	var self		= this;
 	var isCached	= (options.filePath in this.cache);
 
 	if(options.forceReCache || !isCached) {

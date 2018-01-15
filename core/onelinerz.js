@@ -20,7 +20,7 @@ const async					= require('async');
 const _						= require('lodash');
 const moment				= require('moment');
 
-/* 
+/*
 	Module :TODO:
 	* Add pipe code support
 		- override max length & monitor *display* len as user types in order to allow for actual display len with color
@@ -73,7 +73,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 							self.client.log.warn( { error : err.message }, 'Failed saving oneliner');
 						}
 
-						self.clearAddForm(); 
+						self.clearAddForm();
 						return self.displayViewScreen(true, cb);	//	true=cls
 					});
 
@@ -89,7 +89,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 			}
 		};
 	}
-	
+
 	initSequence() {
 		const self = this;
 		async.series(
@@ -136,7 +136,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 				function initOrRedrawViewController(artData, callback) {
 					if(_.isUndefined(self.viewControllers.add)) {
 						const vc = self.addViewController(
-							'view', 
+							'view',
 							new ViewController( { client : self.client, formId : FormIds.View } )
 						);
 
@@ -149,7 +149,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					} else {
 						self.viewControllers.view.setFocus(true);
-						self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt).redraw();						
+						self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt).redraw();
 						return callback(null);
 					}
 				},
@@ -216,7 +216,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 			[
 				function clearAndDisplayArt(callback) {
 					self.viewControllers.view.setFocus(false);
-					self.client.term.rawWrite(ansi.resetScreen());					
+					self.client.term.rawWrite(ansi.resetScreen());
 
 					theme.displayThemedAsset(
 						self.menuConfig.config.art.add,
@@ -230,7 +230,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 				function initOrRedrawViewController(artData, callback) {
 					if(_.isUndefined(self.viewControllers.add)) {
 						const vc = self.addViewController(
-							'add', 
+							'add',
 							new ViewController( { client : self.client, formId : FormIds.Add } )
 						);
 
@@ -269,7 +269,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 			[
 				function openDatabase(callback) {
 					self.db = getTransactionDatabase(new sqlite3.Database(
-						getModDatabasePath(exports.moduleInfo), 
+						getModDatabasePath(exports.moduleInfo),
 						err => {
 							return callback(err);
 						}
@@ -284,10 +284,10 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 							oneliner		VARCHAR NOT NULL,
 							timestamp		DATETIME NOT NULL
 						);`
-					,
-					err => {
-						return callback(err);
-					});
+						,
+						err => {
+							return callback(err);
+						});
 				}
 			],
 			err => {
@@ -327,7 +327,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 			err => {
 				return cb(err);
 			}
-		);		
+		);
 	}
 
 	beforeArt(cb) {

@@ -10,7 +10,7 @@ exports.CRC32 = class CRC32 {
 	}
 
 	update(input) {
-		input = Buffer.isBuffer(input) ? input : Buffer.from(input, 'binary');		
+		input = Buffer.isBuffer(input) ? input : Buffer.from(input, 'binary');
 		return input.length > 10240 ? this.update_8(input) : this.update_4(input);
 	}
 
@@ -47,7 +47,7 @@ exports.CRC32 = class CRC32 {
 			this.crc = (this.crc >>> 8) ^ CRC32_TABLE[ (this.crc ^ input[i++] ) & 0xff ];
 		}
 	}
-	
+
 	finalize() {
 		return (this.crc ^ (-1)) >>> 0;
 	}

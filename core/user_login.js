@@ -39,8 +39,8 @@ function userLogin(client, username, password, cb) {
 		if(existingClientConnection) {
 			client.log.info(
 				{
-					existingClientId	: existingClientConnection.session.id, 
-					username			: user.username, 
+					existingClientId	: existingClientConnection.session.id,
+					username			: user.username,
 					userId				: user.userId
 				},
 				'Already logged in'
@@ -57,7 +57,7 @@ function userLogin(client, username, password, cb) {
 
 		//	update client logger with addition of username
 		client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
-		client.log.info('Successful login');            
+		client.log.info('Successful login');
 
 		async.parallel(
 			[
@@ -72,7 +72,7 @@ function userLogin(client, username, password, cb) {
 					return StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
 				},
 				function updateUserLoginCount(callback) {
-					return StatLog.incrementUserStat(user, 'login_count', 1, callback);						
+					return StatLog.incrementUserStat(user, 'login_count', 1, callback);
 				},
 				function recordLoginHistory(callback) {
 					const LOGIN_HISTORY_MAX	= 200;	//	history of up to last 200 callers

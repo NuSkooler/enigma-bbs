@@ -25,7 +25,7 @@ exports.MaskEditTextView	= MaskEditTextView;
 //	:TODO:
 //	* Hint, e.g. YYYY/MM/DD
 //	* Return values with literals in place
-//	
+//
 
 function MaskEditTextView(options) {
 	options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
@@ -49,7 +49,7 @@ function MaskEditTextView(options) {
 
 	this.drawText = function(s) {
 		var textToDraw = strUtil.stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
-		
+
 		assert(textToDraw.length <= self.patternArray.length);
 
 		//	draw out the text we have so far
@@ -105,7 +105,7 @@ MaskEditTextView.maskPatternCharacterRegEx = {
 
 MaskEditTextView.prototype.setText = function(text) {
 	MaskEditTextView.super_.prototype.setText.call(this, text);
-	
+
 	if(this.patternArray) {	//	:TODO: This is a hack - see TextView ctor note about setText()
 		this.patternArrayPos = this.patternArray.length;
 	}
@@ -130,14 +130,14 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 					this.clientBackspace();
 				} else {
 					while(this.patternArrayPos > 0) {
-						if(_.isRegExp(this.patternArray[this.patternArrayPos])) {			
+						if(_.isRegExp(this.patternArray[this.patternArrayPos])) {
 							this.text = this.text.substr(0, this.text.length - 1);
 							this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn() + 1));
 							this.clientBackspace();
 							break;
 						}
 						this.patternArrayPos--;
-					}				
+					}
 				}
 			}
 
@@ -162,7 +162,7 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 			this.text += ch;
 			this.patternArrayPos++;
 
-			while(this.patternArrayPos < this.patternArray.length && 
+			while(this.patternArrayPos < this.patternArray.length &&
 				!_.isRegExp(this.patternArray[this.patternArrayPos]))
 			{
 				this.patternArrayPos++;
@@ -186,11 +186,11 @@ MaskEditTextView.prototype.setPropertyValue = function(propName, value) {
 
 MaskEditTextView.prototype.getData = function() {
 	var rawData = MaskEditTextView.super_.prototype.getData.call(this);
-	
+
 	if(!rawData || 0 === rawData.length) {
 		return rawData;
 	}
-	
+
 	var data	= '';
 
 	assert(rawData.length <= this.patternArray.length);

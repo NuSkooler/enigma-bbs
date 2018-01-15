@@ -1213,7 +1213,30 @@ function FTNMessageScanTossModule() {
 
 					User.getUserIdAndNameByLookup(lookupName, (err, localToUserId, localUserName) => {
 						if(err) {
-							return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
+							//
+							//	Couldn't find a local username. If the toUserName itself is a FTN address
+							//	we can only assume the message is to the +op, else we'll have to fail.
+							//
+							const toUserNameAsAddress = Address.fromString(message.toUserName);
+							if(toUserNameAsAddress.isValid()) {
+
+								Log.info(
+									{ toUserName : message.toUserName, fromUserName : message.fromUserName },
+									'No local "to" username for FTN message. Appears to be a FTN address only; assuming addressed to SysOp'
+								);
+
+								User.getUserName(User.RootUserID, (err, sysOpUserName) => {
+									if(err) {
+										return callback(Errors.UnexpectedState('Failed to get SysOp user information'));
+									}
+
+									message.meta.System[Message.SystemMetaNames.LocalToUserID] = User.RootUserID;
+									message.toUserName = sysOpUserName;
+									return callback(null);
+								});
+							} else {
+								return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
+							}
 						}
 
 						//	we do this after such that error cases can be preseved above

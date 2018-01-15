@@ -4,7 +4,7 @@
 //	ENiGMA½
 const ANSIEscapeParser	= require('./ansi_escape_parser.js').ANSIEscapeParser;
 const ANSI				= require('./ansi_term.js');
-const { 
+const {
 	splitTextAtTerms,
 	renderStringLength
 }						= require('./string_util.js');
@@ -41,7 +41,7 @@ module.exports = function ansiPrep(input, options, cb) {
 		if(canvas[row]) {
 			return;
 		}
-		
+
 		canvas[row] = Array.from( { length : options.cols}, () => new Object() );
 	}
 
@@ -113,17 +113,17 @@ module.exports = function ansiPrep(input, options, cb) {
 			const lastCol = getLastPopulatedColumn(row) + 1;
 
 			let i;
-			line = options.indent ? 
+			line = options.indent ?
 				output.length > 0 ? ' '.repeat(options.indent) : '' :
 				'';
-				
+
 			for(i = 0; i < lastCol; ++i) {
 				const col = row[i];
 
-				sgr = !options.asciiMode && 0 === i ? 
+				sgr = !options.asciiMode && 0 === i ?
 					col.initialSgr ? ANSI.getSGRFromGraphicRendition(col.initialSgr) : '' :
 					'';
-				
+
 				if(!options.asciiMode && col.sgr) {
 					sgr += ANSI.getSGRFromGraphicRendition(col.sgr);
 				}
@@ -148,7 +148,7 @@ module.exports = function ansiPrep(input, options, cb) {
 		if(options.exportMode) {
 			//
 			//	If we're in export mode, we do some additional hackery:
-			//	
+			//
 			//	* Hard wrap ALL lines at <= 79 *characters* (not visible columns)
 			//	  if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
 			//	  represents chars to get back to the position we were previously at
@@ -157,8 +157,8 @@ module.exports = function ansiPrep(input, options, cb) {
 			//
 			//	:TODO: this would be better to do as part of the processing above, but this will do for now
 			const MAX_CHARS	= 79 - 8;	//	79 max, - 8 for max ESC seq's we may prefix a line with
-			let exportOutput = '';			
-			
+			let exportOutput = '';
+
 			let m;
 			let afterSeq;
 			let wantMore;
@@ -184,7 +184,7 @@ module.exports = function ansiPrep(input, options, cb) {
 								splitAt = m.index;
 								wantMore = false;	//	can't eat up any more
 							}
-							
+
 							break;	//	seq's beyond this point are >= MAX_CHARS
 						}
 					}
@@ -203,7 +203,7 @@ module.exports = function ansiPrep(input, options, cb) {
 					exportOutput += `${part}\r\n`;
 
 					if(fullLine.length > 0) {	//	more to go for this line?
-						exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;	
+						exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;
 					} else {
 						exportOutput += ANSI.up();
 					}

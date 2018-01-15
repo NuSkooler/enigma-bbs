@@ -87,11 +87,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 			[
 				function validateNodeCount(callback) {
 					if(self.config.nodeMax > 0 &&
-						_.isNumber(activeDoorNodeInstances[self.config.name]) && 
+						_.isNumber(activeDoorNodeInstances[self.config.name]) &&
 						activeDoorNodeInstances[self.config.name] + 1 > self.config.nodeMax)
 					{
-						self.client.log.info( 
-							{ 
+						self.client.log.info(
+							{
 								name		: self.config.name,
 								activeCount : activeDoorNodeInstances[self.config.name]
 							},
@@ -118,11 +118,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 						} else {
 							activeDoorNodeInstances[self.config.name] = 1;
 						}
-						
+
 						callback(null);
 					}
 				},
-				function generateDropfile(callback) {					
+				function generateDropfile(callback) {
 					self.dropFile	= new DropFile(self.client, self.config.dropFileType);
 					var fullPath	= self.dropFile.fullPath;
 

@@ -25,8 +25,8 @@ exports.moduleInfo = {
  * :TODO:
  * * User configurable new scan: Area selection (avail from messages area) (sep module)
  * * Add status TL/VM (either/both should update if present)
- * * 
- 
+ * *
+
 */
 
 const MciCodeIds = {
@@ -37,7 +37,7 @@ const MciCodeIds = {
 const Steps = {
 	MessageConfs	: 'messageConferences',
 	FileBase		: 'fileBase',
-	
+
 	Finished		: 'finished',
 };
 
@@ -53,7 +53,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 
 		//  :TODO: Make this conf/area specific:
 		const config			= this.menuConfig.config;
-		this.scanStartFmt		= config.scanStartFmt || 'Scanning {confName} - {areaName}...';		
+		this.scanStartFmt		= config.scanStartFmt || 'Scanning {confName} - {areaName}...';
 		this.scanFinishNoneFmt	= config.scanFinishNoneFmt || 'Nothing new';
 		this.scanFinishNewFmt	= config.scanFinishNewFmt || '{count} entries found';
 		this.scanCompleteMsg	= config.scanCompleteMsg || 'Finished newscan';
@@ -62,16 +62,16 @@ exports.getModule = class NewScanModule extends MenuModule {
 	updateScanStatus(statusText) {
 		this.setViewText('allViews', MciCodeIds.ScanStatusLabel, statusText);
 	}
-    
+
 	newScanMessageConference(cb) {
-        //  lazy init
+		//  lazy init
 		if(!this.sortedMessageConfs) {
-			const getAvailOpts = { includeSystemInternal : true };      //  find new private messages, bulletins, etc.            
+			const getAvailOpts = { includeSystemInternal : true };      //  find new private messages, bulletins, etc.
 
 			this.sortedMessageConfs = _.map(msgArea.getAvailableMessageConferences(this.client, getAvailOpts), (v, k) => {
 				return {
 					confTag : k,
-					conf    : v,  
+					conf    : v,
 				};
 			});
 
@@ -91,27 +91,27 @@ exports.getModule = class NewScanModule extends MenuModule {
 			this.currentScanAux.conf = this.currentScanAux.conf || 0;
 			this.currentScanAux.area = this.currentScanAux.area || 0;
 		}
-        
+
 		const currentConf = this.sortedMessageConfs[this.currentScanAux.conf];
 
 		this.newScanMessageArea(currentConf, () => {
 			if(this.sortedMessageConfs.length > this.currentScanAux.conf + 1) {
-				this.currentScanAux.conf += 1;                            
+				this.currentScanAux.conf += 1;
 				this.currentScanAux.area = 0;
-				
+
 				return this.newScanMessageConference(cb);  //  recursive to next conf
 			}
 
 			this.updateScanStatus(this.scanCompleteMsg);
 			return cb(Errors.DoesNotExist('No more conferences'));
-		});        
+		});
 	}
-	
+
 	newScanMessageArea(conf, cb) {
-        //  :TODO: it would be nice to cache this - must be done by conf!
+		//  :TODO: it would be nice to cache this - must be done by conf!
 		const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } );
 		const currentArea	= sortedAreas[this.currentScanAux.area];
-				
+
 		//
 		//	Scan and update index until we find something. If results are found,
 		//	we'll goto the list module & show them.
@@ -207,20 +207,20 @@ exports.getModule = class NewScanModule extends MenuModule {
 
 	performScanCurrentStep(cb) {
 		switch(this.currentStep) {
-			case Steps.MessageConfs : 
-				this.newScanMessageConference( () => {									
+			case Steps.MessageConfs :
+				this.newScanMessageConference( () => {
 					this.currentStep = Steps.FileBase;
 					return this.performScanCurrentStep(cb);
 				});
 				break;
-				
+
 			case Steps.FileBase :
 				this.newScanFileBase( () => {
 					this.currentStep = Steps.Finished;
-					return this.performScanCurrentStep(cb);	
+					return this.performScanCurrentStep(cb);
 				});
 				break;
-				
+
 			default : return cb(null);
 		}
 	}
@@ -241,7 +241,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 
 			//	:TODO: display scan step/etc.
 
-			async.series(		
+			async.series(
 				[
 					function loadFromConfig(callback) {
 						const loadOpts = {

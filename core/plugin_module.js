@@ -3,5 +3,5 @@
 
 exports.PluginModule	= PluginModule;
 
-function PluginModule(options) {
+function PluginModule(/*options*/) {
 }

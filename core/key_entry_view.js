@@ -44,7 +44,7 @@ module.exports = class KeyEntryView extends View {
 		if(key && 'tab' === key.name && !this.eatTabKey) {
 			return this.emit('action', 'next', key);
 		}
-		
+
 		this.emit('action', 'accept');
 		//	NOTE: we don't call super here. KeyEntryView is a special snowflake.
 	}
@@ -69,7 +69,7 @@ module.exports = class KeyEntryView extends View {
 				}
 				break;
 		}
-		
+
 		super.setPropertyValue(propName, propValue);
 	}
 

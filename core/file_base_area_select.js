@@ -38,7 +38,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
 
 				const menuOpts = {
 					extraArgs	: {
-						filterCriteria	: filterCriteria,				
+						filterCriteria	: filterCriteria,
 					},
 					menuFlags	: [ 'popParent' ],
 				};

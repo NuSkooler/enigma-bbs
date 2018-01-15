@@ -16,7 +16,7 @@ exports.MenuView	= MenuView;
 function MenuView(options) {
 	options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
 	options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
-	
+
 	View.call(this, options);
 
 	this.disablePipe = options.disablePipe || false;
@@ -65,11 +65,11 @@ util.inherits(MenuView, View);
 MenuView.prototype.setItems = function(items) {
 	const self = this;
 
-	if(items) {	
+	if(items) {
 		this.items = [];
 		items.forEach( itemText => {
 			this.items.push(
-				{ 
+				{
 					text : self.disablePipe ? itemText : pipeToAnsi(itemText, self.client)
 				}
 			);
@@ -79,7 +79,7 @@ MenuView.prototype.setItems = function(items) {
 
 MenuView.prototype.removeItem = function(index) {
 	this.items.splice(index, 1);
-	
+
 	if(this.focusItems) {
 		this.focusItems.splice(index, 1);
 	}
@@ -95,7 +95,7 @@ MenuView.prototype.getCount = function() {
 	return this.items.length;
 };
 
-MenuView.prototype.getItems = function() {	
+MenuView.prototype.getItems = function() {
 	return this.items.map( item => {
 		return item.text;
 	});
@@ -140,7 +140,7 @@ MenuView.prototype.onKeyPress = function(ch, key) {
 
 MenuView.prototype.setFocusItems = function(items) {
 	const self = this;
-	
+
 	if(items) {
 		this.focusItems = [];
 		items.forEach( itemText => {
@@ -183,7 +183,7 @@ MenuView.prototype.setHotKeys = function(hotKeys) {
 				this.hotKeys[key.toLowerCase()] = hotKeys[key];
 			}
 		} else {
-			this.hotKeys = hotKeys;	
+			this.hotKeys = hotKeys;
 		}
 	}
 };

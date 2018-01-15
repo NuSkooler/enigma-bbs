@@ -66,11 +66,11 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
 		(err, finalPath) => {
 			return cb(err, finalPath);
 		}
-	);	
+	);
 }
 
 //
-//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc. 
+//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc.
 //	in the case of collisions.
 //
 function moveFileWithCollisionHandling(src, dst, cb) {

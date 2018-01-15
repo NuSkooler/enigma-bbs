@@ -64,7 +64,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 					return this.gotoMenu(this.config.downloadFilesMenu || 'sendFilesToUser', modOpts, cb);
 				} else {
 					return this.gotoMenu(this.config.uploadFilesMenu || 'recvFilesFromUser', modOpts, cb);
-				}				
+				}
 			},
 		};
 	}
@@ -118,7 +118,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 
 						protListView.redraw();
 
-						return callback(null); 
+						return callback(null);
 					}
 				],
 				err => {

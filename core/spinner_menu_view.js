@@ -1,13 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-var MenuView		= require('./menu_view.js').MenuView;
-var ansi			= require('./ansi_term.js');
-var strUtil			= require('./string_util.js');
+const MenuView		= require('./menu_view.js').MenuView;
+const ansi			= require('./ansi_term.js');
+const strUtil		= require('./string_util.js');
 
-var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+const util			= require('util');
+const assert		= require('assert');
 
 exports.SpinnerMenuView	= SpinnerMenuView;
 
@@ -16,7 +15,7 @@ function SpinnerMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
 
 	MenuView.call(this, options);
-	
+
 	var self = this;
 
 	/*
@@ -29,7 +28,7 @@ function SpinnerMenuView(options) {
 		//assert(!self.positionCacheExpired);
 
 		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
-		
+
 		self.drawItem(this.focusedItemIndex);
 	};
 
@@ -66,19 +65,19 @@ SpinnerMenuView.prototype.setFocus = function(focused) {
 
 SpinnerMenuView.prototype.setFocusItemIndex = function(index) {
 	SpinnerMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
-	
+
 	this.updateSelection();	//	will redraw
 };
 
 SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 	if(key) {
-		if(this.isKeyMapped('up', key.name)) {		
+		if(this.isKeyMapped('up', key.name)) {
 			if(0 === this.focusedItemIndex) {
 				this.focusedItemIndex = this.items.length - 1;
 			} else {
 				this.focusedItemIndex--;
 			}
-			
+
 			this.updateSelection();
 			return;
 		} else if(this.isKeyMapped('down', key.name)) {
@@ -87,7 +86,7 @@ SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 			} else {
 				this.focusedItemIndex++;
 			}
-			
+
 			this.updateSelection();
 			return;
 		}

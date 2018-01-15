@@ -10,7 +10,7 @@ exports.sortAreasOrConfs	= sortAreasOrConfs;
 //	Method for sorting message, file, etc. areas and confs
 //	If the sort key is present and is a number, sort in numerical order;
 //	Otherwise, use a locale comparison on the sort key or name as a fallback
-// 
+//
 function sortAreasOrConfs(areasOrConfs, type) {
 	let entryA;
 	let entryB;

@@ -3,8 +3,8 @@
 
 const _		= require('lodash');
 
-const FTN_ADDRESS_REGEXP = /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-\.]+)?$/i;
-const FTN_PATTERN_REGEXP = /^([0-9\*]+:)?([0-9\*]+)(\/[0-9\*]+)?(\.[0-9\*]+)?(@[a-z0-9\-\.\*]+)?$/i;
+const FTN_ADDRESS_REGEXP = /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-.]+)?$/i;
+const FTN_PATTERN_REGEXP = /^([0-9*]+:)?([0-9*]+)(\/[0-9*]+)?(\.[0-9*]+)?(@[a-z0-9\-.*]+)?$/i;
 
 module.exports = class Address {
 	constructor(addr) {
@@ -133,7 +133,7 @@ module.exports = class Address {
 
 	static fromString(addrStr) {
 		const m = FTN_ADDRESS_REGEXP.exec(addrStr);
-	
+
 		if(m) {
 			//  start with a 2D
 			let addr = {
@@ -165,7 +165,7 @@ module.exports = class Address {
 
 		let addrStr = `${this.zone}:${this.net}`;
 
-		//	allow for e.g. '4D' or 5 
+		//	allow for e.g. '4D' or 5
 		const dim = parseInt(dimensions.toString()[0]);
 
 		if(dim >= 3) {

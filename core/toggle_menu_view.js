@@ -1,13 +1,11 @@
 /* jslint node: true */
 'use strict';
 
-var MenuView		= require('./menu_view.js').MenuView;
-var ansi			= require('./ansi_term.js');
-var strUtil			= require('./string_util.js');
+const MenuView		= require('./menu_view.js').MenuView;
+const strUtil		= require('./string_util.js');
 
-var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+const util			= require('util');
+const assert		= require('assert');
 
 exports.ToggleMenuView		= ToggleMenuView;
 
@@ -44,7 +42,7 @@ ToggleMenuView.prototype.redraw = function() {
 		var item = this.items[i];
 		var text = strUtil.stylizeString(
 			item.text, i === this.focusedItemIndex && this.hasFocus ? this.focusTextStyle : this.textStyle);
-		
+
 		if(1 === i) {
 			//console.log(this.styleColor1)
 			//var sepColor = this.getANSIColor(this.styleColor1 || this.getColor());

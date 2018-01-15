@@ -20,7 +20,7 @@ function Door(client, exeInfo) {
 	this.exeInfo			= exeInfo;
 	this.exeInfo.encoding	= this.exeInfo.encoding || 'cp437';
 	this.exeInfo.encoding	= this.exeInfo.encoding.toLowerCase();
-	let restored			= false;	
+	let restored			= false;
 
 	//
 	//	Members of exeInfo:
@@ -52,7 +52,7 @@ function Door(client, exeInfo) {
 	};
 
 	this.prepareSocketIoServer = function(cb) {
-		if('socket' === self.exeInfo.io) {			
+		if('socket' === self.exeInfo.io) {
 			const sockServer =  createServer(conn => {
 
 				sockServer.getConnections( (err, count) => {
@@ -60,11 +60,11 @@ function Door(client, exeInfo) {
 					//	We expect only one connection from our DOOR/emulator/etc.
 					if(!err && count <= 1) {
 						self.client.term.output.pipe(conn);
-						
+
 						conn.on('data', self.doorDataHandler);
 
 						conn.once('end', () => {
-							return self.restoreIo(conn);									
+							return self.restoreIo(conn);
 						});
 
 						conn.once('error', err => {
@@ -117,7 +117,7 @@ Door.prototype.run = function() {
 			rows : self.client.term.termHeight,
 			//	:TODO: cwd
 			env	: self.exeInfo.env,
-		});				
+		});
 
 		if('stdio' === self.exeInfo.io) {
 			self.client.log.debug('Using stdio for door I/O');

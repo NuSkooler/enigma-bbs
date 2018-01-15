@@ -99,7 +99,7 @@ function validateGeneralMailAddressedTo(data, cb) {
 function validateEmailAvail(data, cb) {
 	//
 	//	This particular method allows empty data - e.g. no email entered
-	//	
+	//
 	if(!data || 0 === data.length) {
 		return cb(null);
 	}
@@ -110,7 +110,7 @@ function validateEmailAvail(data, cb) {
 	//
 	//	See http://stackoverflow.com/questions/7786058/find-the-regex-used-by-html5-forms-for-validation
 	//
-	const emailRegExp = /[a-z0-9!#$%&'*+\/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
+	const emailRegExp = /[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
 	if(!emailRegExp.test(data)) {
 		return cb(new Error('Invalid email address'));
 	}
@@ -121,8 +121,8 @@ function validateEmailAvail(data, cb) {
 		} else if(uids.length > 0) {
 			return cb(new Error('Email address not unique'));
 		}
-		
-		return cb(null);		
+
+		return cb(null);
 	});
 }
 

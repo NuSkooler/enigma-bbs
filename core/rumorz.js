@@ -52,9 +52,9 @@ exports.getModule = class RumorzModule extends MenuModule {
 			addEntry : (formData, extraArgs, cb) => {
 				if(_.isString(formData.value.rumor) && renderStringLength(formData.value.rumor) > 0) {
 					const rumor = formData.value.rumor.trim();	//	remove any trailing ws
-					
+
 					StatLog.appendSystemLogEntry(STATLOG_KEY_RUMORZ, rumor, StatLog.KeepDays.Forever, StatLog.KeepType.Forever, () => {
-						this.clearAddForm(); 
+						this.clearAddForm();
 						return this.displayViewScreen(true, cb);	//	true=cls
 					});
 				} else {
@@ -77,7 +77,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 		const previewView	= this.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
 
 		newEntryView.setText('');
-		
+
 		//	preview is optional
 		if(previewView) {
 			previewView.setText('');
@@ -130,7 +130,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 				function initOrRedrawViewController(artData, callback) {
 					if(_.isUndefined(self.viewControllers.add)) {
 						const vc = self.addViewController(
-							'view', 
+							'view',
 							new ViewController( { client : self.client, formId : FormIds.View } )
 						);
 
@@ -143,7 +143,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					} else {
 						self.viewControllers.view.setFocus(true);
-						self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt).redraw();						
+						self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt).redraw();
 						return callback(null);
 					}
 				},
@@ -186,7 +186,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 			[
 				function clearAndDisplayArt(callback) {
 					self.viewControllers.view.setFocus(false);
-					self.client.term.rawWrite(resetScreen());					
+					self.client.term.rawWrite(resetScreen());
 
 					theme.displayThemedAsset(
 						self.config.art.add,
@@ -200,7 +200,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 				function initOrRedrawViewController(artData, callback) {
 					if(_.isUndefined(self.viewControllers.add)) {
 						const vc = self.addViewController(
-							'add', 
+							'add',
 							new ViewController( { client : self.client, formId : FormIds.Add } )
 						);
 
@@ -220,7 +220,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 				},
 				function initPreviewUpdates(callback) {
 					const previewView	= self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
-					const entryView		= self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry); 
+					const entryView		= self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
 					if(previewView) {
 						let timerId;
 						entryView.on('key press', () => {
@@ -230,7 +230,7 @@ exports.getModule = class RumorzModule extends MenuModule {
 								if(focused === entryView) {
 									previewView.setText(entryView.getData());
 									focused.setFocus(true);
-								} 
+								}
 							}, 500);
 						});
 					}

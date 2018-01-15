@@ -65,7 +65,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			}
 
 			if(options.extraArgs.sendQueue) {
-				this.sendQueue = options.extraArgs.sendQueue;	
+				this.sendQueue = options.extraArgs.sendQueue;
 			}
 
 			if(options.extraArgs.recvFileName) {
@@ -107,7 +107,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				return { path : item };
 			} else {
 				return item;
-			}			
+			}
 		});
 
 		this.sentFileIds = [];
@@ -137,7 +137,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				this.sendQueue.forEach(f => {
 					f.sent = true;
 					sentFiles.push(f.path);
-					
+
 				});
 
 				this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
@@ -160,7 +160,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					this.sendQueue.forEach(f => {
 						f.sent = true;
 						sentFiles.push(f.path);
-						
+
 					});
 
 					this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
@@ -180,16 +180,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
 					}
 					return next(err);
 				});
-			}, err => {				
+			}, err => {
 				return cb(err);
 			});
-		}		
+		}
 	}
 	*/
 
 	moveFileWithCollisionHandling(src, dst, cb) {
 		//
-		//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc. 
+		//	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc.
 		//	in the case of collisions.
 		//
 		const dstPath		= paths.dirname(dst);
@@ -283,7 +283,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 						});
 					}, () => {
 						return cb(null);
-					});				
+					});
 				});
 			}
 		});
@@ -309,7 +309,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
 					temptmp.open( { prefix : TEMP_SUFFIX, suffix : '.txt' }, (err, tempFileInfo) => {
 						if(err) {
-							return callback(err);	//	failed to create it 
+							return callback(err);	//	failed to create it
 						}
 
 						fs.write(tempFileInfo.fd, filePaths.join(SYSTEM_EOL));
@@ -334,7 +334,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
 					return callback(null, args);
 				}
-			], 
+			],
 			(err, args) => {
 				return cb(err, args);
 			}
@@ -364,7 +364,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		const externalProc = pty.spawn(cmd, args, {
 			cols	: this.client.term.termWidth,
 			rows	: this.client.term.termHeight,
-			cwd		: this.recvDirectory,				
+			cwd		: this.recvDirectory,
 		});
 
 		this.client.setTemporaryDirectDataHandler(data => {
@@ -376,7 +376,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				externalProc.write(data);
 			}
 		});
-		
+
 		externalProc.on('data', data => {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
@@ -393,12 +393,12 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
 		externalProc.once('exit', (exitCode) => {
 			this.client.log.debug( { cmd : cmd, args : args, exitCode : exitCode }, 'Process exited' );
-			
+
 			this.restorePipeAfterExternalProc();
 			externalProc.removeAllListeners();
 
 			return cb(exitCode ? Errors.ExternalProcess(`Process exited with exit code ${exitCode}`, 'EBADEXIT') : null);
-		});	
+		});
 	}
 
 	executeExternalProtocolHandlerForSend(filePaths, cb) {
@@ -413,7 +413,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
 			this.executeExternalProtocolHandler(args, err => {
 				return cb(err);
-			});		
+			});
 		});
 	}
 
@@ -434,7 +434,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			return { sentFileIds : this.sentFileIds };
 		} else {
 			return { recvFilePaths : this.recvFilePaths };
-		}		
+		}
 	}
 
 	updateSendStats(cb) {
@@ -478,11 +478,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			fileIds.forEach(fileId => {
 				FileEntry.incrementAndPersistMetaValue(fileId, 'dl_count', 1);
 			});
-			
+
 			return cb(null);
 		});
 	}
-	
+
 	updateRecvStats(cb) {
 		let uploadBytes	= 0;
 		let uploadCount	= 0;
@@ -519,7 +519,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 				function validateConfig(callback) {
 					if(self.isSending()) {
 						if(!Array.isArray(self.sendQueue)) {
-							self.sendQueue = [ self.sendQueue ];  
+							self.sendQueue = [ self.sendQueue ];
 						}
 					}
 
@@ -555,7 +555,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 						});
 					}
 				},
-				function cleanupTempFiles(callback) {					
+				function cleanupTempFiles(callback) {
 					temptmp.cleanup( paths => {
 						Log.debug( { paths : paths, sessionId : temptmp.sessionId }, 'Temporary files cleaned up' );
 					});

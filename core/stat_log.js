@@ -10,14 +10,14 @@ const moment	= require('moment');
 /*
 	System Event Log & Stats
 	------------------------
-	
+
 	System & user specific:
 	* Events for generating various statistics, logs such as last callers, etc.
 	* Stats such as counters
 
 	User specific stats are simply an alternate interface to user properties, while
 	system wide entries are handled on their own. Both are read accessible non-blocking
-	making them easily available for MCI codes for example. 
+	making them easily available for MCI codes for example.
 */
 class StatLog {
 	constructor() {
@@ -66,7 +66,7 @@ class StatLog {
 			TimestampDesc	: 'timestamp_desc',
 			Random			: 'random',
 		};
-	} 
+	}
 
 	setNonPeristentSystemStat(statName, statValue) {
 		this.systemStats[statName] = statValue;
@@ -139,7 +139,7 @@ class StatLog {
 				return cb(new Error(`Value for ${statName} is not a number!`));
 			}
 
-			newValue += incrementBy;			
+			newValue += incrementBy;
 		} else {
 			newValue = incrementBy;
 		}
@@ -201,19 +201,19 @@ class StatLog {
 								}
 							}
 						);
-						break; 
+						break;
 
 					case 'forever' :
 					default :
 						//	nop
 						break;
-				}							
+				}
 			}
 		);
 	}
 
 	getSystemLogEntries(logName, order, limit, cb) {
-		let sql = 
+		let sql =
 			`SELECT timestamp, log_value
 			FROM system_event_log
 			WHERE log_name = ?`;
@@ -228,7 +228,7 @@ class StatLog {
 				sql += ' ORDER BY timestamp DESC';
 				break;
 
-			case 'random'	: 
+			case 'random'	:
 				sql += ' ORDER BY RANDOM()';
 		}
 
@@ -279,7 +279,7 @@ class StatLog {
 				);
 			}
 		);
-	}	
+	}
 }
 
 module.exports = new StatLog();

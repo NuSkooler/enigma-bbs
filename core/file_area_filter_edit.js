@@ -65,7 +65,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 			prevFilter : (formData, extraArgs, cb) => {
 				this.currentFilterIndex -= 1;
 				if(this.currentFilterIndex < 0) {
-					this.currentFilterIndex = this.filtersArray.length - 1;				
+					this.currentFilterIndex = this.filtersArray.length - 1;
 				}
 				this.loadDataForFilter(this.currentFilterIndex);
 				return cb(null);
@@ -116,21 +116,21 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 						if(newActive) {
 							filters.setActive(newActive.uuid);
 						} else {
-							//	nothing to set active to						
+							//	nothing to set active to
 							this.client.user.removeProperty('file_base_filter_active_uuid');
 						}
 					}
 
 					//	update UI
 					this.updateActiveLabel();
-					
+
 					if(this.filtersArray.length > 0) {
 						this.loadDataForFilter(this.currentFilterIndex);
 					} else {
 						this.clearForm();
 					}
 					return cb(null);
-				});				
+				});
 			},
 
 			viewValidationListener : (err, cb) => {
@@ -161,7 +161,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 			}
 		}
 	}
-	
+
 	mciReady(mciData, cb) {
 		super.mciReady(mciData, err => {
 			if(err) {
@@ -178,7 +178,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 					},
 					function populateAreas(callback) {
 						self.availAreas = [ { name : '-ALL-' } ].concat(getSortedAvailableFileAreas(self.client) || []);
-						
+
 						const areasView = vc.getView(MciViewIds.editor.area);
 						if(areasView) {
 							areasView.setItems( self.availAreas.map( a => a.name ) );
@@ -194,7 +194,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 					return cb(err);
 				}
 			);
-		});	
+		});
 	}
 
 	getCurrentFilter() {
@@ -212,7 +212,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 		const activeFilter = FileBaseFilters.getActiveFilter(this.client);
 		if(activeFilter) {
 			const activeFormat = this.menuConfig.config.activeFormat || '{name}';
-			this.setText(MciViewIds.editor.activeFilterInfo, stringFormat(activeFormat, activeFilter)); 
+			this.setText(MciViewIds.editor.activeFilterInfo, stringFormat(activeFormat, activeFilter));
 		}
 	}
 
@@ -256,7 +256,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 
 	setAreaIndexFromCurrentFilter() {
 		let index;
-		const filter = this.getCurrentFilter();	
+		const filter = this.getCurrentFilter();
 		if(filter) {
 			//	special treatment: areaTag saved as blank ("") if -ALL-
 			index = (filter.areaTag && this.availAreas.findIndex(area => filter.areaTag === area.areaTag)) || 0;
@@ -295,7 +295,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 	setFilterValuesFromFormData(filter, formData) {
 		filter.name		= formData.value.name;
 		filter.areaTag	= this.getSelectedAreaTag(formData.value.areaIndex);
-		filter.terms	= formData.value.searchTerms; 
+		filter.terms	= formData.value.searchTerms;
 		filter.tags		= formData.value.tags;
 		filter.order	= this.getOrderBy(formData.value.orderByIndex);
 		filter.sort		= this.getSortBy(formData.value.sortByIndex);
@@ -304,7 +304,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 	saveCurrentFilter(formData, cb) {
 		const filters			= new FileBaseFilters(this.client);
 		const selectedFilter	= this.filtersArray[this.currentFilterIndex];
-		
+
 		if(selectedFilter) {
 			//	*update* currently selected filter
 			this.setFilterValuesFromFormData(selectedFilter, formData);
@@ -316,11 +316,11 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 
 			//	set current to what we just saved
 			newFilter.uuid = filters.add(newFilter);
-			
+
 			//	add to our array (at current index position)
 			this.filtersArray[this.currentFilterIndex] = newFilter;
 		}
-	
+
 		return filters.persist(cb);
 	}
 
@@ -334,6 +334,6 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 			this.setAreaIndexFromCurrentFilter();
 			this.setSortByFromCurrentFilter();
 			this.setOrderByFromCurrentFilter();
-		}		
+		}
 	}
 };

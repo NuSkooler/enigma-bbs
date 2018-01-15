@@ -63,7 +63,7 @@ function HorizontalMenuView(options) {
 		}
 
 		var text = strUtil.stylizeString(
-			item.text, 
+			item.text,
 			this.hasFocus && item.focused ? self.focusTextStyle : self.textStyle);
 
 		var drawWidth = text.length + self.getSpacer().length * 2;	//	* 2 = sides
@@ -72,7 +72,7 @@ function HorizontalMenuView(options) {
 			ansi.goto(self.position.row, item.col) +
 			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
 			strUtil.pad(text, drawWidth, self.fillChar, 'center')
-			);
+		);
 	};
 }
 

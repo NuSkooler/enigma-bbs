@@ -59,7 +59,7 @@ class FileAreaWebAccess {
 						return callback(null);	//	not enabled, but no error
 					}
 				}
-			], 
+			],
 			err => {
 				return cb(err);
 			}
@@ -193,7 +193,7 @@ class FileAreaWebAccess {
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {
 		if(!this.isEnabled()) {
 			return cb(notEnabledError());
-		}	
+		}
 
 		const hashId = this.getSingleFileHashId(client, fileEntry);
 		this.loadServedHashId(hashId, (err, servedItem) => {
@@ -201,10 +201,10 @@ class FileAreaWebAccess {
 				return cb(err);
 			}
 
-			servedItem.url = this.buildSingleFileTempDownloadLink(client, fileEntry); 
+			servedItem.url = this.buildSingleFileTempDownloadLink(client, fileEntry);
 
 			return cb(null, servedItem);
-		});		
+		});
 	}
 
 	_addOrUpdateHashIdRecord(dbOrTrans, hashId, expireTime, cb) {
@@ -219,7 +219,7 @@ class FileAreaWebAccess {
 				}
 
 				this.scheduleExpire(hashId, expireTime);
-				
+
 				return cb(null);
 			}
 		);
@@ -476,7 +476,7 @@ class FileAreaWebAccess {
 					StatLog.incrementUserStat(user, 'dl_total_bytes', dlBytes);
 					StatLog.incrementSystemStat('dl_total_count', 1);
 					StatLog.incrementSystemStat('dl_total_bytes', dlBytes);
-					
+
 					return callback(null);
 				}
 			],

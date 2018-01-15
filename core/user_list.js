@@ -12,7 +12,7 @@ const _					= require('lodash');
 
 /*
 	Available listFormat/focusListFormat object members:
-	
+
 	userId			: User ID
 	userName		: User name/handle
 	lastLoginTs		: Last login timestamp
@@ -99,7 +99,7 @@ exports.getModule = class UserListModule extends MenuModule {
 						userListView.redraw();
 						callback(null);
 					}
-				],		
+				],
 				function complete(err) {
 					if(err) {
 						self.client.log.error( { error : err.toString() }, 'Error loading user list');
@@ -108,5 +108,5 @@ exports.getModule = class UserListModule extends MenuModule {
 				}
 			);
 		});
-	}	
+	}
 };

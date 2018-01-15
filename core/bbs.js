@@ -182,7 +182,7 @@ function initialize(cb) {
 				return database.initializeDatabases(callback);
 			},
 			function initMimeTypes(callback) {
-				return require('./mime_util.js').startup(callback);	
+				return require('./mime_util.js').startup(callback);
 			},
 			function initStatLog(callback) {
 				return require('./stat_log.js').init(callback);

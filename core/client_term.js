@@ -15,8 +15,6 @@ exports.ClientTerminal	= ClientTerminal;
 function ClientTerminal(output) {
 	this.output		= output;
 
-	var self = this;
-
 	var outputEncoding = 'cp437';
 	assert(iconv.encodingExists(outputEncoding));
 
@@ -56,7 +54,7 @@ function ClientTerminal(output) {
 		},
 		set : function(ttype) {
 			termType = ttype.toLowerCase();
-			
+
 			if(this.isANSI()) {
 				this.outputEncoding = 'cp437';
 			} else {
@@ -137,7 +135,7 @@ ClientTerminal.prototype.isANSI = function() {
 	//
 	//	syncterm:
 	//		* SyncTERM
-	//	
+	//
 	//	xterm:
 	//		* PuTTY
 	//
@@ -168,7 +166,7 @@ ClientTerminal.prototype.rawWrite = function(s, cb) {
 			if(cb) {
 				return cb(err);
 			}
-			
+
 			if(err) {
 				Log.warn( { error : err.message }, 'Failed writing to socket');
 			}
@@ -178,18 +176,18 @@ ClientTerminal.prototype.rawWrite = function(s, cb) {
 
 ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
 	spec = spec || 'renegade';
-	
+
 	var conv = {
 		enigma		: enigmaToAnsi,
 		renegade	: renegadeToAnsi,
 	}[spec] || renegadeToAnsi;
-	
+
 	this.write(conv(s, this), null, cb);	//	null = use default for |convertLineFeeds|
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
 	convertLineFeeds = _.isBoolean(convertLineFeeds) ? convertLineFeeds : this.convertLF;
-	
+
 	if(convertLineFeeds && _.isString(s)) {
 		s = s.replace(/\n/g, '\r\n');
 	}

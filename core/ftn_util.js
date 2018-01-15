@@ -45,7 +45,7 @@ exports.getQuotePrefix				= getQuotePrefix;
 
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
-function stringToNullPaddedBuffer(s, bufLen) {	
+function stringToNullPaddedBuffer(s, bufLen) {
 	let buffer 	= new Buffer(bufLen).fill(0x00);
 	let enc		= iconv.encode(s, 'CP437').slice(0, bufLen);
 	for(let i = 0; i < enc.length; ++i) {
@@ -56,7 +56,7 @@ function stringToNullPaddedBuffer(s, bufLen) {
 
 //
 //	Convert a FTN style DateTime string to a Date object
-//	
+//
 //	:TODO: Name the next couple methods better - for FTN *packets*
 function getDateFromFtnDateTime(dateTime) {
 	//
@@ -103,7 +103,7 @@ function getMessageSerialNumber(messageId) {
 //
 //	Return a FTS-0009.001 compliant MSGID value given a message
 //	See http://ftsc.org/docs/fts-0009.001
-//	
+//
 //	"A MSGID line consists of the string "^AMSGID:" (where ^A is a
 //	control-A (hex 01) and the double-quotes are not part of the
 //	string),  followed by a space,  the address of the originating
@@ -113,9 +113,9 @@ function getMessageSerialNumber(messageId) {
 //		^AMSGID: origaddr serialno
 //
 //	The originating address should be specified in a form that
-//	constitutes a valid return address for the originating network.   
+//	constitutes a valid return address for the originating network.
 //	If the originating address is enclosed in double-quotes,  the
-//	entire string between the beginning and ending double-quotes is 
+//	entire string between the beginning and ending double-quotes is
 //	considered to be the orginating address.  A double-quote character
 //	within a quoted address is represented by by two consecutive
 //	double-quote characters.  The serial number may be any eight
@@ -123,13 +123,13 @@ function getMessageSerialNumber(messageId) {
 //	messages from a given system may have the same serial number
 //	within a three years.  The manner in which this serial number is
 //	generated is left to the implementor."
-//	
+//
 //
 //	Examples & Implementations
 //
 //	Synchronet: <msgNum>.<conf+area>@<ftnAddr> <serial>
 //		2606.agora-agn_tst@46:1/142 19609217
-//		
+//
 //	Mystic: <ftnAddress> <serial>
 //		46:3/102 46686263
 //
@@ -145,10 +145,10 @@ function getMessageSerialNumber(messageId) {
 //
 function getMessageIdentifier(message, address, isNetMail = false) {
 	const addrStr = new Address(address).toString('5D');
-	return isNetMail ? 
+	return isNetMail ?
 		`${addrStr} ${getMessageSerialNumber(message.messageId)}` :
 		`${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message.messageId)}`
-		;
+	;
 }
 
 //
@@ -166,7 +166,7 @@ function getProductIdentifier() {
 }
 
 //
-//	Return a FRL-1004 style time zone offset for a 
+//	Return a FRL-1004 style time zone offset for a
 //	'TZUTC' kludge line
 //
 //	http://ftsc.org/docs/frl-1004.002
@@ -178,10 +178,10 @@ function getUTCTimeZoneOffset() {
 //
 //	Get a FSC-0032 style quote prefix
 //	http://ftsc.org/docs/fsc-0032.001
-//	
+//
 function getQuotePrefix(name) {
 	let initials;
-	
+
 	const parts = name.split(' ');
 	if(parts.length > 1) {
 		//	First & Last initials - (Bryan Ashby -> BA)
@@ -199,7 +199,7 @@ function getQuotePrefix(name) {
 //	http://ftsc.org/docs/fts-0004.001
 //
 function getOrigin(address) {
-	const origin = _.has(Config, 'messageNetworks.originLine') ? 
+	const origin = _.has(Config, 'messageNetworks.originLine') ?
 		Config.messageNetworks.originLine :
 		Config.general.boardName;
 
@@ -220,16 +220,12 @@ function getVia(address) {
 	/*
 		FRL-1005.001 states teh following format:
 
-		^AVia: <FTN Address> @YYYYMMDD.HHMMSS[.Precise][.Time Zone] 
+		^AVia: <FTN Address> @YYYYMMDD.HHMMSS[.Precise][.Time Zone]
 	    <Program Name> <Version> [Serial Number]<CR>
 	*/
 	const addrStr	= new Address(address).toString('5D');
 	const dateTime	= moment().utc().format('YYYYMMDD.HHmmSS.SSSS.UTC');
-
-	const version	= packageJson.version
-		.replace(/\-/g, '.')
-		.replace(/alpha/,'a')
-		.replace(/beta/,'b');
+	const version	= getCleanEnigmaVersion();
 
 	return `${addrStr} @${dateTime} ENiGMA1/2 ${version}`;
 }
@@ -272,7 +268,7 @@ function parseAbbreviatedNetNodeList(netNodes) {
 	const re = /([0-9]+)\/([0-9]+)\s?|([0-9]+)\s?/g;
 	let net;
 	let m;
-	let results = [];	
+	let results = [];
 	while(null !== (m = re.exec(netNodes))) {
 		if(m[1] && m[2]) {
 			net = parseInt(m[1]);
@@ -288,7 +284,7 @@ function parseAbbreviatedNetNodeList(netNodes) {
 //
 //	Return a FTS-0004.001 SEEN-BY entry(s) that include
 //	all pre-existing SEEN-BY entries with the addition
-//	of |additions|. 
+//	of |additions|.
 //
 //	See http://ftsc.org/docs/fts-0004.001
 //	and notes at http://ftsc.org/docs/fsc-0043.002.
@@ -324,9 +320,9 @@ function getUpdatedSeenByEntries(existingEntries, additions) {
 	if(!_.isArray(existingEntries)) {
 		existingEntries = [ existingEntries ];
 	}
-	
+
 	if(!_.isString(additions)) {
-		additions = parseAbbreviatedNetNodeList(getAbbreviatedNetNodeList(additions)); 
+		additions = parseAbbreviatedNetNodeList(getAbbreviatedNetNodeList(additions));
 	}
 
 	additions = additions.sort(Address.getComparator());
@@ -361,13 +357,13 @@ const ENCODING_TO_FTS_5003_001_CHARS = {
 	//	level 1 - generally should not be used
 	ascii		: [ 'ASCII', 1 ],
 	'us-ascii'	: [ 'ASCII', 1 ],
-	
+
 	//	level 2 - 8 bit, ASCII based
 	cp437		: [ 'CP437', 2 ],
 	cp850		: [ 'CP850', 2 ],
-	
+
 	//	level 3 - reserved
-	
+
 	//	level 4
 	utf8		: [ 'UTF-8', 4 ],
 	'utf-8'		: [ 'UTF-8', 4 ],
@@ -381,7 +377,7 @@ function getCharacterSetIdentifierByEncoding(encodingName) {
 
 function getEncodingFromCharacterSetIdentifier(chrs) {
 	const ident = chrs.split(' ')[0].toUpperCase();
-	
+
 	//	:TODO: fill in the rest!!!
 	return {
 		//	level 1
@@ -399,7 +395,7 @@ function getEncodingFromCharacterSetIdentifier(chrs) {
 		'SWISS'		: 'iso-646',
 		'UK'		: 'iso-646',
 		'ISO-10'	: 'iso-646-10',
-		
+
 		//	level 2
 		'CP437'		: 'cp437',
 		'CP850'		: 'cp850',
@@ -414,15 +410,15 @@ function getEncodingFromCharacterSetIdentifier(chrs) {
 		'LATIN-2'	: 'iso-8859-2',
 		'LATIN-5'	: 'iso-8859-9',
 		'LATIN-9'	: 'iso-8859-15',
-		
+
 		//	level 4
 		'UTF-8'		: 'utf8',
-		
+
 		//	deprecated stuff
-		'IBMPC'		: 'cp1250',		//	:TODO: validate 
+		'IBMPC'		: 'cp1250',		//	:TODO: validate
 		'+7_FIDO'	: 'cp866',
-		'+7'		: 'cp866', 
+		'+7'		: 'cp866',
 		'MAC'		: 'macroman',	//	:TODO: validate
-		
+
 	}[ident];
 }

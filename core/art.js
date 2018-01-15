@@ -33,7 +33,7 @@ const SUPPORTED_ART_TYPES = {
 	'.pcb'	: { name : 'PCBoard',	defaultEncoding : 'cp437',	eof : 0x1a  },
 	'.bbs'	: { name : 'Wildcat',	defaultEncoding : 'cp437',	eof : 0x1a  },
 
-	'.amiga'	: { name : 'Amiga',			defaultEncoding	: 'amiga',	eof : 0x1a }, 
+	'.amiga'	: { name : 'Amiga',			defaultEncoding	: 'amiga',	eof : 0x1a },
 	'.txt'		: { name : 'Amiga Text',	defaultEncoding : 'cp437',	eof : 0x1a  },
 	//	:TODO: extentions for wwiv, renegade, celerity, syncronet, ...
 	//	:TODO: extension for atari
@@ -93,7 +93,7 @@ function getArtFromPath(path, options, cb) {
 			}
 
 			return result;
-		}	
+		}
 
 		if(options.readSauce === true) {
 			sauce.readSAUCE(data, (err, sauce) => {
@@ -164,7 +164,7 @@ function getArt(name, options, cb) {
 			const bn = paths.basename(file, fext).toLowerCase();
 			if(options.random) {
 				const suppliedBn = paths.basename(name, fext).toLowerCase();
-			
+
 				//
 				//  Random selection enabled. We'll allow for
 				//  basename1.ext, basename2.ext, ...
@@ -208,7 +208,7 @@ function getArt(name, options, cb) {
 
 			return getArtFromPath(readPath, options, cb);
 		}
-		
+
 		return cb(new Error(`No matching art for supplied criteria: ${name}`));
 	});
 }
@@ -287,7 +287,7 @@ function display(client, art, options, cb) {
 		return cb(null, mciMap, extraInfo);
 	}
 
-	if(!options.disableMciCache) {		
+	if(!options.disableMciCache) {
 		artHash	= xxhash.hash(new Buffer(art), 0xCAFEBABE);
 
 		//	see if we have a mciMap cached for this art
@@ -307,7 +307,7 @@ function display(client, art, options, cb) {
 			if(mciCprQueue.length > 0) {
 				mciMap[mciCprQueue.shift()].position = pos;
 
-				if(parseComplete && 0 === mciCprQueue.length) {					
+				if(parseComplete && 0 === mciCprQueue.length) {
 					return completed();
 				}
 			}
@@ -345,7 +345,7 @@ function display(client, art, options, cb) {
 		});
 	}
 
-	ansiParser.on('literal', literal => client.term.write(literal, false) );	
+	ansiParser.on('literal', literal => client.term.write(literal, false) );
 	ansiParser.on('control', control => client.term.rawWrite(control) );
 
 	ansiParser.on('complete', () => {
@@ -353,7 +353,7 @@ function display(client, art, options, cb) {
 
 		if(0 === mciCprQueue.length) {
 			return completed();
-		}		
+		}
 	});
 
 	let initSeq = '';

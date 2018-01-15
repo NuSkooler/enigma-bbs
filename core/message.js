@@ -9,9 +9,9 @@ const getISOTimestampString	= require('./database.js').getISOTimestampString;
 const Errors				= require('./enig_error.js').Errors;
 const ANSI					= require('./ansi_term.js');
 
-const { 
+const {
 	isAnsi, isFormattedLine,
-	splitTextAtTerms, 
+	splitTextAtTerms,
 	renderSubstr
 }							= require('./string_util.js');
 
@@ -45,7 +45,7 @@ function Message(options) {
 	this.fromUserName	= options.fromUserName || '';
 	this.subject		= options.subject || '';
 	this.message		= options.message || '';
-		
+
 	if(_.isDate(options.modTimestamp) || moment.isMoment(options.modTimestamp)) {
 		this.modTimestamp = moment(options.modTimestamp);
 	} else if(_.isString(options.modTimestamp)) {
@@ -115,7 +115,7 @@ Message.StateFlags0 = {
 	Exported	: 0x00000002,	//	exported to foreign system
 };
 
-Message.FtnPropertyNames = {	
+Message.FtnPropertyNames = {
 	FtnOrigNode			: 'ftn_orig_node',
 	FtnDestNode			: 'ftn_dest_node',
 	FtnOrigNetwork		: 'ftn_orig_network',
@@ -166,12 +166,12 @@ Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
 	if(!moment.isMoment(modTimestamp)) {
 		modTimestamp = moment(modTimestamp);
 	}
-		
+
 	areaTag			= iconvEncode(areaTag.toUpperCase(), 'CP437');
 	modTimestamp	= iconvEncode(modTimestamp.format('DD MMM YY  HH:mm:ss'), 'CP437');
 	subject			= iconvEncode(subject.toUpperCase().trim(), 'CP437');
 	body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
-	
+
 	return uuidParse.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
 };
 
@@ -180,8 +180,8 @@ Message.getMessageIdByUuid = function(uuid, cb) {
 		`SELECT message_id
 		FROM message
 		WHERE message_uuid = ?
-		LIMIT 1;`, 
-		[ uuid ], 
+		LIMIT 1;`,
+		[ uuid ],
 		(err, row) => {
 			if(err) {
 				cb(err);
@@ -210,30 +210,30 @@ Message.getMessageIdsByMetaValue = function(category, name, value, cb) {
 };
 
 Message.getMetaValuesByMessageId = function(messageId, category, name, cb) {
-	const sql = 
+	const sql =
 		`SELECT meta_value
 		FROM message_meta
 		WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`;
-	
+
 	msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
 		if(err) {
 			return cb(err);
 		}
-		
+
 		if(0 === rows.length) {
 			return cb(new Error('No value for category/name'));
 		}
-		
+
 		//	single values are returned without an array
 		if(1 === rows.length) {
 			return cb(null, rows[0].meta_value);
 		}
-		
+
 		cb(null, rows.map(r => r.meta_value));	//	map to array of values only
 	});
 };
 
-Message.getMetaValuesByMessageUuid = function(uuid, category, name, cb) {	
+Message.getMetaValuesByMessageUuid = function(uuid, category, name, cb) {
 	async.waterfall(
 		[
 			function getMessageId(callback) {
@@ -256,22 +256,22 @@ Message.getMetaValuesByMessageUuid = function(uuid, category, name, cb) {
 Message.prototype.loadMeta = function(cb) {
 	/*
 		Example of loaded this.meta:
-		
+
 		meta: {
 			System: {
-				local_to_user_id: 1234,				
+				local_to_user_id: 1234,
 			},
 			FtnProperty: {
 				ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
 			}
-		}					
-	*/	
-	
-	const sql = 
+		}
+	*/
+
+	const sql =
 		`SELECT meta_category, meta_name, meta_value
 		FROM message_meta
 		WHERE message_id = ?;`;
-		
+
 	let self = this;
 	msgDb.each(sql, [ this.messageId ], (err, row) => {
 		if(!(row.meta_category in self.meta)) {
@@ -279,12 +279,12 @@ Message.prototype.loadMeta = function(cb) {
 			self.meta[row.meta_category][row.meta_name] = row.meta_value;
 		} else {
 			if(!(row.meta_name in self.meta[row.meta_category])) {
-				self.meta[row.meta_category][row.meta_name] = row.meta_value; 
+				self.meta[row.meta_category][row.meta_name] = row.meta_value;
 			} else {
 				if(_.isString(self.meta[row.meta_category][row.meta_name])) {
-					self.meta[row.meta_category][row.meta_name] = [ self.meta[row.meta_category][row.meta_name] ];					
+					self.meta[row.meta_category][row.meta_name] = [ self.meta[row.meta_category][row.meta_name] ];
 				}
-				
+
 				self.meta[row.meta_category][row.meta_name].push(row.meta_value);
 			}
 		}
@@ -315,7 +315,7 @@ Message.prototype.load = function(options, cb) {
 						if(!msgRow) {
 							return callback(new Error('Message (no longer) available'));
 						}
-						
+
 						self.messageId		= msgRow.message_id;
 						self.areaTag		= msgRow.area_tag;
 						self.messageUuid	= msgRow.message_uuid;
@@ -356,13 +356,13 @@ Message.prototype.persistMetaValue = function(category, name, value, transOrDb, 
 	const metaStmt = transOrDb.prepare(
 		`INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
 		VALUES (?, ?, ?, ?);`);
-		
+
 	if(!_.isArray(value)) {
 		value = [ value ];
 	}
-	
+
 	let self = this;
-	
+
 	async.each(value, (v, next) => {
 		metaStmt.run(self.messageId, category, name, v, err => {
 			next(err);
@@ -379,7 +379,7 @@ Message.prototype.persist = function(cb) {
 	}
 
 	const self = this;
-	
+
 	async.waterfall(
 		[
 			function beginTransaction(callback) {
@@ -398,7 +398,7 @@ Message.prototype.persist = function(cb) {
 
 				trans.run(
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
 					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
 					function inserted(err) {	//	use non-arrow function for 'this' scope
 						if(!err) {
@@ -415,15 +415,15 @@ Message.prototype.persist = function(cb) {
 				}
 				/*
 					Example of self.meta:
-					
+
 					meta: {
 						System: {
-							local_to_user_id: 1234,				
+							local_to_user_id: 1234,
 						},
 						FtnProperty: {
 							ftn_seen_by: [ "1/102 103", "2/42 52 65" ]
 						}
-					}					
+					}
 				*/
 				async.each(Object.keys(self.meta), (category, nextCat) => {
 					async.each(Object.keys(self.meta[category]), (name, nextName) => {
@@ -433,10 +433,10 @@ Message.prototype.persist = function(cb) {
 					}, err => {
 						nextCat(err);
 					});
-						
+
 				}, err => {
 					callback(err, trans);
-				});					
+				});
 			},
 			function storeHashTags(trans, callback) {
 				//	:TODO: hash tag support
@@ -470,21 +470,21 @@ Message.prototype.getQuoteLines = function(options, cb) {
 	if(!options.termWidth || !options.termHeight || !options.cols) {
 		return cb(Errors.MissingParam());
 	}
-	
+
 	options.startCol			= options.startCol || 1;
 	options.includePrefix 		= _.get(options, 'includePrefix', true);
 	options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
 	options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
 	options.isAnsi				= options.isAnsi || isAnsi(this.message);	//	:TODO: If this.isAnsi, use that setting
-	
+
 	/*
 		Some long text that needs to be wrapped and quoted should look right after
-		doing so, don't ya think? yeah I think so		
+		doing so, don't ya think? yeah I think so
 
-		Nu> Some long text that needs to be wrapped and quoted should look right 
+		Nu> Some long text that needs to be wrapped and quoted should look right
 		Nu> after doing so, don't ya think? yeah I think so
 
-		Ot> Nu> Some long text that needs to be wrapped and quoted should look 
+		Ot> Nu> Some long text that needs to be wrapped and quoted should look
 		Ot> Nu> right after doing so, don't ya think? yeah I think so
 
 	*/
@@ -498,7 +498,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 			tabHandling	: 'expand',
 			tabWidth	: 4,
 		};
-		
+
 		return wordWrapText(text, wrapOpts).wrapped.map( (w, i) => {
 			return i === 0 ? `${quotePrefix}${w}` : `${quotePrefix}${extraPrefix}${w}`;
 		});
@@ -527,44 +527,44 @@ Message.prototype.getQuoteLines = function(options, cb) {
 				cols			: options.cols,
 				rows			: 'auto',
 				startCol		: options.startCol,
-				forceLineTerm	: true,				
+				forceLineTerm	: true,
 			},
 			(err, prepped) => {
 				prepped = prepped || this.message;
-				
+
 				let lastSgr = '';
 				const split = splitTextAtTerms(prepped);
-				
+
 				const quoteLines		= [];
 				const focusQuoteLines	= [];
 
 				//
 				//	Do not include quote prefixes (e.g. XX> ) on ANSI replies (and therefor quote builder)
-				//	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to 
+				//	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to
 				//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
 				//	the trick and allow them to leave them alone!
 				//
 				split.forEach(l => {
 					quoteLines.push(`${lastSgr}${l}`);
-					
+
 					focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 1, l.length - 1)}`);
-					lastSgr = (l.match(/(?:\x1b\x5b)[\?=;0-9]*m(?!.*(?:\x1b\x5b)[\?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
+					lastSgr = (l.match(/(?:\x1b\x5b)[?=;0-9]*m(?!.*(?:\x1b\x5b)[?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
 				});
 
 				quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
-				
+
 				return cb(null, quoteLines, focusQuoteLines, true);
 			}
 		);
 	} else {
-		const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}\> )+(?:[A-Za-z0-9]{2}\>)*) */;
+		const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
 		const quoted	= [];
 		const input		= _.trimEnd(this.message).replace(/\b/g, '');
-	
+
 		//	find *last* tearline
 		let tearLinePos = this.getTearLinePosition(input);
 		tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;	//	we just want the index or the entire string
-		
+
 		input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
 			//
 			//	For each paragraph, a state machine:
@@ -612,7 +612,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 							buf += ` ${line}`;
 						}
 						break;
-						
+
 					case 'quote_line' :
 						if(quoteMatch) {
 							const rem = line.slice(quoteMatch[0].length);
@@ -628,7 +628,7 @@ Message.prototype.getQuoteLines = function(options, cb) {
 							state = 'line';
 						}
 						break;
-							
+
 					default :
 						if(isFormattedLine(line)) {
 							quoted.push(getFormattedLine(line));
@@ -637,12 +637,12 @@ Message.prototype.getQuoteLines = function(options, cb) {
 							buf		= 'line' === state ? line : line.replace(/\s/, '');	//	trim *first* leading space, if any
 						}
 						break;
-				}		
+				}
 			});
-			
+
 			quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
 		});
-		
+
 		input.slice(tearLinePos).split(/\r?\n/).forEach(l => {
 			quoted.push(...getWrapped(l));
 		});

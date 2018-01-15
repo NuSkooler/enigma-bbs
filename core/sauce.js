@@ -8,7 +8,9 @@ exports.readSAUCE		= readSAUCE;
 
 const SAUCE_SIZE	= 128;
 const SAUCE_ID		= new Buffer([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
-const COMNT_ID		= new Buffer([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
+
+//	:TODO read comments
+//const COMNT_ID		= new Buffer([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
 
 exports.SAUCE_SIZE		= SAUCE_SIZE;
 //	:TODO: SAUCE should be a class
@@ -51,7 +53,7 @@ function readSAUCE(data, cb) {
 
 			if(!SAUCE_ID.equals(vars.id)) {
 				return cb(new Error('No SAUCE record present'));
-			}	
+			}
 
 			var ver = iconv.decode(vars.version, 'cp437');
 
@@ -137,7 +139,7 @@ var SAUCE_FONT_TO_ENCODING_HINT = {
 };
 
 ['437', '720', '737', '775', '819', '850', '852', '855', '857', '858',
-'860', '861', '862', '863', '864', '865', '866', '869', '872'].forEach(function onPage(page) {
+	'860', '861', '862', '863', '864', '865', '866', '869', '872'].forEach(function onPage(page) {
 	var codec = 'cp' + page;
 	SAUCE_FONT_TO_ENCODING_HINT['IBM EGA43 ' + page]	= codec;
 	SAUCE_FONT_TO_ENCODING_HINT['IBM EGA ' + page]		= codec;

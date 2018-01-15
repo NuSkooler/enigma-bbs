@@ -87,8 +87,8 @@ function loadTheme(themeID, cb) {
 		if(err) {
 			return cb(err);
 		}
-		
-		if(!_.isObject(theme.info) || 
+
+		if(!_.isObject(theme.info) ||
 			!_.isString(theme.info.name) ||
 			!_.isString(theme.info.author))
 		{
@@ -114,16 +114,16 @@ const IMMUTABLE_MCI_PROPERTIES = [
 function getMergedTheme(menuConfig, promptConfig, theme) {
 	assert(_.isObject(menuConfig));
 	assert(_.isObject(theme));
-    
-    //  :TODO: merge in defaults (customization.defaults{} )
-    //	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
-    
-    //
-    //  Create a *clone* of menuConfig (menu.hjson) then bring in
-    //  promptConfig (prompt.hjson)
-    //
+
+	//  :TODO: merge in defaults (customization.defaults{} )
+	//	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
+
+	//
+	//  Create a *clone* of menuConfig (menu.hjson) then bring in
+	//  promptConfig (prompt.hjson)
+	//
 	var mergedTheme = _.cloneDeep(menuConfig);
-    
+
 	if(_.isObject(promptConfig.prompts)) {
 		mergedTheme.prompts = _.cloneDeep(promptConfig.prompts);
 	}
@@ -136,8 +136,8 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 
 	//
 	//  merge customizer to disallow immutable MCI properties
-	//	
-	var mciCustomizer = function(objVal, srcVal, key) {		
+	//
+	var mciCustomizer = function(objVal, srcVal, key) {
 		return IMMUTABLE_MCI_PROPERTIES.indexOf(key) > -1 ? objVal : srcVal;
 	};
 
@@ -159,69 +159,69 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 		} else {
 			if(_.has(src, [ formKey, 'mci' ])) {
 				mergeMciProperties(dest, src[formKey].mci);
-			}            
+			}
 		}
 	}
-    
-    //
-    //  menu.hjson can have a couple different structures:
-    //  1)  Explicit declaration of expected MCI code(s) under 'form:<id>' before a 'mci' block
-    //      (this allows multiple layout types defined by one menu for example)
-    //
-    //  2)  Non-explicit declaration: 'mci' directly under 'form:<id>'
-    //
-    //  theme.hjson has it's own mix:
-    //  1)  Explicit: Form ID before 'mci' (generally used where there are > 1 forms)
-    //
-    //  2)  Non-explicit: 'mci' directly under an entry
-    //
-    //  Additionally, #1 or #2 may be under an explicit key of MCI code(s) to match up
-    //  with menu.hjson in #1. 
-    //
-    //  *   When theming an explicit menu.hjson entry (1), we will use a matching explicit
-    //      entry with a matching MCI code(s) key in theme.hjson (e.g. menu="ETVM"/theme="ETVM"
-    //      and fall back to generic if a match is not found. 
-    //
-    //  *   If theme.hjson provides form ID's, use them. Otherwise, we'll apply directly assuming
-    //      there is a generic 'mci' block.
-    //    
-	function applyToForm(form, menuTheme, formKey) {     
+
+	//
+	//  menu.hjson can have a couple different structures:
+	//  1)  Explicit declaration of expected MCI code(s) under 'form:<id>' before a 'mci' block
+	//      (this allows multiple layout types defined by one menu for example)
+	//
+	//  2)  Non-explicit declaration: 'mci' directly under 'form:<id>'
+	//
+	//  theme.hjson has it's own mix:
+	//  1)  Explicit: Form ID before 'mci' (generally used where there are > 1 forms)
+	//
+	//  2)  Non-explicit: 'mci' directly under an entry
+	//
+	//  Additionally, #1 or #2 may be under an explicit key of MCI code(s) to match up
+	//  with menu.hjson in #1.
+	//
+	//  *   When theming an explicit menu.hjson entry (1), we will use a matching explicit
+	//      entry with a matching MCI code(s) key in theme.hjson (e.g. menu="ETVM"/theme="ETVM"
+	//      and fall back to generic if a match is not found.
+	//
+	//  *   If theme.hjson provides form ID's, use them. Otherwise, we'll apply directly assuming
+	//      there is a generic 'mci' block.
+	//
+	function applyToForm(form, menuTheme, formKey) {
 		if(_.isObject(form.mci)) {
 			//   non-explicit: no MCI code(s) key assumed since we found 'mci' directly under form ID
 			applyThemeMciBlock(form.mci, menuTheme, formKey);
-			
+
 		} else {
 			var menuMciCodeKeys = _.remove(_.keys(form), function pred(k) {
-				return k === k.toUpperCase(); //  remove anything not uppercase 
+				return k === k.toUpperCase(); //  remove anything not uppercase
 			});
-			
+
 			menuMciCodeKeys.forEach(function mciKeyEntry(mciKey) {
-				var applyFrom; 
+				var applyFrom;
 				if(_.has(menuTheme, [ mciKey, 'mci' ])) {
 					applyFrom = menuTheme[mciKey];
 				} else {
 					applyFrom = menuTheme;
 				}
-				
+
 				applyThemeMciBlock(form[mciKey].mci, applyFrom);
 			});
 		}
 	}
-    
+
 	[ 'menus', 'prompts' ].forEach(function areaEntry(sectionName) {
 		_.keys(mergedTheme[sectionName]).forEach(function menuEntry(menuName) {
 			var createdFormSection = false;
 			var mergedThemeMenu = mergedTheme[sectionName][menuName];
-			
+
 			if(_.has(theme, [ 'customization', sectionName, menuName ])) {
 				var menuTheme = theme.customization[sectionName][menuName];
-				
+
 				//	config block is direct assign/overwrite
 				//  :TODO: should probably be _.merge()
 				if(menuTheme.config) {
 					mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
 				}
-			
+
 				if('menus' === sectionName) {
 					if(_.isObject(mergedThemeMenu.form)) {
 						getFormKeys(mergedThemeMenu.form).forEach(function formKeyEntry(formKey) {
@@ -232,7 +232,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 							//
 							//  Not specified at menu level means we apply anything from the
 							//  theme to form.0.mci{}
-							//                            
+							//
 							mergedThemeMenu.form = { 0 : { mci : { } } };
 							mergeMciProperties(mergedThemeMenu.form[0], menuTheme);
 							createdFormSection = true;
@@ -241,9 +241,9 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 				} else if('prompts' === sectionName) {
 					//  no 'form' or form keys for prompts -- direct to mci
 					applyToForm(mergedThemeMenu, menuTheme);
-				}                
+				}
 			}
-			
+
 			//
 			//  Finished merging for this menu/prompt
 			//
@@ -259,13 +259,13 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 			}
 		});
 	});
-	
+
 
 	return mergedTheme;
 }
 
 function initAvailableThemes(cb) {
-   
+
 	async.waterfall(
 		[
 			function loadMenuConfig(callback) {
@@ -285,9 +285,9 @@ function initAvailableThemes(cb) {
 					}
 
 					return callback(
-						null, 
-						menuConfig, 
-						promptConfig, 
+						null,
+						menuConfig,
+						promptConfig,
 						files.filter( f => {
 							//	sync normally not allowed -- initAvailableThemes() is a startup-only method, however
 							return fs.statSync(paths.join(Config.paths.themes, f)).isDirectory();
@@ -363,7 +363,7 @@ function setClientTheme(client, themeId) {
 			logMsg = 'Failed setting theme by system default ID; Using the first one we can find';
 		}
 	}
-	
+
 	client.log.debug( { themeId : themeId, info : client.currentTheme.info }, logMsg);
 }
 
@@ -371,7 +371,7 @@ function getThemeArt(options, cb) {
 	//
 	//	options - required:
 	//		name
-	//	
+	//
 	//	options - optional
 	//		client - needed for user's theme/etc.
 	//		themeId
@@ -388,7 +388,7 @@ function getThemeArt(options, cb) {
 	//	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
 	//	:TODO: Some of these options should only be set if not provided!
 	options.asAnsi		= true;	//	always convert to ANSI
-	options.readSauce	= true;	//	read SAUCE, if avail	
+	options.readSauce	= true;	//	read SAUCE, if avail
 	options.random		= _.get(options, 'random', true);	//	FILENAME<n>.EXT support
 
 	//
@@ -406,7 +406,7 @@ function getThemeArt(options, cb) {
 				//
 				if('/' === options.name.charAt(0)) {
 					//	just take the path as-is
-					options.basePath = paths.dirname(options.name);					
+					options.basePath = paths.dirname(options.name);
 				} else if(options.name.indexOf('/') > -1) {
 					//	make relative to base BBS dir
 					options.basePath = paths.join(__dirname, '../', paths.dirname(options.name));
@@ -432,7 +432,7 @@ function getThemeArt(options, cb) {
 				if(artInfo || Config.defaults.theme === options.themeId) {
 					return callback(null, artInfo);
 				}
-				
+
 				options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
 				art.getArt(options.name, options, (err, artInfo) => {
 					return callback(null, artInfo);
@@ -442,11 +442,11 @@ function getThemeArt(options, cb) {
 				if(artInfo) {
 					return callback(null, artInfo);
 				}
-				
+
 				options.basePath = Config.paths.art;
 				art.getArt(options.name, options, (err, artInfo) => {
 					return callback(err, artInfo);
-				});				
+				});
 			}
 		],
 		function complete(err, artInfo) {
@@ -483,7 +483,7 @@ function displayThemeArt(options, cb) {
 
 /*
 function displayThemedPrompt(name, client, options, cb) {
-	
+
 	async.waterfall(
 		[
 			function loadConfig(callback) {
@@ -511,14 +511,14 @@ function displayThemedPrompt(name, client, options, cb) {
 
 				//
 				//	If we did not clear the screen, don't let the font change
-				//				
+				//
 				const dispOptions = Object.assign( {}, promptConfig.options );
 				if(!options.clearScreen) {
 					dispOptions.font = 'not_really_a_font!';
 				}
 
 				displayThemedAsset(
-					promptConfig.art, 
+					promptConfig.art,
 					client,
 					dispOptions,
 					(err, artData) => {
@@ -576,7 +576,7 @@ function displayThemedPrompt(name, client, options, cb) {
 				}
 
 				displayThemedAsset(
-					promptConfig.art, 
+					promptConfig.art,
 					client,
 					dispOptions,
 					(err, artInfo) => {
@@ -593,7 +593,7 @@ function displayThemedPrompt(name, client, options, cb) {
 					//	no need to query cursor - we're not gonna use it
 					return callback(null, promptConfig, artInfo);
 				}
-				
+
 				client.once('cursor position report', pos => {
 					artInfo.startRow = pos[0] - artInfo.height;
 					return callback(null, promptConfig, artInfo);
@@ -627,7 +627,7 @@ function displayThemedPrompt(name, client, options, cb) {
 				if(options.clearPrompt) {
 					if(artInfo.startRow && artInfo.height) {
 						client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
-						
+
 						//	Note: Does not work properly in NetRunner < 2.0b17:
 						client.term.rawWrite(ansi.deleteLine(artInfo.height));
 					} else {
@@ -654,7 +654,7 @@ function displayThemedPrompt(name, client, options, cb) {
 
 //
 //	Pause prompts are a special prompt by the name 'pause'.
-//	
+//
 function displayThemedPause(client, options, cb) {
 
 	if(!cb && _.isFunction(options)) {
@@ -699,7 +699,7 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 			});
 			break;
 
-		case 'method' : 
+		case 'method' :
 			//	:TODO: fetch & render via method
 			break;
 

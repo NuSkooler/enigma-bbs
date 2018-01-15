@@ -4,7 +4,6 @@
 const View			= require('./view.js').View;
 const strUtil		= require('./string_util.js');
 const ansi			= require('./ansi_term.js');
-const colorCodes	= require('./color_codes.js');
 const wordWrapText	= require('./word_wrap.js').wordWrapText;
 const ansiPrep		= require('./ansi_prep.js');
 
@@ -12,11 +11,11 @@ const assert		= require('assert');
 const _				= require('lodash');
 
 //	:TODO: Determine CTRL-* keys for various things
-	//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
-	//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
-	//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
+//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
+//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
 
-	/* Mystic
+/* Mystic
 	 [^B]  Reformat Paragraph            [^O]  Show this help file
        [^I]  Insert tab space              [^Q]  Enter quote mode
        [^K]  Cut current line of text      [^V]  Toggle insert/overwrite
@@ -179,8 +178,8 @@ function MultiLineEditTextView(options) {
 
 		for(let i = startIndex; i < endIndex; ++i) {
 			//${self.getSGRFor('text')}
-			self.client.term.write(				
-				`${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`, 
+			self.client.term.write(
+				`${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`,
 				false	//	convertLineFeeds
 			);
 		}
@@ -268,7 +267,7 @@ function MultiLineEditTextView(options) {
 
 		if(remain > 0) {
 			text += ' '.repeat(remain + 1);
-//			text += new Array(remain + 1).join(' ');
+			//			text += new Array(remain + 1).join(' ');
 		}
 
 		return text;
@@ -291,7 +290,7 @@ function MultiLineEditTextView(options) {
 
 		lines.forEach(line => {
 			text += line.text.replace(re, '\t');
-			
+
 			if(options.forceLineTerms || (eolMarker && line.eol)) {
 				text += eolMarker;
 			}
@@ -459,7 +458,7 @@ function MultiLineEditTextView(options) {
 				self.getRenderText(index).slice(self.cursorPos.col - c.length) +
 				ansi.goto(absPos.row, absPos.col) +
 				ansi.showCursor(), false
-				);
+			);
 		}
 	};
 
@@ -502,7 +501,7 @@ function MultiLineEditTextView(options) {
 		}
 
 		return wordWrapText(
-			s, 
+			s,
 			{
 				width		: width,
 				tabHandling	: tabHandling || 'expand',
@@ -1122,19 +1121,19 @@ MultiLineEditTextView.prototype.getData = function(options = { forceLineTerms : 
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
-		case 'mode'			: 
+		case 'mode'			:
 			this.mode = value;
 			if('preview' === value && !this.specialKeyMap.next) {
 				this.specialKeyMap.next = [ 'tab' ];
-			} 
+			}
 			break;
 
-		case 'autoScroll'	: 
+		case 'autoScroll'	:
 			this.autoScroll = value;
 			break;
 
 		case 'tabSwitchesView' :
-			this.tabSwitchesView = value; 
+			this.tabSwitchesView = value;
 			this.specialKeyMap.next = this.specialKeyMap.next || [];
 			this.specialKeyMap.next.push('tab');
 			break;

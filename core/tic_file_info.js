@@ -28,7 +28,7 @@ module.exports = class TicFileInfo {
 
 	static get requiredFields() {
 		return [
-			'Area', 'Origin', 'From', 'File', 'Crc', 
+			'Area', 'Origin', 'From', 'File', 'Crc',
 			//	:TODO: validate this:
 			//'Path', 'Seenby'	//	these two are questionable; some systems don't send them?
 		];
@@ -43,16 +43,16 @@ module.exports = class TicFileInfo {
 		if(value) {
 			//
 			//	We call toString() on values to ensure numbers, addresses, etc. are converted
-			//				
+			//
 			joinWith = joinWith || '';
 			if(Array.isArray(value)) {
 				return value.map(v => v.toString() ).join(joinWith);
 			}
-		
+
 			return value.toString();
 		}
 	}
-	
+
 	get filePath() {
 		return paths.join(paths.dirname(this.path), this.getAsString('File'));
 	}
@@ -86,7 +86,7 @@ module.exports = class TicFileInfo {
 					const localInfo = {
 						areaTag	: config.localAreaTags.find( areaTag => areaTag.toUpperCase() === area ),
 					};
-				
+
 					if(!localInfo.areaTag) {
 						return callback(Errors.Invalid(`No local area for "Area" of ${area}`));
 					}
@@ -112,7 +112,7 @@ module.exports = class TicFileInfo {
 					return callback(null, localInfo);
 				},
 				function checksumAndSize(localInfo, callback) {
-					const crcTic	= self.get('Crc');					
+					const crcTic	= self.get('Crc');
 					const stream	= fs.createReadStream(self.filePath);
 					const crc		= new CRC32();
 					let sizeActual	= 0;
@@ -193,7 +193,7 @@ module.exports = class TicFileInfo {
 		//	This is an optional keyword."
 		//
 		const to = this.get('To');
-		
+
 		if(!to) {
 			return allowNonExplicit;
 		}
@@ -219,10 +219,10 @@ module.exports = class TicFileInfo {
 			let key;
 			let value;
 			let entry;
-			
+
 			lines.forEach(line => {
 				keyEnd	= line.search(/\s/);
-			
+
 				if(keyEnd < 0) {
 					keyEnd = line.length;
 				}
@@ -253,7 +253,7 @@ module.exports = class TicFileInfo {
 						value = parseInt(value, 16);
 						break;
 
-					case 'size' : 
+					case 'size' :
 						value = parseInt(value, 10);
 						break;
 
