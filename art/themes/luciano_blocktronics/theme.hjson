@@ -787,6 +787,27 @@
 				}
 			}
 
+			fileBaseWebDownloadManager: {
+				config: {
+					queueListFormat: "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+					focusQueueListFormat: "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
+					queueManagerInfoFormat10: "|03batch|08: |03{webBatchDlLink}"
+					queueManagerInfoFormat11: "|03exp  |08: |03{webBatchDlExpire}"
+				}
+
+				0: {
+					mci: {
+						VM1: {
+							height: 8
+						}
+						HM2: {
+							width: 50
+							focusTextStyle: first lower
+						}
+					}
+				}
+			}
+
 			fileBaseUploadFiles: {
 				config: {
 					//	processing

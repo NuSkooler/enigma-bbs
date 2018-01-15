@@ -2531,6 +2531,10 @@
 					action: @menu:fileBaseDownloadManager
 				}
 				{
+					value: { menuOption: "W" }
+					action: @menu:fileBaseWebDownloadManager
+				}
+				{
 					value: { menuOption: "U" }
 					action: @menu:fileBaseUploadFiles
 				}
@@ -3262,7 +3266,7 @@
 			art: ULNOAREA
 			options: {
 				pause: true
-				menuFlags: [ "noHistory" ]
+				menuFlags: [ "noHistory", "popParent" ]
 			}
 		}
 
