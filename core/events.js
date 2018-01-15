@@ -48,17 +48,17 @@ module.exports = new class Events extends events.EventEmitter {
 				}
 
 				async.each(files, (moduleName, nextModule) => {
-					modulePath = paths.join(modulePath, moduleName);
+					const fullModulePath = paths.join(modulePath, moduleName);
 
 					try {
-						const mod = require(modulePath);
-						
+						const mod = require(fullModulePath);
+
 						if(_.isFunction(mod.registerEvents)) {
 							//	:TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
 							mod.registerEvents(this);
 						}
 					} catch(e) {
-
+						Log.warn( { error : e }, 'Exception during module "registerEvents"');
 					}
 
 					return nextModule(null);
