@@ -189,15 +189,13 @@ module.exports = class User {
 		//	:TODO: set various defaults, e.g. default activation status, etc.
 		self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
-		async.series(
+		async.waterfall(
 			[
 				function beginTransaction(callback) {
-					userDb.run('BEGIN;', err => {
-						return callback(err);
-					});
+					return userDb.beginTransaction(callback);
 				},
-				function createUserRec(callback) {
-					userDb.run(
+				function createUserRec(trans, callback) {
+					trans.run(
 						`INSERT INTO user (user_name)
 						VALUES (?);`,
 						[ self.username ],
@@ -213,11 +211,11 @@ module.exports = class User {
 								self.properties.account_status = User.AccountStatus.active;
 							}
 							
-							return callback(null);
+							return callback(null, trans);
 						}
 					);
 				},
-				function genAuthCredentials(callback) {
+				function genAuthCredentials(trans, callback) {
 					User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
 						if(err) {
 							return callback(err);
@@ -225,85 +223,56 @@ module.exports = class User {
 						
 						self.properties.pw_pbkdf2_salt	= info.salt;
 						self.properties.pw_pbkdf2_dk	= info.dk;
-						return callback(null);
+						return callback(null, trans);
 					});
 				},
-				function setInitialGroupMembership(callback) {
+				function setInitialGroupMembership(trans, callback) {
 					self.groups = Config.users.defaultGroups;
 
 					if(User.RootUserID === self.userId) {	//	root/SysOp?
 						self.groups.push('sysops');
 					}
 
-					return callback(null);
+					return callback(null, trans);
 				},
-				function saveAll(callback) {
-					self.persist(false, err => {
-						return callback(err);
+				function saveAll(trans, callback) {
+					self.persistWithTransaction(trans, err => {
+						return callback(err, trans);
 					});
 				}
 			],
-			err => {
-				if(err) {
-					const originalError = err;
-					userDb.run('ROLLBACK;', err => {
-						assert(!err);
-						return cb(originalError);
+			(err, trans) => {
+				if(trans) {
+					trans[err ? 'rollback' : 'commit'](transErr => {
+						return cb(err ? err : transErr);
 					});
 				} else {
-					userDb.run('COMMIT;', err => {
-						return cb(err);
-					});
+					return cb(err);
 				}
 			}
 		);
 	}
 
-	persist(useTransaction, cb) {
+	persistWithTransaction(trans, cb) {
 		assert(this.userId > 0);
 
 		const self = this;
 
 		async.series(
 			[
-				function beginTransaction(callback) {
-					if(useTransaction) {
-						userDb.run('BEGIN;', err => {
-							return callback(err);
-						});
-					} else {
-						return callback(null);
-					}
-				},
 				function saveProps(callback) {
-					self.persistProperties(self.properties, err => {
+					self.persistProperties(self.properties, trans, err => {
 						return callback(err);
 					});
 				},
 				function saveGroups(callback) {
-					userGroup.addUserToGroups(self.userId, self.groups, err => {
+					userGroup.addUserToGroups(self.userId, self.groups, trans, err => {
 						return callback(err);
 					});
 				}
 			],
 			err => {
-				if(err) {
-					if(useTransaction) {
-						userDb.run('ROLLBACK;', err => {
-							return cb(err);
-						});
-					} else {
-						return cb(err);
-					}
-				} else {
-					if(useTransaction) {
-						userDb.run('COMMIT;', err => {
-							return cb(err);
-						});
-					} else {
-						return cb(null);
-					}
-				}
+				return cb(err);
 			}
 		);
 	}
@@ -340,13 +309,18 @@ module.exports = class User {
 		);
 	}
 
-	persistProperties(properties, cb) {
+	persistProperties(properties, transOrDb, cb) {
+		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+			cb = transOrDb;
+			transOrDb = userDb;
+		}
+
 		const self = this;
 
 		//	update live props
 		_.merge(this.properties, properties);
 
-		const stmt = userDb.prepare(
+		const stmt = transOrDb.prepare(
 			`REPLACE INTO user_property (user_id, prop_name, prop_value)
 			VALUES (?, ?, ?);`
 		);
@@ -440,10 +414,46 @@ module.exports = class User {
 				if(row) {
 					return cb(null, row.id, row.user_name);
 				}
-				
+
 				return cb(Errors.DoesNotExist('No matching username'));
 			}
 		);
+	}
+
+	static getUserIdAndNameByRealName(realName, cb) {
+		userDb.get(
+			`SELECT id, user_name
+			FROM user
+			WHERE id = (
+				SELECT user_id
+				FROM user_property
+				WHERE prop_name='real_name' AND prop_value LIKE ?
+			);`,
+			[ realName ],
+			(err, row) => {
+				if(err) {
+					return cb(err);
+				}
+
+				if(row) {
+					return cb(null, row.id, row.user_name);
+				}
+
+				return cb(Errors.DoesNotExist('No matching real name'));
+			}
+		);
+	}
+
+	static getUserIdAndNameByLookup(lookup, cb) {
+		User.getUserIdAndName(lookup, (err, userId, userName) => {
+			if(err) {
+				User.getUserIdAndNameByRealName(lookup, (err, userId, userName) => {
+					return cb(err, userId, userName);
+				});
+			} else {
+				return cb(null, userId, userName);
+			}
+		});
 	}
 
 	static getUserName(userId, cb) {

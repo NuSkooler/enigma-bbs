@@ -183,7 +183,7 @@ The module `door_party` provides native support for [DoorParty!](http://www.thro
 ```hjson
 doorParty: {
     desc: Using DoorParty!
-    module: @systemModule:door_party
+    module: door_party
     config: {
         username: XXXXXXXX
         password: XXXXXXXX
@@ -193,6 +193,22 @@ doorParty: {
 ```
 
 Fill in `username`, `password`, and `bbsTag` with credentials provided to you and you should be in business!
+
+## The CombatNet Module
+The `combatnet` module provides native support for [CombatNet](http://combatnet.us/). Add the following to your menu config:
+
+````hjson
+combatNet: {
+    desc: Using CombatNet
+    module: combatnet
+    config: {
+        bbsTag: CBNxxx
+        password: XXXXXXXXX
+    }
+}
+````
+Update `bbsTag` (in the format CBNxxx) and `password` with the details provided when you register, then
+you should be ready to rock!
 
 # Resources
 

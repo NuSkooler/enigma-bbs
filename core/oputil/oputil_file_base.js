@@ -8,7 +8,7 @@ const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
-const Errors					= require('../../core/enig_error.js').Errors;
+const Errors					= require('../enig_error.js').Errors;
 
 const async						= require('async');
 const fs						= require('graceful-fs');
@@ -34,7 +34,7 @@ exports.handleFileBaseCommand			= handleFileBaseCommand;
 
 let fileArea;	//	required during init
 
-function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
+function finalizeEntryAndPersist(isUpdate, fileEntry, descHandler, cb) {
 	async.series(
 		[
 			function getDescFromHandlerIfNeeded(callback) {
@@ -53,18 +53,24 @@ function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 				return callback(null);
 			},
 			function getDescFromUserIfNeeded(callback) {
-				if(false === argv.prompt || ( fileEntry.desc && fileEntry.desc.length > 0 ) ) {
+				if(fileEntry.desc && fileEntry.desc.length > 0 ) {
 					return callback(null);
 				}
 
-				const getDescFromFileName = require('../../core/file_base_area.js').getDescFromFileName;
+				const getDescFromFileName	= require('../../core/file_base_area.js').getDescFromFileName;
+				const descFromFile			= getDescFromFileName(fileEntry.fileName);
+				
+				if(false === argv.prompt) {
+					fileEntry.desc = descFromFile;
+					return callback(null);
+				}
 
 				const questions = [
 					{
 						name	: 'desc',
 						message	: `Description for ${fileEntry.fileName}:`,
 						type	: 'input',
-						default	: getDescFromFileName(fileEntry.fileName),
+						default	: descFromFile,
 					}
 				];
 
@@ -74,7 +80,7 @@ function finalizeEntryAndPersist(fileEntry, descHandler, cb) {
 				});
 			},
 			function persist(callback) {
-				fileEntry.persist( err => {
+				fileEntry.persist(isUpdate, err => {
 					return callback(err);
 				});
 			}
@@ -104,6 +110,12 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 			return !asi.storageTag || sl.storageTag === asi.storageTag;
 		});
 	});
+
+	function updateTags(fe) {
+		if(Array.isArray(options.tags)) {
+			fe.hashTags = new Set(options.tags);
+		}
+	}
 	
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
 		async.waterfall(
@@ -153,27 +165,68 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 									},
 									(err, fileEntry, dupeEntries) => {
 										if(err) {
-											//	:TODO: Log me!!!
 											console.info(`Error: ${err.message}`);											
 											return nextFile(null);	//	try next anyway
-										}								
+										}
 
-										if(dupeEntries.length > 0) {
-											//	:TODO: Handle duplidates -- what to do here???
+										//
+										//	We'll update the entry if the following conditions are met:
+										//	* We have a single duplicate, and:
+										//	* --update was passed or the existing entry's desc,
+										//	  longDesc, or est_release_year meta are blank/empty
+										//
+										if(argv.update && 1 === dupeEntries.length) {
+											const FileEntry		= require('../../core/file_entry.js');
+											const existingEntry	= new FileEntry();
+
+											return existingEntry.load(dupeEntries[0].fileId, err => {
+												if(err) {
+													console.info('Dupe (cannot update)');
+													return nextFile(null);
+												}
+
+												//
+												//	Update only if tags or desc changed
+												//
+												const optTags	= Array.isArray(options.tags) ? new Set(options.tags) : existingEntry.hashTags;
+												const tagsEq	= _.isEqual(optTags, existingEntry.hashTags);
+
+												if( tagsEq && 
+													fileEntry.desc === existingEntry.desc && 
+													fileEntry.descLong == existingEntry.descLong &&
+													fileEntry.meta.est_release_year == existingEntry.meta.est_release_year)
+												{
+													console.info('Dupe');
+													return nextFile(null);
+												}
+
+												console.info('Dupe (updating)');
+
+												//	don't allow overwrite of values if new version is blank
+												existingEntry.desc 					= fileEntry.desc || existingEntry.desc;
+												existingEntry.descLong				= fileEntry.descLong || existingEntry.descLong;
+
+												if(fileEntry.meta.est_release_year) {
+													existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year;
+												}
+
+												updateTags(existingEntry);
+
+												finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
+													return nextFile(err);
+												});
+											});
+										} else if(dupeEntries.length > 0) {
 											console.info('Dupe');
 											return nextFile(null);
-										} else {
-											console.info('Done!');
-											if(Array.isArray(options.tags)) {
-												options.tags.forEach(tag => {
-													fileEntry.hashTags.add(tag);
-												});
-											}
-
-											finalizeEntryAndPersist(fileEntry, descHandler, err => {
-												return nextFile(err);
-											});
 										}
+										
+										console.info('Done!');
+										updateTags(fileEntry);
+										
+										finalizeEntryAndPersist(false, fileEntry, descHandler, err => {
+											return nextFile(err);
+										});
 									}
 								);
 							});
@@ -395,6 +448,62 @@ function scanFileAreas() {
 	);
 }
 
+function expandFileTargets(targets, cb) {
+	let entries = [];
+
+	//	Each entry may be PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
+	const FileEntry = require('../../core/file_entry.js');
+
+	async.eachSeries(targets, (areaAndStorage, next) => {
+		const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
+
+		if(areaInfo) {
+			//	AREA_TAG[@STORAGE_TAG] - all files in area@tag
+			const findFilter = {
+				areaTag : areaAndStorage.areaTag,
+			};
+
+			if(areaAndStorage.storageTag) {
+				findFilter.storageTag = areaAndStorage.storageTag;
+			}
+
+			FileEntry.findFiles(findFilter, (err, fileIds) => {
+				if(err) {
+					return next(err);
+				}
+
+				async.each(fileIds, (fileId, nextFileId) => {
+					const fileEntry = new FileEntry();
+					fileEntry.load(fileId, err => {
+						if(!err) {
+							entries.push(fileEntry);
+						}
+						return nextFileId(err);
+					});
+				},
+				err => {
+					return next(err);
+				});
+			});
+
+		} else {
+			//	FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
+			//	:TODO: FULL_PATH -> entries
+			getFileEntries(areaAndStorage.pattern, (err, fileEntries) => {
+				if(err) {
+					return next(err);
+				}
+
+				entries = entries.concat(fileEntries);
+				return next(null);
+			});
+		}
+	},
+	err => {
+		return cb(err, entries);
+	});
+}
+
 function moveFiles() {
 	//
 	//	oputil fb move SRC [SRC2 ...] DST
@@ -407,8 +516,9 @@ function moveFiles() {
 	}
 
 	const moveArgs = argv._.slice(2);
-	let src = getAreaAndStorage(moveArgs.slice(0, -1));
-	let dst = getAreaAndStorage(moveArgs.slice(-1))[0];
+	const src = getAreaAndStorage(moveArgs.slice(0, -1));
+	const dst = getAreaAndStorage(moveArgs.slice(-1))[0];
+
 	let FileEntry;
 
 	async.waterfall(
@@ -422,8 +532,6 @@ function moveFiles() {
 				});
 			},
 			function validateAndExpandSourceAndDest(callback) {
-				let srcEntries = [];
-
 				const areaInfo = fileArea.getFileAreaByTag(dst.areaTag);
 				if(areaInfo) {
 					dst.areaInfo = areaInfo;
@@ -431,57 +539,9 @@ function moveFiles() {
 					return callback(Errors.DoesNotExist('Invalid or unknown destination area'));
 				}
 
-				//	Each SRC may be PATH|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
 				FileEntry = require('../../core/file_entry.js');
 
-				async.eachSeries(src, (areaAndStorage, next) => {					
-					const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
-
-					if(areaInfo) {
-						//	AREA_TAG[@STORAGE_TAG] - all files in area@tag
-						src.areaInfo = areaInfo;
-
-						const findFilter = {
-							areaTag : areaAndStorage.areaTag,
-						};
-
-						if(areaAndStorage.storageTag) {
-							findFilter.storageTag = areaAndStorage.storageTag;
-						}
-
-						FileEntry.findFiles(findFilter, (err, fileIds) => {
-							if(err) {
-								return next(err);
-							}
-
-							async.each(fileIds, (fileId, nextFileId) => {
-								const fileEntry = new FileEntry();
-								fileEntry.load(fileId, err => {
-									if(!err) {
-										srcEntries.push(fileEntry);
-									}
-									return nextFileId(err);
-								});
-							}, 
-							err => {
-								return next(err);
-							});
-						});
-
-					} else {
-						//	FILENAME_WC|FILE_ID|SHA|PARTIAL_SHA
-						//	:TODO: FULL_PATH -> entries
-						getFileEntries(areaAndStorage.pattern, (err, entries) => {
-							if(err) {
-								return next(err);
-							}
-
-							srcEntries = srcEntries.concat(entries);
-							return next(null);
-						});
-					}
-				},
-				err => {
+				expandFileTargets(src, (err, srcEntries) => {
 					return callback(err, srcEntries);
 				});
 			},
@@ -512,13 +572,80 @@ function moveFiles() {
 					return callback(err);
 				});
 			}
-		]
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
 	);
 }
 
 function removeFiles() {
 	//
-	//	REMOVE SHA|FILE_ID [SHA|FILE_ID ...]
+	//	oputil fb rm|remove|del|delete SRC [SRC2 ...]
+	//
+	//	SRC: FILENAME_WC|FILE_ID|SHA|AREA_TAG[@STORAGE_TAG]
+	//
+	//	AREA_TAG[@STORAGE_TAG] remove all entries matching
+	//	supplied area/storage tags
+	//
+	//	--phys-file removes backing physical file(s)
+	//
+	if(argv._.length < 3) {
+		return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
+	}
+
+	const removePhysFile = argv['phys-file'];
+
+	const src =  getAreaAndStorage(argv._.slice(2));
+
+	async.waterfall(
+		[
+			function init(callback) {
+				return initConfigAndDatabases( err => {
+					if(!err) {
+						fileArea = require('../../core/file_base_area.js');
+					}
+					return callback(err);
+				});
+			},
+			function expandSources(callback) {
+				expandFileTargets(src, (err, srcEntries) => {
+					return callback(err, srcEntries);
+				});
+			},
+			function removeEntries(srcEntries, callback) {
+				const FileEntry = require('../../core/file_entry.js');
+
+				const extraOutput = removePhysFile ? ' (including physical file)' : '';
+
+				async.eachSeries(srcEntries, (entry, nextEntry) => {
+
+					process.stdout.write(`Removing ${entry.filePath}${extraOutput}... `);
+
+					FileEntry.removeEntry(entry, { removePhysFile }, err => {
+						if(err) {
+							console.info(`Failed: ${err.message}`);
+						} else {
+							console.info('Done');
+						}
+
+						return nextEntry(err);
+					});
+				}, err => {
+					return callback(err);
+				});
+			}
+		],
+		err => {
+			if(err) {
+				process.exitCode = ExitCodes.ERROR;
+				console.error(err.message);
+			}
+		}
+	);
 }
 
 function handleFileBaseCommand() {
@@ -539,7 +666,13 @@ function handleFileBaseCommand() {
 	return ({
 		info	: displayFileAreaInfo,
 		scan	: scanFileAreas,
+
+		mv		: moveFiles,
 		move	: moveFiles,
+
+		rm		: removeFiles,
 		remove	: removeFiles,
+		del		: removeFiles,
+		delete	: removeFiles,
 	}[action] || errUsage)();
 }

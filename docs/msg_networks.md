@@ -6,7 +6,7 @@ Message networks are configured in `messageNetworks` section of `config.hjson`. 
   * `originLine` (optional): Overrwrite the default origin line for networks that support it. For example: `originLine: Xibalba - xibalba.l33t.codes:44510`
 
 ## FidoNet Technology Network (FTN)
-FTN networks are configured under the `messageNetworks::ftn` section of `config.hjson`.
+FTN networks are configured under the `messageNetworks.ftn` section of `config.hjson`.
 
 ### Networks
 The `networks` section contains a sub section for network(s) you wish you join your board with. Each entry's key name can be referenced elsewhere in `config.hjson` for FTN oriented configurations.
@@ -30,7 +30,7 @@ The `networks` section contains a sub section for network(s) you wish you join y
 ```
   
 ### Areas
-The `areas` section describes a mapping of local **area tags** found in your `messageConferences` to a message network (from `networks` described previously), a FTN specific area tag, and remote uplink address(s). This section can be thought of similar to the *AREAS.BBS* file used by other BBS packages.
+The `areas` section describes a mapping of local **area tags** found in your `messageConferences` to a message network (from `networks` described previously), a FTN specific area tag, and remote uplink address(s). This section can be thought of similar to the *AREAS.BBS* file used by other BBS packages (In fact you can import AREAS.BBS using `oputil.js`!)
 
 When importing, messages will be placed in the local area that matches key under `areas`.
 
@@ -57,11 +57,11 @@ When importing, messages will be placed in the local area that matches key under
 ```
 
 ### BSO Import / Export
-The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss & scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers::ftn_bso`.
+The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss & scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
 **Members**:
   * `defaultZone` (required): Sets the default BSO outbound zone
-  * `defaultNetwork` (optional): Sets the default network name from `messageNetworks::ftn::networks`. **Required if more than one network is defined**.
+  * `defaultNetwork` (optional): Sets the default network name from `messageNetworks.ftn.networks`. **Required if more than one network is defined**.
   * `paths` (optional): Override default paths set by the system. This section may contain `outbound`, `inbound`, and `secInbound`.
   * `packetTargetByteSize` (optional): Overrides the system *target* packet (.pkt) size of 512000 bytes (512k)
   * `bundleTargetByteSize` (optional): Overrides the system *target* ArcMail bundle size of 2048000 bytes (2M)
@@ -85,7 +85,7 @@ A node entry starts with a FTN style address (up to 5D) **as a key** in `config.
   scannerTossers: {
     ftn_bso: {
       nodes: {
-        "46:*: {
+        "46:*": {
           packetType: 2+
           packetPassword: mypass
           encoding: cp437
@@ -96,6 +96,78 @@ A node entry starts with a FTN style address (up to 5D) **as a key** in `config.
   }
 }
 ```
+
+#### TIC Support
+ENiGMA½ supports TIC files. This is handled by mapping TIC areas to local file areas.
+
+Under a given node (like the one configured above), TIC configuration may be supplied:
+
+```hjson
+{
+  scannerTossers: {
+    ftn_bso: {
+      nodes: {
+        "46:*": {
+          packetType: 2+
+          packetPassword: mypass
+          encoding: cp437
+          archiveType: zip
+          tic: {
+            password: TESTY-TEST
+            uploadBy: Agoranet TIC
+            allowReplace: true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+You then need to configure the mapping between TIC areas you want to carry, and the file 
+base area for them to be tossed to. Start by creating a storage tag and file base, if you haven't 
+already:
+
+````hjson
+fileBase: {
+    areaStoragePrefix: /home/bbs/file_areas/
+    
+    storageTags: {
+        msg_network: "msg_network"
+    }
+    
+    areas: {
+        msgNetworks: {
+            name: Message Networks
+            desc: Message networks news & info
+            storageTags: [
+                "msg_network"
+            ]
+        }
+    }
+}
+
+````
+and then create the mapping between the TIC area and the file area created:
+
+````hjson
+ticAreas: {
+    agn_node: {
+        areaTag: msgNetworks
+        hashTags: agoranet,nodelist
+        storageTag: msg_network
+    }
+    
+    agn_info: {
+        areaTag: msgNetworks
+        hashTags: agoranet,infopack
+        storageTag: msg_network
+    }
+}
+
+````
+Multiple TIC areas can be mapped to a single file base area. 
+
 
 #### Scheduling
 Schedules can be defined for importing and exporting via `import` and `export` under `schedule`. Each entry is allowed a "free form" text and/or special indicators for immediate export or watch file triggers.

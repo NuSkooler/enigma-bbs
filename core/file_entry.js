@@ -11,10 +11,13 @@ const async					= require('async');
 const _						= require('lodash');
 const paths					= require('path');
 const fse					= require('fs-extra');
+const { unlink, readFile }	= require('graceful-fs');
+const crypto				= require('crypto');
+const moment				= require('moment');
 
 const FILE_TABLE_MEMBERS	= [ 
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
-	'desc', 'desc_long', 'upload_timestamp' 
+	'desc', 'desc_long', 'upload_timestamp'
 ];
 
 const FILE_WELL_KNOWN_META = {
@@ -110,9 +113,8 @@ module.exports = class FileEntry {
 		}
 
 		const self = this;
-		let inTransaction = false;
 
-		async.series(
+		async.waterfall(
 			[
 				function check(callback) {
 					if(isUpdate && !self.fileId) {
@@ -120,23 +122,41 @@ module.exports = class FileEntry {
 					}
 					return callback(null);
 				},
-				function startTrans(callback) {
-					return fileDb.run('BEGIN;', callback);
-				},
-				function storeEntry(callback) {
-					inTransaction = true;
+				function calcSha256IfNeeded(callback) {
+					if(self.fileSha256) {
+						return callback(null);
+					}
 
 					if(isUpdate) {
-						fileDb.run(
+						return callback(Errors.MissingParam('fileSha256 property must be set for updates!'));
+					}
+
+					readFile(self.filePath, (err, data) => {
+						if(err) {
+							return callback(err);
+						}
+
+						const sha256 = crypto.createHash('sha256');
+						sha256.update(data);
+						self.fileSha256 = sha256.digest('hex');
+						return callback(null);
+					});
+				},
+				function startTrans(callback) {
+					return fileDb.beginTransaction(callback);
+				},
+				function storeEntry(trans, callback) {
+					if(isUpdate) {
+						trans.run(
 							`REPLACE INTO file (file_id, area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
 							VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
 							[ self.fileId, self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
 							err => {
-								return callback(err);
+								return callback(err, trans);
 							}
 						);
 					} else {
-						fileDb.run(
+						trans.run(
 							`REPLACE INTO file (area_tag, file_sha256, file_name, storage_tag, desc, desc_long, upload_timestamp)
 							VALUES(?, ?, ?, ?, ?, ?, ?);`,
 							[ self.areaTag, self.fileSha256, self.fileName, self.storageTag, self.desc, self.descLong, getISOTimestampString() ],
@@ -144,35 +164,35 @@ module.exports = class FileEntry {
 								if(!err) {
 									self.fileId = this.lastID;
 								}
-								return callback(err);
+								return callback(err, trans);
 							}
 						);
 					}
 				},
-				function storeMeta(callback) {
+				function storeMeta(trans, callback) {
 					async.each(Object.keys(self.meta), (n, next) => {
 						const v = self.meta[n];
-						return FileEntry.persistMetaValue(self.fileId, n, v, next);
+						return FileEntry.persistMetaValue(self.fileId, n, v, trans, next);
 					}, 
 					err => {
-						return callback(err);
+						return callback(err, trans);
 					});
 				},
-				function storeHashTags(callback) {
+				function storeHashTags(trans, callback) {
 					const hashTagsArray = Array.from(self.hashTags);
 					async.each(hashTagsArray, (hashTag, next) => {
-						return FileEntry.persistHashTag(self.fileId, hashTag, next);
+						return FileEntry.persistHashTag(self.fileId, hashTag, trans, next);
 					},
 					err => {
-						return callback(err);
+						return callback(err, trans);
 					});					
 				}
 			],
-			err => {
+			(err, trans) => {
 				//	:TODO: Log orig err
-				if(inTransaction) {
-					fileDb.run(err ? 'ROLLBACK;' : 'COMMIT;', err => {
-						return cb(err);
+				if(trans) {
+					trans[err ? 'rollback' : 'commit'](transErr => {
+						return cb(transErr ? transErr : err);
 					});
 				} else {
 					return cb(err);
@@ -207,8 +227,13 @@ module.exports = class FileEntry {
 		);
 	}
 
-	static persistMetaValue(fileId, name, value, cb) {
-		return fileDb.run(
+	static persistMetaValue(fileId, name, value, transOrDb, cb) {
+		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+			cb = transOrDb;
+			transOrDb = fileDb;
+		}
+
+		return transOrDb.run(
 			`REPLACE INTO file_meta (file_id, meta_name, meta_value)
 			VALUES (?, ?, ?);`,
 			[ fileId, name, value ],
@@ -249,15 +274,20 @@ module.exports = class FileEntry {
 		);
 	}
 
-	static persistHashTag(fileId, hashTag, cb) {
-		fileDb.serialize( () => {
-			fileDb.run(
+	static persistHashTag(fileId, hashTag, transOrDb, cb) {
+		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+			cb = transOrDb;
+			transOrDb = fileDb;
+		}
+
+		transOrDb.serialize( () => {
+			transOrDb.run(
 				`INSERT OR IGNORE INTO hash_tag (hash_tag)
 				VALUES (?);`, 
 				[ hashTag ]
 			);
 
-			fileDb.run(
+			transOrDb.run(
 				`REPLACE INTO file_hash_tag (hash_tag_id, file_id)
 				VALUES (
 					(SELECT hash_tag_id
@@ -395,7 +425,11 @@ module.exports = class FileEntry {
 		let sqlWhere = '';
 		let sqlOrderBy;
 		const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
-		
+
+		if(moment.isMoment(filter.newerThanTimestamp)) {
+			filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
+		}
+
 		function getOrderByWithCast(ob) {
 			if( [ 'dl_count', 'est_release_year', 'byte_size' ].indexOf(filter.sort) > -1 ) {
 				return `ORDER BY CAST(${ob} AS INTEGER)`;
@@ -415,7 +449,7 @@ module.exports = class FileEntry {
 
 		if(filter.sort && filter.sort.length > 0) {
 			if(Object.keys(FILE_WELL_KNOWN_META).indexOf(filter.sort) > -1) {	//	sorting via a meta value?
-				sql = 
+				sql =
 					`SELECT DISTINCT f.file_id
 					FROM file f, file_meta m`;
 
@@ -432,7 +466,7 @@ module.exports = class FileEntry {
 							WHERE file_id = f.file_id)
 							AS avg_rating
 						FROM file f`;
-					
+
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
 					sql = 
@@ -443,7 +477,7 @@ module.exports = class FileEntry {
 				}
 			}
 		} else {
-			sql = 
+			sql =
 				`SELECT DISTINCT f.file_id
 				FROM file f`;
 
@@ -451,7 +485,12 @@ module.exports = class FileEntry {
 		}
 
 		if(filter.areaTag && filter.areaTag.length > 0) {
-			appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+			if(Array.isArray(filter.areaTag)) {
+				const areaList = filter.areaTag.map(t => `"${t}"`).join(', ');
+				appendWhereClause(`f.area_tag IN(${areaList})`);
+			} else {
+				appendWhereClause(`f.area_tag = "${filter.areaTag}"`);
+			}
 		}
 
 		if(filter.metaPairs && filter.metaPairs.length > 0) {
@@ -494,8 +533,8 @@ module.exports = class FileEntry {
 		}
 		
 		if(filter.tags && filter.tags.length > 0) {
-			//	build list of quoted tags; filter.tags comes in as a space separated values
-			const tags = filter.tags.split(' ').map( tag => `"${tag}"` ).join(',');
+			//	build list of quoted tags; filter.tags comes in as a space and/or comma separated values
+			const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${tag}"` ).join(',');
 
 			appendWhereClause(
 				`f.file_id IN (
@@ -518,7 +557,13 @@ module.exports = class FileEntry {
 			appendWhereClause(`f.file_id > ${filter.newerThanFileId}`);
 		}
 
-		sql += `${sqlWhere} ${sqlOrderBy};`;
+		sql += `${sqlWhere} ${sqlOrderBy}`;
+
+		if(_.isNumber(filter.limit)) {
+			sql += ` LIMIT ${filter.limit}`;
+		}
+
+		sql += ';';
 
 		const matchingFileIds = [];
 		fileDb.each(sql, (err, fileId) => {
@@ -530,6 +575,40 @@ module.exports = class FileEntry {
 		});
 	}
 
+	static removeEntry(srcFileEntry, options, cb) {
+		if(!_.isFunction(cb) && _.isFunction(options)) {
+			cb = options;
+			options = {};
+		}
+
+		async.series(
+			[
+				function removeFromDatabase(callback) {
+					fileDb.run(
+						`DELETE FROM file
+						WHERE file_id = ?;`,
+						[ srcFileEntry.fileId ],
+						err => {
+							return callback(err);
+						}
+					);
+				},
+				function optionallyRemovePhysicalFile(callback) {
+					if(true !== options.removePhysFile) {
+						return callback(null);
+					}
+
+					unlink(srcFileEntry.filePath, err => {
+						return callback(err);
+					});
+				}
+			],
+			err => {
+				return cb(err);
+			}
+		);
+	}
+
 	static moveEntry(srcFileEntry, destAreaTag, destStorageTag, destFileName, cb) {
 		if(!cb && _.isFunction(destFileName)) {
 			cb = destFileName;
@@ -538,7 +617,6 @@ module.exports = class FileEntry {
 
 		const srcPath	= srcFileEntry.filePath;
 		const dstDir	= FileEntry.getAreaStorageDirectoryByTag(destStorageTag);
-		
 		
 		if(!dstDir) {
 			return cb(Errors.Invalid('Invalid storage tag'));

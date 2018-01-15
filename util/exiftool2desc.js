@@ -43,12 +43,12 @@ function documentFile(metadata) {
 		return;
 	}
 
-	let desc = `${metadata.author||'Unknown Author'} - ${metadata.title||'Unknown'}`;
-	const created = moment(metadata.createdate);
-	if(created.isValid()) {
-		desc += ` (${created.format('YYYY')})`;
+	let result = metadata.author || '';
+	if(result) {
+		result += ' - ';
 	}
-	return desc;
+	result += metadata.title || 'Unknown Title';
+	return result;
 }
 
 function imageFile(metadata) {

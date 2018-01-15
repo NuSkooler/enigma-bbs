@@ -2,17 +2,19 @@
 'use strict';
 
 //	ENiGMA½
-const msgDb				= require('./database.js').dbs.message;
-const Config			= require('./config.js').config;
-const Message			= require('./message.js');
-const Log				= require('./logger.js').log;
-const msgNetRecord		= require('./msg_network.js').recordMessage;
-const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
+const msgDb						= require('./database.js').dbs.message;
+const Config					= require('./config.js').config;
+const Message					= require('./message.js');
+const Log						= require('./logger.js').log;
+const msgNetRecord				= require('./msg_network.js').recordMessage;
+const sortAreasOrConfs			= require('./conf_area_util.js').sortAreasOrConfs;
+const { getISOTimestampString } = require('./database.js');
 
 //	deps
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
+const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -28,6 +30,7 @@ exports.tempChangeMessageConfAndArea		= tempChangeMessageConfAndArea;
 exports.getMessageListForArea				= getMessageListForArea;
 exports.getNewMessageCountInAreaForUser		= getNewMessageCountInAreaForUser;
 exports.getNewMessagesInAreaForUser			= getNewMessagesInAreaForUser;
+exports.getMessageIdNewerThanTimestampByArea	= getMessageIdNewerThanTimestampByArea;
 exports.getMessageAreaLastReadId			= getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId			= updateMessageAreaLastReadId;
 exports.persistMessage						= persistMessage;
@@ -347,13 +350,13 @@ function getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, what)
 		'COUNT() AS count' : 
 		'message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count';
 
-	let sql = 
+	let sql =
 		`SELECT ${selectWhat}
 		FROM message
 		WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
 
 	if(Message.isPrivateAreaTag(areaTag)) {
-		sql += 
+		sql +=
 			` AND message_id in (
 				SELECT message_id 
 				FROM message_meta 
@@ -482,6 +485,28 @@ function getMessageListForArea(options, areaTag, cb) {
 	);
 }
 
+function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
+	if(moment.isMoment(newerThanTimestamp)) {
+		newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
+	}
+
+	msgDb.get(
+		`SELECT message_id 
+		FROM message
+		WHERE area_tag = ? AND DATETIME(modified_timestamp) > DATETIME("${newerThanTimestamp}", "+1 seconds")
+		ORDER BY modified_timestamp ASC
+		LIMIT 1;`,
+		[ areaTag ],
+		(err, row) => {
+			if(err) {
+				return cb(err);
+			}
+
+			return cb(null, row ? row.message_id : null);
+		}
+	);
+}
+
 function getMessageAreaLastReadId(userId, areaTag, cb) {
 	msgDb.get(
 		'SELECT message_id '					+
@@ -494,7 +519,12 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
 	);
 }
 
-function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
+function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
+	if(!cb && _.isFunction(allowOlder)) {
+		cb = allowOlder;
+		allowOlder = false;
+	}
+
 	//	:TODO: likely a better way to do this...
 	async.waterfall(
 		[
@@ -505,7 +535,7 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, cb) {
 				});
 			},
 			function update(lastId, callback) {
-				if(messageId > lastId) {
+				if(allowOlder || messageId > lastId) {
 					msgDb.run(
 						'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) '	+
 						'VALUES (?, ?, ?);',
@@ -568,11 +598,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
 				LIMIT -1 OFFSET ${areaInfo.maxMessages}
 			);`,
 			[ areaInfo.areaTag.toLowerCase() ],
-			err => {
+			function result(err) {	//	no arrow func; need this
 				if(err) {
-					Log.error( { areaInfo : areaInfo, err : err, type : 'maxMessages' }, 'Error trimming message area');
+					Log.error( { areaInfo : areaInfo, error : err.message, type : 'maxMessages' }, 'Error trimming message area');
 				} else {
-					Log.debug( { areaInfo : areaInfo, type : 'maxMessages' }, 'Area trimmed successfully');
+					Log.debug( { areaInfo : areaInfo, type : 'maxMessages', count : this.changes }, 'Area trimmed successfully');
 				}
 				return cb(err);
 			}	
@@ -588,21 +618,25 @@ function trimMessageAreasScheduledEvent(args, cb) {
 			`DELETE FROM message
 			WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
 			[ areaInfo.areaTag ],
-			err => {
+			function result(err) {	//	no arrow func; need this
 				if(err) {
-					Log.warn( { areaInfo : areaInfo, err : err, type : 'maxAgeDays' }, 'Error trimming message area');
+					Log.warn( { areaInfo : areaInfo, error : err.message, type : 'maxAgeDays' }, 'Error trimming message area');
 				} else {
-					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays' }, 'Area trimmed successfully');
+					Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays', count : this.changes }, 'Area trimmed successfully');
 				}
 				return cb(err);
 			}
 		);
 	}
-	
+
 	async.waterfall(
-		[			
+		[
 			function getAreaTags(callback) {
-				let areaTags = [];
+				const areaTags = [];
+
+				//
+				//	We use SQL here vs API such that no-longer-used tags are picked up
+				//
 				msgDb.each(
 					`SELECT DISTINCT area_tag
 					FROM message;`,
@@ -610,7 +644,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
 						if(err) {
 							return callback(err);
 						}
-						areaTags.push(row.area_tag);
+
+						//	We treat private mail special
+						if(!Message.isPrivateAreaTag(row.area_tag)) {
+							areaTags.push(row.area_tag);
+						}
 					},
 					err => {
 						return callback(err, areaTags);
@@ -622,30 +660,26 @@ function trimMessageAreasScheduledEvent(args, cb) {
 
 				//	determine maxMessages & maxAgeDays per area
 				areaTags.forEach(areaTag => {
-					
+
 					let maxMessages = Config.messageAreaDefaults.maxMessages;
 					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
-					
+
 					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf here
 					if(area) {
-						if(area.maxMessages) {
-							maxMessages = area.maxMessages;
-						}
-						if(area.maxAgeDays) {
-							maxAgeDays = area.maxAgeDays;
-						}
+						maxMessages = area.maxMessages || maxMessages;
+						maxAgeDays	= area.maxAgeDays || maxAgeDays;
 					}
 
 					areaInfos.push( {
 						areaTag		: areaTag,
 						maxMessages	: maxMessages,
 						maxAgeDays	: maxAgeDays,
-					} );					
+					} );
 				});
 
 				return callback(null, areaInfos);
 			},
-			function trimAreas(areaInfos, callback) {
+			function trimGeneralAreas(areaInfos, callback) {
 				async.each(
 					areaInfos,
 					(areaInfo, next) => {
@@ -661,11 +695,50 @@ function trimMessageAreasScheduledEvent(args, cb) {
 					},
 					callback
 				);
-			}			
+			},
+			function trimExternalPrivateSentMail(callback) {
+				//
+				//	*External* (FTN, email, ...) outgoing is cleaned up *after export*
+				//	if it is older than the configured |maxExternalSentAgeDays| days
+				//
+				//	Outgoing externally exported private mail is:
+				//	- In the 'private_mail' area
+				//	- Marked exported (state_flags0 exported bit set)
+				//	- Marked with any external flavor (we don't mark local)
+				//
+				const maxExternalSentAgeDays = _.get(
+					Config,
+					'messageConferences.system_internal.areas.private_mail.maxExternalSentAgeDays',
+					30
+				);
+
+				msgDb.run(
+					`DELETE FROM message
+					WHERE message_id IN (
+						SELECT m.message_id
+						FROM message m
+						JOIN message_meta mms
+							ON m.message_id = mms.message_id AND
+							(mms.meta_category='System' AND mms.meta_name='${Message.SystemMetaNames.StateFlags0}' AND (mms.meta_value & ${Message.StateFlags0.Exported} = ${Message.StateFlags0.Exported}))
+						JOIN message_meta mmf
+							ON m.message_id = mmf.message_id AND
+							(mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
+						WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND	DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
+					);`,
+					function results(err) {	//	no arrow func; need this
+						if(err) {
+							Log.warn( { error : err.message }, 'Error trimming private externally sent messages');
+						} else {
+							Log.debug( { count : this.changes }, 'Private externally sent messages trimmed successfully');
+						}
+					}
+				);
+
+				return callback(null);
+			}
 		],
 		err => {
 			return cb(err);
 		}
 	);
-	
 }

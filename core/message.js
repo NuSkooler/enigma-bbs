@@ -76,6 +76,10 @@ function Message(options) {
 	this.isPrivate = function() {
 		return Message.isPrivateAreaTag(this.areaTag);
 	};
+
+	this.isFromRemoteUser = function() {
+		return null !== _.get(this, 'meta.System.remote_from_user', null);
+	};
 }
 
 Message.WellKnownAreaTags = {
@@ -93,6 +97,16 @@ Message.SystemMetaNames = {
 	LocalFromUserID			: 'local_from_user_id',
 	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
 	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
+	ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
+	RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address
+	RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address
+};
+
+//	Types for Message.SystemMetaNames.ExternalFlavor meta
+Message.AddressFlavor = {
+	Local		: 'local',	//	local / non-remote addressing
+	FTN			: 'ftn',	//	FTN style
+	Email		: 'email',
 };
 
 Message.StateFlags0 = {
@@ -112,7 +126,7 @@ Message.FtnPropertyNames = {
 	FtnDestZone			: 'ftn_dest_zone',
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
-		
+
 	FtnAttribute		: 'ftn_attribute',
 
 	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
@@ -124,11 +138,23 @@ Message.FtnPropertyNames = {
 //	Note: kludges are stored with their names as-is
 
 Message.prototype.setLocalToUserId = function(userId) {
-	this.meta.System.local_to_user_id = userId;
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.LocalToUserID] = userId;
 };
 
 Message.prototype.setLocalFromUserId = function(userId) {
-	this.meta.System.local_from_user_id = userId;
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
+};
+
+Message.prototype.setRemoteToUser = function(remoteTo) {
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.RemoteToUser] = remoteTo;
+};
+
+Message.prototype.setExternalFlavor = function(flavor) {
+	this.meta.System = this.meta.System || {};
+	this.meta.System[Message.SystemMetaNames.ExternalFlavor] = flavor;
 };
 
 Message.createMessageUUID = function(areaTag, modTimestamp, subject, body) {
@@ -321,8 +347,13 @@ Message.prototype.load = function(options, cb) {
 	);
 };
 
-Message.prototype.persistMetaValue = function(category, name, value, cb) {
-	const metaStmt = msgDb.prepare(
+Message.prototype.persistMetaValue = function(category, name, value, transOrDb, cb) {
+	if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+		cb = transOrDb;
+		transOrDb = msgDb;
+	}
+
+	const metaStmt = transOrDb.prepare(
 		`INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
 		VALUES (?, ?, ?, ?);`);
 		
@@ -341,18 +372,6 @@ Message.prototype.persistMetaValue = function(category, name, value, cb) {
 	});
 };
 
-Message.startTransaction = function(cb) {
-	msgDb.run('BEGIN;', err => {
-		cb(err);
-	});
-};
-
-Message.endTransaction = function(hadError, cb) {
-	msgDb.run(hadError ? 'ROLLBACK;' : 'COMMIT;', err => {
-		cb(err);
-	});	
-};
-
 Message.prototype.persist = function(cb) {
 
 	if(!this.isValid()) {
@@ -361,14 +380,12 @@ Message.prototype.persist = function(cb) {
 
 	const self = this;
 	
-	async.series(
+	async.waterfall(
 		[
 			function beginTransaction(callback) {
-				Message.startTransaction(err => {
-					return callback(err);
-				});
+				return msgDb.beginTransaction(callback);
 			},
-			function storeMessage(callback) {
+			function storeMessage(trans, callback) {
 				//	generate a UUID for this message if required (general case)
 				const msgTimestamp = moment();
 				if(!self.uuid) {
@@ -379,7 +396,7 @@ Message.prototype.persist = function(cb) {
 						self.message);
 				}
 
-				msgDb.run(
+				trans.run(
 					`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?);`, 
 					[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
@@ -388,13 +405,13 @@ Message.prototype.persist = function(cb) {
 							self.messageId = this.lastID;
 						}
 
-						return callback(err);
+						return callback(err, trans);
 					}
 				);
 			},
-			function storeMeta(callback) {
+			function storeMeta(trans, callback) {
 				if(!self.meta) {
-					return callback(null);
+					return callback(null, trans);
 				}
 				/*
 					Example of self.meta:
@@ -410,7 +427,7 @@ Message.prototype.persist = function(cb) {
 				*/
 				async.each(Object.keys(self.meta), (category, nextCat) => {
 					async.each(Object.keys(self.meta[category]), (name, nextName) => {
-						self.persistMetaValue(category, name, self.meta[category][name], err => {
+						self.persistMetaValue(category, name, self.meta[category][name], trans, err => {
 							nextName(err);
 						});
 					}, err => {
@@ -418,18 +435,22 @@ Message.prototype.persist = function(cb) {
 					});
 						
 				}, err => {
-					callback(err);
+					callback(err, trans);
 				});					
 			},
-			function storeHashTags(callback) {
+			function storeHashTags(trans, callback) {
 				//	:TODO: hash tag support
-				return callback(null);
+				return callback(null, trans);
 			}
 		],
-		err => {
-			Message.endTransaction(err, transErr => {
-				return cb(err ? err : transErr, self.messageId);
-			});
+		(err, trans) => {
+			if(trans) {
+				trans[err ? 'rollback' : 'commit'](transErr => {
+					return cb(err ? err : transErr, self.messageId);
+				});
+			} else {
+				return cb(err);
+			}
 		}
 	);
 };

@@ -62,7 +62,7 @@ module.exports = class Log {
 			//	Use a regexp -- we don't know how nested fields we want to seek and destroy may be
 			//
 			return JSON.parse(
-				JSON.stringify(obj).replace(/"(password|key|authCode)"\s?:\s?"([^"]+)"/, (match, valueName) => {
+				JSON.stringify(obj).replace(/"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/, (match, valueName) => {
 					return `"${valueName}":"********"`;
 				})
 			);

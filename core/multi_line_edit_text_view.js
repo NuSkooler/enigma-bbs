@@ -67,7 +67,7 @@ const SPECIAL_KEY_MAP_DEFAULT = {
 	'line feed'		: [ 'return' ],
 	exit			: [ 'esc' ],
 	backspace		: [ 'backspace' ],
-	delete			: [ 'del' ],
+	delete			: [ 'delete' ],
 	tab				: [ 'tab' ],
 	up				: [ 'up arrow' ],
 	down			: [ 'down arrow' ],
@@ -354,21 +354,14 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.removeCharactersFromText = function(index, col, operation, count) {
-		if('right' === operation) {
+		if('delete' === operation) {
 			self.textLines[index].text =
-				self.textLines[index].text.slice(col, count) +
+				self.textLines[index].text.slice(0, col) +
 				self.textLines[index].text.slice(col + count);
-
-			self.cursorPos.col -= count;
 
 			self.updateTextWordWrap(index);
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
-
-			if(0 === self.textLines[index].text) {
-
-			} else {
-				self.redrawRows(self.cursorPos.row, self.dimens.height);
-			}
+			self.moveClientCursorToCursorPos();
 		} else if ('backspace' === operation) {
 			//	:TODO: method for splicing text
 			self.textLines[index].text =
@@ -868,11 +861,25 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.keyPressDelete = function() {
-		self.removeCharactersFromText(
-			self.getTextLinesIndex(),
-			self.cursorPos.col,
-			'right',
-			1);
+		const lineIndex = self.getTextLinesIndex();
+
+		if(0 === self.cursorPos.col && 0 === self.textLines[lineIndex].text.length && self.textLines.length > 0) {
+			//
+			//	Start of line and nothing left. Just delete the line
+			//
+			self.removeCharactersFromText(
+				lineIndex,
+				0,
+				'delete line'
+			);
+		} else {
+			self.removeCharactersFromText(
+				lineIndex,
+				self.cursorPos.col,
+				'delete',
+				1
+			);
+		}
 
 		self.emitEditPosition();
 	};
@@ -1068,9 +1075,9 @@ MultiLineEditTextView.prototype.setFocus = function(focused) {
 	MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 };
 
-MultiLineEditTextView.prototype.setText = function(text) {
+MultiLineEditTextView.prototype.setText = function(text, options = { scrollMode : 'default' } ) {
 	this.textLines = [ ];
-	this.addText(text);
+	this.addText(text, options);
 	/*this.insertRawText(text);
 
 	if(this.isEditMode()) {
@@ -1085,13 +1092,27 @@ MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : f
 	return this.setAnsiWithOptions(ansi, options, cb);
 };
 
-MultiLineEditTextView.prototype.addText = function(text) {
+MultiLineEditTextView.prototype.addText = function(text, options = { scrollMode : 'default' }) {
 	this.insertRawText(text);
 
-	if(this.isEditMode() || this.autoScroll) {
-		this.cursorEndOfDocument();
-	} else {
-		this.cursorStartOfDocument();
+	switch(options.scrollMode) {
+		case 'default' :
+			if(this.isEditMode() || this.autoScroll) {
+				this.cursorEndOfDocument();
+			} else {
+				this.cursorStartOfDocument();
+			}
+			break;
+
+		case 'top' :
+		case 'start' :
+			this.cursorStartOfDocument();
+			break;
+
+		case 'end' :
+		case 'bottom' :
+			this.cursorEndOfDocument();
+			break;
 	}
 };
 
@@ -1129,7 +1150,7 @@ const HANDLED_SPECIAL_KEYS = [
 	'line feed',
 	'insert',
 	'tab',
-	'backspace', 'del',
+	'backspace', 'delete',
 	'delete line',
 ];
 

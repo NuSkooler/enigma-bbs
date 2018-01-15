@@ -29,11 +29,12 @@ const ENIGMA_COPYRIGHT	= 'ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby';
 const HELP =
 `${ENIGMA_COPYRIGHT}
 usage: main.js <args>
+eg   : main.js --config /enigma_install_path/config/
 
 valid args:
   --version       : display version
   --help          : displays this help
-  --config PATH   : override default config.hjson path
+  --config PATH   : override default config path
 `;
 
 function printHelpAndExit() {
@@ -56,7 +57,8 @@ function main() {
 				return callback(null, configOverridePath || conf.getDefaultPath(), _.isString(configOverridePath));
 			},
 			function initConfig(configPath, configPathSupplied, callback) {
-				conf.init(resolvePath(configPath), function configInit(err) {
+				const configFile = configPath + 'config.hjson';
+				conf.init(resolvePath(configFile), function configInit(err) {
 
 					//
 					//	If the user supplied a path and we can't read/parse it
@@ -65,7 +67,7 @@ function main() {
 					if(err) {
 						if('ENOENT' === err.code)  {
 							if(configPathSupplied) {
-								console.error('Configuration file does not exist: ' + configPath);
+								console.error('Configuration file does not exist: ' + configFile);
 							} else {
 								configPathSupplied = null;	//	make non-fatal; we'll go with defaults
 							}
@@ -233,6 +235,17 @@ function initialize(cb) {
 						return callback(null);
 					}
 				);
+			},
+			function initFileAreaStats(callback) {
+				const getAreaStats = require('./file_base_area.js').getAreaStats;
+				getAreaStats( (err, stats) => {
+					if(!err) {
+						const StatLog = require('./stat_log.js');
+						StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
+					}
+
+					return callback(null);
+				});
 			},
 			function initMCI(callback) {
 				return require('./predefined_mci.js').init(callback);

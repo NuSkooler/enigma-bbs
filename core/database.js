@@ -6,6 +6,7 @@ const conf			= require('./config.js');
 
 //	deps
 const sqlite3		= require('sqlite3');
+const sqlite3Trans	= require('sqlite3-trans');
 const paths			= require('path');
 const async			= require('async');
 const _				= require('lodash');
@@ -13,13 +14,18 @@ const assert		= require('assert');
 const moment		= require('moment');
 
 //	database handles
-let dbs = {};
+const dbs = {};
 
+exports.getTransactionDatabase		= getTransactionDatabase;
 exports.getModDatabasePath			= getModDatabasePath;
 exports.getISOTimestampString		= getISOTimestampString;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
+
+function getTransactionDatabase(db) {
+	return sqlite3Trans.wrap(db);
+}
 
 function getDatabasePath(name) {
 	return paths.join(conf.config.paths.db, `${name}.sqlite3`);
@@ -55,7 +61,7 @@ function getISOTimestampString(ts) {
 
 function initializeDatabases(cb) {
 	async.eachSeries( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
-		dbs[dbName] = new sqlite3.Database(getDatabasePath(dbName), err => {
+		dbs[dbName] = sqlite3Trans.wrap(new sqlite3.Database(getDatabasePath(dbName), err => {
 			if(err) {
 				return cb(err);
 			}
@@ -65,7 +71,7 @@ function initializeDatabases(cb) {
 					return next(null);
 				});
 			});
-		});
+		}));
 	}, err => {
 		return cb(err);
 	});
@@ -365,6 +371,15 @@ const DB_INIT_TABLE = {
 			`CREATE TABLE IF NOT EXISTS file_web_serve (
 				hash_id				VARCHAR NOT NULL PRIMARY KEY,
 				expire_timestamp	DATETIME NOT NULL
+			);`
+		);
+
+		dbs.file.run(
+			`CREATE TABLE IF NOT EXISTS file_web_serve_batch (
+				hash_id		VARCHAR NOT NULL,
+				file_id		INTEGER NOT NULL,
+
+				UNIQUE(hash_id, file_id)
 			);`
 		);
 

@@ -19,15 +19,6 @@ const moment		= require('moment');
 
 exports.Packet			= Packet;
 
-/*
-	:TODO: things
-	* Test SAUCE ignore/extraction
-	* FSP-1010 for netmail (see SBBS)
-	* Syncronet apparently uses odd origin lines
-	* Origin lines starting with "#" instead of "*" ?
-
-*/
-
 const FTN_PACKET_HEADER_SIZE	= 58;	//	fixed header size
 const FTN_PACKET_HEADER_TYPE	= 2;
 const FTN_PACKET_MESSAGE_TYPE	= 2;
@@ -63,7 +54,7 @@ class PacketHeader {
 
 		this.capWord			= 0x0001;
 		this.capWordValidate	= ((this.capWord & 0xff) << 8) | ((this.capWord >> 8) & 0xff);	//	swap
-		
+
 		this.prodCodeHi			= 0xfe;	//	see above
 		this.prodRevHi			= 0;		
 	}
@@ -358,9 +349,9 @@ function Packet(options) {
 		buffer.writeUInt16LE(packetHeader.origPoint, 50);
 		buffer.writeUInt16LE(packetHeader.destPoint, 52);
 		buffer.writeUInt32LE(packetHeader.prodData, 54);
-		
+
 		ws.write(buffer);
-		
+
 		return buffer.length;
 	};
 
@@ -393,9 +384,19 @@ function Packet(options) {
 		};
 
 		function addKludgeLine(line) {
-			const sepIndex 	= line.indexOf(':');
-			const key		= line.substr(0, sepIndex).toUpperCase();
-			const value		= line.substr(sepIndex + 1).trim();
+			//
+			//	We have to special case INTL/TOPT/FMPT as they don't contain
+			//	a ':' name/value separator like the rest of the kludge lines... because stupdity.
+			//
+			let key = line.substr(0, 4).trim();
+			let value;
+			if( ['INTL', 'TOPT', 'FMPT', 'Via' ].includes(key)) {
+				value = line.substr(key.length).trim();
+			} else {
+				const sepIndex = line.indexOf(':');
+				key		= line.substr(0, sepIndex).toUpperCase();
+				value	= line.substr(sepIndex + 1).trim();
+			}
 
 			//
 			//	Allow mapped value to be either a key:value if there is only
@@ -636,10 +637,30 @@ function Packet(options) {
 				});			
 			});
 	};
-		
+
+	this.sanatizeFtnProperties = function(message) {
+		[
+			Message.FtnPropertyNames.FtnOrigNode,
+			Message.FtnPropertyNames.FtnDestNode,
+			Message.FtnPropertyNames.FtnOrigNetwork,
+			Message.FtnPropertyNames.FtnDestNetwork,
+			Message.FtnPropertyNames.FtnAttrFlags,
+			Message.FtnPropertyNames.FtnCost,
+			Message.FtnPropertyNames.FtnOrigZone,
+			Message.FtnPropertyNames.FtnDestZone,
+			Message.FtnPropertyNames.FtnOrigPoint,
+			Message.FtnPropertyNames.FtnDestPoint,
+			Message.FtnPropertyNames.FtnAttribute,
+		].forEach( propName => {
+			if(message.meta.FtnProperty[propName]) {
+				message.meta.FtnProperty[propName] = parseInt(message.meta.FtnProperty[propName]) || 0;
+			}
+		});
+	};
+
 	this.getMessageEntryBuffer = function(message, options, cb) {
-		
-		function getAppendMeta(k, m) {
+
+		function getAppendMeta(k, m, sepChar=':') {
 			let append = '';
 			if(m) {
 				let a = m;
@@ -647,7 +668,7 @@ function Packet(options) {
 					a = [ a ];
 				}
 				a.forEach(v => {
-					append += `${k}: ${v}\r`;
+					append += `${k}${sepChar} ${v}\r`;
 				});
 			}
 			return append;
@@ -657,7 +678,10 @@ function Packet(options) {
 			[
 				function prepareHeaderAndKludges(callback) {
 					const basicHeader = new Buffer(34);
-		
+
+					//	ensure address FtnProperties are numbers
+					self.sanatizeFtnProperties(message);
+
 					basicHeader.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
 					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
 					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_node, 4);
@@ -693,10 +717,22 @@ function Packet(options) {
 						msgBody += `AREA:${message.meta.FtnProperty.ftn_area}\r`;	//	note: no ^A (0x01)
 					}
 					
+					//	:TODO: DRY with similar function in this file!
 					Object.keys(message.meta.FtnKludge).forEach(k => {
-						//	we want PATH to be last
-						if('PATH' !== k) {
-							msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
+						switch(k) {
+							case 'PATH' :
+								break;	//	skip & save for last
+
+							case 'Via' :
+							case 'FMPT' :
+							case 'TOPT' :
+							case 'INTL' :
+								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k], '');	// no sepChar
+								break;
+
+							default		:
+								msgBody += getAppendMeta(`\x01${k}`, message.meta.FtnKludge[k]); 
+								break;
 						}
 					});
 
@@ -810,14 +846,14 @@ function Packet(options) {
 		//	:TODO: Put this in it's own method
 		let msgBody = '';
 
-		function appendMeta(k, m) {
+		function appendMeta(k, m, sepChar=':') {
 			if(m) {
 				let a = m;
 				if(!_.isArray(a)) {
 					a = [ a ];
 				}
 				a.forEach(v => {
-					msgBody += `${k}: ${v}\r`;
+					msgBody += `${k}${sepChar} ${v}\r`;
 				});
 			}
 		}
@@ -832,9 +868,15 @@ function Packet(options) {
 		}
 		
 		Object.keys(message.meta.FtnKludge).forEach(k => {
-			//	we want PATH to be last
-			if('PATH' !== k) {
-				appendMeta(`\x01${k}`, message.meta.FtnKludge[k]);
+			switch(k) {
+				case 'PATH' : break;	//	skip & save for last
+
+				case 'Via' :
+				case 'FMPT' :
+				case 'TOPT' :
+				case 'INTL' : appendMeta(`\x01${k}`, message.meta.FtnKludge[k], ''); break;	//	no sepChar
+
+				default		: appendMeta(`\x01${k}`, message.meta.FtnKludge[k]); break;
 			}
 		});
 

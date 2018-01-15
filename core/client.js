@@ -306,7 +306,21 @@ function Client(input, output) {
 				key.name = 'line feed';
 			} else if('\t' === s) {
 				key.name = 'tab';
-			} else if ('\b' === s || '\x7f' === s || '\x1b\x7f' === s || '\x1b\b' === s) {
+			} else if('\x7f' === s) {
+				//
+				//	Backspace vs delete is a crazy thing, especially in *nix.
+				//	- ANSI-BBS uses 0x7f for DEL
+				//	- xterm et. al clients send 0x7f for backspace... ugg.
+				//
+				//	See http://www.hypexr.org/linux_ruboff.php
+				//	And a great discussion @ https://lists.debian.org/debian-i18n/1998/04/msg00015.html
+				//
+				if(self.term.isNixTerm()) {
+					key.name	= 'backspace';
+				} else {
+					key.name	= 'delete';
+				}
+			} else if ('\b' === s || '\x1b\x7f' === s || '\x1b\b' === s) {
 				//	backspace, CTRL-H
 				key.name	= 'backspace';
 				key.meta	= ('\x1b' === s.charAt(0));
@@ -493,10 +507,15 @@ Client.prototype.defaultHandlerMissingMod = function(err) {
 };
 
 Client.prototype.terminalSupports = function(query) {
+	const termClient = this.term.termClient;
+
 	switch(query) {
 		case 'vtx_audio' :
 			//	https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
-			return this.termClient === 'vtx';
+			return 'vtx' === termClient;
+
+		case 'vtx_hyperlink' :
+			return 'vtx' === termClient;
 		
 		default : 
 			return false;

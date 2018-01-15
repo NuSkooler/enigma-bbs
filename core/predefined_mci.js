@@ -45,11 +45,11 @@ function getUserRatio(client, propA, propB) {
 }
 
 function userStatAsString(client, statName, defaultValue) {
-	return (StatLog.getUserStat(client.user, statName) || defaultValue).toString();
+	return (StatLog.getUserStat(client.user, statName) || defaultValue).toLocaleString();
 }
 
 function sysStatAsString(statName, defaultValue) {
-	return (StatLog.getSystemStat(statName) || defaultValue).toString();
+	return (StatLog.getSystemStat(statName) || defaultValue).toLocaleString();
 }
 
 const PREDEFINED_MCI_GENERATORS = {
@@ -177,7 +177,7 @@ const PREDEFINED_MCI_GENERATORS = {
 
 	AN	: function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
-	TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toString(); },
+	TC	: function totalCalls() { return StatLog.getSystemStat('login_count').toLocaleString(); },
 
 	RR	: function randomRumor() {
 		//	start the process of picking another random one
@@ -201,12 +201,20 @@ const PREDEFINED_MCI_GENERATORS = {
 		const byteSize = StatLog.getSystemStatNum('ul_total_bytes');
 		return formatByteSize(byteSize, true);	//	true=withAbbr
 	},
+	TF	: function totalFilesOnSystem() {
+		const areaStats = StatLog.getSystemStat('file_base_area_stats');
+		return _.get(areaStats, 'totalFiles', 0).toLocaleString();
+	},
+	TB	: function totalBytesOnSystem() {
+		const areaStats		= StatLog.getSystemStat('file_base_area_stats');
+		const totalBytes	= parseInt(_.get(areaStats, 'totalBytes', 0));
+		return formatByteSize(totalBytes, true);	//	true=withAbbr
+	},
 
 	//	:TODO: PT - Messages posted *today* (Obv/2)
 	//		-> Include FTN/etc.
 	//	:TODO: NT - New users today (Obv/2)
 	//	:TODO: CT - Calls *today* (Obv/2)
-	//	:TODO: TF - Total files on the system (Obv/2)
 	//	:TODO: FT - Files uploaded/added *today* (Obv/2)
 	//	:TODO: DD - Files downloaded *today* (iNiQUiTY)
 	//	:TODO: TP - total message/posts on the system (Obv/2)

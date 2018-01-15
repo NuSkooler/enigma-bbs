@@ -13,6 +13,7 @@ const Log				= require('./logger.js').log;
 const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 const stringFormat		= require('./string_format.js');
 const wordWrapText		= require('./word_wrap.js').wordWrapText;
+const StatLog			= require('./stat_log.js');
 
 //	deps
 const _				= require('lodash');
@@ -27,6 +28,7 @@ const moment		= require('moment');
 
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
+exports.getAvailableFileAreaTags		= getAvailableFileAreaTags;
 exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
 exports.isValidStorageTag				= isValidStorageTag;
 exports.getAreaStorageDirectoryByTag	= getAreaStorageDirectoryByTag;
@@ -39,14 +41,19 @@ exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
 exports.scanFile						= scanFile;
 exports.scanFileAreaForChanges			= scanFileAreaForChanges;
 exports.getDescFromFileName				= getDescFromFileName;
+exports.getAreaStats					= getAreaStats;
+
+//	for scheduler:
+exports.updateAreaStatsScheduledEvent	= updateAreaStatsScheduledEvent;
 
 const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	Invalid				: '',
 	MessageAreaAttach	: 'system_message_attachment',
+	TempDownloads		: 'system_temporary_download',
 };
 
 function isInternalArea(areaTag) {
-	return areaTag === WellKnownAreaTags.MessageAreaAttach;
+	return [ WellKnownAreaTags.MessageAreaAttach, WellKnownAreaTags.TempDownloads ].includes(areaTag);
 }
 
 function getAvailableFileAreas(client, options) {
@@ -60,12 +67,20 @@ function getAvailableFileAreas(client, options) {
 			return true;
 		}
 
+		if(options.skipAcsCheck) {
+			return false;	//	no ACS checks (below)
+		}
+
 		if(options.writeAcs && !client.acs.hasFileAreaWrite(areaInfo)) {
 			return true;	//	omit
 		}
 
 		return !client.acs.hasFileAreaRead(areaInfo);
 	});
+}
+
+function getAvailableFileAreaTags(client, options) {
+	return _.map(getAvailableFileAreas(client, options), area => area.areaTag);
 }
 
 function getSortedAvailableFileAreas(client, options) {
@@ -341,7 +356,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 							//	Assume FILE_ID.DIZ, NFO files, etc. are CP437. 
 							//
 							//	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-							fileEntry[descType] = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+							fileEntry[descType]			= iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+							fileEntry[`${descType}Src`]	= 'descFile';
 							return next(null);
 						});
 					});
@@ -389,7 +405,8 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 			function processSingleExtractedFile(extractedFile, callback) {
 				populateFileEntryInfoFromFile(fileEntry, extractedFile, err => {
 					if(!fileEntry.desc) {
-						fileEntry.desc = getDescFromFileName(filePath);
+						fileEntry.desc		= getDescFromFileName(filePath);
+						fileEntry.descSrc	= 'fileName';
 					}
 					return callback(err);
 				});
@@ -514,7 +531,8 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
 						stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
 					}
 
-					fileEntry[key] = stdout;
+					fileEntry[key]			= stdout;
+					fileEntry[`${key}Src`]	= 'infoTool';
 				}
 			}
 
@@ -536,7 +554,8 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
 			function getDescriptions(callback) {
 				populateFileEntryInfoFromFile(fileEntry, filePath, err => {
 					if(!fileEntry.desc) {
-						fileEntry.desc = getDescFromFileName(filePath);
+						fileEntry.desc		= getDescFromFileName(filePath);
+						fileEntry.descSrc	= 'fileName';
 					}
 					return callback(err);
 				});
@@ -856,4 +875,64 @@ function getDescFromFileName(fileName) {
 	const name  = paths.basename(fileName, ext);
 
 	return _.upperFirst(name.replace(/[\-_.+]/g, ' ').replace(/\s+/g, ' '));
+}
+
+//
+//	Return an object of stats about an area(s)
+//
+//	{
+//		
+//		totalFiles : <totalFileCount>,
+//		totalBytes : <totalByteSize>,
+//		areas : {
+//			<areaTag> : {
+//				files : <fileCount>,
+//				bytes : <byteSize>
+//			}
+//		}
+//	}
+//
+function getAreaStats(cb) {	
+	FileDb.all(
+		`SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
+		FROM file f, file_meta m
+		WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
+		GROUP BY f.area_tag;`,
+		(err, statRows) => {
+			if(err) {
+				return cb(err);
+			}
+
+			if(!statRows || 0 === statRows.length) {
+				return cb(Errors.DoesNotExist('No file areas to acquire stats from'));
+			}
+
+			return cb(
+				null,
+				statRows.reduce( (stats, v) => {
+					stats.totalFiles = (stats.totalFiles || 0) + v.total_files;
+					stats.totalBytes = (stats.totalBytes || 0) + v.total_byte_size;
+
+					stats.areas = stats.areas || {};
+
+					stats.areas[v.area_tag] = {
+						files 	: v.total_files,
+						bytes	: v.total_byte_size,
+					};
+					return stats;
+				}, {})
+			);
+		}
+	);
+}
+
+//	method exposed for event scheduler
+function updateAreaStatsScheduledEvent(args, cb) {
+	getAreaStats( (err, stats) => {		
+		if(!err) {
+			StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);	
+		}
+
+		return cb(err);
+	});
 }

@@ -15,6 +15,7 @@ const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
 const Config						= require('./config.js').config;
+const { getAddressedToInfo } 		= require('./mail_util.js');
 
 //	deps
 const async							= require('async');
@@ -264,12 +265,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 	isEditMode() {
 		return 'edit' === this.editorMode;
 	}
-	
+
 	isViewMode() {
 		return 'view' === this.editorMode;
 	}
 
-	isLocalEmail() {
+	isPrivateMail() {
 		return Message.WellKnownAreaTags.Private === this.messageAreaTag;
 	}
 
@@ -342,8 +343,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				//	really don't like ANSI messages in UTF-8 encoding (they should!)
 				//
 				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
-				//	:TODO: change to <ansi>\r\nESC[A<message>
-				//msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}${msgOpts.message}`;
 				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
 			}
 		}
@@ -411,30 +410,54 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					return callback(null);
 				},
 				function populateLocalUserInfo(callback) {
-					if(self.isLocalEmail()) {
-						self.message.setLocalFromUserId(self.client.user.userId);
-						
-						if(self.toUserId > 0) {
-							self.message.setLocalToUserId(self.toUserId);
-							callback(null);
-						} else {
-							//	we need to look it up
-							User.getUserIdAndName(self.message.toUserName, function userInfo(err, toUserId) {
-								if(err) {
-									callback(err);
-								} else {
-									self.message.setLocalToUserId(toUserId);
-									callback(null);
-								}
-							});							
-						}
-					} else {
-						callback(null);
+					if(!self.isPrivateMail()) {
+						return callback(null);
 					}
+
+					//	:TODO: shouldn't local from user ID be set for all mail?
+					self.message.setLocalFromUserId(self.client.user.userId);
+
+					if(self.toUserId > 0) {
+						self.message.setLocalToUserId(self.toUserId);
+						return callback(null);
+					}
+
+					//
+					//	If the message we're replying to is from a remote user
+					//	don't try to look up the local user ID. Instead, mark the mail
+					//	for export with the remote to address.
+					//
+					if(self.replyToMessage && self.replyToMessage.isFromRemoteUser()) {
+						self.message.setRemoteToUser(self.replyToMessage.meta.System[Message.SystemMetaNames.RemoteFromUser]);
+						self.message.setExternalFlavor(self.replyToMessage.meta.System[Message.SystemMetaNames.ExternalFlavor]);
+						return callback(null);
+					}
+
+					//
+					//	Detect if the user is attempting to send to a remote mail type that we support
+					//
+					//	:TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
+					const addressedToInfo = getAddressedToInfo(self.message.toUserName);
+					if(addressedToInfo.name && Message.AddressFlavor.FTN === addressedToInfo.flavor) {
+						self.message.setRemoteToUser(addressedToInfo.remote);
+						self.message.setExternalFlavor(addressedToInfo.flavor);
+						self.message.toUserName = addressedToInfo.name;
+						return callback(null);
+					}
+
+					//	we need to look it up
+					User.getUserIdAndNameByLookup(self.message.toUserName, (err, toUserId) => {
+						if(err) {
+							return callback(err);
+						}
+
+						self.message.setLocalToUserId(toUserId);
+						return callback(null);
+					});
 				}
 			],
-			function complete(err) {
-				cb(err, self.message);
+			err => {
+				return cb(err, self.message);
 			}
 		);
 	}
@@ -967,7 +990,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		this.viewControllers.body.switchFocus(1);
 
 		this.observeEditorEvents();
-	};
+	}
 
 	switchToFooter() {
 		this.viewControllers.header.setFocus(false);
@@ -995,14 +1018,14 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		const quoteMsgView	= this.viewControllers.quoteBuilder.getView(1);
 		const msgView		= this.viewControllers.body.getView(1);
 				
-		let quoteLines 		= quoteMsgView.getData();
+		let quoteLines 		= quoteMsgView.getData().trim();
 		
-		if(quoteLines.trim().length > 0) {
+		if(quoteLines.length > 0) {
 			if(this.replyIsAnsi) {
 				const bodyMessageView = this.viewControllers.body.getView(1);
 				quoteLines += `${ansi.normal()}${bodyMessageView.getSGRFor('text')}`;
 			}
-			msgView.addText(`${quoteLines}\n`);
+			msgView.addText(`${quoteLines}\n\n`);
 		}
 		
 		quoteMsgView.setText('');

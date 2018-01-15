@@ -2,15 +2,18 @@
 Configuration files in ENiGMA½ are simple UTF-8 encoded [HJSON](http://hjson.org/) files. HJSON is just like JSON but simplified and much more resilient to human error.
 
 ## System Configuration
-The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. The default path is `~/.config/enigma-bbs/config.hjson` though you can override this with the `--config` parameter when invoking `main.js`. Values found in core/config.js may be overridden by simply providing the object members you wish replace.
+The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. The default path is `/enigma-bbs-install-path/config/config.hjson` though you can override the `config.hjson` location with the `--config` parameter when invoking `main.js`. Values found in `core/config.js` may be overridden by simply providing the object members you wish replace.
 
-**Windows note**: **~** resolves to *C:\Users\YOURLOGINNAME\* on modern Windows installations, e.g. `C:\Users\NuSkooler\.config\enigma-bbs\config.hjson`
+### Creating a Configuration
+Your initial configuration skeleton can be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
+```
+./oputil.js config new
+```
 
-### oputil.js
-Please see `oputil.js config` for configuration generation options.
+You will be asked a series of questions to create an initial configuration.
 
-### Example: System Name
-`core/config.js` provides the default system name as follows:
+### Overriding Defaults
+The file `core/config.js` provides various defaults to the system that you can override via `config.hjson`. For example, the default system name is defined as follows:
 ```javascript
 general : {
   boardName : 'Another Fine ENiGMA½ System'
@@ -26,17 +29,14 @@ general: {
 
 (Note the very slightly different syntax. **You can use standard JSON if you wish**)
 
+While not everything that is available in your `config.hjson` file can be found defaulted in `core/config.js`, a lot is. [Poke around and see what you can find](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config.js)!
+
 ### Specific Areas of Interest
-* [Menu System](menu_system.md)
 * [Message Conferences](msg_conf_area.md)
 * [Message Networks](msg_networks.md)
 * [File Base](file_base.md)
 * [File Archives & Archivers](archives.md)
-* [Doors](doors.md)
-* [MCI Codes](mci.md)
 * [Web Server](web_server.md)
-...and other stuff [in the /docs directory](./)
-
 
 ### A Sample Configuration
 Below is a **sample** `config.hjson` illustrating various (but certainly not all!) elements that can be configured / tweaked.
@@ -126,5 +126,8 @@ Below is a **sample** `config.hjson` illustrating various (but certainly not all
 }
 ```
 
-## Menus
-See [the menu system docs](menu_system.md)
+## See Also
+* [Modding](modding.md)
+* [Doors](doors.md)
+* [MCI Codes](mci.md)
+* [Menu System docs](menu_system.md)

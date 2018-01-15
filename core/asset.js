@@ -21,7 +21,7 @@ const ALL_ASSETS = [
 	'art',
 	'menu',
 	'method',
-	'module',
+	'userModule',
 	'systemMethod',
 	'systemModule',
 	'prompt',
@@ -58,12 +58,12 @@ function getAssetWithShorthand(spec, defaultType) {
 		assert(_.isString(asset.type));
 
 		return asset;
-	} else {
-		return {
-			type	: defaultType,
-			asset	: spec,
-		};
 	}
+
+	return {
+		type	: defaultType,
+		asset	: spec,
+	};
 }
 
 function getArtAsset(spec) {
@@ -78,13 +78,14 @@ function getArtAsset(spec) {
 }
 
 function getModuleAsset(spec) {
-	const asset = getAssetWithShorthand(spec, 'module');
+	const asset = getAssetWithShorthand(spec, 'systemModule');
 	
 	if(!asset) {
 		return null;
 	}
 
-	assert( ['module', 'systemModule' ].indexOf(asset.type) > -1);
+	assert( ['userModule', 'systemModule' ].includes(asset.type) );
+
 	return asset;
 }
 

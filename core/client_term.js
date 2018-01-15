@@ -110,6 +110,17 @@ ClientTerminal.prototype.disconnect = function() {
 	this.output = null;
 };
 
+ClientTerminal.prototype.isNixTerm = function() {
+	//
+	//	Standard *nix type terminals
+	//
+	if(this.termType.startsWith('xterm')) {
+		return true;
+	}
+
+	return [ 'xterm', 'linux', 'screen', 'dumb', 'rxvt', 'konsole', 'gnome', 'x11 terminal emulator' ].includes(this.termType);
+};
+
 ClientTerminal.prototype.isANSI = function() {
 	//
 	//	ANSI terminals should be encoded to CP437
@@ -142,7 +153,7 @@ ClientTerminal.prototype.isANSI = function() {
 	//	linux:
 	//		* JuiceSSH (note: TERM=linux also)
 	//
-	return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].indexOf(this.termType) > -1;
+	return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].includes(this.termType);
 };
 
 //	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)

@@ -23,6 +23,8 @@ module.exports = function ansiPrep(input, options, cb) {
 	options.rows				= options.rows || options.termHeight	|| 'auto';
 	options.startCol			= options.startCol || 1;
 	options.exportMode			= options.exportMode || false;
+	options.fillLines			= _.get(options, 'fillLines', true);
+	options.indent				= options.indent || 0;
 
 	//	in auto we start out at 25 rows, but can always expand for more
 	const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
@@ -111,15 +113,18 @@ module.exports = function ansiPrep(input, options, cb) {
 			const lastCol = getLastPopulatedColumn(row) + 1;
 
 			let i;
-			line = '';
+			line = options.indent ? 
+				output.length > 0 ? ' '.repeat(options.indent) : '' :
+				'';
+				
 			for(i = 0; i < lastCol; ++i) {
 				const col = row[i];
 
-				sgr = 0 === i ? 
+				sgr = !options.asciiMode && 0 === i ? 
 					col.initialSgr ? ANSI.getSGRFromGraphicRendition(col.initialSgr) : '' :
 					'';
 				
-				if(col.sgr) {
+				if(!options.asciiMode && col.sgr) {
 					sgr += ANSI.getSGRFromGraphicRendition(col.sgr);
 				}
 
@@ -129,7 +134,10 @@ module.exports = function ansiPrep(input, options, cb) {
 			output += line;
 
 			if(i < row.length) {
-				output += `${ANSI.blackBG()}${row.slice(i).map( () => ' ').join('')}`;//${lastSgr}`;
+				output += `${options.asciiMode ? '' : ANSI.blackBG()}`;
+				if(options.fillLines) {
+					output += `${row.slice(i).map( () => ' ').join('')}`;//${lastSgr}`;
+				}
 			}
 
 			if(options.startCol + i < options.termWidth || options.forceLineTerm) {

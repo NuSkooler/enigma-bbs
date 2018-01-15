@@ -2,7 +2,6 @@
 'use strict';
 
 //	ENiGMA½
-const miscUtil			= require('./misc_util.js');
 
 //	deps
 const fs				= require('graceful-fs');
@@ -19,7 +18,7 @@ function hasMessageConferenceAndArea(config) {
 	assert(_.isObject(config.messageConferences));  //  we create one ourself!
 
 	const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
-		return 'system_internal' !== confTag; 
+		return 'system_internal' !== confTag;
 	});
 
 	if(0 === nonInternalConfs.length) {
@@ -32,7 +31,7 @@ function hasMessageConferenceAndArea(config) {
 	_.forEach(nonInternalConfs, confTag => {
 		if(_.has(config.messageConferences[confTag], 'areas') &&
 			Object.keys(config.messageConferences[confTag].areas) > 0)
-		{            
+		{
 			result = true;
 			return false;   //  stop iteration
 		}
@@ -53,12 +52,12 @@ function init(configPath, options, cb) {
 				if(!_.isString(configPath)) {
 					return callback(null, { } );
 				}
-				
+
 				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
 					if(err) {
 						return callback(err);
 					}
-				
+
 					let configJson;
 					try {
 						configJson = hjson.parse(configData, options);
@@ -67,12 +66,12 @@ function init(configPath, options, cb) {
 					}
 
 					return callback(null, configJson);
-				});				
+				});
 			},
 			function mergeWithDefaultConfig(configJson, callback) {
-				
+
 				const mergedConfig = _.mergeWith(
-					getDefaultConfig(), 
+					getDefaultConfig(),
 					configJson, (conf1, conf2) => {
 						//	Arrays should always concat
 						if(_.isArray(conf1)) {
@@ -111,11 +110,8 @@ function init(configPath, options, cb) {
 }
 
 function getDefaultPath() {
-	const base = miscUtil.resolvePath('~/');
-	if(base) {
-		//	e.g. /home/users/joeuser/.config/enigma-bbs/config.hjson
-		return paths.join(base, '.config', 'enigma-bbs', 'config.hjson');
-	}
+	//	e.g. /enigma-bbs-install-path/config/
+	return './config/';
 }
 
 function getDefaultConfig() {
@@ -127,8 +123,8 @@ function getDefaultConfig() {
 
 			loginAttempts	: 3,
 
-			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./mods)
-			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./mods)
+			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./config)
+			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./config)
 		},
 
 		//	:TODO: see notes below about 'theme' section - move this!
@@ -150,15 +146,16 @@ function getDefaultConfig() {
 			webMax				: 255,
 
 			requireActivation	: false,	//	require SysOp activation? false = auto-activate
-			invalidUsernames	: [],
 
 			groups				: [ 'users', 'sysops' ],		//	built in groups
 			defaultGroups		: [ 'users' ],					//	default groups new users belong to
 
 			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
 
-			//	:TODO: Mystic uses TRASHCAN.DAT for this -- is there a reason to support something like that?
-			badUserNames		: [ 'sysop', 'admin', 'administrator', 'root', 'all' ],
+			badUserNames		: [
+				'sysop', 'admin', 'administrator', 'root', 'all',
+				'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
+			],
 		},
 
 		//	:TODO: better name for "defaults"... which is redundant here!
@@ -187,9 +184,10 @@ function getDefaultConfig() {
 
 		menus : {
 			cls		: true,	//	Clear screen before each menu by default?
-		},	
+		},
 
 		paths		: {
+			config				: paths.join(__dirname, './../config/'),
 			mods				: paths.join(__dirname, './../mods/'),
 			loginServers		: paths.join(__dirname, './servers/login/'),
 			contentServers		: paths.join(__dirname, './servers/content/'),
@@ -197,15 +195,15 @@ function getDefaultConfig() {
 			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
 			mailers				: paths.join(__dirname, './mailers/')		,
 
-			art					: paths.join(__dirname, './../mods/art/'),
-			themes				: paths.join(__dirname, './../mods/themes/'),
+			art					: paths.join(__dirname, './../art/general/'),
+			themes				: paths.join(__dirname, './../art/themes/'),
 			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
 			db					: paths.join(__dirname, './../db/'),
-			modsDb				: paths.join(__dirname, './../db/mods/'),				
+			modsDb				: paths.join(__dirname, './../db/mods/'),
 			dropFiles			: paths.join(__dirname, './../dropfiles/'),	//	+ "/node<x>/
 			misc				: paths.join(__dirname, './../misc/'),
 		},
-		
+
 		loginServers : {
 			telnet : {
 				port			: 8888,
@@ -214,18 +212,18 @@ function getDefaultConfig() {
 			},
 			ssh : {
 				port				: 8889,
-				enabled				: false,    //  defualt to false as PK/pass in config.hjson are required
+				enabled				: false,    //  default to false as PK/pass in config.hjson are required
 
 				//
 				//	Private key in PEM format
-				//	
+				//
 				//	Generating your PK:
-				//	> openssl genrsa -des3 -out ./misc/ssh_private_key.pem 2048
+				//	> openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
 				//
 				//	Then, set servers.ssh.privateKeyPass to the password you use above
 				//	in your config.hjson
 				//
-				privateKeyPem		: paths.join(__dirname, './../misc/ssh_private_key.pem'),
+				privateKeyPem		: paths.join(__dirname, './../config/ssh_private_key.pem'),
 				firstMenu			: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
@@ -233,8 +231,8 @@ function getDefaultConfig() {
 				port		: 8810,	//	ws://
 				enabled		: false,
 				securePort	: 8811,	//	wss:// - must provide certPem and keyPem
-				certPem		: paths.join(__dirname, './../misc/https_cert.pem'),
-				keyPem		: paths.join(__dirname, './../misc/https_cert_key.pem'),
+				certPem		: paths.join(__dirname, './../config/https_cert.pem'),
+				keyPem		: paths.join(__dirname, './../config/https_cert_key.pem'),
 			},
 		},
 
@@ -247,7 +245,7 @@ function getDefaultConfig() {
 				resetPassword : {
 					//
 					//	The following templates have these variables available to them:
-					//	
+					//
 					//	* %BOARDNAME%		: Name of BBS
 					//	* %USERNAME%		: Username of whom to reset password
 					//	* %TOKEN%			: Reset token
@@ -262,16 +260,16 @@ function getDefaultConfig() {
 					//
 					resetPageTemplate	: paths.join(__dirname, './../www/reset_password.template.html'),
 				},
-								
+
 				http : {
 					enabled : false,
-					port	: 8080,	
+					port	: 8080,
 				},
 				https : {
 					enabled	: false,
 					port	: 8443,
-					certPem	: paths.join(__dirname, './../misc/https_cert.pem'),
-					keyPem	: paths.join(__dirname, './../misc/https_cert_key.pem'),
+					certPem	: paths.join(__dirname, './../config/https_cert.pem'),
+					keyPem	: paths.join(__dirname, './../config/https_cert_key.pem'),
 				}
 			}
 		},
@@ -282,10 +280,10 @@ function getDefaultConfig() {
 			},
 			Exiftool : {
 				cmd			: 'exiftool',
-				args		: [ 
+				args		: [
 					'-charset', 'utf8', '{filePath}',
 					//	exclude the following:
-					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize', 
+					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize',
 					'--filemodifydate', '--fileaccessdate', '--fileinodechangedate', '--createdate', '--modifydate',
 					'--metadatadate', '--xmptoolkit'
 				]
@@ -304,7 +302,7 @@ function getDefaultConfig() {
 			//
 			//
 			//	:TODO: text/x-ansi -> SAUCE extraction for .ans uploads
-			//	:TODO: textual : bool -- if text, we can view. 
+			//	:TODO: textual : bool -- if text, we can view.
 			//	:TODO: asText : { cmd, args[] } -> viewable text
 
 			//
@@ -387,7 +385,7 @@ function getDefaultConfig() {
 				sig				: '526172211a0700',
 				offset			: 0,
 				archiveHandler	: 'Rar',
-			},			
+			},
 			'application/gzip' : {
 				desc			: 'Gzip Archive',
 				sig				: '1f8b',
@@ -399,28 +397,28 @@ function getDefaultConfig() {
 				desc			: 'BZip2 Archive',
 				sig				: '425a68',
 				offset			: 0,
-				archiveHandler	: '7Zip',				
+				archiveHandler	: '7Zip',
 			},
 			'application/x-lzh-compressed' : {
 				desc			: 'LHArc Archive',
 				sig				: '2d6c68',
 				offset			: 2,
-				archiveHandler	: 'Lha',				
+				archiveHandler	: 'Lha',
 			},
 			'application/x-7z-compressed' : {
 				desc			: '7-Zip Archive',
 				sig				: '377abcaf271c',
 				offset			: 0,
-				archiveHandler	: '7Zip',					
+				archiveHandler	: '7Zip',
 			}
 
 			//	:TODO: update archives::formats to fall here
 			//	* archive handler -> archiveHandler (consider archive if archiveHandler present)
 			//	* sig, offset, ...
 			//	* mime-db -> exts lookup
-			//	* 
+			//	*
 		},
-	
+
 		archives : {
 			archivers : {
 				'7Zip' : {
@@ -513,7 +511,7 @@ function getDefaultConfig() {
 					list			: {
 						cmd			: 'tar',
 						args		: [ '-tvf', '{archivePath}' ],
-						entryMatch	: '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',						
+						entryMatch	: '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',
 					},
 					extract			: {
 						cmd			: 'tar',
@@ -522,7 +520,7 @@ function getDefaultConfig() {
 				}
 			},
 		},
-		
+
 		fileTransferProtocols : {
 			//
 			//	See http://www.synchro.net/docs/sexyz.txt for information on SEXYZ
@@ -538,7 +536,7 @@ function getDefaultConfig() {
 					recvCmd				: 'sexyz',
 					recvArgs			: [ '-telnet', '-8', 'rz', '{uploadDir}' ],
 					recvArgsNonBatch	: [ '-telnet', '-8', 'rz', '{fileName}' ],
-				} 
+				}
 			},
 
 			xmodemSexyz : {
@@ -569,7 +567,7 @@ function getDefaultConfig() {
 				name		: 'ZModem 8k',
 				type		: 'external',
 				sort		: 2,
-				external	: {					
+				external	: {
 					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
 					sendArgs	: [
 						//	:TODO: try -q
@@ -580,11 +578,11 @@ function getDefaultConfig() {
 						'--zmodem', '--binary', '--restricted', '--keep-uppercase', 	//	dumps to CWD which is set to {uploadDir}
 					],
 					//	:TODO: can we not just use --escape ?
-					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC					
-				} 
+					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
+				}
 			}
 		},
-		
+
 		messageAreaDefaults : {
 			//
 			//	The following can be override per-area as well
@@ -593,15 +591,16 @@ function getDefaultConfig() {
 			maxAgeDays		: 0,	//	0 = unlimited
 		},
 
-		messageConferences : {		
+		messageConferences : {
 			system_internal : {
 				name 	: 'System Internal',
 				desc 	: 'Built in conference for private messages, bulletins, etc.',
-				
+
 				areas : {
 					private_mail : {
-						name	: 'Private Mail',
-						desc	: 'Private user to user mail/email',
+						name					: 'Private Mail',
+						desc					: 'Private user to user mail/email',
+						maxExternalSentAgeDays	: 30,	//	max external "outbox" item age
 					},
 
 					local_bulletin : {
@@ -611,14 +610,15 @@ function getDefaultConfig() {
 				}
 			}
 		},
-		
+
 		scannerTossers : {
 			ftn_bso : {
 				paths : {
-					outbound	: paths.join(__dirname, './../mail/ftn_out/'),
-					inbound		: paths.join(__dirname, './../mail/ftn_in/'),
-					secInbound	: paths.join(__dirname, './../mail/ftn_secin/'),
-					reject		: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
+					outbound		: paths.join(__dirname, './../mail/ftn_out/'),
+					inbound			: paths.join(__dirname, './../mail/ftn_in/'),
+					secInbound		: paths.join(__dirname, './../mail/ftn_secin/'),
+					reject			: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
+					//outboundNetMail	: paths.join(__dirname, './../mail/ftn_netmail_out/'),
 					//	set 'retain' to a valid path to keep good pkt files
 				},
 
@@ -636,12 +636,13 @@ function getDefaultConfig() {
 					secureInOnly	: true,				//	only bring in from secure inbound (|secInbound| path, password protected)
 					uploadBy		: 'ENiGMA TIC',		//	default upload by username (override @ network)
 					allowReplace	: false,			//	use "Replaces" TIC field
+					descPriority	: 'diz',			//	May be diz=.DIZ/etc., or tic=from TIC Ldesc
 				}
 			}
 		},
 
 		fileBase: {
-			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|: 
+			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|:
 			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
 
 			maxDescFileByteSize			: 471859,	//	~1/4 MB
@@ -650,12 +651,13 @@ function getDefaultConfig() {
 			fileNamePatterns: {
 				//	These are NOT case sensitive
 				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
-				desc		: [ 
-					'^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
+				//	Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
+				desc		: [
+					'^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
 				],
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
-				descLong		: [ 
+				descLong		: [
 					'^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'
 				],
 			},
@@ -665,12 +667,17 @@ function getDefaultConfig() {
 				//	Patterns should produce the year in the first submatch.
 				//	The extracted year may be YY or YYYY
 				//
-				'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]|[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',	//	yyyy-mm-dd, m/d/yyyy, mm-dd-yyyy, etc.
-				"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
-				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',				
+				'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',	//	yyyy-mm-dd, yyyy/mm/dd, ...
+				'\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1-2][0-9][0-9]{2}))\\b',	//	mm/dd/yyyy, mm.dd.yyyy, ...
+				'\\b((?:[1789][0-9]))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',			//	yy-mm-dd, yy-mm-dd, ...
+				'\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1789][0-9]))\\b',			//	mm-dd-yy, mm/dd/yy, ...
+				//'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]|[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',	//	yyyy-mm-dd, m/d/yyyy, mm-dd-yyyy, etc.
+				//"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
+				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',
 				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
-				'\\(((?:19|20)[0-9]{2})\\)',	//	(19xx) or (20xx) -- do this before 19xx 20xx such that this has priority
+				'\\(((?:19|20)[0-9]{2})\\)',	//	(19xx) or (20xx) -- with parens -- do this before 19xx 20xx such that this has priority
 				'\\b((?:19|20)[0-9]{2})\\b',	//	simple 19xx or 20xx with word boundaries
+				'\\b\'([17-9][0-9])\\b',		//	'95, '17, ...
 				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
 			],
 
@@ -683,34 +690,46 @@ function getDefaultConfig() {
 			//
 			//	File area storage location tag/value pairs.
 			//	Non-absolute paths are relative to |areaStoragePrefix|.
-			// 
+			//
 			storageTags : {
-				sys_msg_attach	: 'msg_attach',
+				sys_msg_attach		: 'sys_msg_attach',
+				sys_temp_download	: 'sys_temp_download',
 			},
 
 			areas: {
 				system_message_attachment : {
-					name		: 'Message attachments',
+					name		: 'System Message Attachments',
 					desc		: 'File attachments to messages',
-					storageTags	: 'sys_msg_attach',	//	may be string or array of strings
+					storageTags	: [ 'sys_msg_attach' ],
+				},
+
+				system_temporary_download : {
+					name		: 'System Temporary Downloads',
+					desc		: 'Temporary downloadables',
+					storageTags	: [ 'sys_temp_download' ],
 				}
 			}
 		},
-		
+
 		eventScheduler : {
-			
+
 			events : {
 				trimMessageAreas : {
 					//	may optionally use [or ]@watch:/path/to/file
 					schedule	: 'every 24 hours',
-					
+
 					//	action:
 					//	- @method:path/to/module.js:theMethodName
 					//	  (path is relative to engima base dir)
 					//
-					//	- @execute:/path/to/something/executable.sh 
-					//	
+					//	- @execute:/path/to/something/executable.sh
+					//
 					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+				},
+
+				updateFileAreaStats : {
+					schedule	: 'every 1 hours',
+					action		: '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
 				},
 
 				forgotPasswordMaintenance : {
@@ -718,7 +737,7 @@ function getDefaultConfig() {
 					action		: '@method:core/web_password_reset.js:performMaintenanceTask',
 					args		: [ '24 hours' ]	//	items older than this will be removed
 				}
-			}	
+			}
 		},
 
 		misc : {
