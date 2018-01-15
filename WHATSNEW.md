@@ -1,6 +1,10 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.9-alpha
+* Development is now against Node.js 8.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
+
+
 ## 0.0.8-alpha
 * [Mystic BBS style](http://wiki.mysticbbs.com/doku.php?id=displaycodes) extended pipe color codes. These allow for example, to set "iCE" background colors.
 * File descriptions (FILE_ID.DIZ, etc.) now support Renegade |## pipe, PCBoard, and other less common color codes found commonly in BBS era scene releases.
