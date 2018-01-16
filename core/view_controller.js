@@ -228,25 +228,25 @@ function ViewController(options) {
 	};
 
 	this.applyViewConfig = function(config, cb) {
-		var highestId = 1;
-		var submitId;
-		var initialFocusId = 1;
+		let highestId = 1;
+		let submitId;
+		let initialFocusId = 1;
 
 		async.each(Object.keys(config.mci || {}), function entry(mci, nextItem) {
-			var mciMatch = mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????
+			const mciMatch = mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????
 			if(null === mciMatch) {
 				self.client.log.warn( { mci : mci }, 'Unable to parse MCI code');
 				return;
 			}
 
-			var viewId = parseInt(mciMatch[2]);
+			const viewId = parseInt(mciMatch[2]);
 			assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]);	//	shouldn't be possible with RegExp used
 
 			if(viewId > highestId) {
 				highestId = viewId;
 			}
 
-			var view = self.getView(viewId);
+			const view = self.getView(viewId);
 
 			if(!view) {
 				self.client.log.warn( { viewId : viewId }, 'Cannot find view');
@@ -254,7 +254,7 @@ function ViewController(options) {
 				return;
 			}
 
-			var mciConf	= config.mci[mci];
+			const mciConf = config.mci[mci];
 
 			self.setViewPropertiesFromMCIConf(view, mciConf);
 
@@ -262,9 +262,13 @@ function ViewController(options) {
 				initialFocusId = viewId;
 			}
 
+			if(true === view.submit) {
+				submitId = viewId;
+			}
+
 			nextItem(null);
 		},
-		function complete(err) {
+		err => {
 			//	default to highest ID if no 'submit' entry present
 			if(!submitId) {
 				var highestIdView = self.getView(highestId);
@@ -275,7 +279,7 @@ function ViewController(options) {
 				}
 			}
 
-			cb(err, { initialFocusId : initialFocusId } );
+			return cb(err, { initialFocusId : initialFocusId } );
 		});
 	};
 
