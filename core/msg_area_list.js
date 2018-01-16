@@ -99,8 +99,8 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 	}
 
 	//	:TODO: these concepts have been replaced with the {someKey} style formatting - update me!
-	/*
-	updateGeneralAreaInfoViews(areaIndex) {				
+	updateGeneralAreaInfoViews(areaIndex) {
+		/*
 		const areaInfo = self.messageAreas[areaIndex];
 
 		[ MciViewIds.SelAreaInfo1, MciViewIds.SelAreaInfo2 ].forEach(mciId => {
@@ -109,8 +109,8 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 				v.setFormatObject(areaInfo.area);
 			}
 		});
+		*/
 	}
-	*/
 
 	mciReady(mciData, cb) {
 		super.mciReady(mciData, err => {
