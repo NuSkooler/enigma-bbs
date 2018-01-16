@@ -11,7 +11,7 @@ const assert		= require('assert');
 exports.SpinnerMenuView	= SpinnerMenuView;
 
 function SpinnerMenuView(options) {
-	options.justify	= options.justify || 'center';
+	options.justify	= options.justify || 'left';
 	options.cursor	= options.cursor || 'hide';
 
 	MenuView.call(this, options);
