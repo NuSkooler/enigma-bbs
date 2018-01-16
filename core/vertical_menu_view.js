@@ -68,11 +68,11 @@ function VerticalMenuView(options) {
 			const focusItem = self.focusItems[index];
 			text = strUtil.stylizeString(
 				focusItem ? focusItem.text : item.text,
-				self.textStyle
+				self.focusTextStyle
 			);
 			sgr = '';
 		} else {
-			text = strUtil.stylizeString(item.text, self.textStyle);
+			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		}
 
