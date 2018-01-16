@@ -122,7 +122,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 	//  Create a *clone* of menuConfig (menu.hjson) then bring in
 	//  promptConfig (prompt.hjson)
 	//
-	var mergedTheme = _.cloneDeep(menuConfig);
+	const mergedTheme = _.cloneDeep(menuConfig);
 
 	if(_.isObject(promptConfig.prompts)) {
 		mergedTheme.prompts = _.cloneDeep(promptConfig.prompts);
@@ -137,7 +137,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 	//
 	//  merge customizer to disallow immutable MCI properties
 	//
-	var mciCustomizer = function(objVal, srcVal, key) {
+	const mciCustomizer = function(objVal, srcVal, key) {
 		return IMMUTABLE_MCI_PROPERTIES.indexOf(key) > -1 ? objVal : srcVal;
 	};
 
@@ -191,30 +191,30 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 			applyThemeMciBlock(form.mci, menuTheme, formKey);
 
 		} else {
-			var menuMciCodeKeys = _.remove(_.keys(form), function pred(k) {
+			const menuMciCodeKeys = _.remove(_.keys(form), function pred(k) {
 				return k === k.toUpperCase(); //  remove anything not uppercase
 			});
 
 			menuMciCodeKeys.forEach(function mciKeyEntry(mciKey) {
-				var applyFrom;
+				let applyFrom;
 				if(_.has(menuTheme, [ mciKey, 'mci' ])) {
 					applyFrom = menuTheme[mciKey];
 				} else {
 					applyFrom = menuTheme;
 				}
 
-				applyThemeMciBlock(form[mciKey].mci, applyFrom);
+				applyThemeMciBlock(form[mciKey].mci, applyFrom, formKey);
 			});
 		}
 	}
 
 	[ 'menus', 'prompts' ].forEach(function areaEntry(sectionName) {
 		_.keys(mergedTheme[sectionName]).forEach(function menuEntry(menuName) {
-			var createdFormSection = false;
-			var mergedThemeMenu = mergedTheme[sectionName][menuName];
+			let createdFormSection = false;
+			const mergedThemeMenu = mergedTheme[sectionName][menuName];
 
 			if(_.has(theme, [ 'customization', sectionName, menuName ])) {
-				var menuTheme = theme.customization[sectionName][menuName];
+				const menuTheme = theme.customization[sectionName][menuName];
 
 				//	config block is direct assign/overwrite
 				//  :TODO: should probably be _.merge()
