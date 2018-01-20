@@ -524,13 +524,13 @@ function Packet(options) {
 		);
 	};
 
-	this.parsePacketMessages = function(packetBuffer, iterator, cb) {
+	this.parsePacketMessages = function(header, packetBuffer, iterator, cb) {
 		binary.parse(packetBuffer)
 			.word16lu('messageType')
-			.word16lu('ftn_orig_node')
-			.word16lu('ftn_dest_node')
-			.word16lu('ftn_orig_network')
-			.word16lu('ftn_dest_network')
+			.word16lu('ftn_msg_orig_node')
+			.word16lu('ftn_msg_dest_node')
+			.word16lu('ftn_msg_orig_net')
+			.word16lu('ftn_msg_dest_net')
 			.word16lu('ftn_attr_flags')
 			.word16lu('ftn_cost')
 			.scan('modDateTime', NULL_TERM_BUFFER)	//	:TODO: 20 bytes max
@@ -569,20 +569,28 @@ function Packet(options) {
 				//	contain an origin line, kludges, SAUCE in the case
 				//	of ANSI files, etc.
 				//
-				let msg = new Message( {
+				const msg = new Message( {
 					toUserName		: convMsgData.toUserName,
 					fromUserName	: convMsgData.fromUserName,
 					subject			: convMsgData.subject,
 					modTimestamp	: ftn.getDateFromFtnDateTime(convMsgData.modDateTime),
 				});
 
-				msg.meta.FtnProperty = {};
-				msg.meta.FtnProperty.ftn_orig_node		= msgData.ftn_orig_node;
-				msg.meta.FtnProperty.ftn_dest_node		= msgData.ftn_dest_node;
-				msg.meta.FtnProperty.ftn_orig_network 	= msgData.ftn_orig_network;
-				msg.meta.FtnProperty.ftn_dest_network	= msgData.ftn_dest_network;
-				msg.meta.FtnProperty.ftn_attr_flags		= msgData.ftn_attr_flags;
-				msg.meta.FtnProperty.ftn_cost			= msgData.ftn_cost;
+				//	:TODO: When non-private (e.g. EchoMail), attempt to extract SRC from MSGID vs headers, when avail (or Orgin line? research further)
+				msg.meta.FtnProperty = {
+					ftn_orig_node		: header.origNode,
+					ftn_dest_node		: header.destNode,
+					ftn_orig_network	: header.origNet,
+					ftn_dest_network	: header.destNet,
+
+					ftn_attr_flags		: msgData.ftn_attr_flags,
+					ftn_cost			: msgData.ftn_cost,
+
+					ftn_msg_orig_node	: msgData.ftn_msg_orig_node,
+					ftn_msg_dest_node	: msgData.ftn_msg_dest_node,
+					ftn_msg_orig_net	: msgData.ftn_msg_orig_net,
+					ftn_msg_dest_net	: msgData.ftn_msg_dest_net,
+				};
 
 				self.processMessageBody(msgData.message, messageBodyData => {
 					msg.message 		= messageBodyData.message;
@@ -622,11 +630,11 @@ function Packet(options) {
 
 					const nextBuf = packetBuffer.slice(read);
 					if(nextBuf.length > 0) {
-						let next = function(e) {
+						const next = function(e) {
 							if(e) {
 								cb(e);
 							} else {
-								self.parsePacketMessages(nextBuf, iterator, cb);
+								self.parsePacketMessages(header, nextBuf, iterator, cb);
 							}
 						};
 
@@ -651,11 +659,34 @@ function Packet(options) {
 			Message.FtnPropertyNames.FtnOrigPoint,
 			Message.FtnPropertyNames.FtnDestPoint,
 			Message.FtnPropertyNames.FtnAttribute,
+			Message.FtnPropertyNames.FtnMsgOrigNode,
+			Message.FtnPropertyNames.FtnMsgDestNode,
+			Message.FtnPropertyNames.FtnMsgOrigNet,
+			Message.FtnPropertyNames.FtnMsgDestNet,
 		].forEach( propName => {
 			if(message.meta.FtnProperty[propName]) {
 				message.meta.FtnProperty[propName] = parseInt(message.meta.FtnProperty[propName]) || 0;
 			}
 		});
+	};
+
+	this.writeMessageHeader = function(message, buf) {
+		//	ensure address FtnProperties are numbers
+		self.sanatizeFtnProperties(message);
+
+		const destNode	= message.meta.FtnProperty.ftn_msg_dest_node || message.meta.FtnProperty.ftn_dest_node;
+		const destNet	= message.meta.FtnProperty.ftn_msg_dest_net || message.meta.FtnProperty.ftn_dest_network;
+
+		buf.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
+		buf.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
+		buf.writeUInt16LE(destNode, 4);
+		buf.writeUInt16LE(message.meta.FtnProperty.ftn_orig_network, 6);
+		buf.writeUInt16LE(destNet, 8);
+		buf.writeUInt16LE(message.meta.FtnProperty.ftn_attr_flags, 10);
+		buf.writeUInt16LE(message.meta.FtnProperty.ftn_cost, 12);
+
+		const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
+		dateTimeBuffer.copy(buf, 14);
 	};
 
 	this.getMessageEntryBuffer = function(message, options, cb) {
@@ -678,20 +709,7 @@ function Packet(options) {
 			[
 				function prepareHeaderAndKludges(callback) {
 					const basicHeader = new Buffer(34);
-
-					//	ensure address FtnProperties are numbers
-					self.sanatizeFtnProperties(message);
-
-					basicHeader.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_node, 4);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_network, 6);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_network, 8);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_attr_flags, 10);
-					basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_cost, 12);
-
-					const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
-					dateTimeBuffer.copy(basicHeader, 14);
+					self.writeMessageHeader(message, basicHeader);			
 
 					//
 					//	To, from, and subject must be NULL term'd and have max lengths as per spec.
@@ -808,17 +826,7 @@ function Packet(options) {
 
 	this.writeMessage = function(message, ws, options) {
 		let basicHeader = new Buffer(34);
-
-		basicHeader.writeUInt16LE(FTN_PACKET_MESSAGE_TYPE, 0);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_node, 2);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_node, 4);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_orig_network, 6);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_dest_network, 8);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_attr_flags, 10);
-		basicHeader.writeUInt16LE(message.meta.FtnProperty.ftn_cost, 12);
-
-		const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
-		dateTimeBuffer.copy(basicHeader, 14);
+		self.writeMessageHeader(message, basicHeader);
 
 		ws.write(basicHeader);
 
@@ -911,7 +919,7 @@ function Packet(options) {
 	};
 
 	this.parsePacketBuffer = function(packetBuffer, iterator, cb) {
-		async.series(
+		async.waterfall(
 			[
 				function processHeader(callback) {
 					self.parsePacketHeader(packetBuffer, (err, header) => {
@@ -919,15 +927,16 @@ function Packet(options) {
 							return callback(err);
 						}
 
-						let next = function(e) {
-							callback(e);
+						const next = function(e) {
+							return callback(e, header);
 						};
 
 						iterator('header', header, next);
 					});
 				},
-				function processMessages(callback) {
+				function processMessages(header, callback) {
 					self.parsePacketMessages(
+						header,
 						packetBuffer.slice(FTN_PACKET_HEADER_SIZE),
 						iterator,
 						callback);

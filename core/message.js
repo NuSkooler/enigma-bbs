@@ -116,8 +116,10 @@ Message.StateFlags0 = {
 };
 
 Message.FtnPropertyNames = {
+	//	packet header oriented
 	FtnOrigNode			: 'ftn_orig_node',
 	FtnDestNode			: 'ftn_dest_node',
+	//	:TODO: rename these to ftn_*_net vs network - ensure things won't break, may need mapping
 	FtnOrigNetwork		: 'ftn_orig_network',
 	FtnDestNetwork		: 'ftn_dest_network',
 	FtnAttrFlags		: 'ftn_attr_flags',
@@ -126,6 +128,12 @@ Message.FtnPropertyNames = {
 	FtnDestZone			: 'ftn_dest_zone',
 	FtnOrigPoint		: 'ftn_orig_point',
 	FtnDestPoint		: 'ftn_dest_point',
+
+	//	message header oriented
+	FtnMsgOrigNode		: 'ftn_msg_orig_node',
+	FtnMsgDestNode		: 'ftn_msg_dest_node',
+	FtnMsgOrigNet		: 'ftn_msg_orig_net',
+	FtnMsgDestNet		: 'ftn_msg_dest_net',
 
 	FtnAttribute		: 'ftn_attribute',
 
