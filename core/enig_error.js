@@ -11,6 +11,10 @@ class EnigError extends Error {
 		this.reason		= reason;
 		this.reasonCode	= reasonCode;
 
+		if(this.reason) {
+			this.message += `: ${this.reason}`;
+		}
+
 		if(typeof Error.captureStackTrace === 'function') {
 			Error.captureStackTrace(this, this.constructor);
 		} else {
