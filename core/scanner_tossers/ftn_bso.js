@@ -221,7 +221,13 @@ function FTNMessageScanTossModule() {
 	};
 
 	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType, fileCase) {
-		let basename;
+		//
+		//	Refs
+		//	* http://ftsc.org/docs/fts-5005.003
+		//	* http://wiki.synchro.net/ref:fidonet_files#flow_files
+		//
+		let controlFileBaseName;
+		let pointDir;
 
 		const ext = self.getOutgoingFlowFileExtension(
 			destAddress,
@@ -230,32 +236,50 @@ function FTNMessageScanTossModule() {
 			fileCase
 		);
 
-		if(destAddress.point) {
+		const netComponent	= `0000${destAddress.net.toString(16)}`.substr(-4);
+		const nodeComponent	= `0000${destAddress.node.toString(16)}`.substr(-4);
 
+		if(destAddress.point) {
+			//	point's go in an extra subdir, e.g. outbound/NNNNnnnn.pnt/00000001.pnt (for a point of 1)
+			pointDir			= `${netComponent}${nodeComponent}.pnt`;
+			controlFileBaseName = `00000000${destAddress.point.toString(16)}`.substr(-8);
 		} else {
+			pointDir = '';
+
 			//
 			//	Use |destAddress| nnnnNNNN.??? where nnnn is dest net and NNNN is dest
 			//	node. This seems to match what Mystic does
 			//
-			basename =
-				`0000${destAddress.net.toString(16)}`.substr(-4) +
-				`0000${destAddress.node.toString(16)}`.substr(-4);
+			controlFileBaseName = `${netComponent}${nodeComponent}`;
 		}
 
+		//
+		//	From FTS-5005.003: "Lower case filenames are prefered if supported by the file system."
+		//	...but we let the user override.
+		//
 		if('upper' === fileCase) {
-			basename = basename.toUpperCase();
+			controlFileBaseName	= controlFileBaseName.toUpperCase();
+			pointDir			= pointDir.toUpperCase();
 		}
 
-		return paths.join(basePath, `${basename}.${ext}`);
+		return paths.join(basePath, pointDir, `${controlFileBaseName}.${ext}`);
 	};
 
 	this.flowFileAppendRefs = function(filePath, fileRefs, directive, cb) {
-		const appendLines = fileRefs.reduce( (content, ref) => {
-			return content + `${directive}${ref}\n`;
-		}, '');
+		//
+		//	We have to ensure the *directory* of |filePath| exists here esp.
+		//	for cases such as point destinations where a subdir may be
+		//	present in the path that doesn't yet exist.
+		//
+		const flowFileDir = paths.dirname(filePath);
+		fse.mkdirs(flowFileDir, () => {	//	note not checking err; let's try appendFile
+			const appendLines = fileRefs.reduce( (content, ref) => {
+				return content + `${directive}${ref}\n`;
+			}, '');
 
-		fs.appendFile(filePath, appendLines, err => {
-			cb(err);
+			fs.appendFile(filePath, appendLines, err => {
+				return cb(err);
+			});
 		});
 	};
 
@@ -915,7 +939,7 @@ function FTNMessageScanTossModule() {
 					function prepareFloFile(callback) {
 						const flowFilePath = self.getOutgoingFlowFileName(
 							exportOpts.outgoingDir,
-							exportOpts.destAddress,
+							exportOpts.routeAddress,
 							'ref',
 							exportOpts.exportType,
 							exportOpts.fileCase
