@@ -8,10 +8,11 @@ const Address		= require('./ftn_address.js');
 const strUtil		= require('./string_util.js');
 const Log			= require('./logger.js').log;
 const ansiPrep		= require('./ansi_prep.js');
+const Errors		= require('./enig_error.js').Errors;
 
 const _				= require('lodash');
 const assert		= require('assert');
-const binary		= require('binary');
+const { Parser }	= require('binary-parser');
 const fs			= require('graceful-fs');
 const async			= require('async');
 const iconv			= require('iconv-lite');
@@ -23,7 +24,6 @@ const FTN_PACKET_HEADER_SIZE	= 58;	//	fixed header size
 const FTN_PACKET_HEADER_TYPE	= 2;
 const FTN_PACKET_MESSAGE_TYPE	= 2;
 const FTN_PACKET_BAUD_TYPE_2_2	= 2;
-const NULL_TERM_BUFFER			= new Buffer( [ 0x00 ] );
 
 //	SAUCE magic header + version ("00")
 const FTN_MESSAGE_SAUCE_HEADER = new Buffer('SAUCE00');
@@ -173,108 +173,103 @@ function Packet(options) {
 	this.parsePacketHeader = function(packetBuffer, cb) {
 		assert(Buffer.isBuffer(packetBuffer));
 
-		if(packetBuffer.length < FTN_PACKET_HEADER_SIZE) {
-			cb(new Error('Buffer too small'));
-			return;
+		let packetHeader;
+		try {
+			packetHeader = new Parser()
+				.uint16le('origNode')
+				.uint16le('destNode')
+				.uint16le('year')
+				.uint16le('month')
+				.uint16le('day')
+				.uint16le('hour')
+				.uint16le('minute')
+				.uint16le('second')
+				.uint16le('baud')
+				.uint16le('packetType')
+				.uint16le('origNet')
+				.uint16le('destNet')
+				.int8('prodCodeLo')
+				.int8('prodRevLo')	//	aka serialNo
+				.buffer('password', { length : 8 })	//	can't use string; need CP437 - see https://github.com/keichi/binary-parser/issues/33
+				.uint16le('origZone')
+				.uint16le('destZone')
+				//
+				//	The following is "filler" in FTS-0001, specifics in
+				//	FSC-0045 and FSC-0048
+				//
+				.uint16le('auxNet')
+				.uint16le('capWordValidate')
+				.int8('prodCodeHi')
+				.int8('prodRevHi')
+				.uint16le('capWord')
+				.uint16le('origZone2')
+				.uint16le('destZone2')
+				.uint16le('origPoint')
+				.uint16le('destPoint')
+				.uint32le('prodData')
+				.parse(packetBuffer);
+		} catch(e) {
+			return Errors.Invalid(`Unable to parse FTN packet header: ${e.message}`);
+		}
+
+		//	Convert password from NULL padded array to string
+		packetHeader.password = strUtil.stringFromNullTermBuffer(packetHeader.password, 'CP437');
+
+		if(FTN_PACKET_HEADER_TYPE !== packetHeader.packetType) {
+			return cb(Errors.Invalid(`Unsupported FTN packet header type: ${packetHeader.packetType}`));
 		}
 
 		//
-		//	Start out reading as if this is a FSC-0048 2+ packet
+		//	What kind of packet do we really have here?
 		//
-		binary.parse(packetBuffer)
-			.word16lu('origNode')
-			.word16lu('destNode')
-			.word16lu('year')
-			.word16lu('month')
-			.word16lu('day')
-			.word16lu('hour')
-			.word16lu('minute')
-			.word16lu('second')
-			.word16lu('baud')
-			.word16lu('packetType')
-			.word16lu('origNet')
-			.word16lu('destNet')
-			.word8('prodCodeLo')
-			.word8('prodRevLo')	//	aka serialNo
-			.buffer('password', 8)	//	null padded C style string
-			.word16lu('origZone')
-			.word16lu('destZone')
+		//	:TODO: adjust values based on version discovered
+		if(FTN_PACKET_BAUD_TYPE_2_2 === packetHeader.baud) {
+			packetHeader.version = '2.2';
+
+			//	See FSC-0045
+			packetHeader.origPoint	= packetHeader.year;
+			packetHeader.destPoint	= packetHeader.month;
+
+			packetHeader.destDomain = packetHeader.origZone2;
+			packetHeader.origDomain	= packetHeader.auxNet;
+		} else {
 			//
-			//	The following is "filler" in FTS-0001, specifics in
-			//	FSC-0045 and FSC-0048
+			//	See heuristics described in FSC-0048, "Receiving Type-2+ bundles"
 			//
-			.word16lu('auxNet')
-			.word16lu('capWordValidate')
-			.word8('prodCodeHi')
-			.word8('prodRevHi')
-			.word16lu('capWord')
-			.word16lu('origZone2')
-			.word16lu('destZone2')
-			.word16lu('origPoint')
-			.word16lu('destPoint')
-			.word32lu('prodData')
-			.tap(packetHeader => {
-				//	Convert password from NULL padded array to string
-				//packetHeader.password = ftn.stringFromFTN(packetHeader.password);
-				packetHeader.password = strUtil.stringFromNullTermBuffer(packetHeader.password, 'CP437');
+			const capWordValidateSwapped =
+				((packetHeader.capWordValidate & 0xff) << 8) |
+				((packetHeader.capWordValidate >> 8) & 0xff);
 
-				if(FTN_PACKET_HEADER_TYPE !== packetHeader.packetType) {
-					cb(new Error('Unsupported header type: ' + packetHeader.packetType));
-					return;
+			if(capWordValidateSwapped === packetHeader.capWord &&
+				0 != packetHeader.capWord &&
+				packetHeader.capWord & 0x0001)
+			{
+				packetHeader.version = '2+';
+
+				//	See FSC-0048
+				if(-1 === packetHeader.origNet) {
+					packetHeader.origNet = packetHeader.auxNet;
 				}
+			} else {
+				packetHeader.version = '2';
 
-				//
-				//	What kind of packet do we really have here?
-				//
-				//	:TODO: adjust values based on version discovered
-				if(FTN_PACKET_BAUD_TYPE_2_2 === packetHeader.baud) {
-					packetHeader.version = '2.2';
+				//	:TODO: should fill bytes be 0?
+			}
+		}
 
-					//	See FSC-0045
-					packetHeader.origPoint	= packetHeader.year;
-					packetHeader.destPoint	= packetHeader.month;
+		packetHeader.created = moment({
+			year 	: packetHeader.year,
+			month	: packetHeader.month - 1,	//	moment uses 0 indexed months
+			date	: packetHeader.day,
+			hour	: packetHeader.hour,
+			minute	: packetHeader.minute,
+			second	: packetHeader.second
+		});
 
-					packetHeader.destDomain = packetHeader.origZone2;
-					packetHeader.origDomain	= packetHeader.auxNet;
-				} else {
-					//
-					//	See heuristics described in FSC-0048, "Receiving Type-2+ bundles"
-					//
-					const capWordValidateSwapped =
-						((packetHeader.capWordValidate & 0xff) << 8) |
-						((packetHeader.capWordValidate >> 8) & 0xff);
+		const ph = new PacketHeader();
+		_.assign(ph, packetHeader);
 
-					if(capWordValidateSwapped === packetHeader.capWord &&
-						0 != packetHeader.capWord &&
-						packetHeader.capWord & 0x0001)
-					{
-						packetHeader.version = '2+';
-
-						//	See FSC-0048
-						if(-1 === packetHeader.origNet) {
-							packetHeader.origNet = packetHeader.auxNet;
-						}
-					} else {
-						packetHeader.version = '2';
-
-						//	:TODO: should fill bytes be 0?
-					}
-				}
-
-				packetHeader.created = moment({
-					year 	: packetHeader.year,
-					month	: packetHeader.month - 1,	//	moment uses 0 indexed months
-					date	: packetHeader.day,
-					hour	: packetHeader.hour,
-					minute	: packetHeader.minute,
-					second	: packetHeader.second
-				});
-
-				let ph = new PacketHeader();
-				_.assign(ph, packetHeader);
-
-				cb(null, ph);
-			});
+		return cb(null, ph);
 	};
 
 	this.getPacketHeaderBuffer = function(packetHeader) {
@@ -454,21 +449,30 @@ function Packet(options) {
 					//	:TODO: See encodingFromHeader() for CHRS/CHARSET support @ https://github.com/Mithgol/node-fidonet-jam
 					const FTN_CHRS_PREFIX 	= new Buffer( [ 0x01, 0x43, 0x48, 0x52, 0x53, 0x3a, 0x20 ] );	//	"\x01CHRS:"
 					const FTN_CHRS_SUFFIX	= new Buffer( [ 0x0d ] );
-					binary.parse(messageBodyBuffer)
-						.scan('prefix', FTN_CHRS_PREFIX)
-						.scan('content', FTN_CHRS_SUFFIX)
-						.tap(chrsData => {
-							if(chrsData.prefix && chrsData.content && chrsData.content.length > 0) {
-								const chrs = iconv.decode(chrsData.content, 'CP437');
-								const chrsEncoding = ftn.getEncodingFromCharacterSetIdentifier(chrs);
-								if(chrsEncoding) {
-									encoding = chrsEncoding;
-								}
-								callback(null);
-							} else {
-								callback(null);
-							}
-						});
+
+					let chrsPrefixIndex = messageBodyBuffer.indexOf(FTN_CHRS_PREFIX);
+					if(chrsPrefixIndex < 0) {
+						return callback(null);
+					}
+
+					chrsPrefixIndex += FTN_CHRS_PREFIX.length;
+
+					const chrsEndIndex = messageBodyBuffer.indexOf(FTN_CHRS_SUFFIX, chrsPrefixIndex);
+					if(chrsEndIndex < 0) {
+						return callback(null);
+					}
+
+					let chrsContent = messageBodyBuffer.slice(chrsPrefixIndex, chrsEndIndex);
+					if(0 === chrsContent.length) {
+						return callback(null);
+					}
+
+					chrsContent = iconv.decode(chrsContent, 'CP437');
+					const chrsEncoding = ftn.getEncodingFromCharacterSetIdentifier(chrsContent);
+					if(chrsEncoding) {
+						encoding = chrsEncoding;
+					}
+					return callback(null);
 				},
 				function extractMessageData(callback) {
 					//
@@ -525,125 +529,160 @@ function Packet(options) {
 	};
 
 	this.parsePacketMessages = function(header, packetBuffer, iterator, cb) {
-		binary.parse(packetBuffer)
-			.word16lu('messageType')
-			.word16lu('ftn_msg_orig_node')
-			.word16lu('ftn_msg_dest_node')
-			.word16lu('ftn_msg_orig_net')
-			.word16lu('ftn_msg_dest_net')
-			.word16lu('ftn_attr_flags')
-			.word16lu('ftn_cost')
-			.scan('modDateTime', NULL_TERM_BUFFER)	//	:TODO: 20 bytes max
-			.scan('toUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
-			.scan('fromUserName', NULL_TERM_BUFFER)	//	:TODO: 36 bytes max
-			.scan('subject', NULL_TERM_BUFFER)		//	:TODO: 72 bytes max6
-			.scan('message', NULL_TERM_BUFFER)
-			.tap(function tapped(msgData) {	//	no arrow function; want classic this
-				if(!msgData.messageType) {
-					//	end marker -- no more messages
-					return cb(null);
+		//
+		//	Check for end-of-messages marker up front before parse so we can easily
+		//	tell the difference between end and bad header
+		//
+		if(packetBuffer.length < 3) {
+			const peek = packetBuffer.slice(0, 2);
+			if(peek.equals(Buffer.from([ 0x00 ])) || peek.equals(Buffer.from( [ 0x00, 0x00 ]))) {
+				//	end marker - no more messages
+				return cb(null);
+			}
+			//	else fall through & hit exception below to log error
+		}
+
+		let msgData;
+		try {
+			msgData = new Parser()
+				.uint16le('messageType')
+				.uint16le('ftn_msg_orig_node')
+				.uint16le('ftn_msg_dest_node')
+				.uint16le('ftn_msg_orig_net')
+				.uint16le('ftn_msg_dest_net')
+				.uint16le('ftn_attr_flags')
+				.uint16le('ftn_cost')
+				//	:TODO: use string() for these if https://github.com/keichi/binary-parser/issues/33 is resolved
+				.array('modDateTime', {
+					type		: 'uint8',
+					readUntil	: b => 0x00 === b,
+				})
+				.array('toUserName', {
+					type		: 'uint8',
+					readUntil	: b => 0x00 === b,
+				})
+				.array('fromUserName', {
+					type		: 'uint8',
+					readUntil	: b => 0x00 === b,
+				})
+				.array('subject', {
+					type		: 'uint8',
+					readUntil	: b => 0x00 === b,
+				})
+				.array('message', {
+					type		: 'uint8',
+					readUntil	: b => 0x00 === b,
+				})
+				.parse(packetBuffer);
+		} catch(e) {
+			return cb(Errors.Invalid(`Failed to parse FTN message header: ${e.message}`));
+		}
+
+		if(FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
+			return cb(Errors.Invalid(`Unsupported FTN message type: ${msgData.messageType}`));
+		}
+
+		//
+		//	Convert null terminated arrays to strings
+		//
+		[ 'modDateTime', 'toUserName', 'fromUserName', 'subject' ].forEach(k => {
+			msgData[k] = strUtil.stringFromNullTermBuffer(msgData[k], 'CP437');
+		});
+
+		//	Technically the following fields have length limits as per fts-0001.016:
+		//	* modDateTime	: 20 bytes
+		//	* toUserName	: 36 bytes
+		//	* fromUserName	: 36 bytes
+		//	* subject		: 72 bytes
+
+		//
+		//	The message body itself is a special beast as it may
+		//	contain an origin line, kludges, SAUCE in the case
+		//	of ANSI files, etc.
+		//				
+		const msg = new Message( {
+			toUserName		: msgData.toUserName,
+			fromUserName	: msgData.fromUserName,
+			subject			: msgData.subject,
+			modTimestamp	: ftn.getDateFromFtnDateTime(msgData.modDateTime),
+		});
+
+		//	:TODO: When non-private (e.g. EchoMail), attempt to extract SRC from MSGID vs headers, when avail (or Orgin line? research further)
+		msg.meta.FtnProperty = {
+			ftn_orig_node		: header.origNode,
+			ftn_dest_node		: header.destNode,
+			ftn_orig_network	: header.origNet,
+			ftn_dest_network	: header.destNet,
+
+			ftn_attr_flags		: msgData.ftn_attr_flags,
+			ftn_cost			: msgData.ftn_cost,
+
+			ftn_msg_orig_node	: msgData.ftn_msg_orig_node,
+			ftn_msg_dest_node	: msgData.ftn_msg_dest_node,
+			ftn_msg_orig_net	: msgData.ftn_msg_orig_net,
+			ftn_msg_dest_net	: msgData.ftn_msg_dest_net,
+		};
+
+		self.processMessageBody(msgData.message, messageBodyData => {
+			msg.message 		= messageBodyData.message;
+			msg.meta.FtnKludge	= messageBodyData.kludgeLines;
+
+			if(messageBodyData.tearLine) {
+				msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
+
+				if(self.options.keepTearAndOrigin) {
+					msg.message += `\r\n${messageBodyData.tearLine}\r\n`;
 				}
+			}
 
-				if(FTN_PACKET_MESSAGE_TYPE != msgData.messageType) {
-					return cb(new Error('Unsupported message type: ' + msgData.messageType));
+			if(messageBodyData.seenBy.length > 0) {
+				msg.meta.FtnProperty.ftn_seen_by = messageBodyData.seenBy;
+			}
+
+			if(messageBodyData.area) {
+				msg.meta.FtnProperty.ftn_area = messageBodyData.area;
+			}
+
+			if(messageBodyData.originLine) {
+				msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
+
+				if(self.options.keepTearAndOrigin) {
+					msg.message += `${messageBodyData.originLine}\r\n`;
 				}
+			}
 
-				const read =
-					14 +								//	fixed header size
-					msgData.modDateTime.length + 1 +
-					msgData.toUserName.length + 1 +
-					msgData.fromUserName.length + 1 +
-					msgData.subject.length + 1 +
-					msgData.message.length + 1;
+			//
+			//	If we have a UTC offset kludge (e.g. TZUTC) then update
+			//	modDateTime with it
+			//
+			if(_.isString(msg.meta.FtnKludge.TZUTC) && msg.meta.FtnKludge.TZUTC.length > 0) {
+				msg.modDateTime = msg.modTimestamp.utcOffset(msg.meta.FtnKludge.TZUTC);
+			}
 
-				//
-				//	Convert null terminated arrays to strings
-				//
-				let convMsgData = {};
-				[ 'modDateTime', 'toUserName', 'fromUserName', 'subject' ].forEach(k => {
-					convMsgData[k] = iconv.decode(msgData[k], 'CP437');
-				});
+			//	:TODO: Parser should give is this info:
+			const bytesRead =
+				14 +								//	fixed header size
+				msgData.modDateTime.length + 1 +	//	+1 = NULL
+				msgData.toUserName.length + 1 +		//	+1 = NULL
+				msgData.fromUserName.length + 1 +	//	+1 = NULL
+				msgData.subject.length + 1 +		//	+1 = NULL
+				msgData.message.length;				//	includes NULL
 
-				//
-				//	The message body itself is a special beast as it may
-				//	contain an origin line, kludges, SAUCE in the case
-				//	of ANSI files, etc.
-				//
-				const msg = new Message( {
-					toUserName		: convMsgData.toUserName,
-					fromUserName	: convMsgData.fromUserName,
-					subject			: convMsgData.subject,
-					modTimestamp	: ftn.getDateFromFtnDateTime(convMsgData.modDateTime),
-				});
-
-				//	:TODO: When non-private (e.g. EchoMail), attempt to extract SRC from MSGID vs headers, when avail (or Orgin line? research further)
-				msg.meta.FtnProperty = {
-					ftn_orig_node		: header.origNode,
-					ftn_dest_node		: header.destNode,
-					ftn_orig_network	: header.origNet,
-					ftn_dest_network	: header.destNet,
-
-					ftn_attr_flags		: msgData.ftn_attr_flags,
-					ftn_cost			: msgData.ftn_cost,
-
-					ftn_msg_orig_node	: msgData.ftn_msg_orig_node,
-					ftn_msg_dest_node	: msgData.ftn_msg_dest_node,
-					ftn_msg_orig_net	: msgData.ftn_msg_orig_net,
-					ftn_msg_dest_net	: msgData.ftn_msg_dest_net,
+			const nextBuf = packetBuffer.slice(bytesRead);
+			if(nextBuf.length > 0) {
+				const next = function(e) {
+					if(e) {
+						cb(e);
+					} else {
+						self.parsePacketMessages(header, nextBuf, iterator, cb);
+					}
 				};
 
-				self.processMessageBody(msgData.message, messageBodyData => {
-					msg.message 		= messageBodyData.message;
-					msg.meta.FtnKludge	= messageBodyData.kludgeLines;
-
-					if(messageBodyData.tearLine) {
-						msg.meta.FtnProperty.ftn_tear_line = messageBodyData.tearLine;
-
-						if(self.options.keepTearAndOrigin) {
-							msg.message += `\r\n${messageBodyData.tearLine}\r\n`;
-						}
-					}
-
-					if(messageBodyData.seenBy.length > 0) {
-						msg.meta.FtnProperty.ftn_seen_by = messageBodyData.seenBy;
-					}
-
-					if(messageBodyData.area) {
-						msg.meta.FtnProperty.ftn_area = messageBodyData.area;
-					}
-
-					if(messageBodyData.originLine) {
-						msg.meta.FtnProperty.ftn_origin = messageBodyData.originLine;
-
-						if(self.options.keepTearAndOrigin) {
-							msg.message += `${messageBodyData.originLine}\r\n`;
-						}
-					}
-
-					//
-					//	If we have a UTC offset kludge (e.g. TZUTC) then update
-					//	modDateTime with it
-					//
-					if(_.isString(msg.meta.FtnKludge.TZUTC) && msg.meta.FtnKludge.TZUTC.length > 0) {
-						msg.modDateTime = msg.modTimestamp.utcOffset(msg.meta.FtnKludge.TZUTC);
-					}
-
-					const nextBuf = packetBuffer.slice(read);
-					if(nextBuf.length > 0) {
-						const next = function(e) {
-							if(e) {
-								cb(e);
-							} else {
-								self.parsePacketMessages(header, nextBuf, iterator, cb);
-							}
-						};
-
-						iterator('message', msg, next);
-					} else {
-						cb(null);
-					}
-				});
-			});
+				iterator('message', msg, next);
+			} else {
+				cb(null);
+			}
+		});
 	};
 
 	this.sanatizeFtnProperties = function(message) {
