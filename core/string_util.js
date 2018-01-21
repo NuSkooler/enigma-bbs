@@ -204,7 +204,7 @@ function debugEscapedString(s) {
 }
 
 function stringFromNullTermBuffer(buf, encoding) {
-	let nullPos = buf.indexOf(new Buffer( [ 0x00 ] ));
+	let nullPos = buf.indexOf( 0x00 );
 	if(-1 === nullPos) {
 		nullPos = buf.length;
 	}
