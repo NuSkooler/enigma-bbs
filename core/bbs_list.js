@@ -150,7 +150,10 @@ exports.getModule = class BBSListModule extends MenuModule {
 				self.database.run(
 					`INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes) 
 					VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
-					[ formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes ],
+					[
+						formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www, 
+						formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes
+					],
 					err => {
 						if(err) {
 							self.client.log.error( { err : err }, 'Error adding to BBS list');
