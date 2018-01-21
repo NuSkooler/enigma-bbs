@@ -827,9 +827,9 @@ function FTNMessageScanTossModule() {
 
 	this.getNetMailRoute = function(dstAddr) {
 		//
-		//	messageNetworks.ftn.netMail.routes{} full|wildcard -> full adddress lookup
+		//	Route full|wildcard -> full adddress/network lookup
 		//
-		const routes = _.get(Config, 'messageNetworks.ftn.netMail.routes');
+		const routes = _.get(Config, 'scannerTossers.ftn_bso.netMail.routes');
 		if(!routes) {
 			return;
 		}
@@ -843,7 +843,7 @@ function FTNMessageScanTossModule() {
 		//
 		//	Attempt to find route information for |destAddress|:
 		//
-		//	1) Routes: messageNetworks.ftn.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
+		//	1) Routes: scannerTossers.ftn_bso.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
 		//		- Where we send may not be where destAddress is (it's routed!)
 		//	2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
 		//		- Where we send is direct to destAddress
