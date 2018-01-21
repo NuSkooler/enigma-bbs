@@ -66,10 +66,7 @@ function VerticalMenuView(options) {
 		let sgr;
 		if(item.focused && self.hasFocusItems()) {
 			const focusItem = self.focusItems[index];
-			text = strUtil.stylizeString(
-				focusItem ? focusItem.text : item.text,
-				self.focusTextStyle
-			);
+			text = focusItem ? focusItem.text : item.text;
 			sgr = '';
 		} else {
 			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
