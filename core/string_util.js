@@ -2,7 +2,6 @@
 'use strict';
 
 //	ENiGMA½
-const miscUtil			= require('./misc_util.js');
 const ANSI				= require('./ansi_term.js');
 
 //	deps
