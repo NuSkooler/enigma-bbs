@@ -41,14 +41,19 @@ function SSHClient(clientConn) {
 	clientConn.on('authentication', function authAttempt(ctx) {
 		const username	= ctx.username || '';
 		const password	= ctx.password || '';
-		
+
 		self.isNewUser	= (Config.users.newUserNames || []).indexOf(username) > -1;
 
 		self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
 		function terminateConnection() {
 			ctx.reject();
-			clientConn.end();
+			return clientConn.end();
+		}
+
+		function alreadyLoggedIn(username) {
+			ctx.prompt(`${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`);
+			return terminateConnection();
 		}
 
 		//
@@ -65,15 +70,13 @@ function SSHClient(clientConn) {
 			userLogin(self, ctx.username, ctx.password, function authResult(err) {
 				if(err) {
 					if(err.existingConn) {
-						//	:TODO: Can we display somthing here?
-						terminateConnection();
-						return;
-					} else {
-						return ctx.reject(SSHClient.ValidAuthMethods);
+						return alreadyLoggedIn(username);
 					}
-				} else {
-					ctx.accept();
+
+					return ctx.reject(SSHClient.ValidAuthMethods);
 				}
+
+				ctx.accept();
 			});
 		} else {
 			if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
@@ -85,7 +88,7 @@ function SSHClient(clientConn) {
 				return ctx.reject();
 			}
 
-			let interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
+			const interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
 
 			ctx.prompt(interactivePrompt, function retryPrompt(answers) {
 				loginAttempts += 1;
@@ -93,37 +96,36 @@ function SSHClient(clientConn) {
 				userLogin(self, username, (answers[0] || ''), err => {
 					if(err) {
 						if(err.existingConn) {
-							//	:TODO: can we display something here?
-							terminateConnection();
-						} else {				
-							if(loginAttempts >= Config.general.loginAttempts) {
-								terminateConnection();
-							} else {
-								const artOpts = {
-									client		: self,
-									name 		: 'SSHPMPT.ASC',
-									readSauce	: false,
-								};
-
-								theme.getThemeArt(artOpts, (err, artInfo) => {
-									if(err) {
-										interactivePrompt.prompt = `Access denied\n${ctx.username}'s password: `;
-									} else {										
-										const newUserNameList = _.has(Config, 'users.newUserNames') && Config.users.newUserNames.length > 0 ?
-											Config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
-											'(No new user names enabled!)';
-
-										interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
-									}
-									return ctx.prompt(interactivePrompt, retryPrompt);
-								});
-							}
+							return alreadyLoggedIn(username);
 						}
+
+						if(loginAttempts >= Config.general.loginAttempts) {
+							return terminateConnection();
+						}
+
+						const artOpts = {
+							client		: self,
+							name 		: 'SSHPMPT.ASC',
+							readSauce	: false,
+						};
+
+						theme.getThemeArt(artOpts, (err, artInfo) => {
+							if(err) {
+								interactivePrompt.prompt = `Access denied\n${ctx.username}'s password: `;
+							} else {
+								const newUserNameList = _.has(Config, 'users.newUserNames') && Config.users.newUserNames.length > 0 ?
+									Config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
+									'(No new user names enabled!)';
+
+								interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
+							}
+							return ctx.prompt(interactivePrompt, retryPrompt);
+						});
 					} else {
 						ctx.accept();
 					}
-				});	
-			});		
+				});
+			});
 		}
 	});
 
