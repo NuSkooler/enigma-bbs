@@ -159,7 +159,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 							return callback(0 === self.messageList.length ? new Error('No messages in area') : null);
 						}
 
-						messageArea.getMessageListForArea( { client : self.client }, self.messageAreaTag, function msgs(err, msgList) {
+						messageArea.getMessageListForArea(self.client, self.messageAreaTag, function msgs(err, msgList) {
 							if(!msgList || 0 === msgList.length) {
 								return callback(new Error('No messages in area'));
 							}
