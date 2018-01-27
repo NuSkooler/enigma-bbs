@@ -40,7 +40,7 @@ function wordWrapText(text, options) {
 	let renderLen;
 	let i			= 0;
 	let wordStart	= 0;
-	let result		= { wrapped : [ '' ], renderLen : [] };
+	let result		= { wrapped : [ '' ], renderLen : [ 0 ] };
 
 	function expandTab(column) {
 		const remainWidth = options.tabWidth - (column % options.tabWidth);
