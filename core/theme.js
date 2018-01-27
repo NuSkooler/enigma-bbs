@@ -34,47 +34,31 @@ function refreshThemeHelpers(theme) {
 	//
 	theme.helpers = {
 		getPasswordChar : function() {
-			var pwChar = Config.defaults.passwordChar;
-			if(_.has(theme, 'customization.defaults.general')) {
-				var themePasswordChar = theme.customization.defaults.general.passwordChar;
-				if(_.isString(themePasswordChar)) {
-					pwChar = themePasswordChar.substr(0, 1);
-				} else if(_.isNumber(themePasswordChar)) {
-					pwChar = String.fromCharCode(themePasswordChar);
-				}
+			let pwChar = _.get(
+				theme,
+				'customization.defaults.general.passwordChar',
+				Config.defaults.passwordChar
+			);
+
+			if(_.isString(pwChar)) {
+				pwChar = pwChar.substr(0, 1);
+			} else if(_.isNumber(pwChar)) {
+				pwChar = String.fromCharCode(pwChar);
 			}
+
 			return pwChar;
 		},
-		getDateFormat : function(style) {
-			style = style || 'short';
-
-			var format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
-
-			if(_.has(theme, 'customization.defaults.dateFormat')) {
-				return theme.customization.defaults.dateFormat[style] || format;
-			}
-			return format;
+		getDateFormat : function(style = 'short') {
+			const format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
+			return _.get(theme, `customization.defaults.dateFormat.${style}`, format);
 		},
-		getTimeFormat : function(style) {
-			style = style || 'short';
-
-			var format = Config.defaults.timeFormat[style] || 'h:mm a';
-
-			if(_.has(theme, 'customization.defaults.timeFormat')) {
-				return theme.customization.defaults.timeFormat[style] || format;
-			}
-			return format;
+		getTimeFormat : function(style = 'short') {
+			const format = Config.defaults.timeFormat[style] || 'h:mm a';
+			return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
 		},
-		getDateTimeFormat : function(style) {
-			style = style || 'short';
-
-			var format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
-
-			if(_.has(theme, 'customization.defaults.dateTimeFormat')) {
-				return theme.customization.defaults.dateTimeFormat[style] || format;
-			}
-
-			return format;
+		getDateTimeFormat : function(style = 'short') {
+			const format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+			return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
 		}
 	};
 }
