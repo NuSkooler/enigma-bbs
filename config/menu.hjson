@@ -2465,7 +2465,7 @@
 
 		mailMenuInbox: {
 			module: msg_list
-			art: MSGLIST
+			art: PRVMSGLIST
 			config: {
 				menuViewPost: messageAreaViewPost
 				messageAreaTag: private_mail
