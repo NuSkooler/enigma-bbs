@@ -320,177 +320,90 @@ function getMessageFromRow(row) {
 		fromUserName	: row.from_user_name,
 		subject			: row.subject,
 		modTimestamp	: row.modified_timestamp,
-		viewCount		: row.view_count,
 	};
 }
 
-function getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, what) {
-	//
-	//	Helper for building SQL to fetch either a full message list or simply
-	//	a count of new messages based on |what|.
-	//
-	//	* If |areaTag| is Message.WellKnownAreaTags.Private,
-	//	  only messages addressed to |userId| should be returned/counted.
-	//
-	//	* Only messages > |lastMessageId| should be returned/counted
-	//
-	const selectWhat = ('count' === what) ?
-		'COUNT() AS count' :
-		'message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count';
-
-	let sql =
-		`SELECT ${selectWhat}
-		FROM message
-		WHERE area_tag = "${areaTag}" AND message_id > ${lastMessageId}`;
-
-	if(Message.isPrivateAreaTag(areaTag)) {
-		sql +=
-			` AND message_id in (
-				SELECT message_id 
-				FROM message_meta 
-				WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${userId}
-			)`;
-	}
-
-	if('count' === what) {
-		sql += ';';
-	} else {
-		sql += ' ORDER BY message_id;';
-	}
-
-	return sql;
-}
-
 function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
-	async.waterfall(
-		[
-			function getLastMessageId(callback) {
-				getMessageAreaLastReadId(userId, areaTag, function fetched(err, lastMessageId) {
-					callback(null, lastMessageId || 0);	//	note: willingly ignoring any errors here!
-				});
-			},
-			function getCount(lastMessageId, callback) {
-				const sql = getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, 'count');
-				msgDb.get(sql, (err, row) => {
-					return callback(err, row ? row.count : 0);
-				});
-			}
-		],
-		cb
-	);
+	getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
+		lastMessageId = lastMessageId || 0;
+
+		const filter = {
+			areaTag,
+			newerThanMessageId	: lastMessageId,
+			resultType			: 'count',
+		};
+
+		if(Message.isPrivateAreaTag(areaTag)) {
+			filter.privateTagUserId = userId;
+		}
+
+		Message.findMessages(filter, (err, count) => {
+			return cb(err, count);
+		});
+	});
 }
 
 function getNewMessagesInAreaForUser(userId, areaTag, cb) {
-	//
-	//	If |areaTag| is Message.WellKnownAreaTags.Private,
-	//	only messages addressed to |userId| should be returned.
-	//
-	//	Only messages > lastMessageId should be returned
-	//
-	let msgList = [];
+	getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
+		lastMessageId = lastMessageId || 0;
 
-	async.waterfall(
-		[
-			function getLastMessageId(callback) {
-				getMessageAreaLastReadId(userId, areaTag, function fetched(err, lastMessageId) {
-					callback(null, lastMessageId || 0);	//	note: willingly ignoring any errors here!
-				});
-			},
-			function getMessages(lastMessageId, callback) {
-				const sql = getNewMessageDataInAreaForUserSql(userId, areaTag, lastMessageId, 'messages');
+		const filter = {
+			areaTag,
+			newerThanMessageId	: lastMessageId,
+			sort				: 'messageId',
+			order				: 'ascending',
+			extraFields			: [ 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
+		};
 
-				msgDb.each(sql, function msgRow(err, row) {
-					if(!err) {
-						msgList.push(getMessageFromRow(row));
-					}
-				}, callback);
-			}
-		],
-		function complete(err) {
-			cb(err, msgList);
+		if(Message.isPrivateAreaTag(areaTag)) {
+			filter.privateTagUserId = userId;
 		}
-	);
-}
 
-function getMessageListForArea(options, areaTag, cb) {
-	//
-	//	options.client (required)
-	//
-
-	options.client.log.debug( { areaTag : areaTag }, 'Fetching available messages');
-
-	assert(_.isObject(options.client));
-
-	/*
-		[
-			{
-				messageId, messageUuid, replyToId, toUserName, fromUserName, subject, modTimestamp,
-				status(new|old),
-				viewCount
-			}
-		]
-	*/
-
-	let msgList = [];
-
-	async.series(
-		[
-			function fetchMessages(callback) {
-				let sql =
-					`SELECT message_id, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, modified_timestamp, view_count
-					FROM message
-					WHERE area_tag = ?`;
-
-				if(Message.isPrivateAreaTag(areaTag)) {
-					sql +=
-						` AND message_id IN (
-							SELECT message_id 
-							FROM message_meta 
-							WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${options.client.user.userId}
-						)`;
-				}
-
-				sql += ' ORDER BY message_id;';
-
-				msgDb.each(
-					sql,
-					[ areaTag.toLowerCase() ],
-					(err, row) => {
-						if(!err) {
-							msgList.push(getMessageFromRow(row));
-						}
-					},
-					callback
-				);
-			},
-			function fetchStatus(callback) {
-				callback(null);//	:TODO: fixmeh.
-			}
-		],
-		function complete(err) {
-			cb(err, msgList);
-		}
-	);
-}
-
-function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
-	if(moment.isMoment(newerThanTimestamp)) {
-		newerThanTimestamp = getISOTimestampString(newerThanTimestamp);
-	}
-
-	msgDb.get(
-		`SELECT message_id 
-		FROM message
-		WHERE area_tag = ? AND DATETIME(modified_timestamp) > DATETIME("${newerThanTimestamp}", "+1 seconds")
-		ORDER BY modified_timestamp ASC
-		LIMIT 1;`,
-		[ areaTag ],
-		(err, row) => {
+		Message.findMessages(filter, (err, messages) => {
 			if(err) {
 				return cb(err);
 			}
 
-			return cb(null, row ? row.message_id : null);
+			return cb(null, messages.map(msg => getMessageFromRow(msg)));
+		});
+	});
+}
+
+function getMessageListForArea(client, areaTag, cb) {
+	const filter = {
+		areaTag,
+		sort		: 'messageId',
+		order		: 'ascending',
+		extraFields	: [ 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
+	};
+
+	if(Message.isPrivateAreaTag(areaTag)) {
+		filter.privateTagUserId = client.user.userId;
+	}
+
+	Message.findMessages(filter, (err, messages) => {
+		if(err) {
+			return cb(err);
+		}
+
+		return cb(null, messages.map(msg => getMessageFromRow(msg)));
+	});
+}
+
+function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
+	Message.findMessages(
+		{
+			areaTag,
+			newerThanTimestamp,
+			sort 	: 'modTimestamp',
+			order	: 'ascending',
+			limit	: 1,
+		},
+		(err, id) => {
+			if(err) {
+				return cb(err);
+			}
+			return cb(null, id ? id[0] : null);
 		}
 	);
 }
