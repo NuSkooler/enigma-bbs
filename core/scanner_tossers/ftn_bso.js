@@ -1718,9 +1718,9 @@ function FTNMessageScanTossModule() {
 
 					const metaPairs = [
 						{
-							name	: 'short_file_name',
-							value	: replaces.toUpperCase(),	//	we store upper as well
-							wcValue	: true,	//	value may contain wildcards
+							name		: 'short_file_name',
+							value		: replaces.toUpperCase(),	//	we store upper as well
+							wildcards	: true,	//	value may contain wildcards
 						},
 						{
 							name	: 'tic_origin',

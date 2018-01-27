@@ -496,7 +496,7 @@ module.exports = class FileEntry {
 		if(filter.metaPairs && filter.metaPairs.length > 0) {
 
 			filter.metaPairs.forEach(mp => {
-				if(mp.wcValue) {
+				if(mp.wildcards) {
 					//	convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
 					mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
 					appendWhereClause(
