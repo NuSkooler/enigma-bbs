@@ -56,9 +56,9 @@ const _				= require('lodash');
 //	To-Do
 //
 //	* Index pos % for emit scroll events
-//	* Some of this shoudl be async'd where there is lots of processing (e.g. word wrap)
+//	* Some of this should be async'd where there is lots of processing (e.g. word wrap)
 //	* Fix backspace when col=0 (e.g. bs to prev line)
-//	* Add back word delete
+//	* Add word delete (CTRL+????)
 //	*
 
 
@@ -336,13 +336,10 @@ function MultiLineEditTextView(options) {
 	*/
 
 	this.updateTextWordWrap = function(index) {
-		var nextEolIndex	= self.getNextEndOfLineIndex(index);
-		var wrapped			= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
-		var newLines		= wrapped.wrapped;
+		const nextEolIndex	= self.getNextEndOfLineIndex(index);
+		const wrapped		= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
+		const newLines		= wrapped.wrapped.map(l => { return { text : l }; } );
 
-		for(var i = 0; i < newLines.length; ++i) {
-			newLines[i] = { text : newLines[i] };
-		}
 		newLines[newLines.length - 1].eol = true;
 
 		Array.prototype.splice.apply(
@@ -420,44 +417,40 @@ function MultiLineEditTextView(options) {
 			self.textLines[index].text.slice(col)
 		].join('');
 
-		//self.cursorPos.col++;
 		self.cursorPos.col += c.length;
 
-		var cursorOffset;
-		var absPos;
+		let cursorOffset;
+		let absPos;
 
 		if(self.getTextLength(index) > self.dimens.width) {
 			//
 			//	Update word wrapping and |cursorOffset| if the cursor
 			//	was within the bounds of the wrapped text
 			//
-			var lastCol			= self.cursorPos.col - c.length;
-			var firstWrapRange	= self.updateTextWordWrap(index);
+			const lastCol			= self.cursorPos.col - c.length;
+			const firstWrapRange	= self.updateTextWordWrap(index);
 			if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
 				cursorOffset = self.cursorPos.col - firstWrapRange.start;
+			} else {
+				cursorOffset = firstWrapRange.end;
 			}
 
 			//	redraw from current row to end of visible area
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			if(!_.isUndefined(cursorOffset)) {
-				self.cursorBeginOfNextLine();
-				self.cursorPos.col += cursorOffset;
-				self.client.term.rawWrite(ansi.right(cursorOffset));
-			} else {
-				self.moveClientCursorToCursorPos();
-			}
+			self.cursorBeginOfNextLine();
+			self.cursorPos.col += cursorOffset;
+			self.client.term.rawWrite(ansi.right(cursorOffset));
 		} else {
 			//
 			//	We must only redraw from col -> end of current visible line
 			//
 			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+			const renderText = self.getRenderText(index).slice(self.cursorPos.col - c.length);
+
 			self.client.term.write(
-				ansi.hideCursor() +
-				self.getSGRFor('text') +
-				self.getRenderText(index).slice(self.cursorPos.col - c.length) +
-				ansi.goto(absPos.row, absPos.col) +
-				ansi.showCursor(), false
+				`${ansi.hideCursor()}${self.getSGRFor('text')}${renderText}${ansi.goto(absPos.row, absPos.col)}${ansi.showCursor()}`,
+				false	//	convertLineFeeds
 			);
 		}
 	};
@@ -495,16 +488,12 @@ function MultiLineEditTextView(options) {
 		return new Array(self.getRemainingTabWidth(col)).join(expandChar);
 	};
 
-	this.wordWrapSingleLine = function(s, tabHandling, width) {
-		if(!_.isNumber(width)) {
-			width = self.dimens.width;
-		}
-
+	this.wordWrapSingleLine = function(line, tabHandling = 'expand') {
 		return wordWrapText(
-			s,
+			line,
 			{
-				width		: width,
-				tabHandling	: tabHandling || 'expand',
+				width		: self.dimens.width,
+				tabHandling	: tabHandling,
 				tabWidth	: self.tabWidth,
 				tabChar		: '\t',
 			}
@@ -615,11 +604,7 @@ function MultiLineEditTextView(options) {
 
 		let wrapped;
 		text.forEach(line => {
-			wrapped = self.wordWrapSingleLine(
-				line,	 	//	line to wrap
-				'expand', 	//	tabHandling
-				self.dimens.width
-			).wrapped;
+			wrapped = self.wordWrapSingleLine(line, 'expand').wrapped;
 
 			self.setTextLines(wrapped, index, true);	//	true=termWithEol
 			index += wrapped.length;
@@ -784,7 +769,7 @@ function MultiLineEditTextView(options) {
 		var index			= self.getTextLinesIndex();
 		var nextEolIndex	= self.getNextEndOfLineIndex(index);
 		var text			= self.getContiguousText(index, nextEolIndex);
-		var newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
+		const newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
 
 		newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
 		for(var i = 1; i < newLines.length; ++i) {
