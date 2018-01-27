@@ -19,6 +19,7 @@ const dbs = {};
 exports.getTransactionDatabase		= getTransactionDatabase;
 exports.getModDatabasePath			= getModDatabasePath;
 exports.getISOTimestampString		= getISOTimestampString;
+exports.sanatizeString				= sanatizeString;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
@@ -57,6 +58,25 @@ function getModDatabasePath(moduleInfo, suffix) {
 function getISOTimestampString(ts) {
 	ts = ts || moment();
 	return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+}
+
+function sanatizeString(s) {
+	return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {	//	eslint-disable-line no-control-regex
+		switch (c) {
+			case '\0'	: return '\\0';
+			case '\x08'	: return '\\b';
+			case '\x09'	: return '\\t';
+			case '\x1a'	: return '\\z';
+			case '\n'	: return '\\n';
+			case '\r'	: return '\\r';
+
+			case '"' :
+			case '\'' :
+			case '\\' :
+			case '%' :
+				return `\\${c}`;
+		}
+	});
 }
 
 function initializeDatabases(cb) {
