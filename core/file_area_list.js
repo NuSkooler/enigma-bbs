@@ -75,6 +75,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
 		this.fileList			= _.get(options, 'extraArgs.fileList');
+		this.lastFileNextExit	= _.get(options, 'extraArgs.lastFileNextExit', true);
 
 		if(this.fileList) {
 			//	we'll need to adjust position as well!
@@ -101,6 +102,10 @@ exports.getModule = class FileAreaList extends MenuModule {
 					this.fileListPosition += 1;
 
 					return this.displayBrowsePage(true, cb);	//	true=clerarScreen
+				}
+
+				if(this.lastFileNextExit) {
+					return this.prevMenu(cb);
 				}
 
 				return cb(null);
