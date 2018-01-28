@@ -126,8 +126,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		this.config			= options.menuConfig.config;
-		//	defaults
+		this.config			= Object.assign({}, _.get(options, 'menuConf.config'), options.extraArgs);
 		this.config.port	= this.config.port || 23;
 	}
 
@@ -152,10 +151,10 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 						host	: self.config.host,
 					};
 
-					let clientTerminated;
-
 					self.client.term.write(resetScreen());
-					self.client.term.write(`  Connecting to ${connectOpts.host}, please wait...\n`);
+					self.client.term.write(
+						`  Connecting to ${connectOpts.host}, please wait...\n`
+					);
 
 					const telnetConnection = new TelnetClientConnection(self.client);
 
