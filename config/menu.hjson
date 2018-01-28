@@ -2782,14 +2782,14 @@
 					mci: {
 						VM1: {
 							focus: true
-							argName: areaSelect
+							argName: areaTag
 						}
 					}
 
 					submit: {
 						*: [
 							{
-								value: { areaSelect: null }
+								value: { areaTag: null }
 								action: @method:selectArea
 							}
 						]
