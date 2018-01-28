@@ -4,6 +4,12 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 ## 0.0.9-alpha
 * Development is now against Node.js 8.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
 * Fixed `justify` properties: `left` and `right` values were formerly swapped (oops!)
+* Menu items can now be arrays of *objects* not just arrays of strings.
+  * The properties `itemFormat` and `focusItemFormat` allow you to supply the string format for items. For example if a menu object is `{ "userName" : "Bob", "age" : 35 }`, a `itemFormat` might be `|04{userName} |08- |14{age}`.
+  * If no `itemFormat` is supplied, the default formatter is `{text}`.
+  * Setting the `data` member of an object will cause form submissions to use this value instead of the selected items index.
+  * See the default `luciano_blocktronics` `matrix` menu for example usage.
+* You can now set the `sort` property on a menu to sort items. If `true` items are sorted by `text`. If the value is a string, it represents the key in menu objects to sort by.
 
 
 ## 0.0.8-alpha

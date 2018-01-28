@@ -40,6 +40,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 # 0.0.8-alpha to 0.0.9-alpha
 * Development is now against Node.js 8.x LTS. Follow your standard upgrade path to update to Node 8.x before using 0.0.9-alpha.
 * The property `justify` found on various views previously had `left` and `right` values swapped (oops!); you will need to adjust any custom `theme.hjson` that use one or the other and swap them as well.
+* Possible breaking changes in FSE: The MCI code `%TL13` for error indicator is now `%TL4`. This is part of a cleanup and standardization on "custom ranges". You may need to update your `theme.hjson` and related artwork.
 
 
 # 0.0.7-alpha to 0.0.8-alpha
