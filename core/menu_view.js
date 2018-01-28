@@ -63,17 +63,37 @@ function MenuView(options) {
 util.inherits(MenuView, View);
 
 MenuView.prototype.setItems = function(items) {
-	const self = this;
+	if(Array.isArray(items)) {
+		//
+		//	Items can be an array of strings or an array of objects.
+		//
+		//	In the case of objects, items are considered complex and
+		//	may have one or more members that can later be formatted
+		//	against. The default member is 'text'. The member 'data'
+		//	may be overridden to provide a form value other than the
+		//	item's index.
+		//
+		//	Items can be formatted with 'itemFormat' and 'focusItemFormat'
+		//
+		let text;
+		let stringItem;
+		this.items = items.map(item => {
+			stringItem = _.isString(item);
+			if(stringItem) {
+				text = item;
+			} else {
+				text = item.text || '';
+				this.complexItems = true;
+			}
 
-	if(items) {
-		this.items = [];
-		items.forEach( itemText => {
-			this.items.push(
-				{
-					text : self.disablePipe ? itemText : pipeToAnsi(itemText, self.client)
-				}
-			);
+			text = this.disablePipe ? text : pipeToAnsi(text, this.client);
+			return Object.assign({ }, { text }, stringItem ? {} : item);	//	ensure we have a text member, plus any others
 		});
+
+		if(this.complexItems) {
+			this.itemFormat			= this.itemFormat || '{text}';
+			this.focusItemFormat	= this.focusItemFormat || this.itemFormat;
+		}
 	}
 };
 
@@ -96,12 +116,20 @@ MenuView.prototype.getCount = function() {
 };
 
 MenuView.prototype.getItems = function() {
+	if(this.complexItems) {
+		return this.items;
+	}
+
 	return this.items.map( item => {
 		return item.text;
 	});
 };
 
 MenuView.prototype.getItem = function(index) {
+	if(this.complexItems) {
+		return this.items[index];
+	}
+
 	return this.items[index].text;
 };
 
@@ -170,6 +198,11 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 		case 'hotKeySubmit'		: this.hotKeySubmit = value; break;
 		case 'justify'			: this.justify = value; break;
 		case 'focusItemIndex'	: this.focusedItemIndex = value; break;
+
+		case 'itemFormat' :
+		case 'focusItemFormat' :
+			this[propName] = value;
+			break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);

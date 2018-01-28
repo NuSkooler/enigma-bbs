@@ -113,9 +113,9 @@ ToggleMenuView.prototype.getData = function() {
 };
 
 ToggleMenuView.prototype.setItems = function(items) {
+	items = items.slice(0, 2);	//	switch/toggle only works with two elements
+
 	ToggleMenuView.super_.prototype.setItems.call(this, items);
 
-	this.items = this.items.splice(0, 2);	//	switch/toggle only works with two elements
-
-	this.dimens.width = this.items.join(' / ').length;	//	:TODO: allow configurable seperator... string & color, e.g. styleColor1 (same as fillChar color)
+	this.dimens.width = items.join(' / ').length;	//	:TODO: allow configurable seperator... string & color, e.g. styleColor1 (same as fillChar color)
 };

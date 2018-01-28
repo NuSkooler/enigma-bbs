@@ -5,6 +5,8 @@
 const MenuView		= require('./menu_view.js').MenuView;
 const ansi			= require('./ansi_term.js');
 const strUtil		= require('./string_util.js');
+const formatString	= require('./string_format');
+const pipeToAnsi	= require('./color_codes.js').pipeToAnsi;
 
 //	deps
 const util			= require('util');
@@ -68,17 +70,16 @@ function VerticalMenuView(options) {
 			const focusItem = self.focusItems[index];
 			text = focusItem ? focusItem.text : item.text;
 			sgr = '';
+		} else if(this.complexItems) {
+			text = pipeToAnsi(formatString(item.focused ? this.focusItemFormat : this.itemFormat, item));
+			sgr = this.focusItemFormat ? '' : (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		} else {
 			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		}
 
-		text += self.getSGR();
-
 		self.client.term.write(
-			ansi.goto(item.row, self.position.col) +
-			sgr +
-			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
+			`${ansi.goto(item.row, self.position.col)}${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`
 		);
 	};
 }
@@ -176,7 +177,9 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 VerticalMenuView.prototype.getData = function() {
-	return this.focusedItemIndex;
+	const item = this.getItem(this.focusedItemIndex);
+	return item.data ? item.data : this.focusedItemIndex;
+	//return this.focusedItemIndex;
 };
 
 VerticalMenuView.prototype.setItems = function(items) {
