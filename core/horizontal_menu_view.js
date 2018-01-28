@@ -71,7 +71,7 @@ function HorizontalMenuView(options) {
 			text = focusItem ? focusItem.text : item.text;
 			sgr = '';
 		} else if(this.complexItems) {
-			text = pipeToAnsi(formatString(item.focused ? this.focusItemFormat : this.itemFormat, item));
+			text = pipeToAnsi(formatString(item.focused && this.focusItemFormat ? this.focusItemFormat : this.itemFormat, item));
 			sgr = this.focusItemFormat ? '' : (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		} else {
 			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);

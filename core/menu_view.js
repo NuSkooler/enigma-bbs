@@ -64,6 +64,8 @@ util.inherits(MenuView, View);
 
 MenuView.prototype.setItems = function(items) {
 	if(Array.isArray(items)) {
+		this.sorted = false;
+
 		//
 		//	Items can be an array of strings or an array of objects.
 		//
@@ -91,13 +93,38 @@ MenuView.prototype.setItems = function(items) {
 		});
 
 		if(this.complexItems) {
-			this.itemFormat			= this.itemFormat || '{text}';
-			this.focusItemFormat	= this.focusItemFormat || this.itemFormat;
+			this.itemFormat = this.itemFormat || '{text}';
 		}
 	}
 };
 
+MenuView.prototype.setSort = function(sort) {
+	if(this.sorted || !Array.isArray(this.items) || 0 === this.items.length) {
+		return;
+	}
+
+	const key = true === sort ? 'text' : sort;
+	if('text' !== sort && !this.complexItems) {
+		return;	//	need a valid sort key
+	}
+
+	this.items.sort( (a, b) => {
+		const a1 = a[key];
+		const b1 = b[key];
+		if(!a1) {
+			return -1;
+		}
+		if(!b1) {
+			return 1;
+		}
+		return a1.localeCompare( b1, { sensitivity : false, numeric : true } );
+	});
+
+	this.sorted = true;
+};
+
 MenuView.prototype.removeItem = function(index) {
+	this.sorted = false;
 	this.items.splice(index, 1);
 
 	if(this.focusItems) {
@@ -203,6 +230,8 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 		case 'focusItemFormat' :
 			this[propName] = value;
 			break;
+
+		case 'sort' 			: this.setSort(value); break;
 	}
 
 	MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
