@@ -22,7 +22,8 @@
 			matrix: {
 				mci: {
 					VM1: {
-						focusTextStyle: first lower
+						itemFormat:			"|03{text}"
+						focusItemFormat:	"|11{text!styleFirstLower}"
 					}
 				}
 			}

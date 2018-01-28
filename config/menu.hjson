@@ -67,26 +67,47 @@
 								submit:	true
 								focus:	true
 								argName: navSelect
-								//	:TODO: need a good way to localize these ... Standard Orig->Lookup seems good.
-								items: [ "login", "apply", "forgot pw", "log off" ]
+								//
+								//	To enable forgot password, you will need to have the web server
+								//	enabled and mail/SMTP configured. Once that is in place, swap out
+								//	the commented lines below as well as in the submit block
+								//
+								items: [
+									{
+										text: login
+										data: login
+									}
+									{
+										text: apply
+										data: apply
+									}
+									{
+										text: forgot pass
+										data: forgot
+									}
+									{
+										text: log off
+										data: logoff
+									}
+								]
 							}
 						}
 						submit: {
 							*: [
 								{
-									value: { navSelect: 0 }
+									value: { navSelect: "login" }
 									action:	@menu:login
 								}
 								{
-									value: { navSelect: 1 },
+									value: { navSelect: "apply" }
 									action: @menu:newUserApplicationPre
 								}
 								{
-									value: { navSelect: 2 }
+									value: { navSelect: "forgot" }
 									action: @menu:forgotPassword
 								}
 								{
-									value: { navSelect: 3 },
+									value: { navSelect: "logoff" }
 									action: @menu:logoff
 								}
 							]
