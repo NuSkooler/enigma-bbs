@@ -126,7 +126,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		this.config			= Object.assign({}, _.get(options, 'menuConf.config'), options.extraArgs);
+		this.config			= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
 		this.config.port	= this.config.port || 23;
 	}
 
