@@ -1,3 +1,7 @@
+---
+layout: page
+title: Web Socket / Web Interface Server
+---
 # VTX Web Client
 ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at 
 [Xibalba](https://l33t.codes/vtx/xibalba.html) and [fORCE9](https://bbs.force9.org/vtx/force9.html).
@@ -82,6 +86,6 @@ webserver, and unpack it to a temporary directory.
 otherwise.
     
 9. If you navigate to http://your-hostname.here/vtx.html, you should see a splash screen like the following:
-    ![VTXClient](images/vtxclient.png "VTXClient")
+    ![VTXClient](../images/vtxclient.png "VTXClient")
 
  

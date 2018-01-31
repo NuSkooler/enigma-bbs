@@ -1,20 +1,14 @@
-# Raspberry Pi
+---
+layout: page
+title: OS & Hardware Specific Information
+---
+## Raspberry Pi
 
-ENiGMA½ can run under your Linux / RPi installation! The following instructions should help get you started.
-
-## Tested RPi Models
-### Model A
-Works, but fairly slow when browsing message areas (Node itself is not the fastest on this device). May work better overlocked, etc.
-
-### v2 Model B
-Works well with Raspbian!
-
-Keep in mind, compiling the dependencies with `npm install` will take some time and appear to hang. Just be patient.
-
-## Example Configuration: RPi Model A + Raspbian Stretch Lite
+All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with 
+`npm install` will take some time and *may* appear to hang. It's still working - just be patient and let it
+complete.
 
 ### Basic Instructions
-
 
 1. Download [Raspbian Stretch Lite](https://www.raspberrypi.org/downloads/raspbian/). Follow the instructions
 on the [Raspbian site](https://www.raspberrypi.org/documentation/installation/installing-images/README.md) regarding how
@@ -29,6 +23,10 @@ to get it written to an SD card.
     
 4. Install required packages: `sudo apt install lrzsz p7zip-full`
 
-5. Follow the [Quickstart](docs/index.md) instructions to install ENiGMA½.
+5. Follow the [installation instructions](/installation) to install ENiGMA½.
 
 6. Profit!
+
+## Windows
+
+Needs more info, please submit a PR!
