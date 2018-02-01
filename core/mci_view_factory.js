@@ -199,5 +199,9 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 			break;
 	}
 
+	if(view) {
+		view.mciCode = mci.code;
+	}
+
 	return view;
 };

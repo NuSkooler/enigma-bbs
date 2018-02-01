@@ -140,9 +140,9 @@ function ViewController(options) {
 	};
 
 	this.createViewsFromMCI = function(mciMap, cb) {
-		async.each(Object.keys(mciMap), function entry(name, nextItem) {
-			var mci		= mciMap[name];
-			var view	= self.mciViewFactory.createFromMCI(mci);
+		async.each(Object.keys(mciMap), (name, nextItem) => {
+			const mci	= mciMap[name];
+			const view	= self.mciViewFactory.createFromMCI(mci);
 
 			if(view) {
 				if(false === self.noInput) {
@@ -152,11 +152,11 @@ function ViewController(options) {
 				self.addView(view);
 			}
 
-			nextItem(null);
+			return nextItem(null);
 		},
-		function complete(err) {
+		err => {
 			self.setViewOrder();
-			cb(err);
+			return cb(err);
 		});
 	};
 
@@ -424,6 +424,20 @@ ViewController.prototype.addView = function(view) {
 
 ViewController.prototype.getView = function(id) {
 	return this.views[id];
+};
+
+ViewController.prototype.getViewsByMciCode = function(mciCode) {
+	if(!Array.isArray(mciCode)) {
+		mciCode = [ mciCode ];
+	}
+
+	const views = [];
+	_.each(this.views, v => {
+		if(mciCode.includes(v.mciCode)) {
+			views.push(v);
+		}
+	});
+	return views;
 };
 
 ViewController.prototype.getFocusedView = function() {
