@@ -7,6 +7,7 @@ const strUtil		= require('./string_util.js');
 
 const util			= require('util');
 const assert		= require('assert');
+const _				= require('lodash');
 
 exports.SpinnerMenuView	= SpinnerMenuView;
 
@@ -29,7 +30,8 @@ function SpinnerMenuView(options) {
 
 		assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
 
-		self.drawItem(this.focusedItemIndex);
+		this.drawItem(this.focusedItemIndex);
+		this.emit('index update', this.focusedItemIndex);
 	};
 
 	this.drawItem = function() {
@@ -96,7 +98,8 @@ SpinnerMenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 SpinnerMenuView.prototype.getData = function() {
-	return this.focusedItemIndex;
+	const item = this.getItem(this.focusedItemIndex);
+	return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };
 
 SpinnerMenuView.prototype.setItems = function(items) {
