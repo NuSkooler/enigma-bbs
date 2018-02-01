@@ -163,5 +163,6 @@ HorizontalMenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 HorizontalMenuView.prototype.getData = function() {
-	return this.focusedItemIndex;
+	const item = this.getItem(this.focusedItemIndex);
+	return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };
