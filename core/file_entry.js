@@ -3,7 +3,10 @@
 
 const fileDb				= require('./database.js').dbs.file;
 const Errors				= require('./enig_error.js').Errors;
-const getISOTimestampString	= require('./database.js').getISOTimestampString;
+const {
+	getISOTimestampString,
+	sanatizeString
+}							= require('./database.js');
 const Config				= require('./config.js').config;
 
 //	deps
@@ -523,11 +526,12 @@ module.exports = class FileEntry {
 		}
 
 		if(filter.terms && filter.terms.length > 0) {
+			//	note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
 			appendWhereClause(
 				`f.file_id IN (
 					SELECT rowid
 					FROM file_fts
-					WHERE file_fts MATCH "${filter.terms.replace(/"/g,'""')}"
+					WHERE file_fts MATCH ":${sanatizeString(filter.terms)}"
 				)`
 			);
 		}
