@@ -31,6 +31,10 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 		this.messageIndex	= this.messageIndex || 0;
 		this.messageTotal	= this.messageList.length;
 
+		if(this.messageList.length > 0) {
+			this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+		}
+
 		const self = this;
 
 		//	assign *additional* menuMethods
@@ -38,6 +42,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 			nextMessage : (formData, extraArgs, cb) => {
 				if(self.messageIndex + 1 < self.messageList.length) {
 					self.messageIndex++;
+
+					this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+					this.tempMessageConfAndAreaSwitch(this.messageAreaTag, false);	//	false=don't record prev; we want what we entered the module with
 
 					return self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid, cb);
 				}
@@ -54,6 +61,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 			prevMessage : (formData, extraArgs, cb) => {
 				if(self.messageIndex > 0) {
 					self.messageIndex--;
+
+					this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+					this.tempMessageConfAndAreaSwitch(this.messageAreaTag, false);	//	false=don't record prev; we want what we entered the module with
 
 					return self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid, cb);
 				}

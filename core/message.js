@@ -87,6 +87,12 @@ const FTN_PROPERTY_NAMES = {
 	FtnSeenBy			: 'ftn_seen_by',		//	http://ftsc.org/docs/fts-0004.001
 };
 
+//	:TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
+const MESSAGE_ROW_MAP = {
+	reply_to_message_id	: 'replyToMsgId',
+	modified_timestamp	: 'modTimestamp'
+};
+
 module.exports = class Message {
 	constructor(
 		{
@@ -189,6 +195,16 @@ module.exports = class Message {
 		return uuidParse.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
 	}
 
+	static getMessageFromRow(row) {
+		const msg = {};
+		_.each(row, (v, k) => {
+			//	:TODO: see notes around MESSAGE_ROW_MAP -- clean this up so we can just _camelCase()!
+			k = MESSAGE_ROW_MAP[k] || _.camelCase(k);
+			msg[k] = v;
+		});
+		return msg;
+	}
+
 	/*
 		Find message IDs or UUIDs by filter. Available filters/options:
 
@@ -199,11 +215,10 @@ module.exports = class Message {
 		filter.replyToMesageId
 		filter.newerThanTimestamp
 		filter.newerThanMessageId
-		*filter.confTag - all area tags in confTag
-		filter.areaTag
+		filter.areaTag - note if you want by conf, send in all areas for a conf
 		*filter.metaTuples - {category, name, value}
 
-		*filter.terms - FTS search
+		filter.terms - FTS search
 
 		filter.sort = modTimestamp | messageId
 		filter.order = ascending | (descending)
@@ -223,7 +238,13 @@ module.exports = class Message {
 		filter.resultType	= filter.resultType || 'id';
 		filter.extraFields	= filter.extraFields || [];
 
-		const field = 'id' === filter.resultType ? 'message_id' : 'message_uuid';
+		if('messageList' === filter.resultType) {
+			filter.extraFields = _.uniq(filter.extraFields.concat(
+				[ 'area_tag', 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ]
+			));
+		}
+
+		const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';
 
 		if(moment.isMoment(filter.newerThanTimestamp)) {
 			filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
@@ -280,32 +301,23 @@ module.exports = class Message {
 					WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${filter.privateTagUserId}
 				)`);
 		} else {
-			let areaTags = [];
-			if(filter.confTag && filter.confTag.length > 0) {
-				//	:TODO: grab areas from conf -> add to areaTags[]
-			}
-
-			if(areaTags.length > 0 || filter.areaTag && filter.areaTag.length > 0) {
+			if(filter.areaTag && filter.areaTag.length > 0) {
 				if(Array.isArray(filter.areaTag)) {
-					areaTags = areaTags.concat(filter.areaTag);
-				} else if(_.isString(filter.areaTag)) {
-					areaTags.push(filter.areaTag);
-				}
-
-				areaTags = _.uniq(areaTags);	//	remove any dupes
-
-				if(areaTags.length > 1) {
 					const areaList = filter.areaTag.map(t => `"${t}"`).join(', ');
 					appendWhereClause(`m.area_tag IN(${areaList})`);
-				} else {
-					appendWhereClause(`m.area_tag = "${areaTags[0]}"`);
+				} else if(_.isString(filter.areaTag)) {
+					appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
 				}
 			}
 		}
 
-		[ 'toUserName', 'fromUserName', 'replyToMessageId' ].forEach(field => {
+		if(_.isNumber(filter.replyToMessageId)) {
+			appendWhereClause(`m.reply_to_message_id=${filter.replyToMessageId}`);
+		}		
+
+		[ 'toUserName', 'fromUserName' ].forEach(field => {
 			if(_.isString(filter[field]) && filter[field].length > 0) {
-				appendWhereClause(`m.${_.snakeCase(field)} = "${sanatizeString(filter[field])}"`);
+				appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanatizeString(filter[field])}"`);
 			}
 		});
 
@@ -315,6 +327,17 @@ module.exports = class Message {
 
 		if(_.isNumber(filter.newerThanMessageId)) {
 			appendWhereClause(`m.message_id > ${filter.newerThanMessageId}`);
+		}
+
+		if(filter.terms && filter.terms.length > 0) {
+			//	note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
+			appendWhereClause(
+				`m.message_id IN (
+					SELECT rowid
+					FROM message_fts
+					WHERE message_fts MATCH ":${sanatizeString(filter.terms)}"
+				)`
+			);
 		}
 
 		sql += `${sqlWhere} ${sqlOrderBy}`;
@@ -332,9 +355,12 @@ module.exports = class Message {
 		} else {
 			const matches = [];
 			const extra = filter.extraFields.length > 0;
+
+			const rowConv = 'messageList' === filter.resultType ? Message.getMessageFromRow : row => row;
+
 			msgDb.each(sql, (err, row) => {
 				if(_.isObject(row)) {
-					matches.push(extra ? row : row[field]);
+					matches.push(extra ? rowConv(row) : row[field]);
 				}
 			}, err => {
 				return cb(err, matches);

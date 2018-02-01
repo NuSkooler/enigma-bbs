@@ -104,6 +104,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		this.editorMode			= config.editorMode;
 
 		if(config.messageAreaTag) {
+			//	:TODO: swtich to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
 			this.messageAreaTag	= config.messageAreaTag;
 		}
 
@@ -126,6 +127,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				this.toUserId = options.extraArgs.toUserId;
 			}
 		}
+
+		this.noUpdateLastReadId = _.get(options, 'extraArgs.noUpdateLastReadId', config.noUpdateLastReadId) || false;
+		console.log(this.noUpdateLastReadId);
 
 		this.isReady = false;
 
@@ -342,49 +346,56 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		return cb(null);
 	}
 
+	updateLastReadId(cb) {
+		if(this.noUpdateLastReadId) {
+			return cb(null);
+		}
+
+		return updateMessageAreaLastReadId(
+			this.client.user.userId, this.messageAreaTag, this.message.messageId, cb
+		);
+	}
+
 	setMessage(message) {
 		this.message = message;
 
-		updateMessageAreaLastReadId(
-			this.client.user.userId, this.messageAreaTag, this.message.messageId, () => {
+		this.updateLastReadId( () => {
+			if(this.isReady) {
+				this.initHeaderViewMode();
+				this.initFooterViewMode();
 
-				if(this.isReady) {
-					this.initHeaderViewMode();
-					this.initFooterViewMode();
+				const bodyMessageView	= this.viewControllers.body.getView(MciViewIds.body.message);
+				let msg					= this.message.message;
 
-					const bodyMessageView	= this.viewControllers.body.getView(MciViewIds.body.message);
-					let msg					= this.message.message;
-
-					if(bodyMessageView && _.has(this, 'message.message')) {
+				if(bodyMessageView && _.has(this, 'message.message')) {
+					//
+					//	We handle ANSI messages differently than standard messages -- this is required as
+					//	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+					//	how the author wanted it
+					//
+					if(isAnsi(msg)) {
 						//
-						//	We handle ANSI messages differently than standard messages -- this is required as
-						//	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
-						//	how the author wanted it
+						//	Find tearline - we want to color it differently.
 						//
-						if(isAnsi(msg)) {
-							//
-							//	Find tearline - we want to color it differently.
-							//
-							const tearLinePos = this.message.getTearLinePosition(msg);
+						const tearLinePos = this.message.getTearLinePosition(msg);
 
-							if(tearLinePos > -1) {
-								msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
-							}
-
-							bodyMessageView.setAnsi(
-								msg.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
-								{
-									prepped				: false,
-									forceLineTerm		: true,
-								}
-							);
-						} else {
-							bodyMessageView.setText(cleanControlCodes(msg));
+						if(tearLinePos > -1) {
+							msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
 						}
+
+						bodyMessageView.setAnsi(
+							msg.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
+							{
+								prepped				: false,
+								forceLineTerm		: true,
+							}
+						);
+					} else {
+						bodyMessageView.setText(cleanControlCodes(msg));
 					}
 				}
 			}
-		);
+		});
 	}
 
 	getMessage(cb) {
@@ -816,6 +827,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		this.setHeaderText(MciViewIds.header.msgTotal,		this.messageTotal.toString());
 
 		this.updateCustomViewTextsWithFilter('header', MciViewIds.header.customRangeStart, this.getHeaderFormatObj());
+
+		//	if we changed conf/area we need to update any related standard MCI view
+		this.refreshPredefinedMciViewsByCode('header', [ 'MA', 'MC', 'ML', 'CM' ] );
 	}
 
 	initHeaderReplyEditMode() {

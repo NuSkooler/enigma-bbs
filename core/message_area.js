@@ -8,13 +8,11 @@ const Message					= require('./message.js');
 const Log						= require('./logger.js').log;
 const msgNetRecord				= require('./msg_network.js').recordMessage;
 const sortAreasOrConfs			= require('./conf_area_util.js').sortAreasOrConfs;
-const { getISOTimestampString } = require('./database.js');
 
 //	deps
 const async			= require('async');
 const _				= require('lodash');
 const assert		= require('assert');
-const moment		= require('moment');
 
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences	= getSortedAvailMessageConferences;
@@ -169,6 +167,7 @@ function getMessageConfTagByAreaTag(areaTag) {
 function getMessageAreaByTag(areaTag, optionalConfTag) {
 	const confs = Config.messageConferences;
 
+	//	:TODO: this could be cached
 	if(_.isString(optionalConfTag)) {
 		if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
 			return confs[optionalConfTag].areas[areaTag];
@@ -311,18 +310,6 @@ function changeMessageArea(client, areaTag, cb) {
 	changeMessageAreaWithOptions(client, areaTag, { persist : true }, cb);
 }
 
-function getMessageFromRow(row) {
-	return {
-		messageId		: row.message_id,
-		messageUuid		: row.message_uuid,
-		replyToMsgId	: row.reply_to_message_id,
-		toUserName		: row.to_user_name,
-		fromUserName	: row.from_user_name,
-		subject			: row.subject,
-		modTimestamp	: row.modified_timestamp,
-	};
-}
-
 function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
 	getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
 		lastMessageId = lastMessageId || 0;
@@ -349,45 +336,33 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 
 		const filter = {
 			areaTag,
+			resultType			: 'messageList',
 			newerThanMessageId	: lastMessageId,
 			sort				: 'messageId',
 			order				: 'ascending',
-			extraFields			: [ 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
 		};
 
 		if(Message.isPrivateAreaTag(areaTag)) {
 			filter.privateTagUserId = userId;
 		}
 
-		Message.findMessages(filter, (err, messages) => {
-			if(err) {
-				return cb(err);
-			}
-
-			return cb(null, messages.map(msg => getMessageFromRow(msg)));
-		});
+		return Message.findMessages(filter, cb);
 	});
 }
 
 function getMessageListForArea(client, areaTag, cb) {
 	const filter = {
 		areaTag,
+		resultType	: 'messageList',
 		sort		: 'messageId',
 		order		: 'ascending',
-		extraFields	: [ 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
 	};
 
 	if(Message.isPrivateAreaTag(areaTag)) {
 		filter.privateTagUserId = client.user.userId;
 	}
 
-	Message.findMessages(filter, (err, messages) => {
-		if(err) {
-			return cb(err);
-		}
-
-		return cb(null, messages.map(msg => getMessageFromRow(msg)));
-	});
+	return Message.findMessages(filter, cb);
 }
 
 function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {

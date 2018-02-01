@@ -35,8 +35,8 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
-const MCICodesIDs = {
-	MsgList			: 1,	//	VM1
+const MciViewIds = {
+	msgList			: 1,	//	VM1
 	MsgInfo1		: 2,	//	TL2
 };
 
@@ -44,69 +44,66 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 	constructor(options) {
 		super(options);
 
-		const self		= this;
-		const config	= this.menuConfig.config;
+		//	:TODO: consider this pattern in base MenuModule - clean up code all over
+		this.config	= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
 
-		this.messageAreaTag = config.messageAreaTag;
+		//	:TODO: Ugg, this is needed for MessageAreaConfTempSwitcher, which wants |this.messageAreaTag| explicitly
+		//this.messageAreaTag = this.config.messageAreaTag;
 
 		this.lastMessageReachedExit = _.get(options, 'lastMenuResult.lastMessageReached', false);
 
-		if(options.extraArgs) {
-			//
-			//	|extraArgs| can override |messageAreaTag| provided by config
-			//	as well as supply a pre-defined message list
-			//
-			if(options.extraArgs.messageAreaTag) {
-				this.messageAreaTag = options.extraArgs.messageAreaTag;
-			}
-
-			if(options.extraArgs.messageList) {
-				this.messageList = options.extraArgs.messageList;
-			}
-		}
-
 		this.menuMethods = {
-			selectMessage : function(formData, extraArgs, cb) {
-				if(1 === formData.submitId) {
-					self.initialFocusIndex = formData.value.message;
+			selectMessage : (formData, extraArgs, cb) => {
+				if(MciViewIds.msgList === formData.submitId) {
+					this.initialFocusIndex = formData.value.message;
 
 					const modOpts = {
 						extraArgs 	: {
-							messageAreaTag		: self.messageAreaTag,
-							messageList			: self.messageList,
+							messageAreaTag		: this.getSelectedAreaTag(formData.value.message),// this.config.messageAreaTag,
+							messageList			: this.config.messageList,
 							messageIndex		: formData.value.message,
-							lastMessageNextExit	: true,
+							lastMessageNextExit	: true,	
 						}
 					};
+
+					if(_.isBoolean(this.config.noUpdateLastReadId)) {
+						modOpts.extraArgs.noUpdateLastReadId = this.config.noUpdateLastReadId;
+					}
 
 					//
 					//	Provide a serializer so we don't dump *huge* bits of information to the log
 					//	due to the size of |messageList|. See https://github.com/trentm/node-bunyan/issues/189
 					//
+					const self = this;
 					modOpts.extraArgs.toJSON = function() {
-						const logMsgList = (this.messageList.length <= 4) ?
-							this.messageList :
-							this.messageList.slice(0, 2).concat(this.messageList.slice(-2));
+						const logMsgList = (self.config.messageList.length <= 4) ?
+							self.config.messageList :
+							self.config.messageList.slice(0, 2).concat(self.config.messageList.slice(-2));
 
 						return {
+							//	note |this| is scope of toJSON()!
 							messageAreaTag		: this.messageAreaTag,
 							apprevMessageList	: logMsgList,
 							messageCount		: this.messageList.length,
-							messageIndex		: formData.value.message,
+							messageIndex		: this.messageIndex,
 						};
 					};
 
-					return self.gotoMenu(config.menuViewPost || 'messageAreaViewPost', modOpts, cb);
+					return this.gotoMenu(this.config.menuViewPost || 'messageAreaViewPost', modOpts, cb);
 				} else {
 					return cb(null);
 				}
 			},
 
-			fullExit : function(formData, extraArgs, cb) {
-				self.menuResult = { fullExit : true };
-				return self.prevMenu(cb);
+			fullExit : (formData, extraArgs, cb) => {
+				this.menuResult = { fullExit : true };
+				return this.prevMenu(cb);
 			}
 		};
+	}
+
+	getSelectedAreaTag(listIndex) {
+		return this.config.messageList[listIndex].areaTag || this.config.messageAreaTag;
 	}
 
 	enter() {
@@ -118,12 +115,16 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
 		//
 		//	Config can specify |messageAreaTag| else it comes from
-		//	the user's current area
+		//	the user's current area. If |messageList| is supplied,
+		//	each item is expected to contain |areaTag|, so we use that
+		//	instead in those cases.
 		//
-		if(this.messageAreaTag) {
-			this.tempMessageConfAndAreaSwitch(this.messageAreaTag);
-		} else {
-			this.messageAreaTag = this.client.user.properties.message_area_tag;
+		if(!Array.isArray(this.config.messageList)) {
+			if(this.config.messageAreaTag) {
+				this.tempMessageConfAndAreaSwitch(this.config.messageAreaTag);
+			} else {
+				this.config.messageAreaTag = this.client.user.properties.message_area_tag;
+			}
 		}
 	}
 
@@ -155,21 +156,27 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						//
 						//	Config can supply messages else we'll need to populate the list now
 						//
-						if(_.isArray(self.messageList)) {
-							return callback(0 === self.messageList.length ? new Error('No messages in area') : null);
+						if(_.isArray(self.config.messageList)) {
+							return callback(0 === self.config.messageList.length ? new Error('No messages in area') : null);
 						}
 
-						messageArea.getMessageListForArea(self.client, self.messageAreaTag, function msgs(err, msgList) {
+						messageArea.getMessageListForArea(self.client, self.config.messageAreaTag, function msgs(err, msgList) {
 							if(!msgList || 0 === msgList.length) {
 								return callback(new Error('No messages in area'));
 							}
 
-							self.messageList = msgList;
+							self.config.messageList = msgList;
 							return callback(err);
 						});
 					},
 					function getLastReadMesageId(callback) {
-						messageArea.getMessageAreaLastReadId(self.client.user.userId, self.messageAreaTag, function lastRead(err, lastReadId) {
+						//	messageList entries can contain |isNew| if they want to be considered new
+						if(Array.isArray(self.config.messageList)) {
+							self.lastReadId = 0;
+							return callback(null);
+						}
+
+						messageArea.getMessageAreaLastReadId(self.client.user.userId, self.config.messageAreaTag, function lastRead(err, lastReadId) {
 							self.lastReadId = lastReadId || 0;
 							return callback(null);	//	ignore any errors, e.g. missing value
 						});
@@ -180,10 +187,11 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						const regIndicator		= new Array(newIndicator.length + 1).join(' ');	//	fill with space to avoid draw issues
 
 						let msgNum = 1;
-						self.messageList.forEach( (listItem, index) => {
+						self.config.messageList.forEach( (listItem, index) => {
 							listItem.msgNum			= msgNum++;
 							listItem.ts				= moment(listItem.modTimestamp).format(dateTimeFormat);
-							listItem.newIndicator	= listItem.messageId > self.lastReadId ? newIndicator : regIndicator;
+							const isNew				= _.isBoolean(listItem.isNew) ? listItem.isNew : listItem.messageId > self.lastReadId;
+							listItem.newIndicator	=  isNew ? newIndicator : regIndicator;
 
 							if(_.isUndefined(self.initialFocusIndex) && listItem.messageId > self.lastReadId) {
 								self.initialFocusIndex = index;
@@ -192,7 +200,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						return callback(null);
 					},
 					function populateList(callback) {
-						const msgListView			= vc.getView(MCICodesIDs.MsgList);
+						const msgListView			= vc.getView(MciViewIds.msgList);
 						const listFormat			= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';
 						const focusListFormat		= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
 						const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
@@ -200,19 +208,19 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						//	:TODO: This can take a very long time to load large lists. What we need is to implement the "owner draw" concept in
 						//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
 
-						msgListView.setItems(_.map(self.messageList, listEntry => {
+						msgListView.setItems(_.map(self.config.messageList, listEntry => {
 							return stringFormat(listFormat, listEntry);
 						}));
 
-						msgListView.setFocusItems(_.map(self.messageList, listEntry => {
+						msgListView.setFocusItems(_.map(self.config.messageList, listEntry => {
 							return stringFormat(focusListFormat, listEntry);
 						}));
 
 						msgListView.on('index update', idx => {
 							self.setViewText(
 								'allViews',
-								MCICodesIDs.MsgInfo1,
-								stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.messageList.length } ));
+								MciViewIds.msgInfo1,
+								stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.config.messageList.length } ));
 						});
 
 						if(self.initialFocusIndex > 0) {
@@ -228,8 +236,8 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						const messageInfo1Format = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
 						self.setViewText(
 							'allViews',
-							MCICodesIDs.MsgInfo1,
-							stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.messageList.length } ));
+							MciViewIds.msgInfo1,
+							stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.config.messageList.length } ));
 						return callback(null);
 					},
 				],

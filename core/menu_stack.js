@@ -117,7 +117,7 @@ module.exports = class MenuStack {
 		};
 
 		if(_.isObject(options)) {
-			loadOpts.extraArgs		= options.extraArgs;
+			loadOpts.extraArgs		= options.extraArgs || _.get(options, 'formData.value');
 			loadOpts.lastMenuResult	= options.lastMenuResult;
 		}
 
