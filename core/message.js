@@ -228,7 +228,8 @@ module.exports = class Message {
 		filter.extraFields = []
 
 		filter.privateTagUserId = <userId> - if set, only private messages belonging to <userId> are processed
-		(any other areaTag or confTag filters will be ignored)
+		- any other areaTag or confTag filters will be ignored
+		- if NOT present, private areas are skipped	
 
 		*=NYI
 	*/
@@ -301,14 +302,21 @@ module.exports = class Message {
 					WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${filter.privateTagUserId}
 				)`);
 		} else {
-			if(filter.areaTag && filter.areaTag.length > 0) {
+			if(filter.areaTag && filter.areaTag.length > 0) {			
 				if(Array.isArray(filter.areaTag)) {
-					const areaList = filter.areaTag.map(t => `"${t}"`).join(', ');
-					appendWhereClause(`m.area_tag IN(${areaList})`);
-				} else if(_.isString(filter.areaTag)) {
+					const areaList = filter.areaTag
+						.filter(t => t != Message.WellKnownAreaTags.Private)
+						.map(t => `"${t}"`).join(', ');
+					if(areaList.length > 0) {
+						appendWhereClause(`m.area_tag IN(${areaList})`);
+					}
+				} else if(_.isString(filter.areaTag) && Message.WellKnownAreaTags.Private !== filter.areaTag) {
 					appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
 				}
 			}
+
+			//	explicit exclude of Private
+			appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`);
 		}
 
 		if(_.isNumber(filter.replyToMessageId)) {
