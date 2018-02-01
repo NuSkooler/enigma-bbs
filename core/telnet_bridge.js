@@ -158,7 +158,17 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 
 					const telnetConnection = new TelnetClientConnection(self.client);
 
+					const connectionKeyPressHandler = (ch, key) => {
+						if('escape' === key.name) {
+							self.client.removeListener('key press', connectionKeyPressHandler);
+							telnetConnection.disconnect();
+						}
+					};
+
+					self.client.on('key press', connectionKeyPressHandler);
+
 					telnetConnection.on('connected', () => {
+						self.client.removeListener('key press', connectionKeyPressHandler);
 						self.client.log.info(connectOpts, 'Telnet bridge connection established');
 
 						if(self.config.font) {
@@ -173,6 +183,8 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 					});
 
 					telnetConnection.on('end', err => {
+						self.client.removeListener('key press', connectionKeyPressHandler);
+
 						if(err) {
 							self.client.log.info(`Telnet bridge connection error: ${err.message}`);
 						}
