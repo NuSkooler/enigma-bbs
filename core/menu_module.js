@@ -1,15 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-const PluginModule			= require('./plugin_module.js').PluginModule;
-const theme					= require('./theme.js');
-const ansi					= require('./ansi_term.js');
-const ViewController		= require('./view_controller.js').ViewController;
-const menuUtil				= require('./menu_util.js');
-const Config				= require('./config.js').config;
-const stringFormat			= require('../core/string_format.js');
-const MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-const Errors				= require('../core/enig_error.js').Errors;
+const PluginModule				= require('./plugin_module.js').PluginModule;
+const theme						= require('./theme.js');
+const ansi						= require('./ansi_term.js');
+const ViewController			= require('./view_controller.js').ViewController;
+const menuUtil					= require('./menu_util.js');
+const Config					= require('./config.js').config;
+const stringFormat				= require('../core/string_format.js');
+const MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const Errors					= require('../core/enig_error.js').Errors;
+const { getPredefinedMCIValue }	= require('../core/predefined_mci.js');
 
 //	deps
 const async					= require('async');
@@ -421,6 +422,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
 			}
 
 			++customMciId;
+		}
+	}
+
+	refreshPredefinedMciViewsByCode(formName, mciCodes) {
+		const form = _.get(this, [ 'viewControllers', formName] );
+		if(form) {
+			form.getViewsByMciCode(mciCodes).forEach(v => {
+				if(!v.setText) {
+					return;
+				}
+
+				v.setText(getPredefinedMCIValue(this.client, v.mciCode));
+			});
 		}
 	}
 };
