@@ -29,6 +29,8 @@ function MenuView(options) {
 		this.items = [];
 	}
 
+	this.renderCache = {};
+
 	this.caseInsensitiveHotKeys = miscUtil.valueWithDefault(options.caseInsensitiveHotKeys, true);
 
 	this.setHotKeys(options.hotKeys);
@@ -65,6 +67,7 @@ util.inherits(MenuView, View);
 MenuView.prototype.setItems = function(items) {
 	if(Array.isArray(items)) {
 		this.sorted = false;
+		this.renderCache = {};
 
 		//
 		//	Items can be an array of strings or an array of objects.
@@ -96,6 +99,16 @@ MenuView.prototype.setItems = function(items) {
 			this.itemFormat = this.itemFormat || '{text}';
 		}
 	}
+};
+
+MenuView.prototype.getRenderCacheItem = function(index, focusItem = false) {
+	const item = this.renderCache[index];
+	return item && item[focusItem ? 'focus' : 'standard'];
+};
+
+MenuView.prototype.setRenderCacheItem = function(index, rendered, focusItem = false) {
+	this.renderCache[index] = this.renderCache[index] || {};
+	this.renderCache[index][focusItem ? 'focus' : 'standard'] = rendered;
 };
 
 MenuView.prototype.setSort = function(sort) {

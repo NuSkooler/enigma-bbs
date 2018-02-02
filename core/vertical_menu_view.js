@@ -64,6 +64,11 @@ function VerticalMenuView(options) {
 			return;
 		}
 
+		const cached = this.getRenderCacheItem(index, item.focused);
+		if(cached) {
+			return self.client.term.write(`${ansi.goto(item.row, self.position.col)}${cached}`);
+		}
+
 		let text;
 		let sgr;
 		if(item.focused && self.hasFocusItems()) {
@@ -78,9 +83,9 @@ function VerticalMenuView(options) {
 			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		}
 
-		self.client.term.write(
-			`${ansi.goto(item.row, self.position.col)}${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`
-		);
+		text = `${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`;
+		self.client.term.write(`${ansi.goto(item.row, self.position.col)}${text}`);
+		this.setRenderCacheItem(index, text, item.focused);
 	};
 }
 
