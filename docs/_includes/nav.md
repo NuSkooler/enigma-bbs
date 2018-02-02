@@ -1,5 +1,5 @@
  - Installation
-    - [Installation Methods]({{ site.baseurl }{% link installation/installation-methods.md %})
+    - [Installation Methods]({{ site.baseurl }}{% link installation/installation-methods.md %})
         - [Install script]({{ site.baseurl }}{% link installation/install-script.md %})
         - [Docker]({{ site.baseurl }}{% link installation/docker.md %})
         - [Manual installation]({{ site.baseurl }}{% link installation/manual.md %})
