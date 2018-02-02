@@ -1,67 +1,67 @@
  - Installation
-    - [Installation Methods]({% link installation/installation-methods.md %})
-        - [Install script]({% link installation/install-script.md %})
-        - [Docker]({% link installation/docker.md %})
-        - [Manual installation]({% link installation/manual.md %})
-    - [OS / Hardware Specific]({% link installation/os-hardware.md %})  
+    - [Installation Methods]({{ site.baseurl }{% link installation/installation-methods.md %})
+        - [Install script]({{ site.baseurl }}{% link installation/install-script.md %})
+        - [Docker]({{ site.baseurl }}{% link installation/docker.md %})
+        - [Manual installation]({{ site.baseurl }}{% link installation/manual.md %})
+    - [OS / Hardware Specific]({{ site.baseurl }}{% link installation/os-hardware.md %})  
       - Raspberry Pi 
       - Windows
-    - [Your Network Setup]({% link installation/network.md %})
-    - [Testing Your Installation]({% link installation/testing.md %})
-    - [Production Installation]({% link installation/production.md %})
+    - [Your Network Setup]({{ site.baseurl }}{% link installation/network.md %})
+    - [Testing Your Installation]({{ site.baseurl }}{% link installation/testing.md %})
+    - [Production Installation]({{ site.baseurl }}{% link installation/production.md %})
     
   - Configuration
-    - [Creating Config Files]({% link configuration/creating-config.md %})
-    - [SysOp Setup]({% link configuration/sysop-setup.md %})
-    - [Editing hjson]({% link configuration/editing-hjson.md %})
-    - [config.hjson]({% link configuration/config-hjson.md %})
-    - [menu.hjson]({% link configuration/menu-hjson.md %})
+    - [Creating Config Files]({{ site.baseurl }}{% link configuration/creating-config.md %})
+    - [SysOp Setup]({{ site.baseurl }}{% link configuration/sysop-setup.md %})
+    - [Editing hjson]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
+    - [config.hjson]({{ site.baseurl }}{% link configuration/config-hjson.md %})
+    - [menu.hjson]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
     - prompt.hjson
-    - [Directory Structure]({% link configuration/directory-structure.md %})
-    - [Archivers]({% link configuration/archivers.md %})
+    - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
+    - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
     - Scheduled jobs
     - SMTP
 
   - File Base
-    - [About]({% link filebase/index.md %})
-    - [Configuring a File Area]({% link filebase/first-file-area.md %})
-    - [ACS model]({% link filebase/acs.md %})
-    - [Uploads]({% link filebase/uploads.md %})
-    - [Web Access]({% link filebase/web-access.md %})
-    - [TIC Support]({% link filebase/tic-support.md %}) (Importing from FTN networks)
+    - [About]({{ site.baseurl }}{% link filebase/index.md %})
+    - [Configuring a File Area]({{ site.baseurl }}{% link filebase/first-file-area.md %})
+    - [ACS model]({{ site.baseurl }}{% link filebase/acs.md %})
+    - [Uploads]({{ site.baseurl }}{% link filebase/uploads.md %})
+    - [Web Access]({{ site.baseurl }}{% link filebase/web-access.md %})
+    - [TIC Support]({{ site.baseurl }}{% link filebase/tic-support.md %}) (Importing from FTN networks)
     - Tips and tricks
       - Network mounts and symlinks
     
   - Message Areas
-    - [Configuring a Message Area]({% link messageareas/configuring-a-message-area.md %})
-    - [Message networks]({% link messageareas/message-networks.md %})
-    - [BSO Import & Export]({% link messageareas/bso-import-export.md %})
-    - [Netmail]({% link messageareas/netmail.md %})     
+    - [Configuring a Message Area]({{ site.baseurl }}{% link messageareas/configuring-a-message-area.md %})
+    - [Message networks]({{ site.baseurl }}{% link messageareas/message-networks.md %})
+    - [BSO Import & Export]({{ site.baseurl }}{% link messageareas/bso-import-export.md %})
+    - [Netmail]({{ site.baseurl }}{% link messageareas/netmail.md %})     
     
   - Art
-    - [General]({% link art/general.md %})
-    - [Themes]({% link art/themes.md %})
-    - [MCI Codes]({% link art/mci.md %})
+    - [General]({{ site.baseurl }}{% link art/general.md %})
+    - [Themes]({{ site.baseurl }}{% link art/themes.md %})
+    - [MCI Codes]({{ site.baseurl }}{% link art/mci.md %})
 
   - Servers
     - Login Servers
-      - [Telnet]({% link servers/telnet.md %})
-      - [SSH]({% link servers/ssh.md %})
-      - [WebSocket]({% link servers/websocket.md %})
+      - [Telnet]({{ site.baseurl }}{% link servers/telnet.md %})
+      - [SSH]({{ site.baseurl }}{% link servers/ssh.md %})
+      - [WebSocket]({{ site.baseurl }}{% link servers/websocket.md %})
       - Build your own
     - Content Servers
-      - [Web]({% link servers/web-server.md %})
+      - [Web]({{ site.baseurl }}{% link servers/web-server.md %})
               
   - Modding
-    - [Local Doors]({% link modding/local-doors.md %})
-    - [Door Servers]({% link modding/door-servers.md %}) 
+    - [Local Doors]({{ site.baseurl }}{% link modding/local-doors.md %})
+    - [Door Servers]({{ site.baseurl }}{% link modding/door-servers.md %}) 
         - DoorParty
         - BBSLink
         - Combatnet
         - Exodus
-    - [Existing Mods]({% link modding/existing-mods.md %})
+    - [Existing Mods]({{ site.baseurl }}{% link modding/existing-mods.md %})
  
-  - [Oputil]({% link oputil/index.md %})
+  - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
   - Troubleshooting
-    - [Monitoring Logs]({% link troubleshooting/monitoring-logs.md %})
+    - [Monitoring Logs]({{ site.baseurl }}{% link troubleshooting/monitoring-logs.md %})
