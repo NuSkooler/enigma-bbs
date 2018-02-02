@@ -129,7 +129,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		}
 
 		this.noUpdateLastReadId = _.get(options, 'extraArgs.noUpdateLastReadId', config.noUpdateLastReadId) || false;
-		console.log(this.noUpdateLastReadId);
 
 		this.isReady = false;
 

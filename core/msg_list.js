@@ -141,6 +141,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
 			const self	= this;
 			const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
+			let configProvidedMessageList = false;
 
 			async.series(
 				[
@@ -157,6 +158,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						//	Config can supply messages else we'll need to populate the list now
 						//
 						if(_.isArray(self.config.messageList)) {
+							configProvidedMessageList = true;
 							return callback(0 === self.config.messageList.length ? new Error('No messages in area') : null);
 						}
 
@@ -171,7 +173,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 					},
 					function getLastReadMesageId(callback) {
 						//	messageList entries can contain |isNew| if they want to be considered new
-						if(Array.isArray(self.config.messageList)) {
+						if(configProvidedMessageList) {
 							self.lastReadId = 0;
 							return callback(null);
 						}
