@@ -24,10 +24,13 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, and so on
  
+## Documentation
+[Browse the docs online](https://nuskooler.github.io/enigma-bbs/)
+ 
 ## In the Works
-* More ES6+ usage, and **documentation**!
 * More ACS support coverage
 * SysOp dashboard (ye ol' WFC)
+* Native DOS emulation
 * A lot more! Feel free to request features via [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 
 ## Known Issues
