@@ -47,9 +47,6 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 		//	:TODO: consider this pattern in base MenuModule - clean up code all over
 		this.config	= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
 
-		//	:TODO: Ugg, this is needed for MessageAreaConfTempSwitcher, which wants |this.messageAreaTag| explicitly
-		//this.messageAreaTag = this.config.messageAreaTag;
-
 		this.lastMessageReachedExit = _.get(options, 'lastMenuResult.lastMessageReached', false);
 
 		this.menuMethods = {
@@ -184,12 +181,12 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						});
 					},
 					function updateMessageListObjects(callback) {
-						const dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM Do';
+						const dateTimeFormat	= self.menuConfig.config.dateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();
 						const newIndicator		= self.menuConfig.config.newIndicator || '*';
 						const regIndicator		= new Array(newIndicator.length + 1).join(' ');	//	fill with space to avoid draw issues
 
 						let msgNum = 1;
-						self.config.messageList.forEach( (listItem, index) => {
+						self.config.messageList.forEach( (listItem, index) => {							
 							listItem.msgNum			= msgNum++;
 							listItem.ts				= moment(listItem.modTimestamp).format(dateTimeFormat);
 							const isNew				= _.isBoolean(listItem.isNew) ? listItem.isNew : listItem.messageId > self.lastReadId;
@@ -198,25 +195,17 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 							if(_.isUndefined(self.initialFocusIndex) && listItem.messageId > self.lastReadId) {
 								self.initialFocusIndex = index;
 							}
+
+							listItem.text			= `${listItem.msgNum} - ${listItem.subject} from ${listItem.fromUserName}`;	//	default text
 						});
 						return callback(null);
 					},
 					function populateList(callback) {
 						const msgListView			= vc.getView(MciViewIds.msgList);
-						const listFormat			= self.menuConfig.config.listFormat || '{msgNum} - {subject} - {toUserName}';
-						const focusListFormat		= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default change color here
+						//	:TODO: replace with standard custom info MCI - msgNumSelected, msgNumTotal, areaName, areaDesc, confName, confDesc, ...
 						const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
 
-						//	:TODO: This can take a very long time to load large lists. What we need is to implement the "owner draw" concept in
-						//	which items are requested (e.g. their format at least) *as-needed* vs trying to get the format for all of them at once
-
-						msgListView.setItems(_.map(self.config.messageList, listEntry => {
-							return stringFormat(listFormat, listEntry);
-						}));
-
-						msgListView.setFocusItems(_.map(self.config.messageList, listEntry => {
-							return stringFormat(focusListFormat, listEntry);
-						}));
+						msgListView.setItems(self.config.messageList);
 
 						msgListView.on('index update', idx => {
 							self.setViewText(
