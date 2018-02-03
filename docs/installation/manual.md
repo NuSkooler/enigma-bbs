@@ -53,7 +53,9 @@ available on your system path.
 | Package    | Description                       | Ubuntu Package                             | CentOS Package Name                               | Windows Package                                                  |
 |------------|-----------------------------------|--------------------------------------------|---------------------------------------------------|------------------------------------------------------------------|
 | arj        | Unpacking arj archives            | `arj`                                      | n/a, binaries [here](http://arj.sourceforge.net/) | [ARJ](http://arj.sourceforge.net/)                               |
-| 7zip       | Unpacking zip, rar, lha archives  | `p7zip-full`                               | `p7zip-full`                                      | [7-zip](http://www.7-zip.org/)                                   |
+| 7zip       | Unpacking zip, rar, archives  | `p7zip-full`                               | `p7zip-full`                                      | [7-zip](http://www.7-zip.org/)                                   |
+| lha        | Unpacking lha archives  | `lhasa`                               | n/a, source [here](http://www2m.biglobe.ne.jp/~dolphin/lha/lha.htm)                                      | Unknown                                   |
+| Rar        | Unpacking rar archives  | `unrar`                               | n/a, binaries [here](https://www.rarlab.com/download.htm)                                      | Unknown                                   |
 | lrzsz      | sz/rz: X/Y/Z modem support        | `lrzsz`                                    | `lrzsz`                                           | Unknown                                                          | 
 | sexyz      | SexyZ modem support               | [sexyz](https://l33t.codes/outgoing/sexyz) | [sexyz](https://l33t.codes/outgoing/sexyz)        | Available with [Synchronet](http://wiki.synchro.net/install:win) |
 

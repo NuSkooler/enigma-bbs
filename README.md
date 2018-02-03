@@ -52,8 +52,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Boards
 * WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
-* [Exotica](https://exoticabbs.com/): (**telnet://exoticabbs.com:8888**)
-* [force9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
+* [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 
 ## Installation
@@ -64,6 +63,7 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 Please see the [Quickstart](docs/index.md) for more information.
 
 ## Special Thanks
+* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
@@ -71,14 +71,14 @@ Please see the [Quickstart](docs/index.md) for more information.
 * [Luciano Ayres](http://www.lucianoayres.com.br/) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
-* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet)
+* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
-* [Apam](https://github.com/apamment) of HappyLand BBS and [HappyNet](http://andrew.homeunix.org/doku.php?id=happynet)!
+* [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
 
-Copyright (c) 2015-2017, Bryan D. Ashby
+Copyright (c) 2015-2018, Bryan D. Ashby
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
