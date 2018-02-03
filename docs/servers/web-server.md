@@ -1,6 +1,10 @@
-# Web Server
+---
+layout: page
+title: Web Server
+---
 ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the 
-[File Bases](file_base.md) registers routes for file downloads, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
+[File Bases](file_base.md) registers routes for file downloads, and static files can also be served 
+for your BBS. Other features will likely come in the future or you can easily write your own!
 
 ## Configuration
 By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in 
@@ -39,6 +43,9 @@ contentServers: {
 	}
 }
 ```
+
+If no certificate paths are supplied, ENiGMA½ will assume the defaults of `/config/https_cert.pem` and 
+`/config/https_cert_key.pem` accordingly.
 
 ### Static Routes
 Static files live relative to the `contentServers::web::staticRoot` path which defaults to `enigma-bbs/www`. 
