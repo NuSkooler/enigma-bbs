@@ -1,4 +1,7 @@
-# File Archives & Archivers
+---
+layout: page
+title: Archivers
+---
 ENiGMA½ can detect and process various archive formats such as zip and arj for a variety of tasks from file upload processing to EchoMail bundle compress/decompression. The `archives` section of `config.hjson` is used to override defaults, add new handlers, and so on.
 
 ## Archivers

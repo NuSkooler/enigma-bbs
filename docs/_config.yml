@@ -1,0 +1,30 @@
+title: ENiGMA½ BBS Software
+email: your-email@example.com
+description: >- # this means to ignore newlines until "baseurl:"
+  ENiGMA½ BBS is modern open source BBS software with a nostalgic flair, written in Node.js.
+url:
+logo: /assets/images/enigma-logo.png
+
+# Build settings
+markdown: kramdown
+theme: jekyll-theme-hacker
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+  - jekyll-sitemap
+  - jemoji
+
+baseurl: /enigma-bbs
+
+# Exclude from processing.
+# The following items will not be processed, by default. Create a custom list
+# to override the default setting.
+exclude:
+ - Gemfile
+ - Gemfile.lock
+ - node_modules
+ - vendor/bundle/
+ - vendor/cache/
+ - vendor/gems/
+ - vendor/ruby/
+ - .idea
