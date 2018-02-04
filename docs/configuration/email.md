@@ -14,7 +14,7 @@ service.
 
 ```hjson
 email: {
-    defaultFrom: sysop@bbs.force9.org
+    defaultFrom: sysop@bbs.awesome.com
     
     transport: {
         host: smtp.awesomeserver.com
