@@ -49,7 +49,7 @@ function wordWrapText(text, options) {
 
 	function appendWord() {
 		word.match(REGEXP_GOBBLE).forEach( w => {
-			renderLen = renderStringLength(w);
+			renderLen = renderStringLength(w, { ansi : true, pipe : false } );
 
 			if(result.renderLen[i] + renderLen > options.width) {
 				if(0 === i) {

@@ -218,8 +218,6 @@ function stringToNullTermBuffer(s, options = { encoding : 'utf8', maxBufLen : -1
 }
 
 const PIPE_REGEXP			= /(\|[A-Z\d]{2})/g;
-//const ANSI_REGEXP			= /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
-//const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
 const ANSI_OR_PIPE_REGEXP	= new RegExp(PIPE_REGEXP.source + '|' + ANSI.getFullMatchRegExp().source, 'g');
 
 //
@@ -275,12 +273,23 @@ function renderSubstr(str, start, length) {
 //
 //	See also https://github.com/chalk/ansi-regex/blob/master/index.js
 //
-function renderStringLength(s) {
+function renderStringLength(s, options = { pipe : true, ansi : true } ) {
 	let m;
 	let pos;
 	let len = 0;
 
-	const re = ANSI_OR_PIPE_REGEXP;
+	let re;
+	if(options.pipe && options.ansi) {
+		re = ANSI_OR_PIPE_REGEXP;
+	} else if(options.pipe) {
+		re = PIPE_REGEXP;
+	} else if(options.ansi) {
+		re = ANSI.getFullMatchRegExp();
+	} else {
+		//	no options - just return string length.
+		return s.length;
+	}
+
 	re.lastIndex = 0;	//	we recycle the rege; reset
 
 	//
