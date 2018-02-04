@@ -19,6 +19,7 @@
     - prompt.hjson
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
+    - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})
     - Scheduled jobs
     - SMTP
 
