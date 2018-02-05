@@ -411,6 +411,9 @@ function MultiLineEditTextView(options) {
 	};
 
 	this.insertCharactersInText = function(c, index, col) {
+		const prevTextLength	= self.getTextLength(index);
+		let editingEol			= self.cursorPos.col === prevTextLength;
+
 		self.textLines[index].text = [
 			self.textLines[index].text.slice(0, col),
 			c,
@@ -419,18 +422,17 @@ function MultiLineEditTextView(options) {
 
 		self.cursorPos.col += c.length;
 
-		let cursorOffset;
-		let absPos;
-
 		if(self.getTextLength(index) > self.dimens.width) {
 			//
 			//	Update word wrapping and |cursorOffset| if the cursor
 			//	was within the bounds of the wrapped text
 			//
+			let cursorOffset;
 			const lastCol			= self.cursorPos.col - c.length;
 			const firstWrapRange	= self.updateTextWordWrap(index);
 			if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
 				cursorOffset = self.cursorPos.col - firstWrapRange.start;
+				editingEol = true; 	//override
 			} else {
 				cursorOffset = firstWrapRange.end;
 			}
@@ -438,14 +440,22 @@ function MultiLineEditTextView(options) {
 			//	redraw from current row to end of visible area
 			self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-			self.cursorBeginOfNextLine();
-			self.cursorPos.col += cursorOffset;
-			self.client.term.rawWrite(ansi.right(cursorOffset));
+			//	If we're editing mid, we're done here. Else, we need to
+			//	move the cursor to the new editing position after a wrap
+			if(editingEol) {
+				self.cursorBeginOfNextLine();
+				self.cursorPos.col += cursorOffset;
+				self.client.term.rawWrite(ansi.right(cursorOffset));
+			} else {
+				//	adjust cursor after drawing new rows
+				const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+				self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
+			}
 		} else {
 			//
 			//	We must only redraw from col -> end of current visible line
 			//
-			absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+			const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
 			const renderText = self.getRenderText(index).slice(self.cursorPos.col - c.length);
 
 			self.client.term.write(
