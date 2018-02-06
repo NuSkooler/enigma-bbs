@@ -3,8 +3,8 @@ For :bug: bug reports, please fill out the information below plus any additional
 **Short problem description**
 
 **Environment**
-- [ ] I am using Node.js v6.x or higher
-- [ ] `npm install` reports success
+- [ ] I am using Node.js v8.x LTS or higher
+- [ ] `npm install` or `yarn` reports success
 - Actual Node.js version (`node --version`):
 - Operating system (`uname -a` on *nix systems):
 - Revision (`git rev-parse --short HEAD`):
