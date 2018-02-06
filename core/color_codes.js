@@ -116,14 +116,14 @@ function ansiSgrFromRenegadeColorCode(cc) {
 		22	: [ 'yellowBG' ],
 		23	: [ 'whiteBG' ],
 
-		24	: [ 'bold', 'blackBG' ],
-		25	: [ 'bold', 'blueBG' ],
-		26	: [ 'bold', 'greenBG' ],
-		27	: [ 'bold', 'cyanBG' ],
-		28	: [ 'bold', 'redBG' ],
-		29	: [ 'bold', 'magentaBG' ],
-		30	: [ 'bold', 'yellowBG' ],
-		31	: [ 'bold', 'whiteBG' ],
+		24	: [ 'blink', 'blackBG' ],
+		25	: [ 'blink', 'blueBG' ],
+		26	: [ 'blink', 'greenBG' ],
+		27	: [ 'blink', 'cyanBG' ],
+		28	: [ 'blink', 'redBG' ],
+		29	: [ 'blink', 'magentaBG' ],
+		30	: [ 'blink', 'yellowBG' ],
+		31	: [ 'blink', 'whiteBG' ],
 	}[cc] || 'normal');
 }
 
