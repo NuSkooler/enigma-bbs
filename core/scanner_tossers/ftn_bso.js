@@ -584,15 +584,6 @@ function FTNMessageScanTossModule() {
 		});
 	};
 
-	//	:TODO: deprecate this in favor of getNodeConfigByAddress()
-	this.getNodeConfigKeyByAddress = function(uplink) {
-		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
-			return Address.fromString(addr).isPatternMatch(uplink);
-		})[0];
-
-		return nodeKey;
-	};
-
 	this.exportNetMailMessagePacket = function(message, exportOpts, cb) {
 		//
 		//	For NetMail, we always create a *single* packet per message.
@@ -976,20 +967,19 @@ function FTNMessageScanTossModule() {
 
 	this.exportEchoMailMessagesToUplinks = function(messageUuids, areaConfig, cb) {
 		async.each(areaConfig.uplinks, (uplink, nextUplink) => {
-			const nodeConfigKey = self.getNodeConfigKeyByAddress(uplink);
-			if(!nodeConfigKey) {
+			const nodeConfig = self.getNodeConfigByAddress(uplink);
+			if(!nodeConfig) {
 				return nextUplink();
 			}
 
 			const exportOpts = {
-				nodeConfig		: self.moduleConfig.nodes[nodeConfigKey],
+				nodeConfig,
 				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
 				destAddress		: Address.fromString(uplink),
 				networkName		: areaConfig.network,
-				fileCase		: self.moduleConfig.nodes[nodeConfigKey].fileCase || 'lower',
+				fileCase		: nodeConfig.fileCase || 'lower',
 			};
 
-			
 			if(_.isString(exportOpts.network.localAddress)) {
 				exportOpts.network.localAddress = Address.fromString(exportOpts.network.localAddress);
 			}
