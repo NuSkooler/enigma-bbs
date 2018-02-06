@@ -16,12 +16,14 @@
     - [Editing hjson]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
     - [config.hjson]({{ site.baseurl }}{% link configuration/config-hjson.md %})
     - [menu.hjson]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
-    - prompt.hjson
+    - [prompt.hjson]({{ site.baseurl }}{% link configuration/prompt-hjson.md %})
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
     - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})
     - [Email]({{ site.baseurl }}{% link configuration/email.md %})
+    - [Colour Codes]({{ site.baseurl }}{% link configuration/colour-codes.md %})
     - Scheduled jobs
+
 
   - File Base
     - [About]({{ site.baseurl }}{% link filebase/index.md %})
