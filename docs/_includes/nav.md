@@ -31,7 +31,7 @@
     - [Web Access]({{ site.baseurl }}{% link filebase/web-access.md %})
     - [TIC Support]({{ site.baseurl }}{% link filebase/tic-support.md %}) (Importing from FTN networks)
     - Tips and tricks
-      - Network mounts and symlinks
+      - [Network mounts and symlinks]({{ site.baseurl }}{% link filebase/network-mounts-and-symlinks.md %})
     
   - Message Areas
     - [Configuring a Message Area]({{ site.baseurl }}{% link messageareas/configuring-a-message-area.md %})
