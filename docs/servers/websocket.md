@@ -86,6 +86,6 @@ webserver, and unpack it to a temporary directory.
 otherwise.
     
 9. If you navigate to http://your-hostname.here/vtx.html, you should see a splash screen like the following:
-    ![VTXClient](../images/vtxclient.png "VTXClient")
+    ![VTXClient](../assets/images/vtxclient.png "VTXClient")
 
  

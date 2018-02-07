@@ -16,11 +16,15 @@
     - [Editing hjson]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
     - [config.hjson]({{ site.baseurl }}{% link configuration/config-hjson.md %})
     - [menu.hjson]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
-    - prompt.hjson
+    - [prompt.hjson]({{ site.baseurl }}{% link configuration/prompt-hjson.md %})
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
+    - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})
+    - [Email]({{ site.baseurl }}{% link configuration/email.md %})
+    - [Colour Codes]({{ site.baseurl }}{% link configuration/colour-codes.md %})
+    - [Access Condition System (ACS)]({{ site.baseurl }}{% link configuration/acs.md %})
     - Scheduled jobs
-    - SMTP
+
 
   - File Base
     - [About]({{ site.baseurl }}{% link filebase/index.md %})
@@ -30,7 +34,7 @@
     - [Web Access]({{ site.baseurl }}{% link filebase/web-access.md %})
     - [TIC Support]({{ site.baseurl }}{% link filebase/tic-support.md %}) (Importing from FTN networks)
     - Tips and tricks
-      - Network mounts and symlinks
+      - [Network mounts and symlinks]({{ site.baseurl }}{% link filebase/network-mounts-and-symlinks.md %})
     
   - Message Areas
     - [Configuring a Message Area]({{ site.baseurl }}{% link messageareas/configuring-a-message-area.md %})

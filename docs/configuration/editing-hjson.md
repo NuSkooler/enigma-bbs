@@ -14,3 +14,7 @@ You can find more info at the [Hjson.org website](http://hjson.org/).
 within the IDE. It provides syntax highlighting to make it clear when you've made a syntax mistake within
 a config file. 
 
+### Notepad++
+
+[Notepad++](https://notepad-plus-plus.org) has an Hjson plugin that provides syntax highlighting and other
+usual text editor features. The plugin can be found [here](https://github.com/laktak/npp-hjson).

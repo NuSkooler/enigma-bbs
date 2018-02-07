@@ -2,7 +2,7 @@
 layout: default
 title: Home
 ---
-![ENiGMA½ BBS](images/enigma-bbs.png "ENiGMA½ BBS")
+![ENiGMA½ BBS](assets/images/enigma-bbs.png "ENiGMA½ BBS")
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 

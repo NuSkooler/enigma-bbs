@@ -3,13 +3,13 @@ layout: page
 title: Configuring a File Base
 ---
 ## ENiGMA½ File Base Key Concepts
-Like many things in ENiGMA½, configuration of file base(s) is handled via `config.hjson` -- specifically 
-in the `fileBase` section. First, there are a couple of concepts you should understand.
+Like many things in ENiGMA½, configuration of file base(s) is handled via `config.hjson` — specifically 
+in the `fileBase` section. First, there are a couple of concepts you should understand:
 
 
 ### Storage tags
 
-**Storage Tags** define paths to a physical (file) storage locations that are referenced in a 
+**Storage Tags** define paths to physical (file) storage locations that are referenced in a 
 file *Area* entry. Each entry may be either a fully qualified path or a relative path. Relative paths 
 are relative to the value set by the `areaStoragePrefix` key (defaults to `<enigma_install_dir/file_base`). 
 Below is an example defining a both a relative and fully qualified path each attached to a storage tag:
@@ -22,8 +22,7 @@ storageTags: {
 }
 ```
 
-Note that on their own, storage tags don't do anything - they are simply pointers to storage locations on
-your system. 
+Note that on their own, storage tags don't do anything — they are simply pointers to storage locations on your system. 
 
 ### Areas
 
