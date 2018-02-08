@@ -12,20 +12,20 @@ The following are ACS codes available as of this writing:
 | Code | Condition |
 |------|-------------|
 | LC | Connection is local |
-| AG_age_ | User's age is >= _age_ |
-| AS_status_, AS[_status_,...] | User's account status is _group_ or one of [_group_,...] |
-| EC_encoding_ | Terminal encoding is set to _encoding_ where `0` is `CP437` and `1` is `UTF-8` |
+| AG<i>age</i> | User's age is >= _age_ |
+| AS<i>status</i>, AS[_status_,...] | User's account status is _group_ or one of [_group_,...] |
+| EC<i>encoding</i> | Terminal encoding is set to _encoding_ where `0` is `CP437` and `1` is `UTF-8` |
 | GM[_group_,...] | User belongs to one of [_group_,...] |
-| NN_node_ | Current node is _node_ |
-| NP_posts_ | User's number of message posts is >= _posts_ |
-| NC_calls_ | User's number of calls is >= _calls_ |
+| NN<i>node</i> | Current node is _node_ |
+| NP<i>posts</i> | User's number of message posts is >= _posts_ |
+| NC<i>calls</i> | User's number of calls is >= _calls_ |
 | SC | Connection is considered secure (SSL, secure WebSockets, etc.) |
-| TH_height_ | Terminal height is >= _height_ |
-| TW_width_ | Terminal width is >= _width_ |
+| TH<i>height</i> | Terminal height is >= _height_ |
+| TW<i>width</i> | Terminal width is >= _width_ |
 | TM[_themeId_,...] | User's current theme ID is one of [_themeId_,...] (e.g. `luciano_blocktronics`) |
 | TT[_termType_,...] | User's current terminal type is one of [_termType_,...] (`ANSI-BBS`, `utf8`, `xterm`, etc.) |
-| ID_n_, ID[_id_,...] | User's ID is _id_ or oen of [_id_,...] |
-| WD_n_, WD[_weekDay_,...] | Current day of week is _weekDay_ or one of [_weekDay_,...] where `0` is Sunday, `1` is Monday, and so on. |
+| ID<i>id</i>, ID[_id_,...] | User's ID is _id_ or oen of [_id_,...] |
+| WD<i>weekDay</i>, WD[_weekDay_,...] | Current day of week is _weekDay_ or one of [_weekDay_,...] where `0` is Sunday, `1` is Monday, and so on. |
 
 \* Many more ACS codes are planned for the near future.
 
