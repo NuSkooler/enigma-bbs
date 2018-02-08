@@ -16,7 +16,7 @@ The following are ACS codes available as of this writing:
 | AS<i>status</i>, AS[_status_,...] | User's account status is _group_ or one of [_group_,...] |
 | EC<i>encoding</i> | Terminal encoding is set to _encoding_ where `0` is `CP437` and `1` is `UTF-8` |
 | GM[_group_,...] | User belongs to one of [_group_,...] |
-| NN<i>node</i> | Current node is _node_ |
+| NN<i>node</i>, NN[_node_,...] | Current node is _node_ or one of [_node_,...] |
 | NP<i>posts</i> | User's number of message posts is >= _posts_ |
 | NC<i>calls</i> | User's number of calls is >= _calls_ |
 | SC | Connection is considered secure (SSL, secure WebSockets, etc.) |
@@ -26,6 +26,15 @@ The following are ACS codes available as of this writing:
 | TT[_termType_,...] | User's current terminal type is one of [_termType_,...] (`ANSI-BBS`, `utf8`, `xterm`, etc.) |
 | ID<i>id</i>, ID[_id_,...] | User's ID is _id_ or oen of [_id_,...] |
 | WD<i>weekDay</i>, WD[_weekDay_,...] | Current day of week is _weekDay_ or one of [_weekDay_,...] where `0` is Sunday, `1` is Monday, and so on. |
+| AA<i>days</i> | Account is >= _days_ old |
+| BU<i>bytes</i> | User has uploaded >= _bytes_ |
+| UP<i>uploads</i> | User has uploaded >= _uploads_ files |
+| BD<i>bytes</i> | User has downloaded >= _bytes_ |
+| DL<i>downloads</i> | User has downloaded >= _downloads_ files |
+| NR<i>ratio</i> | User has upload/download count ratio >= _ratio_ |
+| KR<i>ratio</i> | User has a upload/download byte ratio >= _ratio_ |
+| PC<i>ratio</i> | User has a post/call ratio >= _ratio_ |
+| MM<i>minutes</i> | It is currently >= _minutes_ past midnight (system time)
 
 \* Many more ACS codes are planned for the near future.
 
