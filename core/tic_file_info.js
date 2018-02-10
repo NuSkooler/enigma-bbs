@@ -91,8 +91,13 @@ module.exports = class TicFileInfo {
 						return callback(Errors.Invalid(`No local area for "Area" of ${area}`));
 					}
 
-					const from = self.getAsString('From');
-					localInfo.node = Object.keys(config.nodes).find( nodeAddr => Address.fromString(nodeAddr).isPatternMatch(from) );
+					const from = Address.fromString(self.getAsString('From'));
+					if(!from.isValid()) {
+						return callback(Errors.Invalid(`Invalid "From" address: ${self.getAsString('From')}`));
+					}
+
+					//	note that our config may have wildcards, such as "80:774/*"
+					localInfo.node = Object.keys(config.nodes).find( nodeAddrWildcard => from.isPatternMatch(nodeAddrWildcard) );
 
 					if(!localInfo.node) {
 						return callback(Errors.Invalid('TIC is not from a known node'));
