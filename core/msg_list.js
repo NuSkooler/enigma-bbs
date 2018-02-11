@@ -38,6 +38,7 @@ exports.moduleInfo = {
 const MciViewIds = {
 	msgList			: 1,	//	VM1
 	MsgInfo1		: 2,	//	TL2
+	MsgArea			: 3,    //  TL3
 };
 
 exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(MenuModule) {
@@ -210,7 +211,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 						msgListView.on('index update', idx => {
 							self.setViewText(
 								'allViews',
-								MciViewIds.msgInfo1,
+								MciViewIds.MsgInfo1,
 								stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.config.messageList.length } ));
 						});
 
@@ -225,9 +226,15 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 					},
 					function drawOtherViews(callback) {
 						const messageInfo1Format = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
-						self.setViewText(
+
+                        self.setViewText(
+                            'allViews',
+							MciViewIds.MsgArea,
+							messageArea.getMessageAreaByTag(self.config.messageAreaTag).name);
+
+                        self.setViewText(
 							'allViews',
-							MciViewIds.msgInfo1,
+							MciViewIds.MsgInfo1,
 							stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.config.messageList.length } ));
 						return callback(null);
 					},
