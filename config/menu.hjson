@@ -1914,9 +1914,6 @@
 							submit: true
 							argName: message
 						}
-						TL6: {
-							//	theme me!
-						}
 					}
 					submit: {
 						*: [
