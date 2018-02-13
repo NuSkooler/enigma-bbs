@@ -37,7 +37,7 @@ exports.moduleInfo = {
 
 const MciViewIds = {
 	msgList			: 1,	//	VM1
-	MsgInfo1		: 2,	//	TL2
+	msgInfo1		: 2,	//	TL2
 };
 
 exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(MenuModule) {
