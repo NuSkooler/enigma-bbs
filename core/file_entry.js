@@ -221,6 +221,19 @@ module.exports = class FileEntry {
 		return paths.join(storageDir, this.fileName);
 	}
 
+	static quickCheckExistsByPath(fullPath, cb) {
+		fileDb.get(
+			`SELECT COUNT() AS count
+			FROM file
+			WHERE file_name = ?
+			LIMIT 1;`,
+			[ paths.basename(fullPath) ],
+			(err, rows) => {
+				return err ? cb(err) : cb(null, rows.count > 0 ? true : false);
+			}
+		);
+	}
+
 	static persistUserRating(fileId, userId, rating, cb) {
 		return fileDb.run(
 			`REPLACE INTO file_user_rating (file_id, user_id, rating)
