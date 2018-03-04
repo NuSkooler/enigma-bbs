@@ -414,24 +414,26 @@ Client.prototype.setTermType = function(termType) {
 };
 
 Client.prototype.startIdleMonitor = function() {
-	var self = this;
-
-	self.lastKeyPressMs		= Date.now();
+	this.lastKeyPressMs = Date.now();
 
 	//
 	//	Every 1m, check for idle.
 	//
-	self.idleCheck = setInterval(function checkForIdle() {
+	this.idleCheck = setInterval( () => {
 		const nowMs	= Date.now();
 
-		const idleLogoutSeconds = self.user.isAuthenticated() ?
+		const idleLogoutSeconds = this.user.isAuthenticated() ?
 			Config.misc.idleLogoutSeconds :
 			Config.misc.preAuthIdleLogoutSeconds;
 
-		if(nowMs - self.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
-			self.emit('idle timeout');
+		if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
+			this.emit('idle timeout');
 		}
 	}, 1000 * 60);
+};
+
+Client.prototype.stopIdleMonitor = function() {
+	clearInterval(this.idleCheck);
 };
 
 Client.prototype.end = function () {
@@ -445,7 +447,7 @@ Client.prototype.end = function () {
 		currentModule.leave();
 	}
 
-	clearInterval(this.idleCheck);
+	this.stopIdleMonitor();
 
 	try {
 		//
