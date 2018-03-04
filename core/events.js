@@ -10,9 +10,19 @@ const _					= require('lodash');
 const async				= require('async');
 const glob				= require('glob');
 
+const SYSTEM_EVENTS = {
+	ClientConnected		: 'codes.l33t.enigma.system.connected',
+	ClientDisconnected	: 'codes.l33t.enigma.system.disconnected',
+	TermDetected		: 'codes.l33t.enigma.term_detected',
+};
+
 module.exports = new class Events extends events.EventEmitter {
 	constructor() {
 		super();
+	}
+
+	getSystemEvents() {
+		return SYSTEM_EVENTS;
 	}
 
 	addListener(event, listener) {
