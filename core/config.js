@@ -173,12 +173,14 @@ function getDefaultConfig() {
 			passwordChar	: '*',		//	TODO: move to user ?
 			dateFormat	: {
 				short	: 'MM/DD/YYYY',
+				long	: 'ddd, MMMM Do, YYYY',
 			},
 			timeFormat : {
 				short	: 'h:mm a',
 			},
 			dateTimeFormat : {
 				short	: 'MM/DD/YYYY h:mm a',
+				long	: 'ddd, MMMM Do, YYYY, h:mm a',
 			}
 		},
 
