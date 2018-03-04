@@ -311,7 +311,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		);
 	}
 
-	prepViewController(name, formId, artData, cb) {
+	prepViewController(name, formId, mciMap, cb) {
 		if(_.isUndefined(this.viewControllers[name])) {
 			const vcOpts = {
 				client		: this.client,
@@ -322,7 +322,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
 			const loadOpts = {
 				callingMenu		: this,
-				mciMap			: artData.mciMap,
+				mciMap			: mciMap,
 				formId			: formId,
 			};
 
@@ -345,7 +345,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 					return cb(err);
 				}
 
-				return this.prepViewController(name, formId, artData, cb);
+				return this.prepViewController(name, formId, artData.mciMap, cb);
 			}
 		);
 	}

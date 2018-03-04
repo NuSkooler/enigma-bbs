@@ -49,7 +49,7 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
 				return cb(err);
 			}
 
-			this.prepViewController('search', 0, { mciMap : mciData.menu }, (err, vc) => {
+			this.prepViewController('search', 0, mciData.menu, (err, vc) => {
 				if(err) {
 					return cb(err);
 				}

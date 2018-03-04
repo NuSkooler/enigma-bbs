@@ -65,7 +65,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
 						return callback(null, availAreas);
 					},
 					function prepView(availAreas, callback) {
-						self.prepViewController('allViews', 0, { mciMap : mciData.menu }, (err, vc) => {
+						self.prepViewController('allViews', 0, mciData.menu, (err, vc) => {
 							if(err) {
 								return callback(err);
 							}

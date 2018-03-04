@@ -259,6 +259,9 @@ function initialize(cb) {
 			function listenConnections(callback) {
 				return require('./listening_server.js').startup(callback);
 			},
+			function readyFileBaseArea(callback) {
+				return require('./file_base_area.js').startup(callback);
+			},
 			function readyFileAreaWeb(callback) {
 				return require('./file_area_web.js').startup(callback);
 			},
