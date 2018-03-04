@@ -2,11 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const events		= require('events');
-const util			= require('util');
-const ansi			= require('./ansi_term.js');
-const colorCodes	= require('./color_codes.js');
-const enigAssert	= require('./enigma_assert.js');
+const events			= require('events');
+const util				= require('util');
+const ansi				= require('./ansi_term.js');
+const colorCodes		= require('./color_codes.js');
+const enigAssert		= require('./enigma_assert.js');
+const { renderSubstr }	= require('./string_util.js');
 
 //	deps
 const _				= require('lodash');
@@ -85,6 +86,10 @@ function View(options) {
 
 	if(this.acceptsInput) {
 		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
+
+		if(_.isObject(options.specialKeyMapOverride)) {
+			this.setSpecialKeyMapOverride(options.specialKeyMapOverride);
+		}
 	}
 
 	this.isKeyMapped = function(keySet, keyName) {
@@ -177,6 +182,10 @@ View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
 };
 
+View.prototype.setSpecialKeyMapOverride = function(specialKeyMapOverride) {
+	this.specialKeyMap = Object.assign(this.specialKeyMap, specialKeyMapOverride);
+};
+
 View.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
 		case 'height'	: this.setHeight(value); break;
@@ -199,7 +208,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 				if(_.isNumber(value)) {
 					this.fillChar = String.fromCharCode(value);
 				} else if(_.isString(value)) {
-					this.fillChar = value.substr(0, 1);
+					this.fillChar = renderSubstr(value, 0, 1);
 				}
 			}
 			break;
