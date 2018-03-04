@@ -31,7 +31,7 @@ function TextView(options) {
 		this.maxLength = this.client.term.termWidth - this.position.col;
 	}
 
-	this.fillChar			= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
+	this.fillChar			= renderSubstr(miscUtil.valueWithDefault(options.fillChar, ' '), 0, 1);
 	this.justify			= options.justify || 'left';
 	this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
 	this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
@@ -120,11 +120,13 @@ function TextView(options) {
 			}
 		}
 
+		const renderedFillChar = pipeToAnsi(this.fillChar);
+
 		this.client.term.write(
 			padStr(
 				textToDraw,
 				this.dimens.width + 1,
-				this.fillChar,
+				renderedFillChar, //this.fillChar,
 				this.justify,
 				this.hasFocus ? this.getFocusSGR() : this.getSGR(),
 				this.getStyleSGR(1) || this.getSGR()
