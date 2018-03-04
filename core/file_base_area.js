@@ -26,6 +26,7 @@ const iconv			= require('iconv-lite');
 const execFile		= require('child_process').execFile;
 const moment		= require('moment');
 
+exports.startup							= startup;
 exports.isInternalArea					= isInternalArea;
 exports.getAvailableFileAreas			= getAvailableFileAreas;
 exports.getAvailableFileAreaTags		= getAvailableFileAreaTags;
@@ -42,6 +43,7 @@ exports.scanFile						= scanFile;
 exports.scanFileAreaForChanges			= scanFileAreaForChanges;
 exports.getDescFromFileName				= getDescFromFileName;
 exports.getAreaStats					= getAreaStats;
+exports.cleanUpTempSessionItems			= cleanUpTempSessionItems;
 
 //	for scheduler:
 exports.updateAreaStatsScheduledEvent	= updateAreaStatsScheduledEvent;
@@ -51,6 +53,10 @@ const WellKnownAreaTags					= exports.WellKnownAreaTags = {
 	MessageAreaAttach	: 'system_message_attachment',
 	TempDownloads		: 'system_temporary_download',
 };
+
+function startup(cb) {
+	return cleanUpTempSessionItems(cb);
+}
 
 function isInternalArea(areaTag) {
 	return [ WellKnownAreaTags.MessageAreaAttach, WellKnownAreaTags.TempDownloads ].includes(areaTag);
@@ -934,5 +940,43 @@ function updateAreaStatsScheduledEvent(args, cb) {
 		}
 
 		return cb(err);
+	});
+}
+
+function cleanUpTempSessionItems(cb) {
+	//	find (old) temporary session items and nuke 'em
+	const filter = {
+		areaTag 	: WellKnownAreaTags.TempDownloads,
+		metaPairs	: [
+			{
+				name	: 'session_temp_dl',
+				value	: 1
+			}
+		]
+	};
+
+	FileEntry.findFiles(filter, (err, fileIds) => {
+		if(err) {
+			return cb(err);
+		}
+
+		async.each(fileIds, (fileId, nextFileId) => {
+			const fileEntry = new FileEntry();
+			fileEntry.load(fileId, err => {
+				if(err) {
+					Log.warn( { fileId }, 'Failed loading temporary session download item for cleanup');
+					return nextFileId(null);
+				}
+
+				FileEntry.removeEntry(fileEntry, { removePhysFile : true }, err => {
+					if(err) {
+						Log.warn( { fileId : fileEntry.fileId, filePath : fileEntry.filePath }, 'Failed to clean up temporary session download item');
+					}
+					return nextFileId(null);
+				});
+			});
+		}, () => {
+			return cb(null);
+		});
 	});
 }
