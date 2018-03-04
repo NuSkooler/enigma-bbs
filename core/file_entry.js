@@ -38,6 +38,7 @@ const FILE_WELL_KNOWN_META = {
 	tic_origin			: null,	//	TIC "Origin"
 	tic_desc			: null,	//	TIC "Desc"
 	tic_ldesc			: null,	//	TIC "Ldesc" joined by '\n'
+	session_temp_dl		: (v) => parseInt(v) ? true : false,
 };
 
 module.exports = class FileEntry {
@@ -46,11 +47,7 @@ module.exports = class FileEntry {
 
 		this.fileId		= options.fileId || 0;
 		this.areaTag	= options.areaTag || '';
-		this.meta		= options.meta || {
-			//	values we always want
-			dl_count	: 0,
-		};
-
+		this.meta		= Object.assign( { dl_count : 0 }, options.meta);
 		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
 		this.storageTag	= options.storageTag;
