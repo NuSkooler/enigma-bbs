@@ -22,7 +22,7 @@ module.exports = new class Events extends events.EventEmitter {
 
 	emit(event, ...args) {
 		Log.trace( { event : event }, 'Emitting event');
-		return super.emit(event, args);
+		return super.emit(event, ...args);
 	}
 
 	on(event, listener) {
