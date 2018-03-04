@@ -26,6 +26,7 @@ const paths				= require('path');
 const iconv				= require('iconv-lite');
 const moment			= require('moment');
 const uuidv4			= require('uuid/v4');
+const yazl				= require('yazl');
 
 /*
 	:TODO: document:
@@ -71,6 +72,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 		this.config.tsFormat			= this.config.tsFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
 		this.config.descWidth			= this.config.descWidth || 45;	//	ie FILE_ID.DIZ
 		this.config.progBarChar			= (this.config.progBarChar || '▒').charAt(0);
+		this.config.compressThreshold	= this.config.compressThreshold || (1440000);	//	>= 1.44M by default :)
 	}
 
 	mciReady(mciData, cb) {
@@ -85,6 +87,13 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 					(callback) => this.prepareList(callback),
 				],
 				err => {
+					if(err) {
+						if('NORESULTS' === err.reasonCode) {
+							return this.gotoMenu(this.menuConfig.config.noResultsMenu || 'fileBaseExportListNoResults');
+						}
+
+						return this.prevMenu();
+					}
 					return cb(err);
 				}
 			);
@@ -157,7 +166,10 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 					updateStatus('Gathering files for supplied criteria');
 
 					FileEntry.findFiles(filterCriteria, (err, fileIds) => {
-						//	:TODO: handle empty file IDs -- bail early.
+						if(0 === fileIds.length) {
+							return callback(Errors.General('No results for criteria', 'NORESULTS'));
+						}
+
 						return callback(err, headerTemplate, entryTemplate, descIndent, fileIds);
 					});
 				},
@@ -166,12 +178,15 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 						totalFileCount	: fileIds.length,
 					};
 
-					const fileInfo = new FileEntry();
 					let current = 0;
 					let listBody = '';
 					const totals = { fileCount : fileIds.length, bytes : 0 };
 
+					//	this may take quite a while; temp disable of idle monitor
+					self.client.stopIdleMonitor();
+
 					async.eachSeries(fileIds, (fileId, nextFileId) => {
+						const fileInfo = new FileEntry();
 						current += 1;
 
 						fileInfo.load(fileId, err => {
@@ -237,6 +252,9 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 							}
 						});
 					}, err => {
+						//	re-enable idle monitor
+						self.client.startIdleMonitor();
+
 						return callback(err, listBody, headerTemplate, totals);
 					});
 				},
@@ -283,52 +301,56 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
 						const outputFileName = paths.join(
 							sysTempDownloadDir,
-							`file_list_${uuidv4()}.txt`
+							`file_list_${uuidv4().substr(-8)}_${moment().format('YYYY-MM-DD')}.txt`
 						);
 
 						fs.writeFile(outputFileName, listBody, 'utf8', err => {
-							return callback(err, outputFileName, sysTempDownloadArea);
+							if(err) {
+								return callback(err);
+							}
+
+							self.getSizeAndCompressIfMeetsSizeThreshold(outputFileName, (err, finalOutputFileName, fileSize) => {
+								return callback(err, finalOutputFileName, fileSize, sysTempDownloadArea);
+							});
 						});
 					});
 				},
-				function persistFileEntry(outputFileName, sysTempDownloadArea, callback) {
-					fse.stat(outputFileName, (err, stats) => {
-						const newEntry = new FileEntry({
-							areaTag		: sysTempDownloadArea.areaTag,
-							fileName	: paths.basename(outputFileName),
-							storageTag	: sysTempDownloadArea.storageTags[0],
-							meta		: {
-								upload_by_username	: self.client.user.username,
-								upload_by_user_id	: self.client.user.userId,
-								byte_size			: stats.size,
-								session_temp_dl		: 1,	//	download is valid until session is over
-							}
-						});
+				function persistFileEntry(outputFileName, fileSize, sysTempDownloadArea, callback) {
+					const newEntry = new FileEntry({
+						areaTag		: sysTempDownloadArea.areaTag,
+						fileName	: paths.basename(outputFileName),
+						storageTag	: sysTempDownloadArea.storageTags[0],
+						meta		: {
+							upload_by_username	: self.client.user.username,
+							upload_by_user_id	: self.client.user.userId,
+							byte_size			: fileSize,
+							session_temp_dl		: 1,	//	download is valid until session is over
+						}
+					});
 
-						newEntry.desc = 'File List Export';
+					newEntry.desc = 'File List Export';
 
-						newEntry.persist(err => {
-							if(!err) {
-								//	queue it!
-								const dlQueue = new DownloadQueue(self.client);
-								dlQueue.add(newEntry);
+					newEntry.persist(err => {
+						if(!err) {
+							//	queue it!
+							const dlQueue = new DownloadQueue(self.client);
+							dlQueue.add(newEntry);
 
-								//	clean up after ourselves when the session ends
-								const thisClientId = self.client.session.id;
-								Events.once('codes.l33t.enigma.system.disconnected', evt => {	//	:TODO: Make a enum for system events/etc.
-									if(thisClientId === _.get(evt, 'client.session.id')) {
-										FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
-											if(err) {
-												Log.warn( { fileId : newEntry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
-											} else {
-												Log.debug( { fileId : newEntry.fileId, path : outputFileName }, 'Removed temporary session download item' );
-											}
-										});
-									}
-								});
-							}
-							return callback(err);
-						});
+							//	clean up after ourselves when the session ends
+							const thisClientId = self.client.session.id;
+							Events.once('codes.l33t.enigma.system.disconnected', evt => {	//	:TODO: Make a enum for system events/etc.
+								if(thisClientId === _.get(evt, 'client.session.id')) {
+									FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
+										if(err) {
+											Log.warn( { fileId : newEntry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
+										} else {
+											Log.debug( { fileId : newEntry.fileId, path : outputFileName }, 'Removed temporary session download item' );
+										}
+									});
+								}
+							});
+						}
+						return callback(err);
 					});
 				},
 				function done(callback) {
@@ -339,5 +361,40 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 				return cb(err);
 			}
 		);
+	}
+
+	getSizeAndCompressIfMeetsSizeThreshold(filePath, cb) {
+		fse.stat(filePath, (err, stats) => {
+			if(err) {
+				return cb(err);
+			}
+
+			if(stats.size < this.config.compressThreshold) {
+				//	small enough, keep orig
+				return cb(null, filePath, stats.size);
+			}
+
+			const zipFilePath = `${filePath}.zip`;
+
+			const zipFile = new yazl.ZipFile();
+			zipFile.addFile(filePath, paths.basename(filePath));
+			zipFile.end( () => {
+				const outZipFile = fs.createWriteStream(zipFilePath);
+				zipFile.outputStream.pipe(outZipFile);
+				zipFile.outputStream.on('finish', () => {
+					//	delete the original
+					fse.unlink(filePath, err => {
+						if(err) {
+							return cb(err);
+						}
+
+						//	finally stat the new output
+						fse.stat(zipFilePath, (err, stats) => {
+							return cb(err, zipFilePath, stats ? stats.size : 0);
+						});
+					});
+				});
+			});
+		});
 	}
 };
