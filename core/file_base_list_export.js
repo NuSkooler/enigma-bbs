@@ -10,7 +10,8 @@ const Config			= require('./config.js').config;
 const { Errors }		= require('./enig_error.js');
 const {
 	splitTextAtTerms,
-	isAnsi
+	isAnsi,
+	renderSubstr
 }						= require('./string_util.js');
 const AnsiPrep			= require('./ansi_prep.js');
 const Events			= require('./events.js');
@@ -29,15 +30,27 @@ const uuidv4			= require('uuid/v4');
 const yazl				= require('yazl');
 
 /*
-	:TODO: document:
-	- config options
-		- header template
-		- entry template
-	- header format
-	- entry format
-*/
+	Module config block can contain the following:
+	templateEncoding	- encoding of template files (utf8)
+	tsFormat			- timestamp format (theme 'short')
+	descWidth			- max desc width (45)
+	progBarChar			- progress bar character (▒)
+	compressThreshold	- threshold to kick in comrpession for lists (1.44 MiB)
+	templates			- object containing:
+		header			- filename of header template (misc/file_list_header.asc)
+		entry			- filename of entry template (misc/file_list_entry.asc)
 
-//	:TODO: compress lists > N
+	Header template variables:
+	nowTs, boardName, totalFileCount, totalFileSize,
+	filterAreaTag, filterAreaName, filterAreaDesc,
+	filterTerms, filterHashTags
+
+	Entry template variables:
+	fileId, areaName, areaDesc, userRating, fileName,
+	fileSize, fileDesc, fileDescShort, fileSha256, fileCrc32,
+	fileMd5, fileSha1, uploadBy, fileUploadTs, fileHashTags,
+	currentFile, progress,
+*/
 
 exports.moduleInfo = {
 	name	: 'File Base List Export',
@@ -71,7 +84,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 		this.config.templateEncoding	= this.config.templateEncoding || 'utf8';
 		this.config.tsFormat			= this.config.tsFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
 		this.config.descWidth			= this.config.descWidth || 45;	//	ie FILE_ID.DIZ
-		this.config.progBarChar			= (this.config.progBarChar || '▒').charAt(0);
+		this.config.progBarChar			= renderSubstr( (this.config.progBarChar || '▒'), 0, 1);
 		this.config.compressThreshold	= this.config.compressThreshold || (1440000);	//	>= 1.44M by default :)
 	}
 
@@ -338,7 +351,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
 							//	clean up after ourselves when the session ends
 							const thisClientId = self.client.session.id;
-							Events.once('codes.l33t.enigma.system.disconnected', evt => {	//	:TODO: Make a enum for system events/etc.
+							Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
 								if(thisClientId === _.get(evt, 'client.session.id')) {
 									FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
 										if(err) {
