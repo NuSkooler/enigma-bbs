@@ -475,8 +475,8 @@ Client.prototype.waitForKeyPress = function(cb) {
 };
 
 Client.prototype.isLocal = function() {
-	//	:TODO: return rather client is a local connection or not
-	return false;
+	//	:TODO: Handle ipv6 better
+	return [ '127.0.0.1', '::ffff:127.0.0.1' ].includes(this.remoteAddress);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
