@@ -14,7 +14,7 @@ const Log				= require('./logger.js').log;
 //	deps
 const async			= require('async');
 const _				= require('lodash');
-const pty			= require('ptyw.js');
+const pty			= require('node-pty');
 const temptmp		= require('temptmp').createTrackedSession('transfer_file');
 const paths			= require('path');
 const fs			= require('graceful-fs');
@@ -361,11 +361,14 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			'Executing external protocol'
 		);
 
-		const externalProc = pty.spawn(cmd, args, {
-			cols	: this.client.term.termWidth,
-			rows	: this.client.term.termHeight,
-			cwd		: this.recvDirectory,
-		});
+		const spawnOpts = {
+			cols		: this.client.term.termWidth,
+			rows		: this.client.term.termHeight,
+			cwd			: this.recvDirectory,
+			encoding	: null,	//	don't bork our data!
+		};
+
+		const externalProc = pty.spawn(cmd, args, spawnOpts);
 
 		this.client.setTemporaryDirectDataHandler(data => {
 			//	needed for things like sz/rz

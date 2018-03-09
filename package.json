@@ -40,7 +40,7 @@
     "minimist": "1.2.x",
     "moment": "^2.20.1",
     "nodemailer": "^4.4.1",
-    "ptyw.js": "NuSkooler/ptyw.js",
+    "node-pty": "^0.7.4",
     "rlogin": "^1.0.0",
     "sane": "^2.2.0",
     "sanitize-filename": "^1.6.1",

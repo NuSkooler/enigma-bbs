@@ -10,7 +10,7 @@ const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 //	base/modules
 const fs		= require('graceful-fs');
 const _			= require('lodash');
-const pty		= require('ptyw.js');
+const pty		= require('node-pty');
 
 let archiveUtil;
 
