@@ -7,7 +7,10 @@ const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
+const {
+	getAreaAndStorage,
+	looksLikePattern
+}								= require('./oputil_common.js');
 const Errors					= require('../enig_error.js').Errors;
 
 const async						= require('async');
@@ -16,6 +19,7 @@ const paths						= require('path');
 const _							= require('lodash');
 const moment					= require('moment');
 const inq						= require('inquirer');
+const glob						= require('glob');
 
 exports.handleFileBaseCommand			= handleFileBaseCommand;
 
@@ -119,6 +123,14 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
 	const FileEntry = require('../file_entry.js');
 
+	const readDir = options.glob ?
+		(dir, next) => {
+			return glob(options.glob, { cwd : dir, nodir : true }, next);
+		} :
+		(dir, next) => {
+			return fs.readdir(dir, next);
+		};
+
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
 		async.waterfall(
 			[
@@ -134,7 +146,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 				function scanPhysFiles(descHandler, callback) {
 					const physDir = storageLoc.dir;
 
-					fs.readdir(physDir, (err, files) => {
+					readDir(physDir, (err, files) => {
 						if(err) {
 							return callback(err);
 						}
@@ -497,6 +509,12 @@ function scanFileAreas() {
 	options.quick 		= argv.quick;
 
 	options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
+
+	const last = argv._[argv._.length - 1];
+	if(options.areaAndStorageInfo.length > 1 && looksLikePattern(last)) {
+		options.glob = last;
+		options.areaAndStorageInfo.length -= 1;
+	}
 
 	async.series(
 		[

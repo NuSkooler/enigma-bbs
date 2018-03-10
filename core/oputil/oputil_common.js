@@ -15,6 +15,7 @@ exports.getDefaultConfigPath			= getDefaultConfigPath;
 exports.getConfigPath					= getConfigPath;
 exports.initConfigAndDatabases			= initConfigAndDatabases;
 exports.getAreaAndStorage				= getAreaAndStorage;
+exports.looksLikePattern				= looksLikePattern;
 
 const exitCodes = exports.ExitCodes = {
 	SUCCESS		: 0,
@@ -87,4 +88,13 @@ function getAreaAndStorage(tags) {
 		}
 		return entry;
 	});
+}
+
+function looksLikePattern(tag) {
+	//	globs can start with @
+	if(tag.indexOf('@') > 0) {
+		return false;
+	}
+
+	return /[*?[\]!()+|^]/.test(tag);
 }

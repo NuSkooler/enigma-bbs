@@ -49,6 +49,8 @@ import-areas args:
 
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
+                               may also contain optional GLOB as last parameter,
+                               for examle: scan some_area *.zip
 
   info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
                                SHA may be a full or partial SHA-256
