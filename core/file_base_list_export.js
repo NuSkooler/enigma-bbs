@@ -12,6 +12,7 @@ const {
 	isAnsi,
 }						= require('./string_util.js');
 const AnsiPrep			= require('./ansi_prep.js');
+const Log				= require('./logger.js').log;
 
 //	deps
 const _					= require('lodash');
@@ -21,12 +22,19 @@ const paths				= require('path');
 const iconv				= require('iconv-lite');
 const moment			= require('moment');
 
-module.exports = function exportFileList(filterCriteria, options, cb) {
+exports.exportFileList							= exportFileList;
+exports.updateFileBaseDescFilesScheduledEvent	= updateFileBaseDescFilesScheduledEvent;
+
+function exportFileList(filterCriteria, options, cb) {
 	options.templateEncoding	= options.templateEncoding || 'utf8';
-	options.headerTemplate 		= options.headerTemplate || 'description_export_header_template.asc';
-	options.entryTemplate		= options.entryTemplate || 'descripion_export_entry_template.asc';
+	options.entryTemplate		= options.entryTemplate || 'descript_ion_export_entry_template.asc';
 	options.tsFormat			= options.tsFormat || 'YYYY-MM-DD';
 	options.descWidth			= options.descWidth || 45;	//	FILE_ID.DIZ spec
+	options.escapeDesc			= _.get(options, 'escapeDesc', false);	//	escape \r and \n in desc?
+
+	if(true === options.escapeDesc) {
+		options.escapeDesc = '\\n';
+	}
 
 	const state = {
 		total	: 0,
@@ -52,16 +60,22 @@ module.exports = function exportFileList(filterCriteria, options, cb) {
 						return callback(err);
 					}
 
-					const templateFiles = [ options.headerTemplate, options.entryTemplate ];
+					const templateFiles = [
+						{ name : options.headerTemplate,	req : false },
+						{ name : options.entryTemplate,		req : true }
+					];
 					async.map(templateFiles, (template, nextTemplate) => {
-						template = paths.isAbsolute(template) ? template : paths.join(Config.paths.misc, template);
+						if(!template.name && !template.req) {
+							return nextTemplate(null, Buffer.from([]));
+						}
 
-						fs.readFile(template, (err, data) => {
+						template.name = paths.isAbsolute(template.name) ? template.name : paths.join(Config.paths.misc, template.name);
+						fs.readFile(template.name, (err, data) => {
 							return nextTemplate(err, data);
 						});
 					}, (err, templates) => {
 						if(err) {
-							return Errors.General(err.message);
+							return callback(Errors.General(err.message));
 						}
 
 						//	decode + ensure DOS style CRLF
@@ -69,14 +83,16 @@ module.exports = function exportFileList(filterCriteria, options, cb) {
 
 						//	Look for the first {fileDesc} (if any) in 'entry' template & find indentation requirements
 						let descIndent = 0;
-						splitTextAtTerms(templates[1]).some(line => {
-							const pos = line.indexOf('{fileDesc}');
-							if(pos > -1) {
-								descIndent = pos;
-								return true;	//	found it!
-							}
-							return false;	//	keep looking
-						});
+						if(!options.escapeDesc) {
+							splitTextAtTerms(templates[1]).some(line => {
+								const pos = line.indexOf('{fileDesc}');
+								if(pos > -1) {
+									descIndent = pos;
+									return true;	//	found it!
+								}
+								return false;	//	keep looking
+							});
+						}
 
 						return callback(null, templates[0], templates[1], descIndent);
 					});
@@ -123,6 +139,14 @@ module.exports = function exportFileList(filterCriteria, options, cb) {
 						totals.bytes += fileInfo.meta.byte_size;
 
 						const appendFileInfo = () => {
+							if(options.escapeDesc) {
+								formatObj.fileDesc = formatObj.fileDesc.replace(/\r?\n/g, options.escapeDesc);
+							}
+
+							if(options.maxDescLen) {
+								formatObj.fileDesc = formatObj.fileDesc.slice(0, options.maxDescLen);
+							}
+
 							listBody += stringFormat(entryTemplate, formatObj);
 
 							state.current	= current;
@@ -222,4 +246,54 @@ module.exports = function exportFileList(filterCriteria, options, cb) {
 			return cb(err, listBody);
 		}
 	);
-};
+}
+
+function updateFileBaseDescFilesScheduledEvent(args, cb) {
+	//
+	//	For each area, loop over storage locations and build
+	//	DESCRIPT.ION file to store in the same directory.
+	//
+	//	Standard-ish 4DOS spec is as such:
+	//	* Entry: <QUOTED_LFN> <DESC>[0x04<AppData>]\r\n
+	//	* Multi line descriptions are stored with *escaped* \r\n pairs
+	//	* Default template uses 0x2c for <AppData> as per https://stackoverflow.com/questions/1810398/descript-ion-file-spec
+	//
+	const entryTemplate 	= args[0];
+	const headerTemplate	= args[1];
+
+	const areas = FileArea.getAvailableFileAreas(null, { skipAcsCheck : true });
+	async.each(areas, (area, nextArea) => {
+		const storageLocations = FileArea.getAreaStorageLocations(area);
+
+		async.each(storageLocations, (storageLoc, nextStorageLoc) => {
+			const filterCriteria = {
+				areaTag		: area.areaTag,
+				storageTag	: storageLoc.storageTag,
+			};
+
+			const exportOpts = {
+				headerTemplate	: headerTemplate,
+				entryTemplate	: entryTemplate,
+				escapeDesc		: true,	//	escape CRLF's
+				maxDescLen		: 4096,	//	DESCRIPT.ION: "The line length limit is 4096 bytes"
+			};
+
+			exportFileList(filterCriteria, exportOpts, (err, listBody) => {
+
+				const descIonPath = paths.join(storageLoc.dir, 'DESCRIPT.ION');
+				fs.writeFile(descIonPath, iconv.encode(listBody, 'cp437'), err => {
+					if(err) {
+						Log.warn( { error : err.message, path : descIonPath }, 'Failed (re)creating DESCRIPT.ION');
+					} else {
+						Log.debug( { path : descIonPath }, '(Re)generated DESCRIPT.ION');
+					}
+					return nextStorageLoc(null);
+				});
+			});
+		}, () => {
+			return nextArea(null);
+		});
+	}, () => {
+		return cb(null);
+	});
+}

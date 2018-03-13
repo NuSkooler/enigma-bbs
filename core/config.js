@@ -738,6 +738,11 @@ function getDefaultConfig() {
 					schedule	: 'every 24 hours',
 					action		: '@method:core/web_password_reset.js:performMaintenanceTask',
 					args		: [ '24 hours' ]	//	items older than this will be removed
+				},
+
+				updateDescriptIonFiles : {
+					schedule	: 'every 168 hours',	//	once a week
+					action		: '@method:core/file_base_list_export.js:updateFileBaseDescFilesScheduledEvent',
 				}
 			}
 		},

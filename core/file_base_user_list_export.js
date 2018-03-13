@@ -2,15 +2,15 @@
 'use strict';
 
 //	ENiGMA½
-const { MenuModule }	= require('./menu_module.js');
-const FileEntry			= require('./file_entry.js');
-const FileArea			= require('./file_base_area.js');
-const { renderSubstr }	= require('./string_util.js');
-const { Errors }		= require('./enig_error.js');
-const Events			= require('./events.js');
-const Log				= require('./logger.js').log;
-const DownloadQueue		= require('./download_queue.js');
-const exportFileList	 = require('./file_base_list_export.js');
+const { MenuModule }		= require('./menu_module.js');
+const FileEntry				= require('./file_entry.js');
+const FileArea				= require('./file_base_area.js');
+const { renderSubstr }		= require('./string_util.js');
+const { Errors }			= require('./enig_error.js');
+const Events				= require('./events.js');
+const Log					= require('./logger.js').log;
+const DownloadQueue			= require('./download_queue.js');
+const { exportFileList }	= require('./file_base_list_export.js');
 
 //	deps
 const _					= require('lodash');
