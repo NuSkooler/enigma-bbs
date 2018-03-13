@@ -741,7 +741,7 @@ function getDefaultConfig() {
 				},
 
 				updateDescriptIonFiles : {
-					schedule	: 'every 168 hours',	//	once a week
+					schedule	: 'on the last day of the week',
 					action		: '@method:core/file_base_list_export.js:updateFileBaseDescFilesScheduledEvent',
 				}
 			}
