@@ -740,10 +740,16 @@ function getDefaultConfig() {
 					args		: [ '24 hours' ]	//	items older than this will be removed
 				},
 
+				//
+				//	Enable the following entry in your config.hjson to periodically create/update
+				//	DESCRIPT.ION files for your file base
+				//
+				/*
 				updateDescriptIonFiles : {
 					schedule	: 'on the last day of the week',
 					action		: '@method:core/file_base_list_export.js:updateFileBaseDescFilesScheduledEvent',
 				}
+				*/
 			}
 		},
 
