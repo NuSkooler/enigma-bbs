@@ -174,9 +174,9 @@ exports.getModule = class UserConfigModule extends MenuModule {
 							};
 						}), 'name');
 
-						currentThemeIdIndex = _.findIndex(self.availThemeInfo, function cmp(ti) {
+						currentThemeIdIndex = Math.max(0, _.findIndex(self.availThemeInfo, function cmp(ti) {
 							return ti.themeId === self.client.user.properties.theme_id;
-						});
+						}));
 
 						callback(null);
 					},
