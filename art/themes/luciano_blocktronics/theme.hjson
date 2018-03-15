@@ -88,11 +88,11 @@
 
 			fullLoginSequenceOnelinerz: {
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.59}"
 				}
 				0: {
 					mci: {
-						VM1: { height: 10 }
+						VM1: { height: 10, width: 20 }
 						TM2: {
 							focusTextStyle: first lower
 						}						
@@ -111,14 +111,14 @@
 
 			mainMenuUserStats: {
 				mci: {
-					UN1: { width: 17 }
-					UR2: { width: 17 }
-					LO3: { width: 17 }
-					UF4: { width: 17 }
-					UG5: { width: 17 }
-					UT6: { width: 17 }
-					UC7: { width: 17 }
-					ST8: { width: 17 }
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
 				}
 			}
 
@@ -143,7 +143,7 @@
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: { height: 10, width: 20 }
 				}
 			}
 
@@ -154,7 +154,7 @@
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 15 }
+					VM1: { height: 15, width: 50}
 				}
 			}
 
@@ -163,7 +163,7 @@
 					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: { height: 10, width: 20 }
 				}
 			}
 
@@ -185,11 +185,11 @@
 			mainMenuOnelinerz: {
 				//	:TODO: Need way to just duplicate entry here & in menu.hjson, e.g. use: someName + must supply next/etc. in menu
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.59}"
 				}
 				0: {
 					mci: {
-						VM1: { height: 10 }
+						VM1: { height: 10, width: 10 }
 						TM2: {
 							focusTextStyle: first lower
 						}						
@@ -280,7 +280,7 @@
 				}
 				0: {
 					mci: {
-						VM1: { height: 14 }
+						VM1: { height: 14, width: 60}
 						TM2: {
 							focusTextStyle: upper
 							items: [ "yes", "no" ]
@@ -415,7 +415,7 @@
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: { height: 10, width: 20 }
 				}
 			}
 
@@ -424,7 +424,7 @@
 					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: { height: 10, width: 20 }
 				}
 			}
 
@@ -434,14 +434,14 @@
 
 			fullLoginSequenceUserStats: {
 				mci: {
-					UN1: { width: 17 }
-					UR2: { width: 17 }
-					LO3: { width: 17 }
-					UF4: { width: 17 }
-					UG5: { width: 17 }
-					UT6: { width: 17 }
-					UC7: { width: 17 }
-					ST8: { width: 17 }
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
 				}
 			}
 
