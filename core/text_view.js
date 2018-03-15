@@ -129,7 +129,8 @@ function TextView(options) {
 				renderedFillChar, //this.fillChar,
 				this.justify,
 				this.hasFocus ? this.getFocusSGR() : this.getSGR(),
-				this.getStyleSGR(1) || this.getSGR()
+				this.getStyleSGR(1) || this.getSGR(),
+				true	//	use render len
 			),
 			false	//	no converting CRLF needed
 		);

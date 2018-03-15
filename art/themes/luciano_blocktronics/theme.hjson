@@ -280,7 +280,7 @@
 				}
 				0: {
 					mci: {
-						VM1: { height: 14, width: 60}
+						VM1: { height: 14, width: 70 }
 						TM2: {
 							focusTextStyle: upper
 							items: [ "yes", "no" ]
