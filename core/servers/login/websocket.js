@@ -77,7 +77,7 @@ function WebSocketClient(ws, req, serverType) {
 	//
 	//	Montior connection status with ping/pong
 	//
-	ws.on('pong', () => { 
+	ws.on('pong', () => {
 		Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
 		ws.isConnectionAlive = true;
 	});
@@ -187,13 +187,13 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 						}
 
 						ws.isConnectionAlive = false;	//	pong will reset this
-						
+
 						Log.trace('Ping to remote WebSocket client');
-						return ws.ping('', false, true);
+						return ws.ping('', false);	//	false=don't mask
 					});
 				}
 			});
-		}, 30000);	
+		}, 30000);
 
 		return true;
 	}
