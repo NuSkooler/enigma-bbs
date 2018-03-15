@@ -99,6 +99,10 @@ exports.getModule = class BBSListModule extends MenuModule {
 				self.displayAddScreen(cb);
 			},
 			deleteBBS : function(formData, extraArgs, cb) {
+				if(!_.isNumber(self.selectedBBS) || 0 === self.entries.length) {
+					return cb(null);
+				}
+
 				const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
 
 				if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
@@ -323,6 +327,7 @@ exports.getModule = class BBSListModule extends MenuModule {
 						entriesView.setFocusItemIndex(self.selectedBBS);
 						self.drawSelectedEntry(self.entries[self.selectedBBS]);
 					} else if (self.entries.length > 0) {
+						self.selectedBBS = 0;
 						entriesView.setFocusItemIndex(0);
 						self.drawSelectedEntry(self.entries[0]);
 					}

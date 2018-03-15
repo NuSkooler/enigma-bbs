@@ -157,6 +157,8 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 					//	this may take quite a while; temp disable of idle monitor
 					self.client.stopIdleMonitor();
 
+					self.client.on('key press', keyPressHandler);
+
 					const filterCriteria = Object.assign({}, self.config.filterCriteria);
 					if(!filterCriteria.areaTag) {
 						filterCriteria.areaTag = FileArea.getAvailableFileAreaTags(self.client);
