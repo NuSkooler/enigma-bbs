@@ -483,7 +483,7 @@ module.exports = class FileEntry {
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
 					sql =
-						`SELECT DISTINCT f.file_id, f.${filter.sort}
+						`SELECT DISTINCT f.file_id
 						FROM file f`;
 
 					sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
@@ -579,13 +579,14 @@ module.exports = class FileEntry {
 
 		sql += ';';
 
-		const matchingFileIds = [];
-		fileDb.each(sql, (err, fileId) => {
-			if(fileId) {
-				matchingFileIds.push(fileId.file_id);
+		fileDb.all(sql, (err, rows) => {
+			if(err) {
+				return cb(err);
 			}
-		}, err => {
-			return cb(err, matchingFileIds);
+			if(!rows || 0 === rows.length) {
+				return cb(null, []);	//	no matches
+			}
+			return cb(null, rows.map(r => r.file_id));
 		});
 	}
 
