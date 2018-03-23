@@ -8,6 +8,7 @@ const messageArea			= require('./message_area.js');
 const displayThemeArt		= require('./theme.js').displayThemeArt;
 const resetScreen			= require('./ansi_term.js').resetScreen;
 const stringFormat			= require('./string_format.js');
+const Errors				= require('./enig_error.js').Errors;
 
 //	deps
 const async				= require('async');
@@ -139,6 +140,9 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 						const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
 
 						const areaListView = vc.getView(MciViewIds.AreaList);
+						if(!areaListView) {
+							return callback(Errors.MissingMci('A MenuView compatible MCI code is required'));
+						}
 						let i = 1;
 						areaListView.setItems(_.map(self.messageAreas, v => {
 							return stringFormat(listFormat, {
