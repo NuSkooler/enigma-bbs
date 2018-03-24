@@ -39,7 +39,7 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	2. Go to the `Advanced` Tab and click on `Enviromental Varibles`
 	3. Select `Path` under `System Varibles` and click `Edit`
 	4. Click `New` and paste the path to 7zip
-	5. Close your console window and reopen. You can type 7z to make sure it's working.
+	5. Close your console window and reopen. You can type `7z` to make sure it's working.
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
 
