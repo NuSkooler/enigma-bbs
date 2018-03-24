@@ -38,14 +38,19 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
 
-4. Clone Enigma - browse to the directory you want and run "git clone https://github.com/NuSkooler/enigma-bbs.git"
-	Optionally use the tortoisegit gui by right clicking the directory and run git clone in the menu
+4. Clone Enigma - browse to the directory you want and run 
+	```Powershell
+	git clone "https://github.com/NuSkooler/enigma-bbs.git"
+	```
+	Optionally use the TortoiseGit by right clicking the directory and slecting "Git Clone...".
     
 
 5. Install ENiGMA½.
 	1. In the enigma directory run 'npm install'
 	2. Generate your initial configuration:
-		'node .\oputil.js config new'
+	```Powershell
+		node .\oputil.js config new
+	```
 		Follow the prompts!
 	3. Edit any configuration files
 	4. Run ENiGMA½
