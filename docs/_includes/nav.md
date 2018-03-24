@@ -4,7 +4,7 @@
         - [Docker]({{ site.baseurl }}{% link installation/docker.md %})
         - [Manual installation]({{ site.baseurl }}{% link installation/manual.md %})
     - [OS / Hardware Specific]({{ site.baseurl }}{% link installation/os-hardware.md %})  
-      - [Raspberry Pi] ({{ site.baseurl }}{% link installation/rpi.md %})  
+      - [Raspberry Pi]({{ site.baseurl }}{% link installation/rpi.md %})  
       - [Windows]({{ site.baseurl }}{% link installation/windows.md %})  
     - [Your Network Setup]({{ site.baseurl }}{% link installation/network.md %})
     - [Testing Your Installation]({{ site.baseurl }}{% link installation/testing.md %})
