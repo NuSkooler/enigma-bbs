@@ -3,7 +3,7 @@ layout: page
 title: Windows Full Install
 ---
 
-ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doors natively then you should use a 32 bit Windows.  
+ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.  
 
 
 ### Basic Instructions
@@ -32,7 +32,7 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 
 2. Install [7zip](https://www.7-zip.org/download.html).
 
-	*Add 7zip to your path so 7z can be called from the console
+	*Add 7zip to your path so `7z` can be called from the console
 	1. Right click `This PC` and Select `Properties`
 	2. Go to the `Advanced` Tab and click on `Enviromental Varibles`
 	3. Select `Path` under `System Varibles` and click `Edit`
@@ -41,7 +41,7 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
 
-4. Clone Enigma - browse to the directory you want and run 
+4. Clone ENiGMA½ - browse to the directory you want and run 
 	```Powershell
 	git clone "https://github.com/NuSkooler/enigma-bbs.git"
 	```
