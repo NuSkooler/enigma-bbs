@@ -8,4 +8,4 @@ things manually versus have it automated for you.
 | Method                                 | Notes                                                                                       |     
 |----------------------------------------|---------------------------------------------------------------------------------------------|
 | [Raspberry Pi](rpi)  | All Raspberry Pi models work great with ENiGMA½! |
-| [Windows](windows)   | Compatible with all windows operating systems            |
+| [Windows](windows)   | Compatible with all Windows Operating Systems    |
