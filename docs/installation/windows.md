@@ -57,7 +57,7 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	```Powershell
 		node .\oputil.js config new
 	```
-	3. Edit any configuration files
+	3. Edit your configuration files in `enigma-bbs\config` with [Notepad++](https://notepad-plus-plus.org/download/) or [Visual Studio Code](https://code.visualstudio.com/Download)
 	4. Run ENiGMA½
 	```Powershell
 		node .\main.js
