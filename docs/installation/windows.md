@@ -53,11 +53,10 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	```Powershell
 	npm install
 	```
-	2. Generate your initial configuration:
+	2. Generate your initial configuration: `Follow the prompts!`
 	```Powershell
 		node .\oputil.js config new
 	```
-		Follow the prompts!
 	3. Edit any configuration files
 	4. Run ENiGMA½
 	```Powershell
