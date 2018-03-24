@@ -2,7 +2,6 @@
 layout: page
 title: Raspberry Pi
 ---
-## Raspberry Pi
 
 All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with 
 `npm install` will take some time and *may* appear to hang. It's still working - just be patient and let it
