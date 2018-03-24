@@ -35,6 +35,11 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 2. Install [7zip](https://www.7-zip.org/download.html).
 
 	*Add 7zip to your path so 7z can be called from the console
+	1. Right click "This PC" and Select "Properties"
+	2. Go to the Advanced Tab and click on "Enviromental Varibles"
+	3. Select Path under System Varibles and click Edit
+	4. Click New and paste the path to 7zip
+	5. Close your console window and reopen. You can type 7z to make sure it's working.
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
 
