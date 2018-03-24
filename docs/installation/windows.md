@@ -2,7 +2,6 @@
 layout: page
 title: Windows Full Install
 ---
-## Windows
 
 ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doors naively then you should use a 32 bit Windows.  
 
