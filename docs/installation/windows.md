@@ -26,8 +26,11 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 
 
 	2. Install [windows-build-tools for npm](https://www.npmjs.com/package/windows-build-tools)
-		'npm install --global --production windows-build-tools'
-		*This will also install python 2.7
+	*This will also install python 2.7
+		```Powershell
+		npm install --global --production windows-build-tools
+		```
+		
 
 2. Install [7zip](https://www.7-zip.org/download.html).
 
