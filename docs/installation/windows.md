@@ -13,11 +13,13 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 
 	1. Upgrade NPM : At this time node comes with NPM 5.6 preinstalled. To upgrade to a newer version now or in the future on windows follow this method.
 
-	`Run PowerShell as Administrator
+	```Powershell
+	*Run PowerShell as Administrator
 	
 	Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
 	npm install -g npm-windows-upgrade
-	npm-windows-upgrade`
+	npm-windows-upgrade
+	```
 
 	Note: Do not run npm i -g npm. Instead use npm-windows-upgrade to update npm going forward. 
 	Also if you run the NodeJS installer, it will replace the node version.:
