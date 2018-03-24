@@ -15,7 +15,6 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 	`*Run PowerShell as Administrator`
 
 	```Powershell
-	
 	Set-ExecutionPolicy Unrestricted -Scope CurrentUser -Force
 	npm install -g npm-windows-upgrade
 	npm-windows-upgrade
@@ -25,7 +24,7 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 	Also if you run the NodeJS installer, it will replace the node version.:
 
 	2. Install [windows-build-tools for npm](https://www.npmjs.com/package/windows-build-tools)
-	*This will also install python 2.7
+	`*This will also install python 2.7`
 		```Powershell
 		npm install --global --production windows-build-tools
 		```
