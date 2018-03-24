@@ -29,6 +29,7 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 		*This will also install python 2.7
 
 2. Install [7zip](https://www.7-zip.org/download.html).
+
 	*Add 7zip to your path so 7z can be called from the console
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
