@@ -1,6 +1,6 @@
 ---
 layout: page
-title: OS & Hardware Specific Information
+title: Raspberry Pi
 ---
 ## Raspberry Pi
 
