@@ -54,7 +54,9 @@ ENiGMA½ will run on both 32bit and 64 bit Windows. If you want to run 16bit doo
 		Follow the prompts!
 	3. Edit any configuration files
 	4. Run ENiGMA½
-		'node .\main.js'
+	```Powershell
+		node .\main.js
+	```
 	
 
 6. Profit!
