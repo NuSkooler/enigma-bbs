@@ -26,7 +26,3 @@ to get it written to an SD card.
 5. Follow the [installation instructions](/installation) to install ENiGMA½.
 
 6. Profit!
-
-## Windows
-
-Needs more info, please submit a PR!
