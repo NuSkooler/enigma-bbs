@@ -45,7 +45,7 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	```Powershell
 	git clone "https://github.com/NuSkooler/enigma-bbs.git"
 	```
-	Optionally use the TortoiseGit by right clicking the directory and slecting `Git Clone...`.
+	Optionally use the TortoiseGit by right clicking the directory and selecting `Git Clone`.
     
 
 5. Install ENiGMA½.
