@@ -52,7 +52,8 @@
     "uuid-parse": "^1.0.0",
     "ws": "^4.0.0",
     "xxhash": "^0.2.4",
-    "yazl": "^2.4.2"
+    "yazl": "^2.4.2",
+    "getsockethandleaddress" : "^1.1.0"
   },
   "devDependencies": {},
   "engines": {

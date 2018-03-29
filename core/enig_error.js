@@ -35,6 +35,7 @@ exports.Errors = {
 	MissingConfig		: (reason, reasonCode)	=> new EnigError('Missing configuration', -32006, reason, reasonCode),
 	UnexpectedState		: (reason, reasonCode)	=> new EnigError('Unexpected state', -32007, reason, reasonCode),
 	MissingParam		: (reason, reasonCode)	=> new EnigError('Missing paramater(s)', -32008, reason, reasonCode),
+	MissingMci			: (reason, reasonCode)	=> new EnigError('Missing required MCI code(s)', -32009, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

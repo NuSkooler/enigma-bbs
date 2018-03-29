@@ -2,16 +2,15 @@
 'use strict';
 
 const MenuModule		= require('./menu_module.js').MenuModule;
-const DropFile			= require('./dropfile.js').DropFile;
-const door				= require('./door.js');
+const DropFile			= require('./dropfile.js');
+const Door				= require('./door.js');
 const theme				= require('./theme.js');
 const ansi				= require('./ansi_term.js');
 
 const async				= require('async');
 const assert			= require('assert');
-const paths				= require('path');
 const _					= require('lodash');
-const mkdirs			= require('fs-extra').mkdirs;
+const getSockHandle 	= require('getsockethandleaddress');	//	black magic
 
 //	:TODO: This should really be a system module... needs a little work to allow for such
 
@@ -122,19 +121,18 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 						callback(null);
 					}
 				},
+				function prepareDoor(callback) {
+					self.doorInstance = new Door(self.client);
+					return self.doorInstance.prepare(self.config.io || 'stdio', callback);
+				},
 				function generateDropfile(callback) {
-					self.dropFile	= new DropFile(self.client, self.config.dropFileType);
-					var fullPath	= self.dropFile.fullPath;
+					const dropFileOpts = {
+						fileType			: self.config.dropFileType,
+						socketDescriptor	: self.getSocketFd(),
+					};
 
-					mkdirs(paths.dirname(fullPath), function dirCreated(err) {
-						if(err) {
-							callback(err);
-						} else {
-							self.dropFile.createFile(function created(err) {
-								callback(err);
-							});
-						}
-					});
+					self.dropFile = new DropFile(self.client, dropFileOpts);
+					return self.dropFile.createFile(callback);
 				}
 			],
 			function complete(err) {
@@ -150,7 +148,38 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 	}
 
 	runDoor() {
+		this.client.term.write(ansi.resetScreen());
 
+		const exeInfo = {
+			cmd				: this.config.cmd,
+			args			: this.config.args,
+			io				: this.config.io || 'stdio',
+			encoding		: this.config.encoding || this.client.term.outputEncoding,
+			dropFile		: this.dropFile.fileName,
+			dropFilePath	: this.dropFile.fullPath,
+			node			: this.client.node,
+		};
+
+		if('socketfd' === this.config.io) {
+			exeInfo.srvSocketFd = this.getSocketFd();
+		}
+
+		this.doorInstance.run(exeInfo, () => {
+			//
+			//	Try to clean up various settings such as scroll regions that may
+			//	have been set within the door
+			//
+			this.client.term.rawWrite(
+				ansi.normal() +
+				ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
+				ansi.setScrollRegion() +
+				ansi.goto(this.client.term.termHeight, 0) +
+				'\r\n\r\n'
+			);
+
+			this.prevMenu();
+		});
+		/*
 		const exeInfo = {
 			cmd			: this.config.cmd,
 			args		: this.config.args,
@@ -178,10 +207,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
 			this.prevMenu();
 		});
-
+		
 		this.client.term.write(ansi.resetScreen());
 
 		doorInstance.run();
+		*/
 	}
 
 	leave() {
@@ -193,5 +223,9 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
 	finishedLoading() {
 		this.runDoor();
+	}
+
+	getSocketFd() {
+		return getSockHandle.getAddress(this.client.output._handle);	//	seriously... black magic :(
 	}
 };
