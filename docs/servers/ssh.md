@@ -16,10 +16,11 @@ You then need to enable the SSH server in your `config.hjson`:
 {
 	loginServers: {
 		ssh: {
-            enabled: true
+                    enabled: true
 		    port: 8889
-            privateKeyPass: YOUR_PK_PASS
-        }                                                                                                                                                                                                   
+		    privateKeyPem: /path/to/ssh_private_key.pem
+                    privateKeyPass: YOUR_PK_PASS
+        }                                                             
     }
 }
 ```
