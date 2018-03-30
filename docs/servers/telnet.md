@@ -21,5 +21,5 @@ Telnet is enabled by default on port `8888` in `config.hjson`:
 | Option              | Description
 |---------------------|--------------------------------------------------------------------------------------|
 | `firstMenu`		  | First menu a telnet connected user is presented with
-| `enabled`           | Enable/disable SSH server
-| `port`              | Configure a custom port for the SSH server
+| `enabled`           | Enable/disable telnet server
+| `port`              | Configure a custom port for the telnet server
