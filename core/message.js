@@ -497,6 +497,7 @@ module.exports = class Message {
 		});
 	}
 
+	//	:TODO: this should only take a UUID...
 	load(options, cb) {
 		assert(_.isString(options.uuid));
 

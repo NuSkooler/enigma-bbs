@@ -153,7 +153,7 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	defaultGenerator(selectorMatch, cb) {
-		let bannerFile = _.get(Config, 'contentServers.gopher.banner', 'startup_banner.asc');
+		let bannerFile = _.get(Config, 'contentServers.gopher.bannerFile', 'startup_banner.asc');
 		bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
 		fs.readFile(bannerFile, 'utf8', (err, banner) => {
 			if(err) {
@@ -194,6 +194,10 @@ exports.getModule = class GopherModule extends ServerModule {
 		}
 	}
 
+	shortenSubject(subject) {
+		return _.truncate(subject, { length : 30 } );
+	}
+
 	messageAreaGenerator(selectorMatch, cb) {
 		//
 		//	Selector should be:
@@ -222,7 +226,6 @@ exports.getModule = class GopherModule extends ServerModule {
 				}
 
 				this.prepareMessageBody(message.message, msgBody => {
-					//	:TODO: create DRY for subject trimming...
 					const response = `${'-'.repeat(70)}
 To     : ${message.toUserName}
 From   : ${message.fromUserName}
@@ -256,8 +259,7 @@ ${msgBody}
 					this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
 					...msgList.map(msg => this.makeItem(
 						ItemTypes.TextFile,
-						//	:TODO: reasonably trim string
-						`${moment(msg.modTimestamp).format('YYYY-MM-DD hh:mma')}  ${msg.subject} (${msg.fromUserName} to ${msg.toUserName})`,
+						`${moment(msg.modTimestamp).format('YYYY-MM-DD hh:mma')}: ${this.shortenSubject(msg.subject)}  (${msg.fromUserName} to ${msg.toUserName})`,
 						`/msgarea/${confTag}/${areaTag}/${msg.messageUuid}`
 					))
 				].join('');
