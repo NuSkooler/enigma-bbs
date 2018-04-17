@@ -65,6 +65,7 @@ exports.getModule = class GopherModule extends ServerModule {
 		super();
 
 		this.routes = new Map();	//	selector->generator => gopher item
+		this.log = Log.child( { server : 'Gopher' } );
 	}
 
 	createServer() {
@@ -87,7 +88,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
 			socket.on('error', err => {
 				if('ECONNRESET' !== err.code) {	//	normal
-					Log.trace( { error : err.message }, 'Socket error');
+					this.log.trace( { error : err.message }, 'Socket error');
 				}
 			});
 		});
@@ -100,7 +101,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
 		const port = parseInt(Config.contentServers.gopher.port);
 		if(isNaN(port)) {
-			Log.warn( { port : Config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
+			this.log.warn( { port : Config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
 			return false;
 		}
 
@@ -122,7 +123,7 @@ exports.getModule = class GopherModule extends ServerModule {
 			try {
 				selectorRegExp = new RegExp(`${selectorRegExp}\r\n`);
 			} catch(e) {
-				Log.warn( { pattern : selectorRegExp }, 'Invalid RegExp for selector' );
+				this.log.warn( { pattern : selectorRegExp }, 'Invalid RegExp for selector' );
 				return false;
 			}
 		}
@@ -141,7 +142,7 @@ exports.getModule = class GopherModule extends ServerModule {
 		}
 		generator = generator || this.notFoundGenerator;
 		generator(match, res => {
-			socket.end(`${res}.\r\n`);	//	includes RFC-1436 'Lastline'
+			socket.end(`${res}`);
 		});
 	}
 
@@ -153,6 +154,8 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	defaultGenerator(selectorMatch, cb) {
+		this.log.trace( { selector : selectorMatch[0] }, 'Serving default content');
+
 		let bannerFile = _.get(Config, 'contentServers.gopher.bannerFile', 'startup_banner.asc');
 		bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
 		fs.readFile(bannerFile, 'utf8', (err, banner) => {
@@ -167,6 +170,7 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	notFoundGenerator(selectorMatch, cb) {
+		this.log.trace( { selector : selectorMatch[0] }, 'Serving not found content');
 		return cb('Not found');
 	}
 
@@ -199,13 +203,14 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	messageAreaGenerator(selectorMatch, cb) {
+		this.log.trace( { selector : selectorMatch[0] }, 'Serving message area content');
 		//
 		//	Selector should be:
 		//	/msgarea - list confs
 		//	/msgarea/conftag - list areas in conf
 		//	/msgarea/conftag/areatag - list messages in area
-		//	/msgarea/conftag/areatag/<num> - message as text
-		//	/msgarea/conftag/areatag/<num>_raw - full message as text + headers
+		//	/msgarea/conftag/areatag/<UUID> - message as text
+		//	/msgarea/conftag/areatag/<UUID>_raw - full message as text + headers
 		//
 		if(selectorMatch[3] || selectorMatch[4]) {
 			//	message
@@ -218,10 +223,17 @@ exports.getModule = class GopherModule extends ServerModule {
 
 			return message.load( { uuid : msgUuid }, err => {
 				if(err) {
+					this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existant message UUID!');
 					return this.notFoundGenerator(selectorMatch, cb);
 				}
 
 				if(message.areaTag !== areaTag || !this.isAreaAndConfExposed(confTag, areaTag)) {
+					this.log.warn( { areaTag }, 'Attempted access to non-exposed conference and/or area!');
+					return this.notFoundGenerator(selectorMatch, cb);
+				}
+
+				if(Message.isPrivateAreaTag(areaTag)) {
+					this.log.warn( { areaTag }, 'Attempted access to message in private area!');
 					return this.notFoundGenerator(selectorMatch, cb);
 				}
 
@@ -245,10 +257,12 @@ ${msgBody}
 			const area		= getMessageAreaByTag(areaTag);
 
 			if(Message.isPrivateAreaTag(areaTag)) {
+				this.log.warn( { areaTag }, 'Attempted access to private area!');
 				return cb(this.makeItem(ItemTypes.InfoMessage, 'Area is private'));
 			}
 
 			if(!area || !this.isAreaAndConfExposed(confTag, areaTag)) {
+				this.log.warn( { confTag, areaTag }, 'Attempted access to non-exposed conference and/or area!');
 				return this.notFoundGenerator(selectorMatch, cb);
 			}
 
@@ -279,7 +293,7 @@ ${msgBody}
 				.filter(area => area && !Message.isPrivateAreaTag(area.areaTag));
 
 			if(0 === areas.length) {
-				return cb(this.makeIItem(ItemTypes.InfoMessage, 'No message areas available'));
+				return cb(this.makeItem(ItemTypes.InfoMessage, 'No message areas available'));
 			}
 
 			sortAreasOrConfs(areas);
