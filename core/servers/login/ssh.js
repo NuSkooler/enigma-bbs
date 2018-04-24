@@ -248,6 +248,7 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 					Log.trace(`SSH: ${sshDebugLine}`);
 				}
 			},
+			algorithms: { compress: ['none'] },
 		};
 
 		this.server = ssh2.Server(serverConf);
