@@ -230,11 +230,19 @@ function getDefaultConfig() {
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
 			webSocket : {
-				port		: 8810,	//	ws://
-				enabled		: false,
-				securePort	: 8811,	//	wss:// - must provide certPem and keyPem
-				certPem		: paths.join(__dirname, './../config/https_cert.pem'),
-				keyPem		: paths.join(__dirname, './../config/https_cert_key.pem'),
+				ws : {
+					//	non-secure ws://
+					enabled			: false,
+					port			: 8810,
+				},
+				wss : {
+					//	secure ws://
+					//	must provide valid certPem and keyPem
+					enabled			: false,
+					port			: 8811,
+					certPem			: paths.join(__dirname, './../config/https_cert.pem'),
+					keyPem			: paths.join(__dirname, './../config/https_cert_key.pem'),
+				},
 			},
 		},
 

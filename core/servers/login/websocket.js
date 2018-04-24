@@ -118,12 +118,15 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 		//	* insecure websocket (ws://)
 		//	* secure (tls) websocket (wss://)
 		//
-		const config = _.get(Config, 'loginServers.webSocket') || { enabled : false };
-		if(!config || true !== config.enabled || !(config.port || config.securePort)) {
+		const config = _.get(Config, 'loginServers.webSocket');
+		if(!_.isObject(config)) {
 			return;
 		}
 
-		if(config.port) {
+		const wsPort 	= _.get(config, 'ws.port');
+		const wssPort	= _.get(config, 'wss.port');
+
+		if(true === _.get(config, 'ws.enabled') && _.isNumber(wsPort)) {
 			const httpServer = http.createServer( (req, resp) => {
 				//	dummy handler
 				resp.writeHead(200);
@@ -136,10 +139,10 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 			};
 		}
 
-		if(config.securePort) {
+		if(_.isObject(config, 'wss') && true === _.get(config, 'wss.enabled') && _.isNumber(wssPort)) {
 			const httpServer = https.createServer({
-				key		: fs.readFileSync(Config.loginServers.webSocket.keyPem),
-				cert	: fs.readFileSync(Config.loginServers.webSocket.certPem),
+				key		: fs.readFileSync(config.wss.keyPem),
+				cert	: fs.readFileSync(config.wss.certPem),
 			});
 
 			this.secure = {
@@ -157,7 +160,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 			}
 
 			const serverName 	= `${ModuleInfo.name} (${serverType})`;
-			const port			= parseInt(_.get(Config, [ 'loginServers', 'webSocket', 'secure' === serverType ? 'securePort' : 'port' ] ));
+			const port			= parseInt(_.get(Config, [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
 
 			if(isNaN(port)) {
 				Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );

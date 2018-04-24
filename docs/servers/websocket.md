@@ -27,11 +27,22 @@ don't already have it defined).
     ````hjson
     loginServers: {
             webSocket : {
-                    port: 8810
-                    enabled: true
-                    securePort: 8811
-                    certPem: /path/to/https_cert.pem
-                    keyPem: /path/to/https_cert_key.pem
+                    ws: {
+                        // non-secure ws://
+                        port: 8810
+                        enabled: true
+                    }
+                    wss: {
+                        //  secure-over-tls wss://
+                        port: 8811
+                        enabled: true
+                        certPem: /path/to/https_cert.pem
+                        keyPem: /path/to/https_cert_key.pem
+                    }
+                    // set proxied to true to allow TLS-terminated proxied connections
+                    // containing the "X-Forwarded-Proto: https" header to be treated
+                    // as secure
+                    proxied: true
             }
     }
     ````
