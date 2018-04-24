@@ -64,7 +64,7 @@ webserver, and unpack it to a temporary directory.
     ````javascript
     var vtxdata = {
         sysName: "Your Awesome BBS",
-        wsConnect: "wss://your-hostname.here:8811" 
+        wsConnect: "wss://your-hostname.here:8811",
         term: "ansi-bbs",
         codePage: "CP437",
         fontName: "UVGA16",
