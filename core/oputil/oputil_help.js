@@ -19,6 +19,7 @@ commands:
   user                      user utilities
   config                    config file management
   fb                        file base management
+  mb                        message base management
 `,
 	User : 
 `usage: optutil.js user --user USERNAME <args>
