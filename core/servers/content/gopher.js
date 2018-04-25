@@ -131,18 +131,17 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	routeRequest(selector, socket) {
-		let generator;
 		let match;
 		for(let [regex, gen] of this.routes) {
 			match = selector.match(regex);
 			if(match) {
-				generator = gen;
-				break;
+				return gen(match, res => {
+					return socket.end(`${res}`);
+				});
 			}
 		}
-		generator = generator || this.notFoundGenerator.bind(this);
-		generator(match, res => {
-			socket.end(`${res}`);
+		this.notFoundGenerator(selector, res => {
+			return socket.end(`${res}`);
 		});
 	}
 
@@ -169,8 +168,8 @@ exports.getModule = class GopherModule extends ServerModule {
 		});
 	}
 
-	notFoundGenerator(selectorMatch, cb) {
-		this.log.trace( { selector : selectorMatch[0] }, 'Serving not found content');
+	notFoundGenerator(selector, cb) {
+		this.log.trace( { selector }, 'Serving not found content');
 		return cb('Not found');
 	}
 
