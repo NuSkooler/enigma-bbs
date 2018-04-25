@@ -140,7 +140,7 @@ exports.getModule = class GopherModule extends ServerModule {
 				break;
 			}
 		}
-		generator = generator || this.notFoundGenerator;
+		generator = generator || this.notFoundGenerator.bind(this);
 		generator(match, res => {
 			socket.end(`${res}`);
 		});
