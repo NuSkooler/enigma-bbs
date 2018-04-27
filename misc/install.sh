@@ -2,7 +2,7 @@
 
 { # this ensures the entire script is downloaded before execution
 
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=8}
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=10}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
