@@ -82,7 +82,7 @@ module.exports = class ArchiveUtil {
 					fileType.offset	= fileType.offset || 0;
 
 					//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
-					const sigLen =fileType.offset + fileType.sig.length;
+					const sigLen = fileType.offset + fileType.sig.length;
 					if(sigLen > this.longestSignature) {
 						this.longestSignature = sigLen;
 					}
@@ -120,7 +120,7 @@ module.exports = class ArchiveUtil {
 				return cb(err);
 			}
 
-			const buf = Buffer.from(this.longestSignature);
+			const buf = Buffer.alloc(this.longestSignature);
 			fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
 				if(err) {
 					return cb(err);
