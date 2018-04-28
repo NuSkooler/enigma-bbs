@@ -273,7 +273,7 @@ function Packet(options) {
 	};
 
 	this.getPacketHeaderBuffer = function(packetHeader) {
-		let buffer = Buffer.from(FTN_PACKET_HEADER_SIZE);
+		let buffer = Buffer.alloc(FTN_PACKET_HEADER_SIZE);
 
 		buffer.writeUInt16LE(packetHeader.origNode, 0);
 		buffer.writeUInt16LE(packetHeader.destNode, 2);
@@ -311,7 +311,7 @@ function Packet(options) {
 	};
 
 	this.writePacketHeader = function(packetHeader, ws) {
-		let buffer = Buffer.from(FTN_PACKET_HEADER_SIZE);
+		let buffer = Buffer.alloc(FTN_PACKET_HEADER_SIZE);
 
 		buffer.writeUInt16LE(packetHeader.origNode, 0);
 		buffer.writeUInt16LE(packetHeader.destNode, 2);
@@ -747,7 +747,7 @@ function Packet(options) {
 		async.waterfall(
 			[
 				function prepareHeaderAndKludges(callback) {
-					const basicHeader = Buffer.from(34);
+					const basicHeader = Buffer.alloc(34);
 					self.writeMessageHeader(message, basicHeader);			
 
 					//
@@ -864,7 +864,7 @@ function Packet(options) {
 	};
 
 	this.writeMessage = function(message, ws, options) {
-		let basicHeader = Buffer.from(34);
+		const basicHeader = Buffer.alloc(34);
 		self.writeMessageHeader(message, basicHeader);
 
 		ws.write(basicHeader);

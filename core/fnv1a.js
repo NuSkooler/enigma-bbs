@@ -38,7 +38,7 @@ module.exports = class FNV1a {
 
 	digest(encoding) {
 		encoding = encoding || 'binary';
-		let buf = Buffer.alloc(4);
+		const buf = Buffer.alloc(4);
 		buf.writeInt32BE(this.hash & 0xffffffff, 0);
 		return buf.toString(encoding);
 	}
