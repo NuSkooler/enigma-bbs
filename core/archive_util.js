@@ -78,7 +78,7 @@ module.exports = class ArchiveUtil {
 			Object.keys(Config.fileTypes).forEach(mimeType => {
 				const fileType = Config.fileTypes[mimeType];
 				if(fileType.sig) {
-					fileType.sig 	= new Buffer(fileType.sig, 'hex');
+					fileType.sig 	= Buffer.alloc(fileType.sig, 'hex');
 					fileType.offset	= fileType.offset || 0;
 
 					//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
@@ -120,7 +120,7 @@ module.exports = class ArchiveUtil {
 				return cb(err);
 			}
 
-			const buf = new Buffer(this.longestSignature);
+			const buf = Buffer.from(this.longestSignature);
 			fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
 				if(err) {
 					return cb(err);

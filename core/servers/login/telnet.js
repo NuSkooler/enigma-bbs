@@ -159,8 +159,8 @@ const NEW_ENVIRONMENT_COMMANDS = {
 	USERVAR	: 3,
 };
 
-const IAC_BUF 		= new Buffer([ COMMANDS.IAC ]);
-const IAC_SE_BUF	= new Buffer([ COMMANDS.IAC, COMMANDS.SE ]);
+const IAC_BUF 		= Buffer.from([ COMMANDS.IAC ]);
+const IAC_SE_BUF	= Buffer.from([ COMMANDS.IAC, COMMANDS.SE ]);
 
 const COMMAND_NAMES = Object.keys(COMMANDS).reduce(function(names, name) {
 	names[COMMANDS[name]] = name.toLowerCase();
@@ -766,7 +766,7 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 };
 
 TelnetClient.prototype.requestTerminalType = function() {
-	const buf = new Buffer( [
+	const buf = Buffer.from( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
 		OPTIONS.TERMINAL_TYPE, 
@@ -777,10 +777,10 @@ TelnetClient.prototype.requestTerminalType = function() {
 };
 
 const WANTED_ENVIRONMENT_VAR_BUFS = [
-	new Buffer( 'LINES' ),
-	new Buffer( 'COLUMNS' ),
-	new Buffer( 'TERM' ),
-	new Buffer( 'TERM_PROGRAM' )
+	Buffer.from( 'LINES' ),
+	Buffer.from( 'COLUMNS' ),
+	Buffer.from( 'TERM' ),
+	Buffer.from( 'TERM_PROGRAM' )
 ];
 
 TelnetClient.prototype.requestNewEnvironment = function() {
@@ -793,7 +793,7 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 	const self = this;	
 
 	const bufs = buffers();
-	bufs.push(new Buffer( [
+	bufs.push(Buffer.from( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
 		OPTIONS.NEW_ENVIRONMENT, 
@@ -801,10 +801,10 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 		));
 
 	for(let i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
-		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
+		bufs.push(Buffer.from( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
 	}
 
-	bufs.push(new Buffer([ NEW_ENVIRONMENT_COMMANDS.USERVAR, COMMANDS.IAC, COMMANDS.SE ]));
+	bufs.push(Buffer.from([ NEW_ENVIRONMENT_COMMANDS.USERVAR, COMMANDS.IAC, COMMANDS.SE ]));
 
 	self.output.write(bufs.toBuffer());
 
@@ -836,7 +836,7 @@ Object.keys(OPTIONS).forEach(function(name) {
 	const code = OPTIONS[name];
 
 	Command.prototype[name.toLowerCase()] = function() {
-		const buf = new Buffer(3);
+		const buf = Buffer.alloc(3);
 		buf[0]	= COMMANDS.IAC;
 		buf[1]	= this.command;
 		buf[2]	= code;

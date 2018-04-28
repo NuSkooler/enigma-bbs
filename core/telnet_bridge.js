@@ -33,7 +33,7 @@ exports.moduleInfo = {
 	author	: 'Andrew Pamment',
 };
 
-const IAC_DO_TERM_TYPE = new Buffer( [ 255, 253, 24 ] );
+const IAC_DO_TERM_TYPE = Buffer.from( [ 255, 253, 24 ] );
 
 class TelnetClientConnection extends EventEmitter {
 	constructor(client) {
@@ -103,7 +103,7 @@ class TelnetClientConnection extends EventEmitter {
 		//
 		let bufs = buffers();
 
-		bufs.push(new Buffer(
+		bufs.push(Buffer.from(
 			[
 				255,	//	IAC
 				250,	//	SB
@@ -113,8 +113,8 @@ class TelnetClientConnection extends EventEmitter {
 		));
 
 		bufs.push(
-			new Buffer(this.client.term.termType),	//	e.g. "ansi"
-			new Buffer( [ 255, 240 ] )				//	IAC, SE
+			Buffer.from(this.client.term.termType),	//	e.g. "ansi"
+			Buffer.from( [ 255, 240 ] )				//	IAC, SE
 		);
 
 		return bufs.toBuffer();
