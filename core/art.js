@@ -288,7 +288,7 @@ function display(client, art, options, cb) {
 	}
 
 	if(!options.disableMciCache) {
-		artHash	= xxhash.hash(new Buffer(art), 0xCAFEBABE);
+		artHash	= xxhash.hash(Buffer.from(art), 0xCAFEBABE);
 
 		//	see if we have a mciMap cached for this art
 		if(client.mciCache) {

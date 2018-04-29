@@ -19,7 +19,7 @@ module.exports = class FNV1a {
 		}
 
 		if(_.isString(data)) {
-			data = new Buffer(data);
+			data = Buffer.from(data);
 		}
 
 		if(!Buffer.isBuffer(data)) {
@@ -38,7 +38,7 @@ module.exports = class FNV1a {
 
 	digest(encoding) {
 		encoding = encoding || 'binary';
-		let buf = new Buffer(4);
+		const buf = Buffer.alloc(4);
 		buf.writeInt32BE(this.hash & 0xffffffff, 0);
 		return buf.toString(encoding);
 	}

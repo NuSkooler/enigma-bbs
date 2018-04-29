@@ -46,7 +46,7 @@ exports.getQuotePrefix				= getQuotePrefix;
 //	See list here: https://github.com/Mithgol/node-fidonet-jam
 
 function stringToNullPaddedBuffer(s, bufLen) {
-	let buffer 	= new Buffer(bufLen).fill(0x00);
+	let buffer 	= Buffer.alloc(bufLen);
 	let enc		= iconv.encode(s, 'CP437').slice(0, bufLen);
 	for(let i = 0; i < enc.length; ++i) {
 		buffer[i] = enc[i];

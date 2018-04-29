@@ -130,8 +130,8 @@ module.exports = class User {
 					//
 					//	Use constant time comparison here for security feel-goods
 					//
-					const passDkBuf		= new Buffer(passDk,	'hex');
-					const propsDkBuf	= new Buffer(propsDk,	'hex');
+					const passDkBuf		= Buffer.from(passDk,	'hex');
+					const propsDkBuf	= Buffer.from(propsDk,	'hex');
 
 					if(passDkBuf.length !== propsDkBuf.length) {
 						return callback(Errors.AccessDenied('Invalid password'));
@@ -595,7 +595,7 @@ module.exports = class User {
 	}
 
 	static generatePasswordDerivedKey(password, salt, cb) {
-		password = new Buffer(password).toString('hex');
+		password = Buffer.from(password).toString('hex');
 
 		crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', (err, dk) => {
 			if(err) {

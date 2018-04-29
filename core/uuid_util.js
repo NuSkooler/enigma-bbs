@@ -11,17 +11,17 @@ function createNamedUUID(namespaceUuid, key) {
 	//	https://github.com/download13/uuidv5/blob/master/uuid.js
 	//
 	if(!Buffer.isBuffer(namespaceUuid)) {
-		namespaceUuid = new Buffer(namespaceUuid);
+		namespaceUuid = Buffer.from(namespaceUuid);
 	}
 
 	if(!Buffer.isBuffer(key)) {
-		key = new Buffer(key);
+		key = Buffer.from(key);
 	}
 
 	let digest = createHash('sha1').update(
 		Buffer.concat( [ namespaceUuid, key ] )).digest();
 
-	let u = new Buffer(16);
+	let u = Buffer.alloc(16);
 
 	// bbbb - bb - bb - bb - bbbbbb
 	digest.copy(u, 0, 0, 4);			// time_low

@@ -374,7 +374,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
 				const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');	//	de-escape
-				externalProc.write(new Buffer(tmp, 'binary'));
+				externalProc.write(Buffer.from(tmp, 'binary'));
 			} else {
 				externalProc.write(data);
 			}
@@ -384,7 +384,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			//	needed for things like sz/rz
 			if(external.escapeTelnet) {
 				const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');	//	escape
-				this.client.term.rawWrite(new Buffer(tmp, 'binary'));
+				this.client.term.rawWrite(Buffer.from(tmp, 'binary'));
 			} else {
 				this.client.term.rawWrite(data);
 			}

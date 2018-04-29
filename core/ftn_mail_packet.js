@@ -26,7 +26,7 @@ const FTN_PACKET_MESSAGE_TYPE	= 2;
 const FTN_PACKET_BAUD_TYPE_2_2	= 2;
 
 //	SAUCE magic header + version ("00")
-const FTN_MESSAGE_SAUCE_HEADER = new Buffer('SAUCE00');
+const FTN_MESSAGE_SAUCE_HEADER = Buffer.from('SAUCE00');
 
 const FTN_MESSAGE_KLUDGE_PREFIX	= '\x01';
 
@@ -273,7 +273,7 @@ function Packet(options) {
 	};
 
 	this.getPacketHeaderBuffer = function(packetHeader) {
-		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
+		let buffer = Buffer.alloc(FTN_PACKET_HEADER_SIZE);
 
 		buffer.writeUInt16LE(packetHeader.origNode, 0);
 		buffer.writeUInt16LE(packetHeader.destNode, 2);
@@ -311,7 +311,7 @@ function Packet(options) {
 	};
 
 	this.writePacketHeader = function(packetHeader, ws) {
-		let buffer = new Buffer(FTN_PACKET_HEADER_SIZE);
+		let buffer = Buffer.alloc(FTN_PACKET_HEADER_SIZE);
 
 		buffer.writeUInt16LE(packetHeader.origNode, 0);
 		buffer.writeUInt16LE(packetHeader.destNode, 2);
@@ -447,8 +447,8 @@ function Packet(options) {
 					//	Also according to the spec, the deprecated "CHARSET" value may be used
 					//	:TODO: Look into CHARSET more - should we bother supporting it?
 					//	:TODO: See encodingFromHeader() for CHRS/CHARSET support @ https://github.com/Mithgol/node-fidonet-jam
-					const FTN_CHRS_PREFIX 	= new Buffer( [ 0x01, 0x43, 0x48, 0x52, 0x53, 0x3a, 0x20 ] );	//	"\x01CHRS:"
-					const FTN_CHRS_SUFFIX	= new Buffer( [ 0x0d ] );
+					const FTN_CHRS_PREFIX 	= Buffer.from( [ 0x01, 0x43, 0x48, 0x52, 0x53, 0x3a, 0x20 ] );	//	"\x01CHRS:"
+					const FTN_CHRS_SUFFIX	= Buffer.from( [ 0x0d ] );
 
 					let chrsPrefixIndex = messageBodyBuffer.indexOf(FTN_CHRS_PREFIX);
 					if(chrsPrefixIndex < 0) {
@@ -724,7 +724,7 @@ function Packet(options) {
 		buf.writeUInt16LE(message.meta.FtnProperty.ftn_attr_flags, 10);
 		buf.writeUInt16LE(message.meta.FtnProperty.ftn_cost, 12);
 
-		const dateTimeBuffer = new Buffer(ftn.getDateTimeString(message.modTimestamp) + '\0');
+		const dateTimeBuffer = Buffer.from(ftn.getDateTimeString(message.modTimestamp) + '\0');
 		dateTimeBuffer.copy(buf, 14);
 	};
 
@@ -747,7 +747,7 @@ function Packet(options) {
 		async.waterfall(
 			[
 				function prepareHeaderAndKludges(callback) {
-					const basicHeader = new Buffer(34);
+					const basicHeader = Buffer.alloc(34);
 					self.writeMessageHeader(message, basicHeader);			
 
 					//
@@ -864,7 +864,7 @@ function Packet(options) {
 	};
 
 	this.writeMessage = function(message, ws, options) {
-		let basicHeader = new Buffer(34);
+		const basicHeader = Buffer.alloc(34);
 		self.writeMessageHeader(message, basicHeader);
 
 		ws.write(basicHeader);
@@ -1054,7 +1054,7 @@ Packet.prototype.writeTerminator = function(ws) {
 	//	From FTS-0001.016:
 	//	"A  pseudo-message beginning with the word 0000H signifies the end of the packet."
 	//
-	ws.write(new Buffer( [ 0x00, 0x00 ] ));	//	final extra null term
+	ws.write(Buffer.from( [ 0x00, 0x00 ] ));	//	final extra null term
 	return 2;
 };
 
@@ -1074,7 +1074,7 @@ Packet.prototype.writeStream = function(ws, messages, options) {
 	});
 
 	if(true === options.terminatePacket) {
-		ws.write(new Buffer( [ 0 ] ));	//	final extra null term
+		ws.write(Buffer.from( [ 0 ] ));	//	final extra null term
 	}
 };
 

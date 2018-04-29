@@ -10,10 +10,10 @@ const { Parser }	= require('binary-parser');
 exports.readSAUCE		= readSAUCE;
 
 const SAUCE_SIZE	= 128;
-const SAUCE_ID		= new Buffer([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
+const SAUCE_ID		= Buffer.from([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
 
 //	:TODO read comments
-//const COMNT_ID		= new Buffer([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
+//const COMNT_ID		= Buffer.from([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
 
 exports.SAUCE_SIZE		= SAUCE_SIZE;
 //	:TODO: SAUCE should be a class
