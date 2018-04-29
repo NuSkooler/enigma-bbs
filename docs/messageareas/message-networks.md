@@ -35,7 +35,7 @@ Each entry's key name is referenced elsewhere in `config.hjson` for FTN oriented
 ## Message Areas
 
 The `areas` section describes a mapping of local **area tags** configured in your `messageConferences` (see
-[Configuring a Message Area][/messageareas/configuring-a-message-area]) to a message network (described 
+[Configuring a Message Area](configuring-a-message-area.md)) to a message network (described 
 above), a FTN specific area tag, and remote uplink address(s). 
 
 This section can be thought of similar to the *AREAS.BBS* file used by other BBS packages. 
