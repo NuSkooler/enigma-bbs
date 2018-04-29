@@ -21,7 +21,7 @@ There are a few things out of scope of this document:
  
 ## Setup
 
-1. Enable the websocket in ENiGMA, by adding `webSocket` configuration to the `loginServers` block (create it if you
+1. Enable the websocket in ENiGMA, by adding `webSocket` configuration to the `loginServers` block in `config.hjson` (create it if you
 don't already have it defined). 
 
     ````hjson
