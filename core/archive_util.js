@@ -78,7 +78,7 @@ module.exports = class ArchiveUtil {
 			Object.keys(Config.fileTypes).forEach(mimeType => {
 				const fileType = Config.fileTypes[mimeType];
 				if(fileType.sig) {
-					fileType.sig 	= Buffer.alloc(fileType.sig, 'hex');
+					fileType.sig 	= Buffer.from(fileType.sig, 'hex');
 					fileType.offset	= fileType.offset || 0;
 
 					//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
