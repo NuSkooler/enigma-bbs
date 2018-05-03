@@ -109,6 +109,7 @@ Door.prototype.run = function() {
 				node			: self.exeInfo.node.toString(),
 				srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
 				userId			: self.client.user.userId.toString(),
+				username		: self.client.user.username,				
 			});
 		}
 
