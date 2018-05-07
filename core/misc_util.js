@@ -36,10 +36,10 @@ function resolvePath(path) {
 
 function getCleanEnigmaVersion() {
 	return packageJson.version
-		.replace(/\-/g, '.')
+		.replace(/-/g, '.')
 		.replace(/alpha/,'a')
 		.replace(/beta/,'b')
-		;
+	;
 }
 
 //	See also ftn_util.js getTearLine() & getProductIdentifier()

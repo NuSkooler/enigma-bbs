@@ -12,7 +12,7 @@ module.exports = class Log {
 	static init() {
 		const Config	= require('./config.js').config;
 		const logPath	= Config.paths.logs;
-		
+
 		const err = this.checkLogPath(logPath);
 		if(err) {
 			console.error(err.message);	//	eslint-disable-line no-console
@@ -29,9 +29,9 @@ module.exports = class Log {
 			err			: bunyan.stdSerializers.err,		//	handle 'err' fields with stack/etc.
 		};
 
-		//	try to remove sensitive info by default, e.g. 'password' fields	
+		//	try to remove sensitive info by default, e.g. 'password' fields
 		[ 'formData', 'formValue' ].forEach(keyName => {
-			serializers[keyName]	= (fd) => Log.hideSensitive(fd); 
+			serializers[keyName]	= (fd) => Log.hideSensitive(fd);
 		});
 
 		this.log = bunyan.createLogger({
@@ -46,7 +46,7 @@ module.exports = class Log {
 			if(!fs.statSync(logPath).isDirectory()) {
 				return new Error(`${logPath} is not a directory`);
 			}
-			
+
 			return null;
 		} catch(e) {
 			if('ENOENT' === e.code) {

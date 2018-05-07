@@ -1,12 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-var MenuView		= require('./menu_view.js').MenuView;
-var ansi			= require('./ansi_term.js');
-var strUtil			= require('./string_util.js');
+const MenuView			= require('./menu_view.js').MenuView;
+const strUtil			= require('./string_util.js');
+const formatString		= require('./string_format');
+const { pipeToAnsi }	= require('./color_codes.js');
+const { goto }			= require('./ansi_term.js');
 
-var assert			= require('assert');
-var _				= require('lodash');
+const assert			= require('assert');
+const _					= require('lodash');
 
 exports.HorizontalMenuView		= HorizontalMenuView;
 
@@ -57,22 +59,30 @@ function HorizontalMenuView(options) {
 	this.drawItem = function(index) {
 		assert(!this.positionCacheExpired);
 
-		var item = self.items[index];
+		const item = self.items[index];
 		if(!item) {
 			return;
 		}
 
-		var text = strUtil.stylizeString(
-			item.text, 
-			this.hasFocus && item.focused ? self.focusTextStyle : self.textStyle);
+		let text;
+		let sgr;
+		if(item.focused && self.hasFocusItems()) {
+			const focusItem = self.focusItems[index];
+			text = focusItem ? focusItem.text : item.text;
+			sgr = '';
+		} else if(this.complexItems) {
+			text = pipeToAnsi(formatString(item.focused && this.focusItemFormat ? this.focusItemFormat : this.itemFormat, item));
+			sgr = this.focusItemFormat ? '' : (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
+		} else {
+			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
+			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
+		}
 
-		var drawWidth = text.length + self.getSpacer().length * 2;	//	* 2 = sides
+		const drawWidth = strUtil.renderStringLength(text) + (self.getSpacer().length * 2);
 
 		self.client.term.write(
-			ansi.goto(self.position.row, item.col) +
-			(index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR()) +
-			strUtil.pad(text, drawWidth, self.fillChar, 'center')
-			);
+			`${goto(self.position.row, item.col)}${sgr}${strUtil.pad(text, drawWidth, self.fillChar, 'center')}`
+		);
 	};
 }
 
@@ -153,5 +163,6 @@ HorizontalMenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 HorizontalMenuView.prototype.getData = function() {
-	return this.focusedItemIndex;
+	const item = this.getItem(this.focusedItemIndex);
+	return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };

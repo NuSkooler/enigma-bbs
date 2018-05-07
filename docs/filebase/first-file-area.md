@@ -55,15 +55,15 @@ fileBase: {
 
 	storageTags: {
 		retro_pc: "retro_pc"
-        retro_pc_bbs: "retro_pc/bbs"
+		retro_pc_bbs: "retro_pc/bbs"
 	}
 
 	areas: {
 		retro_pc: {
-            name: Retro PC
-            desc: Oldschool PC/DOS
-            storageTags: [ "retro_pc", "retro_pc_bbs" ]
-        }
+			name: Retro PC
+			desc: Oldschool PC/DOS
+			storageTags: [ "retro_pc", "retro_pc_bbs" ]
+		}
 	}
 }
 ```

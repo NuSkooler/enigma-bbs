@@ -49,7 +49,7 @@ module.exports = class User {
 			active		: 2,
 		};
 	}
-	
+
 	isAuthenticated() {
 		return true === this.authenticated;
 	}
@@ -83,7 +83,7 @@ module.exports = class User {
 			groupNames = [ groupNames ];
 		}
 
-		const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn))); 
+		const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn)));
 		return isMember;
 	}
 
@@ -91,11 +91,11 @@ module.exports = class User {
 		if(this.isRoot() || this.isGroupMember('sysops')) {
 			return 100;
 		}
-		
+
 		if(this.isGroupMember('users')) {
 			return 30;
 		}
-		
+
 		return 10;	//	:TODO: Is this what we want?
 	}
 
@@ -130,8 +130,8 @@ module.exports = class User {
 					//
 					//	Use constant time comparison here for security feel-goods
 					//
-					const passDkBuf		= new Buffer(passDk,	'hex');
-					const propsDkBuf	= new Buffer(propsDk,	'hex');
+					const passDkBuf		= Buffer.from(passDk,	'hex');
+					const propsDkBuf	= Buffer.from(propsDk,	'hex');
 
 					if(passDkBuf.length !== propsDkBuf.length) {
 						return callback(Errors.AccessDenied('Invalid password'));
@@ -203,14 +203,14 @@ module.exports = class User {
 							if(err) {
 								return callback(err);
 							}
-							
+
 							self.userId = this.lastID;
 
 							//	Do not require activation for userId 1 (root/admin)
 							if(User.RootUserID === self.userId) {
 								self.properties.account_status = User.AccountStatus.active;
 							}
-							
+
 							return callback(null, trans);
 						}
 					);
@@ -220,7 +220,7 @@ module.exports = class User {
 						if(err) {
 							return callback(err);
 						}
-						
+
 						self.properties.pw_pbkdf2_salt	= info.salt;
 						self.properties.pw_pbkdf2_dk	= info.dk;
 						return callback(null, trans);
@@ -283,8 +283,8 @@ module.exports = class User {
 
 		userDb.run(
 			`REPLACE INTO user_property (user_id, prop_name, prop_value)
-			VALUES (?, ?, ?);`, 
-			[ this.userId, propName, propValue ], 
+			VALUES (?, ?, ?);`,
+			[ this.userId, propName, propValue ],
 			err => {
 				if(cb) {
 					return cb(err);
@@ -334,7 +334,7 @@ module.exports = class User {
 			if(err) {
 				return cb(err);
 			}
-			
+
 			stmt.finalize( () => {
 				return cb(null);
 			});
@@ -346,7 +346,7 @@ module.exports = class User {
 			if(err) {
 				return cb(err);
 			}
-			
+
 			const newProperties = {
 				pw_pbkdf2_salt	: info.salt,
 				pw_pbkdf2_dk	: info.dk,
@@ -395,7 +395,7 @@ module.exports = class User {
 			}
 		);
 	}
-	
+
 	static isRootUserId(userId) {
 		return (User.RootUserID === userId);
 	}
@@ -466,11 +466,11 @@ module.exports = class User {
 				if(err) {
 					return cb(err);
 				}
-				
+
 				if(row) {
 					return cb(null, row.user_name);
 				}
-				
+
 				return cb(Errors.DoesNotExist('No matching user ID'));
 			}
 		);
@@ -498,7 +498,7 @@ module.exports = class User {
 			if(err) {
 				return cb(err);
 			}
-			properties[row.prop_name] = row.prop_value;			
+			properties[row.prop_name] = row.prop_value;
 		}, (err) => {
 			return cb(err, err ? null : properties);
 		});
@@ -512,12 +512,12 @@ module.exports = class User {
 			`SELECT user_id
 			FROM user_property
 			WHERE prop_name = ? AND prop_value = ?;`,
-			[ propName, propValue ], 
+			[ propName, propValue ],
 			(err, row) => {
 				if(row) {
 					userIds.push(row.user_id);
 				}
-			}, 
+			},
 			() => {
 				return cb(null, userIds);
 			}
@@ -557,7 +557,7 @@ module.exports = class User {
 							return nextUser(err, user);
 						}
 					);
-				}, 
+				},
 				(err, transformed) => {
 					return cb(err, transformed);
 				});
@@ -594,14 +594,14 @@ module.exports = class User {
 		});
 	}
 
-	static generatePasswordDerivedKey(password, salt, cb) {	
-		password = new Buffer(password).toString('hex');
+	static generatePasswordDerivedKey(password, salt, cb) {
+		password = Buffer.from(password).toString('hex');
 
 		crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', (err, dk) => {
 			if(err) {
 				return cb(err);
 			}
-			
+
 			return cb(null, dk.toString('hex'));
 		});
 	}

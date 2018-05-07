@@ -6,7 +6,7 @@ const stringFormat	= require('./string_format.js');
 
 const events		= require('events');
 const _				= require('lodash');
-const pty			= require('ptyw.js');
+const pty			= require('node-pty');
 const decode 		= require('iconv-lite').decode;
 const createServer	= require('net').createServer;
 
@@ -18,9 +18,8 @@ function Door(client, exeInfo) {
 	const self 				= this;
 	this.client				= client;
 	this.exeInfo			= exeInfo;
-	this.exeInfo.encoding	= this.exeInfo.encoding || 'cp437';
-	this.exeInfo.encoding	= this.exeInfo.encoding.toLowerCase();
-	let restored			= false;	
+	this.exeInfo.encoding	= (this.exeInfo.encoding || 'cp437').toLowerCase();
+	let restored			= false;
 
 	//
 	//	Members of exeInfo:
@@ -36,11 +35,7 @@ function Door(client, exeInfo) {
 	//
 
 	this.doorDataHandler = function(data) {
-		if(self.client.term.outputEncoding === self.exeInfo.encoding) {
-			self.client.term.rawWrite(data);
-		} else {
-			self.client.term.write(decode(data, self.exeInfo.encoding));
-		}
+		self.client.term.write(decode(data, self.exeInfo.encoding));
 	};
 
 	this.restoreIo = function(piped) {
@@ -52,7 +47,7 @@ function Door(client, exeInfo) {
 	};
 
 	this.prepareSocketIoServer = function(cb) {
-		if('socket' === self.exeInfo.io) {			
+		if('socket' === self.exeInfo.io) {
 			const sockServer =  createServer(conn => {
 
 				sockServer.getConnections( (err, count) => {
@@ -60,11 +55,11 @@ function Door(client, exeInfo) {
 					//	We expect only one connection from our DOOR/emulator/etc.
 					if(!err && count <= 1) {
 						self.client.term.output.pipe(conn);
-						
+
 						conn.on('data', self.doorDataHandler);
 
 						conn.once('end', () => {
-							return self.restoreIo(conn);									
+							return self.restoreIo(conn);
 						});
 
 						conn.once('error', err => {
@@ -114,11 +109,12 @@ Door.prototype.run = function() {
 		}
 
 		const door = pty.spawn(self.exeInfo.cmd, args, {
-			cols : self.client.term.termWidth,
-			rows : self.client.term.termHeight,
+			cols 		: self.client.term.termWidth,
+			rows		: self.client.term.termHeight,
 			//	:TODO: cwd
-			env	: self.exeInfo.env,
-		});				
+			env			: self.exeInfo.env,
+			encoding	: null,	//	we want to handle all encoding ourself
+		});
 
 		if('stdio' === self.exeInfo.io) {
 			self.client.log.debug('Using stdio for door I/O');

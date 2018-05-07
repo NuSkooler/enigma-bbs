@@ -5,6 +5,8 @@
 const MenuView		= require('./menu_view.js').MenuView;
 const ansi			= require('./ansi_term.js');
 const strUtil		= require('./string_util.js');
+const formatString	= require('./string_format');
+const pipeToAnsi	= require('./color_codes.js').pipeToAnsi;
 
 //	deps
 const util			= require('util');
@@ -14,8 +16,8 @@ exports.VerticalMenuView		= VerticalMenuView;
 
 function VerticalMenuView(options) {
 	options.cursor	= options.cursor || 'hide';
-	options.justify = options.justify || 'right';	//	:TODO: default to center
-	
+	options.justify = options.justify || 'left';
+
 	MenuView.call(this, options);
 
 	const self = this;
@@ -62,34 +64,35 @@ function VerticalMenuView(options) {
 			return;
 		}
 
+		const cached = this.getRenderCacheItem(index, item.focused);
+		if(cached) {
+			return self.client.term.write(`${ansi.goto(item.row, self.position.col)}${cached}`);
+		}
+
 		let text;
 		let sgr;
 		if(item.focused && self.hasFocusItems()) {
 			const focusItem = self.focusItems[index];
-			text = strUtil.stylizeString(
-				focusItem ? focusItem.text : item.text,
-				self.textStyle
-			);
+			text = focusItem ? focusItem.text : item.text;
 			sgr = '';
+		} else if(this.complexItems) {
+			text = pipeToAnsi(formatString(item.focused && this.focusItemFormat ? this.focusItemFormat : this.itemFormat, item));
+			sgr = this.focusItemFormat ? '' : (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		} else {
-			text = strUtil.stylizeString(item.text, self.textStyle);
+			text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
 			sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
 		}
 
-		text += self.getSGR();
-
-		self.client.term.write(
-			ansi.goto(item.row, self.position.col) +
-			sgr + 
-			strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)
-		);
+		text = `${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`;
+		self.client.term.write(`${ansi.goto(item.row, self.position.col)}${text}`);
+		this.setRenderCacheItem(index, text, item.focused);
 	};
 }
 
 util.inherits(VerticalMenuView, MenuView);
 
 VerticalMenuView.prototype.redraw = function() {
-	VerticalMenuView.super_.prototype.redraw.call(this);	
+	VerticalMenuView.super_.prototype.redraw.call(this);
 
 	//	:TODO: rename positionCacheExpired to something that makese sense; combine methods for such
 	if(this.positionCacheExpired) {
@@ -106,14 +109,14 @@ VerticalMenuView.prototype.redraw = function() {
 		let seq			= ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
 		let row			= this.position.row + 1;
 		const endRow	= (row + this.oldDimens.height) - 2;
-		
+
 		while(row <= endRow) {
 			seq += ansi.goto(row, this.position.col) + blank;
 			row += 1;
 		}
 		this.client.term.write(seq);
 		delete this.oldDimens;
-	}	
+	}
 
 	if(this.items.length) {
 		let row = this.position.row;
@@ -179,7 +182,8 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 };
 
 VerticalMenuView.prototype.getData = function() {
-	return this.focusedItemIndex;
+	const item = this.getItem(this.focusedItemIndex);
+	return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };
 
 VerticalMenuView.prototype.setItems = function(items) {
@@ -206,7 +210,7 @@ VerticalMenuView.prototype.removeItem = function(index) {
 VerticalMenuView.prototype.focusNext = function() {
 	if(this.items.length - 1 === this.focusedItemIndex) {
 		this.focusedItemIndex = 0;
-		
+
 		this.viewWindow = {
 			top		: 0,
 			bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
@@ -228,7 +232,7 @@ VerticalMenuView.prototype.focusNext = function() {
 VerticalMenuView.prototype.focusPrevious = function() {
 	if(0 === this.focusedItemIndex) {
 		this.focusedItemIndex = this.items.length - 1;
-		
+
 		this.viewWindow = {
 			//top		: this.items.length - this.maxVisibleItems,
 			top		: Math.max(this.items.length - this.maxVisibleItems, 0),
@@ -279,7 +283,7 @@ VerticalMenuView.prototype.focusNextPageItem = function() {
 	//
 	//	Jump to current + up to page size or bottom
 	//	If already at the bottom, jump to top
-	//	
+	//
 	if(this.items.length - 1 === this.focusedItemIndex) {
 		return this.focusNext();	//	will jump to top
 	}

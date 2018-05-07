@@ -1,10 +1,9 @@
 
 {
-	var client	= options.client;
-	var user	= options.client.user;
+	const client	= options.client;
+	const user		= options.client.user;
 
-	var _		= require('lodash');
-	var assert	= require('assert');
+	const moment	= require('moment');
 
 	function checkAccess(acsCode, value) {
 		try {
@@ -16,40 +15,84 @@
 					return !isNaN(value) && user.getAge() >= value;
 				},
 				AS	: function accountStatus() {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						value = [ value ];
 					}
 
 					const userAccountStatus = parseInt(user.properties.account_status, 10);
-					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
-					return value.indexOf(userAccountStatus) > -1;
+					return value.map(n => parseInt(n, 10)).includes(userAccountStatus);
 				},
 				EC	: function isEncoding() {
+					const encoding = client.term.outputEncoding.toLowerCase();
 					switch(value) {
-						case 0	: return 'cp437' === client.term.outputEncoding.toLowerCase();
-						case 1	: return 'utf-8' === client.term.outputEncoding.toLowerCase();
+						case 0	: return 'cp437' === encoding;
+						case 1	: return 'utf-8' === encoding;
 						default	: return false;
 					}
 				},
 				GM	: function isOneOfGroups() {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						return false;
 					}
 
-					return _.findIndex(value, function cmp(groupName) {
-						return user.isGroupMember(groupName);
-					}) > - 1;
+					return value.some(groupName => user.isGroupMember(groupName));
 				},
 				NN	: function isNode() {
-					return client.node === value;
+					if(!Array.isArray(value)) {
+						value = [ value ];
+					}
+					return value.map(n => parseInt(n, 10)).includes(client.node);
 				},
 				NP	: function numberOfPosts() {
-					const postCount = parseInt(user.properties.post_count, 10);
+					const postCount = parseInt(user.properties.post_count, 10) || 0;
 					return !isNaN(value) && postCount >= value;
 				},
 				NC	: function numberOfCalls() {
 					const loginCount = parseInt(user.properties.login_count, 10);
 					return !isNaN(value) && loginCount >= value;
+				},
+				AA	: function accountAge() {
+					const accountCreated = moment(user.properties.account_created);
+					const now = moment();
+					const daysOld = accountCreated.diff(moment(), 'days');
+					return !isNaN(value) &&
+						accountCreated.isValid() && 
+						now.isAfter(accountCreated) && 
+						daysOld >= value;
+				},
+				BU	: function bytesUploaded() {
+					const bytesUp = parseInt(user.properties.ul_total_bytes, 10) || 0;
+					return !isNaN(value) && bytesUp >= value;
+				},
+				UP	: function uploads() {
+					const uls = parseInt(user.properties.ul_total_count, 10) || 0;
+					return !isNaN(value) && uls >= value;
+				},
+				BD	: function bytesDownloaded() {
+					const bytesDown = parseInt(user.properties.dl_total_bytes, 10) || 0;
+					return !isNaN(value) && bytesDown >= value;
+				},
+				DL	: function downloads() {
+					const dls = parseInt(user.properties.dl_total_count, 10) || 0;
+					return !isNaN(value) && dls >= value;
+				},
+				NR	: function uploadDownloadRatioGreaterThan() {
+					const ulCount = parseInt(user.properties.ul_total_count, 10) || 0;
+					const dlCount = parseInt(user.properties.dl_total_count, 10) || 0;
+					const ratio = ~~((ulCount / dlCount) * 100);
+					return !isNaN(value) && ratio >= value;
+				},
+				KR	: function uploadDownloadByteRatioGreaterThan() {
+					const ulBytes = parseInt(user.properties.ul_total_bytes, 10) || 0;
+					const dlBytes = parseInt(user.properties.dl_total_bytes, 10) || 0;
+					const ratio = ~~((ulBytes / dlBytes) * 100);
+					return !isNaN(value) && ratio >= value;
+				},
+				PC	: function postCallRatio() {					
+					const postCount		= parseInt(user.properties.post_count, 10) || 0;
+					const loginCount	= parseInt(user.properties.login_count, 10);
+					const ratio = ~~((postCount / loginCount) * 100);
+					return !isNaN(value) && ratio >= value;
 				},
 				SC 	: function isSecureConnection() {
 					return client.session.isSecure;
@@ -62,41 +105,41 @@
 					return !isNaN(value) && client.term.termHeight >= value;
 				},
 				TM	: function isOneOfThemes() {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						return false;
 					}
 
-					return value.indexOf(client.currentTheme.name) > -1;
+					return value.includes(client.currentTheme.name);
 				},
 				TT	: function isOneOfTermTypes() {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						return false;
 					}
 
-					return value.indexOf(client.term.termType) > -1;
+					return value.includes(client.term.termType);
 				},
 				TW	: function termWidth() {
 					return !isNaN(value) && client.term.termWidth >= value;
 				},
 				ID	: function isUserId(value) {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						value = [ value ];
 					}
 
-					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
-					return value.indexOf(user.userId) > -1;
+					return value.map(n => parseInt(n, 10)).includes(user.userId);
 				},
 				WD	: function isOneOfDayOfWeek() {
-					if(!_.isArray(value)) {
+					if(!Array.isArray(value)) {
 						value = [ value ];
 					}
 
-					value = value.map(n => parseInt(n, 10));	//	ensure we have integers
-					return value.indexOf(new Date().getDay()) > -1;
+					return value.map(n => parseInt(n, 10)).includes(new Date().getDay());
 				},
 				MM	: function isMinutesPastMidnight() {
-					//	:TODO: return true if value is >= minutes past midnight sys time
-					return false;
+					const now = moment();
+					const midnight = now.clone().startOf('day')
+					const minutesPastMidnight = now.diff(midnight, 'minutes');
+					return !isNaN(value) && minutesPastMidnight >= value;
 				}
 			}[acsCode](value);
 		} catch (e) {

@@ -95,7 +95,7 @@ function removeClient(client) {
 				clientId		: client.session.id
 			},
 			'Client disconnected'
-			);
+		);
 
 		Events.emit('codes.l33t.enigma.system.disconnected', { client : client, connectionCount : clientConnections.length } );
 	}

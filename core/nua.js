@@ -22,10 +22,10 @@ const MciViewIds = {
 };
 
 exports.getModule = class NewUserAppModule extends MenuModule {
-	
+
 	constructor(options) {
 		super(options);
-		
+
 		const self = this;
 
 		this.menuMethods = {
@@ -40,7 +40,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 			viewValidationListener : function(err, cb) {
 				const errMsgView = self.viewControllers.menu.getView(MciViewIds.errMsg);
 				let newFocusId;
-				
+
 				if(err) {
 					errMsgView.setText(err.message);
 					err.view.clearText();
@@ -67,14 +67,14 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 
 				//
 				//	We have to disable ACS checks for initial default areas as the user is not yet ready
-				//            
+				//
 				let confTag     = messageArea.getDefaultMessageConferenceTag(self.client, true);				//	true=disableAcsCheck
 				let areaTag     = messageArea.getDefaultMessageAreaTagByConfTag(self.client, confTag, true);	//	true=disableAcsCheck
 
 				//  can't store undefined!
 				confTag = confTag || '';
 				areaTag = areaTag || '';
-				
+
 				newUser.properties = {
 					real_name			: formData.value.realName,
 					birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(), 	//	:TODO: Use moment & explicit ISO string format
@@ -84,12 +84,12 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 					email_address		: formData.value.email,
 					web_address			: formData.value.web,
 					account_created		: new Date().toISOString(),	//	:TODO: Use moment & explicit ISO string format
-					
+
 					message_conf_tag    : confTag,
 					message_area_tag    : areaTag,
 
 					term_height			: self.client.term.termHeight,
-					term_width			: self.client.term.termWidth,				
+					term_width			: self.client.term.termWidth,
 
 					//	:TODO: Other defaults
 					//	:TODO: should probably have a place to create defaults/etc.
@@ -100,7 +100,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 				} else {
 					newUser.properties.theme_id = Config.defaults.theme;
 				}
-				
+
 				//	:TODO: User.create() should validate email uniqueness!
 				newUser.create(formData.value.password, err => {
 					if(err) {

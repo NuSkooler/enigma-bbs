@@ -75,6 +75,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
 		this.fileList			= _.get(options, 'extraArgs.fileList');
+		this.lastFileNextExit	= _.get(options, 'extraArgs.lastFileNextExit', true);
 
 		if(this.fileList) {
 			//	we'll need to adjust position as well!
@@ -96,11 +97,15 @@ exports.getModule = class FileAreaList extends MenuModule {
 		}
 
 		this.menuMethods = {
-			nextFile : (formData, extraArgs, cb) => {		
+			nextFile : (formData, extraArgs, cb) => {
 				if(this.fileListPosition + 1 < this.fileList.length) {
 					this.fileListPosition += 1;
 
 					return this.displayBrowsePage(true, cb);	//	true=clerarScreen
+				}
+
+				if(this.lastFileNextExit) {
+					return this.prevMenu(cb);
 				}
 
 				return cb(null);
@@ -131,7 +136,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			toggleQueue : (formData, extraArgs, cb) => {
 				this.dlQueue.toggle(this.currentFileEntry);
 				this.updateQueueIndicator();
-				return cb(null);  
+				return cb(null);
 			},
 			showWebDownloadLink : (formData, extraArgs, cb) => {
 				return this.fetchAndDisplayWebDownloadLink(cb);
@@ -217,7 +222,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const hashTagsSep			= config.hashTagsSep || ', ';
 		const isQueuedIndicator		= config.isQueuedIndicator || 'Y';
 		const isNotQueuedIndicator	= config.isNotQueuedIndicator || 'N';
-		
+
 		const entryInfo = currEntry.entryInfo = {
 			fileId				: currEntry.fileId,
 			areaTag				: currEntry.areaTag,
@@ -232,7 +237,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
 			isQueued			: this.dlQueue.isQueued(currEntry) ? isQueuedIndicator : isNotQueuedIndicator,
 			webDlLink			: '',	//	:TODO: fetch web any existing web d/l link
-			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time			
+			webDlExpire			: '',	//	:TODO: fetch web d/l link expire time
 		};
 
 		//
@@ -257,7 +262,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		//	create a rating string, e.g. "**---"
 		const userRatingTicked		= config.userRatingTicked || '*';
-		const userRatingUnticked	= config.userRatingUnticked || '';					
+		const userRatingUnticked	= config.userRatingUnticked || '';
 		entryInfo.userRating		= ~~Math.round(entryInfo.userRating) || 0;	//	be safe!
 		entryInfo.userRatingString	= userRatingTicked.repeat(entryInfo.userRating);
 		if(entryInfo.userRating < 5) {
@@ -270,7 +275,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				if(ErrNotEnabled === err.reasonCode) {
 					entryInfo.webDlExpire	= config.webDlLinkNoWebserver || 'Web server is not enabled';
 				} else {
-					entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';					
+					entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';
 				}
 			} else {
 				const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
@@ -339,10 +344,10 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					}
-					
+
 					self.viewControllers[name].setFocus(true);
 					return callback(null);
-										
+
 				},
 			],
 			err => {
@@ -357,7 +362,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		async.series(
 			[
 				function fetchEntryData(callback) {
-					if(self.fileList) {						
+					if(self.fileList) {
 						return callback(null);
 					}
 					return self.loadFileIds(false, callback);	//	false=do not force
@@ -371,14 +376,14 @@ exports.getModule = class FileAreaList extends MenuModule {
 				function prepArtAndViewController(callback) {
 					return self.displayArtAndPrepViewController('browse', { clearScreen : clearScreen }, callback);
 				},
-				function loadCurrentFileInfo(callback) {				
+				function loadCurrentFileInfo(callback) {
 					self.currentFileEntry = new FileEntry();
 
 					self.currentFileEntry.load( self.fileList[ self.fileListPosition ], err => {
 						if(err) {
 							return callback(err);
 						}
-						
+
 						return self.populateCurrentEntryInfo(callback);
 					});
 				},
@@ -422,7 +427,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					return callback(null);
 				}
 			],
-			err => {				
+			err => {
 				if(cb) {
 					return cb(err);
 				}
@@ -448,7 +453,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				function listenNavChanges(callback) {
 					const navMenu = self.viewControllers.details.getView(MciViewIds.details.navMenu);
 					navMenu.setFocusItemIndex(0);
-					
+
 					navMenu.on('index update', index => {
 						const sectionName = {
 							0	: 'general',
@@ -481,7 +486,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			}
 		);
 	}
-	
+
 	fetchAndDisplayWebDownloadLink(cb) {
 		const self = this;
 
@@ -492,11 +497,11 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(self.currentFileEntry.webDlExpireTime < moment()) {
 						return callback(null);
 					}
-					
+
 					const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
 
 					FileAreaWeb.createAndServeTempDownload(
-						self.client, 
+						self.client,
 						self.currentFileEntry,
 						{ expireTime : expireTime },
 						(err, url) => {
@@ -517,8 +522,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 				},
 				function updateActiveViews(callback) {
 					self.updateCustomViewTextsWithFilter(
-						'browse', 
-						MciViewIds.browse.customRangeStart, self.currentFileEntry.entryInfo, 
+						'browse',
+						MciViewIds.browse.customRangeStart, self.currentFileEntry.entryInfo,
 						{ filter : [ '{webDlLink}', '{webDlExpire}' ] }
 					);
 					return callback(null);
@@ -527,7 +532,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			err => {
 				return cb(err);
 			}
-		);		
+		);
 	}
 
 	updateQueueIndicator() {
@@ -535,8 +540,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 		const isNotQueuedIndicator	= this.menuConfig.config.isNotQueuedIndicator || 'N';
 
 		this.currentFileEntry.entryInfo.isQueued = stringFormat(
-			this.dlQueue.isQueued(this.currentFileEntry) ? 
-				isQueuedIndicator : 
+			this.dlQueue.isQueued(this.currentFileEntry) ?
+				isQueuedIndicator :
 				isNotQueuedIndicator
 		);
 
@@ -558,7 +563,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 		if(!areaInfo) {
 			return cb(Errors.Invalid('Invalid area tag'));
 		}
-		
+
 		const filePath		= this.currentFileEntry.filePath;
 		const archiveUtil	= ArchiveUtil.getInstance();
 
@@ -574,7 +579,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 	populateFileListing() {
 		const fileListView = this.viewControllers.detailsFileList.getView(MciViewIds.detailsFileList.fileList);
-		
+
 		if(this.currentFileEntry.entryInfo.archiveType) {
 			this.cacheArchiveEntries( (err, cacheStatus) => {
 				if(err) {
@@ -586,7 +591,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				if('re-cached' === cacheStatus) {
 					const fileListEntryFormat 		= this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';	//	:TODO: use byteSize here?
 					const focusFileListEntryFormat	= this.menuConfig.config.focusFileListEntryFormat || fileListEntryFormat;
-					
+
 					fileListView.setItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(fileListEntryFormat, entry) ) );
 					fileListView.setFocusItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(focusFileListEntryFormat, entry) ) );
 
@@ -594,7 +599,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 				}
 			});
 		} else {
-			fileListView.setItems( [ stringFormat(this.menuConfig.config.notAnArchiveFormat || 'Not an archive', { fileName : this.currentFileEntry.fileName } ) ] );	
+			fileListView.setItems( [ stringFormat(this.menuConfig.config.notAnArchiveFormat || 'Not an archive', { fileName : this.currentFileEntry.fileName } ) ] );
 		}
 	}
 
@@ -608,7 +613,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 					if(self.lastDetailsViewController) {
 						self.lastDetailsViewController.detachClientEvents();
 					}
-					return callback(null); 
+					return callback(null);
 				},
 				function prepArtAndViewController(callback) {
 
@@ -616,7 +621,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 						self.client.term.rawWrite(ansi.goto(self.detailsInfoArea.top[0], 1));
 					}
 
-					gotoTopPos();  
+					gotoTopPos();
 
 					if(clearArea) {
 						self.client.term.rawWrite(ansi.reset());

@@ -173,12 +173,14 @@ function getDefaultConfig() {
 			passwordChar	: '*',		//	TODO: move to user ?
 			dateFormat	: {
 				short	: 'MM/DD/YYYY',
+				long	: 'ddd, MMMM Do, YYYY',
 			},
 			timeFormat : {
 				short	: 'h:mm a',
 			},
 			dateTimeFormat : {
 				short	: 'MM/DD/YYYY h:mm a',
+				long	: 'ddd, MMMM Do, YYYY, h:mm a',
 			}
 		},
 
@@ -228,11 +230,19 @@ function getDefaultConfig() {
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
 			webSocket : {
-				port		: 8810,	//	ws://
-				enabled		: false,
-				securePort	: 8811,	//	wss:// - must provide certPem and keyPem
-				certPem		: paths.join(__dirname, './../config/https_cert.pem'),
-				keyPem		: paths.join(__dirname, './../config/https_cert_key.pem'),
+				ws : {
+					//	non-secure ws://
+					enabled			: false,
+					port			: 8810,
+				},
+				wss : {
+					//	secure ws://
+					//	must provide valid certPem and keyPem
+					enabled			: false,
+					port			: 8811,
+					certPem			: paths.join(__dirname, './../config/https_cert.pem'),
+					keyPem			: paths.join(__dirname, './../config/https_cert_key.pem'),
+				},
 			},
 		},
 
@@ -653,12 +663,12 @@ function getDefaultConfig() {
 				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
 				//	Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
 				desc		: [
-					'^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
+					'^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'	//	eslint-disable-line no-useless-escape
 				],
 
 				//	common README filename - https://en.wikipedia.org/wiki/README
 				descLong		: [
-					'^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'
+					'^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'	//	eslint-disable-line no-useless-escape
 				],
 			},
 
@@ -736,7 +746,18 @@ function getDefaultConfig() {
 					schedule	: 'every 24 hours',
 					action		: '@method:core/web_password_reset.js:performMaintenanceTask',
 					args		: [ '24 hours' ]	//	items older than this will be removed
+				},
+
+				//
+				//	Enable the following entry in your config.hjson to periodically create/update
+				//	DESCRIPT.ION files for your file base
+				//
+				/*
+				updateDescriptIonFiles : {
+					schedule	: 'on the last day of the week',
+					action		: '@method:core/file_base_list_export.js:updateFileBaseDescFilesScheduledEvent',
 				}
+				*/
 			}
 		},
 

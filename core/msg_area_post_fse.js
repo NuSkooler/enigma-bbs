@@ -48,9 +48,9 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
 						self.client.log.info(
 							{ to : msg.toUserName, subject : msg.subject, uuid : msg.uuid },
 							'Message persisted'
-							);
+						);
 					}
-					
+
 					return self.nextMenu(cb);
 				}
 			);

@@ -218,7 +218,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 		const self = this;
 
 		fs.stat(filePath, (err, stats) => {
-			if(err) {
+			if(err || !stats.isFile()) {
 				return self.fileNotFound(resp);
 			}
 

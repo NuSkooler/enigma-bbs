@@ -4,7 +4,7 @@
 //	ENiGMA½
 const MenuModule			= require('./menu_module.js').MenuModule;
 
-const { 
+const {
 	getModDatabasePath,
 	getTransactionDatabase
 }							= require('./database.js');
@@ -39,7 +39,7 @@ const MciViewIds = {
 		SelectedBBSLoc			: 6,
 		SelectedBBSSoftware		: 7,
 		SelectedBBSNotes		: 8,
-		SelectedBBSSubmitter	: 9,		
+		SelectedBBSSubmitter	: 9,
 	},
 	add : {
 		BBSName		: 1,
@@ -49,7 +49,7 @@ const MciViewIds = {
 		Location	: 5,
 		Software	: 6,
 		Notes		: 7,
-		Error		: 8,	
+		Error		: 8,
 	}
 };
 
@@ -99,6 +99,10 @@ exports.getModule = class BBSListModule extends MenuModule {
 				self.displayAddScreen(cb);
 			},
 			deleteBBS : function(formData, extraArgs, cb) {
+				if(!_.isNumber(self.selectedBBS) || 0 === self.entries.length) {
+					return cb(null);
+				}
+
 				const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
 
 				if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
@@ -193,12 +197,12 @@ exports.getModule = class BBSListModule extends MenuModule {
 
 	drawSelectedEntry(entry) {
 		if(!entry) {
-			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {						
+			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {
 				this.setViewText('view', MciViewIds.view[mciName], '');
 			});
 		} else {
 			const youSubmittedFormat = this.menuConfig.youSubmittedFormat || '{submitter} (You!)';
-			
+
 			Object.keys(SELECTED_MCI_NAME_TO_ENTRY).forEach(mciName => {
 				const t = entry[SELECTED_MCI_NAME_TO_ENTRY[mciName]];
 				if(MciViewIds.view[mciName]) {
@@ -273,7 +277,7 @@ exports.getModule = class BBSListModule extends MenuModule {
 						(err, row) => {
 							if (!err) {
 								self.entries.push({
-									id				: row.id, 
+									id				: row.id,
 									bbsName			: row.bbs_name,
 									sysOp			: row.sysop,
 									telnet			: row.telnet,
@@ -309,9 +313,9 @@ exports.getModule = class BBSListModule extends MenuModule {
 
 					entriesView.on('index update', idx => {
 						const entry = self.entries[idx];
-						
+
 						self.drawSelectedEntry(entry);
-						
+
 						if(!entry) {
 							self.selectedBBS = -1;
 						} else {
@@ -323,6 +327,7 @@ exports.getModule = class BBSListModule extends MenuModule {
 						entriesView.setFocusItemIndex(self.selectedBBS);
 						self.drawSelectedEntry(self.entries[self.selectedBBS]);
 					} else if (self.entries.length > 0) {
+						self.selectedBBS = 0;
 						entriesView.setFocusItemIndex(0);
 						self.drawSelectedEntry(self.entries[0]);
 					}

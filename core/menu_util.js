@@ -42,7 +42,7 @@ function getMenuConfig(client, name, cb) {
 				} else {
 					callback(null);
 				}
-			}			
+			}
 		],
 		function complete(err) {
 			cb(err, menuConfig);
@@ -53,7 +53,7 @@ function getMenuConfig(client, name, cb) {
 function loadMenu(options, cb) {
 	assert(_.isObject(options));
 	assert(_.isString(options.name));
-	assert(_.isObject(options.client));	
+	assert(_.isObject(options.client));
 
 	async.waterfall(
 		[
@@ -88,7 +88,7 @@ function loadMenu(options, cb) {
 
 					return callback(err, modData);
 				});
-			},		
+			},
 			function createModuleInstance(modData, callback) {
 				Log.trace(
 					{ moduleName : modData.name, extraArgs : options.extraArgs, config : modData.config, info : modData.mod.modInfo },
@@ -98,11 +98,11 @@ function loadMenu(options, cb) {
 				try {
 					moduleInstance = new modData.mod.getModule({
 						menuName		: options.name,
-						menuConfig		: modData.config, 
+						menuConfig		: modData.config,
 						extraArgs		: options.extraArgs,
 						client			: options.client,
 						lastMenuResult	: options.lastMenuResult,
-					});					
+					});
 				} catch(e) {
 					return callback(e);
 				}
@@ -143,7 +143,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
 		Log.trace( { mciKey : mciReqKey }, 'Using exact configuration key match');
 		cb(null, formForId[mciReqKey]);
 		return;
-	} 
+	}
 
 	//
 	//	Generic match
@@ -184,24 +184,24 @@ function handleAction(client, formData, conf, cb) {
 
 	switch(actionAsset.type) {
 		case 'method' :
-		case 'systemMethod' : 
+		case 'systemMethod' :
 			if(_.isString(actionAsset.location)) {
 				return callModuleMenuMethod(
-					client, 
-					actionAsset, 
-					paths.join(Config.paths.mods, actionAsset.location), 
-					formData, 
-					conf.extraArgs, 
+					client,
+					actionAsset,
+					paths.join(Config.paths.mods, actionAsset.location),
+					formData,
+					conf.extraArgs,
 					cb);
 			} else if('systemMethod' === actionAsset.type) {
 				//	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
 				//	:TODO: Probably better as system_method.js
 				return callModuleMenuMethod(
-					client, 
-					actionAsset, 
-					paths.join(__dirname, 'system_menu_method.js'), 
-					formData, 
-					conf.extraArgs, 
+					client,
+					actionAsset,
+					paths.join(__dirname, 'system_menu_method.js'),
+					formData,
+					conf.extraArgs,
 					cb);
 			} else {
 				//	local to current module
@@ -209,7 +209,7 @@ function handleAction(client, formData, conf, cb) {
 				if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
 					return currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs, cb);
 				}
-				
+
 				const err = new Error('Method does not exist');
 				client.log.warn( { method : actionAsset.asset }, err.message);
 				return cb(err);
@@ -222,14 +222,14 @@ function handleAction(client, formData, conf, cb) {
 
 function handleNext(client, nextSpec, conf, cb) {
 	assert(_.isString(nextSpec) || _.isArray(nextSpec));
-	
+
 	if(_.isArray(nextSpec)) {
 		nextSpec = client.acs.getConditionalValue(nextSpec, 'next');
 	}
-	
+
 	const nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
 	//	:TODO: getAssetWithShorthand() can return undefined - handle it!
-	
+
 	conf = conf || {};
 	const extraArgs = conf.extraArgs || {};
 
@@ -252,7 +252,7 @@ function handleNext(client, nextSpec, conf, cb) {
 
 				const err = new Error('Method does not exist');
 				client.log.warn( { method : nextAsset.asset }, err.message);
-				return cb(err);	
+				return cb(err);
 			}
 
 		case 'menu' :

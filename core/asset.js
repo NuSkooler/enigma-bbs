@@ -31,7 +31,7 @@ const ALL_ASSETS = [
 
 const ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
 
-function parseAsset(s) {	
+function parseAsset(s) {
 	const m = ASSET_RE.exec(s);
 
 	if(m) {
@@ -68,7 +68,7 @@ function getAssetWithShorthand(spec, defaultType) {
 
 function getArtAsset(spec) {
 	const asset = getAssetWithShorthand(spec, 'art');
-	
+
 	if(!asset) {
 		return null;
 	}
@@ -79,7 +79,7 @@ function getArtAsset(spec) {
 
 function getModuleAsset(spec) {
 	const asset = getAssetWithShorthand(spec, 'systemModule');
-	
+
 	if(!asset) {
 		return null;
 	}
@@ -105,7 +105,7 @@ function resolveConfigAsset(spec) {
 		return conf;
 	} else {
 		return spec;
-	}	
+	}
 }
 
 function resolveSystemStatAsset(spec) {

@@ -10,9 +10,19 @@ const _					= require('lodash');
 const async				= require('async');
 const glob				= require('glob');
 
+const SYSTEM_EVENTS = {
+	ClientConnected		: 'codes.l33t.enigma.system.connected',
+	ClientDisconnected	: 'codes.l33t.enigma.system.disconnected',
+	TermDetected		: 'codes.l33t.enigma.term_detected',
+};
+
 module.exports = new class Events extends events.EventEmitter {
 	constructor() {
 		super();
+	}
+
+	getSystemEvents() {
+		return SYSTEM_EVENTS;
 	}
 
 	addListener(event, listener) {
@@ -22,7 +32,7 @@ module.exports = new class Events extends events.EventEmitter {
 
 	emit(event, ...args) {
 		Log.trace( { event : event }, 'Emitting event');
-		return super.emit(event, args);
+		return super.emit(event, ...args);
 	}
 
 	on(event, listener) {
@@ -48,17 +58,17 @@ module.exports = new class Events extends events.EventEmitter {
 				}
 
 				async.each(files, (moduleName, nextModule) => {
-					modulePath = paths.join(modulePath, moduleName);
+					const fullModulePath = paths.join(modulePath, moduleName);
 
 					try {
-						const mod = require(modulePath);
-						
+						const mod = require(fullModulePath);
+
 						if(_.isFunction(mod.registerEvents)) {
 							//	:TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
 							mod.registerEvents(this);
 						}
 					} catch(e) {
-
+						Log.warn( { error : e }, 'Exception during module "registerEvents"');
 					}
 
 					return nextModule(null);

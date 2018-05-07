@@ -3,7 +3,7 @@
 
 //
 //	ANSI Terminal Support Resources
-//	
+//
 //	ANSI-BBS
 //		* http://ansi-bbs.org/
 //
@@ -31,7 +31,7 @@
 //	For a board, we need to support the semi-standard ANSI-BBS "spec" which
 //	is bastardized mix of DOS ANSI.SYS, cterm.txt, bansi.txt and a little other.
 //	This gives us NetRunner, SyncTERM, EtherTerm, most *nix terminals, compatibilitiy
-//	with legit oldschool DOS terminals, and so on. 
+//	with legit oldschool DOS terminals, and so on.
 //
 
 //	ENiGMA½
@@ -113,7 +113,7 @@ const CONTROL = {
 	//
 	//	Support:
 	//	* SyncTERM: Works as expected
-	//	* NetRunner: 	
+	//	* NetRunner:
 	//
 	//	General Notes:
 	//	See also notes in bansi.txt and cterm.txt about the various
@@ -160,7 +160,7 @@ const SGRValues = {
 	negative		: 7,
 	hidden			: 8,
 
-	normal			: 22,	//	
+	normal			: 22,	//
 	steady			: 25,
 	positive		: 27,
 
@@ -203,7 +203,7 @@ function getBGColorValue(name) {
 //	:TODO: Create mappings for aliases... maybe make this a map to values instead
 //	:TODO: Break this up in to two parts:
 //	1) FONT_AND_CODE_PAGES (e.g. SyncTERM/cterm)
-//	2) SAUCE_FONT_MAP: Sauce name(s) -> items in FONT_AND_CODE_PAGES. 
+//	2) SAUCE_FONT_MAP: Sauce name(s) -> items in FONT_AND_CODE_PAGES.
 //	...we can then have getFontFromSAUCEName(sauceFontName)
 //	Also, create a SAUCE_ENCODING_MAP: SAUCE font name -> encodings
 
@@ -215,45 +215,45 @@ function getBGColorValue(name) {
 //
 const SYNCTERM_FONT_AND_ENCODING_TABLE = [
 	'cp437',
-	'cp1251', 
-	'koi8_r', 
-	'iso8859_2', 
-	'iso8859_4', 
-	'cp866',
-	'iso8859_9', 
-	'haik8', 
-	'iso8859_8', 
-	'koi8_u', 
-	'iso8859_15', 
+	'cp1251',
+	'koi8_r',
+	'iso8859_2',
 	'iso8859_4',
-	'koi8_r_b', 
-	'iso8859_4', 
-	'iso8859_5', 
-	'ARMSCII_8', 
+	'cp866',
+	'iso8859_9',
+	'haik8',
+	'iso8859_8',
+	'koi8_u',
 	'iso8859_15',
-	'cp850', 
-	'cp850', 
-	'cp885', 
-	'cp1251', 
-	'iso8859_7', 
-	'koi8-r_c',
-	'iso8859_4', 
-	'iso8859_1', 
-	'cp866', 
-	'cp437', 
-	'cp866', 
+	'iso8859_4',
+	'koi8_r_b',
+	'iso8859_4',
+	'iso8859_5',
+	'ARMSCII_8',
+	'iso8859_15',
+	'cp850',
+	'cp850',
 	'cp885',
-	'cp866_u', 
-	'iso8859_1', 
-	'cp1131', 
-	'c64_upper', 
+	'cp1251',
+	'iso8859_7',
+	'koi8-r_c',
+	'iso8859_4',
+	'iso8859_1',
+	'cp866',
+	'cp437',
+	'cp866',
+	'cp885',
+	'cp866_u',
+	'iso8859_1',
+	'cp1131',
+	'c64_upper',
 	'c64_lower',
-	'c128_upper', 
-	'c128_lower', 
-	'atari', 
-	'pot_noodle', 
+	'c128_upper',
+	'c128_lower',
+	'atari',
+	'pot_noodle',
 	'mo_soul',
-	'microknight_plus', 
+	'microknight_plus',
 	'topaz_plus',
 	'microknight',
 	'topaz',
@@ -289,7 +289,7 @@ const FONT_ALIAS_TO_SYNCTERM_MAP = {
 	'topaz'					: 'topaz',
 	'amiga_topaz_1'			: 'topaz',
 	'amiga_topaz_1+'		: 'topaz_plus',
-	'topazplus'				: 'topaz_plus',	
+	'topazplus'				: 'topaz_plus',
 	'topaz_plus'			: 'topaz_plus',
 	'amiga_topaz_2'			: 'topaz',
 	'amiga_topaz_2+'		: 'topaz_plus',
@@ -349,7 +349,7 @@ function setCursorStyle(cursorStyle) {
 		return `${ESC_CSI}${ps} q`;
 	}
 	return '';
-	
+
 }
 
 //	Create methods such as up(), nextLine(),...

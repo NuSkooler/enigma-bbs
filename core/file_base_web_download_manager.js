@@ -32,13 +32,13 @@ const MciViewIds = {
 	queueManager : {
 		queue				: 1,
 		navMenu				: 2,
-		
+
 		customRangeStart	: 10,
 	}
 };
 
 exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
-	
+
 	constructor(options) {
 		super(options);
 
@@ -58,7 +58,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 			},
 			clearQueue : (formData, extraArgs, cb) => {
 				this.dlQueue.clear();
-								
+
 				//	:TODO: broken: does not redraw menu properly - needs fixed!
 				return this.removeItemsFromDownloadQueueView('all', cb);
 			},
@@ -109,7 +109,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
 	displayFileInfoForFileEntry(fileEntry) {
 		this.updateCustomViewTextsWithFilter(
-			'queueManager', 
+			'queueManager',
 			MciViewIds.queueManager.customRangeStart, fileEntry,
 			{ filter : [ '{webDlLink}', '{webDlExpire}', '{fileName}' ] }	//	:TODO: Others....
 		);
@@ -142,7 +142,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 		const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
 
 		FileAreaWeb.createAndServeTempBatchDownload(
-			this.client, 
+			this.client,
 			this.dlQueue.items,
 			{
 				expireTime : expireTime
@@ -162,7 +162,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
 				this.updateCustomViewTextsWithFilter(
 					'queueManager',
-					MciViewIds.queueManager.customRangeStart, 
+					MciViewIds.queueManager.customRangeStart,
 					formatObj,
 					{ filter : Object.keys(formatObj).map(k => '{' + k + '}' ) }
 				);
@@ -187,13 +187,13 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 						FileAreaWeb.getExistingTempDownloadServeItem(self.client, fileEntry, (err, serveItem) => {
 							if(err) {
 								if(ErrNotEnabled === err.reasonCode) {
-									return nextFileEntry(err);	//	we should have caught this prior	
+									return nextFileEntry(err);	//	we should have caught this prior
 								}
 
 								const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
-								
+
 								FileAreaWeb.createAndServeTempDownload(
-									self.client, 
+									self.client,
 									fileEntry,
 									{ expireTime : expireTime },
 									(err, url) => {
@@ -202,13 +202,13 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 										}
 
 										fileEntry.webDlLinkRaw	= url;
-										fileEntry.webDlLink		= ansi.vtxHyperlink(self.client, url) + url;										
+										fileEntry.webDlLink		= ansi.vtxHyperlink(self.client, url) + url;
 										fileEntry.webDlExpire	= expireTime.format(webDlExpireTimeFormat);
 
 										return nextFileEntry(null);
 									}
 								);
-							} else {								
+							} else {
 								fileEntry.webDlLinkRaw	= serveItem.url;
 								fileEntry.webDlLink		= ansi.vtxHyperlink(self.client, serveItem.url) + serveItem.url;
 								fileEntry.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
@@ -272,10 +272,10 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
 						return vc.loadFromMenuConfig(loadOpts, callback);
 					}
-					
+
 					self.viewControllers[name].setFocus(true);
 					return callback(null);
-										
+
 				},
 			],
 			err => {
@@ -284,4 +284,3 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 		);
 	}
 };
-	

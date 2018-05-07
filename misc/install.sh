@@ -2,7 +2,7 @@
 
 { # this ensures the entire script is downloaded before execution
 
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=6}
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=10}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
@@ -24,7 +24,7 @@ ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE
 
 ENiGMA½ requires Node.js. Version ${ENIGMA_NODE_VERSION}.x current will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
 
-If this isn't what you were expecting, hit ctrl-c now. Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
+If this isn't what you were expecting, hit CTRL-C now. Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
 
 EndOfMessage
     sleep ${WAIT_BEFORE_INSTALL}

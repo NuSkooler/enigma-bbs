@@ -68,14 +68,14 @@ function enigmaToAnsi(s, client) {
 				attr = ansi.sgr(['normal', val - 8, 'bold']);
 			}
 
-			result += s.substr(lastIndex, m.index - lastIndex) + attr;			
+			result += s.substr(lastIndex, m.index - lastIndex) + attr;
 		}
 
 		lastIndex = re.lastIndex;
 	}
 
 	result = (0 === result.length ? s : result + s.substr(lastIndex));
-    
+
 	return result;
 }
 
@@ -116,14 +116,14 @@ function ansiSgrFromRenegadeColorCode(cc) {
 		22	: [ 'yellowBG' ],
 		23	: [ 'whiteBG' ],
 
-		24	: [ 'bold', 'blackBG' ],
-		25	: [ 'bold', 'blueBG' ],
-		26	: [ 'bold', 'greenBG' ],
-		27	: [ 'bold', 'cyanBG' ],
-		28	: [ 'bold', 'redBG' ],
-		29	: [ 'bold', 'magentaBG' ],
-		30	: [ 'bold', 'yellowBG' ],
-		31	: [ 'bold', 'whiteBG' ],
+		24	: [ 'blink', 'blackBG' ],
+		25	: [ 'blink', 'blueBG' ],
+		26	: [ 'blink', 'greenBG' ],
+		27	: [ 'blink', 'cyanBG' ],
+		28	: [ 'blink', 'redBG' ],
+		29	: [ 'blink', 'magentaBG' ],
+		30	: [ 'blink', 'yellowBG' ],
+		31	: [ 'blink', 'whiteBG' ],
 	}[cc] || 'normal');
 }
 
@@ -145,7 +145,7 @@ function renegadeToAnsi(s, client) {
 		}
 
 		//	convert to number
-		val = parseInt(val, 10);		
+		val = parseInt(val, 10);
 		if(isNaN(val)) {
 			val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);	//	value itself or literal
 		}
@@ -160,7 +160,7 @@ function renegadeToAnsi(s, client) {
 		lastIndex = re.lastIndex;
 	}
 
-	return (0 === result.length ? s : result + s.substr(lastIndex));	
+	return (0 === result.length ? s : result + s.substr(lastIndex));
 }
 
 //
@@ -180,7 +180,7 @@ function renegadeToAnsi(s, client) {
 //	* http://wiki.synchro.net/custom:colors
 //
 function controlCodesToAnsi(s, client) {
-	const RE = /(\|([A-Z0-9]{2})|\|)|(\@X([0-9A-F]{2}))|(\@([0-9A-F]{2})\@)|(\x03[0-9]|\x03)/g;	//	eslint-disable-line no-control-regex
+	const RE = /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)/g;	//	eslint-disable-line no-control-regex
 
 	let m;
 	let result		= '';

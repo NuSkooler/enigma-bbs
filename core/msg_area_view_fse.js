@@ -31,6 +31,10 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 		this.messageIndex	= this.messageIndex || 0;
 		this.messageTotal	= this.messageList.length;
 
+		if(this.messageList.length > 0) {
+			this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+		}
+
 		const self = this;
 
 		//	assign *additional* menuMethods
@@ -38,6 +42,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 			nextMessage : (formData, extraArgs, cb) => {
 				if(self.messageIndex + 1 < self.messageList.length) {
 					self.messageIndex++;
+
+					this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+					this.tempMessageConfAndAreaSwitch(this.messageAreaTag, false);	//	false=don't record prev; we want what we entered the module with
 
 					return self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid, cb);
 				}
@@ -55,6 +62,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 				if(self.messageIndex > 0) {
 					self.messageIndex--;
 
+					this.messageAreaTag = this.messageList[this.messageIndex].areaTag;
+					this.tempMessageConfAndAreaSwitch(this.messageAreaTag, false);	//	false=don't record prev; we want what we entered the module with
+
 					return self.loadMessageByUuid(self.messageList[self.messageIndex].messageUuid, cb);
 				}
 
@@ -69,7 +79,7 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 					case 'down arrow'	: bodyView.scrollDocumentUp(); break;
 					case 'up arrow'		: bodyView.scrollDocumentDown(); break;
 					case 'page up'		: bodyView.keyPressPageUp(); break;
-					case 'page down'	: bodyView.keyPressPageDown(); break;			
+					case 'page down'	: bodyView.keyPressPageDown(); break;
 				}
 
 				//	:TODO: need to stop down/page down if doing so would push the last
@@ -83,13 +93,13 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 					const modOpts = {
 						extraArgs : {
 							messageAreaTag		: self.messageAreaTag,
-							replyToMessage		: self.message,	
-						}				
+							replyToMessage		: self.message,
+						}
 					};
 
 					return self.gotoMenu(extraArgs.menu, modOpts, cb);
 				}
-				
+
 				self.client.log(extraArgs, 'Missing extraArgs.menu');
 				return cb(null);
 			}

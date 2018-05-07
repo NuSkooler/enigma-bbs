@@ -33,7 +33,7 @@ function login(callingMenu, formData, extraArgs, cb) {
 				return callingMenu.prevMenu(cb);
 			}
 		}
-		
+
 		//	success!
 		return callingMenu.nextMenu(cb);
 	});
@@ -72,7 +72,7 @@ function prevMenu(callingMenu, formData, extraArgs, cb) {
 
 	callingMenu.prevMenu( err => {
 		if(err) {
-			callingMenu.client.log.error( { error : err.message }, 'Error attempting to fallback!');			
+			callingMenu.client.log.error( { error : err.message }, 'Error attempting to fallback!');
 		}
 		return cb(err);
 	});
@@ -119,7 +119,7 @@ function nextConf(callingMenu, formData, extraArgs, cb) {
 		if(err) {
 			return cb(err);	//	logged within changeMessageConference()
 		}
-		
+
 		return reloadMenu(callingMenu, cb);
 	});
 }
@@ -132,7 +132,7 @@ function prevArea(callingMenu, formData, extraArgs, cb) {
 		if(err) {
 			return cb(err);	//	logged within changeMessageArea()
 		}
-		
+
 		return reloadMenu(callingMenu, cb);
 	});
 }
@@ -155,10 +155,10 @@ function nextArea(callingMenu, formData, extraArgs, cb) {
 }
 
 function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
-	const username = formData.value.username || callingMenu.client.user.username;	
+	const username = formData.value.username || callingMenu.client.user.username;
 
 	const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
-	
+
 	WebPasswordReset.sendForgotPasswordEmail(username, err => {
 		if(err) {
 			callingMenu.client.log.warn( { err : err.message }, 'Failed sending forgot password email');
@@ -166,8 +166,8 @@ function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
 
 		if(extraArgs.next) {
 			return callingMenu.gotoMenu(extraArgs.next, cb);
-		} 
-		
-		return logoff(callingMenu, formData, extraArgs, cb);		
+		}
+
+		return logoff(callingMenu, formData, extraArgs, cb);
 	});
 }

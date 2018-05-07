@@ -38,17 +38,17 @@ function startup(cb) {
 
 function shutdown(cb) {
 	async.each(
-		msgNetworkModules, 
+		msgNetworkModules,
 		(msgNetModule, next) => {
 			msgNetModule.shutdown( () => {
 				return next();
 			});
-		}, 
+		},
 		() => {
 			msgNetworkModules = [];
 			return cb(null);
 		}
-	);	
+	);
 }
 
 function recordMessage(message, cb) {
@@ -59,7 +59,7 @@ function recordMessage(message, cb) {
 	//
 	async.each(msgNetworkModules, (modInst, next) => {
 		modInst.record(message);
-		next();		
+		next();
 	}, err => {
 		cb(err);
 	});

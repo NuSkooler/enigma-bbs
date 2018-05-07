@@ -33,7 +33,7 @@ exports.moduleInfo = {
 	author	: 'Andrew Pamment',
 };
 
-const IAC_DO_TERM_TYPE = new Buffer( [ 255, 253, 24 ] );
+const IAC_DO_TERM_TYPE = Buffer.from( [ 255, 253, 24 ] );
 
 class TelnetClientConnection extends EventEmitter {
 	constructor(client) {
@@ -42,7 +42,7 @@ class TelnetClientConnection extends EventEmitter {
 		this.client		= client;
 	}
 
-	
+
 	restorePipe() {
 		if(!this.pipeRestored) {
 			this.pipeRestored = true;
@@ -68,14 +68,14 @@ class TelnetClientConnection extends EventEmitter {
 		this.bridgeConnection.on('data', data => {
 			this.client.term.rawWrite(data);
 
-			//	
+			//
 			//	Wait for a terminal type request, and send it eactly once.
 			//	This is enough (in additional to other negotiations handled in telnet.js)
 			//	to get us in on most systems
 			//
 			if(!this.termSent && data.indexOf(IAC_DO_TERM_TYPE) > -1) {
 				this.termSent = true;
-				this.bridgeConnection.write(this.getTermTypeNegotiationBuffer());				
+				this.bridgeConnection.write(this.getTermTypeNegotiationBuffer());
 			}
 		});
 
@@ -102,9 +102,9 @@ class TelnetClientConnection extends EventEmitter {
 		//	actual/current terminal type.
 		//
 		let bufs = buffers();
-		
-		bufs.push(new Buffer(
-			[ 
+
+		bufs.push(Buffer.from(
+			[
 				255,	//	IAC
 				250,	//	SB
 				24,		//	TERMINAL-TYPE
@@ -113,9 +113,9 @@ class TelnetClientConnection extends EventEmitter {
 		));
 
 		bufs.push(
-			new Buffer(this.client.term.termType),	//	e.g. "ansi" 
-			new Buffer( [ 255, 240 ] )				//	IAC, SE
-		); 
+			Buffer.from(this.client.term.termType),	//	e.g. "ansi"
+			Buffer.from( [ 255, 240 ] )				//	IAC, SE
+		);
 
 		return bufs.toBuffer();
 	}
@@ -126,11 +126,10 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 	constructor(options) {
 		super(options);
 
-		this.config			= options.menuConfig.config;
-		//	defaults
-		this.config.port	= this.config.port || 23; 
+		this.config			= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+		this.config.port	= this.config.port || 23;
 	}
-	
+
 	initSequence() {
 		let clientTerminated;
 		const self = this;
@@ -152,14 +151,24 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 						host	: self.config.host,
 					};
 
-					let clientTerminated;
-
 					self.client.term.write(resetScreen());
-					self.client.term.write(`  Connecting to ${connectOpts.host}, please wait...\n`);
+					self.client.term.write(
+						`  Connecting to ${connectOpts.host}, please wait...\n`
+					);
 
 					const telnetConnection = new TelnetClientConnection(self.client);
-					
+
+					const connectionKeyPressHandler = (ch, key) => {
+						if('escape' === key.name) {
+							self.client.removeListener('key press', connectionKeyPressHandler);
+							telnetConnection.disconnect();
+						}
+					};
+
+					self.client.on('key press', connectionKeyPressHandler);
+
 					telnetConnection.on('connected', () => {
+						self.client.removeListener('key press', connectionKeyPressHandler);
 						self.client.log.info(connectOpts, 'Telnet bridge connection established');
 
 						if(self.config.font) {
@@ -174,6 +183,8 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 					});
 
 					telnetConnection.on('end', err => {
+						self.client.removeListener('key press', connectionKeyPressHandler);
+
 						if(err) {
 							self.client.log.info(`Telnet bridge connection error: ${err.message}`);
 						}

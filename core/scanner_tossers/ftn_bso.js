@@ -221,7 +221,13 @@ function FTNMessageScanTossModule() {
 	};
 
 	this.getOutgoingFlowFileName = function(basePath, destAddress, flowType, exportType, fileCase) {
-		let basename;
+		//
+		//	Refs
+		//	* http://ftsc.org/docs/fts-5005.003
+		//	* http://wiki.synchro.net/ref:fidonet_files#flow_files
+		//
+		let controlFileBaseName;
+		let pointDir;
 
 		const ext = self.getOutgoingFlowFileExtension(
 			destAddress,
@@ -230,32 +236,50 @@ function FTNMessageScanTossModule() {
 			fileCase
 		);
 
-		if(destAddress.point) {
+		const netComponent	= `0000${destAddress.net.toString(16)}`.substr(-4);
+		const nodeComponent	= `0000${destAddress.node.toString(16)}`.substr(-4);
 
+		if(destAddress.point) {
+			//	point's go in an extra subdir, e.g. outbound/NNNNnnnn.pnt/00000001.pnt (for a point of 1)
+			pointDir			= `${netComponent}${nodeComponent}.pnt`;
+			controlFileBaseName = `00000000${destAddress.point.toString(16)}`.substr(-8);
 		} else {
+			pointDir = '';
+
 			//
 			//	Use |destAddress| nnnnNNNN.??? where nnnn is dest net and NNNN is dest
 			//	node. This seems to match what Mystic does
 			//
-			basename =
-				`0000${destAddress.net.toString(16)}`.substr(-4) +
-				`0000${destAddress.node.toString(16)}`.substr(-4);
+			controlFileBaseName = `${netComponent}${nodeComponent}`;
 		}
 
+		//
+		//	From FTS-5005.003: "Lower case filenames are prefered if supported by the file system."
+		//	...but we let the user override.
+		//
 		if('upper' === fileCase) {
-			basename = basename.toUpperCase();
+			controlFileBaseName	= controlFileBaseName.toUpperCase();
+			pointDir			= pointDir.toUpperCase();
 		}
 
-		return paths.join(basePath, `${basename}.${ext}`);
+		return paths.join(basePath, pointDir, `${controlFileBaseName}.${ext}`);
 	};
 
 	this.flowFileAppendRefs = function(filePath, fileRefs, directive, cb) {
-		const appendLines = fileRefs.reduce( (content, ref) => {
-			return content + `${directive}${ref}\n`;
-		}, '');
+		//
+		//	We have to ensure the *directory* of |filePath| exists here esp.
+		//	for cases such as point destinations where a subdir may be
+		//	present in the path that doesn't yet exist.
+		//
+		const flowFileDir = paths.dirname(filePath);
+		fse.mkdirs(flowFileDir, () => {	//	note not checking err; let's try appendFile
+			const appendLines = fileRefs.reduce( (content, ref) => {
+				return content + `${directive}${ref}\n`;
+			}, '');
 
-		fs.appendFile(filePath, appendLines, err => {
-			cb(err);
+			fs.appendFile(filePath, appendLines, err => {
+				return cb(err);
+			});
 		});
 	};
 
@@ -306,12 +330,26 @@ function FTNMessageScanTossModule() {
 		//
 		const localAddress = new Address(options.network.localAddress);	//	ensure we have an Address obj not a string version
 
+		//	:TODO: create Address.toMeta() / similar
 		message.meta.FtnProperty = message.meta.FtnProperty || {};
 		message.meta.FtnKludge = message.meta.FtnKludge || {};
 
-		message.meta.FtnProperty.ftn_orig_node		= localAddress.node;
-		message.meta.FtnProperty.ftn_orig_network	= localAddress.net;
-		message.meta.FtnProperty.ftn_cost			= 0;
+		message.meta.FtnProperty.ftn_orig_node			= localAddress.node;
+		message.meta.FtnProperty.ftn_orig_network		= localAddress.net;
+		message.meta.FtnProperty.ftn_cost				= 0;
+		message.meta.FtnProperty.ftn_msg_orig_node		= localAddress.node;
+		message.meta.FtnProperty.ftn_msg_orig_net	= localAddress.net;
+
+		const destAddress = options.routeAddress || options.destAddress;
+		message.meta.FtnProperty.ftn_dest_node		= destAddress.node;
+		message.meta.FtnProperty.ftn_dest_network	= destAddress.net;
+
+		if(destAddress.zone) {
+			message.meta.FtnProperty.ftn_dest_zone	= destAddress.zone;
+		}
+		if(destAddress.point) {
+			message.meta.FtnProperty.ftn_dest_point	= destAddress.point;
+		}
 
 		//	tear line and origin can both go in EchoMail & NetMail
 		message.meta.FtnProperty.ftn_tear_line		= ftnUtil.getTearLine();
@@ -320,9 +358,11 @@ function FTNMessageScanTossModule() {
 		let ftnAttribute = ftnMailPacket.Packet.Attribute.Local;	//	message from our system
 
 		if(self.isNetMailMessage(message)) {
-			//	These should be set for Private/NetMail already
-			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_node)));
-			assert(_.isNumber(parseInt(message.meta.FtnProperty.ftn_dest_network)));
+			//
+			//	Set route and message destination properties -- they may differ
+			//
+			message.meta.FtnProperty.ftn_msg_dest_node		= options.destAddress.node;
+			message.meta.FtnProperty.ftn_msg_dest_net	= options.destAddress.net;
 
 			ftnAttribute |= ftnMailPacket.Packet.Attribute.Private;
 
@@ -353,10 +393,6 @@ function FTNMessageScanTossModule() {
 				message.meta.FtnKludge.TOPT = options.destAddress.point;
 			}
 		} else {
-			//	We need to set some destination info for EchoMail
-			message.meta.FtnProperty.ftn_dest_node		= options.destAddress.node;
-			message.meta.FtnProperty.ftn_dest_network	= options.destAddress.net;
-
 			//
 			//	Set appropriate attribute flag for export type
 			//
@@ -548,15 +584,6 @@ function FTNMessageScanTossModule() {
 		});
 	};
 
-	//	:TODO: deprecate this in favor of getNodeConfigByAddress()
-	this.getNodeConfigKeyByAddress = function(uplink) {
-		const nodeKey = _.filter(Object.keys(this.moduleConfig.nodes), addr => {
-			return Address.fromString(addr).isPatternMatch(uplink);
-		})[0];
-
-		return nodeKey;
-	};
-
 	this.exportNetMailMessagePacket = function(message, exportOpts, cb) {
 		//
 		//	For NetMail, we always create a *single* packet per message.
@@ -573,7 +600,7 @@ function FTNMessageScanTossModule() {
 
 					const packetHeader = new ftnMailPacket.PacketHeader(
 						exportOpts.network.localAddress,
-						exportOpts.destAddress,
+						exportOpts.routeAddress,
 						exportOpts.nodeConfig.packetType
 					);
 
@@ -791,9 +818,9 @@ function FTNMessageScanTossModule() {
 
 	this.getNetMailRoute = function(dstAddr) {
 		//
-		//	messageNetworks.ftn.netMail.routes{} full|wildcard -> full adddress lookup
+		//	Route full|wildcard -> full adddress/network lookup
 		//
-		const routes = _.get(Config, 'messageNetworks.ftn.netMail.routes');
+		const routes = _.get(Config, 'scannerTossers.ftn_bso.netMail.routes');
 		if(!routes) {
 			return;
 		}
@@ -801,57 +828,44 @@ function FTNMessageScanTossModule() {
 		return _.find(routes, (route, addrWildcard) => {
 			return dstAddr.isPatternMatch(addrWildcard);
 		});
-
-		/*
-		const route = _.find(routes, (route, addrWildcard) => {
-			return dstAddr.isPatternMatch(addrWildcard);
-		});
-
-		if(route && route.address) {
-			return Address.fromString(route.address);
-		}
-		*/
 	};
 
-	this.getAcceptableNetMailNetworkInfoFromAddress = function(dstAddr, cb) {
+	this.getNetMailRouteInfoFromAddress = function(destAddress, cb) {
 		//
-		//	Attempt to find an acceptable network configuration using the following
-		//	lookup order (most to least explicit config):
+		//	Attempt to find route information for |destAddress|:
 		//
-		//	1) Routes: messageNetworks.ftn.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
-		//		- Where we send may not be where dstAddress is (it's routed!)
+		//	1) Routes: scannerTossers.ftn_bso.netMail.routes{} -> scannerTossers.ftn_bso.nodes{} -> config
+		//		- Where we send may not be where destAddress is (it's routed!)
 		//	2) Direct to nodes: scannerTossers.ftn_bso.nodes{} -> config
-		//		- Where we send is direct to dstAddr
+		//		- Where we send is direct to destAddress
 		//
 		//	In both cases, attempt to look up Zone:Net/* to discover local "from" network/address
 		//	falling back to Config.scannerTossers.ftn_bso.defaultNetwork
 		//
-		const route = this.getNetMailRoute(dstAddr);
+		const route = this.getNetMailRoute(destAddress);
 
 		let routeAddress;
 		let networkName;
+		let isRouted;
 		if(route) {
 			routeAddress	= Address.fromString(route.address);
 			networkName		= route.network;
+			isRouted		= true;
 		} else {
-			routeAddress = dstAddr;
+			routeAddress	= destAddress;
+			isRouted		= false;
 		}
 
-		networkName = networkName || 
-			this.getNetworkNameByAddressPattern(`${routeAddress.zone}:${routeAddress.net}/*`) ||
-			Config.scannerTossers.ftn_bso.defaultNetwork
-			;
+		networkName = networkName || this.getNetworkNameByAddress(routeAddress);
 
 		const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
 			return routeAddress.isPatternMatch(nodeAddrWildcard);
-		}) || {
-			packetType	: '2+',
-			encoding	: Config.scannerTossers.ftn_bso.packetMsgEncoding,
-		};
+		}) || { packetType : '2+', encoding	: Config.scannerTossers.ftn_bso.packetMsgEncoding };
 
+		//	we should never be failing here; we may just be using defaults.
 		return cb(
-			config ? null : Errors.DoesNotExist(`No configuration found for ${dstAddr.toString()}`),
-			config, routeAddress, networkName
+			networkName ? null : Errors.DoesNotExist(`No NetMail route for ${destAddress.toString()}`),
+			{ destAddress, routeAddress, networkName, config, isRouted }
 		);
 	};
 
@@ -876,21 +890,22 @@ function FTNMessageScanTossModule() {
 					function discoverUplink(callback) {
 						const dstAddr = new Address(message.meta.System[Message.SystemMetaNames.RemoteToUser]);
 
-						return self.getAcceptableNetMailNetworkInfoFromAddress(dstAddr, (err, config, routeAddress, networkName) => {
+						self.getNetMailRouteInfoFromAddress(dstAddr, (err, routeInfo) => {
 							if(err) {
 								return callback(err);
 							}
 
-							exportOpts.nodeConfig	= config;
-							exportOpts.destAddress	= routeAddress;
-							exportOpts.fileCase		= config.fileCase || 'lower';
-							exportOpts.network		= Config.messageNetworks.ftn.networks[networkName];
-							exportOpts.networkName	= networkName;
+							exportOpts.nodeConfig	= routeInfo.config;
+							exportOpts.destAddress	= dstAddr;
+							exportOpts.routeAddress	= routeInfo.routeAddress;
+							exportOpts.fileCase		= routeInfo.config.fileCase || 'lower';
+							exportOpts.network		= Config.messageNetworks.ftn.networks[routeInfo.networkName];
+							exportOpts.networkName	= routeInfo.networkName;
 							exportOpts.outgoingDir	= self.getOutgoingEchoMailPacketDir(exportOpts.networkName, exportOpts.destAddress);
-							exportOpts.exportType	= self.getExportType(config);
+							exportOpts.exportType	= self.getExportType(routeInfo.config);
 
 							if(!exportOpts.network) {
-								return callback(Errors.DoesNotExist(`No configuration found for network ${networkName}`));
+								return callback(Errors.DoesNotExist(`No configuration found for network ${routeInfo.networkName}`));
 							}
 
 							return callback(null);
@@ -915,7 +930,7 @@ function FTNMessageScanTossModule() {
 					function prepareFloFile(callback) {
 						const flowFilePath = self.getOutgoingFlowFileName(
 							exportOpts.outgoingDir,
-							exportOpts.destAddress,
+							exportOpts.routeAddress,
 							'ref',
 							exportOpts.exportType,
 							exportOpts.fileCase
@@ -937,29 +952,32 @@ function FTNMessageScanTossModule() {
 				],
 				err => {
 					if(err) {
-						Log.warn( { error :err.message }, 'Error exporting message' );
+						Log.warn( { error : err.message }, 'Error exporting message' );
 					}
 					return nextMessageOrUuid(null);
 				}
 			);
 		}, err => {
+			if(err) {
+				Log.warn( { error : err.message }, 'Error(s) during NetMail export');
+			}
 			return cb(err);
 		});
 	};
 
 	this.exportEchoMailMessagesToUplinks = function(messageUuids, areaConfig, cb) {
 		async.each(areaConfig.uplinks, (uplink, nextUplink) => {
-			const nodeConfigKey = self.getNodeConfigKeyByAddress(uplink);
-			if(!nodeConfigKey) {
+			const nodeConfig = self.getNodeConfigByAddress(uplink);
+			if(!nodeConfig) {
 				return nextUplink();
 			}
 
 			const exportOpts = {
-				nodeConfig		: self.moduleConfig.nodes[nodeConfigKey],
+				nodeConfig,
 				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
 				destAddress		: Address.fromString(uplink),
 				networkName		: areaConfig.network,
-				fileCase		: self.moduleConfig.nodes[nodeConfigKey].fileCase || 'lower',
+				fileCase		: nodeConfig.fileCase || 'lower',
 			};
 
 			if(_.isString(exportOpts.network.localAddress)) {
@@ -1213,7 +1231,30 @@ function FTNMessageScanTossModule() {
 
 					User.getUserIdAndNameByLookup(lookupName, (err, localToUserId, localUserName) => {
 						if(err) {
-							return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
+							//
+							//	Couldn't find a local username. If the toUserName itself is a FTN address
+							//	we can only assume the message is to the +op, else we'll have to fail.
+							//
+							const toUserNameAsAddress = Address.fromString(message.toUserName);
+							if(toUserNameAsAddress.isValid()) {
+
+								Log.info(
+									{ toUserName : message.toUserName, fromUserName : message.fromUserName },
+									'No local "to" username for FTN message. Appears to be a FTN address only; assuming addressed to SysOp'
+								);
+
+								User.getUserName(User.RootUserID, (err, sysOpUserName) => {
+									if(err) {
+										return callback(Errors.UnexpectedState('Failed to get SysOp user information'));
+									}
+
+									message.meta.System[Message.SystemMetaNames.LocalToUserID] = User.RootUserID;
+									message.toUserName = sysOpUserName;
+									return callback(null);
+								});
+							} else {
+								return callback(Errors.DoesNotExist(`Could not get local user ID for "${message.toUserName}": ${err.message}`));
+							}
 						}
 
 						//	we do this after such that error cases can be preseved above
@@ -1667,9 +1708,9 @@ function FTNMessageScanTossModule() {
 
 					const metaPairs = [
 						{
-							name	: 'short_file_name',
-							value	: replaces.toUpperCase(),	//	we store upper as well
-							wcValue	: true,	//	value may contain wildcards
+							name		: 'short_file_name',
+							value		: replaces.toUpperCase(),	//	we store upper as well
+							wildcards	: true,	//	value may contain wildcards
 						},
 						{
 							name	: 'tic_origin',
@@ -2008,8 +2049,7 @@ function FTNMessageScanTossModule() {
 	this.isNetMailMessage = function(message) {
 		return message.isPrivate() &&
 			null === _.get(message, 'meta.System.LocalToUserID', null) &&
-			Message.AddressFlavor.FTN === _.get(message, 'meta.System.external_flavor', null)
-			;
+			Message.AddressFlavor.FTN === _.get(message, 'meta.System.external_flavor', null);
 	};
 }
 

@@ -5,7 +5,7 @@ const EnigError				= require('./enig_error.js').EnigError;
 
 const {
 	pad,
-	stylizeString, 
+	stylizeString,
 	renderStringLength,
 	renderSubstr,
 	formatByteSize, formatByteSizeAbbr,
@@ -122,10 +122,10 @@ function quote(s) {
 
 function getPadAlign(align) {
 	return {
-		'<' : 'right',
-		'>' : 'left',
+		'<' : 'left',
+		'>' : 'right',
 		'^' : 'center',
-	}[align] || '<';
+	}[align] || '>';
 }
 
 function formatString(value, tokens) {
@@ -172,15 +172,15 @@ function formatNumberHelper(n, precision, type) {
 		case 'b' : return n.toString(2);
 		case 'o' : return n.toString(8);
 		case 'x' : return n.toString(16);
-		case 'e' : return n.toExponential(precision).replace(FormatNumRegExp.ExponentRep, '$&0'); 
-		case 'f' : return n.toFixed(precision); 
+		case 'e' : return n.toExponential(precision).replace(FormatNumRegExp.ExponentRep, '$&0');
+		case 'f' : return n.toFixed(precision);
 		case 'g' :
 			//	we don't want useless trailing zeros. parseFloat -> back to string fixes this for us
 			return parseFloat(n.toPrecision(precision || 1)).toString();
 
 		case '%' : return formatNumberHelper(n * 100, precision, 'f') + '%';
 		case ''  : return formatNumberHelper(n, precision, 'd');
-		
+
 		default :
 			throw new ValueError(`Unknown format code "${type}" for object of type 'float'`);
 	}
@@ -207,7 +207,7 @@ function formatNumber(value, tokens) {
 
 		if('' !== tokens.precision) {
 			throw new ValueError('Precision not allowed in integer format specifier');
-		}		
+		}
 	} else if( [ 'e', 'E', 'f', 'F', 'g', 'G', '%' ].indexOf(type) > - 1) {
 		if(tokens['#']) {
 			throw new ValueError('Alternate form (#) not allowed in float format specifier');
@@ -215,7 +215,7 @@ function formatNumber(value, tokens) {
 	}
 
 	const s			= formatNumberHelper(Math.abs(value), Number(tokens.precision || 6), type);
-	const sign		= value < 0 || 1 / value < 0 ? 
+	const sign		= value < 0 || 1 / value < 0 ?
 		'-' :
 		'-' === tokens.sign ? '' : tokens.sign;
 
@@ -223,7 +223,7 @@ function formatNumber(value, tokens) {
 
 	if(tokens[',']) {
 		const match 	= /^(\d*)(.*)$/.exec(s);
-		const separated	= match[1].replace(/.(?=(...)+$)/g, '$&,') + match[2]; 
+		const separated	= match[1].replace(/.(?=(...)+$)/g, '$&,') + match[2];
 
 		if('=' !== align) {
 			return pad(sign + separated, width, fill, getPadAlign(align));
@@ -246,7 +246,7 @@ function formatNumber(value, tokens) {
 
 	if(0 === width) {
 		return sign + prefix + s;
-	} 
+	}
 
 	if('=' === align) {
 		return sign + prefix + pad(s, width - sign.length - prefix.length, fill, getPadAlign('>'));
@@ -272,9 +272,9 @@ const transformers = {
 	styleL33t			: (s) => stylizeString(s, 'l33t'),
 
 	//	:TODO:
-	//	toMegs(), toKilobytes(), ... 
-	//	toList(), toCommaList(), 
-	
+	//	toMegs(), toKilobytes(), ...
+	//	toList(), toCommaList(),
+
 	sizeWithAbbr		: (n) => formatByteSize(n, true, 2),
 	sizeWithoutAbbr		: (n) => formatByteSize(n, false, 2),
 	sizeAbbr			: (n) => formatByteSizeAbbr(n),
@@ -293,14 +293,14 @@ function transformValue(transformerName, value) {
 }
 
 //	:TODO: Use explicit set of chars for paths & function/transforms such that } is allowed as fill/etc.
-const REGEXP_BASIC_FORMAT	= /{([^.!:}]+(?:\.[^.!:}]+)*)(?:\!([^:}]+))?(?:\:([^}]+))?}/g;
+const REGEXP_BASIC_FORMAT	= /{([^.!:}]+(?:\.[^.!:}]+)*)(?:!([^:}]+))?(?::([^}]+))?}/g;
 
 function getValue(obj, path) {
 	const value = _.get(obj, path);
 	if(!_.isUndefined(value)) {
 		return _.isFunction(value) ? value() : value;
 	}
-	
+
 	throw new KeyError(quote(path));
 }
 
@@ -350,7 +350,7 @@ module.exports = function format(fmt, obj) {
 	//	remainder
 	if(pos < fmt.length) {
 		out += fmt.slice(pos);
-	}	
+	}
 
-	return out;	
+	return out;
 };

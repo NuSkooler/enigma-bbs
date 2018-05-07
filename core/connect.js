@@ -98,7 +98,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 				source		: 'ANSI CPR'
 			},
 			'Window size updated'
-			);
+		);
 
 		return done(null);
 	};

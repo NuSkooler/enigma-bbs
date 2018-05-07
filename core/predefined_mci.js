@@ -92,7 +92,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	ST	: function serverName(client) { return client.session.serverName; },
 	FN	: function activeFileBaseFilterName(client) {
 		const activeFilter = FileBaseFilters.getActiveFilter(client);
-		return activeFilter ? activeFilter.name : ''; 
+		return activeFilter ? activeFilter.name : '';
 	},
 	DN	: function userNumDownloads(client) { return userStatAsString(client, 'dl_total_count', 0); },		//	Obv/2
 	DK	: function userByteDownload(client) {	//	Obv/2 uses DK=downloaded Kbytes
@@ -160,7 +160,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	},
 
 	OA	: function systemArchitecture() { return os.arch(); },
-	
+
 	SC	: function systemCpuModel() {
 		//
 		//	Clean up CPU strings a bit for better display
@@ -190,7 +190,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	//	System File Base, Up/Download Info
 	//
 	//	:TODO: DD - Today's # of downloads (iNiQUiTY)
-	//	
+	//
 	SD	: function systemNumDownloads() { return sysStatAsString('dl_total_count', 0); },
 	SO	: function systemByteDownload() {
 		const byteSize = StatLog.getSystemStatNum('dl_total_bytes');
@@ -221,7 +221,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	//		-> Include FTN/etc.
 	//	:TODO: LC - name of last caller to system (Obv/2)
 	//	:TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
-	
+
 
 	//
 	//	Special handling for XY

@@ -28,7 +28,7 @@ module.exports = class LoginServerModule extends ServerModule {
 		} else {
 			client.user.properties.theme_id = conf.config.preLoginTheme;
 		}
-		
+
 		theme.setClientTheme(client, client.user.properties.theme_id);
 		return cb(null);   //  note: currently useless to use cb here - but this may change...again...
 	}
@@ -37,7 +37,7 @@ module.exports = class LoginServerModule extends ServerModule {
 		//
 		//	Start tracking the client. We'll assign it an ID which is
 		//	just the index in our connections array.
-		//			
+		//
 		if(_.isUndefined(client.session)) {
 			client.session = {};
 		}
@@ -68,7 +68,7 @@ module.exports = class LoginServerModule extends ServerModule {
 		client.on('close', err => {
 			const logFunc = err ? logger.log.info : logger.log.debug;
 			logFunc( { clientId : client.session.id }, 'Connection closed');
-			
+
 			clientConns.removeClient(client);
 		});
 
@@ -80,7 +80,7 @@ module.exports = class LoginServerModule extends ServerModule {
 					//	likely just doesn't exist
 					client.term.write('\nIdle timeout expired. Goodbye!\n');
 					client.end();
-				}			
+				}
 			});
 		});
 	}

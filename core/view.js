@@ -2,11 +2,12 @@
 'use strict';
 
 //	ENiGMA½
-const events		= require('events');
-const util			= require('util');
-const ansi			= require('./ansi_term.js');
-const colorCodes	= require('./color_codes.js');
-const enigAssert	= require('./enigma_assert.js');
+const events			= require('events');
+const util				= require('util');
+const ansi				= require('./ansi_term.js');
+const colorCodes		= require('./color_codes.js');
+const enigAssert		= require('./enigma_assert.js');
+const { renderSubstr }	= require('./string_util.js');
 
 //	deps
 const _				= require('lodash');
@@ -39,7 +40,7 @@ function View(options) {
 	var self			= this;
 
 	this.client			= options.client;
-	
+
 	this.cursor			= options.cursor || 'show';
 	this.cursorStyle	= options.cursorStyle || 'default';
 
@@ -72,7 +73,7 @@ function View(options) {
 	} else {
 		this.dimens = {
 			width	: options.width || 0,
-			height	: 0 
+			height	: 0
 		};
 	}
 
@@ -85,6 +86,10 @@ function View(options) {
 
 	if(this.acceptsInput) {
 		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
+
+		if(_.isObject(options.specialKeyMapOverride)) {
+			this.setSpecialKeyMapOverride(options.specialKeyMapOverride);
+		}
 	}
 
 	this.isKeyMapped = function(keySet, keyName) {
@@ -106,7 +111,7 @@ function View(options) {
 	this.restoreCursor = function() {
 		//this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
 		this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
-	};	
+	};
 }
 
 util.inherits(View, events.EventEmitter);
@@ -150,7 +155,7 @@ View.prototype.setDimension = function(dimens) {
 
 View.prototype.setHeight = function(height) {
 	height	= parseInt(height) || 1;
-	height	= Math.min(height, this.client.term.termHeight); 
+	height	= Math.min(height, this.client.term.termHeight);
 
 	this.dimens.height		= height;
 	this.autoScale.height	= false;
@@ -177,14 +182,18 @@ View.prototype.getFocusSGR = function() {
 	return this.ansiFocusSGR;
 };
 
+View.prototype.setSpecialKeyMapOverride = function(specialKeyMapOverride) {
+	this.specialKeyMap = Object.assign(this.specialKeyMap, specialKeyMapOverride);
+};
+
 View.prototype.setPropertyValue = function(propName, value) {
 	switch(propName) {
 		case 'height'	: this.setHeight(value); break;
 		case 'width'	: this.setWidth(value); break;
 		case 'focus'	: this.setFocus(value); break;
-		
-		case 'text'		: 
-			if('setText' in this) {				
+
+		case 'text'		:
+			if('setText' in this) {
 				this.setText(value);
 			}
 			break;
@@ -199,7 +208,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 				if(_.isNumber(value)) {
 					this.fillChar = String.fromCharCode(value);
 				} else if(_.isString(value)) {
-					this.fillChar = value.substr(0, 1);
+					this.fillChar = renderSubstr(value, 0, 1);
 				}
 			}
 			break;
@@ -248,7 +257,7 @@ View.prototype.setFocus = function(focused) {
 	this.restoreCursor();
 };
 
-View.prototype.onKeyPress = function(ch, key) {	
+View.prototype.onKeyPress = function(ch, key) {
 	enigAssert(this.hasFocus,		'View does not have focus');
 	enigAssert(this.acceptsInput,	'View does not accept input');
 

@@ -8,6 +8,7 @@ const messageArea			= require('./message_area.js');
 const displayThemeArt		= require('./theme.js').displayThemeArt;
 const resetScreen			= require('./ansi_term.js').resetScreen;
 const stringFormat			= require('./string_format.js');
+const Errors				= require('./enig_error.js').Errors;
 
 //	deps
 const async				= require('async');
@@ -36,7 +37,7 @@ exports.moduleInfo = {
 const MciViewIds = {
 	AreaList		: 1,
 	SelAreaInfo1	: 2,
-	SelAreaInfo2	: 3, 
+	SelAreaInfo2	: 3,
 };
 
 exports.getModule = class MessageAreaListModule extends MenuModule {
@@ -61,7 +62,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 							self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
 
 							self.prevMenuOnTimeout(1000, cb);
-						} else {						
+						} else {
 							if(_.isString(area.art)) {
 								const dispOptions = {
 									client	: self.client,
@@ -72,7 +73,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 
 								displayThemeArt(dispOptions, () => {
 									//	pause by default, unless explicitly told not to
-									if(_.has(area, 'options.pause') && false === area.options.pause) { 
+									if(_.has(area, 'options.pause') && false === area.options.pause) {
 										return self.prevMenuOnTimeout(1000, cb);
 									} else {
 										self.pausePrompt( () => {
@@ -98,9 +99,9 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 		}, timeout);
 	}
 
+	//	:TODO: these concepts have been replaced with the {someKey} style formatting - update me!
 	updateGeneralAreaInfoViews(areaIndex) {
-		//	:TODO: these concepts have been replaced with the {someKey} style formatting - update me!
-		/* experimental: not yet avail
+		/*
 		const areaInfo = self.messageAreas[areaIndex];
 
 		[ MciViewIds.SelAreaInfo1, MciViewIds.SelAreaInfo2 ].forEach(mciId => {
@@ -137,15 +138,18 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 					function populateAreaListView(callback) {
 						const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
 						const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
-						
+
 						const areaListView = vc.getView(MciViewIds.AreaList);
+						if(!areaListView) {
+							return callback(Errors.MissingMci('A MenuView compatible MCI code is required'));
+						}
 						let i = 1;
 						areaListView.setItems(_.map(self.messageAreas, v => {
 							return stringFormat(listFormat, {
 								index   : i++,
 								areaTag : v.area.areaTag,
 								name    : v.area.name,
-								desc    : v.area.desc, 
+								desc    : v.area.desc,
 							});
 						}));
 
@@ -155,7 +159,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
 								index   : i++,
 								areaTag : v.area.areaTag,
 								name    : v.area.name,
-								desc    : v.area.desc, 
+								desc    : v.area.desc,
 							});
 						}));
 

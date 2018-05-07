@@ -9,7 +9,7 @@ const Log					= require('./logger.js').log;
 const _						= require('lodash');
 const later					= require('later');
 const path					= require('path');
-const pty					= require('ptyw.js');
+const pty					= require('node-pty');
 const sane					= require('sane');
 const moment				= require('moment');
 const paths					= require('path');
@@ -24,8 +24,8 @@ exports.moduleInfo = {
 	author	: 'NuSkooler',
 };
 
-const SCHEDULE_REGEXP	= /(?:^|or )?(@watch\:)([^\0]+)?$/;
-const ACTION_REGEXP		= /\@(method|execute)\:([^\0]+)?$/;
+const SCHEDULE_REGEXP	= /(?:^|or )?(@watch:)([^\0]+)?$/;
+const ACTION_REGEXP		= /@(method|execute):([^\0]+)?$/;
 
 class ScheduledEvent {
 	constructor(events, name) {
@@ -34,32 +34,32 @@ class ScheduledEvent {
 		this.action		= this.parseActionSpec(events[name].action);
 		if(this.action) {
 			this.action.args = events[name].args || [];
-		}	
+		}
 	}
-	
+
 	get isValid() {
 		if((!this.schedule || (!this.schedule.sched && !this.schedule.watchFile)) || !this.action) {
 			return false;
 		}
-		
+
 		if('method' === this.action.type && !this.action.location) {
 			return false;
 		}
-		
-		return true; 	
+
+		return true;
 	}
-		
+
 	parseScheduleString(schedStr) {
 		if(!schedStr) {
 			return false;
 		}
-		
+
 		let schedule = {};
-		
+
 		const m = SCHEDULE_REGEXP.exec(schedStr);
 		if(m) {
 			schedStr = schedStr.substr(0, m.index).trim();
-			
+
 			if('@watch:' === m[1]) {
 				schedule.watchFile = m[2];
 			}
@@ -69,15 +69,15 @@ class ScheduledEvent {
 			const sched = later.parse.text(schedStr);
 			if(-1 === sched.error) {
 				schedule.sched = sched;
-			}	
+			}
 		}
-		
+
 		//	return undefined if we couldn't parse out anything useful
 		if(!_.isEmpty(schedule)) {
 			return schedule;
 		}
 	}
-	
+
 	parseActionSpec(actionSpec) {
 		if(actionSpec) {
 			if('@' === actionSpec[0]) {
@@ -86,7 +86,7 @@ class ScheduledEvent {
 					if(m[2].indexOf(':') > -1) {
 						const parts = m[2].split(':');
 						return {
-							type		: m[1],							
+							type		: m[1],
 							location	: parts[0],
 							what		: parts[1],
 						};
@@ -98,12 +98,12 @@ class ScheduledEvent {
 					}
 				}
 			} else {
-				return { 
+				return {
 					type	: 'execute',
 					what	: actionSpec,
 				};
-			}			
-		}	
+			}
+		}
 	}
 
 	executeAction(reason, cb) {
@@ -119,14 +119,14 @@ class ScheduledEvent {
 							{ error : err.toString(), eventName : this.name, action : this.action },
 							'Error performing scheduled event action');
 					}
-					
+
 					return cb(err);
 				});
 			} catch(e) {
 				Log.warn(
 					{ error : e.toString(), eventName : this.name, action : this.action },
 					'Failed to perform scheduled event action');
-				
+
 				return cb(e);
 			}
 		} else if('execute' === this.action.type) {
@@ -135,18 +135,18 @@ class ScheduledEvent {
 				name	: this.name,
 				cols	: 80,
 				rows	: 24,
-				env		: process.env,	
+				env		: process.env,
 			};
 
 			const proc = pty.spawn(this.action.what, this.action.args, opts);
 
-			proc.once('exit', exitCode => {				
+			proc.once('exit', exitCode => {
 				if(exitCode) {
 					Log.warn(
 						{ eventName : this.name, action : this.action, exitCode : exitCode },
 						'Bad exit code while performing scheduled event action');
 				}
-				return cb(exitCode ? new Error(`Bad exit code while performing scheduled event action: ${exitCode}`) : null); 
+				return cb(exitCode ? new Error(`Bad exit code while performing scheduled event action: ${exitCode}`) : null);
 			});
 		}
 	}
@@ -154,58 +154,58 @@ class ScheduledEvent {
 
 function EventSchedulerModule(options) {
 	PluginModule.call(this, options);
-	
+
 	if(_.has(Config, 'eventScheduler')) {
 		this.moduleConfig = Config.eventScheduler;
 	}
-	
+
 	const self = this;
 	this.runningActions = new Set();
-	
+
 	this.performAction = function(schedEvent, reason) {
 		if(self.runningActions.has(schedEvent.name)) {
 			return;	//	already running
-		} 
-		
+		}
+
 		self.runningActions.add(schedEvent.name);
 
 		schedEvent.executeAction(reason, () => {
 			self.runningActions.delete(schedEvent.name);
-		});		
+		});
 	};
 }
 
 //	convienence static method for direct load + start
 EventSchedulerModule.loadAndStart = function(cb) {
 	const loadModuleEx = require('./module_util.js').loadModuleEx;
-			
+
 	const loadOpts = {
 		name		: path.basename(__filename, '.js'),
 		path		: __dirname,
 	};
-	
+
 	loadModuleEx(loadOpts, (err, mod) => {
 		if(err) {
 			return cb(err);
 		}
-		
+
 		const modInst = new mod.getModule();
 		modInst.startup( err => {
 			return cb(err, modInst);
-		});		
+		});
 	});
 };
 
 EventSchedulerModule.prototype.startup = function(cb) {
-	
+
 	this.eventTimers	= [];
 	const self = this;
-	
+
 	if(this.moduleConfig && _.has(this.moduleConfig, 'events')) {
 		const events = Object.keys(this.moduleConfig.events).map( name => {
 			return new ScheduledEvent(this.moduleConfig.events, name);
 		});
-		
+
 		events.forEach( schedEvent => {
 			if(!schedEvent.isValid) {
 				Log.warn( { eventName : schedEvent.name }, 'Invalid scheduled event entry');
@@ -213,7 +213,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
 			}
 
 			Log.debug(
-				{ 
+				{
 					eventName	: schedEvent.name,
 					schedule	: this.moduleConfig.events[schedEvent.name].schedule,
 					action		: schedEvent.action,
@@ -222,9 +222,9 @@ EventSchedulerModule.prototype.startup = function(cb) {
 				'Scheduled event loaded'
 			);
 
-			if(schedEvent.schedule.sched) {			
+			if(schedEvent.schedule.sched) {
 				this.eventTimers.push(later.setInterval( () => {
-					self.performAction(schedEvent, 'Schedule');	
+					self.performAction(schedEvent, 'Schedule');
 				}, schedEvent.schedule.sched));
 			}
 
@@ -255,7 +255,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
 			}
 		});
 	}
-	
+
 	cb(null);
 };
 
@@ -263,6 +263,6 @@ EventSchedulerModule.prototype.shutdown = function(cb) {
 	if(this.eventTimers) {
 		this.eventTimers.forEach( et => et.clear() );
 	}
-		
+
 	cb(null);
 };

@@ -22,7 +22,7 @@ ButtonView.prototype.onKeyPress = function(ch, key) {
 	if(this.isKeyMapped('accept', key.name) || ' ' === ch) {
 		this.submitData = 'accept';
 		this.emit('action', 'accept');
-		delete this.submitData;		
+		delete this.submitData;
 	} else {
 		ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
 	}

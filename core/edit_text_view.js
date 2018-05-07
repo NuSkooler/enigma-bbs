@@ -16,7 +16,7 @@ function EditTextView(options) {
 	options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
 	options.cursorStyle		= miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
 	options.resizable		= false;
-	
+
 	TextView.call(this, options);
 
 	this.cursorPos = { row : 0, col : 0 };
@@ -44,7 +44,7 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 					}
 				}
 			}
-			
+
 			return EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
 		} else if(this.isKeyMapped('clearLine', key.name)) {
 			this.text			= '';

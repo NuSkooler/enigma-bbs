@@ -19,6 +19,7 @@ const dbs = {};
 exports.getTransactionDatabase		= getTransactionDatabase;
 exports.getModDatabasePath			= getModDatabasePath;
 exports.getISOTimestampString		= getISOTimestampString;
+exports.sanatizeString				= sanatizeString;
 exports.initializeDatabases			= initializeDatabases;
 
 exports.dbs							= dbs;
@@ -36,12 +37,12 @@ function getModDatabasePath(moduleInfo, suffix) {
 	//	Mods that use a database are stored in Config.paths.modsDb (e.g. enigma-bbs/db/mods)
 	//	We expect that moduleInfo defines packageName which will be the base of the modules
 	//	filename. An optional suffix may be supplied as well.
-	//	
-	const HOST_RE = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$/;
+	//
+	const HOST_RE = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
 
 	assert(_.isObject(moduleInfo));
 	assert(_.isString(moduleInfo.packageName), 'moduleInfo must define "packageName"!');
-	
+
 	let full = moduleInfo.packageName;
 	if(suffix) {
 		full += `.${suffix}`;
@@ -57,6 +58,25 @@ function getModDatabasePath(moduleInfo, suffix) {
 function getISOTimestampString(ts) {
 	ts = ts || moment();
 	return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+}
+
+function sanatizeString(s) {
+	return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {	//	eslint-disable-line no-control-regex
+		switch (c) {
+			case '\0'	: return '\\0';
+			case '\x08'	: return '\\b';
+			case '\x09'	: return '\\t';
+			case '\x1a'	: return '\\z';
+			case '\n'	: return '\\n';
+			case '\r'	: return '\\r';
+
+			case '"' :
+			case '\'' :
+			case '\\' :
+			case '%' :
+				return `\\${c}`;
+		}
+	});
 }
 
 function initializeDatabases(cb) {
@@ -198,7 +218,7 @@ const DB_INIT_TABLE = {
 				DELETE FROM message_fts WHERE docid=old.rowid;
 			END;`
 		);
-			
+
 		dbs.message.run(
 			`CREATE TRIGGER IF NOT EXISTS message_before_delete BEFORE DELETE ON message BEGIN
 				DELETE FROM message_fts WHERE docid=old.rowid;
@@ -256,14 +276,14 @@ const DB_INIT_TABLE = {
 				UNIQUE(user_id, area_tag)
 			);`
 		);
-		
+
 		dbs.message.run(
 			`CREATE TABLE IF NOT EXISTS message_area_last_scan (
 				scan_toss		VARCHAR NOT NULL,
 				area_tag		VARCHAR NOT NULL,
 				message_id		INTEGER NOT NULL,
 				UNIQUE(scan_toss, area_tag)
-			);`	
+			);`
 		);
 
 		return cb(null);

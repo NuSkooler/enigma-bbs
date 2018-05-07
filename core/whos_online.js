@@ -53,7 +53,7 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
 						const nonAuthUser		= self.menuConfig.config.nonAuthUser || 'Logging In';
 						const otherUnknown		= self.menuConfig.config.otherUnknown || 'N/A';
 						const onlineList 		= getActiveNodeList(self.menuConfig.config.authUsersOnly).slice(0, onlineListView.height);
-						
+
 						onlineListView.setItems(_.map(onlineList, oe => {
 							if(oe.authenticated) {
 								oe.timeOn = _.upperFirst(oe.timeOn.humanize());

@@ -110,7 +110,7 @@ exports.getModule = class FileBaseSearch extends MenuModule {
 
 		const menuOpts = {
 			extraArgs	: {
-				filterCriteria	: filterCriteria,				
+				filterCriteria	: filterCriteria,
 			},
 			menuFlags	: [ 'popParent' ],
 		};

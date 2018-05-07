@@ -25,9 +25,12 @@ exports.main	= main;
 //	object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
 
-const ENIGMA_COPYRIGHT	= 'ENiGMA½ Copyright (c) 2014-2017 Bryan Ashby';
+//	only include bbs.js once @ startup; this should be fine
+const COPYRIGHT = fs.readFileSync(paths.join(__dirname, '../LICENSE.TXT'), 'utf8').split(/\r?\n/g)[0];
+
+const FULL_COPYRIGHT	= `ENiGMA½ ${COPYRIGHT}`;
 const HELP =
-`${ENIGMA_COPYRIGHT}
+`${FULL_COPYRIGHT}
 usage: main.js <args>
 eg   : main.js --config /enigma_install_path/config/
 
@@ -90,7 +93,7 @@ function main() {
 		function complete(err) {
 			//	note this is escaped:
 			fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
-				console.info(ENIGMA_COPYRIGHT);
+				console.info(FULL_COPYRIGHT);
 				if(!err) {
 					console.info(banner);
 				}
@@ -182,7 +185,7 @@ function initialize(cb) {
 				return database.initializeDatabases(callback);
 			},
 			function initMimeTypes(callback) {
-				return require('./mime_util.js').startup(callback);	
+				return require('./mime_util.js').startup(callback);
 			},
 			function initStatLog(callback) {
 				return require('./stat_log.js').init(callback);
@@ -258,6 +261,9 @@ function initialize(cb) {
 			},
 			function listenConnections(callback) {
 				return require('./listening_server.js').startup(callback);
+			},
+			function readyFileBaseArea(callback) {
+				return require('./file_base_area.js').startup(callback);
 			},
 			function readyFileAreaWeb(callback) {
 				return require('./file_area_web.js').startup(callback);

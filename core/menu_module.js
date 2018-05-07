@@ -1,15 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-const PluginModule			= require('./plugin_module.js').PluginModule;
-const theme					= require('./theme.js');
-const ansi					= require('./ansi_term.js');
-const ViewController		= require('./view_controller.js').ViewController;
-const menuUtil				= require('./menu_util.js');
-const Config				= require('./config.js').config;
-const stringFormat			= require('../core/string_format.js');
-const MultiLineEditTextView	= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-const Errors				= require('../core/enig_error.js').Errors;
+const PluginModule				= require('./plugin_module.js').PluginModule;
+const theme						= require('./theme.js');
+const ansi						= require('./ansi_term.js');
+const ViewController			= require('./view_controller.js').ViewController;
+const menuUtil					= require('./menu_util.js');
+const Config					= require('./config.js').config;
+const stringFormat				= require('../core/string_format.js');
+const MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const Errors					= require('../core/enig_error.js').Errors;
+const { getPredefinedMCIValue }	= require('../core/predefined_mci.js');
 
 //	deps
 const async					= require('async');
@@ -17,17 +18,17 @@ const assert				= require('assert');
 const _						= require('lodash');
 
 exports.MenuModule = class MenuModule extends PluginModule {
-	
+
 	constructor(options) {
-		super(options);	
+		super(options);
 
 		this.menuName			= options.menuName;
 		this.menuConfig			= options.menuConfig;
 		this.client				= options.client;
 		this.menuConfig.options	= options.menuConfig.options || {};
-		this.menuMethods		= {};	//	methods called from @method's		
+		this.menuMethods		= {};	//	methods called from @method's
 		this.menuConfig.config	= this.menuConfig.config || {};
-		
+
 		this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config.menus.cls;
 
 		this.viewControllers	= {};
@@ -70,7 +71,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 						}
 					);
 				},
-				function moveToPromptLocation(callback) {												
+				function moveToPromptLocation(callback) {
 					if(self.menuConfig.prompt) {
 						//	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
 					}
@@ -171,10 +172,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	}
 
 	nextMenu(cb) {
-		if(!this.haveNext()) {		
+		if(!this.haveNext()) {
 			return this.prevMenu(cb);	//	no next, go to prev
 		}
-		
+
 		return this.client.menuStack.next(cb);
 	}
 
@@ -210,7 +211,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	haveNext() {
 		return (_.isString(this.menuConfig.next) || _.isArray(this.menuConfig.next));
 	}
-	
+
 	autoNextMenu(cb) {
 		const self = this;
 
@@ -221,8 +222,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
 				return self.prevMenu(cb);
 			}
 		}
-        
-		if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {	
+
+		if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {
 			if(this.hasNextTimeout()) {
 				setTimeout( () => {
 					return gotoNextMenu();
@@ -297,10 +298,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		if(options.clearScreen) {
 			this.client.term.rawWrite(ansi.resetScreen());
 		}
-		
+
 		return theme.displayThemedAsset(
-			name, 
-			this.client, 
+			name,
+			this.client,
 			Object.assign( { font : this.menuConfig.config.font }, options ),
 			(err, artData) => {
 				if(cb) {
@@ -310,7 +311,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		);
 	}
 
-	prepViewController(name, formId, artData, cb) {
+	prepViewController(name, formId, mciMap, cb) {
 		if(_.isUndefined(this.viewControllers[name])) {
 			const vcOpts = {
 				client		: this.client,
@@ -321,7 +322,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
 			const loadOpts = {
 				callingMenu		: this,
-				mciMap			: artData.mciMap,
+				mciMap			: mciMap,
 				formId			: formId,
 			};
 
@@ -344,7 +345,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 					return cb(err);
 				}
 
-				return this.prepViewController(name, formId, artData, cb);
+				return this.prepViewController(name, formId, artData.mciMap, cb);
 			}
 		);
 	}
@@ -361,7 +362,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	pausePrompt(position, cb) {
 		if(!cb && _.isFunction(position)) {
 			cb = position;
-			position = null;		
+			position = null;
 		}
 
 		this.optionalMoveToPosition(position);
@@ -390,7 +391,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		if(!view) {
 			return;
 		}
-		
+
 		if(appendMultiLine && (view instanceof MultiLineEditTextView)) {
 			view.addText(text);
 		} else {
@@ -401,7 +402,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 	updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {
 		options = options || {};
 
-		let textView;					
+		let textView;
 		let customMciId = startId;
 		const config	= this.menuConfig.config;
 		const endId		= options.endId || 99;	//	we'll fail to get a view before 99
@@ -421,6 +422,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
 			}
 
 			++customMciId;
+		}
+	}
+
+	refreshPredefinedMciViewsByCode(formName, mciCodes) {
+		const form = _.get(this, [ 'viewControllers', formName] );
+		if(form) {
+			form.getViewsByMciCode(mciCodes).forEach(v => {
+				if(!v.setText) {
+					return;
+				}
+
+				v.setText(getPredefinedMCIValue(this.client, v.mciCode));
+			});
 		}
 	}
 };

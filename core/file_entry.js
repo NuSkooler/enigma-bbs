@@ -3,7 +3,10 @@
 
 const fileDb				= require('./database.js').dbs.file;
 const Errors				= require('./enig_error.js').Errors;
-const getISOTimestampString	= require('./database.js').getISOTimestampString;
+const {
+	getISOTimestampString,
+	sanatizeString
+}							= require('./database.js');
 const Config				= require('./config.js').config;
 
 //	deps
@@ -15,7 +18,7 @@ const { unlink, readFile }	= require('graceful-fs');
 const crypto				= require('crypto');
 const moment				= require('moment');
 
-const FILE_TABLE_MEMBERS	= [ 
+const FILE_TABLE_MEMBERS	= [
 	'file_id', 'area_tag', 'file_sha256', 'file_name', 'storage_tag',
 	'desc', 'desc_long', 'upload_timestamp'
 ];
@@ -35,6 +38,7 @@ const FILE_WELL_KNOWN_META = {
 	tic_origin			: null,	//	TIC "Origin"
 	tic_desc			: null,	//	TIC "Desc"
 	tic_ldesc			: null,	//	TIC "Ldesc" joined by '\n'
+	session_temp_dl		: (v) => parseInt(v) ? true : false,
 };
 
 module.exports = class FileEntry {
@@ -43,11 +47,7 @@ module.exports = class FileEntry {
 
 		this.fileId		= options.fileId || 0;
 		this.areaTag	= options.areaTag || '';
-		this.meta		= options.meta || {
-			//	values we always want
-			dl_count	: 0,
-		};
-				
+		this.meta		= Object.assign( { dl_count : 0 }, options.meta);
 		this.hashTags	= options.hashTags || new Set();
 		this.fileName	= options.fileName;
 		this.storageTag	= options.storageTag;
@@ -173,7 +173,7 @@ module.exports = class FileEntry {
 					async.each(Object.keys(self.meta), (n, next) => {
 						const v = self.meta[n];
 						return FileEntry.persistMetaValue(self.fileId, n, v, trans, next);
-					}, 
+					},
 					err => {
 						return callback(err, trans);
 					});
@@ -185,7 +185,7 @@ module.exports = class FileEntry {
 					},
 					err => {
 						return callback(err, trans);
-					});					
+					});
 				}
 			],
 			(err, trans) => {
@@ -203,10 +203,10 @@ module.exports = class FileEntry {
 
 	static getAreaStorageDirectoryByTag(storageTag) {
 		const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
-	
+
 		//	absolute paths as-is
 		if(storageLocation && '/' === storageLocation.charAt(0)) {
-			return storageLocation;		
+			return storageLocation;
 		}
 
 		//	relative to |areaStoragePrefix|
@@ -216,6 +216,19 @@ module.exports = class FileEntry {
 	get filePath() {
 		const storageDir = FileEntry.getAreaStorageDirectoryByTag(this.storageTag);
 		return paths.join(storageDir, this.fileName);
+	}
+
+	static quickCheckExistsByPath(fullPath, cb) {
+		fileDb.get(
+			`SELECT COUNT() AS count
+			FROM file
+			WHERE file_name = ?
+			LIMIT 1;`,
+			[ paths.basename(fullPath) ],
+			(err, rows) => {
+				return err ? cb(err) : cb(null, rows.count > 0 ? true : false);
+			}
+		);
 	}
 
 	static persistUserRating(fileId, userId, rating, cb) {
@@ -283,7 +296,7 @@ module.exports = class FileEntry {
 		transOrDb.serialize( () => {
 			transOrDb.run(
 				`INSERT OR IGNORE INTO hash_tag (hash_tag)
-				VALUES (?);`, 
+				VALUES (?);`,
 				[ hashTag ]
 			);
 
@@ -321,7 +334,7 @@ module.exports = class FileEntry {
 			err => {
 				return cb(err);
 			}
-		);	
+		);
 	}
 
 	loadRating(cb) {
@@ -352,7 +365,7 @@ module.exports = class FileEntry {
 	}
 
 	static get WellKnownMetaValues()  {
-		return Object.keys(FILE_WELL_KNOWN_META); 
+		return Object.keys(FILE_WELL_KNOWN_META);
 	}
 
 	static findFileBySha(sha, cb) {
@@ -469,8 +482,8 @@ module.exports = class FileEntry {
 
 					sqlOrderBy = `ORDER BY avg_rating ${sqlOrderDir}`;
 				} else {
-					sql = 
-						`SELECT DISTINCT f.file_id, f.${filter.sort}
+					sql =
+						`SELECT DISTINCT f.file_id
 						FROM file f`;
 
 					sqlOrderBy = getOrderByWithCast(`f.${filter.sort}`) +  ' ' + sqlOrderDir;
@@ -496,7 +509,7 @@ module.exports = class FileEntry {
 		if(filter.metaPairs && filter.metaPairs.length > 0) {
 
 			filter.metaPairs.forEach(mp => {
-				if(mp.wcValue) {
+				if(mp.wildcards) {
 					//	convert any * -> % and ? -> _ for SQLite syntax - see https://www.sqlite.org/lang_expr.html
 					mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
 					appendWhereClause(
@@ -523,15 +536,16 @@ module.exports = class FileEntry {
 		}
 
 		if(filter.terms && filter.terms.length > 0) {
+			//	note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
 			appendWhereClause(
 				`f.file_id IN (
 					SELECT rowid
 					FROM file_fts
-					WHERE file_fts MATCH "${filter.terms.replace(/"/g,'""')}"
+					WHERE file_fts MATCH ":${sanatizeString(filter.terms)}"
 				)`
 			);
 		}
-		
+
 		if(filter.tags && filter.tags.length > 0) {
 			//	build list of quoted tags; filter.tags comes in as a space and/or comma separated values
 			const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${tag}"` ).join(',');
@@ -565,13 +579,14 @@ module.exports = class FileEntry {
 
 		sql += ';';
 
-		const matchingFileIds = [];
-		fileDb.each(sql, (err, fileId) => {
-			if(fileId) {
-				matchingFileIds.push(fileId.file_id);
+		fileDb.all(sql, (err, rows) => {
+			if(err) {
+				return cb(err);
 			}
-		}, err => {
-			return cb(err, matchingFileIds);
+			if(!rows || 0 === rows.length) {
+				return cb(null, []);	//	no matches
+			}
+			return cb(null, rows.map(r => r.file_id));
 		});
 	}
 
@@ -617,7 +632,7 @@ module.exports = class FileEntry {
 
 		const srcPath	= srcFileEntry.filePath;
 		const dstDir	= FileEntry.getAreaStorageDirectoryByTag(destStorageTag);
-		
+
 		if(!dstDir) {
 			return cb(Errors.Invalid('Invalid storage tag'));
 		}

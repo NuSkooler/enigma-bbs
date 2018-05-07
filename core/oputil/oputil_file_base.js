@@ -7,7 +7,10 @@ const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const getAreaAndStorage			= require('./oputil_common.js').getAreaAndStorage;
+const {
+	getAreaAndStorage,
+	looksLikePattern
+}								= require('./oputil_common.js');
 const Errors					= require('../enig_error.js').Errors;
 
 const async						= require('async');
@@ -16,6 +19,7 @@ const paths						= require('path');
 const _							= require('lodash');
 const moment					= require('moment');
 const inq						= require('inquirer');
+const glob						= require('glob');
 
 exports.handleFileBaseCommand			= handleFileBaseCommand;
 
@@ -24,7 +28,7 @@ exports.handleFileBaseCommand			= handleFileBaseCommand;
 
 	Global options:
 		--yes: assume yes
-		--no-prompt: try to avoid user input 
+		--no-prompt: try to avoid user input
 
 	Prompt for import and description before scan
 		* Only after finding duplicate-by-path
@@ -59,7 +63,7 @@ function finalizeEntryAndPersist(isUpdate, fileEntry, descHandler, cb) {
 
 				const getDescFromFileName	= require('../../core/file_base_area.js').getDescFromFileName;
 				const descFromFile			= getDescFromFileName(fileEntry.fileName);
-				
+
 				if(false === argv.prompt) {
 					fileEntry.desc = descFromFile;
 					return callback(null);
@@ -116,7 +120,17 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 			fe.hashTags = new Set(options.tags);
 		}
 	}
-	
+
+	const FileEntry = require('../file_entry.js');
+
+	const readDir = options.glob ?
+		(dir, next) => {
+			return glob(options.glob, { cwd : dir, nodir : true }, next);
+		} :
+		(dir, next) => {
+			return fs.readdir(dir, next);
+		};
+
 	async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
 		async.waterfall(
 			[
@@ -132,7 +146,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 				function scanPhysFiles(descHandler, callback) {
 					const physDir = storageLoc.dir;
 
-					fs.readdir(physDir, (err, files) => {
+					readDir(physDir, (err, files) => {
 						if(err) {
 							return callback(err);
 						}
@@ -157,6 +171,100 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
 								process.stdout.write(`Scanning ${fullPath}... `);
 
+								async.series(
+									[
+										function quickCheck(next) {
+											if(!options.quick) {
+												return next(null);
+											}
+
+											FileEntry.quickCheckExistsByPath(fullPath, (err, exists) => {
+												if(exists) {
+													console.info('Dupe');
+													return nextFile(null);
+												}
+
+												return next(null);
+											});
+										},
+										function fullScan() {
+											fileArea.scanFile(
+												fullPath,
+												{
+													areaTag		: areaInfo.areaTag,
+													storageTag	: storageLoc.storageTag
+												},
+												(err, fileEntry, dupeEntries) => {
+													if(err) {
+														console.info(`Error: ${err.message}`);
+														return nextFile(null);	//	try next anyway
+													}
+
+													//
+													//	We'll update the entry if the following conditions are met:
+													//	* We have a single duplicate, and:
+													//	* --update was passed or the existing entry's desc,
+													//	  longDesc, or est_release_year meta are blank/empty
+													//
+													if(argv.update && 1 === dupeEntries.length) {
+														const FileEntry		= require('../../core/file_entry.js');
+														const existingEntry	= new FileEntry();
+
+														return existingEntry.load(dupeEntries[0].fileId, err => {
+															if(err) {
+																console.info('Dupe (cannot update)');
+																return nextFile(null);
+															}
+
+															//
+															//	Update only if tags or desc changed
+															//
+															const optTags	= Array.isArray(options.tags) ? new Set(options.tags) : existingEntry.hashTags;
+															const tagsEq	= _.isEqual(optTags, existingEntry.hashTags);
+
+															if( tagsEq &&
+																fileEntry.desc === existingEntry.desc &&
+																fileEntry.descLong == existingEntry.descLong &&
+																fileEntry.meta.est_release_year == existingEntry.meta.est_release_year)
+															{
+																console.info('Dupe');
+																return nextFile(null);
+															}
+
+															console.info('Dupe (updating)');
+
+															//	don't allow overwrite of values if new version is blank
+															existingEntry.desc 					= fileEntry.desc || existingEntry.desc;
+															existingEntry.descLong				= fileEntry.descLong || existingEntry.descLong;
+
+															if(fileEntry.meta.est_release_year) {
+																existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year;
+															}
+
+															updateTags(existingEntry);
+
+															finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
+																return nextFile(err);
+															});
+														});
+													} else if(dupeEntries.length > 0) {
+														console.info('Dupe');
+														return nextFile(null);
+													}
+
+													console.info('Done!');
+													updateTags(fileEntry);
+
+													finalizeEntryAndPersist(false, fileEntry, descHandler, err => {
+														return nextFile(err);
+													});
+												}
+											);
+										}
+									]
+								);
+
+								/*
 								fileArea.scanFile(
 									fullPath,
 									{
@@ -165,7 +273,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 									},
 									(err, fileEntry, dupeEntries) => {
 										if(err) {
-											console.info(`Error: ${err.message}`);											
+											console.info(`Error: ${err.message}`);
 											return nextFile(null);	//	try next anyway
 										}
 
@@ -191,8 +299,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 												const optTags	= Array.isArray(options.tags) ? new Set(options.tags) : existingEntry.hashTags;
 												const tagsEq	= _.isEqual(optTags, existingEntry.hashTags);
 
-												if( tagsEq && 
-													fileEntry.desc === existingEntry.desc && 
+												if( tagsEq &&
+													fileEntry.desc === existingEntry.desc &&
 													fileEntry.descLong == existingEntry.descLong &&
 													fileEntry.meta.est_release_year == existingEntry.meta.est_release_year)
 												{
@@ -220,15 +328,16 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 											console.info('Dupe');
 											return nextFile(null);
 										}
-										
+
 										console.info('Done!');
 										updateTags(fileEntry);
-										
+
 										finalizeEntryAndPersist(false, fileEntry, descHandler, err => {
 											return nextFile(err);
 										});
 									}
 								);
+								*/
 							});
 						}, err => {
 							return callback(err);
@@ -239,12 +348,12 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 					//	:TODO: Look @ db entries for area that were *not* processed above
 					return callback(null);
 				}
-			], 
+			],
 			err => {
 				return nextLocation(err);
 			}
 		);
-	}, 
+	},
 	err => {
 		return cb(err);
 	});
@@ -259,7 +368,7 @@ function dumpAreaInfo(areaInfo, areaAndStorageInfo, cb) {
 		console.info(`storageTag: ${si.storageTag} => ${si.dir}`);
 	});
 	console.info('');
-	
+
 	return cb(null);
 }
 
@@ -325,7 +434,7 @@ function dumpFileInfo(shaOrFileId, cb) {
 				console.info(`path: ${fullPath}`);
 				console.info(`hashTags: ${Array.from(fileEntry.hashTags).join(', ')}`);
 				console.info(`uploaded: ${moment(fileEntry.uploadTimestamp).format()}`);
-				
+
 				_.each(fileEntry.meta, (metaValue, metaName) => {
 					console.info(`${metaName}: ${metaValue}`);
 				});
@@ -354,7 +463,7 @@ function displayFileAreaInfo() {
 		[
 			function init(callback) {
 				return initConfigAndDatabases(callback);
-			},	
+			},
 			function dumpInfo(callback) {
 				const Config = require('../../core/config.js').config;
 				let suppliedAreas = argv._.slice(2);
@@ -396,19 +505,26 @@ function scanFileAreas() {
 		options.tags = tags.split(',');
 	}
 
-	options.descFile = argv['desc-file'];	//	--desc-file or --desc-file PATH
-	
+	options.descFile 	= argv['desc-file'];	//	--desc-file or --desc-file PATH
+	options.quick 		= argv.quick;
+
 	options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
+
+	const last = argv._[argv._.length - 1];
+	if(options.areaAndStorageInfo.length > 1 && looksLikePattern(last)) {
+		options.glob = last;
+		options.areaAndStorageInfo.length -= 1;
+	}
 
 	async.series(
 		[
 			function init(callback) {
 				return initConfigAndDatabases(callback);
 			},
-			function initGlobalDescHandler(callback) {		
+			function initGlobalDescHandler(callback) {
 				//
 				//	If options.descFile is a String, it represents a FILE|PATH. We'll init
-				//	the description handler now. Else, we'll attempt to look for a description 
+				//	the description handler now. Else, we'll attempt to look for a description
 				//	file in each storage location.
 				//
 				if(!_.isString(options.descFile)) {
@@ -546,14 +662,14 @@ function moveFiles() {
 				});
 			},
 			function moveEntries(srcEntries, callback) {
-				
+
 				if(!dst.storageTag) {
 					dst.storageTag = dst.areaInfo.storageTags[0];
 				}
-				
+
 				const destDir = FileEntry.getAreaStorageDirectoryByTag(dst.storageTag);
-				
-				async.eachSeries(srcEntries, (entry, nextEntry) => {			
+
+				async.eachSeries(srcEntries, (entry, nextEntry) => {
 					const srcPath 	= entry.filePath;
 					const dstPath	= paths.join(destDir, entry.fileName);
 
@@ -566,7 +682,7 @@ function moveFiles() {
 							console.info('Done');
 						}
 						return nextEntry(null);	//	always try next
-					});					
+					});
 				},
 				err => {
 					return callback(err);
@@ -652,7 +768,7 @@ function handleFileBaseCommand() {
 
 	function errUsage()  {
 		return printUsageAndSetExitCode(
-			getHelpFor('FileBase') + getHelpFor('FileOpsInfo'), 
+			getHelpFor('FileBase') + getHelpFor('FileOpsInfo'),
 			ExitCodes.ERROR
 		);
 	}

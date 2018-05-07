@@ -21,10 +21,10 @@ exports.moduleInfo = {
 
 const MciViewIds = {
 	ConfList	: 1,
-	
+
 	//	:TODO:
 	//	# areas in conf .... see Obv/2, iNiQ, ...
-	//	
+	//
 };
 
 exports.getModule = class MessageConfListModule extends MenuModule {
@@ -33,16 +33,16 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 
 		this.messageConfs = messageArea.getSortedAvailMessageConferences(this.client);
 		const self = this;
-		
+
 		this.menuMethods = {
 			changeConference : function(formData, extraArgs, cb) {
 				if(1 === formData.submitId) {
 					let conf		= self.messageConfs[formData.value.conf];
 					const confTag	= conf.confTag;
-					conf = conf.conf;	//	what we want is embedded 
+					conf = conf.conf;	//	what we want is embedded
 
 					messageArea.changeMessageConference(self.client, confTag, err => {
-						if(err) {						
+						if(err) {
 							self.client.term.pipeWrite(`\n|00Cannot change conference: ${err.message}\n`);
 
 							setTimeout( () => {
@@ -59,7 +59,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 
 								displayThemeArt(dispOptions, () => {
 									//	pause by default, unless explicitly told not to
-									if(_.has(conf, 'options.pause') && false === conf.options.pause) { 
+									if(_.has(conf, 'options.pause') && false === conf.options.pause) {
 										return self.prevMenuOnTimeout(1000, cb);
 									} else {
 										self.pausePrompt( () => {
@@ -108,7 +108,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 					function populateConfListView(callback) {
 						const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
 						const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
-						
+
 						const confListView = vc.getView(MciViewIds.ConfList);
 						let i = 1;
 						confListView.setItems(_.map(self.messageConfs, v => {
@@ -116,7 +116,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 								index   : i++,
 								confTag : v.conf.confTag,
 								name    : v.conf.name,
-								desc    : v.conf.desc, 
+								desc    : v.conf.desc,
 							});
 						}));
 
@@ -126,7 +126,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 								index   : i++,
 								confTag : v.conf.confTag,
 								name    : v.conf.name,
-								desc    : v.conf.desc, 
+								desc    : v.conf.desc,
 							});
 						}));
 

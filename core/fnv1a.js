@@ -7,7 +7,7 @@ let _		= require('lodash');
 module.exports = class FNV1a {
 	constructor(data) {
 		this.hash = 0x811c9dc5;
-		
+
 		if(!_.isUndefined(data)) {
 			this.update(data);
 		}
@@ -17,9 +17,9 @@ module.exports = class FNV1a {
 		if(_.isNumber(data)) {
 			data = data.toString();
 		}
-		
+
 		if(_.isString(data)) {
-			data = new Buffer(data);
+			data = Buffer.from(data);
 		}
 
 		if(!Buffer.isBuffer(data)) {
@@ -28,8 +28,8 @@ module.exports = class FNV1a {
 
 		for(let b of data) {
 			this.hash = this.hash ^ b;
-			this.hash += 
-				(this.hash << 24) + (this.hash << 8) + (this.hash << 7) + 
+			this.hash +=
+				(this.hash << 24) + (this.hash << 8) + (this.hash << 7) +
 				(this.hash << 4) + (this.hash << 1);
 		}
 
@@ -38,7 +38,7 @@ module.exports = class FNV1a {
 
 	digest(encoding) {
 		encoding = encoding || 'binary';
-		let buf = new Buffer(4);
+		const buf = Buffer.alloc(4);
 		buf.writeInt32BE(this.hash & 0xffffffff, 0);
 		return buf.toString(encoding);
 	}
@@ -46,5 +46,5 @@ module.exports = class FNV1a {
 	get value() {
 		return this.hash & 0xffffffff;
 	}
-}
+};
 

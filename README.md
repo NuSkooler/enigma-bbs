@@ -19,7 +19,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption
  * [Door support](docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
  * [Bunyan](https://github.com/trentm/node-bunyan) logging
- * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export
+ * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be set to read-only viewable using a built in Gopher server!
  * [Gazelle](https://github.com/WhatCD/Gazelle) inspirted File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](docs/servers/web-server.md). Legacy X/Y/Z modem also supported!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, and so on
@@ -55,7 +55,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Boards
 * WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
-* [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
+* [fORCE9](https://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 
 ## Installation

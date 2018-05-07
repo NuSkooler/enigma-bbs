@@ -8,7 +8,7 @@ const uuidV4				= require('uuid/v4');
 module.exports = class FileBaseFilters {
 	constructor(client) {
 		this.client	= client;
-		
+
 		this.load();
 	}
 
@@ -25,7 +25,7 @@ module.exports = class FileBaseFilters {
 			'est_release_year',
 			'byte_size',
 			'file_name',
-		];			
+		];
 	}
 
 	toArray() {
@@ -40,11 +40,11 @@ module.exports = class FileBaseFilters {
 
 	add(filterInfo) {
 		const filterUuid = uuidV4();
-		
+
 		filterInfo.tags = this.cleanTags(filterInfo.tags);
-		
+
 		this.filters[filterUuid] = filterInfo;
-		
+
 		return filterUuid;
 	}
 
@@ -94,18 +94,18 @@ module.exports = class FileBaseFilters {
 	}
 
 	cleanTags(tags) {
-		return tags.toLowerCase().replace(/,?\s+|\,/g, ' ').trim();
+		return tags.toLowerCase().replace(/,?\s+|,/g, ' ').trim();
 	}
 
 	setActive(filterUuid) {
 		const activeFilter = this.get(filterUuid);
-		
+
 		if(activeFilter) {
 			this.activeFilter = activeFilter;
 			this.client.user.persistProperty('file_base_filter_active_uuid', filterUuid);
 			return true;
 		}
-		
+
 		return false;
 	}
 

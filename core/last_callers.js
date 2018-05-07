@@ -20,7 +20,7 @@ const _					= require('lodash');
 	location
 	affiliation
 	ts
-	
+
 */
 
 exports.moduleInfo = {
@@ -65,7 +65,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
 					function fetchHistory(callback) {
 						callersView = vc.getView(MciCodeIds.CallerList);
 
-						//	fetch up 
+						//	fetch up
 						StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, 200, (err, lh) => {
 							loginHistory = lh;
 
@@ -82,12 +82,12 @@ exports.getModule = class LastCallersModule extends MenuModule {
 									loginHistory = noOpLoginHistory;
 								}
 							}
-							
+
 							//
 							//	Finally, we need to trim up the list to the needed size
 							//
 							loginHistory = loginHistory.slice(0, callersView.dimens.height);
-							
+
 							return callback(err);
 						});
 					},
@@ -99,10 +99,10 @@ exports.getModule = class LastCallersModule extends MenuModule {
 						const dateTimeFormat = self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
 
 						async.each(
-							loginHistory, 
+							loginHistory,
 							(item, next) => {
 								item.userId = parseInt(item.log_value);
-								item.ts		= moment(item.timestamp).format(dateTimeFormat);						
+								item.ts		= moment(item.timestamp).format(dateTimeFormat);
 
 								User.getUserName(item.userId, (err, userName) => {
 									if(err) {

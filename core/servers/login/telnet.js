@@ -2,16 +2,17 @@
 'use strict';
 
 //	ENiGMA½
-const baseClient		= require('../../client.js');
-const Log				= require('../../logger.js').log;
-const LoginServerModule	= require('../../login_server_module.js');
-const Config			= require('../../config.js').config;
-const EnigAssert		= require('../../enigma_assert.js');
+const baseClient					= require('../../client.js');
+const Log							= require('../../logger.js').log;
+const LoginServerModule				= require('../../login_server_module.js');
+const Config						= require('../../config.js').config;
+const EnigAssert					= require('../../enigma_assert.js');
+const { stringFromNullTermBuffer }	= require('../../string_util.js');
 
 //	deps
 const net 			= require('net');
 const buffers		= require('buffers');
-const binary		= require('binary');
+const { Parser }	= require('binary-parser');
 const util			= require('util');
 
 //var debug	= require('debug')('telnet');
@@ -158,8 +159,8 @@ const NEW_ENVIRONMENT_COMMANDS = {
 	USERVAR	: 3,
 };
 
-const IAC_BUF 		= new Buffer([ COMMANDS.IAC ]);
-const IAC_SE_BUF	= new Buffer([ COMMANDS.IAC, COMMANDS.SE ]);
+const IAC_BUF 		= Buffer.from([ COMMANDS.IAC ]);
+const IAC_SE_BUF	= Buffer.from([ COMMANDS.IAC, COMMANDS.SE ]);
 
 const COMMAND_NAMES = Object.keys(COMMANDS).reduce(function(names, name) {
 	names[COMMANDS[name]] = name.toLowerCase();
@@ -218,46 +219,42 @@ OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		let end = bufs.indexOf(IAC_SE_BUF, 5);	//	look past header bytes
+		const end = bufs.indexOf(IAC_SE_BUF, 5);	//	look past header bytes
 		if(-1 === end) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		//	eat up and process the header
-		let buf = bufs.splice(0, 4).toBuffer();
-		binary.parse(buf)
-			.word8('iac1')
-			.word8('sb')
-			.word8('ttype')
-			.word8('is')
-			.tap(function(vars) {
-				EnigAssert(vars.iac1 === COMMANDS.IAC);
-				EnigAssert(vars.sb === COMMANDS.SB);
-				EnigAssert(vars.ttype === OPTIONS.TERMINAL_TYPE);
-				EnigAssert(vars.is === SB_COMMANDS.IS);
-			});
-
-		//	eat up the rest
-		end -= 4;
-		buf = bufs.splice(0, end).toBuffer();
-
-		//
-		//	From this point -> |end| is our ttype
-		//
-		//	Look for trailing NULL(s). Clients such as NetRunner do this.
-		//	If none is found, we take the entire buffer
-		//
-		let trimAt = 0;
-		for(; trimAt < buf.length; ++trimAt) {
-			if(0x00 === buf[trimAt]) {
-				break;
-			}
+		let ttypeCmd;
+		try {
+			ttypeCmd = new Parser()
+				.uint8('iac1')
+				.uint8('sb')
+				.uint8('opt')
+				.uint8('is')
+				.array('ttype', {
+					type		: 'uint8',
+					readUntil	: b => 255 === b,	//	255=COMMANDS.IAC
+				})
+				//	note we read iac2 above
+				.uint8('se')
+				.parse(bufs.toBuffer());
+		} catch(e) {
+			Log.debug( { error : e }, 'Failed parsing TTYP telnet command');
+			return event;
 		}
 
-		event.ttype = buf.toString('ascii', 0, trimAt);
+		EnigAssert(COMMANDS.IAC === ttypeCmd.iac1);
+		EnigAssert(COMMANDS.SB === ttypeCmd.sb);
+		EnigAssert(OPTIONS.TERMINAL_TYPE === ttypeCmd.opt);
+		EnigAssert(SB_COMMANDS.IS === ttypeCmd.is);
+		EnigAssert(ttypeCmd.ttype.length > 0);
+		//	note we found IAC_SE above
 
-		//	pop off the terminating IAC SE
-		bufs.splice(0, 2);
+		//	some terminals such as NetRunner provide a NULL-terminated buffer
+		//	slice to remove IAC
+		event.ttype = stringFromNullTermBuffer(ttypeCmd.ttype.slice(0, -1), 'ascii');
+
+		bufs.splice(0, end);
 	}
 
 	return event;
@@ -272,25 +269,30 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		event.buf = bufs.splice(0, 9).toBuffer();
-		binary.parse(event.buf)
-			.word8('iac1')
-			.word8('sb')
-			.word8('naws')
-			.word16bu('width')
-			.word16bu('height')
-			.word8('iac2')
-			.word8('se')
-			.tap(function(vars) {
-				EnigAssert(vars.iac1 == COMMANDS.IAC);
-				EnigAssert(vars.sb == COMMANDS.SB);
-				EnigAssert(vars.naws == OPTIONS.WINDOW_SIZE);
-				EnigAssert(vars.iac2 == COMMANDS.IAC);
-				EnigAssert(vars.se == COMMANDS.SE);
+		let nawsCmd;
+		try {
+			nawsCmd = new Parser()
+				.uint8('iac1')
+				.uint8('sb')
+				.uint8('opt')
+				.uint16be('width')
+				.uint16be('height')
+				.uint8('iac2')
+				.uint8('se')
+				.parse(bufs.splice(0, 9).toBuffer());
+		} catch(e) {
+			Log.debug( { error : e }, 'Failed parsing NAWS telnet command');
+			return event;
+		}
 
-				event.cols	= event.columns	= event.width = vars.width;
-				event.rows	= event.height = vars.height;
-			});		
+		EnigAssert(COMMANDS.IAC === nawsCmd.iac1);
+		EnigAssert(COMMANDS.SB === nawsCmd.sb);
+		EnigAssert(OPTIONS.WINDOW_SIZE === nawsCmd.opt);
+		EnigAssert(COMMANDS.IAC === nawsCmd.iac2);
+		EnigAssert(COMMANDS.SE === nawsCmd.se);
+
+		event.cols	= event.columns	= event.width = nawsCmd.width;
+		event.rows	= event.height = nawsCmd.height;
 	}
 	return event;
 };
@@ -321,78 +323,109 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]		= function(bufs, i, event) {
 			return MORE_DATA_REQUIRED;
 		}
 
-		//	eat up and process the header
-		let buf = bufs.splice(0, 4).toBuffer();
-		binary.parse(buf)
-			.word8('iac1')
-			.word8('sb')
-			.word8('newEnv')
-			.word8('isOrInfo')	//	initial=IS, updates=INFO
-			.tap(function(vars) {
-				EnigAssert(vars.iac1 === COMMANDS.IAC);
-				EnigAssert(vars.sb === COMMANDS.SB);
-				EnigAssert(vars.newEnv === OPTIONS.NEW_ENVIRONMENT || vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP);
-				EnigAssert(vars.isOrInfo === SB_COMMANDS.IS || vars.isOrInfo === SB_COMMANDS.INFO);
+		//	:TODO: It's likely that we could do all the env name/value parsing directly in Parser.
 
-				event.type = vars.isOrInfo;
-
-				if(vars.newEnv === OPTIONS.NEW_ENVIRONMENT_DEP) {
-					//	:TODO: bring all this into Telnet class
-					Log.log.warn('Handling deprecated RFC 1408 NEW-ENVIRON');
-				}
-			});
-
-		//	eat up the rest
-		end -= 4;
-		buf = bufs.splice(0, end).toBuffer();
-
-		//
-		//	This part can become messy. The basic spec is:
-		//	IAC SB NEW-ENVIRON IS type ... [ VALUE ... ] [ type ... [ VALUE ... ] [ ... ] ] IAC SE
-		//
-		//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
-		//
-		//	Start by splitting up the remaining buffer. Keep the delimiters
-		//	as prefixes we can use for processing.
-		//
-		//	:TODO: Currently not supporting ESCaped values (ESC + <type>). Probably not really in the wild, but we should be compliant
-		//	:TODO: Could probably just convert this to use a regex & handle delims + escaped values... in any case, this is sloppy...
-		const params = [];
-		let p = 0;
-		let j;
-		let l;
-		for(j = 0, l = buf.length; j < l; ++j) {
-			if(NEW_ENVIRONMENT_DELIMITERS.indexOf(buf[j]) === -1) {
-				continue;
-			}
-
-			params.push(buf.slice(p, j));
-			p = j;
+		let envCmd;
+		try {
+			envCmd = new Parser()
+				.uint8('iac1')
+				.uint8('sb')
+				.uint8('opt')
+				.uint8('isOrInfo')	//	IS=initial, INFO=updates
+				.array('envBlock', {
+					type : 'uint8',
+					readUntil	: b => 255 === b,	//	255=COMMANDS.IAC
+				})
+				//	note we consume IAC above
+				.uint8('se')
+				.parse(bufs.splice(0, bufs.length).toBuffer());
+		} catch(e) {
+			Log.debug( { error : e }, 'Failed parsing NEW-ENVIRON telnet command');
+			return event;
 		}
 
-		//	remainder
-		if(p < l) {
-			params.push(buf.slice(p, l));
+		EnigAssert(COMMANDS.IAC === envCmd.iac1);
+		EnigAssert(COMMANDS.SB === envCmd.sb);
+		EnigAssert(OPTIONS.NEW_ENVIRONMENT === envCmd.opt || OPTIONS.NEW_ENVIRONMENT_DEP === envCmd.opt);
+		EnigAssert(SB_COMMANDS.IS === envCmd.isOrInfo || SB_COMMANDS.INFO === envCmd.isOrInfo);
+
+		if(OPTIONS.NEW_ENVIRONMENT_DEP === envCmd.opt) {
+			//	:TODO: we should probably support this for legacy clients?
+			Log.warn('Handling deprecated RFC 1408 NEW-ENVIRON');
 		}
 
+		const envBuf = envCmd.envBlock.slice(0, -1);	//	remove IAC
+
+		if(envBuf.length < 4) {	//	TYPE + single char name + sep + single char value
+			//	empty env block
+			return event;
+		}
+
+		const States = {
+			Name		: 1,
+			Value		: 2,
+		};
+
+		let state = States.Name;
+		const setVars = {};
+		const delVars = [];
 		let varName;
-		event.envVars = {};
-		//	:TODO: handle cases where a variable was present in a previous exchange, but missing here...e.g removed
-		for(j = 0; j < params.length; ++j) {
-			if(params[j].length < 2) {
-				continue;	 			
-			}
+		//	:TODO: handle ESC type!!!
+		while(envBuf.length) {
+			switch(state) {
+				case States.Name :
+					{
+						const type = parseInt(envBuf.splice(0, 1));
+						if(![ NEW_ENVIRONMENT_COMMANDS.VAR, NEW_ENVIRONMENT_COMMANDS.USERVAR, NEW_ENVIRONMENT_COMMANDS.ESC ].includes(type)) {
+							return event;	//	fail :(
+						}
 
-			let cmd = params[j].readUInt8();
-			if(cmd === NEW_ENVIRONMENT_COMMANDS.VAR || cmd === NEW_ENVIRONMENT_COMMANDS.USERVAR) {
-				varName = params[j].slice(1).toString('utf8');	//	:TODO: what encoding should this really be?
-			} else {
-				event.envVars[varName] = params[j].slice(1).toString('utf8');	//	:TODO: again, what encoding?
+						let nameEnd = envBuf.indexOf(NEW_ENVIRONMENT_COMMANDS.VALUE);
+						if(-1 === nameEnd) {
+							nameEnd = envBuf.length;
+						}
+
+						varName = envBuf.splice(0, nameEnd);
+						if(!varName) {
+							return event;	//	something is wrong.
+						}
+
+						varName = Buffer.from(varName).toString('ascii');
+
+						const next = parseInt(envBuf.splice(0, 1));
+						if(NEW_ENVIRONMENT_COMMANDS.VALUE === next) {
+							state = States.Value;
+						} else {
+							state = States.Name;
+							delVars.push(varName);	//	no value; del this var
+						}
+					}
+					break;
+
+				case States.Value :
+					{
+						let valueEnd = envBuf.indexOf(NEW_ENVIRONMENT_COMMANDS.VAR);
+						if(-1 === valueEnd) {
+							valueEnd = envBuf.indexOf(NEW_ENVIRONMENT_COMMANDS.USERVAR);
+						}
+						if(-1 === valueEnd) {
+							valueEnd = envBuf.length;
+						}
+
+						let value = envBuf.splice(0, valueEnd);
+						if(value) {
+							value = Buffer.from(value).toString('ascii');
+							setVars[varName] = value;
+						}
+						state = States.Name;
+					}
+					break;
 			}
 		}
 
-		//	pop off remaining IAC SE
-		bufs.splice(0, 2);
+		//	:TODO: Handle deleting previously set vars via delVars
+		event.type		= envCmd.isOrInfo;
+		event.envVars	= setVars;
 	}
 
 	return event;
@@ -733,7 +766,7 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 };
 
 TelnetClient.prototype.requestTerminalType = function() {
-	const buf = new Buffer( [
+	const buf = Buffer.from( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
 		OPTIONS.TERMINAL_TYPE, 
@@ -744,10 +777,10 @@ TelnetClient.prototype.requestTerminalType = function() {
 };
 
 const WANTED_ENVIRONMENT_VAR_BUFS = [
-	new Buffer( 'LINES' ),
-	new Buffer( 'COLUMNS' ),
-	new Buffer( 'TERM' ),
-	new Buffer( 'TERM_PROGRAM' )
+	Buffer.from( 'LINES' ),
+	Buffer.from( 'COLUMNS' ),
+	Buffer.from( 'TERM' ),
+	Buffer.from( 'TERM_PROGRAM' )
 ];
 
 TelnetClient.prototype.requestNewEnvironment = function() {
@@ -760,7 +793,7 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 	const self = this;	
 
 	const bufs = buffers();
-	bufs.push(new Buffer( [
+	bufs.push(Buffer.from( [
 		COMMANDS.IAC, 
 		COMMANDS.SB, 
 		OPTIONS.NEW_ENVIRONMENT, 
@@ -768,10 +801,10 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 		));
 
 	for(let i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
-		bufs.push(new Buffer( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
+		bufs.push(Buffer.from( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
 	}
 
-	bufs.push(new Buffer([ NEW_ENVIRONMENT_COMMANDS.USERVAR, COMMANDS.IAC, COMMANDS.SE ]));
+	bufs.push(Buffer.from([ NEW_ENVIRONMENT_COMMANDS.USERVAR, COMMANDS.IAC, COMMANDS.SE ]));
 
 	self.output.write(bufs.toBuffer());
 
@@ -803,7 +836,7 @@ Object.keys(OPTIONS).forEach(function(name) {
 	const code = OPTIONS[name];
 
 	Command.prototype[name.toLowerCase()] = function() {
-		const buf = new Buffer(3);
+		const buf = Buffer.alloc(3);
 		buf[0]	= COMMANDS.IAC;
 		buf[1]	= this.command;
 		buf[2]	= code;

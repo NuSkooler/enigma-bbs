@@ -19,6 +19,7 @@ commands:
   user                      user utilities
   config                    config file management
   fb                        file base management
+  mb                        message base management
 `,
 	User : 
 `usage: optutil.js user --user USERNAME <args>
@@ -49,6 +50,8 @@ import-areas args:
 
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
+                               may also contain optional GLOB as last parameter,
+                               for examle: scan some_area *.zip
 
   info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
                                SHA may be a full or partial SHA-256
@@ -67,7 +70,8 @@ scan args:
                                other sources such as FILE_ID.DIZ.
                                if PATH is specified, use DESCRIPT.ION at PATH instead
                                of looking in specific storage locations
-  --update                     attempt to update information for existing entries                               
+  --update                     attempt to update information for existing entries
+  --quick                      perform quick scan
 
 info args:
   --show-desc                  display short description, if any

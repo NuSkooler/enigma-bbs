@@ -3,7 +3,9 @@
 
 const miscUtil	= require('./misc_util.js');
 const ansi		= require('./ansi_term.js');
+const Log		= require('./logger.js').log;
 
+//	deps
 const events	= require('events');
 const util		= require('util');
 const _			= require('lodash');
@@ -24,7 +26,7 @@ function ANSIEscapeParser(options) {
 	this.graphicRendition	= {};
 
 	this.parseState = {
-		re	: /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,
+		re	: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,	//	eslint-disable-line no-control-regex
 	};
 
 	options = miscUtil.valueWithDefault(options, {
@@ -46,7 +48,7 @@ function ANSIEscapeParser(options) {
 		self.column	= Math.max(self.column, 1);
 		self.column	= Math.min(self.column, self.termWidth);	//	can't move past term width
 		self.row	= Math.max(self.row, 1);
-		
+
 		self.positionUpdated();
 	};
 
@@ -63,7 +65,7 @@ function ANSIEscapeParser(options) {
 		delete self.savedPosition;
 
 		self.positionUpdated();
-//		self.rowUpdated();
+		//		self.rowUpdated();
 	};
 
 	self.clearScreen = function() {
@@ -71,7 +73,7 @@ function ANSIEscapeParser(options) {
 		self.emit('clear screen');
 	};
 
-/*
+	/*
 	self.rowUpdated = function() {
 		self.emit('row update', self.row + self.scrollBack);
 	};*/
@@ -95,7 +97,7 @@ function ANSIEscapeParser(options) {
 					start = pos;
 
 					self.column = 1;
-					
+
 					self.positionUpdated();
 					break;
 
@@ -132,7 +134,7 @@ function ANSIEscapeParser(options) {
 		if(self.column > self.termWidth) {
 			self.column = 1;
 			self.row	+= 1;
-			
+
 			self.positionUpdated();
 		}
 
@@ -142,17 +144,9 @@ function ANSIEscapeParser(options) {
 		}
 	}
 
-	function getProcessedMCI(mci) {
-		if(self.mciReplaceChar.length > 0) {
-			return ansi.getSGRFromGraphicRendition(self.graphicRendition, true) + new Array(mci.length + 1).join(self.mciReplaceChar);
-		} else {
-			return mci;
-		}
-	}
-
 	function parseMCI(buffer) {
 		//	:TODO: move this to "constants" seciton @ top
-		var mciRe = /\%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Za-z,]+)\))*/g;
+		var mciRe = /%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Za-z,]+)\))*/g;
 		var pos = 0;
 		var match;
 		var mciCode;
@@ -186,27 +180,23 @@ function ANSIEscapeParser(options) {
 					self.graphicRenditionForErase = _.clone(self.graphicRendition);
 				}
 
-				
-				self.emit('mci', { 
-					mci		: mciCode, 
+
+				self.emit('mci', {
+					mci		: mciCode,
 					id		: id ? parseInt(id, 10) : null,
-					args	: args, 
+					args	: args,
 					SGR		: ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
 				});
 
 				if(self.mciReplaceChar.length > 0) {
 					const sgrCtrl = ansi.getSGRFromGraphicRendition(self.graphicRenditionForErase);
-					
-					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[\;m]/).slice(0, 3));
+
+					self.emit('control', sgrCtrl, 'm', sgrCtrl.slice(2).split(/[;m]/).slice(0, 3));
 
 					literal(new Array(match[0].length + 1).join(self.mciReplaceChar));
 				} else {
 					literal(match[0]);
 				}
-
-				//literal(getProcessedMCI(match[0]));
-
-				//self.emit('chunk', getProcessedMCI(match[0]));
 			}
 
 		} while(0 !== mciRe.lastIndex);
@@ -220,7 +210,7 @@ function ANSIEscapeParser(options) {
 		self.parseState = {
 			//	ignore anything past EOF marker, if any
 			buffer	: input.split(String.fromCharCode(0x1a), 1)[0],
-			re		: /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,
+			re		: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,	//	eslint-disable-line no-control-regex
 			stop	: false,
 		};
 	};
@@ -290,14 +280,14 @@ function ANSIEscapeParser(options) {
 						break;
 				}
 			}
-			
-			parseMCI(lastBit)
+
+			parseMCI(lastBit);
 		}
 
 		self.emit('complete');
 	};
 
-/*
+	/*
 	self.parse = function(buffer, savedRe) {
 		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
 		//	:TODO: move this to "constants" section @ top
@@ -382,12 +372,12 @@ function ANSIEscapeParser(options) {
 				break;
 
 			//	save position
-			case 's' : 
+			case 's' :
 				self.saveCursorPosition();
 				break;
 
 			//	restore position
-			case 'u' : 
+			case 'u' :
 				self.restoreCursorPosition();
 				break;
 
@@ -422,7 +412,7 @@ function ANSIEscapeParser(options) {
 
 							case 1 :
 							case 2 :
-							case 22 : 
+							case 22 :
 								self.graphicRendition.intensity = arg;
 								break;
 
@@ -448,7 +438,7 @@ function ANSIEscapeParser(options) {
 								break;
 
 							default :
-								console.log('Unknown attribute: ' + arg);	//	:TODO: Log properly
+								Log.trace( { attribute : arg }, 'Unknown attribute while parsing ANSI');
 								break;
 						}
 					}
