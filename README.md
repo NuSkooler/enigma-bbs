@@ -55,7 +55,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 
 ## Boards
 * WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
-* [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
+* [fORCE9](https://bbs.force9.org/): (**telnet://bbs.force9.org**)
 
 
 ## Installation
