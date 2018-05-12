@@ -30,6 +30,10 @@ function WebSocketClient(ws, req, serverType) {
 
 	const self = this;
 
+	this.dataHandler = function(data) {
+		self.socketBridge.emit('data', data);
+	};
+
 	//
 	//	This bridge makes accessible various calls that client sub classes
 	//	want to access on I/O socket
@@ -65,9 +69,7 @@ function WebSocketClient(ws, req, serverType) {
 		}
 	}(ws);
 
-	ws.on('message', data => {
-		this.socketBridge.emit('data', data);
-	});
+	ws.on('message', this.dataHandler);
 
 	ws.on('close', () => {
 		//	we'll remove client connection which will in turn end() via our SocketBridge above

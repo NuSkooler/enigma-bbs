@@ -39,8 +39,8 @@ exports.TelnetClient	= TelnetClient;
 	* Document OPTIONS -- add any missing
 	* Internally handle OPTIONS:
 		* Some should be emitted generically
-		* Some shoudl be handled internally -- denied, handled, etc. 
-		* 
+		* Some shoudl be handled internally -- denied, handled, etc.
+		*
 
 	* Allow term (ttype) to be set by environ sub negotiation
 
@@ -67,7 +67,7 @@ const COMMANDS = {
 	EL		: 248,	//	Erase Line
 	GA		: 249,	//	Go Ahead
 	SB		: 250,	//	Start Sub-Negotiation Parameters
-	WILL	: 251,	//	
+	WILL	: 251,	//
 	WONT	: 252,
 	DO		: 253,
 	DONT	: 254,
@@ -101,7 +101,7 @@ const OPTIONS = {
 	TIMING_MARK				: 6, // http://tools.ietf.org/html/rfc860
 	//RC_TRANS_AND_ECHO		: 7,	//	aka 'RCTE' @ http://www.rfc-base.org/txt/rfc-726.txt
 	//OUPUT_LINE_WIDTH		: 8,
-	//OUTPUT_PAGE_SIZE		: 9,	//	
+	//OUTPUT_PAGE_SIZE		: 9,	//
 	//OUTPUT_CARRIAGE_RETURN_DISP	: 10,	//	RFC 652
 	//OUTPUT_HORIZ_TABSTOPS	: 11,	//	RFC 653
 	//OUTPUT_HORIZ_TAB_DISP	: 12,	//	RFC 654
@@ -195,15 +195,15 @@ function unknownOption(bufs, i, event) {
 const OPTION_IMPLS = {};
 //	:TODO: fill in the rest...
 OPTION_IMPLS.NO_ARGS						=
-OPTION_IMPLS[OPTIONS.ECHO]					= 
+OPTION_IMPLS[OPTIONS.ECHO]					=
 OPTION_IMPLS[OPTIONS.STATUS]				=
-OPTION_IMPLS[OPTIONS.LINEMODE]				= 
-OPTION_IMPLS[OPTIONS.TRANSMIT_BINARY]		=	
+OPTION_IMPLS[OPTIONS.LINEMODE]				=
+OPTION_IMPLS[OPTIONS.TRANSMIT_BINARY]		=
 OPTION_IMPLS[OPTIONS.AUTHENTICATION]		=
 OPTION_IMPLS[OPTIONS.TERMINAL_SPEED]		=
 OPTION_IMPLS[OPTIONS.REMOTE_FLOW_CONTROL]	=
 OPTION_IMPLS[OPTIONS.X_DISPLAY_LOCATION]	=
-OPTION_IMPLS[OPTIONS.SEND_LOCATION]			= 
+OPTION_IMPLS[OPTIONS.SEND_LOCATION]			=
 OPTION_IMPLS[OPTIONS.ARE_YOU_THERE]			=
 OPTION_IMPLS[OPTIONS.SUPPRESS_GO_AHEAD]		= function(bufs, i, event) {
 	event.buf = bufs.splice(0, i).toBuffer();
@@ -453,7 +453,7 @@ function parseCommand(bufs, i, event) {
 		}
 
 		event.buf = bufs.splice(0, 2).toBuffer();
-		return event;		
+		return event;
 	}
 }
 
@@ -486,16 +486,6 @@ function TelnetClient(input, output) {
 		newEnvironRequested	: false,
 	};
 
-	this.setTemporaryDirectDataHandler = function(handler) {
-		this.input.removeAllListeners('data');
-		this.input.on('data', handler);
-	};
-
-	this.restoreDataHandler = function() {
-		this.input.removeAllListeners('data');
-		this.input.on('data', this.dataHandler);
-	};
-
 	this.dataHandler = function(b) {
 		if(!Buffer.isBuffer(b)) {
 			EnigAssert(false, `Cannot push non-buffer ${typeof b}`);
@@ -516,15 +506,15 @@ function TelnetClient(input, output) {
 			}
 
 			EnigAssert(bufs.length > (i + 1));
-			
+
 			if(i > 0) {
 				self.emit('data', bufs.splice(0, i).toBuffer());
 			}
 
 			i = parseBufs(bufs);
-			
+
 			if(MORE_DATA_REQUIRED === i) {
-				break;				
+				break;
 			} else if(i) {
 				if(i.option) {
 					self.emit(i.option, i);	//	"transmit binary", "echo", ...
@@ -589,7 +579,7 @@ util.inherits(TelnetClient, baseClient.Client);
 //	Telnet Command/Option handling
 ///////////////////////////////////////////////////////////////////////////////
 TelnetClient.prototype.handleTelnetEvent = function(evt) {
-	
+
 	if(!evt.command) {
 		return this.connectionWarn( { evt : evt }, 'No command for event');
 	}
@@ -611,7 +601,7 @@ TelnetClient.prototype.handleWillCommand = function(evt) {
 		//
 		//	See RFC 1091 @ http://www.faqs.org/rfcs/rfc1091.html
 		//
-		this.requestTerminalType();	
+		this.requestTerminalType();
 	} else if('new environment' === evt.option) {
 		//
 		//	See RFC 1572 @ http://www.faqs.org/rfcs/rfc1572.html
@@ -630,7 +620,7 @@ TelnetClient.prototype.handleWontCommand = function(evt) {
 
 	this.sentDont[evt.option] = true;
 
-	if('new environment' === evt.option) {		
+	if('new environment' === evt.option) {
 		this.dont.new_environment();
 	} else {
 		this.connectionTrace(evt, 'WONT');
@@ -693,16 +683,16 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 				self.term.termHeight = parseInt(evt.envVars[name]);
 				self.clearMciCache();	//	term size changes = invalidate cache
 				self.connectionDebug({ termHeight : self.term.termHeight, source : 'NEW-ENVIRON'}, 'Window height updated');
-			} else {			
+			} else {
 				if(name in self.term.env) {
 
 					EnigAssert(
-						SB_COMMANDS.INFO === evt.type || SB_COMMANDS.IS === evt.type, 
+						SB_COMMANDS.INFO === evt.type || SB_COMMANDS.IS === evt.type,
 						'Unexpected type: ' + evt.type
 					);
 
 					self.connectionWarn(
-						{ varName : name, value : evt.envVars[name], existingValue : self.term.env[name] }, 
+						{ varName : name, value : evt.envVars[name], existingValue : self.term.env[name] },
 						'Environment variable already exists'
 					);
 				} else {
@@ -719,7 +709,7 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
 		//
 		self.term.termWidth		= evt.width;
 		self.term.termHeight	= evt.height;
-		
+
 		if(evt.width > 0) {
 			self.term.env.COLUMNS = evt.height;
 		}
@@ -752,11 +742,11 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 	if('ip' === evt.command) {
 		//	Interrupt Process (IP)
 		this.log.debug('Interrupt Process (IP) - Ending');
-		
+
 		this.input.end();
 	} else if('ayt' === evt.command) {
 		this.output.write('\b');
-		
+
 		this.log.debug('Are You There (AYT) - Replied "\\b"');
 	} else if(IGNORED_COMMANDS.indexOf(evt.commandCode)) {
 		this.log.debug({ evt : evt }, 'Ignoring command');
@@ -767,11 +757,11 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 
 TelnetClient.prototype.requestTerminalType = function() {
 	const buf = Buffer.from( [
-		COMMANDS.IAC, 
-		COMMANDS.SB, 
-		OPTIONS.TERMINAL_TYPE, 
-		SB_COMMANDS.SEND, 
-		COMMANDS.IAC, 
+		COMMANDS.IAC,
+		COMMANDS.SB,
+		OPTIONS.TERMINAL_TYPE,
+		SB_COMMANDS.SEND,
+		COMMANDS.IAC,
 		COMMANDS.SE ]);
 	this.output.write(buf);
 };
@@ -790,15 +780,15 @@ TelnetClient.prototype.requestNewEnvironment = function() {
 		return;
 	}
 
-	const self = this;	
+	const self = this;
 
 	const bufs = buffers();
 	bufs.push(Buffer.from( [
-		COMMANDS.IAC, 
-		COMMANDS.SB, 
-		OPTIONS.NEW_ENVIRONMENT, 
+		COMMANDS.IAC,
+		COMMANDS.SB,
+		OPTIONS.NEW_ENVIRONMENT,
 		SB_COMMANDS.SEND ]
-		));
+	));
 
 	for(let i = 0; i < WANTED_ENVIRONMENT_VAR_BUFS.length; ++i) {
 		bufs.push(Buffer.from( [ NEW_ENVIRONMENT_COMMANDS.VAR ] ), WANTED_ENVIRONMENT_VAR_BUFS[i] );
@@ -828,7 +818,7 @@ TelnetClient.prototype.banner = function() {
 
 function Command(command, client) {
 	this.command	= COMMANDS[command.toUpperCase()];
-	this.client		= client;	
+	this.client		= client;
 }
 
 //	Create Command objects with echo, transmit_binary, ...

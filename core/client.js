@@ -100,6 +100,16 @@ function Client(/*input, output*/) {
 		}
 	});
 
+	this.setTemporaryDirectDataHandler = function(handler) {
+		this.input.removeAllListeners('data');
+		this.input.on('data', handler);
+	};
+
+	this.restoreDataHandler = function() {
+		this.input.removeAllListeners('data');
+		this.input.on('data', this.dataHandler);
+	};
+
 
 	//
 	//	Peek at incoming |data| and emit events for any special

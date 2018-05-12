@@ -129,6 +129,10 @@ function SSHClient(clientConn) {
 		}
 	});
 
+	this.dataHandler = function(data) {
+		self.emit('data', data);
+	};
+
 	this.updateTermInfo = function(info) {
 		//
 		//	From ssh2 docs:
@@ -167,7 +171,7 @@ function SSHClient(clientConn) {
 		self.log.info('SSH authentication success');
 
 		clientConn.on('session', accept => {
-			
+
 			const session = accept();
 
 			session.on('pty', function pty(accept, reject, info) {
@@ -191,9 +195,7 @@ function SSHClient(clientConn) {
 
 				self.setInputOutput(channel.stdin, channel.stdout);
 
-				channel.stdin.on('data', data => {
-					self.emit('data', data);
-				});
+				channel.stdin.on('data', self.dataHandler);
 
 				if(self.cachedPtyInfo) {
 					self.updateTermInfo(self.cachedPtyInfo);
@@ -207,7 +209,7 @@ function SSHClient(clientConn) {
 
 			session.on('window-change', (accept, reject, info) => {
 				self.log.debug(info, 'SSH window-change event');
-				
+
 				self.updateTermInfo(info);
 			});
 
@@ -237,13 +239,13 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 			hostKeys : [
 				{
 					key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
-					passphrase	: Config.loginServers.ssh.privateKeyPass, 
+					passphrase	: Config.loginServers.ssh.privateKeyPass,
 				}
 			],
 			ident : 'enigma-bbs-' + enigVersion + '-srv',
-			
+
 			//	Note that sending 'banner' breaks at least EtherTerm!
-			debug : (sshDebugLine) => { 
+			debug : (sshDebugLine) => {
 				if(true === Config.loginServers.ssh.traceConnections) {
 					Log.trace(`SSH: ${sshDebugLine}`);
 				}
