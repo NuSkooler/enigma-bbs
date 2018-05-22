@@ -109,7 +109,7 @@ function modUserGroups(user) {
 		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
 	}
 
-	let groupName = argv._[argv._.length - 1].replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
+	let groupName = argv._[argv._.length - 1].toString().replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
 	let action = groupName[0];	//	+ or -
 
 	if('-' === action || '+' === action) {
