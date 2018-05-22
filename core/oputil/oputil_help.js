@@ -21,18 +21,19 @@ commands:
   fb                        file base management
   mb                        message base management
 `,
-	User : 
-`usage: optutil.js user --user USERNAME <args>
+	User :
+`usage: optutil.js user <action> [<args>]
 
-valid args:
-  --user USERNAME       specify username for further actions
-  --password PASS       set new password 
-  --delete              delete user
-  --activate            activate user
-  --deactivate          deactivate user
+actions:
+  pw USERNAME PASSWORD         set password to PASSWORD for USERNAME
+  rm USERNAME                  permanantely removes USERNAME user from system
+  activate USERNAME            sets USERNAME's status to active
+  deactivate USERNAME          sets USERNAME's status to deactive
+  disable USERNAME             sets USERNAME's status to disabled
+  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
 `,
 
-	Config : 
+	Config :
 `usage: optutil.js config <action> [<args>]
 
 actions:

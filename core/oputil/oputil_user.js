@@ -7,65 +7,23 @@ const ExitCodes					= require('./oputil_common.js').ExitCodes;
 const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
+const Errors					= require('../enig_error.js').Errors;
 
 const async						= require('async');
 const _							= require('lodash');
 
 exports.handleUserCommand		= handleUserCommand;
 
-function handleUserCommand() {
-	if(true === argv.help || !_.isString(argv.user) || 0 === argv.user.length) {
-		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
-	}
-
-	if(_.isString(argv.password)) {
-		if(0 === argv.password.length) {			
-			process.exitCode = ExitCodes.BAD_ARGS;
-			return console.error('Invalid password');
-		}
-
-		async.waterfall(
-			[
-				function init(callback) {
-					initAndGetUser(argv.user, callback);
-				},
-				function setNewPass(user, callback) {
-					user.setNewAuthCredentials(argv.password, function credsSet(err) {
-						if(err) {
-							process.exitCode = ExitCodes.ERROR;
-							callback(new Error('Failed setting password'));
-						} else {
-							callback(null);
-						}
-					});
-				}
-			],
-			function complete(err) {
-				if(err) {
-					console.error(err.message);
-				} else {
-					console.info('Password set');
-				}
-			}
-		);
-	} else if(argv.activate) {
-		setAccountStatus(argv.user, true);		
-	} else if(argv.deactivate) {
-		setAccountStatus(argv.user, false);
-	}
-}
-
 function getUser(userName, cb) {
 	const User = require('../../core/user.js');
-	User.getUserIdAndName(argv.user, function userNameAndId(err, userId) {
+	User.getUserIdAndName(userName, (err, userId) => {
 		if(err) {
 			process.exitCode = ExitCodes.BAD_ARGS;
-			return cb(new Error('Failed to retrieve user'));
-		} else {
-			let u = new User();
-			u.userId = userId;
-			return cb(null, u);
+			return cb(err);
 		}
+		const u = new User();
+		u.userId = userId;
+		return cb(null, u);
 	});	
 }
 
@@ -76,14 +34,14 @@ function initAndGetUser(userName, cb) {
 				initConfigAndDatabases(callback);
 			},
 			function getUserObject(callback) {
-				getUser(argv.user, (err, user) => {
+				getUser(userName, (err, user) => {
 					if(err) {
 						process.exitCode = ExitCodes.BAD_ARGS;
 						return callback(err);
 					}
 					return callback(null, user);
 				});
-			} 
+			}
 		],
 		(err, user) => {
 			return cb(err, user);
@@ -91,23 +49,157 @@ function initAndGetUser(userName, cb) {
 	);
 }
 
-function setAccountStatus(userName, active) {
+function setAccountStatus(user, status) {
+	if(argv._.length < 3) {
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+	}
+
+	const AccountStatus = require('../../core/user.js').AccountStatus;
+	const statusDesc = _.invert(AccountStatus)[status];
+	user.persistProperty('account_status', status, err => {
+		if(err) {
+			process.exitCode = ExitCodes.ERROR;
+			console.error(err.message);
+		} else {
+			console.info(`User status set to ${statusDesc}`);
+		}
+	});
+}
+
+function setUserPassword(user) {
+	if(argv._.length < 4) {
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+	}
+
 	async.waterfall(
 		[
-			function init(callback) {
-				initAndGetUser(argv.user, callback);
+			function validate(callback) {
+				//	:TODO: prompt if no password provided (more secure, no history, etc.)
+				const password = argv._[argv._.length - 1];
+				if(0 === password.length) {
+					return callback(Errors.Invalid('Invalid password'));
+				}
+				return callback(null, password);
 			},
-			function activateUser(user, callback) {
-				const AccountStatus = require('../../core/user.js').AccountStatus;
-				user.persistProperty('account_status', active ? AccountStatus.active : AccountStatus.inactive, callback);
+			function set(password, callback) {
+				user.setNewAuthCredentials(password, err => {
+					if(err) {
+						process.exitCode = ExitCodes.BAD_ARGS;
+					}
+					return callback(err);
+				});
 			}
 		],
 		err => {
 			if(err) {
 				console.error(err.message);
 			} else {
-				console.info('User ' + ((true === active) ? 'activated' : 'deactivated'));
+				console.info('New password set');
 			}
 		}
-	);	
+	);
+}
+
+function removeUser(user) {
+	console.error('NOT YET IMPLEMENTED');
+}
+
+function modUserGroups(user) {
+	if(argv._.length < 3) {
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+	}
+
+	let groupName = argv._[argv._.length - 1].replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
+	let action = groupName[0];	//	+ or -
+
+	if('-' === action || '+' === action) {
+		groupName = groupName.substr(1);
+	}
+
+	action = action || '+';
+
+	if(0 === groupName.length) {
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+	}
+
+	//
+	//	Groups are currently arbritary, so do a slight validation
+	//
+	if(!/[A-Za-z0-9]+/.test(groupName)) {
+		process.exitCode = ExitCodes.BAD_ARGS;
+		return console.error('Bad group name');
+	}
+
+	function done(err) {
+		if(err) {
+			process.exitCode = ExitCodes.BAD_ARGS;
+			console.error(err.message);
+		} else {
+			console.info('User groups modified');
+		}
+	}
+
+	const UserGroup = require('../../core/user_group.js');
+	if('-' === action) {
+		UserGroup.removeUserFromGroup(user.userId, groupName, done);
+	} else {
+		UserGroup.addUserToGroup(user.userId, groupName, done);
+	}
+}
+
+function activateUser(user) {
+	const AccountStatus = require('../../core/user.js').AccountStatus;
+	return setAccountStatus(user, AccountStatus.active);
+}
+
+function deactivateUser(user) {
+	const AccountStatus = require('../../core/user.js').AccountStatus;
+	return setAccountStatus(user, AccountStatus.inactive);
+}
+
+function disableUser(user) {
+	const AccountStatus = require('../../core/user.js').AccountStatus;
+	return setAccountStatus(user, AccountStatus.disabled);
+}
+
+function handleUserCommand() {
+	function errUsage()  {
+		return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+	}
+
+	if(true === argv.help) {
+		return errUsage();
+	}
+
+	const action		= argv._[1];
+	const usernameIdx	= [ 'pass', 'passwd', 'password', 'group' ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+	const userName		= argv._[usernameIdx];
+
+	if(!userName) {
+		return errUsage();
+	}
+
+	initAndGetUser(userName, (err, user) => {
+		if(err) {
+			process.exitCode = ExitCodes.ERROR;
+			return console.error(err.message);
+		}
+
+		return ({
+			pass		: setUserPassword,
+			passwd		: setUserPassword,
+			password	: setUserPassword,
+
+			rm			: removeUser,
+			remove		: removeUser,
+			del			: removeUser,
+			delete		: removeUser,
+
+			activate	: activateUser,
+			deactivate	: deactivateUser,
+			disable		: disableUser,
+
+			group		: modUserGroups,
+		}[action] || errUsage)(user);
+	});
 }
