@@ -39,7 +39,7 @@ exports.TelnetClient	= TelnetClient;
 	* Document OPTIONS -- add any missing
 	* Internally handle OPTIONS:
 		* Some should be emitted generically
-		* Some shoudl be handled internally -- denied, handled, etc.
+		* Some should be handled internally -- denied, handled, etc.
 		*
 
 	* Allow term (ttype) to be set by environ sub negotiation
