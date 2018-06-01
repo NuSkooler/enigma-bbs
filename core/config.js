@@ -415,6 +415,12 @@ function getDefaultConfig() {
 				offset			: 2,
 				archiveHandler	: 'Lha',
 			},
+			'application/x-lzx' : {
+				desc			: 'LZX Archive',
+				sig				: '4c5a5800',
+				offset			: 0,
+				archiveHandler	: 'Lzx',
+			},
 			'application/x-7z-compressed' : {
 				desc			: '7-Zip Archive',
 				sig				: '377abcaf271c',
@@ -470,6 +476,24 @@ function getDefaultConfig() {
 					extract			: {
 						cmd			: 'lha',
 						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
+					}
+				},
+
+				Lzx : {
+					//
+					//	'unlzx' command can be obtained from:
+					//	* Debian based: https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127 (amd64/x86_64)
+					//	* Source: http://xavprods.free.fr/lzx/
+					//
+					decompress		: {
+						cmd			: 'unlzx',
+						//	unzlx doesn't have a output dir option, but we'll cwd to the temp output dir first
+						args		: [ '-x', '{archivePath}' ],
+					},
+					list			: {
+						cmd			: 'unlzx',
+						args		: [ '-v', '{archivePath}' ],
+						entryMatch	: '^\\s+([0-9]+)\\s+[^\\s]+\\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\\s+[0-9]{1,2}-[a-z]{3}-[0-9]{4}\\s+[a-z\\-]+\\s+\\"([^"]+)\\"$',
 					}
 				},
 

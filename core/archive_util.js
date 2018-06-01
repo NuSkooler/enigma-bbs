@@ -207,7 +207,12 @@ module.exports = class ArchiveUtil {
 			extractPath		: extractPath,
 		};
 
-		const action = haveFileList ? 'extract' : 'decompress';
+		let action = haveFileList ? 'extract' : 'decompress';
+		if('extract' === action && !_.isObject(archiver[action])) {
+			//	we're forced to do a full decompress
+			action = 'decompress';
+			haveFileList = false;
+		}
 
 		//	we need to treat {fileList} special in that it should be broken up to 0:n args
 		const args = archiver[action].args.map( arg => {
@@ -222,7 +227,7 @@ module.exports = class ArchiveUtil {
 
 		let proc;
 		try {
-			proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts());
+			proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
 		} catch(e) {
 			return cb(e);
 		}
@@ -278,13 +283,17 @@ module.exports = class ArchiveUtil {
 		});
 	}
 
-	getPtyOpts() {
-		return {
-			//	:TODO: cwd
+	getPtyOpts(extractPath) {
+		const opts = {
 			name	: 'enigma-archiver',
 			cols	: 80,
 			rows	: 24,
 			env		: process.env,
 		};
+		if(extractPath) {
+			opts.cwd = extractPath;
+		}
+		//	:TODO: set cwd to supplied temp path if not sepcific extract
+		return opts;
 	}
 };

@@ -16,6 +16,7 @@ function startup(cb) {
 	const ADDITIONAL_EXT_MIMETYPES = {
 		ans				: 'text/x-ansi',
 		gz				: 'application/gzip',	//	not in mime-types 2.1.15 :(
+		lzx				: 'application/x-lzx',	//	:TODO: submit to mime-types
 	};
 
 	_.forEach(ADDITIONAL_EXT_MIMETYPES, (mimeType, ext) => {
