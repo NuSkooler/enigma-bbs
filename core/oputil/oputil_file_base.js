@@ -263,81 +263,6 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 										}
 									]
 								);
-
-								/*
-								fileArea.scanFile(
-									fullPath,
-									{
-										areaTag		: areaInfo.areaTag,
-										storageTag	: storageLoc.storageTag
-									},
-									(err, fileEntry, dupeEntries) => {
-										if(err) {
-											console.info(`Error: ${err.message}`);
-											return nextFile(null);	//	try next anyway
-										}
-
-										//
-										//	We'll update the entry if the following conditions are met:
-										//	* We have a single duplicate, and:
-										//	* --update was passed or the existing entry's desc,
-										//	  longDesc, or est_release_year meta are blank/empty
-										//
-										if(argv.update && 1 === dupeEntries.length) {
-											const FileEntry		= require('../../core/file_entry.js');
-											const existingEntry	= new FileEntry();
-
-											return existingEntry.load(dupeEntries[0].fileId, err => {
-												if(err) {
-													console.info('Dupe (cannot update)');
-													return nextFile(null);
-												}
-
-												//
-												//	Update only if tags or desc changed
-												//
-												const optTags	= Array.isArray(options.tags) ? new Set(options.tags) : existingEntry.hashTags;
-												const tagsEq	= _.isEqual(optTags, existingEntry.hashTags);
-
-												if( tagsEq &&
-													fileEntry.desc === existingEntry.desc &&
-													fileEntry.descLong == existingEntry.descLong &&
-													fileEntry.meta.est_release_year == existingEntry.meta.est_release_year)
-												{
-													console.info('Dupe');
-													return nextFile(null);
-												}
-
-												console.info('Dupe (updating)');
-
-												//	don't allow overwrite of values if new version is blank
-												existingEntry.desc 					= fileEntry.desc || existingEntry.desc;
-												existingEntry.descLong				= fileEntry.descLong || existingEntry.descLong;
-
-												if(fileEntry.meta.est_release_year) {
-													existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year;
-												}
-
-												updateTags(existingEntry);
-
-												finalizeEntryAndPersist(true, existingEntry, descHandler, err => {
-													return nextFile(err);
-												});
-											});
-										} else if(dupeEntries.length > 0) {
-											console.info('Dupe');
-											return nextFile(null);
-										}
-
-										console.info('Done!');
-										updateTags(fileEntry);
-
-										finalizeEntryAndPersist(false, fileEntry, descHandler, err => {
-											return nextFile(err);
-										});
-									}
-								);
-								*/
 							});
 						}, err => {
 							return callback(err);
@@ -520,6 +445,9 @@ function scanFileAreas() {
 		[
 			function init(callback) {
 				return initConfigAndDatabases(callback);
+			},
+			function initMime(callback) {
+				return require('../../core/mime_util.js').startup(callback);
 			},
 			function initGlobalDescHandler(callback) {
 				//
