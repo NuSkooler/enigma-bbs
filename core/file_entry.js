@@ -548,7 +548,7 @@ module.exports = class FileEntry {
 
 		if(filter.tags && filter.tags.length > 0) {
 			//	build list of quoted tags; filter.tags comes in as a space and/or comma separated values
-			const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${tag}"` ).join(',');
+			const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${sanatizeString(tag)}"` ).join(',');
 
 			appendWhereClause(
 				`f.file_id IN (
