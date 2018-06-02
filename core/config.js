@@ -483,7 +483,7 @@ function getDefaultConfig() {
 					//
 					decompress		: {
 						cmd			: 'lha',
-						args		: [ '-ew={extractPath}', '{archivePath}' ],
+						args		: [ '-efw={extractPath}', '{archivePath}' ],
 					},
 					list			: {
 						cmd			: 'lha',
@@ -492,7 +492,7 @@ function getDefaultConfig() {
 					},
 					extract			: {
 						cmd			: 'lha',
-						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
+						args		: [ '-efw={extractPath}', '{archivePath}', '{fileList}' ]
 					}
 				},
 
