@@ -483,6 +483,7 @@ function getDefaultConfig() {
 					//
 					//	'unlzx' command can be obtained from:
 					//	* Debian based: https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127 (amd64/x86_64)
+					//	* RedHat: https://fedora.pkgs.org/28/rpm-sphere/unlzx-1.1-4.1.x86_64.rpm.html
 					//	* Source: http://xavprods.free.fr/lzx/
 					//
 					decompress		: {
