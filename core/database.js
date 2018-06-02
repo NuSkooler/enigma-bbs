@@ -72,6 +72,8 @@ function sanatizeString(s) {
 
 			case '"' :
 			case '\'' :
+				return `${c}${c}`;
+
 			case '\\' :
 			case '%' :
 				return `\\${c}`;
