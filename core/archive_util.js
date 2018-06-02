@@ -11,6 +11,7 @@ const resolveMimeType	= require('./mime_util.js').resolveMimeType;
 const fs		= require('graceful-fs');
 const _			= require('lodash');
 const pty		= require('node-pty');
+const paths		= require('path');
 
 let archiveUtil;
 
@@ -75,32 +76,56 @@ module.exports = class ArchiveUtil {
 		}
 
 		if(_.isObject(Config.fileTypes)) {
+			const updateSig = (ft) => {
+				ft.sig 		= Buffer.from(ft.sig, 'hex');
+				ft.offset	= ft.offset || 0;
+
+				//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
+				const sigLen = ft.offset + ft.sig.length;
+				if(sigLen > this.longestSignature) {
+					this.longestSignature = sigLen;
+				}
+			};
+
 			Object.keys(Config.fileTypes).forEach(mimeType => {
 				const fileType = Config.fileTypes[mimeType];
-				if(fileType.sig) {
-					fileType.sig 	= Buffer.from(fileType.sig, 'hex');
-					fileType.offset	= fileType.offset || 0;
-
-					//	:TODO: this is broken: sig is NOT this long, it's sig.length long; offset needs to allow for -negative values as well
-					const sigLen = fileType.offset + fileType.sig.length;
-					if(sigLen > this.longestSignature) {
-						this.longestSignature = sigLen;
-					}
+				if(Array.isArray(fileType)) {
+					fileType.forEach(ft => {
+						if(ft.sig) {
+							updateSig(ft);
+						}
+					});
+				} else if(fileType.sig) {
+					updateSig(fileType);
 				}
 			});
 		}
 	}
 
-	getArchiver(mimeTypeOrExtension) {
-		mimeTypeOrExtension = resolveMimeType(mimeTypeOrExtension);
+	getArchiver(mimeTypeOrExtension, justExtention) {
+		const mimeType = resolveMimeType(mimeTypeOrExtension);
 
-		if(!mimeTypeOrExtension) {	//	lookup returns false on failure
+		if(!mimeType) {	//	lookup returns false on failure
 			return;
 		}
 
-		const archiveHandler = _.get( Config, [ 'fileTypes', mimeTypeOrExtension, 'archiveHandler'] );
-		if(archiveHandler) {
-			return _.get( Config, [ 'archives', 'archivers', archiveHandler ] );
+		let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+
+		if(Array.isArray(fileType)) {
+			if(!justExtention) {
+				//	need extention for lookup; ambiguous as-is :(
+				return;
+			}
+			//	further refine by extention
+			fileType = fileType.find(ft => justExtention === ft.ext);
+		}
+
+		if(!_.isObject(fileType)) {
+			return;
+		}
+
+		if(fileType.archiveHandler) {
+			return _.get( Config, [ 'archives', 'archivers', fileType.archiveHandler ] );
 		}
 	}
 
@@ -127,18 +152,21 @@ module.exports = class ArchiveUtil {
 				}
 
 				const archFormat = _.findKey(Config.fileTypes, fileTypeInfo => {
-					if(!fileTypeInfo.sig) {
-						return false;
-					}
+					const fileTypeInfos = Array.isArray(fileTypeInfo) ? fileTypeInfo : [ fileTypeInfo ];
+					return fileTypeInfos.find(fti => {
+						if(!fti.sig || !fti.archiveHandler) {
+							return false;
+						}
 
-					const lenNeeded = fileTypeInfo.offset + fileTypeInfo.sig.length;
+						const lenNeeded = fti.offset + fti.sig.length;
 
-					if(bytesRead < lenNeeded) {
-						return false;
-					}
+						if(bytesRead < lenNeeded) {
+							return false;
+						}
 
-					const comp = buf.slice(fileTypeInfo.offset, fileTypeInfo.offset + fileTypeInfo.sig.length);
-					return (fileTypeInfo.sig.equals(comp));
+						const comp = buf.slice(fti.offset, fti.offset + fti.sig.length);
+						return (fti.sig.equals(comp));
+					});
 				});
 
 				return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
@@ -162,7 +190,7 @@ module.exports = class ArchiveUtil {
 	}
 
 	compressTo(archType, archivePath, files, cb) {
-		const archiver = this.getArchiver(archType);
+		const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
 		if(!archiver) {
 			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
@@ -196,7 +224,7 @@ module.exports = class ArchiveUtil {
 			haveFileList = true;
 		}
 
-		const archiver = this.getArchiver(archType);
+		const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
 		if(!archiver) {
 			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
@@ -236,7 +264,7 @@ module.exports = class ArchiveUtil {
 	}
 
 	listEntries(archivePath, archType, cb) {
-		const archiver = this.getArchiver(archType);
+		const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
 		if(!archiver) {
 			return cb(Errors.Invalid(`Unknown archive type: ${archType}`));

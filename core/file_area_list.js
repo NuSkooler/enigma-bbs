@@ -24,6 +24,7 @@ const controlCodesToAnsi	= require('./color_codes.js').controlCodesToAnsi;
 const async				= require('async');
 const _					= require('lodash');
 const moment			= require('moment');
+const paths				= require('path');
 
 exports.moduleInfo = {
 	name	: 'File Area List',
@@ -252,7 +253,18 @@ exports.getModule = class FileAreaList extends MenuModule {
 
 		if(entryInfo.archiveType) {
 			const mimeType = resolveMimeType(entryInfo.archiveType);
-			entryInfo.archiveTypeDesc = mimeType ? _.get(Config, [ 'fileTypes', mimeType, 'desc' ] ) || mimeType : entryInfo.archiveType;
+			let desc;
+			if(mimeType) {
+				let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+
+				if(Array.isArray(fileType)) {
+					//	further refine by extention
+					fileType = fileType.find(ft => paths.extname(currEntry.fileName) === ft.ext);
+				}
+				desc = fileType && fileType.desc;
+			}
+			entryInfo.archiveTypeDesc = desc || mimeType || entryInfo.archiveType;
+			//entryInfo.archiveTypeDesc = mimeType ? _.get(Config, [ 'fileTypes', mimeType, 'desc' ] ) || mimeType : entryInfo.archiveType;
 		} else {
 			entryInfo.archiveTypeDesc = 'N/A';
 		}

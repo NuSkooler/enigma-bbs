@@ -487,8 +487,19 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 	);
 }
 
-function getInfoExtractUtilForDesc(mimeType, descType) {
-	let util = _.get(Config, [ 'fileTypes', mimeType, `${descType}DescUtil` ]);
+function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
+	let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+
+	if(Array.isArray(fileType)) {
+		//	further refine by extention
+		fileType = fileType.find(ft => paths.extname(filePath) === ft.ext);
+	}
+
+	if(!_.isObject(fileType)) {
+		return;
+	}
+
+	let util = _.get(fileType, `${descType}DescUtil`);
 	if(!_.isString(util)) {
 		return;
 	}
@@ -508,7 +519,7 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
 	}
 
 	async.eachSeries( [ 'short', 'long' ], (descType, nextDesc) => {
-		const util = getInfoExtractUtilForDesc(mimeType, descType);
+		const util = getInfoExtractUtilForDesc(mimeType, filePath, descType);
 		if(!util) {
 			return nextDesc(null);
 		}

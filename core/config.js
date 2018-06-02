@@ -297,6 +297,16 @@ function getDefaultConfig() {
 					'--filemodifydate', '--fileaccessdate', '--fileinodechangedate', '--createdate', '--modifydate',
 					'--metadatadate', '--xmptoolkit'
 				]
+			},
+			XDMS2Desc : {
+				//	http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html
+				cmd		: 'xdms',
+				args	: [ 'd', '{filePath}' ]
+			},
+			XDMS2LongDesc : {
+				//	http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html
+				cmd		: 'xdms',
+				args	: [ 'f', '{filePath}' ]
 			}
 		},
 
@@ -426,13 +436,20 @@ function getDefaultConfig() {
 				sig				: '377abcaf271c',
 				offset			: 0,
 				archiveHandler	: '7Zip',
-			}
+			},
 
-			//	:TODO: update archives::formats to fall here
-			//	* archive handler -> archiveHandler (consider archive if archiveHandler present)
-			//	* sig, offset, ...
-			//	* mime-db -> exts lookup
-			//	*
+			//
+			//	Generics that need further mapping
+			//
+			'application/octet-stream' : [
+				{
+					desc			: 'Amiga DISKMASHER',
+					sig				: '444d5321',	//	DMS!
+					ext				: '.dms',
+					shortDescUtil	: 'XDMS2Desc',
+					longDescUtil	: 'XDMS2LongDesc',
+				}
+			]
 		},
 
 		archives : {
