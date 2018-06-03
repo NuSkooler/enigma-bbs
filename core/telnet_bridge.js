@@ -96,6 +96,15 @@ class TelnetClientConnection extends EventEmitter {
 		}
 	}
 
+	destroy() {
+		if(this.bridgeConnection) {
+			this.bridgeConnection.destroy();
+			this.bridgeConnection.removeAllListeners();
+			this.restorePipe();
+			this.emit('end');
+		}
+	}
+
 	getTermTypeNegotiationBuffer() {
 		//
 		//	Create a TERMINAL-TYPE sub negotiation buffer using the
@@ -153,7 +162,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 
 					self.client.term.write(resetScreen());
 					self.client.term.write(
-						`  Connecting to ${connectOpts.host}, please wait...\n`
+						`  Connecting to ${connectOpts.host}, please wait...\n  (Press ESC to cancel)\n`
 					);
 
 					const telnetConnection = new TelnetClientConnection(self.client);
@@ -161,7 +170,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
 					const connectionKeyPressHandler = (ch, key) => {
 						if('escape' === key.name) {
 							self.client.removeListener('key press', connectionKeyPressHandler);
-							telnetConnection.disconnect();
+							telnetConnection.destroy();
 						}
 					};
 
