@@ -6,6 +6,7 @@ const setClientTheme	= require('./theme.js').setClientTheme;
 const clientConnections	= require('./client_connections.js').clientConnections;
 const StatLog			= require('./stat_log.js');
 const logger			= require('./logger.js');
+const Events			= require('./events.js');
 
 //	deps
 const async				= require('async');
@@ -58,6 +59,8 @@ function userLogin(client, username, password, cb) {
 		//	update client logger with addition of username
 		client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
 		client.log.info('Successful login');
+
+		Events.emit(Events.getSystemEvents().UserLogin, { user } );
 
 		async.parallel(
 			[

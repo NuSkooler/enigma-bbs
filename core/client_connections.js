@@ -100,6 +100,10 @@ function removeClient(client) {
 			'Client disconnected'
 		);
 
+		if(client.user && client.user.isValid()) {
+			Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user } );
+		}
+
 		Events.emit(
 			Events.getSystemEvents().ClientDisconnected,
 			{ client : client, connectionCount : clientConnections.length }

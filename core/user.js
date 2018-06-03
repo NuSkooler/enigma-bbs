@@ -67,7 +67,8 @@ module.exports = class User {
 			return false;
 		}
 
-		return this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2 && this.prop_name.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2;
+		return ((this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2) &&
+			(this.properties.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2));
 	}
 
 	isRoot() {
