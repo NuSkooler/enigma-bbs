@@ -10,6 +10,7 @@ const DownloadQueue		= require('./download_queue.js');
 const StatLog			= require('./stat_log.js');
 const FileEntry			= require('./file_entry.js');
 const Log				= require('./logger.js').log;
+const Events			= require('./events.js');
 
 //	deps
 const async			= require('async');
@@ -545,7 +546,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
 							if(sentFileIds.length > 0) {
 								//	remove items we sent from the D/L queue
 								const dlQueue = new DownloadQueue(self.client);
-								dlQueue.removeItems(sentFileIds);
+								const dlFileEntries = dlQueue.removeItems(sentFileIds);
+
+								//	fire event for downloaded entries
+								Events.emit(
+									Events.getSystemEvents().UserDownload,
+									{
+										user	: self.client.user,
+										files	: dlFileEntries
+									}
+								);
 
 								self.sentFileIds = sentFileIds;
 							}

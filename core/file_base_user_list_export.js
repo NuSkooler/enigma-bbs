@@ -223,7 +223,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 						if(!err) {
 							//	queue it!
 							const dlQueue = new DownloadQueue(self.client);
-							dlQueue.add(newEntry);
+							dlQueue.add(newEntry, true);	//	true=systemFile
 
 							//	clean up after ourselves when the session ends
 							const thisClientId = self.client.session.id;

@@ -14,6 +14,7 @@ const User					= require('./user.js');
 const Log					= require('./logger.js').log;
 const getConnectionByUserId	= require('./client_connections.js').getConnectionByUserId;
 const webServerPackageName	= require('./servers/content/web.js').moduleInfo.packageName;
+const Events				= require('./events.js');
 
 //	deps
 const hashids		= require('hashids');
@@ -337,7 +338,7 @@ class FileAreaWebAccess {
 
 				resp.on('finish', () => {
 					//	transfer completed fully
-					this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size);
+					this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size, [ fileEntry ]);
 				});
 
 				const headers = {
@@ -382,24 +383,21 @@ class FileAreaWebAccess {
 					);
 				},
 				function loadFileEntries(fileIds, callback) {
-					const filePaths = [];
-					async.eachSeries(fileIds, (fileId, nextFileId) => {
+					async.map(fileIds, (fileId, nextFileId) => {
 						const fileEntry = new FileEntry();
 						fileEntry.load(fileId, err => {
-							if(!err) {
-								filePaths.push(fileEntry.filePath);
-							}
-							return nextFileId(err);
+							return nextFileId(err, fileEntry);
 						});
-					}, err => {
+					}, (err, fileEntries) => {
 						if(err) {
-							return callback(Errors.DoesNotExist('Coudl not load file IDs for batch'));
+							return callback(Errors.DoesNotExist('Could not load file IDs for batch'));
 						}
 
-						return callback(null, filePaths);
+						return callback(null, fileEntries);
 					});
 				},
-				function createAndServeStream(filePaths, callback) {
+				function createAndServeStream(fileEntries, callback) {
+					const filePaths = fileEntries.map(fe => fe.filePath);
 					Log.trace( { filePaths : filePaths }, 'Creating zip archive for batch web request');
 
 					const zipFile = new yazl.ZipFile();
@@ -430,7 +428,7 @@ class FileAreaWebAccess {
 
 						resp.on('finish', () => {
 							//	transfer completed fully
-							self.updateDownloadStatsForUserIdAndSystem(servedItem.userId, finalZipSize);
+							self.updateDownloadStatsForUserIdAndSystem(servedItem.userId, finalZipSize, fileEntries);
 						});
 
 						const batchFileName = `batch_${servedItem.hashId}.zip`;
@@ -457,7 +455,7 @@ class FileAreaWebAccess {
 		);
 	}
 
-	updateDownloadStatsForUserIdAndSystem(userId, dlBytes, cb) {
+	updateDownloadStatsForUserIdAndSystem(userId, dlBytes, fileEntries) {
 		async.waterfall(
 			[
 				function fetchActiveUser(callback) {
@@ -477,14 +475,19 @@ class FileAreaWebAccess {
 					StatLog.incrementSystemStat('dl_total_count', 1);
 					StatLog.incrementSystemStat('dl_total_bytes', dlBytes);
 
+					return callback(null, user);
+				},
+				function sendEvent(user, callback) {
+					Events.emit(
+						Events.getSystemEvents().UserDownload,
+						{
+							user	: user,
+							files	: fileEntries,
+						}
+					);
 					return callback(null);
 				}
-			],
-			err => {
-				if(cb) {
-					return cb(err);
-				}
-			}
+			]
 		);
 	}
 }

@@ -16,6 +16,7 @@ const Log								= require('./logger.js').log;
 const Errors							= require('./enig_error.js').Errors;
 const FileEntry							= require('./file_entry.js');
 const isAnsi							= require('./string_util.js').isAnsi;
+const Events							= require('./events.js');
 
 //	deps
 const async								= require('async');
@@ -567,8 +568,18 @@ exports.getModule = class UploadModule extends MenuModule {
 					//	here as I/O can take quite a bit of time. Log any failures.
 					//
 					self.moveAndPersistUploadsToDatabase(scanResults.newEntries);
-					return callback(null);
+					return callback(null, scanResults.newEntries);
 				},
+				function sendEvent(uploadedEntries, callback) {
+					Events.emit(
+						Events.getSystemEvents().UserUpload,
+						{
+							user	: self.client.user,
+							files	: uploadedEntries,
+						}
+					);
+					return callback(null);
+				}
 			],
 			err => {
 				if(err) {

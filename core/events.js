@@ -4,17 +4,12 @@
 const paths				= require('path');
 const events			= require('events');
 const Log				= require('./logger.js').log;
+const SystemEvents		= require('./system_events.js');
 
 //	deps
 const _					= require('lodash');
 const async				= require('async');
 const glob				= require('glob');
-
-const SYSTEM_EVENTS = {
-	ClientConnected		: 'codes.l33t.enigma.system.connected',
-	ClientDisconnected	: 'codes.l33t.enigma.system.disconnected',
-	TermDetected		: 'codes.l33t.enigma.term_detected',
-};
 
 module.exports = new class Events extends events.EventEmitter {
 	constructor() {
@@ -22,7 +17,7 @@ module.exports = new class Events extends events.EventEmitter {
 	}
 
 	getSystemEvents() {
-		return SYSTEM_EVENTS;
+		return SystemEvents;
 	}
 
 	addListener(event, listener) {

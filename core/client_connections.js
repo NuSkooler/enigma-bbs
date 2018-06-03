@@ -77,7 +77,10 @@ function addNewClient(client, clientSock) {
 
 	client.log.info(connInfo, 'Client connected');
 
-	Events.emit('codes.l33t.enigma.system.connected', { client : client, connectionCount : clientConnections.length } );
+	Events.emit(
+		Events.getSystemEvents().ClientConnected,
+		{ client : client, connectionCount : clientConnections.length }
+	);
 
 	return id;
 }
@@ -97,7 +100,10 @@ function removeClient(client) {
 			'Client disconnected'
 		);
 
-		Events.emit('codes.l33t.enigma.system.disconnected', { client : client, connectionCount : clientConnections.length } );
+		Events.emit(
+			Events.getSystemEvents().ClientDisconnected,
+			{ client : client, connectionCount : clientConnections.length }
+		);
 	}
 }
 

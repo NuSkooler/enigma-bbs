@@ -1,7 +1,10 @@
 /* jslint node: true */
 'use strict';
 
-const FileEntry	= require('./file_entry.js');
+const FileEntry		= require('./file_entry.js');
+
+//	deps
+const { partition }	= require('lodash');
 
 module.exports = class DownloadQueue {
 	constructor(client) {
@@ -24,21 +27,22 @@ module.exports = class DownloadQueue {
 		this.client.user.downloadQueue = [];
 	}
 
-	toggle(fileEntry) {
+	toggle(fileEntry, systemFile=false) {
 		if(this.isQueued(fileEntry)) {
 			this.client.user.downloadQueue = this.client.user.downloadQueue.filter(e => fileEntry.fileId !== e.fileId);
 		} else {
-			this.add(fileEntry);
+			this.add(fileEntry, systemFile);
 		}
 	}
 
-	add(fileEntry) {
+	add(fileEntry, systemFile=false) {
 		this.client.user.downloadQueue.push({
 			fileId		: fileEntry.fileId,
 			areaTag		: fileEntry.areaTag,
 			fileName	: fileEntry.fileName,
 			path		: fileEntry.filePath,
 			byteSize	: fileEntry.meta.byte_size || 0,
+			systemFile	: systemFile,
 		});
 	}
 
@@ -47,7 +51,9 @@ module.exports = class DownloadQueue {
 			fileIds = [ fileIds ];
 		}
 
-		this.client.user.downloadQueue = this.client.user.downloadQueue.filter(e => ( -1 === fileIds.indexOf(e.fileId) ) );
+		const [ remain, removed ] = partition(this.client.user.downloadQueue, e => ( -1 === fileIds.indexOf(e.fileId) ));
+		this.client.user.downloadQueue = remain;
+		return removed;
 	}
 
 	isQueued(entryOrId) {
