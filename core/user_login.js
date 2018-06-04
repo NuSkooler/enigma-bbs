@@ -55,10 +55,18 @@ function userLogin(client, username, password, cb) {
 			return cb(existingConnError);
 		}
 
-
 		//	update client logger with addition of username
-		client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
+		client.log = logger.log.child(
+			{
+				clientId	: client.log.fields.clientId,
+				sessionId	: client.log.fields.sessionId,
+				username	: user.username,
+			}
+		);
 		client.log.info('Successful login');
+
+		//	User's unique session identifier is the same as the connection itself
+		user.sessionId = client.session.uniqueId;	//	convienence
 
 		Events.emit(Events.getSystemEvents().UserLogin, { user } );
 

@@ -8,6 +8,7 @@ const Events            = require('./events.js');
 //	deps
 const _					= require('lodash');
 const moment			= require('moment');
+const hashids			= require('hashids');
 
 exports.getActiveConnections	= getActiveConnections;
 exports.getActiveNodeList		= getActiveNodeList;
@@ -60,9 +61,12 @@ function addNewClient(client, clientSock) {
 	const id			= client.session.id		= clientConnections.push(client) - 1;
 	const remoteAddress = client.remoteAddress	= clientSock.remoteAddress;
 
+	//	create a uniqe identifier one-time ID for this session
+	client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
+
 	//	Create a client specific logger
 	//	Note that this will be updated @ login with additional information
-	client.log = logger.log.child( { clientId : id } );
+	client.log = logger.log.child( { clientId : id, sessionId : client.session.uniqueId } );
 
 	const connInfo = {
 		remoteAddress	: remoteAddress,
