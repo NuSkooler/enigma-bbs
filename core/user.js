@@ -5,6 +5,7 @@ const userDb		= require('./database.js').dbs.user;
 const Config		= require('./config.js').config;
 const userGroup		= require('./user_group.js');
 const Errors		= require('./enig_error.js').Errors;
+const Events		= require('./events.js');
 
 //	deps
 const crypto		= require('crypto');
@@ -240,6 +241,10 @@ module.exports = class User {
 					self.persistWithTransaction(trans, err => {
 						return callback(err, trans);
 					});
+				},
+				function sendEvent(trans, callback) {
+					Events.emit(Events.getSystemEvents().NewUser, { user : self });
+					return callback(null, trans);
 				}
 			],
 			(err, trans) => {
