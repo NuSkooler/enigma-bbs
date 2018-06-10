@@ -165,7 +165,6 @@ VerticalMenuView.prototype.setFocusItemIndex = function(index) {
 };
 
 VerticalMenuView.prototype.onKeyPress = function(ch, key) {
-
 	if(key) {
 		if(this.isKeyMapped('up', key.name)) {
 			this.focusPrevious();
@@ -173,8 +172,12 @@ VerticalMenuView.prototype.onKeyPress = function(ch, key) {
 			this.focusNext();
 		} else if(this.isKeyMapped('page up', key.name)) {
 			this.focusPreviousPageItem();
-		} else if( this.isKeyMapped('page down', key.name)) {
+		} else if(this.isKeyMapped('page down', key.name)) {
 			this.focusNextPageItem();
+		} else if(this.isKeyMapped('home', key.name)) {
+			this.focusFirst();
+		} else if(this.isKeyMapped('end', key.name)) {
+			this.focusLast();
 		}
 	}
 
@@ -306,6 +309,16 @@ VerticalMenuView.prototype.focusNextPageItem = function() {
 	}
 
 	return VerticalMenuView.super_.prototype.focusNextPageItem.call(this);
+};
+
+VerticalMenuView.prototype.focusFirst = function() {
+	this.setFocusItemIndex(0);
+	return VerticalMenuView.super_.prototype.focusFirst.call(this);
+};
+
+VerticalMenuView.prototype.focusLast = function() {
+	this.setFocusItemIndex(this.items.length - 1);
+	return VerticalMenuView.super_.prototype.focusLast.call(this);
 };
 
 VerticalMenuView.prototype.setFocusItems = function(items) {

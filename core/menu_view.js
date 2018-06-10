@@ -60,6 +60,10 @@ function MenuView(options) {
 		}
 		return -1;
 	};
+
+	this.emitIndexUpdate = function() {
+		self.emit('index update', self.focusedItemIndex);
+	}
 }
 
 util.inherits(MenuView, View);
@@ -174,19 +178,27 @@ MenuView.prototype.getItem = function(index) {
 };
 
 MenuView.prototype.focusNext = function() {
-	this.emit('index update', this.focusedItemIndex);
+	this.emitIndexUpdate();
 };
 
 MenuView.prototype.focusPrevious = function() {
-	this.emit('index update', this.focusedItemIndex);
+	this.emitIndexUpdate();
 };
 
 MenuView.prototype.focusNextPageItem = function() {
-	this.emit('index update', this.focusedItemIndex);
+	this.emitIndexUpdate();
 };
 
 MenuView.prototype.focusPreviousPageItem = function() {
-	this.emit('index update', this.focusedItemIndex);
+	this.emitIndexUpdate();
+};
+
+MenuView.prototype.focusFirst = function() {
+	this.emitIndexUpdate();
+};
+
+MenuView.prototype.focusLast = function() {
+	this.emitIndexUpdate();
 };
 
 MenuView.prototype.setFocusItemIndex = function(index) {
