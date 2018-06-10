@@ -312,12 +312,31 @@ VerticalMenuView.prototype.focusNextPageItem = function() {
 };
 
 VerticalMenuView.prototype.focusFirst = function() {
+	if(0 < this.viewWindow.top) {
+		this.oldDimens = Object.assign({}, this.dimens);
+	}
 	this.setFocusItemIndex(0);
 	return VerticalMenuView.super_.prototype.focusFirst.call(this);
 };
 
 VerticalMenuView.prototype.focusLast = function() {
-	this.setFocusItemIndex(this.items.length - 1);
+	const index = this.items.length - 1;
+
+	if(index > this.viewWindow.bottom) {
+		this.oldDimens = Object.assign({}, this.dimens);
+
+		this.focusedItemIndex = index;
+
+		this.viewWindow = {
+			top		: this.focusedItemIndex,
+			bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+		};
+
+		this.redraw();
+	} else {
+		this.setFocusItemIndex(index);
+	}
+
 	return VerticalMenuView.super_.prototype.focusLast.call(this);
 };
 
