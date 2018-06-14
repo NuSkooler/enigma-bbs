@@ -26,12 +26,12 @@ module.exports = class Log {
 		}
 
 		const serializers = {
-			err			: bunyan.stdSerializers.err,		//	handle 'err' fields with stack/etc.
+			err	: bunyan.stdSerializers.err,		//	handle 'err' fields with stack/etc.
 		};
 
 		//	try to remove sensitive info by default, e.g. 'password' fields
 		[ 'formData', 'formValue' ].forEach(keyName => {
-			serializers[keyName]	= (fd) => Log.hideSensitive(fd);
+			serializers[keyName] = (fd) => Log.hideSensitive(fd);
 		});
 
 		this.log = bunyan.createLogger({
