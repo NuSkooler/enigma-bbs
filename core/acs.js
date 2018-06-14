@@ -52,7 +52,11 @@ class ACS {
 	}
 
 	getConditionalValue(condArray, memberName) {
-		assert(_.isArray(condArray));
+		if(!Array.isArray(condArray)) {
+			//	no cond array, just use the value
+			return condArray;
+		}
+
 		assert(_.isString(memberName));
 
 		const matchCond = condArray.find( cond => {
