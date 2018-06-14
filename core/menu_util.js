@@ -221,11 +221,7 @@ function handleAction(client, formData, conf, cb) {
 }
 
 function handleNext(client, nextSpec, conf, cb) {
-	assert(_.isString(nextSpec) || _.isArray(nextSpec));
-
-	if(_.isArray(nextSpec)) {
-		nextSpec = client.acs.getConditionalValue(nextSpec, 'next');
-	}
+	nextSpec = client.acs.getConditionalValue(nextSpec, 'next');	//	handle any conditionals
 
 	const nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
 	//	:TODO: getAssetWithShorthand() can return undefined - handle it!
