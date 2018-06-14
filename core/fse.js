@@ -532,12 +532,13 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 						theme.displayThemedAsset(
 							art[n],
 							self.client,
-							{ font : self.menuConfig.font },
+							{ font : self.menuConfig.font, acsCondMember : 'art' },
 							function displayed(err) {
 								next(err);
 							}
 						);
 					}, function complete(err) {
+						//self.body.height = self.client.term.termHeight - self.header.height - 1;
 						callback(err);
 					});
 				},
@@ -607,14 +608,11 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 					self.beforeArt(callback);
 				},
 				function displayHeaderAndBodyArt(callback) {
-					assert(_.isString(art.header));
-					assert(_.isString(art.body));
-
 					async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
 						theme.displayThemedAsset(
 							art[n],
 							self.client,
-							{ font : self.menuConfig.font },
+							{ font : self.menuConfig.font, acsCondMember : 'art' },
 							function displayed(err, artData) {
 								if(artData) {
 									mciData[n] = artData;
@@ -879,13 +877,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 		async.waterfall(
 			[
 				function clearAndDisplayArt(callback) {
-
-					//	:TODO: use termHeight, not hard coded 24 here:
-
 					//	:TODO: NetRunner does NOT support delete line, so this does not work:
 					self.client.term.rawWrite(
 						ansi.goto(self.header.height + 1, 1) +
-						ansi.deleteLine(24 - self.header.height));
+						ansi.deleteLine((self.client.term.termHeight - self.header.height) - 1));
 
 					theme.displayThemeArt( { name : self.menuConfig.config.art.quote, client : self.client }, function displayed(err, artData) {
 						callback(err, artData);

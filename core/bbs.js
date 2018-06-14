@@ -190,10 +190,13 @@ function initialize(cb) {
 			function initStatLog(callback) {
 				return require('./stat_log.js').init(callback);
 			},
+			function initConfigs(callback) {
+				return require('./config_util.js').init(callback);
+			},
 			function initThemes(callback) {
 				//	Have to pull in here so it's after Config init
-				require('./theme.js').initAvailableThemes(function onThemesInit(err, themeCount) {
-					logger.log.info({ themeCount : themeCount }, 'Themes initialized');
+				require('./theme.js').initAvailableThemes( (err, themeCount) => {
+					logger.log.info({ themeCount }, 'Themes initialized');
 					return callback(err);
 				});
 			},

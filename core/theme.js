@@ -5,12 +5,13 @@ const Config			= require('./config.js').config;
 const art				= require('./art.js');
 const ansi				= require('./ansi_term.js');
 const Log				= require('./logger.js').log;
-const configCache		= require('./config_cache.js');
+const ConfigCache		= require('./config_cache.js');
 const getFullConfig		= require('./config_util.js').getFullConfig;
 const asset				= require('./asset.js');
 const ViewController	= require('./view_controller.js').ViewController;
 const Errors			= require('./enig_error.js').Errors;
 const ErrorReasons		= require('./enig_error.js').ErrorReasons;
+const Events			= require('./events.js');
 
 const fs				= require('graceful-fs');
 const paths				= require('path');
@@ -63,11 +64,23 @@ function refreshThemeHelpers(theme) {
 	};
 }
 
-function loadTheme(themeID, cb) {
+function loadTheme(themeId, cb) {
+	const path = paths.join(Config.paths.themes, themeId, 'theme.hjson');
 
-	const path = paths.join(Config.paths.themes, themeID, 'theme.hjson');
+	const changed = ( { fileName, fileRoot } ) => {
+		const reCachedPath = paths.join(fileRoot, fileName);
+		if(reCachedPath === path) {
+			reloadTheme(themeId);
+		}
+	};
 
-	configCache.getConfigWithOptions( { filePath : path, forceReCache : true }, (err, theme) => {
+	const getOpts = {
+		filePath 		: path,
+		forceReCache	: true,
+		callback		: changed,
+	};
+
+	ConfigCache.getConfigWithOptions(getOpts, (err, theme) => {
 		if(err) {
 			return cb(err);
 		}
@@ -89,7 +102,7 @@ function loadTheme(themeID, cb) {
 	});
 }
 
-const availableThemes = {};
+const availableThemes = new Map();
 
 const IMMUTABLE_MCI_PROPERTIES = [
 	'maxLength', 'argName', 'submit', 'validate'
@@ -248,6 +261,56 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 	return mergedTheme;
 }
 
+function reloadTheme(themeId) {
+	async.waterfall(
+		[
+			function loadMenuConfig(callback) {
+				getFullConfig(Config.general.menuFile, (err, menuConfig) => {
+					return callback(err, menuConfig);
+				});
+			},
+			function loadPromptConfig(menuConfig, callback) {
+				getFullConfig(Config.general.promptFile, (err, promptConfig) => {
+					return callback(err, menuConfig, promptConfig);
+				});
+			},
+			function loadIt(menuConfig, promptConfig, callback) {
+				loadTheme(themeId, (err, theme) => {
+					if(err) {
+						if(ErrorReasons.NotEnabled !== err.reasonCode) {
+							Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
+							return;
+						}
+						return callback(err);
+					}
+
+					Object.assign(theme.info, { themeId } );
+					availableThemes.set(themeId, getMergedTheme(menuConfig, promptConfig, theme));
+
+					Events.emit(
+						Events.getSystemEvents().ThemeChanged,
+						{ themeId }
+					);
+
+					return callback(null, theme);
+				});
+			}
+		],
+		(err, theme) => {
+			if(err) {
+				Log.warn( { themeId, error : err.message }, 'Failed to reload theme');
+			} else {
+				Log.debug( { info : theme.info }, 'Theme recached' );
+			}
+		}
+	);
+}
+
+function reloadAllThemes()
+{
+	async.each([ ...availableThemes.keys() ], themeId => reloadTheme(themeId));
+}
+
 function initAvailableThemes(cb) {
 
 	async.waterfall(
@@ -281,7 +344,7 @@ function initAvailableThemes(cb) {
 			},
 			function populateAvailable(menuConfig, promptConfig, themeDirectories, callback) {
 				async.each(themeDirectories, (themeId, nextThemeDir) => {	//	theme dir = theme ID
-					loadTheme(themeId, (err, theme, themePath) => {
+					loadTheme(themeId, (err, theme) => {
 						if(err) {
 							if(ErrorReasons.NotEnabled !== err.reasonCode) {
 								Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
@@ -290,31 +353,27 @@ function initAvailableThemes(cb) {
 							return nextThemeDir(null);	//	try next
 						}
 
-						availableThemes[themeId] = getMergedTheme(menuConfig, promptConfig, theme);
-
-						configCache.on('recached', recachedPath => {
-							if(themePath === recachedPath) {
-								loadTheme(themeId, (err, reloadedTheme) => {
-									if(!err) {
-										//	:TODO: This is still broken - Need to reapply *latest* menu config and prompt configs to theme at very least
-										Log.debug( { info : theme.info }, 'Theme recached' );
-										availableThemes[themeId] = getMergedTheme(menuConfig, promptConfig, reloadedTheme);
-									} else if(ErrorReasons.NotEnabled === err.reasonCode) {
-										//	:TODO: we need to disable this theme -- users may be using it! We'll need to re-assign them if so
-									}
-								});
-							}
-						});
-
+						Object.assign(theme.info, { themeId } );
+						availableThemes.set(themeId, getMergedTheme(menuConfig, promptConfig, theme));
 						return nextThemeDir(null);
 					});
 				}, err => {
 					return callback(err);
 				});
+			},
+			function initEvents(callback) {
+				Events.on(Events.getSystemEvents().MenusChanged, () => {
+					return reloadAllThemes();
+				});
+				Events.on(Events.getSystemEvents().PromptsChanged, () => {
+					return reloadAllThemes();
+				});
+
+				return callback(null);
 			}
 		],
 		err => {
-			return cb(err, availableThemes ? availableThemes.length : 0);
+			return cb(err, availableThemes.size);
 		}
 	);
 }
@@ -324,31 +383,30 @@ function getAvailableThemes() {
 }
 
 function getRandomTheme() {
-	if(Object.getOwnPropertyNames(availableThemes).length > 0) {
-		var themeIds = Object.keys(availableThemes);
+	if(availableThemes.size > 0) {
+		const themeIds = [ ...availableThemes.keys() ];
 		return themeIds[Math.floor(Math.random() * themeIds.length)];
 	}
 }
 
 function setClientTheme(client, themeId) {
-	let logMsg;
-
 	const availThemes = getAvailableThemes();
 
-	client.currentTheme = availThemes[themeId];
-	if(client.currentTheme) {
-		logMsg = 'Set client theme';
+	let msg;
+	let setThemeId;
+	if(availThemes.has(themeId)) {
+		msg = 'Set client theme';
+		setThemeId = themeId;
+	} else if(availThemes.has(Config.defaults.theme)) {
+		msg = 'Failed setting theme by supplied ID; Using default';
+		setThemeId = Config.defaults.theme;
 	} else {
-		client.currentTheme = availThemes[Config.defaults.theme];
-		if(client.currentTheme) {
-			logMsg = 'Failed setting theme by supplied ID; Using default';
-		} else {
-			client.currentTheme = availThemes[Object.keys(availThemes)[0]];
-			logMsg = 'Failed setting theme by system default ID; Using the first one we can find';
-		}
+		msg = 'Failed setting theme by system default ID; Using the first one we can find';
+		setThemeId = availThemes.keys().next().value;
 	}
 
-	client.log.debug( { themeId : themeId, info : client.currentTheme.info }, logMsg);
+	client.currentTheme = availThemes.get(setThemeId);
+	client.log.debug( { setThemeId, requestedThemeId : themeId, info : client.currentTheme.info }, msg);
 }
 
 function getThemeArt(options, cb) {
@@ -464,73 +522,6 @@ function displayThemeArt(options, cb) {
 		});
 	});
 }
-
-/*
-function displayThemedPrompt(name, client, options, cb) {
-
-	async.waterfall(
-		[
-			function loadConfig(callback) {
-				configCache.getModConfig('prompt.hjson', (err, promptJson) => {
-					if(err) {
-						return callback(err);
-					}
-
-					if(_.has(promptJson, [ 'prompts', name ] )) {
-						return callback(Errors.DoesNotExist(`Prompt "${name}" does not exist`));
-					}
-
-					const promptConfig = promptJson.prompts[name];
-					if(!_.isObject(promptConfig)) {
-						return callback(Errors.Invalid(`Prompt "${name} is invalid`));
-					}
-
-					return callback(null, promptConfig);
-				});
-			},
-			function display(promptConfig, callback) {
-				if(options.clearScreen) {
-					client.term.rawWrite(ansi.clearScreen());
-				}
-
-				//
-				//	If we did not clear the screen, don't let the font change
-				//
-				const dispOptions = Object.assign( {}, promptConfig.options );
-				if(!options.clearScreen) {
-					dispOptions.font = 'not_really_a_font!';
-				}
-
-				displayThemedAsset(
-					promptConfig.art,
-					client,
-					dispOptions,
-					(err, artData) => {
-						if(err) {
-							return callback(err);
-						}
-
-						return callback(null, promptConfig, artData.mciMap);
-					}
-				);
-			},
-			function prepViews(promptConfig, mciMap, callback) {
-				vc = new ViewController( { client : client } );
-
-				const loadOpts = {
-					promptName	: name,
-					mciMap		: mciMap,
-					config		: promptConfig,
-				};
-
-				vc.loadFromPromptConfig(loadOpts, err => {
-					callback(null);
-				});
-			}
-		]
-	);
-}
-*/
 
 function displayThemedPrompt(name, client, options, cb) {
 
@@ -661,6 +652,10 @@ function displayThemedAsset(assetSpec, client, options, cb) {
 	if(3 === arguments.length) {
 		cb = options;
 		options = {};
+	}
+
+	if(Array.isArray(assetSpec) && _.isString(options.acsCondMember)) {
+		assetSpec = client.acs.getConditionalValue(assetSpec, options.acsCondMember);
 	}
 
 	const artAsset = asset.getArtAsset(assetSpec);

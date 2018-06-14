@@ -164,13 +164,14 @@ exports.getModule = class UserConfigModule extends MenuModule {
 						vc.loadFromMenuConfig( { callingMenu : self, mciMap : mciData.menu }, callback);
 					},
 					function prepareAvailableThemes(callback) {
-						self.availThemeInfo = _.sortBy(_.map(theme.getAvailableThemes(), function makeThemeInfo(t, themeId) {
+						self.availThemeInfo = _.sortBy([...theme.getAvailableThemes()].map(entry => {
+							const theme = entry[1];
 							return {
-								themeId		: themeId,
-								name		: t.info.name,
-								author		: t.info.author,
-								desc		: _.isString(t.info.desc) ? t.info.desc : '',
-								group		: _.isString(t.info.group) ? t.info.group : '',
+								themeId		: theme.info.themeId,
+								name		: theme.info.name,
+								author		: theme.info.author,
+								desc		: _.isString(theme.info.desc) ? theme.info.desc : '',
+								group		: _.isString(theme.info.group) ? theme.info.group : '',
 							};
 						}), 'name');
 

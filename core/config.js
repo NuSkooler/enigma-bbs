@@ -2,13 +2,12 @@
 'use strict';
 
 //	ENiGMA½
+const Errors			= require('./enig_error.js').Errors;
 
 //	deps
-const fs				= require('graceful-fs');
 const paths				= require('path');
 const async				= require('async');
 const _					= require('lodash');
-const hjson				= require('hjson');
 const assert			= require('assert');
 
 exports.init			= init;
@@ -40,39 +39,13 @@ function hasMessageConferenceAndArea(config) {
 	return result;
 }
 
-function init(configPath, options, cb) {
-	if(!cb && _.isFunction(options)) {
-		cb = options;
-		options = {};
-	}
-
+function mergeValidateAndFinalize(config, cb) {
 	async.waterfall(
 		[
-			function loadUserConfig(callback) {
-				if(!_.isString(configPath)) {
-					return callback(null, { } );
-				}
-
-				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
-					if(err) {
-						return callback(err);
-					}
-
-					let configJson;
-					try {
-						configJson = hjson.parse(configData, options);
-					} catch(e) {
-						return callback(e);
-					}
-
-					return callback(null, configJson);
-				});
-			},
-			function mergeWithDefaultConfig(configJson, callback) {
-
+			function mergeWithDefaultConfig(callback) {
 				const mergedConfig = _.mergeWith(
 					getDefaultConfig(),
-					configJson, (conf1, conf2) => {
+					config, (conf1, conf2) => {
 						//	Arrays should always concat
 						if(_.isArray(conf1)) {
 							//	:TODO: look for collisions & override dupes
@@ -89,24 +62,51 @@ function init(configPath, options, cb) {
 				//
 				//	:TODO: Logic is broken here:
 				if(hasMessageConferenceAndArea(mergedConfig)) {
-					var msgAreasErr = new Error('Please create at least one message conference and area!');
-					msgAreasErr.code = 'EBADCONFIG';
-					return callback(msgAreasErr);
-				} else {
-					return callback(null, mergedConfig);
+					return callback(Errors.MissingConfig('Please create at least one message conference and area!'));
 				}
+				return callback(null, mergedConfig);
+			},
+			function setIt(mergedConfig, callback) {
+				exports.config = mergedConfig;
+
+				exports.config.get = (path) => {
+					return _.get(exports.config, path);
+				};
+
+				return callback(null);
 			}
 		],
-		function complete(err, mergedConfig) {
-			exports.config = mergedConfig;
-
-			exports.config.get = function(path) {
-				return _.get(exports.config, path);
-			};
-
-			return cb(err);
+		err => {
+			if(cb) {
+				return cb(err);
+			}
 		}
 	);
+}
+
+function init(configPath, options, cb) {
+	if(!cb && _.isFunction(options)) {
+		cb = options;
+		options = {};
+	}
+
+	const changed = ( { fileName, fileRoot } ) => {
+		const reCachedPath = paths.join(fileRoot, fileName);
+		ConfigCache.getConfig(reCachedPath, (err, config) => {
+			if(!err) {
+				mergeValidateAndFinalize(config);
+			}
+		});
+	};
+
+	const ConfigCache = require('./config_cache.js');
+	ConfigCache.getConfigWithOptions( { filePath : configPath, callback : changed }, (err, config) => {
+		if(err) {
+			return cb(err);
+		}
+
+		return mergeValidateAndFinalize(config, cb);
+	});
 }
 
 function getDefaultPath() {
@@ -804,7 +804,7 @@ function getDefaultConfig() {
 		},
 
 		misc : {
-			preAuthIdleLogoutSeconds	: 60 * 3,	//	2m
+			preAuthIdleLogoutSeconds	: 60 * 3,	//	3m
 			idleLogoutSeconds			: 60 * 6,	//	6m
 		},
 

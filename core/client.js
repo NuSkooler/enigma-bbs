@@ -38,6 +38,7 @@ const User		= require('./user.js');
 const Config	= require('./config.js').config;
 const MenuStack	= require('./menu_stack.js');
 const ACS		= require('./acs.js');
+const Events	= require('./events.js');
 
 //	deps
 const stream	= require('stream');
@@ -109,6 +110,12 @@ function Client(/*input, output*/) {
 		this.input.removeAllListeners('data');
 		this.input.on('data', this.dataHandler);
 	};
+
+	Events.on(Events.getSystemEvents().ThemeChanged, ( { themeId } ) => {
+		if(_.get(this.currentTheme, 'info.themeId') === themeId) {
+			this.currentTheme = require('./theme.js').getAvailableThemes().get(themeId);
+		}
+	});
 
 
 	//
