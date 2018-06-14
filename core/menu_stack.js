@@ -52,18 +52,13 @@ module.exports = class MenuStack {
 		const currentModuleInfo = this.top();
 		assert(currentModuleInfo, 'Empty menu stack!');
 
-		const menuConfig = currentModuleInfo.instance.menuConfig;
-		let nextMenu;
-
-		if(_.isArray(menuConfig.next)) {
-			nextMenu = this.client.acs.getConditionalValue(menuConfig.next, 'next');
-			if(!nextMenu) {
-				return cb(Errors.MenuStack('No matching condition for "next"', 'NOCONDMATCH'));
-			}
-		} else if(_.isString(menuConfig.next)) {
-			nextMenu = menuConfig.next;
-		} else {
-			return cb(Errors.MenuStack('Invalid or missing "next" member in menu config', 'BADNEXT'));
+		const menuConfig	= currentModuleInfo.instance.menuConfig;
+		const nextMenu		= this.client.acs.getConditionalValue(menuConfig.next, 'next');
+		if(!nextMenu) {
+			return cb(Array.isArray(menuConfig.next) ?
+				Errors.MenuStack('No matching condition for "next"', 'NOCONDMATCH') :
+				Errors.MenuStack('Invalid or missing "next" member in menu config', 'BADNEXT')
+			);
 		}
 
 		if(nextMenu === currentModuleInfo.name) {
