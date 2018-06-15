@@ -184,7 +184,7 @@ function SSHClient(clientConn) {
 				if(self.input) {	//	do we have I/O?
 					self.updateTermInfo(info);
 				} else {
-					self.cachedPtyInfo = info;
+					self.cachedTermInfo = info;
 				}
 			});
 
@@ -197,9 +197,9 @@ function SSHClient(clientConn) {
 
 				channel.stdin.on('data', self.dataHandler);
 
-				if(self.cachedPtyInfo) {
-					self.updateTermInfo(self.cachedPtyInfo);
-					delete self.cachedPtyInfo;
+				if(self.cachedTermInfo) {
+					self.updateTermInfo(self.cachedTermInfo);
+					delete self.cachedTermInfo;
 				}
 
 				//	we're ready!
@@ -210,7 +210,11 @@ function SSHClient(clientConn) {
 			session.on('window-change', (accept, reject, info) => {
 				self.log.debug(info, 'SSH window-change event');
 
-				self.updateTermInfo(info);
+				if(self.input) {
+					self.updateTermInfo(info);
+				} else {
+					self.cachedTermInfo = info;
+				}
 			});
 
 		});

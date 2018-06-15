@@ -119,7 +119,10 @@ function shutdownSystem() {
 				const activeConnections = ClientConns.getActiveConnections();
 				let i = activeConnections.length;
 				while(i--) {
-					activeConnections[i].term.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
+					const activeTerm = activeConnections[i].term;
+					if(activeTerm) {
+						activeTerm.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
+					}
 					ClientConns.removeClient(activeConnections[i]);
 				}
 				callback(null);
