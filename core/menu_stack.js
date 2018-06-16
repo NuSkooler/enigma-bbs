@@ -97,6 +97,7 @@ module.exports = class MenuStack {
 			options = {};
 		}
 
+		options = options || {};
 		const self = this;
 
 		if(currentModuleInfo && name === currentModuleInfo.name) {
@@ -111,10 +112,12 @@ module.exports = class MenuStack {
 			client		: self.client,
 		};
 
-		if(_.isObject(options)) {
-			loadOpts.extraArgs		= options.extraArgs || _.get(options, 'formData.value');
-			loadOpts.lastMenuResult	= options.lastMenuResult;
+		if(currentModuleInfo && currentModuleInfo.menuFlags.includes('forwardArgs')) {
+			loadOpts.extraArgs = currentModuleInfo.extraArgs;
+		} else {
+			loadOpts.extraArgs = options.extraArgs || _.get(options, 'formData.value');
 		}
+		loadOpts.lastMenuResult	= options.lastMenuResult;
 
 		loadMenu(loadOpts, (err, modInst) => {
 			if(err) {
@@ -124,7 +127,21 @@ module.exports = class MenuStack {
 			} else {
 				self.client.log.debug( { menuName : name }, 'Goto menu module');
 
-				const menuFlags = (options && Array.isArray(options.menuFlags)) ? options.menuFlags : modInst.menuConfig.options.menuFlags;
+				//
+				//	If menuFlags were supplied in menu.hjson, they should win over
+				//	anything supplied in code.
+				//
+				let menuFlags;
+				if(0 === modInst.menuConfig.options.menuFlags.length) {
+					menuFlags = Array.isArray(options.menuFlags) ? options.menuFlags : [];
+				} else {
+					menuFlags = modInst.menuConfig.options.menuFlags;
+
+					//	in code we can ask to merge in
+					if(Array.isArray(options.menuFlags) && options.menuFlags.includes('mergeFlags')) {
+						menuFlags = _.uniq(menuFlags.concat(options.menuFlags));
+					}
+				}
 
 				if(currentModuleInfo) {
 					//	save stack state
@@ -149,7 +166,7 @@ module.exports = class MenuStack {
 				});
 
 				//	restore previous state if requested
-				if(options && options.savedState) {
+				if(options.savedState) {
 					modInst.restoreSavedState(options.savedState);
 				}
 

@@ -33,7 +33,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
 					extraArgs	: {
 						filterCriteria	: filterCriteria,
 					},
-					menuFlags	: [ 'popParent' ],
+					menuFlags	: [ 'popParent', 'mergeFlags' ],
 				};
 
 				return this.gotoMenu(this.menuConfig.config.fileBaseListEntriesMenu || 'fileBaseListEntries', menuOpts, cb);
