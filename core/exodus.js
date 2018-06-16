@@ -2,8 +2,8 @@
 'use strict';
 
 //	ENiGMA½
-const MenuModule			= require('../core/menu_module.js').MenuModule;
-const resetScreen			= require('../core/ansi_term.js').resetScreen;
+const MenuModule			= require('./menu_module.js').MenuModule;
+const resetScreen			= require('./ansi_term.js').resetScreen;
 const Config				= require('./config.js').config;
 const Errors				= require('./enig_error.js').Errors;
 const Log					= require('./logger.js').log;
