@@ -100,7 +100,14 @@ function init(configPath, options, cb) {
 	};
 
 	const ConfigCache = require('./config_cache.js');
-	ConfigCache.getConfigWithOptions( { filePath : configPath, callback : changed }, (err, config) => {
+	const getConfigOptions = {
+		filePath	: configPath,
+		noWatch		: options.noWatch,
+	};
+	if(!options.noWatch) {
+		getConfigOptions.callback = changed;
+	}
+	ConfigCache.getConfigWithOptions(getConfigOptions, (err, config) => {
 		if(err) {
 			return cb(err);
 		}

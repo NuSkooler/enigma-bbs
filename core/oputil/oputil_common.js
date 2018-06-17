@@ -2,8 +2,6 @@
 /* eslint-disable no-console */
 'use strict';
 
-const resolvePath		= require('../misc_util.js').resolvePath;
-
 const config			= require('../../core/config.js');
 const db				= require('../../core/database.js');
 
@@ -46,7 +44,7 @@ function printUsageAndSetExitCode(errMsg, exitCode) {
 }
 
 function getDefaultConfigPath() {
-    return './config/';
+	return './config/';
 }
 
 function getConfigPath() {
@@ -57,7 +55,7 @@ function getConfigPath() {
 function initConfig(cb) {
 	const configPath = getConfigPath();
 
-	config.init(configPath, { keepWsc : true }, cb);
+	config.init(configPath, { keepWsc : true, noWatch : true }, cb);
 }
 
 function initConfigAndDatabases(cb) {

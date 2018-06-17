@@ -19,24 +19,26 @@ module.exports = new class ConfigCache
 		if(options.forceReCache || !cached) {
 			this.recacheConfigFromFile(options.filePath, (err, config) => {
 				if(!err && !cached) {
-					const watcher = sane(
-						paths.dirname(options.filePath),
-						{
-							glob : `**/${paths.basename(options.filePath)}`
-						}
-					);
-
-					watcher.on('change', (fileName, fileRoot) => {
-						require('./logger.js').log.info( { fileName, fileRoot }, 'Configuration file changed; re-caching');
-
-						this.recacheConfigFromFile(paths.join(fileRoot, fileName), err => {
-							if(!err) {
-								if(options.callback) {
-									options.callback( { fileName, fileRoot } );
-								}
+					if(!options.noWatch) {
+						const watcher = sane(
+							paths.dirname(options.filePath),
+							{
+								glob : `**/${paths.basename(options.filePath)}`
 							}
+						);
+
+						watcher.on('change', (fileName, fileRoot) => {
+							require('./logger.js').log.info( { fileName, fileRoot }, 'Configuration file changed; re-caching');
+
+							this.recacheConfigFromFile(paths.join(fileRoot, fileName), err => {
+								if(!err) {
+									if(options.callback) {
+										options.callback( { fileName, fileRoot } );
+									}
+								}
+							});
 						});
-					});
+					}
 				}
 				return cb(err, config, true);
 			});
