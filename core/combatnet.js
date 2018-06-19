@@ -45,7 +45,9 @@ exports.getModule = class CombatNetModule extends MenuModule {
 					self.client.term.write('Connecting to CombatNet, please wait...\n');
 
 					const restorePipeToNormal = function() {
-						self.client.term.output.removeListener('data', sendToRloginBuffer);
+						if(self.client.term.output) {
+							self.client.term.output.removeListener('data', sendToRloginBuffer);
+						}
 					};
 
 					const rlogin = new RLogin(
