@@ -6,7 +6,7 @@ const theme						= require('./theme.js');
 const ansi						= require('./ansi_term.js');
 const ViewController			= require('./view_controller.js').ViewController;
 const menuUtil					= require('./menu_util.js');
-const Config					= require('./config.js').config;
+const Config					= require('./config.js').get;
 const stringFormat				= require('../core/string_format.js');
 const MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const Errors					= require('../core/enig_error.js').Errors;
@@ -29,7 +29,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 		this.menuMethods		= {};	//	methods called from @method's
 		this.menuConfig.config	= this.menuConfig.config || {};
 
-		this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config.menus.cls;
+		this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
 
 		this.viewControllers	= {};
 	}

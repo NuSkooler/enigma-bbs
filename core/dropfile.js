@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-var Config			= require('./config.js').config;
+var Config			= require('./config.js').get;
 const StatLog		= require('./stat_log.js');
 
 var fs				= require('graceful-fs');
@@ -29,7 +29,7 @@ function DropFile(client, fileType) {
 
 	Object.defineProperty(this, 'fullPath', {
 		get : function() {
-			return paths.join(Config.paths.dropFiles, ('node' + self.client.node), self.fileName);
+			return paths.join(Config().paths.dropFiles, ('node' + self.client.node), self.fileName);
 		}
 	});
 
@@ -157,7 +157,7 @@ function DropFile(client, fileType) {
 			//	:TODO: Completely broken right now -- This need to be configurable & come from temp socket server most likely
 			'-1',	//	self.client.output._handle.fd.toString(),	//	:TODO: ALWAYS -1 on Windows!
 			'57600',
-			Config.general.boardName,
+			Config().general.boardName,
 			self.client.user.userId.toString(),
 			self.client.user.properties.real_name || self.client.user.username,
 			self.client.user.username,
@@ -183,7 +183,7 @@ function DropFile(client, fileType) {
 		var secLevel	= self.client.user.getLegacySecurityLevel().toString();
 
 		return iconv.encode( [
-			Config.general.boardName,							//	"The name of the system."
+			Config().general.boardName,							//	"The name of the system."
 			opUn,												//	"The sysop's name up to the first space."
 			opUn,												//	"The sysop's name following the first space."
 			'COM1',												//	"The serial port the modem is connected to, or 0 if logged in on console."

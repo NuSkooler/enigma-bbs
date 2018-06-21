@@ -4,7 +4,7 @@
 //	ENiGMA½
 const Log					= require('../../logger.js').log;
 const { ServerModule }		= require('../../server_module.js');
-const Config				= require('../../config.js').config;
+const Config				= require('../../config.js').get;
 const {
 	splitTextAtTerms,
 	isAnsi,
@@ -73,8 +73,9 @@ exports.getModule = class GopherModule extends ServerModule {
 			return;
 		}
 
-		this.publicHostname = Config.contentServers.gopher.publicHostname;
-		this.publicPort		= Config.contentServers.gopher.publicPort;
+		const config = Config();
+		this.publicHostname = config.contentServers.gopher.publicHostname;
+		this.publicPort		= config.contentServers.gopher.publicPort;
 
 		this.addRoute(/^\/?\r\n$/, this.defaultGenerator);
 		this.addRoute(/^\/msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
@@ -99,9 +100,10 @@ exports.getModule = class GopherModule extends ServerModule {
 			return true;	//	nothing to do, but not an error
 		}
 
-		const port = parseInt(Config.contentServers.gopher.port);
+		const config = Config();
+		const port = parseInt(config.contentServers.gopher.port);
 		if(isNaN(port)) {
-			this.log.warn( { port : Config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
+			this.log.warn( { port : config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
 			return false;
 		}
 
@@ -109,13 +111,14 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	get enabled() {
-		return _.get(Config, 'contentServers.gopher.enabled', false) && this.isConfigured();
+		return _.get(Config(), 'contentServers.gopher.enabled', false) && this.isConfigured();
 	}
 
 	isConfigured() {
 		//	public hostname & port must be set; responses contain them!
-		return _.isString(_.get(Config, 'contentServers.gopher.publicHostname')) &&
-			_.isNumber(_.get(Config, 'contentServers.gopher.publicPort'));
+		const config = Config();
+		return _.isString(_.get(config, 'contentServers.gopher.publicHostname')) &&
+			_.isNumber(_.get(config, 'contentServers.gopher.publicPort'));
 	}
 
 	addRoute(selectorRegExp, generatorHandler) {
@@ -155,7 +158,7 @@ exports.getModule = class GopherModule extends ServerModule {
 	defaultGenerator(selectorMatch, cb) {
 		this.log.trace( { selector : selectorMatch[0] }, 'Serving default content');
 
-		let bannerFile = _.get(Config, 'contentServers.gopher.bannerFile', 'startup_banner.asc');
+		let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'startup_banner.asc');
 		bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
 		fs.readFile(bannerFile, 'utf8', (err, banner) => {
 			if(err) {
@@ -174,7 +177,7 @@ exports.getModule = class GopherModule extends ServerModule {
 	}
 
 	isAreaAndConfExposed(confTag, areaTag) {
-		const conf = _.get(Config, [ 'contentServers', 'gopher', 'messageConferences', confTag ]);
+		const conf = _.get(Config(), [ 'contentServers', 'gopher', 'messageConferences', confTag ]);
 		return Array.isArray(conf) && conf.includes(areaTag);
 	}
 
@@ -281,13 +284,14 @@ ${msgBody}
 			});
 		} else if(selectorMatch[1]) {
 			//	list areas in conf
+			const sysConfig = Config();
 			const confTag	= selectorMatch[1].replace(/\r\n|\//g, '');
-			const conf		= _.get(Config, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
+			const conf		= _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
 			if(!conf) {
 				return this.notFoundGenerator(selectorMatch, cb);
 			}
 
-			const areas = _.get(Config, [ 'contentServers', 'gopher', 'messageConferences', confTag ], {})
+			const areas = _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ], {})
 				.map(areaTag => Object.assign( { areaTag }, getMessageAreaByTag(areaTag)))
 				.filter(area => area && !Message.isPrivateAreaTag(area.areaTag));
 
@@ -307,7 +311,7 @@ ${msgBody}
 			return cb(response);
 		} else {
 			//	message area base (list confs)
-			const confs = Object.keys(_.get(Config, 'contentServers.gopher.messageConferences', {}))
+			const confs = Object.keys(_.get(Config(), 'contentServers.gopher.messageConferences', {}))
 				.map(confTag => Object.assign( { confTag }, getMessageConferenceByTag(confTag)))
 				.filter(conf => conf);	//	remove any baddies
 

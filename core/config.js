@@ -13,6 +13,8 @@ const assert			= require('assert');
 exports.init			= init;
 exports.getDefaultPath	= getDefaultPath;
 
+let currentConfiguration = {};
+
 function hasMessageConferenceAndArea(config) {
 	assert(_.isObject(config.messageConferences));  //  we create one ourself!
 
@@ -67,12 +69,10 @@ function mergeValidateAndFinalize(config, cb) {
 				return callback(null, mergedConfig);
 			},
 			function setIt(mergedConfig, callback) {
-				exports.config = mergedConfig;
+				//	:TODO: .config property is to be deprecated once conversions are done
+				exports.config = currentConfiguration = mergedConfig;
 
-				exports.config.get = (path) => {
-					return _.get(exports.config, path);
-				};
-
+				exports.get = () => currentConfiguration;
 				return callback(null);
 			}
 		],

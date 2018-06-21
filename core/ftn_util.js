@@ -1,18 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-let Config					= require('./config.js').config;
-let Address					= require('./ftn_address.js');
-let FNV1a					= require('./fnv1a.js');
+const Config				= require('./config.js').get;
+const Address				= require('./ftn_address.js');
+const FNV1a					= require('./fnv1a.js');
 const getCleanEnigmaVersion	= require('./misc_util.js').getCleanEnigmaVersion;
 
-let _						= require('lodash');
-let iconv					= require('iconv-lite');
-let moment					= require('moment');
-//let uuid			= require('node-uuid');
-let os						= require('os');
+const _						= require('lodash');
+const iconv					= require('iconv-lite');
+const moment				= require('moment');
+const os					= require('os');
 
-let packageJson 			= require('../package.json');
+const packageJson 			= require('../package.json');
 
 //	:TODO: Remove "Ftn" from most of these -- it's implied in the module
 exports.stringToNullPaddedBuffer	= stringToNullPaddedBuffer;
@@ -199,9 +198,10 @@ function getQuotePrefix(name) {
 //	http://ftsc.org/docs/fts-0004.001
 //
 function getOrigin(address) {
-	const origin = _.has(Config, 'messageNetworks.originLine') ?
-		Config.messageNetworks.originLine :
-		Config.general.boardName;
+	const config = Config();
+	const origin = _.has(config, 'messageNetworks.originLine') ?
+		config.messageNetworks.originLine :
+		config.general.boardName;
 
 	const addrStr = new Address(address).toString('5D');
 	return ` * Origin: ${origin} (${addrStr})`;

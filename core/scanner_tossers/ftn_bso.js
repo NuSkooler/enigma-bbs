@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const MessageScanTossModule				= require('../msg_scan_toss_module.js').MessageScanTossModule;
-const Config							= require('../config.js').config;
+const Config							= require('../config.js').get;
 const ftnMailPacket						= require('../ftn_mail_packet.js');
 const ftnUtil							= require('../ftn_util.js');
 const Address							= require('../ftn_address.js');
@@ -60,8 +60,9 @@ function FTNMessageScanTossModule() {
 
 	this.archUtil = ArchiveUtil.getInstance();
 
-	if(_.has(Config, 'scannerTossers.ftn_bso')) {
-		this.moduleConfig = Config.scannerTossers.ftn_bso;
+	const config = Config();
+	if(_.has(config, 'scannerTossers.ftn_bso')) {
+		this.moduleConfig = config.scannerTossers.ftn_bso;
 	}
 
 	this.getDefaultNetworkName = function() {
@@ -69,19 +70,20 @@ function FTNMessageScanTossModule() {
 			return this.moduleConfig.defaultNetwork.toLowerCase();
 		}
 
-		const networkNames = Object.keys(Config.messageNetworks.ftn.networks);
+		const networkNames = Object.keys(config.messageNetworks.ftn.networks);
 		if(1 === networkNames.length) {
 			return networkNames[0].toLowerCase();
 		}
 	};
 
 	this.getDefaultZone = function(networkName) {
-		if(_.isNumber(Config.messageNetworks.ftn.networks[networkName].defaultZone)) {
-			return Config.messageNetworks.ftn.networks[networkName].defaultZone;
+		const config = Config();
+		if(_.isNumber(config.messageNetworks.ftn.networks[networkName].defaultZone)) {
+			return config.messageNetworks.ftn.networks[networkName].defaultZone;
 		}
 
 		//	non-explicit: default to local address zone
-		const networkLocalAddress = Config.messageNetworks.ftn.networks[networkName].localAddress;
+		const networkLocalAddress = config.messageNetworks.ftn.networks[networkName].localAddress;
 		if(networkLocalAddress) {
 			const addr = Address.fromString(networkLocalAddress);
 			return addr.zone;
@@ -96,14 +98,14 @@ function FTNMessageScanTossModule() {
 	*/
 
 	this.getNetworkNameByAddress = function(remoteAddress) {
-		return _.findKey(Config.messageNetworks.ftn.networks, network => {
+		return _.findKey(Config().messageNetworks.ftn.networks, network => {
 			const localAddress = Address.fromString(network.localAddress);
 			return !_.isUndefined(localAddress) && localAddress.isEqual(remoteAddress);
 		});
 	};
 
 	this.getNetworkNameByAddressPattern = function(remoteAddressPattern) {
-		return _.findKey(Config.messageNetworks.ftn.networks, network => {
+		return _.findKey(Config().messageNetworks.ftn.networks, network => {
 			const localAddress = Address.fromString(network.localAddress);
 			return !_.isUndefined(localAddress) && localAddress.isPatternMatch(remoteAddressPattern);
 		});
@@ -111,7 +113,7 @@ function FTNMessageScanTossModule() {
 
 	this.getLocalAreaTagByFtnAreaTag = function(ftnAreaTag) {
 		ftnAreaTag = ftnAreaTag.toUpperCase();	//	always compare upper
-		return _.findKey(Config.messageNetworks.ftn.areas, areaConf => {
+		return _.findKey(Config().messageNetworks.ftn.areas, areaConf => {
 			return areaConf.tag.toUpperCase() === ftnAreaTag;
 		});
 	};
@@ -357,6 +359,7 @@ function FTNMessageScanTossModule() {
 
 		let ftnAttribute = ftnMailPacket.Packet.Attribute.Local;	//	message from our system
 
+		const config = Config();
 		if(self.isNetMailMessage(message)) {
 			//
 			//	Set route and message destination properties -- they may differ
@@ -405,14 +408,14 @@ function FTNMessageScanTossModule() {
 			//
 			//	EchoMail requires some additional properties & kludges
 			//
-			message.meta.FtnProperty.ftn_area = Config.messageNetworks.ftn.areas[message.areaTag].tag;
+			message.meta.FtnProperty.ftn_area = config.messageNetworks.ftn.areas[message.areaTag].tag;
 
 			//
 			//	When exporting messages, we should create/update SEEN-BY
 			//	with remote address(s) we are exporting to.
 			//
 			const seenByAdditions =
-				[ `${localAddress.net}/${localAddress.node}` ].concat(Config.messageNetworks.ftn.areas[message.areaTag].uplinks);
+				[ `${localAddress.net}/${localAddress.node}` ].concat(config.messageNetworks.ftn.areas[message.areaTag].uplinks);
 			message.meta.FtnProperty.ftn_seen_by =
 				ftnUtil.getUpdatedSeenByEntries(message.meta.FtnProperty.ftn_seen_by, seenByAdditions);
 
@@ -453,7 +456,7 @@ function FTNMessageScanTossModule() {
 		//	Determine CHRS and actual internal encoding name. If the message has an
 		//	explicit encoding set, use it. Otherwise, try to preserve any CHRS/encoding already set.
 		//
-		let encoding = options.nodeConfig.encoding || Config.scannerTossers.ftn_bso.packetMsgEncoding || 'utf8';
+		let encoding = options.nodeConfig.encoding || config.scannerTossers.ftn_bso.packetMsgEncoding || 'utf8';
 		const explicitEncoding = _.get(message.meta, 'System.explicit_encoding');
 		if(explicitEncoding) {
 			encoding = explicitEncoding;
@@ -513,7 +516,7 @@ function FTNMessageScanTossModule() {
 
 
 	this.hasValidConfiguration = function() {
-		if(!_.has(this, 'moduleConfig.nodes') || !_.has(Config, 'messageNetworks.ftn.areas')) {
+		if(!_.has(this, 'moduleConfig.nodes') || !_.has(Config(), 'messageNetworks.ftn.areas')) {
 			return false;
 		}
 
@@ -820,7 +823,7 @@ function FTNMessageScanTossModule() {
 		//
 		//	Route full|wildcard -> full adddress/network lookup
 		//
-		const routes = _.get(Config, 'scannerTossers.ftn_bso.netMail.routes');
+		const routes = _.get(Config(), 'scannerTossers.ftn_bso.netMail.routes');
 		if(!routes) {
 			return;
 		}
@@ -860,7 +863,7 @@ function FTNMessageScanTossModule() {
 
 		const config = _.find(this.moduleConfig.nodes, (node, nodeAddrWildcard) => {
 			return routeAddress.isPatternMatch(nodeAddrWildcard);
-		}) || { packetType : '2+', encoding	: Config.scannerTossers.ftn_bso.packetMsgEncoding };
+		}) || { packetType : '2+', encoding	: Config().scannerTossers.ftn_bso.packetMsgEncoding };
 
 		//	we should never be failing here; we may just be using defaults.
 		return cb(
@@ -899,7 +902,7 @@ function FTNMessageScanTossModule() {
 							exportOpts.destAddress	= dstAddr;
 							exportOpts.routeAddress	= routeInfo.routeAddress;
 							exportOpts.fileCase		= routeInfo.config.fileCase || 'lower';
-							exportOpts.network		= Config.messageNetworks.ftn.networks[routeInfo.networkName];
+							exportOpts.network		= Config().messageNetworks.ftn.networks[routeInfo.networkName];
 							exportOpts.networkName	= routeInfo.networkName;
 							exportOpts.outgoingDir	= self.getOutgoingEchoMailPacketDir(exportOpts.networkName, exportOpts.destAddress);
 							exportOpts.exportType	= self.getExportType(routeInfo.config);
@@ -966,6 +969,7 @@ function FTNMessageScanTossModule() {
 	};
 
 	this.exportEchoMailMessagesToUplinks = function(messageUuids, areaConfig, cb) {
+		const config = Config();
 		async.each(areaConfig.uplinks, (uplink, nextUplink) => {
 			const nodeConfig = self.getNodeConfigByAddress(uplink);
 			if(!nodeConfig) {
@@ -974,7 +978,7 @@ function FTNMessageScanTossModule() {
 
 			const exportOpts = {
 				nodeConfig,
-				network			: Config.messageNetworks.ftn.networks[areaConfig.network],
+				network			: config.messageNetworks.ftn.networks[areaConfig.network],
 				destAddress		: Address.fromString(uplink),
 				networkName		: areaConfig.network,
 				fileCase		: nodeConfig.fileCase || 'lower',
@@ -1119,7 +1123,7 @@ function FTNMessageScanTossModule() {
 	this.getLocalUserNameFromAlias = function(lookup) {
 		lookup = lookup.toLowerCase();
 
-		const aliases = _.get(Config, 'messageNetworks.ftn.netMail.aliases');
+		const aliases = _.get(Config(), 'messageNetworks.ftn.netMail.aliases');
 		if(!aliases) {
 			return lookup;	//	keep orig
 		}
@@ -1195,7 +1199,7 @@ function FTNMessageScanTossModule() {
 					//	a random UUID. Otherwise, don't assign the UUID just yet. It will be
 					//	generated at persist() time and should be consistent across import/exports
 					//
-					if(true === _.get(Config, [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
+					if(true === _.get(Config(), [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
 						//	just generate a UUID & therefor always allow for dupes
 						message.uuid = uuidV4();
 					}
@@ -1650,7 +1654,8 @@ function FTNMessageScanTossModule() {
 	};
 
 	this.getLocalAreaTagsForTic = function() {
-		return _.union(Object.keys(Config.scannerTossers.ftn_bso.ticAreas || {} ), Object.keys(Config.fileBase.areas));
+		const config = Config();
+		return _.union(Object.keys(config.scannerTossers.ftn_bso.ticAreas || {} ), Object.keys(config.fileBase.areas));
 	};
 
 	this.processSingleTicFile = function(ticFileInfo, cb) {
@@ -1659,9 +1664,10 @@ function FTNMessageScanTossModule() {
 		async.waterfall(
 			[
 				function generalValidation(callback) {
+					const sysConfig = Config();
 					const config = {
-						nodes			: Config.scannerTossers.ftn_bso.nodes,
-						defaultPassword	: Config.scannerTossers.ftn_bso.tic.password,
+						nodes			: sysConfig.scannerTossers.ftn_bso.nodes,
+						defaultPassword	: sysConfig.scannerTossers.ftn_bso.tic.password,
 						localAreaTags	: self.getLocalAreaTagsForTic(),
 					};
 
@@ -1672,7 +1678,7 @@ function FTNMessageScanTossModule() {
 						}
 
 						//	We may need to map |localAreaTag| back to real areaTag if it's a mapping/alias
-						const mappedLocalAreaTag = _.get(Config.scannerTossers.ftn_bso, [ 'ticAreas', localInfo.areaTag ]);
+						const mappedLocalAreaTag = _.get(Config().scannerTossers.ftn_bso, [ 'ticAreas', localInfo.areaTag ]);
 
 						if(mappedLocalAreaTag) {
 							if(_.isString(mappedLocalAreaTag.areaTag)) {
@@ -1699,7 +1705,7 @@ function FTNMessageScanTossModule() {
 					//	Lastly, we will only replace if the item is in the same/specified area
 					//	and that come from the same origin as a previous entry.
 					//
-					const allowReplace	= _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'allowReplace' ], Config.scannerTossers.ftn_bso.tic.allowReplace);
+					const allowReplace	= _.get(Config().scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'allowReplace' ], Config().scannerTossers.ftn_bso.tic.allowReplace);
 					const replaces		= ticFileInfo.getAsString('Replaces');
 
 					if(!allowReplace || !replaces) {
@@ -1755,7 +1761,7 @@ function FTNMessageScanTossModule() {
 							short_file_name		: ticFileInfo.getAsString('File').toUpperCase(),	//	upper to ensure no case issues later; this should be a DOS 8.3 name
 							tic_origin			: ticFileInfo.getAsString('Origin'),
 							tic_desc			: ticFileInfo.getAsString('Desc'),
-							upload_by_username	: _.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ], Config.scannerTossers.ftn_bso.tic.uploadBy),
+							upload_by_username	: _.get(Config().scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'uploadBy' ], Config().scannerTossers.ftn_bso.tic.uploadBy),
 						}
 					};
 
@@ -1769,7 +1775,7 @@ function FTNMessageScanTossModule() {
 					//
 					const hashTags =
 						localInfo.hashTags ||
-						_.get(Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'hashTags' ] );		//	catch-all*/
+						_.get(Config().scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'hashTags' ] );		//	catch-all*/
 
 					if(hashTags) {
 						scanOpts.hashTags = new Set(hashTags.split(/[\s,]+/));
@@ -1817,8 +1823,8 @@ function FTNMessageScanTossModule() {
 					//	We will still fallback as needed from <priority1> -> <priority2> -> <fromFileName>
 					//
 					const descPriority = _.get(
-						Config.scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'descPriority' ],
-						Config.scannerTossers.ftn_bso.tic.descPriority
+						Config().scannerTossers.ftn_bso.nodes, [ localInfo.node, 'tic', 'descPriority' ],
+						Config().scannerTossers.ftn_bso.tic.descPriority
 					);
 
 					if('tic' === descPriority) {
@@ -1926,11 +1932,12 @@ function FTNMessageScanTossModule() {
 			;
 
 		//	we shouldn't, but be sure we don't try to pick up private mail here
-		const areaTags = Object.keys(Config.messageNetworks.ftn.areas)
+		const config = Config();
+		const areaTags = Object.keys(config.messageNetworks.ftn.areas)
 			.filter(areaTag => Message.WellKnownAreaTags.Private !== areaTag);
 
 		async.each(areaTags, (areaTag, nextArea) => {
-			const areaConfig = Config.messageNetworks.ftn.areas[areaTag];
+			const areaConfig = config.messageNetworks.ftn.areas[areaTag];
 			if(!this.isAreaConfigValid(areaConfig)) {
 				return nextArea();
 			}
@@ -2336,7 +2343,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
 	} else if(message.areaTag) {
 		Object.assign(info, { type : 'EchoMail' } );
 
-		const areaConfig = Config.messageNetworks.ftn.areas[message.areaTag];
+		const areaConfig = Config().messageNetworks.ftn.areas[message.areaTag];
 		if(!this.isAreaConfigValid(areaConfig)) {
 			return;
 		}

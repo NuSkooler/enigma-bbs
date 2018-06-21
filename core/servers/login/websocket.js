@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config			= require('../../config.js').config;
+const Config			= require('../../config.js').get;
 const TelnetClient		= require('./telnet.js').TelnetClient;
 const Log				= require('../../logger.js').log;
 const LoginServerModule	= require('../../login_server_module.js');
@@ -92,7 +92,7 @@ function WebSocketClient(ws, req, serverType) {
 	//	If the config allows it, look for 'x-forwarded-proto' as "https"
 	//	to override |isSecure|
 	//
-	if(true === _.get(Config, 'loginServers.webSocket.proxied') &&
+	if(true === _.get(Config(), 'loginServers.webSocket.proxied') &&
 		'https' === req.headers['x-forwarded-proto'])
 	{
 		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
@@ -120,7 +120,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 		//	* insecure websocket (ws://)
 		//	* secure (tls) websocket (wss://)
 		//
-		const config = _.get(Config, 'loginServers.webSocket');
+		const config = _.get(Config(), 'loginServers.webSocket');
 		if(!_.isObject(config)) {
 			return;
 		}
@@ -162,7 +162,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 			}
 
 			const serverName 	= `${ModuleInfo.name} (${serverType})`;
-			const port			= parseInt(_.get(Config, [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
+			const port			= parseInt(_.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
 
 			if(isNaN(port)) {
 				Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );

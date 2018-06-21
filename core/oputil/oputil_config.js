@@ -333,7 +333,7 @@ function importAreas() {
 			},
 			function validateAndCollectInput(callback) {
 				const msgArea	= require('../../core/message_area.js');
-				const Config	= require('../../core/config.js').config;
+				const sysConfig	= require('../../core/config.js').get();
 
 				let msgConfs = msgArea.getSortedAvailMessageConferences(null, { noClient : true } );
 				if(!msgConfs) {
@@ -355,8 +355,8 @@ function importAreas() {
 				}
 
 				let existingNetworkNames = [];
-				if(_.has(Config, 'messageNetworks.ftn.networks')) {
-					existingNetworkNames = Object.keys(Config.messageNetworks.ftn.networks);
+				if(_.has(sysConfig, 'messageNetworks.ftn.networks')) {
+					existingNetworkNames = Object.keys(sysConfig.messageNetworks.ftn.networks);
 				}
 
 				if(0 === existingNetworkNames.length) {
@@ -366,7 +366,7 @@ function importAreas() {
 				if(networkName && !existingNetworkNames.find(net => networkName === net)) {
 					return callback(Errors.DoesNotExist(`FTN style Network "${networkName}" does not exist`));
 				}
-				
+
 				getAnswers([
 					{
 						name		: 'confTag',
@@ -407,13 +407,13 @@ function importAreas() {
 				});
 			},
 			function confirmWithUser(callback) {
-				const Config	= require('../../core/config.js').config;
+				const sysConfig	= require('../../core/config.js').get();
 
-				console.info(`Importing the following for "${confTag}" - (${Config.messageConferences[confTag].name} - ${Config.messageConferences[confTag].desc})`);
+				console.info(`Importing the following for "${confTag}" - (${sysConfig.messageConferences[confTag].name} - ${sysConfig.messageConferences[confTag].desc})`);
 				importEntries.forEach(ie => {
 					console.info(`  ${ie.ftnTag} - ${ie.name}`);
 				});
-				
+
 				console.info('');
 				console.info('Importing will NOT create required FTN network configurations.');
 				console.info('If you have not yet done this, you will need to complete additional steps after importing.');

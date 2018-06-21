@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config	= require('./config.js').config;
+const Config	= require('./config.js').get;
 const miscUtil	= require('./misc_util.js');
 const ansi		= require('./ansi_term.js');
 const aep		= require('./ansi_escape_parser.js');
@@ -126,7 +126,7 @@ function getArtFromPath(path, options, cb) {
 function getArt(name, options, cb) {
 	const ext = paths.extname(name);
 
-	options.basePath	= miscUtil.valueWithDefault(options.basePath, Config.paths.art);
+	options.basePath	= miscUtil.valueWithDefault(options.basePath, Config().paths.art);
 	options.asAnsi		= miscUtil.valueWithDefault(options.asAnsi, true);
 
 	//	:TODO: make use of asAnsi option and convert from supported -> ansi

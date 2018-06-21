@@ -4,7 +4,7 @@
 //	ENiGMA½
 var moduleUtil			= require('./module_util.js');
 var Log					= require('./logger.js').log;
-var Config				= require('./config.js').config;
+var Config				= require('./config.js').get;
 var asset				= require('./asset.js');
 var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
 
@@ -75,7 +75,7 @@ function loadMenu(options, cb) {
 
 				const modLoadOpts = {
 					name		: modSupplied ? modAsset.asset : 'standard_menu',
-					path		: (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config.paths.mods,
+					path		: (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config().paths.mods,
 					category	: (!modSupplied || 'systemModule' === modAsset.type) ? null : 'mods',
 				};
 
@@ -189,7 +189,7 @@ function handleAction(client, formData, conf, cb) {
 				return callModuleMenuMethod(
 					client,
 					actionAsset,
-					paths.join(Config.paths.mods, actionAsset.location),
+					paths.join(Config().paths.mods, actionAsset.location),
 					formData,
 					conf.extraArgs,
 					cb);
@@ -234,7 +234,7 @@ function handleNext(client, nextSpec, conf, cb) {
 		case 'method' :
 		case 'systemMethod' :
 			if(_.isString(nextAsset.location)) {
-				return callModuleMenuMethod(client, nextAsset, paths.join(Config.paths.mods, nextAsset.location), {}, extraArgs, cb);
+				return callModuleMenuMethod(client, nextAsset, paths.join(Config().paths.mods, nextAsset.location), {}, extraArgs, cb);
 			} else if('systemMethod' === nextAsset.type) {
 				//	:TODO: see other notes about system_menu_method.js here
 				return callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'), {}, extraArgs, cb);

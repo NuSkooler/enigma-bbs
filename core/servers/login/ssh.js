@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config			= require('../../config.js').config;
+const Config			= require('../../config.js').get;
 const baseClient		= require('../../client.js');
 const Log				= require('../../logger.js').log;
 const LoginServerModule	= require('../../login_server_module.js');
@@ -42,7 +42,8 @@ function SSHClient(clientConn) {
 		const username	= ctx.username || '';
 		const password	= ctx.password || '';
 
-		self.isNewUser	= (Config.users.newUserNames || []).indexOf(username) > -1;
+		const config	= Config();
+		self.isNewUser	= (config.users.newUserNames || []).indexOf(username) > -1;
 
 		self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
@@ -60,7 +61,7 @@ function SSHClient(clientConn) {
 		//	If the system is open and |isNewUser| is true, the login
 		//	sequence is hijacked in order to start the applicaiton process.
 		//
-		if(false === Config.general.closedSystem && self.isNewUser) {
+		if(false === config.general.closedSystem && self.isNewUser) {
 			return ctx.accept();
 		}
 
@@ -99,7 +100,7 @@ function SSHClient(clientConn) {
 							return alreadyLoggedIn(username);
 						}
 
-						if(loginAttempts >= Config.general.loginAttempts) {
+						if(loginAttempts >= config.general.loginAttempts) {
 							return terminateConnection();
 						}
 
@@ -113,8 +114,8 @@ function SSHClient(clientConn) {
 							if(err) {
 								interactivePrompt.prompt = `Access denied\n${ctx.username}'s password: `;
 							} else {
-								const newUserNameList = _.has(Config, 'users.newUserNames') && Config.users.newUserNames.length > 0 ?
-									Config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
+								const newUserNameList = _.has(config, 'users.newUserNames') && config.users.newUserNames.length > 0 ?
+									config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
 									'(No new user names enabled!)';
 
 								interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
@@ -203,7 +204,7 @@ function SSHClient(clientConn) {
 				}
 
 				//	we're ready!
-				const firstMenu = self.isNewUser ? Config.loginServers.ssh.firstMenuNewUser : Config.loginServers.ssh.firstMenu;
+				const firstMenu = self.isNewUser ? Config().loginServers.ssh.firstMenuNewUser : Config().loginServers.ssh.firstMenu;
 				self.emit('ready', { firstMenu : firstMenu } );
 			});
 
@@ -239,18 +240,19 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 	}
 
 	createServer() {
+		const config = Config();
 		const serverConf = {
 			hostKeys : [
 				{
-					key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
-					passphrase	: Config.loginServers.ssh.privateKeyPass,
+					key			: fs.readFileSync(config.loginServers.ssh.privateKeyPem),
+					passphrase	: config.loginServers.ssh.privateKeyPass,
 				}
 			],
 			ident : 'enigma-bbs-' + enigVersion + '-srv',
 
 			//	Note that sending 'banner' breaks at least EtherTerm!
 			debug : (sshDebugLine) => {
-				if(true === Config.loginServers.ssh.traceConnections) {
+				if(true === config.loginServers.ssh.traceConnections) {
 					Log.trace(`SSH: ${sshDebugLine}`);
 				}
 			},
@@ -265,9 +267,10 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 	}
 
 	listen() {
-		const port = parseInt(Config.loginServers.ssh.port);
+		const config = Config();
+		const port = parseInt(config.loginServers.ssh.port);
 		if(isNaN(port)) {
-			Log.error( { server : ModuleInfo.name, port : Config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
+			Log.error( { server : ModuleInfo.name, port : config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
 			return false;
 		}
 

@@ -6,7 +6,7 @@ const MenuModule	= require('./menu_module.js').MenuModule;
 const User			= require('./user.js');
 const theme			= require('./theme.js');
 const login			= require('./system_menu_method.js').login;
-const Config		= require('./config.js').config;
+const Config		= require('./config.js').get;
 const messageArea	= require('./message_area.js');
 
 exports.moduleInfo = {
@@ -62,6 +62,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 			//
 			submitApplication : function(formData, extraArgs, cb) {
 				const newUser = new User();
+				const config = Config();
 
 				newUser.username = formData.value.username;
 
@@ -95,10 +96,10 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 					//	:TODO: should probably have a place to create defaults/etc.
 				};
 
-				if('*' === Config.defaults.theme) {
+				if('*' === config.defaults.theme) {
 					newUser.properties.theme_id = theme.getRandomTheme();
 				} else {
-					newUser.properties.theme_id = Config.defaults.theme;
+					newUser.properties.theme_id = config.defaults.theme;
 				}
 
 				//	:TODO: User.create() should validate email uniqueness!
@@ -118,7 +119,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 						//	Cache SysOp information now
 						//	:TODO: Similar to bbs.js. DRY
 						if(newUser.isSysOp()) {
-							Config.general.sysOp = {
+							config.general.sysOp = {
 								username	: formData.value.username,
 								properties	: newUser.properties,
 							};

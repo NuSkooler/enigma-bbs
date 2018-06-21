@@ -7,7 +7,7 @@ const {
 	getISOTimestampString,
 	sanatizeString
 }							= require('./database.js');
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 
 //	deps
 const async					= require('async');
@@ -202,7 +202,8 @@ module.exports = class FileEntry {
 	}
 
 	static getAreaStorageDirectoryByTag(storageTag) {
-		const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
+		const config = Config();
+		const storageLocation = (storageTag && config.fileBase.storageTags[storageTag]);
 
 		//	absolute paths as-is
 		if(storageLocation && '/' === storageLocation.charAt(0)) {
@@ -210,7 +211,7 @@ module.exports = class FileEntry {
 		}
 
 		//	relative to |areaStoragePrefix|
-		return paths.join(Config.fileBase.areaStoragePrefix, storageLocation || '');
+		return paths.join(config.fileBase.areaStoragePrefix, storageLocation || '');
 	}
 
 	get filePath() {

@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const art				= require('./art.js');
 const ansi				= require('./ansi_term.js');
 const Log				= require('./logger.js').log;
@@ -38,7 +38,7 @@ function refreshThemeHelpers(theme) {
 			let pwChar = _.get(
 				theme,
 				'customization.defaults.general.passwordChar',
-				Config.defaults.passwordChar
+				Config().defaults.passwordChar
 			);
 
 			if(_.isString(pwChar)) {
@@ -50,22 +50,22 @@ function refreshThemeHelpers(theme) {
 			return pwChar;
 		},
 		getDateFormat : function(style = 'short') {
-			const format = Config.defaults.dateFormat[style] || 'MM/DD/YYYY';
+			const format = Config().defaults.dateFormat[style] || 'MM/DD/YYYY';
 			return _.get(theme, `customization.defaults.dateFormat.${style}`, format);
 		},
 		getTimeFormat : function(style = 'short') {
-			const format = Config.defaults.timeFormat[style] || 'h:mm a';
+			const format = Config().defaults.timeFormat[style] || 'h:mm a';
 			return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
 		},
 		getDateTimeFormat : function(style = 'short') {
-			const format = Config.defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+			const format = Config().defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
 			return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
 		}
 	};
 }
 
 function loadTheme(themeId, cb) {
-	const path = paths.join(Config.paths.themes, themeId, 'theme.hjson');
+	const path = paths.join(Config().paths.themes, themeId, 'theme.hjson');
 
 	const changed = ( { fileName, fileRoot } ) => {
 		const reCachedPath = paths.join(fileRoot, fileName);
@@ -262,15 +262,16 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
 }
 
 function reloadTheme(themeId) {
+	const config = Config();
 	async.waterfall(
 		[
 			function loadMenuConfig(callback) {
-				getFullConfig(Config.general.menuFile, (err, menuConfig) => {
+				getFullConfig(config.general.menuFile, (err, menuConfig) => {
 					return callback(err, menuConfig);
 				});
 			},
 			function loadPromptConfig(menuConfig, callback) {
-				getFullConfig(Config.general.promptFile, (err, promptConfig) => {
+				getFullConfig(config.general.promptFile, (err, promptConfig) => {
 					return callback(err, menuConfig, promptConfig);
 				});
 			},
@@ -312,21 +313,21 @@ function reloadAllThemes()
 }
 
 function initAvailableThemes(cb) {
-
+	const config = Config();
 	async.waterfall(
 		[
 			function loadMenuConfig(callback) {
-				getFullConfig(Config.general.menuFile, (err, menuConfig) => {
+				getFullConfig(config.general.menuFile, (err, menuConfig) => {
 					return callback(err, menuConfig);
 				});
 			},
 			function loadPromptConfig(menuConfig, callback) {
-				getFullConfig(Config.general.promptFile, (err, promptConfig) => {
+				getFullConfig(config.general.promptFile, (err, promptConfig) => {
 					return callback(err, menuConfig, promptConfig);
 				});
 			},
 			function getThemeDirectories(menuConfig, promptConfig, callback) {
-				fs.readdir(Config.paths.themes, (err, files) =>  {
+				fs.readdir(config.paths.themes, (err, files) =>  {
 					if(err) {
 						return callback(err);
 					}
@@ -337,7 +338,7 @@ function initAvailableThemes(cb) {
 						promptConfig,
 						files.filter( f => {
 							//	sync normally not allowed -- initAvailableThemes() is a startup-only method, however
-							return fs.statSync(paths.join(Config.paths.themes, f)).isDirectory();
+							return fs.statSync(paths.join(config.paths.themes, f)).isDirectory();
 						})
 					);
 				});
@@ -394,12 +395,13 @@ function setClientTheme(client, themeId) {
 
 	let msg;
 	let setThemeId;
+	const config = Config();
 	if(availThemes.has(themeId)) {
 		msg = 'Set client theme';
 		setThemeId = themeId;
-	} else if(availThemes.has(Config.defaults.theme)) {
+	} else if(availThemes.has(config.defaults.theme)) {
 		msg = 'Failed setting theme by supplied ID; Using default';
-		setThemeId = Config.defaults.theme;
+		setThemeId = config.defaults.theme;
 	} else {
 		msg = 'Failed setting theme by system default ID; Using the first one we can find';
 		setThemeId = availThemes.keys().next().value;
@@ -421,10 +423,11 @@ function getThemeArt(options, cb) {
 	//		readSauce
 	//		random
 	//
+	const config = Config();
 	if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
 		options.themeId = options.client.user.properties.theme_id;
 	} else {
-		options.themeId = Config.defaults.theme;
+		options.themeId = config.defaults.theme;
 	}
 
 	//	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
@@ -465,17 +468,17 @@ function getThemeArt(options, cb) {
 					return callback(null, artInfo);
 				}
 
-				options.basePath = paths.join(Config.paths.themes, options.themeId);
+				options.basePath = paths.join(config.paths.themes, options.themeId);
 				art.getArt(options.name, options, (err, artInfo) => {
 					return callback(null, artInfo);
 				});
 			},
 			function fromDefaultTheme(artInfo, callback) {
-				if(artInfo || Config.defaults.theme === options.themeId) {
+				if(artInfo || config.defaults.theme === options.themeId) {
 					return callback(null, artInfo);
 				}
 
-				options.basePath = paths.join(Config.paths.themes, Config.defaults.theme);
+				options.basePath = paths.join(config.paths.themes, config.defaults.theme);
 				art.getArt(options.name, options, (err, artInfo) => {
 					return callback(null, artInfo);
 				});
@@ -485,7 +488,7 @@ function getThemeArt(options, cb) {
 					return callback(null, artInfo);
 				}
 
-				options.basePath = Config.paths.art;
+				options.basePath = config.paths.art;
 				art.getArt(options.name, options, (err, artInfo) => {
 					return callback(err, artInfo);
 				});

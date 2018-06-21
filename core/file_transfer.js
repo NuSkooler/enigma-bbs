@@ -3,7 +3,7 @@
 
 //	enigma-bbs
 const MenuModule		= require('./menu_module.js').MenuModule;
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const stringFormat		= require('./string_format.js');
 const Errors			= require('./enig_error.js').Errors;
 const DownloadQueue		= require('./download_queue.js');
@@ -56,9 +56,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
 		//
 		//	Most options can be set via extraArgs or config block
 		//
+		const config = Config();
 		if(options.extraArgs) {
 			if(options.extraArgs.protocol) {
-				this.protocolConfig = Config.fileTransferProtocols[options.extraArgs.protocol];
+				this.protocolConfig = config.fileTransferProtocols[options.extraArgs.protocol];
 			}
 
 			if(options.extraArgs.direction) {
@@ -78,7 +79,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			}
 		} else {
 			if(this.config.protocol) {
-				this.protocolConfig = Config.fileTransferProtocols[this.config.protocol];
+				this.protocolConfig = config.fileTransferProtocols[this.config.protocol];
 			}
 
 			if(this.config.direction) {
@@ -98,7 +99,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 			}
 		}
 
-		this.protocolConfig = this.protocolConfig || Config.fileTransferProtocols.zmodem8kSz;	//	try for *something*
+		this.protocolConfig = this.protocolConfig || config.fileTransferProtocols.zmodem8kSz;	//	try for *something*
 		this.direction		= this.direction || 'send';
 		this.sendQueue		= this.sendQueue || [];
 

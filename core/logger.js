@@ -10,7 +10,7 @@ const _			= require('lodash');
 module.exports = class Log {
 
 	static init() {
-		const Config	= require('./config.js').config;
+		const Config	= require('./config.js').get();
 		const logPath	= Config.paths.logs;
 
 		const err = this.checkLogPath(logPath);

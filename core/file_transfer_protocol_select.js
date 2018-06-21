@@ -3,7 +3,7 @@
 
 //	enigma-bbs
 const MenuModule		= require('./menu_module.js').MenuModule;
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const stringFormat		= require('./string_format.js');
 const ViewController	= require('./view_controller.js').ViewController;
 
@@ -129,7 +129,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
 	}
 
 	loadAvailProtocols() {
-		this.protocols = _.map(Config.fileTransferProtocols, (protInfo, protocol) => {
+		this.protocols = _.map(Config().fileTransferProtocols, (protInfo, protocol) => {
 			return {
 				protocol	: protocol,
 				name		: protInfo.name,

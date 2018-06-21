@@ -12,7 +12,7 @@ const FileArea				= require('./file_base_area.js');
 const Errors				= require('./enig_error.js').Errors;
 const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
 const ArchiveUtil			= require('./archive_util.js');
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const DownloadQueue			= require('./download_queue.js');
 const FileAreaWeb			= require('./file_area_web.js');
 const FileBaseFilters		= require('./file_base_filter.js');
@@ -255,7 +255,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 			const mimeType = resolveMimeType(entryInfo.archiveType);
 			let desc;
 			if(mimeType) {
-				let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+				let fileType = _.get(Config(), [ 'fileTypes', mimeType ] );
 
 				if(Array.isArray(fileType)) {
 					//	further refine by extention
@@ -264,7 +264,6 @@ exports.getModule = class FileAreaList extends MenuModule {
 				desc = fileType && fileType.desc;
 			}
 			entryInfo.archiveTypeDesc = desc || mimeType || entryInfo.archiveType;
-			//entryInfo.archiveTypeDesc = mimeType ? _.get(Config, [ 'fileTypes', mimeType, 'desc' ] ) || mimeType : entryInfo.archiveType;
 		} else {
 			entryInfo.archiveTypeDesc = 'N/A';
 		}
@@ -510,7 +509,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 						return callback(null);
 					}
 
-					const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
+					const expireTime = moment().add(Config().fileBase.web.expireMinutes, 'minutes');
 
 					FileAreaWeb.createAndServeTempDownload(
 						self.client,

@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const User						= require('./user.js');
-const Config					= require('./config.js').config;
+const Config					= require('./config.js').get;
 const Log						= require('./logger.js').log;
 const { getAddressedToInfo } 	= require('./mail_util.js');
 const Message					= require('./message.js');
@@ -30,14 +30,15 @@ function validateMessageSubject(data, cb) {
 }
 
 function validateUserNameAvail(data, cb) {
-	if(!data || data.length < Config.users.usernameMin) {
+	const config = Config();
+	if(!data || data.length < config.users.usernameMin) {
 		cb(new Error('Username too short'));
-	} else if(data.length > Config.users.usernameMax) {
+	} else if(data.length > config.users.usernameMax) {
 		//	generally should be unreached due to view restraints
 		return cb(new Error('Username too long'));
 	} else {
-		const usernameRegExp	= new RegExp(Config.users.usernamePattern);
-		const invalidNames		= Config.users.newUserNames + Config.users.badUserNames;
+		const usernameRegExp	= new RegExp(config.users.usernamePattern);
+		const invalidNames		= config.users.newUserNames + config.users.badUserNames;
 
 		if(!usernameRegExp.test(data)) {
 			return cb(new Error('Username contains invalid characters'));
@@ -133,12 +134,13 @@ function validateBirthdate(data, cb) {
 }
 
 function validatePasswordSpec(data, cb) {
-	if(!data || data.length < Config.users.passwordMin) {
+	const config = Config();
+	if(!data || data.length < config.users.passwordMin) {
 		return cb(new Error('Password too short'));
 	}
 
 	//	check badpass, if avail
-	fs.readFile(Config.users.badPassFile, 'utf8', (err, passwords) => {
+	fs.readFile(config.users.badPassFile, 'utf8', (err, passwords) => {
 		if(err) {
 			Log.warn( { error : err.message }, 'Cannot read bad pass file');
 			return cb(null);

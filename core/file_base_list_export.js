@@ -5,7 +5,7 @@
 const stringFormat		= require('./string_format.js');
 const FileEntry			= require('./file_entry.js');
 const FileArea			= require('./file_base_area.js');
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const { Errors }		= require('./enig_error.js');
 const {
 	splitTextAtTerms,
@@ -64,12 +64,14 @@ function exportFileList(filterCriteria, options, cb) {
 						{ name : options.headerTemplate,	req : false },
 						{ name : options.entryTemplate,		req : true }
 					];
+
+					const config = Config();
 					async.map(templateFiles, (template, nextTemplate) => {
 						if(!template.name && !template.req) {
 							return nextTemplate(null, Buffer.from([]));
 						}
 
-						template.name = paths.isAbsolute(template.name) ? template.name : paths.join(Config.paths.misc, template.name);
+						template.name = paths.isAbsolute(template.name) ? template.name : paths.join(config.paths.misc, template.name);
 						fs.readFile(template.name, (err, data) => {
 							return nextTemplate(err, data);
 						});
@@ -221,7 +223,7 @@ function exportFileList(filterCriteria, options, cb) {
 
 				const headerFormatObj = {
 					nowTs			: moment().format(options.tsFormat),
-					boardName		: Config.general.boardName,
+					boardName		: Config().general.boardName,
 					totalFileCount	: totals.fileCount,
 					totalFileSize	: totals.bytes,
 					filterAreaTag	: filterCriteria.areaTag || '-ALL-',

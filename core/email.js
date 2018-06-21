@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const Errors				= require('./enig_error.js').Errors;
 const Log					= require('./logger.js').log;
 
@@ -13,13 +13,14 @@ const nodeMailer			= require('nodemailer');
 exports.sendMail			= sendMail;
 
 function sendMail(message, cb) {
-	if(!_.has(Config, 'email.transport')) {
+	const config = Config();
+	if(!_.has(config, 'email.transport')) {
 		return cb(Errors.MissingConfig('Email "email::transport" configuration missing'));
 	}
 
-	message.from = message.from || Config.email.defaultFrom;
+	message.from = message.from || config.email.defaultFrom;
 
-	const transportOptions = Object.assign( {}, Config.email.transport, {
+	const transportOptions = Object.assign( {}, config.email.transport, {
 		logger	: Log,
 	});
 

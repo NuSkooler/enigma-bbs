@@ -11,7 +11,7 @@ const Errors				= require('./enig_error.js').Errors;
 const stringFormat			= require('./string_format.js');
 const FileAreaWeb			= require('./file_area_web.js');
 const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 
 //	deps
 const async					= require('async');
@@ -139,7 +139,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 	}
 
 	generateAndDisplayBatchLink(cb) {
-		const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
+		const expireTime = moment().add(Config().fileBase.web.expireMinutes, 'minutes');
 
 		FileAreaWeb.createAndServeTempBatchDownload(
 			this.client,
@@ -183,6 +183,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 				function prepareQueueDownloadLinks(callback) {
 					const webDlExpireTimeFormat = self.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
+					const config = Config();
 					async.each(self.dlQueue.items, (fileEntry, nextFileEntry) => {
 						FileAreaWeb.getExistingTempDownloadServeItem(self.client, fileEntry, (err, serveItem) => {
 							if(err) {
@@ -190,7 +191,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 									return nextFileEntry(err);	//	we should have caught this prior
 								}
 
-								const expireTime = moment().add(Config.fileBase.web.expireMinutes, 'minutes');
+								const expireTime = moment().add(config.fileBase.web.expireMinutes, 'minutes');
 
 								FileAreaWeb.createAndServeTempDownload(
 									self.client,
