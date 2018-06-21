@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config	= require('./config.js').config;
+const Config	= require('./config.js').get;
 
 //	deps
 const fs 		= require('graceful-fs');
@@ -64,7 +64,7 @@ function loadModuleEx(options, cb) {
 }
 
 function loadModule(name, category, cb) {
-	const path = Config.paths[category];
+	const path = Config().paths[category];
 
 	if(!_.isString(path)) {
 		return cb(new Error(`Not sure where to look for "${name}" of category "${category}"`));
@@ -77,7 +77,7 @@ function loadModule(name, category, cb) {
 
 function loadModulesForCategory(category, iterator, complete) {
 
-	fs.readdir(Config.paths[category], (err, files) => {
+	fs.readdir(Config().paths[category], (err, files) => {
 		if(err) {
 			return iterator(err);
 		}
@@ -100,10 +100,11 @@ function loadModulesForCategory(category, iterator, complete) {
 }
 
 function getModulePaths() {
+	const config = Config();
 	return [
-		Config.paths.mods,
-		Config.paths.loginServers,
-		Config.paths.contentServers,
-		Config.paths.scannerTossers,
+		config.paths.mods,
+		config.paths.loginServers,
+		config.paths.contentServers,
+		config.paths.scannerTossers,
 	];
 }

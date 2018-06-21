@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const msgDb						= require('./database.js').dbs.message;
-const Config					= require('./config.js').config;
+const Config					= require('./config.js').get;
 const Message					= require('./message.js');
 const Log						= require('./logger.js').log;
 const msgNetRecord				= require('./msg_network.js').recordMessage;
@@ -40,7 +40,7 @@ function getAvailableMessageConferences(client, options) {
 	assert(client || true === options.noClient);
 
 	//	perform ACS check per conf & omit system_internal if desired
-	return _.omitBy(Config.messageConferences, (conf, confTag) => {
+	return _.omitBy(Config().messageConferences, (conf, confTag) => {
 		if(!options.includeSystemInternal && 'system_internal' === confTag) {
 			return true;
 		}
@@ -68,8 +68,9 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
 
 	//  :TODO: confTag === "" then find default
 
-	if(_.has(Config.messageConferences, [ confTag, 'areas' ])) {
-		const areas = Config.messageConferences[confTag].areas;
+	const config = Config();
+	if(_.has(config.messageConferences, [ confTag, 'areas' ])) {
+		const areas = config.messageConferences[confTag].areas;
 
 		if(!options.client || true === options.noAcsCheck) {
 			//	everything - no ACS checks
@@ -109,16 +110,17 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
 	//
 	//	Note that built in 'system_internal' is always ommited here
 	//
-	let defaultConf = _.findKey(Config.messageConferences, o => o.default);
+	const config = Config();
+	let defaultConf = _.findKey(config.messageConferences, o => o.default);
 	if(defaultConf) {
-		const conf = Config.messageConferences[defaultConf];
+		const conf = config.messageConferences[defaultConf];
 		if(true === disableAcsCheck || client.acs.hasMessageConfRead(conf)) {
 			return defaultConf;
 		}
 	}
 
 	//  just use anything we can
-	defaultConf = _.findKey(Config.messageConferences, (conf, confTag) => {
+	defaultConf = _.findKey(config.messageConferences, (conf, confTag) => {
 		return 'system_internal' !== confTag && (true === disableAcsCheck || client.acs.hasMessageConfRead(conf));
 	});
 
@@ -135,8 +137,9 @@ function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
 	//
 	confTag = confTag || getDefaultMessageConferenceTag(client);
 
-	if(confTag && _.has(Config.messageConferences, [ confTag, 'areas' ])) {
-		const areaPool = Config.messageConferences[confTag].areas;
+	const config = Config();
+	if(confTag && _.has(config.messageConferences, [ confTag, 'areas' ])) {
+		const areaPool = config.messageConferences[confTag].areas;
 		let defaultArea = _.findKey(areaPool, o => o.default);
 		if(defaultArea) {
 			const area = areaPool[defaultArea];
@@ -154,18 +157,18 @@ function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
 }
 
 function getMessageConferenceByTag(confTag) {
-	return Config.messageConferences[confTag];
+	return Config().messageConferences[confTag];
 }
 
 function getMessageConfTagByAreaTag(areaTag) {
-	const confs = Config.messageConferences;
+	const confs = Config().messageConferences;
 	return Object.keys(confs).find( (confTag) => {
 		return _.has(confs, [ confTag, 'areas', areaTag]);
 	});
 }
 
 function getMessageAreaByTag(areaTag, optionalConfTag) {
-	const confs = Config.messageConferences;
+	const confs = Config().messageConferences;
 
 	//	:TODO: this could be cached
 	if(_.isString(optionalConfTag)) {
@@ -535,10 +538,11 @@ function trimMessageAreasScheduledEvent(args, cb) {
 				let areaInfos = [];
 
 				//	determine maxMessages & maxAgeDays per area
+				const config = Config();
 				areaTags.forEach(areaTag => {
 
-					let maxMessages = Config.messageAreaDefaults.maxMessages;
-					let maxAgeDays	= Config.messageAreaDefaults.maxAgeDays;
+					let maxMessages = config.messageAreaDefaults.maxMessages;
+					let maxAgeDays	= config.messageAreaDefaults.maxAgeDays;
 
 					const area = getMessageAreaByTag(areaTag);	//	note: we don't know the conf here
 					if(area) {

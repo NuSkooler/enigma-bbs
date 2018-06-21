@@ -2,7 +2,7 @@
 'use strict';
 
 const userDb		= require('./database.js').dbs.user;
-const Config		= require('./config.js').config;
+const Config		= require('./config.js').get;
 const userGroup		= require('./user_group.js');
 const Errors		= require('./enig_error.js').Errors;
 const Events		= require('./events.js');
@@ -56,7 +56,7 @@ module.exports = class User {
 	}
 
 	isValid() {
-		if(this.userId <= 0 || this.username.length < Config.users.usernameMin) {
+		if(this.userId <= 0 || this.username.length < Config().users.usernameMin) {
 			return false;
 		}
 
@@ -181,15 +181,16 @@ module.exports = class User {
 
 	create(password, cb) {
 		assert(0 === this.userId);
+		const config = Config();
 
-		if(this.username.length < Config.users.usernameMin || this.username.length > Config.users.usernameMax) {
+		if(this.username.length < config.users.usernameMin || this.username.length > config.users.usernameMax) {
 			return cb(Errors.Invalid('Invalid username length'));
 		}
 
 		const self = this;
 
 		//	:TODO: set various defaults, e.g. default activation status, etc.
-		self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
+		self.properties.account_status = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
 		async.waterfall(
 			[
@@ -229,7 +230,7 @@ module.exports = class User {
 					});
 				},
 				function setInitialGroupMembership(trans, callback) {
-					self.groups = Config.users.defaultGroups;
+					self.groups = config.users.defaultGroups;
 
 					if(User.RootUserID === self.userId) {	//	root/SysOp?
 						self.groups.push('sysops');

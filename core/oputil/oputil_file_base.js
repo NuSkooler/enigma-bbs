@@ -390,10 +390,10 @@ function displayFileAreaInfo() {
 				return initConfigAndDatabases(callback);
 			},
 			function dumpInfo(callback) {
-				const Config = require('../../core/config.js').config;
+				const sysConfig = require('../../core/config.js').get();
 				let suppliedAreas = argv._.slice(2);
 				if(!suppliedAreas || 0 === suppliedAreas.length) {
-					suppliedAreas = _.map(Config.fileBase.areas, (areaInfo, areaTag) => areaTag);
+					suppliedAreas = _.map(sysConfig.fileBase.areas, (areaInfo, areaTag) => areaTag);
 				}
 
 				const areaAndStorageInfo = getAreaAndStorage(suppliedAreas);

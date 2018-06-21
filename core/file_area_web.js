@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const FileDb				= require('./database.js').dbs.file;
 const getISOTimestampString	= require('./database.js').getISOTimestampString;
 const FileEntry				= require('./file_entry.js');
@@ -31,7 +31,7 @@ function notEnabledError() {
 
 class FileAreaWebAccess {
 	constructor() {
-		this.hashids		= new hashids(Config.general.boardName);
+		this.hashids		= new hashids(Config().general.boardName);
 		this.expireTimers	= {};	//	hashId->timer
 	}
 
@@ -52,7 +52,7 @@ class FileAreaWebAccess {
 					if(self.isEnabled()) {
 						const routeAdded = self.webServer.instance.addRoute({
 							method	: 'GET',
-							path	: Config.fileBase.web.routePath,
+							path	: Config().fileBase.web.routePath,
 							handler	: self.routeWebRequest.bind(self),
 						});
 						return callback(routeAdded ? null : Errors.General('Failed adding route'));
@@ -184,11 +184,11 @@ class FileAreaWebAccess {
 	buildSingleFileTempDownloadLink(client, fileEntry, hashId) {
 		hashId = hashId || this.getSingleFileHashId(client, fileEntry);
 
-		return this.webServer.instance.buildUrl(`${Config.fileBase.web.path}${hashId}`);
+		return this.webServer.instance.buildUrl(`${Config().fileBase.web.path}${hashId}`);
 	}
 
 	buildBatchArchiveTempDownloadLink(client, hashId) {
-		return this.webServer.instance.buildUrl(`${Config.fileBase.web.path}${hashId}`);
+		return this.webServer.instance.buildUrl(`${Config().fileBase.web.path}${hashId}`);
 	}
 
 	getExistingTempDownloadServeItem(client, fileEntry, cb) {

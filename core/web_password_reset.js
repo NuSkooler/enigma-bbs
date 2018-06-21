@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const Errors				= require('./enig_error.js').Errors;
 const getServer				= require('./listening_server.js').getServer;
 const webServerPackageName	= require('./servers/content/web.js').moduleInfo.packageName;
@@ -89,12 +89,13 @@ class WebPasswordReset {
 
 				},
 				function getEmailTemplates(user, callback) {
-					fs.readFile(Config.contentServers.web.resetPassword.resetPassEmailText, 'utf8', (err, textTemplate) => {
+					const config = Config();
+					fs.readFile(config.contentServers.web.resetPassword.resetPassEmailText, 'utf8', (err, textTemplate) => {
 						if(err) {
 							textTemplate = PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT;
 						}
 
-						fs.readFile(Config.contentServers.web.resetPassword.resetPassEmailHtml, 'utf8', (err, htmlTemplate) => {
+						fs.readFile(config.contentServers.web.resetPassword.resetPassEmailHtml, 'utf8', (err, htmlTemplate) => {
 							return callback(null, user, textTemplate, htmlTemplate);
 						});
 					});
@@ -106,7 +107,7 @@ class WebPasswordReset {
 
 					function replaceTokens(s) {
 						return s
-							.replace(/%BOARDNAME%/g,	Config.general.boardName)
+							.replace(/%BOARDNAME%/g,	Config().general.boardName)
 							.replace(/%USERNAME%/g, 	user.username)
 							.replace(/%TOKEN%/g,		user.properties.email_password_reset_token)
 							.replace(/%RESET_URL%/g,	resetUrl)
@@ -229,12 +230,13 @@ class WebPasswordReset {
 
 			const postResetUrl = webServer.instance.buildUrl('/reset_password');
 
+			const config = Config();
 			return webServer.instance.routeTemplateFilePage(
-				Config.contentServers.web.resetPassword.resetPageTemplate,
+				config.contentServers.web.resetPassword.resetPageTemplate,
 				(templateData, preprocessFinished) => {
 
 					const finalPage = templateData
-						.replace(/%BOARDNAME%/g,	Config.general.boardName)
+						.replace(/%BOARDNAME%/g,	config.general.boardName)
 						.replace(/%USERNAME%/g,		user.username)
 						.replace(/%TOKEN%/g,		token)
 						.replace(/%RESET_URL%/g,	postResetUrl)
@@ -262,9 +264,10 @@ class WebPasswordReset {
 		req.on('end', () => {
 			const formData = querystring.parse(bodyData);
 
+			const config = Config();
 			if(!formData.token || !formData.password || !formData.confirm_password ||
 				formData.password !== formData.confirm_password ||
-				formData.password.length < Config.users.passwordMin || formData.password.length > Config.users.passwordMax)
+				formData.password.length < config.users.passwordMin || formData.password.length > config.users.passwordMax)
 			{
 				return badRequest();
 			}

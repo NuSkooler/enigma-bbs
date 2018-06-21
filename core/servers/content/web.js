@@ -4,7 +4,7 @@
 //	ENiGMA½
 const Log			= require('../../logger.js').log;
 const ServerModule	= require('../../server_module.js').ServerModule;
-const Config		= require('../../config.js').config;
+const Config		= require('../../config.js').get;
 
 //	deps
 const http			= require('http');
@@ -55,12 +55,13 @@ exports.getModule = class WebServerModule extends ServerModule {
 	constructor() {
 		super();
 
-		this.enableHttp		= Config.contentServers.web.http.enabled || false;
-		this.enableHttps	= Config.contentServers.web.https.enabled || false;
+		const config 		= Config();
+		this.enableHttp		= config.contentServers.web.http.enabled || false;
+		this.enableHttps	= config.contentServers.web.https.enabled || false;
 
 		this.routes = {};
 
-		if(this.isEnabled() && Config.contentServers.web.staticRoot) {
+		if(this.isEnabled() && config.contentServers.web.staticRoot) {
 			this.addRoute({
 				method		: 'GET',
 				path		: '/static/.*$',
@@ -77,25 +78,26 @@ exports.getModule = class WebServerModule extends ServerModule {
 		//	Prefer HTTPS over HTTP. Be explicit about the port
 		//	only if non-standard. Allow users to override full prefix in config.
 		//
-		if(_.isString(Config.contentServers.web.overrideUrlPrefix)) {
-			return `${Config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
+		const config = Config();
+		if(_.isString(config.contentServers.web.overrideUrlPrefix)) {
+			return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
 		}
 
 		let schema;
 		let port;
-		if(Config.contentServers.web.https.enabled) {
+		if(config.contentServers.web.https.enabled) {
 			schema	= 'https://';
-			port	=  (443 === Config.contentServers.web.https.port) ?
+			port	=  (443 === config.contentServers.web.https.port) ?
 				'' :
-				`:${Config.contentServers.web.https.port}`;
+				`:${config.contentServers.web.https.port}`;
 		} else {
 			schema	= 'http://';
-			port	= (80 === Config.contentServers.web.http.port) ?
+			port	= (80 === config.contentServers.web.http.port) ?
 				'' :
-				`:${Config.contentServers.web.http.port}`;
+				`:${config.contentServers.web.http.port}`;
 		}
 		
-		return `${schema}${Config.contentServers.web.domain}${port}${pathAndQuery}`;
+		return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
 	}
 
 	isEnabled() {
@@ -107,14 +109,15 @@ exports.getModule = class WebServerModule extends ServerModule {
 			this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
 		}
 
+		const config = Config();
 		if(this.enableHttps) {
 			const options = {
-				cert	: fs.readFileSync(Config.contentServers.web.https.certPem),
-				key		: fs.readFileSync(Config.contentServers.web.https.keyPem),
+				cert	: fs.readFileSync(config.contentServers.web.https.certPem),
+				key		: fs.readFileSync(config.contentServers.web.https.keyPem),
 			};
 
 			//	additional options
-			Object.assign(options, Config.contentServers.web.https.options || {} );
+			Object.assign(options, config.contentServers.web.https.options || {} );
 
 			this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );			
 		}
@@ -123,13 +126,14 @@ exports.getModule = class WebServerModule extends ServerModule {
 	listen() {
 		let ok = true;
 
+		const config = Config();
 		[ 'http', 'https' ].forEach(service => {
 			const name = `${service}Server`;
 			if(this[name]) {
-				const port = parseInt(Config.contentServers.web[service].port);
+				const port = parseInt(config.contentServers.web[service].port);
 				if(isNaN(port)) {
 					ok = false;
-					return Log.warn( { port : Config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
+					return Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
 				}
 				return this[name].listen(port);
 			} 
@@ -167,7 +171,7 @@ exports.getModule = class WebServerModule extends ServerModule {
 	}
 
 	respondWithError(resp, code, bodyText, title) {
-		const customErrorPage = paths.join(Config.contentServers.web.staticRoot, `${code}.html`);
+		const customErrorPage = paths.join(Config().contentServers.web.staticRoot, `${code}.html`);
 
 		fs.readFile(customErrorPage, 'utf8', (err, data) => {
 			resp.writeHead(code, { 'Content-Type' : 'text/html' } );
@@ -202,14 +206,14 @@ exports.getModule = class WebServerModule extends ServerModule {
 	}
 
 	routeIndex(req, resp) {
-		const filePath = paths.join(Config.contentServers.web.staticRoot, 'index.html');
+		const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
 
 		return this.returnStaticPage(filePath, resp);
 	}
 
 	routeStaticFile(req, resp) {
 		const fileName = req.url.substr(req.url.indexOf('/', 1));
-		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
+		const filePath = paths.join(Config().contentServers.web.staticRoot, fileName);
 
 		return this.returnStaticPage(filePath, resp);
 	}

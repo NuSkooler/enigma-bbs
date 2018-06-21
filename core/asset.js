@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config	= require('./config.js').config;
+const Config	= require('./config.js').get;
 const StatLog	= require('./stat_log.js');
 
 //	deps
@@ -95,7 +95,7 @@ function resolveConfigAsset(spec) {
 		assert('config' === asset.type);
 
 		const path	= asset.asset.split('.');
-		let conf	= Config;
+		let conf	= Config();
 		for(let i = 0; i < path.length; ++i) {
 			if(_.isUndefined(conf[path[i]])) {
 				return spec;

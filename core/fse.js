@@ -14,7 +14,7 @@ const StatLog						= require('./stat_log.js');
 const stringFormat					= require('./string_format.js');
 const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
-const Config						= require('./config.js').config;
+const Config						= require('./config.js').get;
 const { getAddressedToInfo } 		= require('./mail_util.js');
 
 //	deps
@@ -335,7 +335,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 				//	to packetAnsiMsgEncoding (generally cp437) as various boards
 				//	really don't like ANSI messages in UTF-8 encoding (they should!)
 				//
-				msgOpts.meta		= { System : { 'explicit_encoding' : Config.scannerTossers.ftn_bso.packetAnsiMsgEncoding || 'cp437' } };
+				msgOpts.meta		= { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
 				msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
 			}
 		}

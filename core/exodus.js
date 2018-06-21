@@ -4,7 +4,7 @@
 //	ENiGMA½
 const MenuModule			= require('./menu_module.js').MenuModule;
 const resetScreen			= require('./ansi_term.js').resetScreen;
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const Errors				= require('./enig_error.js').Errors;
 const Log					= require('./logger.js').log;
 const getEnigmaUserAgent	= require('./misc_util.js').getEnigmaUserAgent;
@@ -66,7 +66,7 @@ exports.getModule = class ExodusModule extends MenuModule {
 		this.config.sshHost				= this.config.sshHost || this.config.ticketHost;
 		this.config.sshPort				= this.config.sshPort || 22;
 		this.config.sshUser				= this.config.sshUser || 'exodus_server';
-		this.config.sshKeyPem			= this.config.sshKeyPem || joinPath(Config.paths.misc, 'exodus.id_rsa');
+		this.config.sshKeyPem			= this.config.sshKeyPem || joinPath(Config().paths.misc, 'exodus.id_rsa');
 	}
 
 	initSequence() {

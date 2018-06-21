@@ -3,7 +3,7 @@
 
 //	ENiGMA½
 const PluginModule			= require('./plugin_module.js').PluginModule;
-const Config				= require('./config.js').config;
+const Config				= require('./config.js').get;
 const Log					= require('./logger.js').log;
 
 const _						= require('lodash');
@@ -155,8 +155,9 @@ class ScheduledEvent {
 function EventSchedulerModule(options) {
 	PluginModule.call(this, options);
 
-	if(_.has(Config, 'eventScheduler')) {
-		this.moduleConfig = Config.eventScheduler;
+	const config = Config();
+	if(_.has(config, 'eventScheduler')) {
+		this.moduleConfig = config.eventScheduler;
 	}
 
 	const self = this;

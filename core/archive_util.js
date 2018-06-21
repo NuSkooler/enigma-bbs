@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const stringFormat		= require('./string_format.js');
 const Errors			= require('./enig_error.js').Errors;
 const resolveMimeType	= require('./mime_util.js').resolveMimeType;
@@ -61,10 +61,11 @@ module.exports = class ArchiveUtil {
 		//
 		//	Load configuration
 		//
-		if(_.has(Config, 'archives.archivers')) {
-			Object.keys(Config.archives.archivers).forEach(archKey => {
+		const config = Config();
+		if(_.has(config, 'archives.archivers')) {
+			Object.keys(config.archives.archivers).forEach(archKey => {
 
-				const archConfig 	= Config.archives.archivers[archKey];
+				const archConfig 	= config.archives.archivers[archKey];
 				const archiver		= new Archiver(archConfig);
 
 				if(!archiver.ok()) {
@@ -75,7 +76,7 @@ module.exports = class ArchiveUtil {
 			});
 		}
 
-		if(_.isObject(Config.fileTypes)) {
+		if(_.isObject(config.fileTypes)) {
 			const updateSig = (ft) => {
 				ft.sig 		= Buffer.from(ft.sig, 'hex');
 				ft.offset	= ft.offset || 0;
@@ -87,8 +88,8 @@ module.exports = class ArchiveUtil {
 				}
 			};
 
-			Object.keys(Config.fileTypes).forEach(mimeType => {
-				const fileType = Config.fileTypes[mimeType];
+			Object.keys(config.fileTypes).forEach(mimeType => {
+				const fileType = config.fileTypes[mimeType];
 				if(Array.isArray(fileType)) {
 					fileType.forEach(ft => {
 						if(ft.sig) {
@@ -109,7 +110,8 @@ module.exports = class ArchiveUtil {
 			return;
 		}
 
-		let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+		const config = Config();
+		let fileType = _.get(config, [ 'fileTypes', mimeType ] );
 
 		if(Array.isArray(fileType)) {
 			if(!justExtention) {
@@ -125,7 +127,7 @@ module.exports = class ArchiveUtil {
 		}
 
 		if(fileType.archiveHandler) {
-			return _.get( Config, [ 'archives', 'archivers', fileType.archiveHandler ] );
+			return _.get( config, [ 'archives', 'archivers', fileType.archiveHandler ] );
 		}
 	}
 
@@ -151,7 +153,7 @@ module.exports = class ArchiveUtil {
 					return cb(err);
 				}
 
-				const archFormat = _.findKey(Config.fileTypes, fileTypeInfo => {
+				const archFormat = _.findKey(Config().fileTypes, fileTypeInfo => {
 					const fileTypeInfos = Array.isArray(fileTypeInfo) ? fileTypeInfo : [ fileTypeInfo ];
 					return fileTypeInfos.find(fti => {
 						if(!fti.sig || !fti.archiveHandler) {

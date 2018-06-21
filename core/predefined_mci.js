@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config							= require('./config.js').config;
+const Config							= require('./config.js').get;
 const Log								= require('./logger.js').log;
 const getMessageAreaByTag				= require('./message_area.js').getMessageAreaByTag;
 const getMessageConferenceByTag			= require('./message_area.js').getMessageConferenceByTag;
@@ -56,7 +56,7 @@ const PREDEFINED_MCI_GENERATORS = {
 	//
 	//	Board
 	//
-	BN	: function boardName() { return Config.general.boardName; },
+	BN	: function boardName() { return Config().general.boardName; },
 
 	//	ENiGMA
 	VL	: function versionLabel() { return 'ENiGMA½ v' + packageJson.version; },

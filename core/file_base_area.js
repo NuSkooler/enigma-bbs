@@ -2,7 +2,7 @@
 'use strict';
 
 //	ENiGMA½
-const Config			= require('./config.js').config;
+const Config			= require('./config.js').get;
 const Errors			= require('./enig_error.js').Errors;
 const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
 const FileEntry			= require('./file_entry.js');
@@ -66,7 +66,7 @@ function getAvailableFileAreas(client, options) {
 	options = options || { };
 
 	//	perform ACS check per conf & omit internal if desired
-	const allAreas = _.map(Config.fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
+	const allAreas = _.map(Config().fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
 
 	return _.omitBy(allAreas, areaInfo => {
 		if(!options.includeSystemInternal && isInternalArea(areaInfo.areaTag)) {
@@ -96,16 +96,17 @@ function getSortedAvailableFileAreas(client, options) {
 }
 
 function getDefaultFileAreaTag(client, disableAcsCheck) {
-	let defaultArea = _.findKey(Config.fileBase, o => o.default);
+	const config = Config();
+	let defaultArea = _.findKey(config.fileBase, o => o.default);
 	if(defaultArea) {
-		const area = Config.fileBase.areas[defaultArea];
+		const area = config.fileBase.areas[defaultArea];
 		if(true === disableAcsCheck || client.acs.hasFileAreaRead(area)) {
 			return defaultArea;
 		}
 	}
 
 	//  just use anything we can
-	defaultArea = _.findKey(Config.fileBase.areas, (area, areaTag) => {
+	defaultArea = _.findKey(config.fileBase.areas, (area, areaTag) => {
 		return WellKnownAreaTags.MessageAreaAttach !== areaTag && (true === disableAcsCheck || client.acs.hasFileAreaRead(area));
 	});
 
@@ -113,7 +114,7 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 }
 
 function getFileAreaByTag(areaTag) {
-	const areaInfo = Config.fileBase.areas[areaTag];
+	const areaInfo = Config().fileBase.areas[areaTag];
 	if(areaInfo) {
 		areaInfo.areaTag	= areaTag;	//	convienence!
 		areaInfo.storage	= getAreaStorageLocations(areaInfo);
@@ -157,13 +158,14 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
 }
 
 function isValidStorageTag(storageTag) {
-	return storageTag in Config.fileBase.storageTags;
+	return storageTag in Config().fileBase.storageTags;
 }
 
 function getAreaStorageDirectoryByTag(storageTag) {
-	const storageLocation = (storageTag && Config.fileBase.storageTags[storageTag]);
+	const config = Config();
+	const storageLocation = (storageTag && config.fileBase.storageTags[storageTag]);
 
-	return paths.resolve(Config.fileBase.areaStoragePrefix, storageLocation || '');
+	return paths.resolve(config.fileBase.areaStoragePrefix, storageLocation || '');
 }
 
 function getAreaDefaultStorageDirectory(areaInfo) {
@@ -176,7 +178,7 @@ function getAreaStorageLocations(areaInfo) {
 		areaInfo.storageTags :
 		[ areaInfo.storageTags || '' ];
 
-	const avail = Config.fileBase.storageTags;
+	const avail = Config().fileBase.storageTags;
 
 	return _.compact(storageTags.map(storageTag => {
 		if(avail[storageTag]) {
@@ -233,7 +235,7 @@ function sliceAtSauceMarker(data) {
 
 function attemptSetEstimatedReleaseDate(fileEntry) {
 	//	:TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
-	const patterns	= Config.fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
+	const patterns	= Config().fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
 
 	function getMatch(input) {
 		if(input) {
@@ -290,11 +292,11 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 			function extractDescFiles(callback) {
 				//	:TODO: would be nice if these RegExp's were cached
 				//	:TODO: this is long winded...
-
+				const config = Config();
 				const extractList = [];
 
 				const shortDescFile = archiveEntries.find( e => {
-					return Config.fileBase.fileNamePatterns.desc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+					return config.fileBase.fileNamePatterns.desc.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
 				if(shortDescFile) {
@@ -302,7 +304,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 				}
 
 				const longDescFile = archiveEntries.find( e => {
-					return Config.fileBase.fileNamePatterns.descLong.find( pat => new RegExp(pat, 'i').test(e.fileName) );
+					return config.fileBase.fileNamePatterns.descLong.find( pat => new RegExp(pat, 'i').test(e.fileName) );
 				});
 
 				if(longDescFile) {
@@ -334,6 +336,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 				});
 			},
 			function readDescFiles(descFiles, callback) {
+				const config = Config();
 				async.each(Object.keys(descFiles), (descType, next) => {
 					const path = descFiles[descType];
 					if(!path) {
@@ -346,10 +349,9 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
 						}
 
 						//	skip entries that are too large
-						const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
-
-						if(Config.fileBase[maxFileSizeKey] && stats.size > Config.fileBase[maxFileSizeKey]) {
-							logDebug( { byteSize : stats.size, maxByteSize : Config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
+						const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;						
+						if(config.fileBase[maxFileSizeKey] && stats.size > config.fileBase[maxFileSizeKey]) {
+							logDebug( { byteSize : stats.size, maxByteSize : config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
 							return next(null);
 						}
 
@@ -488,7 +490,8 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
 }
 
 function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
-	let fileType = _.get(Config, [ 'fileTypes', mimeType ] );
+	const config = Config();
+	let fileType = _.get(config, [ 'fileTypes', mimeType ] );
 
 	if(Array.isArray(fileType)) {
 		//	further refine by extention
@@ -504,7 +507,7 @@ function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
 		return;
 	}
 
-	util = _.get(Config, [ 'infoExtractUtils', util ]);
+	util = _.get(config, [ 'infoExtractUtils', util ]);
 	if(!util || !_.isString(util.cmd)) {
 		return;
 	}

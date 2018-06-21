@@ -5,7 +5,7 @@
 const baseClient					= require('../../client.js');
 const Log							= require('../../logger.js').log;
 const LoginServerModule				= require('../../login_server_module.js');
-const Config						= require('../../config.js').config;
+const Config						= require('../../config.js').get;
 const EnigAssert					= require('../../enigma_assert.js');
 const { stringFromNullTermBuffer }	= require('../../string_util.js');
 
@@ -549,7 +549,7 @@ function TelnetClient(input, output) {
 	});
 
 	this.connectionTrace = (info, msg) => {
-		if(Config.loginServers.telnet.traceConnections) {
+		if(Config().loginServers.telnet.traceConnections) {
 			const logger = self.log || Log;
 			return logger.trace(info, `Telnet: ${msg}`);
 		}
@@ -568,7 +568,7 @@ function TelnetClient(input, output) {
 	this.readyNow = () => {
 		if(!this.didReady) {
 			this.didReady = true;
-			this.emit('ready', { firstMenu : Config.loginServers.telnet.firstMenu } );
+			this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
 		}
 	};
 }
@@ -879,9 +879,10 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
 	}
 
 	listen() {
-		const port = parseInt(Config.loginServers.telnet.port);
+		const config = Config();
+		const port = parseInt(config.loginServers.telnet.port);
 		if(isNaN(port)) {
-			Log.error( { server : ModuleInfo.name, port : Config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
+			Log.error( { server : ModuleInfo.name, port : config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
 			return false;
 		}
 

@@ -5,7 +5,7 @@
 const MenuModule	= require('./menu_module.js').MenuModule;
 const Errors		= require('../core/enig_error.js').Errors;
 const ANSI			= require('./ansi_term.js');
-const Config		= require('./config.js').config;
+const Config		= require('./config.js').get;
 
 //	deps
 const async			= require('async');
@@ -90,7 +90,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
 			}
 
 			//	further resolve key -> file base area art
-			const artSpec = _.get(Config, [ 'fileBase', 'areas', key, 'art' ]);
+			const artSpec = _.get(Config(), [ 'fileBase', 'areas', key, 'art' ]);
 			if(!artSpec) {
 				return cb(Errors.MissingConfig(`No art defined for file base area "${key}"`));
 			}

@@ -35,7 +35,7 @@
 const term		= require('./client_term.js');
 const ansi		= require('./ansi_term.js');
 const User		= require('./user.js');
-const Config	= require('./config.js').config;
+const Config	= require('./config.js').get;
 const MenuStack	= require('./menu_stack.js');
 const ACS		= require('./acs.js');
 const Events	= require('./events.js');
@@ -400,7 +400,7 @@ function Client(/*input, output*/) {
 			}
 
 			if(key || ch) {
-				if(Config.logging.traceUserKeyboardInput) {
+				if(Config().logging.traceUserKeyboardInput) {
 					self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input');	// jshint ignore:line
 				}
 
@@ -440,8 +440,8 @@ Client.prototype.startIdleMonitor = function() {
 		const nowMs	= Date.now();
 
 		const idleLogoutSeconds = this.user.isAuthenticated() ?
-			Config.misc.idleLogoutSeconds :
-			Config.misc.preAuthIdleLogoutSeconds;
+			Config().misc.idleLogoutSeconds :
+			Config().misc.preAuthIdleLogoutSeconds;
 
 		if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
 			this.emit('idle timeout');
