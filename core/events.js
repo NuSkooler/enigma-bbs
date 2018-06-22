@@ -14,6 +14,7 @@ const glob				= require('glob');
 module.exports = new class Events extends events.EventEmitter {
 	constructor() {
 		super();
+		this.setMaxListeners(32);	//	:TODO: play with this...
 	}
 
 	getSystemEvents() {
