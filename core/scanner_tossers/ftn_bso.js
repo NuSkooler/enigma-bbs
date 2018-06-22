@@ -51,7 +51,7 @@ exports.moduleInfo = {
 
 exports.getModule = FTNMessageScanTossModule;
 
-const SCHEDULE_REGEXP	= /(?:^|or )?(@watch\:|@immediate)([^\0]+)?$/;
+const SCHEDULE_REGEXP	= /(?:^|or )?(@watch:|@immediate)([^\0]+)?$/;
 
 function FTNMessageScanTossModule() {
     MessageScanTossModule.call(this);
@@ -1569,7 +1569,7 @@ function FTNMessageScanTossModule() {
                         //
                         //	All extracted - import .pkt's
                         //
-                        self.importPacketFilesFromDirectory(self.importTempDir, '', err => {
+                        self.importPacketFilesFromDirectory(self.importTempDir, '', () => {
                             //	:TODO: handle |err|
                             callback(null, bundleFiles, rejects);
                         });
