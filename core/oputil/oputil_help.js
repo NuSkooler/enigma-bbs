@@ -7,7 +7,7 @@ const getDefaultConfigPath			= require('./oputil_common.js').getDefaultConfigPat
 exports.getHelpFor				= getHelpFor;
 
 const usageHelp = exports.USAGE_HELP = {
-	General :
+    General :
 `usage: optutil.js [--version] [--help]
                   <command> [<args>]
 
@@ -21,7 +21,7 @@ commands:
   fb                        file base management
   mb                        message base management
 `,
-	User :
+    User :
 `usage: optutil.js user <action> [<args>]
 
 actions:
@@ -33,7 +33,7 @@ actions:
   group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
 `,
 
-	Config :
+    Config :
 `usage: optutil.js config <action> [<args>]
 
 actions:
@@ -46,7 +46,7 @@ import-areas args:
   --uplinks UL1,UL2,...    specify one or more comma separated uplinks
   --type TYPE              specifies area import type. valid options are "bbs" and "na"
 `,
-	FileBase :
+    FileBase :
 `usage: oputil.js fb <action> [<args>]
 
 actions:
@@ -80,7 +80,7 @@ info args:
 remove args:
   --phys-file                  also remove underlying physical file
 `,
-  FileOpsInfo :
+    FileOpsInfo :
 `
 general information:
   AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
@@ -90,7 +90,7 @@ general information:
   SHA                          full or partial SHA-256
   FILE_ID                      a file identifier. see file.sqlite3
 `,
-  MessageBase :
+    MessageBase :
   `usage: oputil.js mb <action> [<args>]
 
   actions:
@@ -101,5 +101,5 @@ general information:
 };
 
 function getHelpFor(command) {
-	return usageHelp[command];
+    return usageHelp[command];
 }

@@ -22,60 +22,60 @@ const EMAIL_REGEX = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))
 	Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
 */
 function getAddressedToInfo(input) {
-	input = input.trim();
+    input = input.trim();
 
-	const firstAtPos = input.indexOf('@');
+    const firstAtPos = input.indexOf('@');
 
-	if(firstAtPos < 0) {
-		let addr = Address.fromString(input);
-		if(Address.isValidAddress(addr)) {
-			return { flavor : Message.AddressFlavor.FTN, remote : input };
-		}
+    if(firstAtPos < 0) {
+        let addr = Address.fromString(input);
+        if(Address.isValidAddress(addr)) {
+            return { flavor : Message.AddressFlavor.FTN, remote : input };
+        }
 
-		const lessThanPos = input.indexOf('<');
-		if(lessThanPos < 0) {
-			return { name : input, flavor : Message.AddressFlavor.Local };
-		}
+        const lessThanPos = input.indexOf('<');
+        if(lessThanPos < 0) {
+            return { name : input, flavor : Message.AddressFlavor.Local };
+        }
 
-		const greaterThanPos = input.indexOf('>');
-		if(greaterThanPos < lessThanPos) {
-			return { name : input, flavor : Message.AddressFlavor.Local };
-		}
+        const greaterThanPos = input.indexOf('>');
+        if(greaterThanPos < lessThanPos) {
+            return { name : input, flavor : Message.AddressFlavor.Local };
+        }
 
-		addr = Address.fromString(input.slice(lessThanPos + 1, greaterThanPos));
-		if(Address.isValidAddress(addr)) {
-			return { name : input.slice(0, lessThanPos).trim(), flavor : Message.AddressFlavor.FTN, remote : addr.toString() };
-		}
+        addr = Address.fromString(input.slice(lessThanPos + 1, greaterThanPos));
+        if(Address.isValidAddress(addr)) {
+            return { name : input.slice(0, lessThanPos).trim(), flavor : Message.AddressFlavor.FTN, remote : addr.toString() };
+        }
 
-		return { name : input, flavor : Message.AddressFlavor.Local };
-	}
+        return { name : input, flavor : Message.AddressFlavor.Local };
+    }
 
-	const lessThanPos		= input.indexOf('<');
-	const greaterThanPos	= input.indexOf('>');
-	if(lessThanPos > 0 && greaterThanPos > lessThanPos) {
-		const addr = input.slice(lessThanPos + 1, greaterThanPos);
-		const m = addr.match(EMAIL_REGEX);
-		if(m) {
-			return { name : input.slice(0, lessThanPos).trim(), flavor : Message.AddressFlavor.Email, remote : addr };
-		}
+    const lessThanPos		= input.indexOf('<');
+    const greaterThanPos	= input.indexOf('>');
+    if(lessThanPos > 0 && greaterThanPos > lessThanPos) {
+        const addr = input.slice(lessThanPos + 1, greaterThanPos);
+        const m = addr.match(EMAIL_REGEX);
+        if(m) {
+            return { name : input.slice(0, lessThanPos).trim(), flavor : Message.AddressFlavor.Email, remote : addr };
+        }
 
-		return { name : input, flavor : Message.AddressFlavor.Local };
-	}
+        return { name : input, flavor : Message.AddressFlavor.Local };
+    }
 
-	let m = input.match(EMAIL_REGEX);
-	if(m) {
-		return { name : input.slice(0, firstAtPos), flavor : Message.AddressFlavor.Email, remote : input };
-	}
+    let m = input.match(EMAIL_REGEX);
+    if(m) {
+        return { name : input.slice(0, firstAtPos), flavor : Message.AddressFlavor.Email, remote : input };
+    }
 
-	let addr = Address.fromString(input);	//	5D?
-	if(Address.isValidAddress(addr)) {
-		return { flavor : Message.AddressFlavor.FTN, remote : addr.toString() } ;
-	}
+    let addr = Address.fromString(input);	//	5D?
+    if(Address.isValidAddress(addr)) {
+        return { flavor : Message.AddressFlavor.FTN, remote : addr.toString() } ;
+    }
 
-	addr = Address.fromString(input.slice(firstAtPos + 1).trim());
-	if(Address.isValidAddress(addr)) {
-		return { name : input.slice(0, firstAtPos).trim(), flavor : Message.AddressFlavor.FTN, remote : addr.toString() };
-	}
+    addr = Address.fromString(input.slice(firstAtPos + 1).trim());
+    if(Address.isValidAddress(addr)) {
+        return { name : input.slice(0, firstAtPos).trim(), flavor : Message.AddressFlavor.FTN, remote : addr.toString() };
+    }
 
-	return { name : input, flavor : Message.AddressFlavor.Local };
+    return { name : input, flavor : Message.AddressFlavor.Local };
 }

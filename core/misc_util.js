@@ -14,39 +14,39 @@ exports.getCleanEnigmaVersion	= getCleanEnigmaVersion;
 exports.getEnigmaUserAgent		= getEnigmaUserAgent;
 
 function isProduction() {
-	var env = process.env.NODE_ENV || 'dev';
-	return 'production' === env;
+    var env = process.env.NODE_ENV || 'dev';
+    return 'production' === env;
 }
 
 function isDevelopment() {
-	return (!(isProduction()));
+    return (!(isProduction()));
 }
 
 function valueWithDefault(val, defVal) {
-	return (typeof val !== 'undefined' ? val : defVal);
+    return (typeof val !== 'undefined' ? val : defVal);
 }
 
 function resolvePath(path) {
-	if(path.substr(0, 2) === '~/') {
-		var mswCombined = process.env.HOMEDRIVE + process.env.HOMEPATH;
-		path = (process.env.HOME || mswCombined || process.env.HOMEPATH || process.env.HOMEDIR || process.cwd()) + path.substr(1);
-	}
-	return paths.resolve(path);
+    if(path.substr(0, 2) === '~/') {
+        var mswCombined = process.env.HOMEDRIVE + process.env.HOMEPATH;
+        path = (process.env.HOME || mswCombined || process.env.HOMEPATH || process.env.HOMEDIR || process.cwd()) + path.substr(1);
+    }
+    return paths.resolve(path);
 }
 
 function getCleanEnigmaVersion() {
-	return packageJson.version
-		.replace(/-/g, '.')
-		.replace(/alpha/,'a')
-		.replace(/beta/,'b')
-	;
+    return packageJson.version
+        .replace(/-/g, '.')
+        .replace(/alpha/,'a')
+        .replace(/beta/,'b')
+    ;
 }
 
 //	See also ftn_util.js getTearLine() & getProductIdentifier()
 function getEnigmaUserAgent() {
-	//	can't have 1/2 or ½ in User-Agent according to RFC 1945  :(
-	const version = getCleanEnigmaVersion();
-	const nodeVer = process.version.substr(1);	//	remove 'v' prefix
+    //	can't have 1/2 or ½ in User-Agent according to RFC 1945  :(
+    const version = getCleanEnigmaVersion();
+    const nodeVer = process.version.substr(1);	//	remove 'v' prefix
 
-	return `ENiGMA-BBS/${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+    return `ENiGMA-BBS/${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }

@@ -6,7 +6,7 @@ var PluginModule		= require('./plugin_module.js').PluginModule;
 exports.ServerModule	= ServerModule;
 
 function ServerModule() {
-	PluginModule.call(this);
+    PluginModule.call(this);
 }
 
 require('util').inherits(ServerModule, PluginModule);

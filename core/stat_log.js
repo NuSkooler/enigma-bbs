@@ -20,173 +20,173 @@ const moment	= require('moment');
 	making them easily available for MCI codes for example.
 */
 class StatLog {
-	constructor() {
-		this.systemStats = {};
-	}
+    constructor() {
+        this.systemStats = {};
+    }
 
-	init(cb) {
-		//
-		//	Load previous state/values of |this.systemStats|
-		//
-		const self = this;
+    init(cb) {
+        //
+        //	Load previous state/values of |this.systemStats|
+        //
+        const self = this;
 
-		sysDb.each(
-			`SELECT stat_name, stat_value
+        sysDb.each(
+            `SELECT stat_name, stat_value
 			FROM system_stat;`,
-			(err, row) => {
-				if(row) {
-					self.systemStats[row.stat_name] = row.stat_value;
-				}
-			},
-			err => {
-				return cb(err);
-			}
-		);
-	}
+            (err, row) => {
+                if(row) {
+                    self.systemStats[row.stat_name] = row.stat_value;
+                }
+            },
+            err => {
+                return cb(err);
+            }
+        );
+    }
 
-	get KeepDays() {
-		return {
-			Forever : -1,
-		};
-	}
+    get KeepDays() {
+        return {
+            Forever : -1,
+        };
+    }
 
-	get KeepType() {
-		return {
-			Forever	: 'forever',
-			Days	: 'days',
-			Max		: 'max',
-			Count	: 'max',
-		};
-	}
+    get KeepType() {
+        return {
+            Forever	: 'forever',
+            Days	: 'days',
+            Max		: 'max',
+            Count	: 'max',
+        };
+    }
 
-	get Order() {
-		return {
-			Timestamp		: 'timestamp_asc',
-			TimestampAsc	: 'timestamp_asc',
-			TimestampDesc	: 'timestamp_desc',
-			Random			: 'random',
-		};
-	}
+    get Order() {
+        return {
+            Timestamp		: 'timestamp_asc',
+            TimestampAsc	: 'timestamp_asc',
+            TimestampDesc	: 'timestamp_desc',
+            Random			: 'random',
+        };
+    }
 
-	setNonPeristentSystemStat(statName, statValue) {
-		this.systemStats[statName] = statValue;
-	}
+    setNonPeristentSystemStat(statName, statValue) {
+        this.systemStats[statName] = statValue;
+    }
 
-	setSystemStat(statName, statValue, cb) {
-		//	live stats
-		this.systemStats[statName] = statValue;
+    setSystemStat(statName, statValue, cb) {
+        //	live stats
+        this.systemStats[statName] = statValue;
 
-		//	persisted stats
-		sysDb.run(
-			`REPLACE INTO system_stat (stat_name, stat_value)
+        //	persisted stats
+        sysDb.run(
+            `REPLACE INTO system_stat (stat_name, stat_value)
 			VALUES (?, ?);`,
-			[ statName, statValue ],
-			err => {
-				//	cb optional - callers may fire & forget
-				if(cb) {
-					return cb(err);
-				}
-			}
-		);
-	}
+            [ statName, statValue ],
+            err => {
+                //	cb optional - callers may fire & forget
+                if(cb) {
+                    return cb(err);
+                }
+            }
+        );
+    }
 
-	getSystemStat(statName) { return this.systemStats[statName]; }
+    getSystemStat(statName) { return this.systemStats[statName]; }
 
-	getSystemStatNum(statName) {
-		return parseInt(this.getSystemStat(statName)) || 0;
-	}
+    getSystemStatNum(statName) {
+        return parseInt(this.getSystemStat(statName)) || 0;
+    }
 
-	incrementSystemStat(statName, incrementBy, cb) {
-		incrementBy = incrementBy || 1;
+    incrementSystemStat(statName, incrementBy, cb) {
+        incrementBy = incrementBy || 1;
 
-		let newValue = parseInt(this.systemStats[statName]);
-		if(newValue) {
-			if(!_.isNumber(newValue)) {
-				return cb(new Error(`Value for ${statName} is not a number!`));
-			}
+        let newValue = parseInt(this.systemStats[statName]);
+        if(newValue) {
+            if(!_.isNumber(newValue)) {
+                return cb(new Error(`Value for ${statName} is not a number!`));
+            }
 
-			newValue += incrementBy;
-		} else {
-			newValue = incrementBy;
-		}
+            newValue += incrementBy;
+        } else {
+            newValue = incrementBy;
+        }
 
-		return this.setSystemStat(statName, newValue, cb);
-	}
+        return this.setSystemStat(statName, newValue, cb);
+    }
 
-	//
-	//	User specific stats
-	//	These are simply convience methods to the user's properties
-	//
-	setUserStat(user, statName, statValue, cb) {
-		//	note: cb is optional in PersistUserProperty
-		return user.persistProperty(statName, statValue, cb);
-	}
+    //
+    //	User specific stats
+    //	These are simply convience methods to the user's properties
+    //
+    setUserStat(user, statName, statValue, cb) {
+        //	note: cb is optional in PersistUserProperty
+        return user.persistProperty(statName, statValue, cb);
+    }
 
-	getUserStat(user, statName) {
-		return user.properties[statName];
-	}
+    getUserStat(user, statName) {
+        return user.properties[statName];
+    }
 
-	getUserStatNum(user, statName) {
-		return parseInt(this.getUserStat(user, statName)) || 0;
-	}
+    getUserStatNum(user, statName) {
+        return parseInt(this.getUserStat(user, statName)) || 0;
+    }
 
-	incrementUserStat(user, statName, incrementBy, cb) {
-		incrementBy = incrementBy || 1;
+    incrementUserStat(user, statName, incrementBy, cb) {
+        incrementBy = incrementBy || 1;
 
-		let newValue = parseInt(user.properties[statName]);
-		if(newValue) {
-			if(!_.isNumber(newValue)) {
-				return cb(new Error(`Value for ${statName} is not a number!`));
-			}
+        let newValue = parseInt(user.properties[statName]);
+        if(newValue) {
+            if(!_.isNumber(newValue)) {
+                return cb(new Error(`Value for ${statName} is not a number!`));
+            }
 
-			newValue += incrementBy;
-		} else {
-			newValue = incrementBy;
-		}
+            newValue += incrementBy;
+        } else {
+            newValue = incrementBy;
+        }
 
-		return this.setUserStat(user, statName, newValue, cb);
-	}
+        return this.setUserStat(user, statName, newValue, cb);
+    }
 
-	//	the time "now" in the ISO format we use and love :)
-	get now() { return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); }
+    //	the time "now" in the ISO format we use and love :)
+    get now() { return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); }
 
-	appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
-		sysDb.run(
-			`INSERT INTO system_event_log (timestamp, log_name, log_value)
+    appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
+        sysDb.run(
+            `INSERT INTO system_event_log (timestamp, log_name, log_value)
 			VALUES (?, ?, ?);`,
-			[ this.now, logName, logValue ],
-			() => {
-				//
-				//	Handle keep
-				//
-				if(-1 === keep) {
-					if(cb) {
-						return cb(null);
-					}
-					return;
-				}
+            [ this.now, logName, logValue ],
+            () => {
+                //
+                //	Handle keep
+                //
+                if(-1 === keep) {
+                    if(cb) {
+                        return cb(null);
+                    }
+                    return;
+                }
 
-				switch(keepType) {
-					//	keep # of days
-					case 'days' :
-						sysDb.run(
-							`DELETE FROM system_event_log
+                switch(keepType) {
+                    //	keep # of days
+                    case 'days' :
+                        sysDb.run(
+                            `DELETE FROM system_event_log
 							WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
-							[ logName ],
-							err => {
-								//	cb optional - callers may fire & forget
-								if(cb) {
-									return cb(err);
-								}
-							}
-						);
-						break;
+                            [ logName ],
+                            err => {
+                                //	cb optional - callers may fire & forget
+                                if(cb) {
+                                    return cb(err);
+                                }
+                            }
+                        );
+                        break;
 
-					case 'count':
-					case 'max' :
-						//	keep max of N/count
-						sysDb.run(
-							`DELETE FROM system_event_log
+                    case 'count':
+                    case 'max' :
+                        //	keep max of N/count
+                        sysDb.run(
+                            `DELETE FROM system_event_log
 							WHERE id IN(
 								SELECT id 
 								FROM system_event_log
@@ -194,92 +194,92 @@ class StatLog {
 								ORDER BY id DESC
 								LIMIT -1 OFFSET ${keep}
 							);`,
-							[ logName ],
-							err => {
-								if(cb) {
-									return cb(err);
-								}
-							}
-						);
-						break;
+                            [ logName ],
+                            err => {
+                                if(cb) {
+                                    return cb(err);
+                                }
+                            }
+                        );
+                        break;
 
-					case 'forever' :
-					default :
-						//	nop
-						break;
-				}
-			}
-		);
-	}
+                    case 'forever' :
+                    default :
+                        //	nop
+                        break;
+                }
+            }
+        );
+    }
 
-	getSystemLogEntries(logName, order, limit, cb) {
-		let sql =
+    getSystemLogEntries(logName, order, limit, cb) {
+        let sql =
 			`SELECT timestamp, log_value
 			FROM system_event_log
 			WHERE log_name = ?`;
 
-		switch(order) {
-			case 'timestamp' :
-			case 'timestamp_asc' :
-				sql += ' ORDER BY timestamp ASC';
-				break;
+        switch(order) {
+            case 'timestamp' :
+            case 'timestamp_asc' :
+                sql += ' ORDER BY timestamp ASC';
+                break;
 
-			case 'timestamp_desc' :
-				sql += ' ORDER BY timestamp DESC';
-				break;
+            case 'timestamp_desc' :
+                sql += ' ORDER BY timestamp DESC';
+                break;
 
-			case 'random'	:
-				sql += ' ORDER BY RANDOM()';
-		}
+            case 'random'	:
+                sql += ' ORDER BY RANDOM()';
+        }
 
-		if(!cb && _.isFunction(limit)) {
-			cb		= limit;
-			limit	= 0;
-		} else {
-			limit = limit || 0;
-		}
+        if(!cb && _.isFunction(limit)) {
+            cb		= limit;
+            limit	= 0;
+        } else {
+            limit = limit || 0;
+        }
 
-		if(0 !== limit) {
-			sql += ` LIMIT ${limit}`;
-		}
+        if(0 !== limit) {
+            sql += ` LIMIT ${limit}`;
+        }
 
-		sql += ';';
+        sql += ';';
 
-		sysDb.all(sql, [ logName ], (err, rows) => {
-			return cb(err, rows);
-		});
-	}
+        sysDb.all(sql, [ logName ], (err, rows) => {
+            return cb(err, rows);
+        });
+    }
 
-	appendUserLogEntry(user, logName, logValue, keepDays, cb) {
-		sysDb.run(
-			`INSERT INTO user_event_log (timestamp, user_id, log_name, log_value)
+    appendUserLogEntry(user, logName, logValue, keepDays, cb) {
+        sysDb.run(
+            `INSERT INTO user_event_log (timestamp, user_id, log_name, log_value)
 			VALUES (?, ?, ?, ?);`,
-			[ this.now, user.userId, logName, logValue ],
-			() => {
-				//
-				//	Handle keepDays
-				//
-				if(-1 === keepDays) {
-					if(cb) {
-						return cb(null);
-					}
-					return;
-				}
+            [ this.now, user.userId, logName, logValue ],
+            () => {
+                //
+                //	Handle keepDays
+                //
+                if(-1 === keepDays) {
+                    if(cb) {
+                        return cb(null);
+                    }
+                    return;
+                }
 
-				sysDb.run(
-					`DELETE FROM user_event_log
+                sysDb.run(
+                    `DELETE FROM user_event_log
 					WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
-					[ user.userId, logName ],
-					err => {
-						//	cb optional - callers may fire & forget
-						if(cb) {
-							return cb(err);
-						}
-					}
-				);
-			}
-		);
-	}
+                    [ user.userId, logName ],
+                    err => {
+                        //	cb optional - callers may fire & forget
+                        if(cb) {
+                            return cb(err);
+                        }
+                    }
+                );
+            }
+        );
+    }
 }
 
 module.exports = new StatLog();

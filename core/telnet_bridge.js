@@ -28,191 +28,191 @@ const buffers		= require('buffers');
 
 //	:TODO: ENH: Support nodeMax and tooManyArt
 exports.moduleInfo = {
-	name	: 'Telnet Bridge',
-	desc	: 'Connect to other Telnet Systems',
-	author	: 'Andrew Pamment',
+    name	: 'Telnet Bridge',
+    desc	: 'Connect to other Telnet Systems',
+    author	: 'Andrew Pamment',
 };
 
 const IAC_DO_TERM_TYPE = Buffer.from( [ 255, 253, 24 ] );
 
 class TelnetClientConnection extends EventEmitter {
-	constructor(client) {
-		super();
+    constructor(client) {
+        super();
 
-		this.client		= client;
-	}
+        this.client		= client;
+    }
 
 
-	restorePipe() {
-		if(!this.pipeRestored) {
-			this.pipeRestored = true;
+    restorePipe() {
+        if(!this.pipeRestored) {
+            this.pipeRestored = true;
 
-			//	client may have bailed
-			if(null !== _.get(this, 'client.term.output', null)) {
-				if(this.bridgeConnection) {
-					this.client.term.output.unpipe(this.bridgeConnection);
-				}
-				this.client.term.output.resume();
-			}
-		}
-	}
+            //	client may have bailed
+            if(null !== _.get(this, 'client.term.output', null)) {
+                if(this.bridgeConnection) {
+                    this.client.term.output.unpipe(this.bridgeConnection);
+                }
+                this.client.term.output.resume();
+            }
+        }
+    }
 
-	connect(connectOpts) {
-		this.bridgeConnection = net.createConnection(connectOpts, () => {
-			this.emit('connected');
+    connect(connectOpts) {
+        this.bridgeConnection = net.createConnection(connectOpts, () => {
+            this.emit('connected');
 
-			this.pipeRestored = false;
-			this.client.term.output.pipe(this.bridgeConnection);
-		});
+            this.pipeRestored = false;
+            this.client.term.output.pipe(this.bridgeConnection);
+        });
 
-		this.bridgeConnection.on('data', data => {
-			this.client.term.rawWrite(data);
+        this.bridgeConnection.on('data', data => {
+            this.client.term.rawWrite(data);
 
-			//
-			//	Wait for a terminal type request, and send it eactly once.
-			//	This is enough (in additional to other negotiations handled in telnet.js)
-			//	to get us in on most systems
-			//
-			if(!this.termSent && data.indexOf(IAC_DO_TERM_TYPE) > -1) {
-				this.termSent = true;
-				this.bridgeConnection.write(this.getTermTypeNegotiationBuffer());
-			}
-		});
+            //
+            //	Wait for a terminal type request, and send it eactly once.
+            //	This is enough (in additional to other negotiations handled in telnet.js)
+            //	to get us in on most systems
+            //
+            if(!this.termSent && data.indexOf(IAC_DO_TERM_TYPE) > -1) {
+                this.termSent = true;
+                this.bridgeConnection.write(this.getTermTypeNegotiationBuffer());
+            }
+        });
 
-		this.bridgeConnection.once('end', () => {
-			this.restorePipe();
-			this.emit('end');
-		});
+        this.bridgeConnection.once('end', () => {
+            this.restorePipe();
+            this.emit('end');
+        });
 
-		this.bridgeConnection.once('error', err => {
-			this.restorePipe();
-			this.emit('end', err);
-		});
-	}
+        this.bridgeConnection.once('error', err => {
+            this.restorePipe();
+            this.emit('end', err);
+        });
+    }
 
-	disconnect() {
-		if(this.bridgeConnection) {
-			this.bridgeConnection.end();
-		}
-	}
+    disconnect() {
+        if(this.bridgeConnection) {
+            this.bridgeConnection.end();
+        }
+    }
 
-	destroy() {
-		if(this.bridgeConnection) {
-			this.bridgeConnection.destroy();
-			this.bridgeConnection.removeAllListeners();
-			this.restorePipe();
-			this.emit('end');
-		}
-	}
+    destroy() {
+        if(this.bridgeConnection) {
+            this.bridgeConnection.destroy();
+            this.bridgeConnection.removeAllListeners();
+            this.restorePipe();
+            this.emit('end');
+        }
+    }
 
-	getTermTypeNegotiationBuffer() {
-		//
-		//	Create a TERMINAL-TYPE sub negotiation buffer using the
-		//	actual/current terminal type.
-		//
-		let bufs = buffers();
+    getTermTypeNegotiationBuffer() {
+        //
+        //	Create a TERMINAL-TYPE sub negotiation buffer using the
+        //	actual/current terminal type.
+        //
+        let bufs = buffers();
 
-		bufs.push(Buffer.from(
-			[
-				255,	//	IAC
-				250,	//	SB
-				24,		//	TERMINAL-TYPE
-				0,		//	IS
-			]
-		));
+        bufs.push(Buffer.from(
+            [
+                255,	//	IAC
+                250,	//	SB
+                24,		//	TERMINAL-TYPE
+                0,		//	IS
+            ]
+        ));
 
-		bufs.push(
-			Buffer.from(this.client.term.termType),	//	e.g. "ansi"
-			Buffer.from( [ 255, 240 ] )				//	IAC, SE
-		);
+        bufs.push(
+            Buffer.from(this.client.term.termType),	//	e.g. "ansi"
+            Buffer.from( [ 255, 240 ] )				//	IAC, SE
+        );
 
-		return bufs.toBuffer();
-	}
+        return bufs.toBuffer();
+    }
 
 }
 
 exports.getModule = class TelnetBridgeModule extends MenuModule {
-	constructor(options) {
-		super(options);
+    constructor(options) {
+        super(options);
 
-		this.config			= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
-		this.config.port	= this.config.port || 23;
-	}
+        this.config			= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+        this.config.port	= this.config.port || 23;
+    }
 
-	initSequence() {
-		let clientTerminated;
-		const self = this;
+    initSequence() {
+        let clientTerminated;
+        const self = this;
 
-		async.series(
-			[
-				function validateConfig(callback) {
-					if(_.isString(self.config.host) &&
+        async.series(
+            [
+                function validateConfig(callback) {
+                    if(_.isString(self.config.host) &&
 						_.isNumber(self.config.port))
-					{
-						callback(null);
-					} else {
-						callback(new Error('Configuration is missing required option(s)'));
-					}
-				},
-				function createTelnetBridge(callback) {
-					const connectOpts = {
-						port	: self.config.port,
-						host	: self.config.host,
-					};
+                    {
+                        callback(null);
+                    } else {
+                        callback(new Error('Configuration is missing required option(s)'));
+                    }
+                },
+                function createTelnetBridge(callback) {
+                    const connectOpts = {
+                        port	: self.config.port,
+                        host	: self.config.host,
+                    };
 
-					self.client.term.write(resetScreen());
-					self.client.term.write(
-						`  Connecting to ${connectOpts.host}, please wait...\n  (Press ESC to cancel)\n`
-					);
+                    self.client.term.write(resetScreen());
+                    self.client.term.write(
+                        `  Connecting to ${connectOpts.host}, please wait...\n  (Press ESC to cancel)\n`
+                    );
 
-					const telnetConnection = new TelnetClientConnection(self.client);
+                    const telnetConnection = new TelnetClientConnection(self.client);
 
-					const connectionKeyPressHandler = (ch, key) => {
-						if('escape' === key.name) {
-							self.client.removeListener('key press', connectionKeyPressHandler);
-							telnetConnection.destroy();
-						}
-					};
+                    const connectionKeyPressHandler = (ch, key) => {
+                        if('escape' === key.name) {
+                            self.client.removeListener('key press', connectionKeyPressHandler);
+                            telnetConnection.destroy();
+                        }
+                    };
 
-					self.client.on('key press', connectionKeyPressHandler);
+                    self.client.on('key press', connectionKeyPressHandler);
 
-					telnetConnection.on('connected', () => {
-						self.client.removeListener('key press', connectionKeyPressHandler);
-						self.client.log.info(connectOpts, 'Telnet bridge connection established');
+                    telnetConnection.on('connected', () => {
+                        self.client.removeListener('key press', connectionKeyPressHandler);
+                        self.client.log.info(connectOpts, 'Telnet bridge connection established');
 
-						if(self.config.font) {
-							self.client.term.rawWrite(setSyncTermFontWithAlias(self.config.font));
-						}
+                        if(self.config.font) {
+                            self.client.term.rawWrite(setSyncTermFontWithAlias(self.config.font));
+                        }
 
-						self.client.once('end', () => {
-							self.client.log.info('Connection ended. Terminating connection');
-							clientTerminated = true;
-							telnetConnection.disconnect();
-						});
-					});
+                        self.client.once('end', () => {
+                            self.client.log.info('Connection ended. Terminating connection');
+                            clientTerminated = true;
+                            telnetConnection.disconnect();
+                        });
+                    });
 
-					telnetConnection.on('end', err => {
-						self.client.removeListener('key press', connectionKeyPressHandler);
+                    telnetConnection.on('end', err => {
+                        self.client.removeListener('key press', connectionKeyPressHandler);
 
-						if(err) {
-							self.client.log.info(`Telnet bridge connection error: ${err.message}`);
-						}
+                        if(err) {
+                            self.client.log.info(`Telnet bridge connection error: ${err.message}`);
+                        }
 
-						callback(clientTerminated ? new Error('Client connection terminated') : null);
-					});
+                        callback(clientTerminated ? new Error('Client connection terminated') : null);
+                    });
 
-					telnetConnection.connect(connectOpts);
-				}
-			],
-			err => {
-				if(err) {
-					self.client.log.warn( { error : err.message }, 'Telnet connection error');
-				}
+                    telnetConnection.connect(connectOpts);
+                }
+            ],
+            err => {
+                if(err) {
+                    self.client.log.warn( { error : err.message }, 'Telnet connection error');
+                }
 
-				if(!clientTerminated) {
-					self.prevMenu();
-				}
-			}
-		);
-	}
+                if(!clientTerminated) {
+                    self.prevMenu();
+                }
+            }
+        );
+    }
 };

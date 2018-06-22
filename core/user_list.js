@@ -23,90 +23,90 @@ const _					= require('lodash');
 */
 
 exports.moduleInfo = {
-	name		: 'User List',
-	desc		: 'Lists all system users',
-	author		: 'NuSkooler',
+    name		: 'User List',
+    desc		: 'Lists all system users',
+    author		: 'NuSkooler',
 };
 
 const MciViewIds = {
-	UserList	: 1,
+    UserList	: 1,
 };
 
 exports.getModule = class UserListModule extends MenuModule {
-	constructor(options) {
-		super(options);
-	}
+    constructor(options) {
+        super(options);
+    }
 
-	mciReady(mciData, cb) {
-		super.mciReady(mciData, err => {
-			if(err) {
-				return cb(err);
-			}
+    mciReady(mciData, cb) {
+        super.mciReady(mciData, err => {
+            if(err) {
+                return cb(err);
+            }
 
-			const self		= this;
-			const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            const self		= this;
+            const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
 
-			let userList = [];
+            let userList = [];
 
-			const USER_LIST_OPTS = {
-				properties : [ 'location', 'affiliation', 'last_login_timestamp' ],
-			};
+            const USER_LIST_OPTS = {
+                properties : [ 'location', 'affiliation', 'last_login_timestamp' ],
+            };
 
-			async.series(
-				[
-					function loadFromConfig(callback) {
-						var loadOpts = {
-							callingMenu		: self,
-							mciMap			: mciData.menu,
-						};
+            async.series(
+                [
+                    function loadFromConfig(callback) {
+                        var loadOpts = {
+                            callingMenu		: self,
+                            mciMap			: mciData.menu,
+                        };
 
-						vc.loadFromMenuConfig(loadOpts, callback);
-					},
-					function fetchUserList(callback) {
-						//	:TODO: Currently fetching all users - probably always OK, but this could be paged
-						User.getUserList(USER_LIST_OPTS, function got(err, ul) {
-							userList = ul;
-							callback(err);
-						});
-					},
-					function populateList(callback) {
-						var userListView = vc.getView(MciViewIds.UserList);
+                        vc.loadFromMenuConfig(loadOpts, callback);
+                    },
+                    function fetchUserList(callback) {
+                        //	:TODO: Currently fetching all users - probably always OK, but this could be paged
+                        User.getUserList(USER_LIST_OPTS, function got(err, ul) {
+                            userList = ul;
+                            callback(err);
+                        });
+                    },
+                    function populateList(callback) {
+                        var userListView = vc.getView(MciViewIds.UserList);
 
-						var listFormat 		= self.menuConfig.config.listFormat || '{userName} - {affils}';
-						var focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default changed color!
-						var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
+                        var listFormat 		= self.menuConfig.config.listFormat || '{userName} - {affils}';
+                        var focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default changed color!
+                        var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
 
-						function getUserFmtObj(ue) {
-							return {
-								userId		: ue.userId,
-								userName	: ue.userName,
-								affils		: ue.affiliation,
-								location	: ue.location,
-								//	:TODO: the rest!
-								note		: ue.note || '',
-								lastLoginTs	: moment(ue.last_login_timestamp).format(dateTimeFormat),
-							};
-						}
+                        function getUserFmtObj(ue) {
+                            return {
+                                userId		: ue.userId,
+                                userName	: ue.userName,
+                                affils		: ue.affiliation,
+                                location	: ue.location,
+                                //	:TODO: the rest!
+                                note		: ue.note || '',
+                                lastLoginTs	: moment(ue.last_login_timestamp).format(dateTimeFormat),
+                            };
+                        }
 
-						userListView.setItems(_.map(userList, function formatUserEntry(ue) {
-							return stringFormat(listFormat, getUserFmtObj(ue));
-						}));
+                        userListView.setItems(_.map(userList, function formatUserEntry(ue) {
+                            return stringFormat(listFormat, getUserFmtObj(ue));
+                        }));
 
-						userListView.setFocusItems(_.map(userList, function formatUserEntry(ue) {
-							return stringFormat(focusListFormat, getUserFmtObj(ue));
-						}));
+                        userListView.setFocusItems(_.map(userList, function formatUserEntry(ue) {
+                            return stringFormat(focusListFormat, getUserFmtObj(ue));
+                        }));
 
-						userListView.redraw();
-						callback(null);
-					}
-				],
-				function complete(err) {
-					if(err) {
-						self.client.log.error( { error : err.toString() }, 'Error loading user list');
-					}
-					cb(err);
-				}
-			);
-		});
-	}
+                        userListView.redraw();
+                        callback(null);
+                    }
+                ],
+                function complete(err) {
+                    if(err) {
+                        self.client.log.error( { error : err.toString() }, 'Error loading user list');
+                    }
+                    cb(err);
+                }
+            );
+        });
+    }
 };

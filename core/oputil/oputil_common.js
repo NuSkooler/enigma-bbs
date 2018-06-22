@@ -16,83 +16,83 @@ exports.getAreaAndStorage				= getAreaAndStorage;
 exports.looksLikePattern				= looksLikePattern;
 
 const exitCodes = exports.ExitCodes = {
-	SUCCESS		: 0,
-	ERROR		: -1,
-	BAD_COMMAND	: -2,
-	BAD_ARGS	: -3,
+    SUCCESS		: 0,
+    ERROR		: -1,
+    BAD_COMMAND	: -2,
+    BAD_ARGS	: -3,
 };
 
 const argv = exports.argv = require('minimist')(process.argv.slice(2), {
-	alias : {
-		h	 	: 'help',
-		v		: 'version',
-		c		: 'config',
-		n		: 'no-prompt',
-	}
+    alias : {
+        h	 	: 'help',
+        v		: 'version',
+        c		: 'config',
+        n		: 'no-prompt',
+    }
 });
 
 function printUsageAndSetExitCode(errMsg, exitCode) {
-	if(_.isUndefined(exitCode)) {
-		exitCode = exitCodes.ERROR;
-	}
+    if(_.isUndefined(exitCode)) {
+        exitCode = exitCodes.ERROR;
+    }
 
-	process.exitCode = exitCode;
+    process.exitCode = exitCode;
 
-	if(errMsg) {
-		console.error(errMsg);
-	}
+    if(errMsg) {
+        console.error(errMsg);
+    }
 }
 
 function getDefaultConfigPath() {
-	return './config/';
+    return './config/';
 }
 
 function getConfigPath() {
-	const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
-	return baseConfigPath + 'config.hjson';
+    const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
+    return baseConfigPath + 'config.hjson';
 }
 
 function initConfig(cb) {
-	const configPath = getConfigPath();
+    const configPath = getConfigPath();
 
-	config.init(configPath, { keepWsc : true, noWatch : true }, cb);
+    config.init(configPath, { keepWsc : true, noWatch : true }, cb);
 }
 
 function initConfigAndDatabases(cb) {
-	async.series(
-		[
-			function init(callback) {
-				initConfig(callback);
-			},
-			function initDb(callback) {
-				db.initializeDatabases(callback);
-			},
-		],
-		err => {
-			return cb(err);
-		}
-	);
+    async.series(
+        [
+            function init(callback) {
+                initConfig(callback);
+            },
+            function initDb(callback) {
+                db.initializeDatabases(callback);
+            },
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function getAreaAndStorage(tags) {
-	return tags.map(tag => {
-		const parts = tag.toString().split('@');
-		const entry = {
-			areaTag	: parts[0],
-		};
-		entry.pattern = entry.areaTag;	//	handy
-		if(parts[1]) {
-			entry.storageTag = parts[1];
-		}
-		return entry;
-	});
+    return tags.map(tag => {
+        const parts = tag.toString().split('@');
+        const entry = {
+            areaTag	: parts[0],
+        };
+        entry.pattern = entry.areaTag;	//	handy
+        if(parts[1]) {
+            entry.storageTag = parts[1];
+        }
+        return entry;
+    });
 }
 
 function looksLikePattern(tag) {
-	//	globs can start with @
-	if(tag.indexOf('@') > 0) {
-		return false;
-	}
+    //	globs can start with @
+    if(tag.indexOf('@') > 0) {
+        return false;
+    }
 
-	return /[*?[\]!()+|^]/.test(tag);
+    return /[*?[\]!()+|^]/.test(tag);
 }

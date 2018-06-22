@@ -15,169 +15,169 @@ const paths			= require('path');
 const mimeTypes		= require('mime-types');
 
 const ModuleInfo = exports.moduleInfo = {
-	name		: 'Web',
-	desc		: 'Web Server',
-	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.web.server',
+    name		: 'Web',
+    desc		: 'Web Server',
+    author		: 'NuSkooler',
+    packageName	: 'codes.l33t.enigma.web.server',
 };
 
 class Route {
-	constructor(route) {
-		Object.assign(this, route);
-		
-		if(this.method) {
-			this.method = this.method.toUpperCase();
-		}
+    constructor(route) {
+        Object.assign(this, route);
 
-		try {
-			this.pathRegExp = new RegExp(this.path);
-		} catch(e) {
-			Log.debug( { route : route }, 'Invalid regular expression for route path' );
-		}
-	}
+        if(this.method) {
+            this.method = this.method.toUpperCase();
+        }
 
-	isValid() {
-		return (
-			this.pathRegExp instanceof RegExp && 
-			( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) || 
+        try {
+            this.pathRegExp = new RegExp(this.path);
+        } catch(e) {
+            Log.debug( { route : route }, 'Invalid regular expression for route path' );
+        }
+    }
+
+    isValid() {
+        return (
+            this.pathRegExp instanceof RegExp &&
+			( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) ||
 			!_.isFunction(this.handler)
-		);
-	}
+        );
+    }
 
-	matchesRequest(req) {
-		return req.method === this.method && this.pathRegExp.test(req.url);
-	}
+    matchesRequest(req) {
+        return req.method === this.method && this.pathRegExp.test(req.url);
+    }
 
-	getRouteKey() { return `${this.method}:${this.path}`; }
+    getRouteKey() { return `${this.method}:${this.path}`; }
 }
 
 exports.getModule = class WebServerModule extends ServerModule {
-	constructor() {
-		super();
+    constructor() {
+        super();
 
-		const config 		= Config();
-		this.enableHttp		= config.contentServers.web.http.enabled || false;
-		this.enableHttps	= config.contentServers.web.https.enabled || false;
+        const config 		= Config();
+        this.enableHttp		= config.contentServers.web.http.enabled || false;
+        this.enableHttps	= config.contentServers.web.https.enabled || false;
 
-		this.routes = {};
+        this.routes = {};
 
-		if(this.isEnabled() && config.contentServers.web.staticRoot) {
-			this.addRoute({
-				method		: 'GET',
-				path		: '/static/.*$',
-				handler		: this.routeStaticFile.bind(this),
-			});
-		}
-	}
+        if(this.isEnabled() && config.contentServers.web.staticRoot) {
+            this.addRoute({
+                method		: 'GET',
+                path		: '/static/.*$',
+                handler		: this.routeStaticFile.bind(this),
+            });
+        }
+    }
 
-	buildUrl(pathAndQuery) {
-		//
-		//	Create a URL such as
-		//	https://l33t.codes:44512/ + |pathAndQuery|
-		//
-		//	Prefer HTTPS over HTTP. Be explicit about the port
-		//	only if non-standard. Allow users to override full prefix in config.
-		//
-		const config = Config();
-		if(_.isString(config.contentServers.web.overrideUrlPrefix)) {
-			return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
-		}
+    buildUrl(pathAndQuery) {
+        //
+        //	Create a URL such as
+        //	https://l33t.codes:44512/ + |pathAndQuery|
+        //
+        //	Prefer HTTPS over HTTP. Be explicit about the port
+        //	only if non-standard. Allow users to override full prefix in config.
+        //
+        const config = Config();
+        if(_.isString(config.contentServers.web.overrideUrlPrefix)) {
+            return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
+        }
 
-		let schema;
-		let port;
-		if(config.contentServers.web.https.enabled) {
-			schema	= 'https://';
-			port	=  (443 === config.contentServers.web.https.port) ?
-				'' :
-				`:${config.contentServers.web.https.port}`;
-		} else {
-			schema	= 'http://';
-			port	= (80 === config.contentServers.web.http.port) ?
-				'' :
-				`:${config.contentServers.web.http.port}`;
-		}
-		
-		return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
-	}
+        let schema;
+        let port;
+        if(config.contentServers.web.https.enabled) {
+            schema	= 'https://';
+            port	=  (443 === config.contentServers.web.https.port) ?
+                '' :
+                `:${config.contentServers.web.https.port}`;
+        } else {
+            schema	= 'http://';
+            port	= (80 === config.contentServers.web.http.port) ?
+                '' :
+                `:${config.contentServers.web.http.port}`;
+        }
 
-	isEnabled() {
-		return this.enableHttp || this.enableHttps;
-	}
+        return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
+    }
 
-	createServer() {
-		if(this.enableHttp) {
-			this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
-		}
+    isEnabled() {
+        return this.enableHttp || this.enableHttps;
+    }
 
-		const config = Config();
-		if(this.enableHttps) {
-			const options = {
-				cert	: fs.readFileSync(config.contentServers.web.https.certPem),
-				key		: fs.readFileSync(config.contentServers.web.https.keyPem),
-			};
+    createServer() {
+        if(this.enableHttp) {
+            this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
+        }
 
-			//	additional options
-			Object.assign(options, config.contentServers.web.https.options || {} );
+        const config = Config();
+        if(this.enableHttps) {
+            const options = {
+                cert	: fs.readFileSync(config.contentServers.web.https.certPem),
+                key		: fs.readFileSync(config.contentServers.web.https.keyPem),
+            };
 
-			this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );			
-		}
-	}
+            //	additional options
+            Object.assign(options, config.contentServers.web.https.options || {} );
 
-	listen() {
-		let ok = true;
+            this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );
+        }
+    }
 
-		const config = Config();
-		[ 'http', 'https' ].forEach(service => {
-			const name = `${service}Server`;
-			if(this[name]) {
-				const port = parseInt(config.contentServers.web[service].port);
-				if(isNaN(port)) {
-					ok = false;
-					return Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
-				}
-				return this[name].listen(port);
-			} 
-		});
+    listen() {
+        let ok = true;
 
-		return ok;
-	}
+        const config = Config();
+        [ 'http', 'https' ].forEach(service => {
+            const name = `${service}Server`;
+            if(this[name]) {
+                const port = parseInt(config.contentServers.web[service].port);
+                if(isNaN(port)) {
+                    ok = false;
+                    return Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
+                }
+                return this[name].listen(port);
+            }
+        });
 
-	addRoute(route) {
-		route = new Route(route);
+        return ok;
+    }
 
-		if(!route.isValid()) {
-			Log.warn( { route : route }, 'Cannot add route: missing or invalid required members' );
-			return false;
-		}
+    addRoute(route) {
+        route = new Route(route);
 
-		const routeKey = route.getRouteKey();
-		if(routeKey in this.routes) {
-			Log.warn( { route : route, routeKey : routeKey }, 'Cannot add route: duplicate method/path combination exists' );
-			return false;
-		}
+        if(!route.isValid()) {
+            Log.warn( { route : route }, 'Cannot add route: missing or invalid required members' );
+            return false;
+        }
 
-		this.routes[routeKey] = route;
-		return true;
-	}
+        const routeKey = route.getRouteKey();
+        if(routeKey in this.routes) {
+            Log.warn( { route : route, routeKey : routeKey }, 'Cannot add route: duplicate method/path combination exists' );
+            return false;
+        }
 
-	routeRequest(req, resp) {
-		const route = _.find(this.routes, r => r.matchesRequest(req) );
+        this.routes[routeKey] = route;
+        return true;
+    }
 
-		if(!route && '/' === req.url) {
-			return this.routeIndex(req, resp);
-		}
+    routeRequest(req, resp) {
+        const route = _.find(this.routes, r => r.matchesRequest(req) );
 
-		return route ? route.handler(req, resp) : this.accessDenied(resp);
-	}
+        if(!route && '/' === req.url) {
+            return this.routeIndex(req, resp);
+        }
 
-	respondWithError(resp, code, bodyText, title) {
-		const customErrorPage = paths.join(Config().contentServers.web.staticRoot, `${code}.html`);
+        return route ? route.handler(req, resp) : this.accessDenied(resp);
+    }
 
-		fs.readFile(customErrorPage, 'utf8', (err, data) => {
-			resp.writeHead(code, { 'Content-Type' : 'text/html' } );
+    respondWithError(resp, code, bodyText, title) {
+        const customErrorPage = paths.join(Config().contentServers.web.staticRoot, `${code}.html`);
 
-			if(err) {
-				return resp.end(`<!doctype html>
+        fs.readFile(customErrorPage, 'utf8', (err, data) => {
+            resp.writeHead(code, { 'Content-Type' : 'text/html' } );
+
+            if(err) {
+                return resp.end(`<!doctype html>
 					<html lang="en">
 						<head>
 						<meta charset="utf-8">
@@ -190,74 +190,74 @@ exports.getModule = class WebServerModule extends ServerModule {
 							</article>
 						</body>
 					</html>`
-				);
-			}
+                );
+            }
 
-			return resp.end(data);
-		});
-	}
+            return resp.end(data);
+        });
+    }
 
-	accessDenied(resp) {
-		return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
-	}
+    accessDenied(resp) {
+        return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
+    }
 
-	fileNotFound(resp) {
-		return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
-	}
+    fileNotFound(resp) {
+        return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+    }
 
-	routeIndex(req, resp) {
-		const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
+    routeIndex(req, resp) {
+        const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
 
-		return this.returnStaticPage(filePath, resp);
-	}
+        return this.returnStaticPage(filePath, resp);
+    }
 
-	routeStaticFile(req, resp) {
-		const fileName = req.url.substr(req.url.indexOf('/', 1));
-		const filePath = paths.join(Config().contentServers.web.staticRoot, fileName);
+    routeStaticFile(req, resp) {
+        const fileName = req.url.substr(req.url.indexOf('/', 1));
+        const filePath = paths.join(Config().contentServers.web.staticRoot, fileName);
 
-		return this.returnStaticPage(filePath, resp);
-	}
+        return this.returnStaticPage(filePath, resp);
+    }
 
-	returnStaticPage(filePath, resp) {
-		const self = this;
+    returnStaticPage(filePath, resp) {
+        const self = this;
 
-		fs.stat(filePath, (err, stats) => {
-			if(err || !stats.isFile()) {
-				return self.fileNotFound(resp);
-			}
+        fs.stat(filePath, (err, stats) => {
+            if(err || !stats.isFile()) {
+                return self.fileNotFound(resp);
+            }
 
-			const headers = {
-				'Content-Type'		: mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
-				'Content-Length'	: stats.size,
-			};
+            const headers = {
+                'Content-Type'		: mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
+                'Content-Length'	: stats.size,
+            };
 
-			const readStream = fs.createReadStream(filePath);
-			resp.writeHead(200, headers);
-			return readStream.pipe(resp);
-		});
-	}
+            const readStream = fs.createReadStream(filePath);
+            resp.writeHead(200, headers);
+            return readStream.pipe(resp);
+        });
+    }
 
-	routeTemplateFilePage(templatePath, preprocessCallback, resp) {
-		const self = this;
+    routeTemplateFilePage(templatePath, preprocessCallback, resp) {
+        const self = this;
 
-		fs.readFile(templatePath, 'utf8', (err, templateData) => {
-			if(err) {
-				return self.fileNotFound(resp);
-			}
+        fs.readFile(templatePath, 'utf8', (err, templateData) => {
+            if(err) {
+                return self.fileNotFound(resp);
+            }
 
-			preprocessCallback(templateData, (err, finalPage, contentType) => {
-				if(err || !finalPage) {
-					return self.respondWithError(resp, 500, 'Internal Server Error.', 'Internal Server Error');
-				}
+            preprocessCallback(templateData, (err, finalPage, contentType) => {
+                if(err || !finalPage) {
+                    return self.respondWithError(resp, 500, 'Internal Server Error.', 'Internal Server Error');
+                }
 
-				const headers = {
-					'Content-Type'		: contentType || mimeTypes.contentType('.html'),
-					'Content-Length'	: finalPage.length,
-				};
+                const headers = {
+                    'Content-Type'		: contentType || mimeTypes.contentType('.html'),
+                    'Content-Length'	: finalPage.length,
+                };
 
-				resp.writeHead(200, headers);
-				return resp.end(finalPage);
-			});
-		});		
-	}
+                resp.writeHead(200, headers);
+                return resp.end(finalPage);
+            });
+        });
+    }
 };

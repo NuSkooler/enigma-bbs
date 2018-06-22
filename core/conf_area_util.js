@@ -12,19 +12,19 @@ exports.sortAreasOrConfs	= sortAreasOrConfs;
 //	Otherwise, use a locale comparison on the sort key or name as a fallback
 //
 function sortAreasOrConfs(areasOrConfs, type) {
-	let entryA;
-	let entryB;
+    let entryA;
+    let entryB;
 
-	areasOrConfs.sort((a, b) => {
-		entryA = type ? a[type] : a;
-		entryB = type ? b[type] : b;
+    areasOrConfs.sort((a, b) => {
+        entryA = type ? a[type] : a;
+        entryB = type ? b[type] : b;
 
-		if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
-			return entryA.sort - entryB.sort;
-		} else {
-			const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
-			const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
-			return keyA.localeCompare(keyB, { sensitivity : false, numeric : true } );	//	"natural" compare
-		}
-	});
+        if(_.isNumber(entryA.sort) && _.isNumber(entryB.sort)) {
+            return entryA.sort - entryB.sort;
+        } else {
+            const keyA = entryA.sort ? entryA.sort.toString() : entryA.name;
+            const keyB = entryB.sort ? entryB.sort.toString() : entryB.name;
+            return keyA.localeCompare(keyB, { sensitivity : false, numeric : true } );	//	"natural" compare
+        }
+    });
 }

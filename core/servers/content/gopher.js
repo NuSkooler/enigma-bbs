@@ -6,14 +6,14 @@ const Log					= require('../../logger.js').log;
 const { ServerModule }		= require('../../server_module.js');
 const Config				= require('../../config.js').get;
 const {
-	splitTextAtTerms,
-	isAnsi,
-	cleanControlCodes
+    splitTextAtTerms,
+    isAnsi,
+    cleanControlCodes
 }							= require('../../string_util.js');
 const {
-	getMessageConferenceByTag,
-	getMessageAreaByTag,
-	getMessageListForArea,
+    getMessageConferenceByTag,
+    getMessageAreaByTag,
+    getMessageListForArea,
 }							= require('../../message_area.js');
 const { sortAreasOrConfs }	= require('../../conf_area_util.js');
 const AnsiPrep				= require('../../ansi_prep.js');
@@ -26,221 +26,221 @@ const paths					= require('path');
 const moment				= require('moment');
 
 const ModuleInfo = exports.moduleInfo = {
-	name		: 'Gopher',
-	desc		: 'Gopher Server',
-	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.gopher.server',
+    name		: 'Gopher',
+    desc		: 'Gopher Server',
+    author		: 'NuSkooler',
+    packageName	: 'codes.l33t.enigma.gopher.server',
 };
 
 const Message				= require('../../message.js');
 
 const ItemTypes = {
-	Invalid				: '',	//	not really a type, of course!
+    Invalid				: '',	//	not really a type, of course!
 
-	//	Canonical, RFC-1436
-	TextFile			: '0',
-	SubMenu				: '1',
-	CCSONameserver		: '2',
-	Error				: '3',
-	BinHexFile			: '4',
-	DOSFile				: '5',
-	UuEncodedFile		: '6',
-	FullTextSearch		: '7',
-	Telnet				: '8',
-	BinaryFile			: '9',
-	AltServer			: '+',
-	GIFFile				: 'g',
-	ImageFile			: 'I',
-	Telnet3270			: 'T',
+    //	Canonical, RFC-1436
+    TextFile			: '0',
+    SubMenu				: '1',
+    CCSONameserver		: '2',
+    Error				: '3',
+    BinHexFile			: '4',
+    DOSFile				: '5',
+    UuEncodedFile		: '6',
+    FullTextSearch		: '7',
+    Telnet				: '8',
+    BinaryFile			: '9',
+    AltServer			: '+',
+    GIFFile				: 'g',
+    ImageFile			: 'I',
+    Telnet3270			: 'T',
 
-	//	Non-canonical
-	HtmlFile			: 'h',
-	InfoMessage			: 'i',
-	SoundFile			: 's',
+    //	Non-canonical
+    HtmlFile			: 'h',
+    InfoMessage			: 'i',
+    SoundFile			: 's',
 };
 
 exports.getModule = class GopherModule extends ServerModule {
 
-	constructor() {
-		super();
+    constructor() {
+        super();
 
-		this.routes = new Map();	//	selector->generator => gopher item
-		this.log = Log.child( { server : 'Gopher' } );
-	}
+        this.routes = new Map();	//	selector->generator => gopher item
+        this.log = Log.child( { server : 'Gopher' } );
+    }
 
-	createServer() {
-		if(!this.enabled) {
-			return;
-		}
+    createServer() {
+        if(!this.enabled) {
+            return;
+        }
 
-		const config = Config();
-		this.publicHostname = config.contentServers.gopher.publicHostname;
-		this.publicPort		= config.contentServers.gopher.publicPort;
+        const config = Config();
+        this.publicHostname = config.contentServers.gopher.publicHostname;
+        this.publicPort		= config.contentServers.gopher.publicPort;
 
-		this.addRoute(/^\/?\r\n$/, this.defaultGenerator);
-		this.addRoute(/^\/msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
+        this.addRoute(/^\/?\r\n$/, this.defaultGenerator);
+        this.addRoute(/^\/msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
 
-		this.server = net.createServer( socket => {
-			socket.setEncoding('ascii');
+        this.server = net.createServer( socket => {
+            socket.setEncoding('ascii');
 
-			socket.on('data', data => {
-				this.routeRequest(data, socket);
-			});
+            socket.on('data', data => {
+                this.routeRequest(data, socket);
+            });
 
-			socket.on('error', err => {
-				if('ECONNRESET' !== err.code) {	//	normal
-					this.log.trace( { error : err.message }, 'Socket error');
-				}
-			});
-		});
-	}
+            socket.on('error', err => {
+                if('ECONNRESET' !== err.code) {	//	normal
+                    this.log.trace( { error : err.message }, 'Socket error');
+                }
+            });
+        });
+    }
 
-	listen() {
-		if(!this.enabled) {
-			return true;	//	nothing to do, but not an error
-		}
+    listen() {
+        if(!this.enabled) {
+            return true;	//	nothing to do, but not an error
+        }
 
-		const config = Config();
-		const port = parseInt(config.contentServers.gopher.port);
-		if(isNaN(port)) {
-			this.log.warn( { port : config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
-			return false;
-		}
+        const config = Config();
+        const port = parseInt(config.contentServers.gopher.port);
+        if(isNaN(port)) {
+            this.log.warn( { port : config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
+            return false;
+        }
 
-		return this.server.listen(port);
-	}
+        return this.server.listen(port);
+    }
 
-	get enabled() {
-		return _.get(Config(), 'contentServers.gopher.enabled', false) && this.isConfigured();
-	}
+    get enabled() {
+        return _.get(Config(), 'contentServers.gopher.enabled', false) && this.isConfigured();
+    }
 
-	isConfigured() {
-		//	public hostname & port must be set; responses contain them!
-		const config = Config();
-		return _.isString(_.get(config, 'contentServers.gopher.publicHostname')) &&
+    isConfigured() {
+        //	public hostname & port must be set; responses contain them!
+        const config = Config();
+        return _.isString(_.get(config, 'contentServers.gopher.publicHostname')) &&
 			_.isNumber(_.get(config, 'contentServers.gopher.publicPort'));
-	}
+    }
 
-	addRoute(selectorRegExp, generatorHandler) {
-		if(_.isString(selectorRegExp)) {
-			try {
-				selectorRegExp = new RegExp(`${selectorRegExp}\r\n`);
-			} catch(e) {
-				this.log.warn( { pattern : selectorRegExp }, 'Invalid RegExp for selector' );
-				return false;
-			}
-		}
-		this.routes.set(selectorRegExp, generatorHandler.bind(this));
-	}
+    addRoute(selectorRegExp, generatorHandler) {
+        if(_.isString(selectorRegExp)) {
+            try {
+                selectorRegExp = new RegExp(`${selectorRegExp}\r\n`);
+            } catch(e) {
+                this.log.warn( { pattern : selectorRegExp }, 'Invalid RegExp for selector' );
+                return false;
+            }
+        }
+        this.routes.set(selectorRegExp, generatorHandler.bind(this));
+    }
 
-	routeRequest(selector, socket) {
-		let match;
-		for(let [regex, gen] of this.routes) {
-			match = selector.match(regex);
-			if(match) {
-				return gen(match, res => {
-					return socket.end(`${res}`);
-				});
-			}
-		}
-		this.notFoundGenerator(selector, res => {
-			return socket.end(`${res}`);
-		});
-	}
+    routeRequest(selector, socket) {
+        let match;
+        for(let [regex, gen] of this.routes) {
+            match = selector.match(regex);
+            if(match) {
+                return gen(match, res => {
+                    return socket.end(`${res}`);
+                });
+            }
+        }
+        this.notFoundGenerator(selector, res => {
+            return socket.end(`${res}`);
+        });
+    }
 
-	makeItem(itemType, text, selector, hostname, port) {
-		selector = selector || '';	//	e.g. for info
-		hostname = hostname || this.publicHostname;
-		port = port || this.publicPort;
-		return `${itemType}${text}\t${selector}\t${hostname}\t${port}\r\n`;
-	}
+    makeItem(itemType, text, selector, hostname, port) {
+        selector = selector || '';	//	e.g. for info
+        hostname = hostname || this.publicHostname;
+        port = port || this.publicPort;
+        return `${itemType}${text}\t${selector}\t${hostname}\t${port}\r\n`;
+    }
 
-	defaultGenerator(selectorMatch, cb) {
-		this.log.trace( { selector : selectorMatch[0] }, 'Serving default content');
+    defaultGenerator(selectorMatch, cb) {
+        this.log.trace( { selector : selectorMatch[0] }, 'Serving default content');
 
-		let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'startup_banner.asc');
-		bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
-		fs.readFile(bannerFile, 'utf8', (err, banner) => {
-			if(err) {
-				return cb('You have reached an ENiGMA½ Gopher server!');
-			}
+        let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'startup_banner.asc');
+        bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
+        fs.readFile(bannerFile, 'utf8', (err, banner) => {
+            if(err) {
+                return cb('You have reached an ENiGMA½ Gopher server!');
+            }
 
-			banner = splitTextAtTerms(banner).map(l => this.makeItem(ItemTypes.InfoMessage, l)).join('');
-			banner += this.makeItem(ItemTypes.SubMenu, 'Public Message Area', '/msgarea');
-			return cb(banner);
-		});
-	}
+            banner = splitTextAtTerms(banner).map(l => this.makeItem(ItemTypes.InfoMessage, l)).join('');
+            banner += this.makeItem(ItemTypes.SubMenu, 'Public Message Area', '/msgarea');
+            return cb(banner);
+        });
+    }
 
-	notFoundGenerator(selector, cb) {
-		this.log.trace( { selector }, 'Serving not found content');
-		return cb('Not found');
-	}
+    notFoundGenerator(selector, cb) {
+        this.log.trace( { selector }, 'Serving not found content');
+        return cb('Not found');
+    }
 
-	isAreaAndConfExposed(confTag, areaTag) {
-		const conf = _.get(Config(), [ 'contentServers', 'gopher', 'messageConferences', confTag ]);
-		return Array.isArray(conf) && conf.includes(areaTag);
-	}
+    isAreaAndConfExposed(confTag, areaTag) {
+        const conf = _.get(Config(), [ 'contentServers', 'gopher', 'messageConferences', confTag ]);
+        return Array.isArray(conf) && conf.includes(areaTag);
+    }
 
-	prepareMessageBody(body, cb) {
-		if(isAnsi(body)) {
-			AnsiPrep(
-				body,
-				{
-					cols			: 79,				//	Gopher std. wants 70, but we'll have to deal with it.
-					forceLineTerm	: true,				//	ensure each line is term'd
-					asciiMode		: true,				//	export to ASCII
-					fillLines		: false,			//	don't fill up to |cols|
-				},
-				(err, prepped) => {
-					return cb(prepped || body);
-				}
-			);
-		} else {
-			return cb(cleanControlCodes(body, { all : true } ));
-		}
-	}
+    prepareMessageBody(body, cb) {
+        if(isAnsi(body)) {
+            AnsiPrep(
+                body,
+                {
+                    cols			: 79,				//	Gopher std. wants 70, but we'll have to deal with it.
+                    forceLineTerm	: true,				//	ensure each line is term'd
+                    asciiMode		: true,				//	export to ASCII
+                    fillLines		: false,			//	don't fill up to |cols|
+                },
+                (err, prepped) => {
+                    return cb(prepped || body);
+                }
+            );
+        } else {
+            return cb(cleanControlCodes(body, { all : true } ));
+        }
+    }
 
-	shortenSubject(subject) {
-		return _.truncate(subject, { length : 30 } );
-	}
+    shortenSubject(subject) {
+        return _.truncate(subject, { length : 30 } );
+    }
 
-	messageAreaGenerator(selectorMatch, cb) {
-		this.log.trace( { selector : selectorMatch[0] }, 'Serving message area content');
-		//
-		//	Selector should be:
-		//	/msgarea - list confs
-		//	/msgarea/conftag - list areas in conf
-		//	/msgarea/conftag/areatag - list messages in area
-		//	/msgarea/conftag/areatag/<UUID> - message as text
-		//	/msgarea/conftag/areatag/<UUID>_raw - full message as text + headers
-		//
-		if(selectorMatch[3] || selectorMatch[4]) {
-			//	message
-			//const raw = selectorMatch[4] ? true : false;
-			//	:TODO: support 'raw'
-			const msgUuid	= selectorMatch[3].replace(/\r\n|\//g, '');
-			const confTag	= selectorMatch[1].substr(1).split('/')[0];
-			const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
-			const message 	= new Message();
+    messageAreaGenerator(selectorMatch, cb) {
+        this.log.trace( { selector : selectorMatch[0] }, 'Serving message area content');
+        //
+        //	Selector should be:
+        //	/msgarea - list confs
+        //	/msgarea/conftag - list areas in conf
+        //	/msgarea/conftag/areatag - list messages in area
+        //	/msgarea/conftag/areatag/<UUID> - message as text
+        //	/msgarea/conftag/areatag/<UUID>_raw - full message as text + headers
+        //
+        if(selectorMatch[3] || selectorMatch[4]) {
+            //	message
+            //const raw = selectorMatch[4] ? true : false;
+            //	:TODO: support 'raw'
+            const msgUuid	= selectorMatch[3].replace(/\r\n|\//g, '');
+            const confTag	= selectorMatch[1].substr(1).split('/')[0];
+            const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
+            const message 	= new Message();
 
-			return message.load( { uuid : msgUuid }, err => {
-				if(err) {
-					this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existant message UUID!');
-					return this.notFoundGenerator(selectorMatch, cb);
-				}
+            return message.load( { uuid : msgUuid }, err => {
+                if(err) {
+                    this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existant message UUID!');
+                    return this.notFoundGenerator(selectorMatch, cb);
+                }
 
-				if(message.areaTag !== areaTag || !this.isAreaAndConfExposed(confTag, areaTag)) {
-					this.log.warn( { areaTag }, 'Attempted access to non-exposed conference and/or area!');
-					return this.notFoundGenerator(selectorMatch, cb);
-				}
+                if(message.areaTag !== areaTag || !this.isAreaAndConfExposed(confTag, areaTag)) {
+                    this.log.warn( { areaTag }, 'Attempted access to non-exposed conference and/or area!');
+                    return this.notFoundGenerator(selectorMatch, cb);
+                }
 
-				if(Message.isPrivateAreaTag(areaTag)) {
-					this.log.warn( { areaTag }, 'Attempted access to message in private area!');
-					return this.notFoundGenerator(selectorMatch, cb);
-				}
+                if(Message.isPrivateAreaTag(areaTag)) {
+                    this.log.warn( { areaTag }, 'Attempted access to message in private area!');
+                    return this.notFoundGenerator(selectorMatch, cb);
+                }
 
-				this.prepareMessageBody(message.message, msgBody => {
-					const response = `${'-'.repeat(70)}
+                this.prepareMessageBody(message.message, msgBody => {
+                    const response = `${'-'.repeat(70)}
 To     : ${message.toUserName}
 From   : ${message.fromUserName}
 When   : ${moment(message.modTimestamp).format('dddd, MMMM Do YYYY, h:mm:ss a (UTCZ)')}
@@ -249,87 +249,87 @@ ID     : ${message.messageUuid} (${message.messageId})
 ${'-'.repeat(70)}
 ${msgBody}
 	`;
-					return cb(response);
-				});
-			});
-		} else if(selectorMatch[2]) {
-			//	list messages in area
-			const confTag	= selectorMatch[1].substr(1).split('/')[0];
-			const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
-			const area		= getMessageAreaByTag(areaTag);
+                    return cb(response);
+                });
+            });
+        } else if(selectorMatch[2]) {
+            //	list messages in area
+            const confTag	= selectorMatch[1].substr(1).split('/')[0];
+            const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
+            const area		= getMessageAreaByTag(areaTag);
 
-			if(Message.isPrivateAreaTag(areaTag)) {
-				this.log.warn( { areaTag }, 'Attempted access to private area!');
-				return cb(this.makeItem(ItemTypes.InfoMessage, 'Area is private'));
-			}
+            if(Message.isPrivateAreaTag(areaTag)) {
+                this.log.warn( { areaTag }, 'Attempted access to private area!');
+                return cb(this.makeItem(ItemTypes.InfoMessage, 'Area is private'));
+            }
 
-			if(!area || !this.isAreaAndConfExposed(confTag, areaTag)) {
-				this.log.warn( { confTag, areaTag }, 'Attempted access to non-exposed conference and/or area!');
-				return this.notFoundGenerator(selectorMatch, cb);
-			}
+            if(!area || !this.isAreaAndConfExposed(confTag, areaTag)) {
+                this.log.warn( { confTag, areaTag }, 'Attempted access to non-exposed conference and/or area!');
+                return this.notFoundGenerator(selectorMatch, cb);
+            }
 
-			return getMessageListForArea(null, areaTag, (err, msgList) => {
-				const response = [
-					this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-					this.makeItem(ItemTypes.InfoMessage, `Messages in ${area.name}`),
-					this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-					...msgList.map(msg => this.makeItem(
-						ItemTypes.TextFile,
-						`${moment(msg.modTimestamp).format('YYYY-MM-DD hh:mma')}: ${this.shortenSubject(msg.subject)}  (${msg.fromUserName} to ${msg.toUserName})`,
-						`/msgarea/${confTag}/${areaTag}/${msg.messageUuid}`
-					))
-				].join('');
+            return getMessageListForArea(null, areaTag, (err, msgList) => {
+                const response = [
+                    this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                    this.makeItem(ItemTypes.InfoMessage, `Messages in ${area.name}`),
+                    this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                    ...msgList.map(msg => this.makeItem(
+                        ItemTypes.TextFile,
+                        `${moment(msg.modTimestamp).format('YYYY-MM-DD hh:mma')}: ${this.shortenSubject(msg.subject)}  (${msg.fromUserName} to ${msg.toUserName})`,
+                        `/msgarea/${confTag}/${areaTag}/${msg.messageUuid}`
+                    ))
+                ].join('');
 
-				return cb(response);
-			});
-		} else if(selectorMatch[1]) {
-			//	list areas in conf
-			const sysConfig = Config();
-			const confTag	= selectorMatch[1].replace(/\r\n|\//g, '');
-			const conf		= _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
-			if(!conf) {
-				return this.notFoundGenerator(selectorMatch, cb);
-			}
+                return cb(response);
+            });
+        } else if(selectorMatch[1]) {
+            //	list areas in conf
+            const sysConfig = Config();
+            const confTag	= selectorMatch[1].replace(/\r\n|\//g, '');
+            const conf		= _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
+            if(!conf) {
+                return this.notFoundGenerator(selectorMatch, cb);
+            }
 
-			const areas = _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ], {})
-				.map(areaTag => Object.assign( { areaTag }, getMessageAreaByTag(areaTag)))
-				.filter(area => area && !Message.isPrivateAreaTag(area.areaTag));
+            const areas = _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ], {})
+                .map(areaTag => Object.assign( { areaTag }, getMessageAreaByTag(areaTag)))
+                .filter(area => area && !Message.isPrivateAreaTag(area.areaTag));
 
-			if(0 === areas.length) {
-				return cb(this.makeItem(ItemTypes.InfoMessage, 'No message areas available'));
-			}
+            if(0 === areas.length) {
+                return cb(this.makeItem(ItemTypes.InfoMessage, 'No message areas available'));
+            }
 
-			sortAreasOrConfs(areas);
+            sortAreasOrConfs(areas);
 
-			const response = [
-				this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-				this.makeItem(ItemTypes.InfoMessage, `Message areas in ${conf.name}`),
-				this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-				...areas.map(area => this.makeItem(ItemTypes.SubMenu, area.name, `/msgarea/${confTag}/${area.areaTag}`))
-			].join('');
+            const response = [
+                this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                this.makeItem(ItemTypes.InfoMessage, `Message areas in ${conf.name}`),
+                this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                ...areas.map(area => this.makeItem(ItemTypes.SubMenu, area.name, `/msgarea/${confTag}/${area.areaTag}`))
+            ].join('');
 
-			return cb(response);
-		} else {
-			//	message area base (list confs)
-			const confs = Object.keys(_.get(Config(), 'contentServers.gopher.messageConferences', {}))
-				.map(confTag => Object.assign( { confTag }, getMessageConferenceByTag(confTag)))
-				.filter(conf => conf);	//	remove any baddies
+            return cb(response);
+        } else {
+            //	message area base (list confs)
+            const confs = Object.keys(_.get(Config(), 'contentServers.gopher.messageConferences', {}))
+                .map(confTag => Object.assign( { confTag }, getMessageConferenceByTag(confTag)))
+                .filter(conf => conf);	//	remove any baddies
 
-			if(0 === confs.length) {
-				return cb(this.makeItem(ItemTypes.InfoMessage, 'No message conferences available'));
-			}
+            if(0 === confs.length) {
+                return cb(this.makeItem(ItemTypes.InfoMessage, 'No message conferences available'));
+            }
 
-			sortAreasOrConfs(confs);
+            sortAreasOrConfs(confs);
 
-			const response = [
-				this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-				this.makeItem(ItemTypes.InfoMessage, 'Available Message Conferences'),
-				this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-				this.makeItem(ItemTypes.InfoMessage, ''),
-				...confs.map(conf => this.makeItem(ItemTypes.SubMenu, conf.name, `/msgarea/${conf.confTag}`))
-			].join('');
+            const response = [
+                this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                this.makeItem(ItemTypes.InfoMessage, 'Available Message Conferences'),
+                this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
+                this.makeItem(ItemTypes.InfoMessage, ''),
+                ...confs.map(conf => this.makeItem(ItemTypes.SubMenu, conf.name, `/msgarea/${conf.confTag}`))
+            ].join('');
 
-			return cb(response);
-		}
-	}
+            return cb(response);
+        }
+    }
 };

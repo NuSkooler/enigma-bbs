@@ -8,13 +8,13 @@ const createNamedUUID		= require('./uuid_util.js').createNamedUUID;
 const Errors				= require('./enig_error.js').Errors;
 const ANSI					= require('./ansi_term.js');
 const {
-	sanatizeString,
-	getISOTimestampString }	= require('./database.js');
+    sanatizeString,
+    getISOTimestampString }	= require('./database.js');
 
 const {
-	isAnsi, isFormattedLine,
-	splitTextAtTerms,
-	renderSubstr
+    isAnsi, isFormattedLine,
+    splitTextAtTerms,
+    renderSubstr
 }							= require('./string_util.js');
 
 const ansiPrep				= require('./ansi_prep.js');
@@ -30,182 +30,182 @@ const iconvEncode			= require('iconv-lite').encode;
 const ENIGMA_MESSAGE_UUID_NAMESPACE 	= uuidParse.parse('154506df-1df8-46b9-98f8-ebb5815baaf8');
 
 const WELL_KNOWN_AREA_TAGS = {
-	Invalid		: '',
-	Private		: 'private_mail',
-	Bulletin	: 'local_bulletin',
+    Invalid		: '',
+    Private		: 'private_mail',
+    Bulletin	: 'local_bulletin',
 };
 
 const SYSTEM_META_NAMES = {
-	LocalToUserID			: 'local_to_user_id',
-	LocalFromUserID			: 'local_from_user_id',
-	StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
-	ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
-	ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
-	RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address
-	RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address
+    LocalToUserID			: 'local_to_user_id',
+    LocalFromUserID			: 'local_from_user_id',
+    StateFlags0				: 'state_flags0',		//	See Message.StateFlags0
+    ExplicitEncoding		: 'explicit_encoding',	//	Explicitly set encoding when exporting/etc.
+    ExternalFlavor			: 'external_flavor',	//	"Flavor" of message - imported from or to be exported to. See Message.AddressFlavor
+    RemoteToUser			: 'remote_to_user',		//	Opaque value depends on external system, e.g. FTN address
+    RemoteFromUser			: 'remote_from_user',	//	Opaque value depends on external system, e.g. FTN address
 };
 
 //	Types for Message.SystemMetaNames.ExternalFlavor meta
 const ADDRESS_FLAVOR = {
-	Local		: 'local',	//	local / non-remote addressing
-	FTN			: 'ftn',	//	FTN style
-	Email		: 'email',
+    Local		: 'local',	//	local / non-remote addressing
+    FTN			: 'ftn',	//	FTN style
+    Email		: 'email',
 };
 
 const STATE_FLAGS0 = {
-	None		: 0x00000000,
-	Imported	: 0x00000001,	//	imported from foreign system
-	Exported	: 0x00000002,	//	exported to foreign system
+    None		: 0x00000000,
+    Imported	: 0x00000001,	//	imported from foreign system
+    Exported	: 0x00000002,	//	exported to foreign system
 };
 
 //	:TODO: these should really live elsewhere...
 const FTN_PROPERTY_NAMES = {
-	//	packet header oriented
-	FtnOrigNode			: 'ftn_orig_node',
-	FtnDestNode			: 'ftn_dest_node',
-	//	:TODO: rename these to ftn_*_net vs network - ensure things won't break, may need mapping
-	FtnOrigNetwork		: 'ftn_orig_network',
-	FtnDestNetwork		: 'ftn_dest_network',
-	FtnAttrFlags		: 'ftn_attr_flags',
-	FtnCost				: 'ftn_cost',
-	FtnOrigZone			: 'ftn_orig_zone',
-	FtnDestZone			: 'ftn_dest_zone',
-	FtnOrigPoint		: 'ftn_orig_point',
-	FtnDestPoint		: 'ftn_dest_point',
+    //	packet header oriented
+    FtnOrigNode			: 'ftn_orig_node',
+    FtnDestNode			: 'ftn_dest_node',
+    //	:TODO: rename these to ftn_*_net vs network - ensure things won't break, may need mapping
+    FtnOrigNetwork		: 'ftn_orig_network',
+    FtnDestNetwork		: 'ftn_dest_network',
+    FtnAttrFlags		: 'ftn_attr_flags',
+    FtnCost				: 'ftn_cost',
+    FtnOrigZone			: 'ftn_orig_zone',
+    FtnDestZone			: 'ftn_dest_zone',
+    FtnOrigPoint		: 'ftn_orig_point',
+    FtnDestPoint		: 'ftn_dest_point',
 
-	//	message header oriented
-	FtnMsgOrigNode		: 'ftn_msg_orig_node',
-	FtnMsgDestNode		: 'ftn_msg_dest_node',
-	FtnMsgOrigNet		: 'ftn_msg_orig_net',
-	FtnMsgDestNet		: 'ftn_msg_dest_net',
+    //	message header oriented
+    FtnMsgOrigNode		: 'ftn_msg_orig_node',
+    FtnMsgDestNode		: 'ftn_msg_dest_node',
+    FtnMsgOrigNet		: 'ftn_msg_orig_net',
+    FtnMsgDestNet		: 'ftn_msg_dest_net',
 
-	FtnAttribute		: 'ftn_attribute',
+    FtnAttribute		: 'ftn_attribute',
 
-	FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
-	FtnOrigin			: 'ftn_origin',			//	http://ftsc.org/docs/fts-0004.001
-	FtnArea				: 'ftn_area',			//	http://ftsc.org/docs/fts-0004.001
-	FtnSeenBy			: 'ftn_seen_by',		//	http://ftsc.org/docs/fts-0004.001
+    FtnTearLine			: 'ftn_tear_line',		//	http://ftsc.org/docs/fts-0004.001
+    FtnOrigin			: 'ftn_origin',			//	http://ftsc.org/docs/fts-0004.001
+    FtnArea				: 'ftn_area',			//	http://ftsc.org/docs/fts-0004.001
+    FtnSeenBy			: 'ftn_seen_by',		//	http://ftsc.org/docs/fts-0004.001
 };
 
 //	:TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
-	reply_to_message_id	: 'replyToMsgId',
-	modified_timestamp	: 'modTimestamp'
+    reply_to_message_id	: 'replyToMsgId',
+    modified_timestamp	: 'modTimestamp'
 };
 
 module.exports = class Message {
-	constructor(
-		{
-			messageId = 0, areaTag = Message.WellKnownAreaTags.Invalid, uuid, replyToMsgId = 0,
-			toUserName = '', fromUserName = '', subject = '', message = '', modTimestamp = moment(),
-			meta, hashTags = [],
-		} = { }
-	)
-	{
-		this.messageId		= messageId;
-		this.areaTag		= areaTag;
-		this.uuid			= uuid;
-		this.replyToMsgId	= replyToMsgId;
-		this.toUserName		= toUserName;
-		this.fromUserName	= fromUserName;
-		this.subject		= subject;
-		this.message		= message;
+    constructor(
+        {
+            messageId = 0, areaTag = Message.WellKnownAreaTags.Invalid, uuid, replyToMsgId = 0,
+            toUserName = '', fromUserName = '', subject = '', message = '', modTimestamp = moment(),
+            meta, hashTags = [],
+        } = { }
+    )
+    {
+        this.messageId		= messageId;
+        this.areaTag		= areaTag;
+        this.uuid			= uuid;
+        this.replyToMsgId	= replyToMsgId;
+        this.toUserName		= toUserName;
+        this.fromUserName	= fromUserName;
+        this.subject		= subject;
+        this.message		= message;
 
-		if(_.isDate(modTimestamp) || _.isString(modTimestamp)) {
-			modTimestamp = moment(modTimestamp);
-		}
+        if(_.isDate(modTimestamp) || _.isString(modTimestamp)) {
+            modTimestamp = moment(modTimestamp);
+        }
 
-		this.modTimestamp	= modTimestamp;
+        this.modTimestamp	= modTimestamp;
 
-		this.meta = {};
-		_.defaultsDeep(this.meta, { System : {} }, meta);
+        this.meta = {};
+        _.defaultsDeep(this.meta, { System : {} }, meta);
 
-		this.hashTags		= hashTags;
-	}
+        this.hashTags		= hashTags;
+    }
 
-	isValid() { return true; }	//	:TODO: obviously useless; look into this or remove it
+    isValid() { return true; }	//	:TODO: obviously useless; look into this or remove it
 
-	static isPrivateAreaTag(areaTag) {
-		return areaTag.toLowerCase() === Message.WellKnownAreaTags.Private;
-	}
+    static isPrivateAreaTag(areaTag) {
+        return areaTag.toLowerCase() === Message.WellKnownAreaTags.Private;
+    }
 
-	isPrivate() {
-		return Message.isPrivateAreaTag(this.areaTag);
-	}
+    isPrivate() {
+        return Message.isPrivateAreaTag(this.areaTag);
+    }
 
-	isFromRemoteUser() {
-		return null !== _.get(this, 'meta.System.remote_from_user', null);
-	}
+    isFromRemoteUser() {
+        return null !== _.get(this, 'meta.System.remote_from_user', null);
+    }
 
-	static get WellKnownAreaTags() {
-		return WELL_KNOWN_AREA_TAGS;
-	}
+    static get WellKnownAreaTags() {
+        return WELL_KNOWN_AREA_TAGS;
+    }
 
-	static get SystemMetaNames() {
-		return SYSTEM_META_NAMES;
-	}
+    static get SystemMetaNames() {
+        return SYSTEM_META_NAMES;
+    }
 
-	static get AddressFlavor() {
-		return ADDRESS_FLAVOR;
-	}
+    static get AddressFlavor() {
+        return ADDRESS_FLAVOR;
+    }
 
-	static get StateFlags0() {
-		return STATE_FLAGS0;
-	}
+    static get StateFlags0() {
+        return STATE_FLAGS0;
+    }
 
-	static get FtnPropertyNames() {
-		return FTN_PROPERTY_NAMES;
-	}
+    static get FtnPropertyNames() {
+        return FTN_PROPERTY_NAMES;
+    }
 
-	setLocalToUserId(userId) {
-		this.meta.System = this.meta.System || {};
-		this.meta.System[Message.SystemMetaNames.LocalToUserID] = userId;
-	}
+    setLocalToUserId(userId) {
+        this.meta.System = this.meta.System || {};
+        this.meta.System[Message.SystemMetaNames.LocalToUserID] = userId;
+    }
 
-	setLocalFromUserId(userId) {
-		this.meta.System = this.meta.System || {};
-		this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
-	}
+    setLocalFromUserId(userId) {
+        this.meta.System = this.meta.System || {};
+        this.meta.System[Message.SystemMetaNames.LocalFromUserID] = userId;
+    }
 
-	setRemoteToUser(remoteTo) {
-		this.meta.System = this.meta.System || {};
-		this.meta.System[Message.SystemMetaNames.RemoteToUser] = remoteTo;
-	}
+    setRemoteToUser(remoteTo) {
+        this.meta.System = this.meta.System || {};
+        this.meta.System[Message.SystemMetaNames.RemoteToUser] = remoteTo;
+    }
 
-	setExternalFlavor(flavor) {
-		this.meta.System = this.meta.System || {};
-		this.meta.System[Message.SystemMetaNames.ExternalFlavor] = flavor;
-	}
+    setExternalFlavor(flavor) {
+        this.meta.System = this.meta.System || {};
+        this.meta.System[Message.SystemMetaNames.ExternalFlavor] = flavor;
+    }
 
-	static createMessageUUID(areaTag, modTimestamp, subject, body) {
-		assert(_.isString(areaTag));
-		assert(_.isDate(modTimestamp) || moment.isMoment(modTimestamp));
-		assert(_.isString(subject));
-		assert(_.isString(body));
+    static createMessageUUID(areaTag, modTimestamp, subject, body) {
+        assert(_.isString(areaTag));
+        assert(_.isDate(modTimestamp) || moment.isMoment(modTimestamp));
+        assert(_.isString(subject));
+        assert(_.isString(body));
 
-		if(!moment.isMoment(modTimestamp)) {
-			modTimestamp = moment(modTimestamp);
-		}
+        if(!moment.isMoment(modTimestamp)) {
+            modTimestamp = moment(modTimestamp);
+        }
 
-		areaTag			= iconvEncode(areaTag.toUpperCase(), 'CP437');
-		modTimestamp	= iconvEncode(modTimestamp.format('DD MMM YY  HH:mm:ss'), 'CP437');
-		subject			= iconvEncode(subject.toUpperCase().trim(), 'CP437');
-		body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
+        areaTag			= iconvEncode(areaTag.toUpperCase(), 'CP437');
+        modTimestamp	= iconvEncode(modTimestamp.format('DD MMM YY  HH:mm:ss'), 'CP437');
+        subject			= iconvEncode(subject.toUpperCase().trim(), 'CP437');
+        body			= iconvEncode(body.replace(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g, '').trim(), 'CP437');
 
-		return uuidParse.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
-	}
+        return uuidParse.unparse(createNamedUUID(ENIGMA_MESSAGE_UUID_NAMESPACE, Buffer.concat( [ areaTag, modTimestamp, subject, body ] )));
+    }
 
-	static getMessageFromRow(row) {
-		const msg = {};
-		_.each(row, (v, k) => {
-			//	:TODO: see notes around MESSAGE_ROW_MAP -- clean this up so we can just _camelCase()!
-			k = MESSAGE_ROW_MAP[k] || _.camelCase(k);
-			msg[k] = v;
-		});
-		return msg;
-	}
+    static getMessageFromRow(row) {
+        const msg = {};
+        _.each(row, (v, k) => {
+            //	:TODO: see notes around MESSAGE_ROW_MAP -- clean this up so we can just _camelCase()!
+            k = MESSAGE_ROW_MAP[k] || _.camelCase(k);
+            msg[k] = v;
+        });
+        return msg;
+    }
 
-	/*
+    /*
 		Find message IDs or UUIDs by filter. Available filters/options:
 
 		filter.uuids - use with resultType='id'
@@ -229,237 +229,237 @@ module.exports = class Message {
 
 		filter.privateTagUserId = <userId> - if set, only private messages belonging to <userId> are processed
 		- any other areaTag or confTag filters will be ignored
-		- if NOT present, private areas are skipped	
+		- if NOT present, private areas are skipped
 
 		*=NYI
 	*/
-	static findMessages(filter, cb) {
-		filter = filter || {};
+    static findMessages(filter, cb) {
+        filter = filter || {};
 
-		filter.resultType	= filter.resultType || 'id';
-		filter.extraFields	= filter.extraFields || [];
+        filter.resultType	= filter.resultType || 'id';
+        filter.extraFields	= filter.extraFields || [];
 
-		if('messageList' === filter.resultType) {
-			filter.extraFields = _.uniq(filter.extraFields.concat(
-				[ 'area_tag', 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ]
-			));
-		}
+        if('messageList' === filter.resultType) {
+            filter.extraFields = _.uniq(filter.extraFields.concat(
+                [ 'area_tag', 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ]
+            ));
+        }
 
-		const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';
+        const field = 'uuid' === filter.resultType ? 'message_uuid' : 'message_id';
 
-		if(moment.isMoment(filter.newerThanTimestamp)) {
-			filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
-		}
+        if(moment.isMoment(filter.newerThanTimestamp)) {
+            filter.newerThanTimestamp = getISOTimestampString(filter.newerThanTimestamp);
+        }
 
-		let sql;
-		if('count' === filter.resultType) {
-			sql =
+        let sql;
+        if('count' === filter.resultType) {
+            sql =
 				`SELECT COUNT() AS count
 				FROM message m`;
 
-		} else {
-			sql =
+        } else {
+            sql =
 				`SELECT DISTINCT m.${field}${filter.extraFields.length > 0 ? ', ' + filter.extraFields.map(f => `m.${f}`).join(', ') : ''}
 				FROM message m`;
-		}
+        }
 
-		const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
-		let sqlOrderBy;
-		let sqlWhere = '';
+        const sqlOrderDir = 'ascending' === filter.order ? 'ASC' : 'DESC';
+        let sqlOrderBy;
+        let sqlWhere = '';
 
-		function appendWhereClause(clause) {
-			if(sqlWhere) {
-				sqlWhere += ' AND ';
-			} else {
-				sqlWhere += ' WHERE ';
-			}
-			sqlWhere += clause;
-		}
+        function appendWhereClause(clause) {
+            if(sqlWhere) {
+                sqlWhere += ' AND ';
+            } else {
+                sqlWhere += ' WHERE ';
+            }
+            sqlWhere += clause;
+        }
 
-		//	currently only avail sort
-		if('modTimestamp' === filter.sort) {
-			sqlOrderBy = `ORDER BY m.modified_timestamp ${sqlOrderDir}`;
-		} else {
-			sqlOrderBy = `ORDER BY m.message_id ${sqlOrderDir}`;
-		}
+        //	currently only avail sort
+        if('modTimestamp' === filter.sort) {
+            sqlOrderBy = `ORDER BY m.modified_timestamp ${sqlOrderDir}`;
+        } else {
+            sqlOrderBy = `ORDER BY m.message_id ${sqlOrderDir}`;
+        }
 
-		if(Array.isArray(filter.ids)) {
-			appendWhereClause(`m.message_id IN (${filter.ids.join(', ')})`);
-		}
+        if(Array.isArray(filter.ids)) {
+            appendWhereClause(`m.message_id IN (${filter.ids.join(', ')})`);
+        }
 
-		if(Array.isArray(filter.uuids)) {
-			const uuidList = filter.uuids.map(u => `"${u}"`).join(', ');
-			appendWhereClause(`m.message_id IN (${uuidList})`);
-		}
+        if(Array.isArray(filter.uuids)) {
+            const uuidList = filter.uuids.map(u => `"${u}"`).join(', ');
+            appendWhereClause(`m.message_id IN (${uuidList})`);
+        }
 
 
-		if(_.isNumber(filter.privateTagUserId)) {
-			appendWhereClause(`m.area_tag = "${Message.WellKnownAreaTags.Private}"`);
-			appendWhereClause(
-				`m.message_id IN (
+        if(_.isNumber(filter.privateTagUserId)) {
+            appendWhereClause(`m.area_tag = "${Message.WellKnownAreaTags.Private}"`);
+            appendWhereClause(
+                `m.message_id IN (
 					SELECT message_id 
 					FROM message_meta 
 					WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${filter.privateTagUserId}
 				)`);
-		} else {
-			if(filter.areaTag && filter.areaTag.length > 0) {			
-				if(Array.isArray(filter.areaTag)) {
-					const areaList = filter.areaTag
-						.filter(t => t != Message.WellKnownAreaTags.Private)
-						.map(t => `"${t}"`).join(', ');
-					if(areaList.length > 0) {
-						appendWhereClause(`m.area_tag IN(${areaList})`);
-					}
-				} else if(_.isString(filter.areaTag) && Message.WellKnownAreaTags.Private !== filter.areaTag) {
-					appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
-				}
-			}
+        } else {
+            if(filter.areaTag && filter.areaTag.length > 0) {
+                if(Array.isArray(filter.areaTag)) {
+                    const areaList = filter.areaTag
+                        .filter(t => t != Message.WellKnownAreaTags.Private)
+                        .map(t => `"${t}"`).join(', ');
+                    if(areaList.length > 0) {
+                        appendWhereClause(`m.area_tag IN(${areaList})`);
+                    }
+                } else if(_.isString(filter.areaTag) && Message.WellKnownAreaTags.Private !== filter.areaTag) {
+                    appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
+                }
+            }
 
-			//	explicit exclude of Private
-			appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`);
-		}
+            //	explicit exclude of Private
+            appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`);
+        }
 
-		if(_.isNumber(filter.replyToMessageId)) {
-			appendWhereClause(`m.reply_to_message_id=${filter.replyToMessageId}`);
-		}		
+        if(_.isNumber(filter.replyToMessageId)) {
+            appendWhereClause(`m.reply_to_message_id=${filter.replyToMessageId}`);
+        }
 
-		[ 'toUserName', 'fromUserName' ].forEach(field => {
-			if(_.isString(filter[field]) && filter[field].length > 0) {
-				appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanatizeString(filter[field])}"`);
-			}
-		});
+        [ 'toUserName', 'fromUserName' ].forEach(field => {
+            if(_.isString(filter[field]) && filter[field].length > 0) {
+                appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanatizeString(filter[field])}"`);
+            }
+        });
 
-		if(_.isString(filter.newerThanTimestamp) && filter.newerThanTimestamp.length > 0) {
-			appendWhereClause(`DATETIME(m.modified_timestamp) > DATETIME("${filter.newerThanTimestamp}", "+1 seconds")`);
-		}
+        if(_.isString(filter.newerThanTimestamp) && filter.newerThanTimestamp.length > 0) {
+            appendWhereClause(`DATETIME(m.modified_timestamp) > DATETIME("${filter.newerThanTimestamp}", "+1 seconds")`);
+        }
 
-		if(_.isNumber(filter.newerThanMessageId)) {
-			appendWhereClause(`m.message_id > ${filter.newerThanMessageId}`);
-		}
+        if(_.isNumber(filter.newerThanMessageId)) {
+            appendWhereClause(`m.message_id > ${filter.newerThanMessageId}`);
+        }
 
-		if(filter.terms && filter.terms.length > 0) {
-			//	note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
-			appendWhereClause(
-				`m.message_id IN (
+        if(filter.terms && filter.terms.length > 0) {
+            //	note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
+            appendWhereClause(
+                `m.message_id IN (
 					SELECT rowid
 					FROM message_fts
 					WHERE message_fts MATCH ":${sanatizeString(filter.terms)}"
 				)`
-			);
-		}
+            );
+        }
 
-		sql += `${sqlWhere} ${sqlOrderBy}`;
+        sql += `${sqlWhere} ${sqlOrderBy}`;
 
-		if(_.isNumber(filter.limit)) {
-			sql += ` LIMIT ${filter.limit}`;
-		}
+        if(_.isNumber(filter.limit)) {
+            sql += ` LIMIT ${filter.limit}`;
+        }
 
-		sql += ';';
+        sql += ';';
 
-		if('count' === filter.resultType) {
-			msgDb.get(sql, (err, row) => {
-				return cb(err, row ? row.count : 0);
-			});
-		} else {
-			const matches = [];
-			const extra = filter.extraFields.length > 0;
+        if('count' === filter.resultType) {
+            msgDb.get(sql, (err, row) => {
+                return cb(err, row ? row.count : 0);
+            });
+        } else {
+            const matches = [];
+            const extra = filter.extraFields.length > 0;
 
-			const rowConv = 'messageList' === filter.resultType ? Message.getMessageFromRow : row => row;
+            const rowConv = 'messageList' === filter.resultType ? Message.getMessageFromRow : row => row;
 
-			msgDb.each(sql, (err, row) => {
-				if(_.isObject(row)) {
-					matches.push(extra ? rowConv(row) : row[field]);
-				}
-			}, err => {
-				return cb(err, matches);
-			});
-		}
-	}
+            msgDb.each(sql, (err, row) => {
+                if(_.isObject(row)) {
+                    matches.push(extra ? rowConv(row) : row[field]);
+                }
+            }, err => {
+                return cb(err, matches);
+            });
+        }
+    }
 
-	//	:TODO: use findMessages, by uuid, limit=1
-	static getMessageIdByUuid(uuid, cb) {
-		msgDb.get(
-			`SELECT message_id
+    //	:TODO: use findMessages, by uuid, limit=1
+    static getMessageIdByUuid(uuid, cb) {
+        msgDb.get(
+            `SELECT message_id
 			FROM message
 			WHERE message_uuid = ?
 			LIMIT 1;`,
-			[ uuid ],
-			(err, row) => {
-				if(err) {
-					return cb(err);
-				}
+            [ uuid ],
+            (err, row) => {
+                if(err) {
+                    return cb(err);
+                }
 
-				const success = (row && row.message_id);
-				return cb(
-					success ? null : Errors.DoesNotExist(`No message for UUID ${uuid}`),
-					success ? row.message_id : null
-				);
-			}
-		);
-	}
+                const success = (row && row.message_id);
+                return cb(
+                    success ? null : Errors.DoesNotExist(`No message for UUID ${uuid}`),
+                    success ? row.message_id : null
+                );
+            }
+        );
+    }
 
-	//	:TODO: use findMessages
-	static getMessageIdsByMetaValue(category, name, value, cb) {
-		msgDb.all(
-			`SELECT message_id
+    //	:TODO: use findMessages
+    static getMessageIdsByMetaValue(category, name, value, cb) {
+        msgDb.all(
+            `SELECT message_id
 			FROM message_meta
 			WHERE meta_category = ? AND meta_name = ? AND meta_value = ?;`,
-			[ category, name, value ],
-			(err, rows) => {
-				if(err) {
-					return cb(err);
-				}
-				return cb(null, rows.map(r => parseInt(r.message_id)));	//	return array of ID(s)
-			}
-		);
-	}
+            [ category, name, value ],
+            (err, rows) => {
+                if(err) {
+                    return cb(err);
+                }
+                return cb(null, rows.map(r => parseInt(r.message_id)));	//	return array of ID(s)
+            }
+        );
+    }
 
-	static getMetaValuesByMessageId(messageId, category, name, cb) {
-		const sql =
+    static getMetaValuesByMessageId(messageId, category, name, cb) {
+        const sql =
 			`SELECT meta_value
 			FROM message_meta
 			WHERE message_id = ? AND meta_category = ? AND meta_name = ?;`;
 
-		msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
-			if(err) {
-				return cb(err);
-			}
+        msgDb.all(sql, [ messageId, category, name ], (err, rows) => {
+            if(err) {
+                return cb(err);
+            }
 
-			if(0 === rows.length) {
-				return cb(Errors.DoesNotExist('No value for category/name'));
-			}
+            if(0 === rows.length) {
+                return cb(Errors.DoesNotExist('No value for category/name'));
+            }
 
-			//	single values are returned without an array
-			if(1 === rows.length) {
-				return cb(null, rows[0].meta_value);
-			}
+            //	single values are returned without an array
+            if(1 === rows.length) {
+                return cb(null, rows[0].meta_value);
+            }
 
-			return cb(null, rows.map(r => r.meta_value));	//	map to array of values only
-		});
-	}
+            return cb(null, rows.map(r => r.meta_value));	//	map to array of values only
+        });
+    }
 
-	static getMetaValuesByMessageUuid(uuid, category, name, cb) {
-		async.waterfall(
-			[
-				function getMessageId(callback) {
-					Message.getMessageIdByUuid(uuid, (err, messageId) => {
-						return callback(err, messageId);
-					});
-				},
-				function getMetaValues(messageId, callback) {
-					Message.getMetaValuesByMessageId(messageId, category, name, (err, values) => {
-						return callback(err, values);
-					});
-				}
-			],
-			(err, values) => {
-				return cb(err, values);
-			}
-		);
-	}
+    static getMetaValuesByMessageUuid(uuid, category, name, cb) {
+        async.waterfall(
+            [
+                function getMessageId(callback) {
+                    Message.getMessageIdByUuid(uuid, (err, messageId) => {
+                        return callback(err, messageId);
+                    });
+                },
+                function getMetaValues(messageId, callback) {
+                    Message.getMetaValuesByMessageId(messageId, category, name, (err, values) => {
+                        return callback(err, values);
+                    });
+                }
+            ],
+            (err, values) => {
+                return cb(err, values);
+            }
+        );
+    }
 
-	loadMeta(cb) {
-		/*
+    loadMeta(cb) {
+        /*
 			Example of loaded this.meta:
 
 			meta: {
@@ -471,154 +471,154 @@ module.exports = class Message {
 				}
 			}
 		*/
-		const sql =
+        const sql =
 			`SELECT meta_category, meta_name, meta_value
 			FROM message_meta
 			WHERE message_id = ?;`;
 
-		const self = this;	//	:TODO: not required - arrow functions below:
-		msgDb.each(sql, [ this.messageId ], (err, row) => {
-			if(!(row.meta_category in self.meta)) {
-				self.meta[row.meta_category] = { };
-				self.meta[row.meta_category][row.meta_name] = row.meta_value;
-			} else {
-				if(!(row.meta_name in self.meta[row.meta_category])) {
-					self.meta[row.meta_category][row.meta_name] = row.meta_value;
-				} else {
-					if(_.isString(self.meta[row.meta_category][row.meta_name])) {
-						self.meta[row.meta_category][row.meta_name] = [ self.meta[row.meta_category][row.meta_name] ];
-					}
+        const self = this;	//	:TODO: not required - arrow functions below:
+        msgDb.each(sql, [ this.messageId ], (err, row) => {
+            if(!(row.meta_category in self.meta)) {
+                self.meta[row.meta_category] = { };
+                self.meta[row.meta_category][row.meta_name] = row.meta_value;
+            } else {
+                if(!(row.meta_name in self.meta[row.meta_category])) {
+                    self.meta[row.meta_category][row.meta_name] = row.meta_value;
+                } else {
+                    if(_.isString(self.meta[row.meta_category][row.meta_name])) {
+                        self.meta[row.meta_category][row.meta_name] = [ self.meta[row.meta_category][row.meta_name] ];
+                    }
 
-					self.meta[row.meta_category][row.meta_name].push(row.meta_value);
-				}
-			}
-		}, err => {
-			return cb(err);
-		});
-	}
+                    self.meta[row.meta_category][row.meta_name].push(row.meta_value);
+                }
+            }
+        }, err => {
+            return cb(err);
+        });
+    }
 
-	//	:TODO: this should only take a UUID...
-	load(options, cb) {
-		assert(_.isString(options.uuid));
+    //	:TODO: this should only take a UUID...
+    load(options, cb) {
+        assert(_.isString(options.uuid));
 
-		const self = this;
+        const self = this;
 
-		async.series(
-			[
-				function loadMessage(callback) {
-					msgDb.get(
-						`SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject,
+        async.series(
+            [
+                function loadMessage(callback) {
+                    msgDb.get(
+                        `SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject,
 						message, modified_timestamp, view_count
 						FROM message
 						WHERE message_uuid=?
 						LIMIT 1;`,
-						[ options.uuid ],
-						(err, msgRow) => {
-							if(err) {
-								return callback(err);
-							}
+                        [ options.uuid ],
+                        (err, msgRow) => {
+                            if(err) {
+                                return callback(err);
+                            }
 
-							if(!msgRow) {
-								return callback(Errors.DoesNotExist('Message (no longer) available'));
-							}
+                            if(!msgRow) {
+                                return callback(Errors.DoesNotExist('Message (no longer) available'));
+                            }
 
-							self.messageId		= msgRow.message_id;
-							self.areaTag		= msgRow.area_tag;
-							self.messageUuid	= msgRow.message_uuid;
-							self.replyToMsgId	= msgRow.reply_to_message_id;
-							self.toUserName		= msgRow.to_user_name;
-							self.fromUserName	= msgRow.from_user_name;
-							self.subject		= msgRow.subject;
-							self.message		= msgRow.message;
-							self.modTimestamp	= moment(msgRow.modified_timestamp);
+                            self.messageId		= msgRow.message_id;
+                            self.areaTag		= msgRow.area_tag;
+                            self.messageUuid	= msgRow.message_uuid;
+                            self.replyToMsgId	= msgRow.reply_to_message_id;
+                            self.toUserName		= msgRow.to_user_name;
+                            self.fromUserName	= msgRow.from_user_name;
+                            self.subject		= msgRow.subject;
+                            self.message		= msgRow.message;
+                            self.modTimestamp	= moment(msgRow.modified_timestamp);
 
-							return callback(err);
-						}
-					);
-				},
-				function loadMessageMeta(callback) {
-					self.loadMeta(err => {
-						return callback(err);
-					});
-				},
-				function loadHashTags(callback) {
-					//	:TODO:
-					return callback(null);
-				}
-			],
-			err => {
-				return cb(err);
-			}
-		);
-	}
+                            return callback(err);
+                        }
+                    );
+                },
+                function loadMessageMeta(callback) {
+                    self.loadMeta(err => {
+                        return callback(err);
+                    });
+                },
+                function loadHashTags(callback) {
+                    //	:TODO:
+                    return callback(null);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
 
-	persistMetaValue(category, name, value, transOrDb, cb) {
-		if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
-			cb = transOrDb;
-			transOrDb = msgDb;
-		}
+    persistMetaValue(category, name, value, transOrDb, cb) {
+        if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+            cb = transOrDb;
+            transOrDb = msgDb;
+        }
 
-		const metaStmt = transOrDb.prepare(
-			`INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
+        const metaStmt = transOrDb.prepare(
+            `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
 			VALUES (?, ?, ?, ?);`);
 
-		if(!_.isArray(value)) {
-			value = [ value ];
-		}
+        if(!_.isArray(value)) {
+            value = [ value ];
+        }
 
-		const self = this;
+        const self = this;
 
-		async.each(value, (v, next) => {
-			metaStmt.run(self.messageId, category, name, v, err => {
-				return next(err);
-			});
-		}, err => {
-			return cb(err);
-		});
-	}
+        async.each(value, (v, next) => {
+            metaStmt.run(self.messageId, category, name, v, err => {
+                return next(err);
+            });
+        }, err => {
+            return cb(err);
+        });
+    }
 
-	persist(cb) {
-		if(!this.isValid()) {
-			return cb(Errors.Invalid('Cannot persist invalid message!'));
-		}
+    persist(cb) {
+        if(!this.isValid()) {
+            return cb(Errors.Invalid('Cannot persist invalid message!'));
+        }
 
-		const self = this;
+        const self = this;
 
-		async.waterfall(
-			[
-				function beginTransaction(callback) {
-					return msgDb.beginTransaction(callback);
-				},
-				function storeMessage(trans, callback) {
-					//	generate a UUID for this message if required (general case)
-					const msgTimestamp = moment();
-					if(!self.uuid) {
-						self.uuid = Message.createMessageUUID(
-							self.areaTag,
-							msgTimestamp,
-							self.subject,
-							self.message
-						);
-					}
+        async.waterfall(
+            [
+                function beginTransaction(callback) {
+                    return msgDb.beginTransaction(callback);
+                },
+                function storeMessage(trans, callback) {
+                    //	generate a UUID for this message if required (general case)
+                    const msgTimestamp = moment();
+                    if(!self.uuid) {
+                        self.uuid = Message.createMessageUUID(
+                            self.areaTag,
+                            msgTimestamp,
+                            self.subject,
+                            self.message
+                        );
+                    }
 
-					trans.run(
-						`INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
+                    trans.run(
+                        `INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-						[ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
-						function inserted(err) {	//	use non-arrow function for 'this' scope
-							if(!err) {
-								self.messageId = this.lastID;
-							}
+                        [ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
+                        function inserted(err) {	//	use non-arrow function for 'this' scope
+                            if(!err) {
+                                self.messageId = this.lastID;
+                            }
 
-							return callback(err, trans);
-						}
-					);
-				},
-				function storeMeta(trans, callback) {
-					if(!self.meta) {
-						return callback(null, trans);
-					}
-					/*
+                            return callback(err, trans);
+                        }
+                    );
+                },
+                function storeMeta(trans, callback) {
+                    if(!self.meta) {
+                        return callback(null, trans);
+                    }
+                    /*
 						Example of self.meta:
 
 						meta: {
@@ -630,60 +630,60 @@ module.exports = class Message {
 							}
 						}
 					*/
-					async.each(Object.keys(self.meta), (category, nextCat) => {
-						async.each(Object.keys(self.meta[category]), (name, nextName) => {
-							self.persistMetaValue(category, name, self.meta[category][name], trans, err => {
-								return nextName(err);
-							});
-						}, err => {
-							return nextCat(err);
-						});
+                    async.each(Object.keys(self.meta), (category, nextCat) => {
+                        async.each(Object.keys(self.meta[category]), (name, nextName) => {
+                            self.persistMetaValue(category, name, self.meta[category][name], trans, err => {
+                                return nextName(err);
+                            });
+                        }, err => {
+                            return nextCat(err);
+                        });
 
-					}, err => {
-						return callback(err, trans);
-					});
-				},
-				function storeHashTags(trans, callback) {
-					//	:TODO: hash tag support
-					return callback(null, trans);
-				}
-			],
-			(err, trans) => {
-				if(trans) {
-					trans[err ? 'rollback' : 'commit'](transErr => {
-						return cb(err ? err : transErr, self.messageId);
-					});
-				} else {
-					return cb(err);
-				}
-			}
-		);
-	}
+                    }, err => {
+                        return callback(err, trans);
+                    });
+                },
+                function storeHashTags(trans, callback) {
+                    //	:TODO: hash tag support
+                    return callback(null, trans);
+                }
+            ],
+            (err, trans) => {
+                if(trans) {
+                    trans[err ? 'rollback' : 'commit'](transErr => {
+                        return cb(err ? err : transErr, self.messageId);
+                    });
+                } else {
+                    return cb(err);
+                }
+            }
+        );
+    }
 
-	//	:TODO: FTN stuff doesn't have any business here
-	getFTNQuotePrefix(source) {
-		source = source || 'fromUserName';
+    //	:TODO: FTN stuff doesn't have any business here
+    getFTNQuotePrefix(source) {
+        source = source || 'fromUserName';
 
-		return ftnUtil.getQuotePrefix(this[source]);
-	}
+        return ftnUtil.getQuotePrefix(this[source]);
+    }
 
-	getTearLinePosition(input) {
-		const m = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
-		return m ? m.index : -1;
-	}
+    getTearLinePosition(input) {
+        const m = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
+        return m ? m.index : -1;
+    }
 
-	getQuoteLines(options, cb) {
-		if(!options.termWidth || !options.termHeight || !options.cols) {
-			return cb(Errors.MissingParam());
-		}
+    getQuoteLines(options, cb) {
+        if(!options.termWidth || !options.termHeight || !options.cols) {
+            return cb(Errors.MissingParam());
+        }
 
-		options.startCol			= options.startCol || 1;
-		options.includePrefix 		= _.get(options, 'includePrefix', true);
-		options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
-		options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
-		options.isAnsi				= options.isAnsi || isAnsi(this.message);	//	:TODO: If this.isAnsi, use that setting
+        options.startCol			= options.startCol || 1;
+        options.includePrefix 		= _.get(options, 'includePrefix', true);
+        options.ansiResetSgr		= options.ansiResetSgr || ANSI.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+        options.ansiFocusPrefixSgr	= options.ansiFocusPrefixSgr || ANSI.getSGRFromGraphicRendition( { intensity : 'bold', fg : 39, bg : 49 } );
+        options.isAnsi				= options.isAnsi || isAnsi(this.message);	//	:TODO: If this.isAnsi, use that setting
 
-		/*
+        /*
 			Some long text that needs to be wrapped and quoted should look right after
 			doing so, don't ya think? yeah I think so
 
@@ -694,166 +694,166 @@ module.exports = class Message {
 			Ot> Nu> right after doing so, don't ya think? yeah I think so
 
 		*/
-		const quotePrefix = options.includePrefix ? this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') : '';
+        const quotePrefix = options.includePrefix ? this.getFTNQuotePrefix(options.prefixSource || 'fromUserName') : '';
 
-		function getWrapped(text, extraPrefix) {
-			extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
+        function getWrapped(text, extraPrefix) {
+            extraPrefix = extraPrefix ? ` ${extraPrefix}` : '';
 
-			const wrapOpts = {
-				width		: options.cols - (quotePrefix.length + extraPrefix.length),
-				tabHandling	: 'expand',
-				tabWidth	: 4,
-			};
+            const wrapOpts = {
+                width		: options.cols - (quotePrefix.length + extraPrefix.length),
+                tabHandling	: 'expand',
+                tabWidth	: 4,
+            };
 
-			return wordWrapText(text, wrapOpts).wrapped.map( (w, i) => {
-				return i === 0 ? `${quotePrefix}${w}` : `${quotePrefix}${extraPrefix}${w}`;
-			});
-		}
+            return wordWrapText(text, wrapOpts).wrapped.map( (w, i) => {
+                return i === 0 ? `${quotePrefix}${w}` : `${quotePrefix}${extraPrefix}${w}`;
+            });
+        }
 
-		function getFormattedLine(line) {
-			//	for pre-formatted text, we just append a line truncated to fit
-			let newLen;
-			const total = line.length + quotePrefix.length;
+        function getFormattedLine(line) {
+            //	for pre-formatted text, we just append a line truncated to fit
+            let newLen;
+            const total = line.length + quotePrefix.length;
 
-			if(total > options.cols) {
-				newLen = options.cols - total;
-			} else {
-				newLen = total;
-			}
+            if(total > options.cols) {
+                newLen = options.cols - total;
+            } else {
+                newLen = total;
+            }
 
-			return `${quotePrefix}${line.slice(0, newLen)}`;
-		}
+            return `${quotePrefix}${line.slice(0, newLen)}`;
+        }
 
-		if(options.isAnsi) {
-			ansiPrep(
-				this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
-				{
-					termWidth		: options.termWidth,
-					termHeight		: options.termHeight,
-					cols			: options.cols,
-					rows			: 'auto',
-					startCol		: options.startCol,
-					forceLineTerm	: true,
-				},
-				(err, prepped) => {
-					prepped = prepped || this.message;
+        if(options.isAnsi) {
+            ansiPrep(
+                this.message.replace(/\r?\n/g, '\r\n'),	//	normalized LF -> CRLF
+                {
+                    termWidth		: options.termWidth,
+                    termHeight		: options.termHeight,
+                    cols			: options.cols,
+                    rows			: 'auto',
+                    startCol		: options.startCol,
+                    forceLineTerm	: true,
+                },
+                (err, prepped) => {
+                    prepped = prepped || this.message;
 
-					let lastSgr = '';
-					const split = splitTextAtTerms(prepped);
+                    let lastSgr = '';
+                    const split = splitTextAtTerms(prepped);
 
-					const quoteLines		= [];
-					const focusQuoteLines	= [];
+                    const quoteLines		= [];
+                    const focusQuoteLines	= [];
 
-					//
-					//	Do not include quote prefixes (e.g. XX> ) on ANSI replies (and therefor quote builder)
-					//	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to
-					//	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
-					//	the trick and allow them to leave them alone!
-					//
-					split.forEach(l => {
-						quoteLines.push(`${lastSgr}${l}`);
+                    //
+                    //	Do not include quote prefixes (e.g. XX> ) on ANSI replies (and therefor quote builder)
+                    //	as while this works in ENiGMA, other boards such as Mystic, WWIV, etc. will try to
+                    //	strip colors, colorize the lines, etc. If we exclude the prefixes, this seems to do
+                    //	the trick and allow them to leave them alone!
+                    //
+                    split.forEach(l => {
+                        quoteLines.push(`${lastSgr}${l}`);
 
-						focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 1, l.length - 1)}`);
-						lastSgr = (l.match(/(?:\x1b\x5b)[?=;0-9]*m(?!.*(?:\x1b\x5b)[?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
-					});
+                        focusQuoteLines.push(`${options.ansiFocusPrefixSgr}>${lastSgr}${renderSubstr(l, 1, l.length - 1)}`);
+                        lastSgr = (l.match(/(?:\x1b\x5b)[?=;0-9]*m(?!.*(?:\x1b\x5b)[?=;0-9]*m)/) || [])[0] || '';	//	eslint-disable-line no-control-regex
+                    });
 
-					quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
+                    quoteLines[quoteLines.length - 1] += options.ansiResetSgr;
 
-					return cb(null, quoteLines, focusQuoteLines, true);
-				}
-			);
-		} else {
-			const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
-			const quoted	= [];
-			const input		= _.trimEnd(this.message).replace(/\b/g, '');
+                    return cb(null, quoteLines, focusQuoteLines, true);
+                }
+            );
+        } else {
+            const QUOTE_RE	= /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
+            const quoted	= [];
+            const input		= _.trimEnd(this.message).replace(/\b/g, '');
 
-			//	find *last* tearline
-			let tearLinePos = this.getTearLinePosition(input);
-			tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;	//	we just want the index or the entire string
+            //	find *last* tearline
+            let tearLinePos = this.getTearLinePosition(input);
+            tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;	//	we just want the index or the entire string
 
-			input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
-				//
-				//	For each paragraph, a state machine:
-				//	- New line - line
-				//	- New (pre)quoted line - quote_line
-				//	- Continuation of new/quoted line
-				//
-				//	Also:
-				//	- Detect pre-formatted lines & try to keep them as-is
-				//
-				let state;
-				let buf = '';
-				let quoteMatch;
+            input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
+                //
+                //	For each paragraph, a state machine:
+                //	- New line - line
+                //	- New (pre)quoted line - quote_line
+                //	- Continuation of new/quoted line
+                //
+                //	Also:
+                //	- Detect pre-formatted lines & try to keep them as-is
+                //
+                let state;
+                let buf = '';
+                let quoteMatch;
 
-				if(quoted.length > 0) {
-					//
-					//	Preserve paragraph seperation.
-					//
-					//	FSC-0032 states something about leaving blank lines fully blank
-					//	(without a prefix) but it seems nicer (and more consistent with other systems)
-					//	to put 'em in.
-					//
-					quoted.push(quotePrefix);
-				}
+                if(quoted.length > 0) {
+                    //
+                    //	Preserve paragraph seperation.
+                    //
+                    //	FSC-0032 states something about leaving blank lines fully blank
+                    //	(without a prefix) but it seems nicer (and more consistent with other systems)
+                    //	to put 'em in.
+                    //
+                    quoted.push(quotePrefix);
+                }
 
-				paragraph.split(/\r?\n/).forEach(line => {
-					if(0 === line.trim().length) {
-						//	see blank line notes above
-						return quoted.push(quotePrefix);
-					}
+                paragraph.split(/\r?\n/).forEach(line => {
+                    if(0 === line.trim().length) {
+                        //	see blank line notes above
+                        return quoted.push(quotePrefix);
+                    }
 
-					quoteMatch = line.match(QUOTE_RE);
+                    quoteMatch = line.match(QUOTE_RE);
 
-					switch(state) {
-						case 'line' :
-							if(quoteMatch) {
-								if(isFormattedLine(line)) {
-									quoted.push(getFormattedLine(line.replace(/\s/, '')));
-								} else {
-									quoted.push(...getWrapped(buf, quoteMatch[1]));
-									state = 'quote_line';
-									buf = line;
-								}
-							} else {
-								buf += ` ${line}`;
-							}
-							break;
+                    switch(state) {
+                        case 'line' :
+                            if(quoteMatch) {
+                                if(isFormattedLine(line)) {
+                                    quoted.push(getFormattedLine(line.replace(/\s/, '')));
+                                } else {
+                                    quoted.push(...getWrapped(buf, quoteMatch[1]));
+                                    state = 'quote_line';
+                                    buf = line;
+                                }
+                            } else {
+                                buf += ` ${line}`;
+                            }
+                            break;
 
-						case 'quote_line' :
-							if(quoteMatch) {
-								const rem = line.slice(quoteMatch[0].length);
-								if(!buf.startsWith(quoteMatch[0])) {
-									quoted.push(...getWrapped(buf, quoteMatch[1]));
-									buf = rem;
-								} else {
-									buf += ` ${rem}`;
-								}
-							} else {
-								quoted.push(...getWrapped(buf));
-								buf = line;
-								state = 'line';
-							}
-							break;
+                        case 'quote_line' :
+                            if(quoteMatch) {
+                                const rem = line.slice(quoteMatch[0].length);
+                                if(!buf.startsWith(quoteMatch[0])) {
+                                    quoted.push(...getWrapped(buf, quoteMatch[1]));
+                                    buf = rem;
+                                } else {
+                                    buf += ` ${rem}`;
+                                }
+                            } else {
+                                quoted.push(...getWrapped(buf));
+                                buf = line;
+                                state = 'line';
+                            }
+                            break;
 
-						default :
-							if(isFormattedLine(line)) {
-								quoted.push(getFormattedLine(line));
-							} else {
-								state	= quoteMatch ? 'quote_line' : 'line';
-								buf		= 'line' === state ? line : line.replace(/\s/, '');	//	trim *first* leading space, if any
-							}
-							break;
-					}
-				});
+                        default :
+                            if(isFormattedLine(line)) {
+                                quoted.push(getFormattedLine(line));
+                            } else {
+                                state	= quoteMatch ? 'quote_line' : 'line';
+                                buf		= 'line' === state ? line : line.replace(/\s/, '');	//	trim *first* leading space, if any
+                            }
+                            break;
+                    }
+                });
 
-				quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
-			});
+                quoted.push(...getWrapped(buf, quoteMatch ? quoteMatch[1] : null));
+            });
 
-			input.slice(tearLinePos).split(/\r?\n/).forEach(l => {
-				quoted.push(...getWrapped(l));
-			});
+            input.slice(tearLinePos).split(/\r?\n/).forEach(l => {
+                quoted.push(...getWrapped(l));
+            });
 
-			return cb(null, quoted, null, false);
-		}
-	}
+            return cb(null, quoted, null, false);
+        }
+    }
 };
