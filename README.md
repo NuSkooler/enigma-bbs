@@ -68,7 +68,7 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) in the docs for more information.
 
 ## Special Thanks
-* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
+* [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
 * [M. Griffin](https://github.com/M-griffin), author of [Enthral BBS](https://github.com/M-griffin/Enthral), [Oblivion/2 XRM](https://github.com/M-griffin/Oblivion2-XRM) and [EtherTerm](https://github.com/M-griffin/EtherTerm)!
