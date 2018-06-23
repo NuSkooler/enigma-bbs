@@ -136,31 +136,20 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
                         });
                     },
                     function populateAreaListView(callback) {
-                        const listFormat        = self.menuConfig.config.listFormat || '{index} ) - {name}';
-                        const focusListFormat   = self.menuConfig.config.focusListFormat || listFormat;
-
                         const areaListView = vc.getView(MciViewIds.AreaList);
                         if(!areaListView) {
                             return callback(Errors.MissingMci('A MenuView compatible MCI code is required'));
                         }
-                        let i = 1;
-                        areaListView.setItems(_.map(self.messageAreas, v => {
-                            return stringFormat(listFormat, {
-                                index   : i++,
-                                areaTag : v.area.areaTag,
-                                name    : v.area.name,
-                                desc    : v.area.desc,
-                            });
-                        }));
 
-                        i = 1;
-                        areaListView.setFocusItems(_.map(self.messageAreas, v => {
-                            return stringFormat(focusListFormat, {
-                                index   : i++,
-                                areaTag : v.area.areaTag,
-                                name    : v.area.name,
-                                desc    : v.area.desc,
-                            });
+                        let i = 1;
+                        areaListView.setItems(self.messageAreas.map(a => {
+                            return {
+                                index       : i++,
+                                areaTag     : a.area.areaTag,
+                                text        : a.area.name,  //  standard
+                                name        : a.area.name,
+                                desc        : a.area.desc,
+                            };
                         }));
 
                         areaListView.on('index update', areaIndex => {
@@ -168,8 +157,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
                         });
 
                         areaListView.redraw();
-
-                        callback(null);
+                        return callback(null);
                     }
                 ],
                 function complete(err) {
