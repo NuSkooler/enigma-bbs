@@ -52,10 +52,12 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
+* [MagiTerm](https://magickabbs.com/index.php/magiterm/)
 
 ## Boards
 * WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
 * [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
+* [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 
 
 ## Installation
