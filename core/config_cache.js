@@ -1,16 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-//	deps
-const paths				= require('path');
-const fs				= require('graceful-fs');
-const hjson				= require('hjson');
-const sane				= require('sane');
+//  deps
+const paths             = require('path');
+const fs                = require('graceful-fs');
+const hjson             = require('hjson');
+const sane              = require('sane');
 
 module.exports = new class ConfigCache
 {
     constructor() {
-        this.cache		= new Map();	//	path->parsed config
+        this.cache      = new Map();    //  path->parsed config
     }
 
     getConfigWithOptions(options, cb) {

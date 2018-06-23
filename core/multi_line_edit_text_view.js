@@ -1,22 +1,22 @@
 /* jslint node: true */
 'use strict';
 
-const View			= require('./view.js').View;
-const strUtil		= require('./string_util.js');
-const ansi			= require('./ansi_term.js');
-const wordWrapText	= require('./word_wrap.js').wordWrapText;
-const ansiPrep		= require('./ansi_prep.js');
+const View          = require('./view.js').View;
+const strUtil       = require('./string_util.js');
+const ansi          = require('./ansi_term.js');
+const wordWrapText  = require('./word_wrap.js').wordWrapText;
+const ansiPrep      = require('./ansi_prep.js');
 
-const assert		= require('assert');
-const _				= require('lodash');
+const assert        = require('assert');
+const _             = require('lodash');
 
-//	:TODO: Determine CTRL-* keys for various things
-//	See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
-//	http://wiki.synchro.net/howto:editor:slyedit#edit_mode
-//	http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
+//  :TODO: Determine CTRL-* keys for various things
+//  See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+//  http://wiki.synchro.net/howto:editor:slyedit#edit_mode
+//  http://sublime-text-unofficial-documentation.readthedocs.org/en/latest/reference/keyboard_shortcuts_win.html
 
 /* Mystic
-	 [^B]  Reformat Paragraph            [^O]  Show this help file
+     [^B]  Reformat Paragraph            [^O]  Show this help file
        [^I]  Insert tab space              [^Q]  Enter quote mode
        [^K]  Cut current line of text      [^V]  Toggle insert/overwrite
        [^U]  Paste previously cut text     [^Y]  Delete current line
@@ -29,58 +29,58 @@ const _				= require('lodash');
 */
 
 //
-//	Some other interesting implementations, resources, etc.
+//  Some other interesting implementations, resources, etc.
 //
-//	Editors - BBS
-//	*	https://github.com/M-griffin/Enthral/blob/master/src/msg_fse.cpp
+//  Editors - BBS
+//  *   https://github.com/M-griffin/Enthral/blob/master/src/msg_fse.cpp
 //
 //
-//	Editors - Other
-//	*	http://joe-editor.sourceforge.net/
-//	* 	http://www.jbox.dk/downloads/edit.c
-//	*	https://github.com/dominictarr/hipster
+//  Editors - Other
+//  *   http://joe-editor.sourceforge.net/
+//  *   http://www.jbox.dk/downloads/edit.c
+//  *   https://github.com/dominictarr/hipster
 //
-//	Implementations - Word Wrap
-//	*	https://github.com/protomouse/synchronet/blob/93b01c55b3102ebc3c4f4793c3a45b8c13d0dc2a/src/sbbs3/wordwrap.c
+//  Implementations - Word Wrap
+//  *   https://github.com/protomouse/synchronet/blob/93b01c55b3102ebc3c4f4793c3a45b8c13d0dc2a/src/sbbs3/wordwrap.c
 //
-//	Misc notes
-//	* https://github.com/dominictarr/hipster/issues/15 (Deleting lines/etc.)
+//  Misc notes
+//  * https://github.com/dominictarr/hipster/issues/15 (Deleting lines/etc.)
 //
-//	Blessed
-//		insertLine: CSR(top, bottom) + CUP(y, 0) + IL(1) + CSR(0, height)
-//		deleteLine: CSR(top, bottom) + CUP(y, 0) + DL(1) + CSR(0, height)
-//	Quick Ansi -- update only what was changed:
-//	https://github.com/dominictarr/quickansi
+//  Blessed
+//      insertLine: CSR(top, bottom) + CUP(y, 0) + IL(1) + CSR(0, height)
+//      deleteLine: CSR(top, bottom) + CUP(y, 0) + DL(1) + CSR(0, height)
+//  Quick Ansi -- update only what was changed:
+//  https://github.com/dominictarr/quickansi
 
 //
-//	To-Do
+//  To-Do
 //
-//	* Index pos % for emit scroll events
-//	* Some of this should be async'd where there is lots of processing (e.g. word wrap)
-//	* Fix backspace when col=0 (e.g. bs to prev line)
-//	* Add word delete (CTRL+????)
-//	*
+//  * Index pos % for emit scroll events
+//  * Some of this should be async'd where there is lots of processing (e.g. word wrap)
+//  * Fix backspace when col=0 (e.g. bs to prev line)
+//  * Add word delete (CTRL+????)
+//  *
 
 
 const SPECIAL_KEY_MAP_DEFAULT = {
-    'line feed'		: [ 'return' ],
-    exit			: [ 'esc' ],
-    backspace		: [ 'backspace' ],
-    delete			: [ 'delete' ],
-    tab				: [ 'tab' ],
-    up				: [ 'up arrow' ],
-    down			: [ 'down arrow' ],
-    end				: [ 'end' ],
-    home			: [ 'home' ],
-    left			: [ 'left arrow' ],
-    right			: [ 'right arrow' ],
-    'delete line'	: [ 'ctrl + y' ],
-    'page up'		: [ 'page up' ],
-    'page down'		: [ 'page down' ],
-    insert			: [ 'insert', 'ctrl + v' ],
+    'line feed'     : [ 'return' ],
+    exit            : [ 'esc' ],
+    backspace       : [ 'backspace' ],
+    delete          : [ 'delete' ],
+    tab             : [ 'tab' ],
+    up              : [ 'up arrow' ],
+    down            : [ 'down arrow' ],
+    end             : [ 'end' ],
+    home            : [ 'home' ],
+    left            : [ 'left arrow' ],
+    right           : [ 'right arrow' ],
+    'delete line'   : [ 'ctrl + y' ],
+    'page up'       : [ 'page up' ],
+    'page down'     : [ 'page down' ],
+    insert          : [ 'insert', 'ctrl + v' ],
 };
 
-exports.MultiLineEditTextView	= MultiLineEditTextView;
+exports.MultiLineEditTextView   = MultiLineEditTextView;
 
 function MultiLineEditTextView(options) {
     if(!_.isBoolean(options.acceptsFocus)) {
@@ -100,18 +100,18 @@ function MultiLineEditTextView(options) {
     var self = this;
 
     //
-    //	ANSI seems to want tabs to default to 8 characters. See the following:
-    //	* http://www.ansi-bbs.org/ansi-bbs2/control_chars/
-    //	* http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
+    //  ANSI seems to want tabs to default to 8 characters. See the following:
+    //  * http://www.ansi-bbs.org/ansi-bbs2/control_chars/
+    //  * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
     //
-    //	This seems overkill though, so let's default to 4 :)
-    //	:TODO: what shoudl this really be? Maybe 8 is OK
+    //  This seems overkill though, so let's default to 4 :)
+    //  :TODO: what shoudl this really be? Maybe 8 is OK
     //
-    this.tabWidth			= _.isNumber(options.tabWidth) ? options.tabWidth : 4;
+    this.tabWidth           = _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
-    this.textLines			= [ ];
-    this.topVisibleIndex	= 0;
-    this.mode				= options.mode || 'edit';	//	edit | preview | read-only
+    this.textLines          = [ ];
+    this.topVisibleIndex    = 0;
+    this.mode               = options.mode || 'edit';   //  edit | preview | read-only
 
     if ('preview' === this.mode) {
         this.autoScroll = options.autoScroll || true;
@@ -121,10 +121,10 @@ function MultiLineEditTextView(options) {
         this.tabSwitchesView = options.tabSwitchesView || false;
     }
     //
-    //	cursorPos represents zero-based row, col positions
-    //	within the editor itself
+    //  cursorPos represents zero-based row, col positions
+    //  within the editor itself
     //
-    this.cursorPos			= { col : 0, row : 0 };
+    this.cursorPos          = { col : 0, row : 0 };
 
     this.getSGRFor = function(sgrFor) {
         return {
@@ -140,7 +140,7 @@ function MultiLineEditTextView(options) {
         return 'preview' === self.mode;
     };
 
-    //	:TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
+    //  :TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
     this.getTextLinesIndex = function(row) {
         if(!_.isNumber(row)) {
             row = self.cursorPos.row;
@@ -172,34 +172,34 @@ function MultiLineEditTextView(options) {
     this.redrawRows = function(startRow, endRow) {
         self.toggleTextCursor('hide');
 
-        const startIndex	= self.getTextLinesIndex(startRow);
-        const endIndex		= Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
-        const absPos		= self.getAbsolutePosition(startRow, 0);
+        const startIndex    = self.getTextLinesIndex(startRow);
+        const endIndex      = Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
+        const absPos        = self.getAbsolutePosition(startRow, 0);
 
         for(let i = startIndex; i < endIndex; ++i) {
             //${self.getSGRFor('text')}
             self.client.term.write(
                 `${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`,
-                false	//	convertLineFeeds
+                false   //  convertLineFeeds
             );
         }
 
         self.toggleTextCursor('show');
 
-        return absPos.row - self.position.row;	//	row we ended on
+        return absPos.row - self.position.row;  //  row we ended on
     };
 
     this.eraseRows = function(startRow, endRow) {
         self.toggleTextCursor('hide');
 
-        const absPos		= self.getAbsolutePosition(startRow, 0);
-        const absPosEnd		= self.getAbsolutePosition(endRow, 0);
-        const eraseFiller	= ' '.repeat(self.dimens.width);//new Array(self.dimens.width).join(' ');
+        const absPos        = self.getAbsolutePosition(startRow, 0);
+        const absPosEnd     = self.getAbsolutePosition(endRow, 0);
+        const eraseFiller   = ' '.repeat(self.dimens.width);//new Array(self.dimens.width).join(' ');
 
         while(absPos.row < absPosEnd.row) {
             self.client.term.write(
                 `${ansi.goto(absPos.row++, absPos.col)}${eraseFiller}`,
-                false	//	convertLineFeeds
+                false   //  convertLineFeeds
             );
         }
 
@@ -213,16 +213,16 @@ function MultiLineEditTextView(options) {
         self.eraseRows(lastRow, self.dimens.height);
         /*
 
-		//	:TOOD: create eraseRows(startRow, endRow)
-		if(lastRow < self.dimens.height) {
-			var absPos	= self.getAbsolutePosition(lastRow, 0);
-			var empty	= new Array(self.dimens.width).join(' ');
-			while(lastRow++ < self.dimens.height) {
-				self.client.term.write(ansi.goto(absPos.row++, absPos.col));
-				self.client.term.write(empty);
-			}
-		}
-		*/
+        //  :TOOD: create eraseRows(startRow, endRow)
+        if(lastRow < self.dimens.height) {
+            var absPos  = self.getAbsolutePosition(lastRow, 0);
+            var empty   = new Array(self.dimens.width).join(' ');
+            while(lastRow++ < self.dimens.height) {
+                self.client.term.write(ansi.goto(absPos.row++, absPos.col));
+                self.client.term.write(empty);
+            }
+        }
+        */
     };
 
     this.getVisibleText = function(index) {
@@ -262,12 +262,12 @@ function MultiLineEditTextView(options) {
     };
 
     this.getRenderText = function(index) {
-        let text 		= self.getVisibleText(index);
-        const remain	= self.dimens.width - text.length;
+        let text        = self.getVisibleText(index);
+        const remain    = self.dimens.width - text.length;
 
         if(remain > 0) {
             text += ' '.repeat(remain + 1);
-            //			text += new Array(remain + 1).join(' ');
+            //          text += new Array(remain + 1).join(' ');
         }
 
         return text;
@@ -278,15 +278,15 @@ function MultiLineEditTextView(options) {
         if(startIndex === endIndex) {
             lines = [ self.textLines[startIndex] ];
         } else {
-            lines = self.textLines.slice(startIndex, endIndex + 1);	//	"slice extracts up to but not including end."
+            lines = self.textLines.slice(startIndex, endIndex + 1); //  "slice extracts up to but not including end."
         }
         return lines;
     };
 
     this.getOutputText = function(startIndex, endIndex, eolMarker, options) {
-        const lines	= self.getTextLines(startIndex, endIndex);
-        let text	= '';
-        const re	= new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+        const lines = self.getTextLines(startIndex, endIndex);
+        let text    = '';
+        const re    = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
 
         lines.forEach(line => {
             text += line.text.replace(re, '\t');
@@ -317,28 +317,28 @@ function MultiLineEditTextView(options) {
     };
 
     /*
-	this.editTextAtPosition = function(editAction, text, index, col) {
-		switch(editAction) {
-			case 'insert' :
-				self.insertCharactersInText(text, index, col);
-				break;
+    this.editTextAtPosition = function(editAction, text, index, col) {
+        switch(editAction) {
+            case 'insert' :
+                self.insertCharactersInText(text, index, col);
+                break;
 
-			case 'deleteForward' :
-				break;
+            case 'deleteForward' :
+                break;
 
-			case 'deleteBack' :
-				break;
+            case 'deleteBack' :
+                break;
 
-			case 'replace' :
-				break;
-		}
-	};
-	*/
+            case 'replace' :
+                break;
+        }
+    };
+    */
 
     this.updateTextWordWrap = function(index) {
-        const nextEolIndex	= self.getNextEndOfLineIndex(index);
-        const wrapped		= self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
-        const newLines		= wrapped.wrapped.map(l => { return { text : l }; } );
+        const nextEolIndex  = self.getNextEndOfLineIndex(index);
+        const wrapped       = self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
+        const newLines      = wrapped.wrapped.map(l => { return { text : l }; } );
 
         newLines[newLines.length - 1].eol = true;
 
@@ -352,17 +352,17 @@ function MultiLineEditTextView(options) {
     this.removeCharactersFromText = function(index, col, operation, count) {
         if('delete' === operation) {
             self.textLines[index].text =
-				self.textLines[index].text.slice(0, col) +
-				self.textLines[index].text.slice(col + count);
+                self.textLines[index].text.slice(0, col) +
+                self.textLines[index].text.slice(col + count);
 
             self.updateTextWordWrap(index);
             self.redrawRows(self.cursorPos.row, self.dimens.height);
             self.moveClientCursorToCursorPos();
         } else if ('backspace' === operation) {
-            //	:TODO: method for splicing text
+            //  :TODO: method for splicing text
             self.textLines[index].text =
-				self.textLines[index].text.slice(0, col - (count - 1)) +
-				self.textLines[index].text.slice(col + 1);
+                self.textLines[index].text.slice(0, col - (count - 1)) +
+                self.textLines[index].text.slice(col + 1);
 
             self.cursorPos.col -= (count - 1);
 
@@ -372,14 +372,14 @@ function MultiLineEditTextView(options) {
             self.moveClientCursorToCursorPos();
         } else if('delete line' === operation) {
             //
-            //	Delete a visible line. Note that this is *not* the "physical" line, or
-            //	1:n entries up to eol! This is to keep consistency with home/end, and
-            //	some other text editors such as nano. Sublime for example want to
-            //	treat all of these things using the physical approach, but this seems
-            //	a bit odd in this context.
+            //  Delete a visible line. Note that this is *not* the "physical" line, or
+            //  1:n entries up to eol! This is to keep consistency with home/end, and
+            //  some other text editors such as nano. Sublime for example want to
+            //  treat all of these things using the physical approach, but this seems
+            //  a bit odd in this context.
             //
-            var isLastLine	= (index === self.textLines.length - 1);
-            var hadEol		= self.textLines[index].eol;
+            var isLastLine  = (index === self.textLines.length - 1);
+            var hadEol      = self.textLines[index].eol;
 
             self.textLines.splice(index, 1);
             if(hadEol && self.textLines.length > index && !self.textLines[index].eol) {
@@ -387,11 +387,11 @@ function MultiLineEditTextView(options) {
             }
 
             //
-            //	Create a empty edit buffer if necessary
-            //	:TODO: Make this a method
+            //  Create a empty edit buffer if necessary
+            //  :TODO: Make this a method
             if(self.textLines.length < 1) {
                 self.textLines = [ { text : '', eol : true } ];
-                isLastLine = false;	//	resetting
+                isLastLine = false; //  resetting
             }
 
             self.cursorPos.col = 0;
@@ -400,7 +400,7 @@ function MultiLineEditTextView(options) {
             self.eraseRows(lastRow, self.dimens.height);
 
             //
-            //	If we just deleted the last line in the buffer, move up
+            //  If we just deleted the last line in the buffer, move up
             //
             if(isLastLine) {
                 self.cursorEndOfPreviousLine();
@@ -411,8 +411,8 @@ function MultiLineEditTextView(options) {
     };
 
     this.insertCharactersInText = function(c, index, col) {
-        const prevTextLength	= self.getTextLength(index);
-        let editingEol			= self.cursorPos.col === prevTextLength;
+        const prevTextLength    = self.getTextLength(index);
+        let editingEol          = self.cursorPos.col === prevTextLength;
 
         self.textLines[index].text = [
             self.textLines[index].text.slice(0, col),
@@ -424,43 +424,43 @@ function MultiLineEditTextView(options) {
 
         if(self.getTextLength(index) > self.dimens.width) {
             //
-            //	Update word wrapping and |cursorOffset| if the cursor
-            //	was within the bounds of the wrapped text
+            //  Update word wrapping and |cursorOffset| if the cursor
+            //  was within the bounds of the wrapped text
             //
             let cursorOffset;
-            const lastCol			= self.cursorPos.col - c.length;
-            const firstWrapRange	= self.updateTextWordWrap(index);
+            const lastCol           = self.cursorPos.col - c.length;
+            const firstWrapRange    = self.updateTextWordWrap(index);
             if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
                 cursorOffset = self.cursorPos.col - firstWrapRange.start;
-                editingEol = true; 	//override
+                editingEol = true;  //override
             } else {
                 cursorOffset = firstWrapRange.end;
             }
 
-            //	redraw from current row to end of visible area
+            //  redraw from current row to end of visible area
             self.redrawRows(self.cursorPos.row, self.dimens.height);
 
-            //	If we're editing mid, we're done here. Else, we need to
-            //	move the cursor to the new editing position after a wrap
+            //  If we're editing mid, we're done here. Else, we need to
+            //  move the cursor to the new editing position after a wrap
             if(editingEol) {
                 self.cursorBeginOfNextLine();
                 self.cursorPos.col += cursorOffset;
                 self.client.term.rawWrite(ansi.right(cursorOffset));
             } else {
-                //	adjust cursor after drawing new rows
+                //  adjust cursor after drawing new rows
                 const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
                 self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
             }
         } else {
             //
-            //	We must only redraw from col -> end of current visible line
+            //  We must only redraw from col -> end of current visible line
             //
             const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
             const renderText = self.getRenderText(index).slice(self.cursorPos.col - c.length);
 
             self.client.term.write(
                 `${ansi.hideCursor()}${self.getSGRFor('text')}${renderText}${ansi.goto(absPos.row, absPos.col)}${ansi.showCursor()}`,
-                false	//	convertLineFeeds
+                false   //  convertLineFeeds
             );
         }
     };
@@ -502,24 +502,24 @@ function MultiLineEditTextView(options) {
         return wordWrapText(
             line,
             {
-                width		: self.dimens.width,
-                tabHandling	: tabHandling,
-                tabWidth	: self.tabWidth,
-                tabChar		: '\t',
+                width       : self.dimens.width,
+                tabHandling : tabHandling,
+                tabWidth    : self.tabWidth,
+                tabChar     : '\t',
             }
         );
     };
 
     this.setTextLines = function(lines, index, termWithEol) {
         if(0 === index && (0 === self.textLines.length || (self.textLines.length === 1 && '' === self.textLines[0].text) )) {
-            //	quick path: just set the things
+            //  quick path: just set the things
             self.textLines = lines.slice(0, -1).map(l => {
                 return { text : l };
             }).concat( { text : lines[lines.length - 1], eol : termWithEol } );
         } else {
-            //	insert somewhere in textLines...
+            //  insert somewhere in textLines...
             if(index > self.textLines.length) {
-                //	fill with empty
+                //  fill with empty
                 self.textLines.splice(
                     self.textLines.length,
                     0,
@@ -547,7 +547,7 @@ function MultiLineEditTextView(options) {
             let index = 0;
 
             text.forEach(line => {
-                self.setTextLines( [ line ], index, true);	//	true=termWithEol
+                self.setTextLines( [ line ], index, true);  //  true=termWithEol
                 index += 1;
             });
 
@@ -565,12 +565,12 @@ function MultiLineEditTextView(options) {
         ansiPrep(
             ansi,
             {
-                termWidth			: this.client.term.termWidth,
-                termHeight			: this.client.term.termHeight,
-                cols				: this.dimens.width,
-                rows				: 'auto',
-                startCol			: this.position.col,
-                forceLineTerm		: options.forceLineTerm,
+                termWidth           : this.client.term.termWidth,
+                termHeight          : this.client.term.termHeight,
+                cols                : this.dimens.width,
+                rows                : 'auto',
+                startCol            : this.position.col,
+                forceLineTerm       : options.forceLineTerm,
             },
             (err, preppedAnsi) => {
                 return setLines(err ? ansi : preppedAnsi);
@@ -580,31 +580,31 @@ function MultiLineEditTextView(options) {
 
     this.insertRawText = function(text, index, col) {
         //
-        //	Perform the following on |text|:
-        //	*	Normalize various line feed formats -> \n
-        //	*	Remove some control characters (e.g. \b)
-        //	*	Word wrap lines such that they fit in the visible workspace.
-        //		Each actual line will then take 1:n elements in textLines[].
-        //	*	Each tab will be appropriately expanded and take 1:n \t
-        //		characters. This allows us to know when we're in tab space
-        //		when doing cursor movement/etc.
+        //  Perform the following on |text|:
+        //  *   Normalize various line feed formats -> \n
+        //  *   Remove some control characters (e.g. \b)
+        //  *   Word wrap lines such that they fit in the visible workspace.
+        //      Each actual line will then take 1:n elements in textLines[].
+        //  *   Each tab will be appropriately expanded and take 1:n \t
+        //      characters. This allows us to know when we're in tab space
+        //      when doing cursor movement/etc.
         //
         //
-        //	Try to handle any possible newline that can be fed to us.
-        //	See http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
+        //  Try to handle any possible newline that can be fed to us.
+        //  See http://stackoverflow.com/questions/5034781/js-regex-to-split-by-line
         //
-        //	:TODO: support index/col insertion point
+        //  :TODO: support index/col insertion point
 
         if(_.isNumber(index)) {
             if(_.isNumber(col)) {
                 //
-                //	Modify text to have information from index
-                //	before and and after column
+                //  Modify text to have information from index
+                //  before and and after column
                 //
-                //	:TODO: Need to clean this string (e.g. collapse tabs)
+                //  :TODO: Need to clean this string (e.g. collapse tabs)
                 text = self.textLines;
 
-                //	:TODO: Remove original line @ index
+                //  :TODO: Remove original line @ index
             }
         } else {
             index = self.textLines.length;
@@ -616,7 +616,7 @@ function MultiLineEditTextView(options) {
         text.forEach(line => {
             wrapped = self.wordWrapSingleLine(line, 'expand').wrapped;
 
-            self.setTextLines(wrapped, index, true);	//	true=termWithEol
+            self.setTextLines(wrapped, index, true);    //  true=termWithEol
             index += wrapped.length;
         });
     };
@@ -638,16 +638,16 @@ function MultiLineEditTextView(options) {
         var index = self.getTextLinesIndex();
 
         //
-        //	:TODO: stuff that needs to happen
-        //	* Break up into smaller methods
-        //	* Even in overtype mode, word wrapping must apply if past bounds
-        //	* A lot of this can be used for backspacing also
-        //	* See how Sublime treats tabs in *non* overtype mode... just overwrite them?
+        //  :TODO: stuff that needs to happen
+        //  * Break up into smaller methods
+        //  * Even in overtype mode, word wrapping must apply if past bounds
+        //  * A lot of this can be used for backspacing also
+        //  * See how Sublime treats tabs in *non* overtype mode... just overwrite them?
         //
         //
 
         if(self.overtypeMode) {
-            //	:TODO: special handing for insert over eol mark?
+            //  :TODO: special handing for insert over eol mark?
             self.replaceCharacterInText(c, index, self.cursorPos.col);
             self.cursorPos.col++;
             self.client.term.write(c);
@@ -754,7 +754,7 @@ function MultiLineEditTextView(options) {
             self.adjustCursorIfPastEndOfLine(true);
         } else {
             self.cursorPos.row = 0;
-            self.moveClientCursorToCursorPos();	//	:TODO: ajust if eol, etc.
+            self.moveClientCursorToCursorPos(); //  :TODO: ajust if eol, etc.
         }
 
         self.emitEditPosition();
@@ -773,13 +773,13 @@ function MultiLineEditTextView(options) {
 
     this.keyPressLineFeed = function() {
         //
-        //	Break up text from cursor position, redraw, and update cursor
-        //	position to start of next line
+        //  Break up text from cursor position, redraw, and update cursor
+        //  position to start of next line
         //
-        var index			= self.getTextLinesIndex();
-        var nextEolIndex	= self.getNextEndOfLineIndex(index);
-        var text			= self.getContiguousText(index, nextEolIndex);
-        const newLines		= self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
+        var index           = self.getTextLinesIndex();
+        var nextEolIndex    = self.getNextEndOfLineIndex(index);
+        var text            = self.getContiguousText(index, nextEolIndex);
+        const newLines      = self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
 
         newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
         for(var i = 1; i < newLines.length; ++i) {
@@ -791,7 +791,7 @@ function MultiLineEditTextView(options) {
             self.textLines,
             [ index, (nextEolIndex - index) + 1 ].concat(newLines));
 
-        //	redraw from current row to end of visible area
+        //  redraw from current row to end of visible area
         self.redrawRows(self.cursorPos.row, self.dimens.height);
         self.cursorBeginOfNextLine();
 
@@ -812,8 +812,8 @@ function MultiLineEditTextView(options) {
     this.keyPressBackspace = function() {
         if(self.cursorPos.col >= 1) {
             //
-            //	Don't want to delete character at cursor, but rather the character
-            //	to the left of the cursor!
+            //  Don't want to delete character at cursor, but rather the character
+            //  to the left of the cursor!
             //
             self.cursorPos.col -= 1;
 
@@ -842,12 +842,12 @@ function MultiLineEditTextView(options) {
                 count);
         } else {
             //
-            //	Delete character at end of line previous.
-            //	* This may be a eol marker
-            //	* Word wrapping will need re-applied
+            //  Delete character at end of line previous.
+            //  * This may be a eol marker
+            //  * Word wrapping will need re-applied
             //
-            //	:TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
-            self.keyPressLeft();	//	same as hitting left - jump to previous line
+            //  :TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
+            self.keyPressLeft();    //  same as hitting left - jump to previous line
             //self.keyPressBackspace();
         }
 
@@ -859,7 +859,7 @@ function MultiLineEditTextView(options) {
 
         if(0 === self.cursorPos.col && 0 === self.textLines[lineIndex].text.length && self.textLines.length > 0) {
             //
-            //	Start of line and nothing left. Just delete the line
+            //  Start of line and nothing left. Just delete the line
             //
             self.removeCharactersFromText(
                 lineIndex,
@@ -906,7 +906,7 @@ function MultiLineEditTextView(options) {
             var move;
             switch(direction) {
                 //
-                //	Next tabstop to the right
+                //  Next tabstop to the right
                 //
                 case 'right' :
                     move = self.getNextTabStop(self.cursorPos.col) - self.cursorPos.col;
@@ -915,7 +915,7 @@ function MultiLineEditTextView(options) {
                     break;
 
                     //
-                    //	Next tabstop to the left
+                    //  Next tabstop to the left
                     //
                 case 'left' :
                     move = self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col);
@@ -926,7 +926,7 @@ function MultiLineEditTextView(options) {
                 case 'up' :
                 case 'down' :
                     //
-                    //	Jump to the tabstop nearest the cursor
+                    //  Jump to the tabstop nearest the cursor
                     //
                     var newCol = self.tabStops.reduce(function r(prev, curr) {
                         return (Math.abs(curr - self.cursorPos.col) < Math.abs(prev - self.cursorPos.col) ? curr : prev);
@@ -946,43 +946,43 @@ function MultiLineEditTextView(options) {
 
             return true;
         }
-        return false;	//	did not fall on a tab
+        return false;   //  did not fall on a tab
     };
 
     this.cursorStartOfDocument = function() {
-        self.topVisibleIndex	= 0;
-        self.cursorPos			= { row : 0, col : 0 };
+        self.topVisibleIndex    = 0;
+        self.cursorPos          = { row : 0, col : 0 };
 
         self.redraw();
         self.moveClientCursorToCursorPos();
     };
 
     this.cursorEndOfDocument = function() {
-        self.topVisibleIndex	= Math.max(self.textLines.length - self.dimens.height, 0);
-        self.cursorPos.row		= (self.textLines.length - self.topVisibleIndex) - 1;
-        self.cursorPos.col		= self.getTextEndOfLineColumn();
+        self.topVisibleIndex    = Math.max(self.textLines.length - self.dimens.height, 0);
+        self.cursorPos.row      = (self.textLines.length - self.topVisibleIndex) - 1;
+        self.cursorPos.col      = self.getTextEndOfLineColumn();
 
         self.redraw();
         self.moveClientCursorToCursorPos();
     };
 
     this.cursorBeginOfNextLine = function() {
-        //	e.g. when scrolling right past eol
+        //  e.g. when scrolling right past eol
         var linesBelow = self.getRemainingLinesBelowRow();
 
         if(linesBelow > 0) {
-            var lastVisibleRow	= Math.min(self.dimens.height, self.textLines.length) - 1;
+            var lastVisibleRow  = Math.min(self.dimens.height, self.textLines.length) - 1;
             if(self.cursorPos.row < lastVisibleRow) {
                 self.cursorPos.row++;
             } else {
                 self.scrollDocumentUp();
             }
-            self.keyPressHome();	//	same as pressing 'home'
+            self.keyPressHome();    //  same as pressing 'home'
         }
     };
 
     this.cursorEndOfPreviousLine = function() {
-        //	e.g. when scrolling left past start of line
+        //  e.g. when scrolling left past start of line
         var moveToEnd;
         if(self.cursorPos.row > 0) {
             self.cursorPos.row--;
@@ -993,30 +993,30 @@ function MultiLineEditTextView(options) {
         }
 
         if(moveToEnd) {
-            self.keyPressEnd();	//	same as pressing 'end'
+            self.keyPressEnd(); //  same as pressing 'end'
         }
     };
 
     /*
-	this.cusorEndOfNextLine = function() {
-		var linesBelow = self.getRemainingLinesBelowRow();
+    this.cusorEndOfNextLine = function() {
+        var linesBelow = self.getRemainingLinesBelowRow();
 
-		if(linesBelow > 0) {
-			var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
-			if(self.cursorPos.row < lastVisibleRow) {
-				self.cursorPos.row++;
-			} else {
-				self.scrollDocumentUp();
-			}
-			self.keyPressEnd();	//	same as pressing 'end'
-		}
-	};
-	*/
+        if(linesBelow > 0) {
+            var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
+            if(self.cursorPos.row < lastVisibleRow) {
+                self.cursorPos.row++;
+            } else {
+                self.scrollDocumentUp();
+            }
+            self.keyPressEnd(); //  same as pressing 'end'
+        }
+    };
+    */
 
     this.scrollDocumentUp = function() {
         //
-        //	Note: We scroll *up* when the cursor goes *down* beyond
-        //	the visible area!
+        //  Note: We scroll *up* when the cursor goes *down* beyond
+        //  the visible area!
         //
         var linesBelow = self.getRemainingLinesBelowRow();
         if(linesBelow > 0) {
@@ -1027,8 +1027,8 @@ function MultiLineEditTextView(options) {
 
     this.scrollDocumentDown = function() {
         //
-        //	Note: We scroll *down* when the cursor goes *up* beyond
-        //	the visible area!
+        //  Note: We scroll *down* when the cursor goes *up* beyond
+        //  the visible area!
         //
         if(self.topVisibleIndex > 0) {
             self.topVisibleIndex--;
@@ -1037,7 +1037,7 @@ function MultiLineEditTextView(options) {
     };
 
     this.emitEditPosition = function() {
-        self.emit('edit position', 	self.getEditPosition());
+        self.emit('edit position',  self.getEditPosition());
     };
 
     this.toggleTextEditMode = function() {
@@ -1045,7 +1045,7 @@ function MultiLineEditTextView(options) {
         self.emit('text edit mode', self.getTextEditMode());
     };
 
-    this.insertRawText('');	//	init to blank/empty
+    this.insertRawText(''); //  init to blank/empty
 }
 
 require('util').inherits(MultiLineEditTextView, View);
@@ -1074,11 +1074,11 @@ MultiLineEditTextView.prototype.setText = function(text, options = { scrollMode 
     this.addText(text, options);
     /*this.insertRawText(text);
 
-	if(this.isEditMode()) {
-		this.cursorEndOfDocument();
-	} else if(this.isPreviewMode()) {
-		this.cursorStartOfDocument();
-	}*/
+    if(this.isEditMode()) {
+        this.cursorEndOfDocument();
+    } else if(this.isPreviewMode()) {
+        this.cursorStartOfDocument();
+    }*/
 };
 
 MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : false }, cb) {
@@ -1116,14 +1116,14 @@ MultiLineEditTextView.prototype.getData = function(options = { forceLineTerms : 
 
 MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
-        case 'mode'			:
+        case 'mode'         :
             this.mode = value;
             if('preview' === value && !this.specialKeyMap.next) {
                 this.specialKeyMap.next = [ 'tab' ];
             }
             break;
 
-        case 'autoScroll'	:
+        case 'autoScroll'   :
             this.autoScroll = value;
             break;
 
@@ -1205,9 +1205,9 @@ MultiLineEditTextView.prototype.getEditPosition = function() {
     var currentIndex = this.getTextLinesIndex() + 1;
 
     return {
-        row		: this.getTextLinesIndex(this.cursorPos.row),
-        col 	: this.cursorPos.col,
-        percent	: Math.floor(((currentIndex / this.textLines.length) * 100)),
-        below	: this.getRemainingLinesBelowRow(),
+        row     : this.getTextLinesIndex(this.cursorPos.row),
+        col     : this.cursorPos.col,
+        percent : Math.floor(((currentIndex / this.textLines.length) * 100)),
+        below   : this.getRemainingLinesBelowRow(),
     };
 };

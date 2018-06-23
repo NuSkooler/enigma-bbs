@@ -1,22 +1,22 @@
 /* jslint node: true */
 'use strict';
 
-//	enigma-bbs
-const MenuModule						= require('./menu_module.js').MenuModule;
-const { getSortedAvailableFileAreas }	= require('./file_base_area.js');
-const StatLog							= require('./stat_log.js');
+//  enigma-bbs
+const MenuModule                        = require('./menu_module.js').MenuModule;
+const { getSortedAvailableFileAreas }   = require('./file_base_area.js');
+const StatLog                           = require('./stat_log.js');
 
-//	deps
-const async								= require('async');
+//  deps
+const async                             = require('async');
 
 exports.moduleInfo = {
-    name	: 'File Area Selector',
-    desc	: 'Select from available file areas',
-    author	: 'NuSkooler',
+    name    : 'File Area Selector',
+    desc    : 'Select from available file areas',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
-    areaList	: 1,
+    areaList    : 1,
 };
 
 exports.getModule = class FileAreaSelectModule extends MenuModule {
@@ -26,14 +26,14 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
         this.menuMethods = {
             selectArea : (formData, extraArgs, cb) => {
                 const filterCriteria = {
-                    areaTag		: formData.value.areaTag,
+                    areaTag     : formData.value.areaTag,
                 };
 
                 const menuOpts = {
-                    extraArgs	: {
-                        filterCriteria	: filterCriteria,
+                    extraArgs   : {
+                        filterCriteria  : filterCriteria,
                     },
-                    menuFlags	: [ 'popParent', 'mergeFlags' ],
+                    menuFlags   : [ 'popParent', 'mergeFlags' ],
                 };
 
                 return this.gotoMenu(this.menuConfig.config.fileBaseListEntriesMenu || 'fileBaseListEntries', menuOpts, cb);
@@ -54,12 +54,12 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
                     function mergeAreaStats(callback) {
                         const areaStats = StatLog.getSystemStat('file_base_area_stats') || { areas : {} };
 
-                        //	we could use 'sort' alone, but area/conf sorting has some special properties; user can still override
+                        //  we could use 'sort' alone, but area/conf sorting has some special properties; user can still override
                         const availAreas = getSortedAvailableFileAreas(self.client);
                         availAreas.forEach(area => {
                             const stats = areaStats.areas[area.areaTag];
                             area.totalFiles = stats ? stats.files : 0;
-                            area.totalBytes	= stats ? stats.bytes : 0;
+                            area.totalBytes = stats ? stats.bytes : 0;
                         });
 
                         return callback(null, availAreas);

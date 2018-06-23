@@ -1,24 +1,24 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Log			= require('../../logger.js').log;
-const ServerModule	= require('../../server_module.js').ServerModule;
-const Config		= require('../../config.js').get;
+//  ENiGMA½
+const Log           = require('../../logger.js').log;
+const ServerModule  = require('../../server_module.js').ServerModule;
+const Config        = require('../../config.js').get;
 
-//	deps
-const http			= require('http');
-const https			= require('https');
-const _				= require('lodash');
-const fs			= require('graceful-fs');
-const paths			= require('path');
-const mimeTypes		= require('mime-types');
+//  deps
+const http          = require('http');
+const https         = require('https');
+const _             = require('lodash');
+const fs            = require('graceful-fs');
+const paths         = require('path');
+const mimeTypes     = require('mime-types');
 
 const ModuleInfo = exports.moduleInfo = {
-    name		: 'Web',
-    desc		: 'Web Server',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.web.server',
+    name        : 'Web',
+    desc        : 'Web Server',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.web.server',
 };
 
 class Route {
@@ -39,8 +39,8 @@ class Route {
     isValid() {
         return (
             this.pathRegExp instanceof RegExp &&
-			( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) ||
-			!_.isFunction(this.handler)
+            ( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) ||
+            !_.isFunction(this.handler)
         );
     }
 
@@ -55,28 +55,28 @@ exports.getModule = class WebServerModule extends ServerModule {
     constructor() {
         super();
 
-        const config 		= Config();
-        this.enableHttp		= config.contentServers.web.http.enabled || false;
-        this.enableHttps	= config.contentServers.web.https.enabled || false;
+        const config        = Config();
+        this.enableHttp     = config.contentServers.web.http.enabled || false;
+        this.enableHttps    = config.contentServers.web.https.enabled || false;
 
         this.routes = {};
 
         if(this.isEnabled() && config.contentServers.web.staticRoot) {
             this.addRoute({
-                method		: 'GET',
-                path		: '/static/.*$',
-                handler		: this.routeStaticFile.bind(this),
+                method      : 'GET',
+                path        : '/static/.*$',
+                handler     : this.routeStaticFile.bind(this),
             });
         }
     }
 
     buildUrl(pathAndQuery) {
         //
-        //	Create a URL such as
-        //	https://l33t.codes:44512/ + |pathAndQuery|
+        //  Create a URL such as
+        //  https://l33t.codes:44512/ + |pathAndQuery|
         //
-        //	Prefer HTTPS over HTTP. Be explicit about the port
-        //	only if non-standard. Allow users to override full prefix in config.
+        //  Prefer HTTPS over HTTP. Be explicit about the port
+        //  only if non-standard. Allow users to override full prefix in config.
         //
         const config = Config();
         if(_.isString(config.contentServers.web.overrideUrlPrefix)) {
@@ -86,13 +86,13 @@ exports.getModule = class WebServerModule extends ServerModule {
         let schema;
         let port;
         if(config.contentServers.web.https.enabled) {
-            schema	= 'https://';
-            port	=  (443 === config.contentServers.web.https.port) ?
+            schema  = 'https://';
+            port    =  (443 === config.contentServers.web.https.port) ?
                 '' :
                 `:${config.contentServers.web.https.port}`;
         } else {
-            schema	= 'http://';
-            port	= (80 === config.contentServers.web.http.port) ?
+            schema  = 'http://';
+            port    = (80 === config.contentServers.web.http.port) ?
                 '' :
                 `:${config.contentServers.web.http.port}`;
         }
@@ -112,11 +112,11 @@ exports.getModule = class WebServerModule extends ServerModule {
         const config = Config();
         if(this.enableHttps) {
             const options = {
-                cert	: fs.readFileSync(config.contentServers.web.https.certPem),
-                key		: fs.readFileSync(config.contentServers.web.https.keyPem),
+                cert    : fs.readFileSync(config.contentServers.web.https.certPem),
+                key     : fs.readFileSync(config.contentServers.web.https.keyPem),
             };
 
-            //	additional options
+            //  additional options
             Object.assign(options, config.contentServers.web.https.options || {} );
 
             this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );
@@ -178,18 +178,18 @@ exports.getModule = class WebServerModule extends ServerModule {
 
             if(err) {
                 return resp.end(`<!doctype html>
-					<html lang="en">
-						<head>
-						<meta charset="utf-8">
-						<title>${title}</title>
-						<meta name="viewport" content="width=device-width, initial-scale=1">
-						</head>
-						<body>
-							<article>
-								<h2>${bodyText}</h2>
-							</article>
-						</body>
-					</html>`
+                    <html lang="en">
+                        <head>
+                        <meta charset="utf-8">
+                        <title>${title}</title>
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                        </head>
+                        <body>
+                            <article>
+                                <h2>${bodyText}</h2>
+                            </article>
+                        </body>
+                    </html>`
                 );
             }
 
@@ -227,8 +227,8 @@ exports.getModule = class WebServerModule extends ServerModule {
             }
 
             const headers = {
-                'Content-Type'		: mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
-                'Content-Length'	: stats.size,
+                'Content-Type'      : mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
+                'Content-Length'    : stats.size,
             };
 
             const readStream = fs.createReadStream(filePath);
@@ -251,8 +251,8 @@ exports.getModule = class WebServerModule extends ServerModule {
                 }
 
                 const headers = {
-                    'Content-Type'		: contentType || mimeTypes.contentType('.html'),
-                    'Content-Length'	: finalPage.length,
+                    'Content-Type'      : contentType || mimeTypes.contentType('.html'),
+                    'Content-Length'    : finalPage.length,
                 };
 
                 resp.writeHead(200, headers);

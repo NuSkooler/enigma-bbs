@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-const EnigError				= require('./enig_error.js').EnigError;
+const EnigError             = require('./enig_error.js').EnigError;
 
 const {
     pad,
@@ -10,41 +10,41 @@ const {
     renderSubstr,
     formatByteSize, formatByteSizeAbbr,
     formatCount, formatCountAbbr,
-}							= require('./string_util.js');
+}                           = require('./string_util.js');
 
-//	deps
-const _				= require('lodash');
+//  deps
+const _             = require('lodash');
 
 /*
-	String formatting HEAVILY inspired by David Chambers string-format library
-	and the mini-language branch specifically which was gratiously released
-	under the DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE.
+    String formatting HEAVILY inspired by David Chambers string-format library
+    and the mini-language branch specifically which was gratiously released
+    under the DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE.
 
-	We need some extra functionality. Namely, support for RA style pipe codes
-	and ANSI escape sequences.
+    We need some extra functionality. Namely, support for RA style pipe codes
+    and ANSI escape sequences.
 */
 
 class ValueError extends EnigError { }
 class KeyError extends EnigError { }
 
 const SpecRegExp = {
-    FillAlign	: /^(.)?([<>=^])/,
-    Sign		: /^[ +-]/,
-    Width		: /^\d*/,
-    Precision	: /^\d+/,
+    FillAlign   : /^(.)?([<>=^])/,
+    Sign        : /^[ +-]/,
+    Width       : /^\d*/,
+    Precision   : /^\d+/,
 };
 
 function tokenizeFormatSpec(spec) {
     const tokens = {
-        fill		: '',
-        align		: '',
-        sign		: '',
-        '#'			: false,
-        '0'			: false,
-        width		: '',
-        ','			: false,
-        precision	: '',
-        type		: '',
+        fill        : '',
+        align       : '',
+        sign        : '',
+        '#'         : false,
+        '0'         : false,
+        width       : '',
+        ','         : false,
+        precision   : '',
+        type        : '',
     };
 
     let index = 0;
@@ -110,7 +110,7 @@ function tokenizeFormatSpec(spec) {
     }
 
     if(tokens[','] && 's' === tokens.type) {
-        throw new ValueError(`Cannot specify ',' with 's'`);	//	eslint-disable-line quotes
+        throw new ValueError(`Cannot specify ',' with 's'`);    //  eslint-disable-line quotes
     }
 
     return tokens;
@@ -129,16 +129,16 @@ function getPadAlign(align) {
 }
 
 function formatString(value, tokens) {
-    const fill		= tokens.fill || (tokens['0'] ? '0' : ' ');
-    const align		= tokens.align || (tokens['0'] ? '=' : '<');
-    const precision	= Number(tokens.precision || renderStringLength(value) + 1);
+    const fill      = tokens.fill || (tokens['0'] ? '0' : ' ');
+    const align     = tokens.align || (tokens['0'] ? '=' : '<');
+    const precision = Number(tokens.precision || renderStringLength(value) + 1);
 
     if('' !== tokens.type && 's' !== tokens.type) {
         throw new ValueError(`Unknown format code "${tokens.type}" for String object`);
     }
 
     if(tokens[',']) {
-        throw new ValueError(`Cannot specify ',' with 's'`);	//	eslint-disable-line quotes
+        throw new ValueError(`Cannot specify ',' with 's'`);    //  eslint-disable-line quotes
     }
 
     if(tokens.sign) {
@@ -157,8 +157,8 @@ function formatString(value, tokens) {
 }
 
 const FormatNumRegExp = {
-    UpperType	: /[A-Z]/,
-    ExponentRep	: /e[+-](?=\d$)/,
+    UpperType   : /[A-Z]/,
+    ExponentRep : /e[+-](?=\d$)/,
 };
 
 function formatNumberHelper(n, precision, type) {
@@ -175,7 +175,7 @@ function formatNumberHelper(n, precision, type) {
         case 'e' : return n.toExponential(precision).replace(FormatNumRegExp.ExponentRep, '$&0');
         case 'f' : return n.toFixed(precision);
         case 'g' :
-            //	we don't want useless trailing zeros. parseFloat -> back to string fixes this for us
+            //  we don't want useless trailing zeros. parseFloat -> back to string fixes this for us
             return parseFloat(n.toPrecision(precision || 1)).toString();
 
         case '%' : return formatNumberHelper(n * 100, precision, 'f') + '%';
@@ -187,10 +187,10 @@ function formatNumberHelper(n, precision, type) {
 }
 
 function formatNumber(value, tokens) {
-    const fill		= tokens.fill || (tokens['0'] ? '0' : ' ');
-    const align		= tokens.align || (tokens['0'] ? '=' : '>');
-    const width		= Number(tokens.width);
-    const type		= tokens.type || (tokens.precision ? 'g' : '');
+    const fill      = tokens.fill || (tokens['0'] ? '0' : ' ');
+    const align     = tokens.align || (tokens['0'] ? '=' : '>');
+    const width     = Number(tokens.width);
+    const type      = tokens.type || (tokens.precision ? 'g' : '');
 
     if( [ 'c', 'd', 'b', 'o', 'x', 'X' ].indexOf(type) > -1) {
         if(0 !== value % 1) {
@@ -198,7 +198,7 @@ function formatNumber(value, tokens) {
         }
 
         if('' !== tokens.sign && 'c' !== type) {
-            throw new ValueError(`Sign not allowed with integer format specifier 'c'`);	//	eslint-disable-line quotes
+            throw new ValueError(`Sign not allowed with integer format specifier 'c'`); //  eslint-disable-line quotes
         }
 
         if(tokens[','] && 'd' !== type) {
@@ -214,16 +214,16 @@ function formatNumber(value, tokens) {
         }
     }
 
-    const s			= formatNumberHelper(Math.abs(value), Number(tokens.precision || 6), type);
-    const sign		= value < 0 || 1 / value < 0 ?
+    const s         = formatNumberHelper(Math.abs(value), Number(tokens.precision || 6), type);
+    const sign      = value < 0 || 1 / value < 0 ?
         '-' :
         '-' === tokens.sign ? '' : tokens.sign;
 
-    const prefix	= tokens['#'] && ( [ 'b', 'o', 'x', 'X' ].indexOf(type) > -1 ) ? '0' + type : '';
+    const prefix    = tokens['#'] && ( [ 'b', 'o', 'x', 'X' ].indexOf(type) > -1 ) ? '0' + type : '';
 
     if(tokens[',']) {
-        const match 	= /^(\d*)(.*)$/.exec(s);
-        const separated	= match[1].replace(/.(?=(...)+$)/g, '$&,') + match[2];
+        const match     = /^(\d*)(.*)$/.exec(s);
+        const separated = match[1].replace(/.(?=(...)+$)/g, '$&,') + match[2];
 
         if('=' !== align) {
             return pad(sign + separated, width, fill, getPadAlign(align));
@@ -231,9 +231,9 @@ function formatNumber(value, tokens) {
 
         if('0' === fill) {
             const shortfall = Math.max(0, width - sign.length - separated.length);
-            const digits	= /^\d*/.exec(separated)[0].length;
-            let padding 	= '';
-            //	:TODO: do this differntly...
+            const digits    = /^\d*/.exec(separated)[0].length;
+            let padding     = '';
+            //  :TODO: do this differntly...
             for(let n = 0; n < shortfall; n++) {
                 padding = ((digits + n) % 4 === 3 ? ',' : '0') + padding;
             }
@@ -256,31 +256,31 @@ function formatNumber(value, tokens) {
 }
 
 const transformers = {
-    //	String standard
-    toUpperCase			: String.prototype.toUpperCase,
-    toLowerCase			: String.prototype.toLowerCase,
+    //  String standard
+    toUpperCase         : String.prototype.toUpperCase,
+    toLowerCase         : String.prototype.toLowerCase,
 
-    //	some super l33b BBS styles!!
-    styleUpper			: (s) => stylizeString(s, 'upper'),
-    styleLower			: (s) => stylizeString(s, 'lower'),
-    styleTitle			: (s) => stylizeString(s, 'title'),
-    styleFirstLower		: (s) => stylizeString(s, 'first lower'),
-    styleSmallVowels	: (s) => stylizeString(s, 'small vowels'),
-    styleBigVowels		: (s) => stylizeString(s, 'big vowels'),
-    styleSmallI			: (s) => stylizeString(s, 'small i'),
-    styleMixed			: (s) => stylizeString(s, 'mixed'),
-    styleL33t			: (s) => stylizeString(s, 'l33t'),
+    //  some super l33b BBS styles!!
+    styleUpper          : (s) => stylizeString(s, 'upper'),
+    styleLower          : (s) => stylizeString(s, 'lower'),
+    styleTitle          : (s) => stylizeString(s, 'title'),
+    styleFirstLower     : (s) => stylizeString(s, 'first lower'),
+    styleSmallVowels    : (s) => stylizeString(s, 'small vowels'),
+    styleBigVowels      : (s) => stylizeString(s, 'big vowels'),
+    styleSmallI         : (s) => stylizeString(s, 'small i'),
+    styleMixed          : (s) => stylizeString(s, 'mixed'),
+    styleL33t           : (s) => stylizeString(s, 'l33t'),
 
-    //	:TODO:
-    //	toMegs(), toKilobytes(), ...
-    //	toList(), toCommaList(),
+    //  :TODO:
+    //  toMegs(), toKilobytes(), ...
+    //  toList(), toCommaList(),
 
-    sizeWithAbbr		: (n) => formatByteSize(n, true, 2),
-    sizeWithoutAbbr		: (n) => formatByteSize(n, false, 2),
-    sizeAbbr			: (n) => formatByteSizeAbbr(n),
-    countWithAbbr		: (n) => formatCount(n, true, 0),
-    countWithoutAbbr	: (n) => formatCount(n, false, 0),
-    countAbbr			: (n) => formatCountAbbr(n),
+    sizeWithAbbr        : (n) => formatByteSize(n, true, 2),
+    sizeWithoutAbbr     : (n) => formatByteSize(n, false, 2),
+    sizeAbbr            : (n) => formatByteSizeAbbr(n),
+    countWithAbbr       : (n) => formatCount(n, true, 0),
+    countWithoutAbbr    : (n) => formatCount(n, false, 0),
+    countAbbr           : (n) => formatCountAbbr(n),
 };
 
 function transformValue(transformerName, value) {
@@ -292,8 +292,8 @@ function transformValue(transformerName, value) {
     return value;
 }
 
-//	:TODO: Use explicit set of chars for paths & function/transforms such that } is allowed as fill/etc.
-const REGEXP_BASIC_FORMAT	= /{([^.!:}]+(?:\.[^.!:}]+)*)(?:!([^:}]+))?(?::([^}]+))?}/g;
+//  :TODO: Use explicit set of chars for paths & function/transforms such that } is allowed as fill/etc.
+const REGEXP_BASIC_FORMAT   = /{([^.!:}]+(?:\.[^.!:}]+)*)(?:!([^:}]+))?(?::([^}]+))?}/g;
 
 function getValue(obj, path) {
     const value = _.get(obj, path);
@@ -307,7 +307,7 @@ function getValue(obj, path) {
 module.exports = function format(fmt, obj) {
 
     const re = REGEXP_BASIC_FORMAT;
-    re.lastIndex = 0;	//	reset from prev
+    re.lastIndex = 0;   //  reset from prev
 
     let match;
     let pos;
@@ -319,17 +319,17 @@ module.exports = function format(fmt, obj) {
     let tokens;
 
     do {
-        pos		= re.lastIndex;
-        match	= re.exec(fmt);
+        pos     = re.lastIndex;
+        match   = re.exec(fmt);
 
         if(match) {
             if(match.index > pos) {
                 out += fmt.slice(pos, match.index);
             }
 
-            objPath		= match[1];
-            transformer	= match[2];
-            formatSpec	= match[3];
+            objPath     = match[1];
+            transformer = match[2];
+            formatSpec  = match[3];
 
             value = getValue(obj,  objPath);
             if(transformer) {
@@ -347,7 +347,7 @@ module.exports = function format(fmt, obj) {
 
     } while(0 !== re.lastIndex);
 
-    //	remainder
+    //  remainder
     if(pos < fmt.length) {
         out += fmt.slice(pos);
     }

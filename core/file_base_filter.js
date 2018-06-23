@@ -1,13 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-//	deps
-const _						= require('lodash');
-const uuidV4				= require('uuid/v4');
+//  deps
+const _                     = require('lodash');
+const uuidV4                = require('uuid/v4');
 
 module.exports = class FileBaseFilters {
     constructor(client) {
-        this.client	= client;
+        this.client = client;
 
         this.load();
     }
@@ -74,7 +74,7 @@ module.exports = class FileBaseFilters {
         try {
             this.filters = JSON.parse(filtersProperty);
         } catch(e) {
-            this.filters = FileBaseFilters.getBuiltInSystemFilters();	//	something bad happened; reset everything back to defaults :(
+            this.filters = FileBaseFilters.getBuiltInSystemFilters();   //  something bad happened; reset everything back to defaults :(
             defaulted = true;
             this.client.log.error( { error : e.message, property : filtersProperty }, 'Failed parsing file base filters property' );
         }
@@ -110,18 +110,18 @@ module.exports = class FileBaseFilters {
     }
 
     static getBuiltInSystemFilters() {
-        const U_LATEST	= '7458b09d-40ab-4f9b-a0d7-0cf866646329';
+        const U_LATEST  = '7458b09d-40ab-4f9b-a0d7-0cf866646329';
 
         const filters = {
             [ U_LATEST ] : {
-                name	: 'By Date Added',
-                areaTag	: '',	//	all
-                terms	: '',	//	*
-                tags	: '',	//	*
-                order	: 'descending',
-                sort	: 'upload_timestamp',
-                uuid	: U_LATEST,
-                system	: true,
+                name    : 'By Date Added',
+                areaTag : '',   //  all
+                terms   : '',   //  *
+                tags    : '',   //  *
+                order   : 'descending',
+                sort    : 'upload_timestamp',
+                uuid    : U_LATEST,
+                system  : true,
             }
         };
 

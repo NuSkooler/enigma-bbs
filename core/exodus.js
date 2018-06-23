@@ -1,83 +1,83 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const resetScreen			= require('./ansi_term.js').resetScreen;
-const Config				= require('./config.js').get;
-const Errors				= require('./enig_error.js').Errors;
-const Log					= require('./logger.js').log;
-const getEnigmaUserAgent	= require('./misc_util.js').getEnigmaUserAgent;
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const resetScreen           = require('./ansi_term.js').resetScreen;
+const Config                = require('./config.js').get;
+const Errors                = require('./enig_error.js').Errors;
+const Log                   = require('./logger.js').log;
+const getEnigmaUserAgent    = require('./misc_util.js').getEnigmaUserAgent;
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
-const joinPath		= require('path').join;
-const crypto		= require('crypto');
-const moment		= require('moment');
-const https			= require('https');
-const querystring	= require('querystring');
-const fs			= require('fs');
-const SSHClient		= require('ssh2').Client;
+//  deps
+const async         = require('async');
+const _             = require('lodash');
+const joinPath      = require('path').join;
+const crypto        = require('crypto');
+const moment        = require('moment');
+const https         = require('https');
+const querystring   = require('querystring');
+const fs            = require('fs');
+const SSHClient     = require('ssh2').Client;
 
 /*
-	Configuration block:
+    Configuration block:
 
 
-	someDoor: {
-		module: exodus
-		config: {
-			//	defaults
-			ticketHost: oddnetwork.org
-			ticketPort: 1984
-			ticketPath: /exodus
-			rejectUnauthorized: false // set to true to allow untrusted CA's (dangerous!)
-			sshHost: oddnetwork.org
-			sshPort: 22
-			sshUser: exodus
-			sshKeyPem: /path/to/enigma-bbs/misc/exodus.id_rsa
+    someDoor: {
+        module: exodus
+        config: {
+            //  defaults
+            ticketHost: oddnetwork.org
+            ticketPort: 1984
+            ticketPath: /exodus
+            rejectUnauthorized: false // set to true to allow untrusted CA's (dangerous!)
+            sshHost: oddnetwork.org
+            sshPort: 22
+            sshUser: exodus
+            sshKeyPem: /path/to/enigma-bbs/misc/exodus.id_rsa
 
-			//	optional
-			caPem: /path/to/cacerts.pem	// see https://curl.haxx.se/docs/caextract.html
+            //  optional
+            caPem: /path/to/cacerts.pem // see https://curl.haxx.se/docs/caextract.html
 
-			//	required
-			board: XXXX
-			key: XXXX
-			door: some_door
-		}
-	}
+            //  required
+            board: XXXX
+            key: XXXX
+            door: some_door
+        }
+    }
 */
 
 exports.moduleInfo = {
-    name	: 'Exodus',
-    desc	: 'Exodus Door Server Access Module - https://oddnetwork.org/exodus/',
-    author	: 'NuSkooler',
+    name    : 'Exodus',
+    desc    : 'Exodus Door Server Access Module - https://oddnetwork.org/exodus/',
+    author  : 'NuSkooler',
 };
 
 exports.getModule = class ExodusModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.config						= options.menuConfig.config || {};
-        this.config.ticketHost			= this.config.ticketHost || 'oddnetwork.org';
-        this.config.ticketPort			= this.config.ticketPort || 1984,
-        this.config.ticketPath			= this.config.ticketPath || '/exodus';
-        this.config.rejectUnauthorized	= _.get(this.config, 'rejectUnauthorized', true);
-        this.config.sshHost				= this.config.sshHost || this.config.ticketHost;
-        this.config.sshPort				= this.config.sshPort || 22;
-        this.config.sshUser				= this.config.sshUser || 'exodus_server';
-        this.config.sshKeyPem			= this.config.sshKeyPem || joinPath(Config().paths.misc, 'exodus.id_rsa');
+        this.config                     = options.menuConfig.config || {};
+        this.config.ticketHost          = this.config.ticketHost || 'oddnetwork.org';
+        this.config.ticketPort          = this.config.ticketPort || 1984,
+        this.config.ticketPath          = this.config.ticketPath || '/exodus';
+        this.config.rejectUnauthorized  = _.get(this.config, 'rejectUnauthorized', true);
+        this.config.sshHost             = this.config.sshHost || this.config.ticketHost;
+        this.config.sshPort             = this.config.sshPort || 22;
+        this.config.sshUser             = this.config.sshUser || 'exodus_server';
+        this.config.sshKeyPem           = this.config.sshKeyPem || joinPath(Config().paths.misc, 'exodus.id_rsa');
     }
 
     initSequence() {
 
-        const self				= this;
-        let clientTerminated	= false;
+        const self              = this;
+        let clientTerminated    = false;
 
         async.waterfall(
             [
                 function validateConfig(callback) {
-                    //	very basic validation on optionals
+                    //  very basic validation on optionals
                     async.each( [ 'board', 'key', 'door' ], (key, next) => {
                         return _.isString(self.config[key]) ? next(null) : next(Errors.MissingConfig(`Config requires "${key}"!`));
                     }, callback);
@@ -92,27 +92,27 @@ exports.getModule = class ExodusModule extends MenuModule {
                     });
                 },
                 function getTicket(certAuthorities, callback) {
-                    const now		= moment.utc().unix();
-                    const sha256	= crypto.createHash('sha256').update(`${self.config.key}${now}`).digest('hex');
-                    const token		= `${sha256}|${now}`;
+                    const now       = moment.utc().unix();
+                    const sha256    = crypto.createHash('sha256').update(`${self.config.key}${now}`).digest('hex');
+                    const token     = `${sha256}|${now}`;
 
-                    const postData	= querystring.stringify({
-                        token		: token,
-                        board		: self.config.board,
-                        user		: self.client.user.username,
-                        door		: self.config.door,
+                    const postData  = querystring.stringify({
+                        token       : token,
+                        board       : self.config.board,
+                        user        : self.client.user.username,
+                        door        : self.config.door,
                     });
 
                     const reqOptions = {
-                        hostname			: self.config.ticketHost,
-                        port				: self.config.ticketPort,
-                        path				: self.config.ticketPath,
-                        rejectUnauthorized	: self.config.rejectUnauthorized,
-                        method				: 'POST',
-                        headers				: {
-                            'Content-Type'		: 'application/x-www-form-urlencoded',
-                            'Content-Length'	: postData.length,
-                            'User-Agent'		: getEnigmaUserAgent(),
+                        hostname            : self.config.ticketHost,
+                        port                : self.config.ticketPort,
+                        path                : self.config.ticketPath,
+                        rejectUnauthorized  : self.config.rejectUnauthorized,
+                        method              : 'POST',
+                        headers             : {
+                            'Content-Type'      : 'application/x-www-form-urlencoded',
+                            'Content-Length'    : postData.length,
+                            'User-Agent'        : getEnigmaUserAgent(),
                         }
                     };
 
@@ -165,11 +165,11 @@ exports.getModule = class ExodusModule extends MenuModule {
                     const sshClient = new SSHClient();
 
                     const window = {
-                        rows		: self.client.term.termHeight,
-                        cols		: self.client.term.termWidth,
-                        width		: 0,
-                        height		: 0,
-                        term		: 'vt100',	//	Want to pass |self.client.term.termClient| here, but we end up getting hung up on :(
+                        rows        : self.client.term.termHeight,
+                        cols        : self.client.term.termWidth,
+                        width       : 0,
+                        height      : 0,
+                        term        : 'vt100',  //  Want to pass |self.client.term.termClient| here, but we end up getting hung up on :(
                     };
 
                     const options = {
@@ -186,7 +186,7 @@ exports.getModule = class ExodusModule extends MenuModule {
                         });
 
                         sshClient.shell(window, options, (err, stream) => {
-                            pipedStream = stream;	//	:TODO: ewwwwwwwww hack
+                            pipedStream = stream;   //  :TODO: ewwwwwwwww hack
                             self.client.term.output.pipe(stream);
 
                             stream.on('data', d => {
@@ -210,10 +210,10 @@ exports.getModule = class ExodusModule extends MenuModule {
                     });
 
                     sshClient.connect({
-                        host		: self.config.sshHost,
-                        port		: self.config.sshPort,
-                        username	: self.config.sshUser,
-                        privateKey	: privateKey,
+                        host        : self.config.sshHost,
+                        port        : self.config.sshPort,
+                        username    : self.config.sshUser,
+                        privateKey  : privateKey,
                     });
                 }
             ],

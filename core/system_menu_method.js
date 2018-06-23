@@ -1,61 +1,61 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const removeClient		= require('./client_connections.js').removeClient;
-const ansiNormal		= require('./ansi_term.js').normal;
-const userLogin			= require('./user_login.js').userLogin;
-const messageArea		= require('./message_area.js');
+//  ENiGMA½
+const removeClient      = require('./client_connections.js').removeClient;
+const ansiNormal        = require('./ansi_term.js').normal;
+const userLogin         = require('./user_login.js').userLogin;
+const messageArea       = require('./message_area.js');
 
-//	deps
-const _					= require('lodash');
-const iconv				= require('iconv-lite');
+//  deps
+const _                 = require('lodash');
+const iconv             = require('iconv-lite');
 
-exports.login					= login;
-exports.logoff					= logoff;
-exports.prevMenu				= prevMenu;
-exports.nextMenu				= nextMenu;
-exports.prevConf				= prevConf;
-exports.nextConf				= nextConf;
-exports.prevArea				= prevArea;
-exports.nextArea				= nextArea;
-exports.sendForgotPasswordEmail	= sendForgotPasswordEmail;
+exports.login                   = login;
+exports.logoff                  = logoff;
+exports.prevMenu                = prevMenu;
+exports.nextMenu                = nextMenu;
+exports.prevConf                = prevConf;
+exports.nextConf                = nextConf;
+exports.prevArea                = prevArea;
+exports.nextArea                = nextArea;
+exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
 
 function login(callingMenu, formData, extraArgs, cb) {
 
     userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
         if(err) {
-            //	login failure
+            //  login failure
             if(err.existingConn && _.has(callingMenu, 'menuConfig.config.tooNodeMenu')) {
                 return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
             } else {
-                //	Other error
+                //  Other error
                 return callingMenu.prevMenu(cb);
             }
         }
 
-        //	success!
+        //  success!
         return callingMenu.nextMenu(cb);
     });
 }
 
 function logoff(callingMenu, formData, extraArgs, cb) {
     //
-    //	Simple logoff. Note that recording of @ logoff properties/stats
-    //	occurs elsewhere!
+    //  Simple logoff. Note that recording of @ logoff properties/stats
+    //  occurs elsewhere!
     //
     const client = callingMenu.client;
 
     setTimeout( () => {
         //
-        //	For giggles...
+        //  For giggles...
         //
         client.term.write(
-            ansiNormal() +	'\n' +
-			iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) +
-			'NO CARRIER', null, () => {
+            ansiNormal() +  '\n' +
+            iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) +
+            'NO CARRIER', null, () => {
 
-                //	after data is written, disconnect & remove the client
+                //  after data is written, disconnect & remove the client
                 removeClient(client);
                 return cb(null);
             }
@@ -65,7 +65,7 @@ function logoff(callingMenu, formData, extraArgs, cb) {
 
 function prevMenu(callingMenu, formData, extraArgs, cb) {
 
-    //	:TODO: this is a pretty big hack -- need the whole key map concep there like other places
+    //  :TODO: this is a pretty big hack -- need the whole key map concep there like other places
     if(formData.key && 'return' === formData.key.name) {
         callingMenu.submitFormData = formData;
     }
@@ -87,7 +87,7 @@ function nextMenu(callingMenu, formData, extraArgs, cb) {
     });
 }
 
-//	:TODO: prev/nextConf, prev/nextArea should use a NYI MenuModule.redraw() or such -- avoid pop/goto() hack!
+//  :TODO: prev/nextConf, prev/nextArea should use a NYI MenuModule.redraw() or such -- avoid pop/goto() hack!
 function reloadMenu(menu, cb) {
     const prevMenu = menu.client.menuStack.pop();
     prevMenu.instance.leave();
@@ -95,12 +95,12 @@ function reloadMenu(menu, cb) {
 }
 
 function prevConf(callingMenu, formData, extraArgs, cb) {
-    const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
+    const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
     const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag) || confs.length;
 
     messageArea.changeMessageConference(callingMenu.client, confs[currIndex - 1].confTag, err => {
         if(err) {
-            return cb(err);	//	logged within changeMessageConference()
+            return cb(err); //  logged within changeMessageConference()
         }
 
         return reloadMenu(callingMenu, cb);
@@ -108,8 +108,8 @@ function prevConf(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextConf(callingMenu, formData, extraArgs, cb) {
-    const confs		= messageArea.getSortedAvailMessageConferences(callingMenu.client);
-    let currIndex	= confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag);
+    const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+    let currIndex   = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag);
 
     if(currIndex === confs.length - 1) {
         currIndex = -1;
@@ -117,7 +117,7 @@ function nextConf(callingMenu, formData, extraArgs, cb) {
 
     messageArea.changeMessageConference(callingMenu.client, confs[currIndex + 1].confTag, err => {
         if(err) {
-            return cb(err);	//	logged within changeMessageConference()
+            return cb(err); //  logged within changeMessageConference()
         }
 
         return reloadMenu(callingMenu, cb);
@@ -125,12 +125,12 @@ function nextConf(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevArea(callingMenu, formData, extraArgs, cb) {
-    const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
     const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag) || areas.length;
 
     messageArea.changeMessageArea(callingMenu.client, areas[currIndex - 1].areaTag, err => {
         if(err) {
-            return cb(err);	//	logged within changeMessageArea()
+            return cb(err); //  logged within changeMessageArea()
         }
 
         return reloadMenu(callingMenu, cb);
@@ -138,8 +138,8 @@ function prevArea(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextArea(callingMenu, formData, extraArgs, cb) {
-    const areas		= messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
-    let currIndex	= areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag);
+    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
+    let currIndex   = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag);
 
     if(currIndex === areas.length - 1) {
         currIndex = -1;
@@ -147,7 +147,7 @@ function nextArea(callingMenu, formData, extraArgs, cb) {
 
     messageArea.changeMessageArea(callingMenu.client, areas[currIndex + 1].areaTag, err => {
         if(err) {
-            return cb(err);	//	logged within changeMessageArea()
+            return cb(err); //  logged within changeMessageArea()
         }
 
         return reloadMenu(callingMenu, cb);

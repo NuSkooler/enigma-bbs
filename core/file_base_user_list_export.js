@@ -1,66 +1,66 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const { MenuModule }		= require('./menu_module.js');
-const FileEntry				= require('./file_entry.js');
-const FileArea				= require('./file_base_area.js');
-const { renderSubstr }		= require('./string_util.js');
-const { Errors }			= require('./enig_error.js');
-const Events				= require('./events.js');
-const Log					= require('./logger.js').log;
-const DownloadQueue			= require('./download_queue.js');
-const { exportFileList }	= require('./file_base_list_export.js');
+//  ENiGMA½
+const { MenuModule }        = require('./menu_module.js');
+const FileEntry             = require('./file_entry.js');
+const FileArea              = require('./file_base_area.js');
+const { renderSubstr }      = require('./string_util.js');
+const { Errors }            = require('./enig_error.js');
+const Events                = require('./events.js');
+const Log                   = require('./logger.js').log;
+const DownloadQueue         = require('./download_queue.js');
+const { exportFileList }    = require('./file_base_list_export.js');
 
-//	deps
-const _					= require('lodash');
-const async				= require('async');
-const fs				= require('graceful-fs');
-const fse				= require('fs-extra');
-const paths				= require('path');
-const moment			= require('moment');
-const uuidv4			= require('uuid/v4');
-const yazl				= require('yazl');
+//  deps
+const _                 = require('lodash');
+const async             = require('async');
+const fs                = require('graceful-fs');
+const fse               = require('fs-extra');
+const paths             = require('path');
+const moment            = require('moment');
+const uuidv4            = require('uuid/v4');
+const yazl              = require('yazl');
 
 /*
-	Module config block can contain the following:
-	templateEncoding	- encoding of template files (utf8)
-	tsFormat			- timestamp format (theme 'short')
-	descWidth			- max desc width (45)
-	progBarChar			- progress bar character (▒)
-	compressThreshold	- threshold to kick in comrpession for lists (1.44 MiB)
-	templates			- object containing:
-		header			- filename of header template (misc/file_list_header.asc)
-		entry			- filename of entry template (misc/file_list_entry.asc)
+    Module config block can contain the following:
+    templateEncoding    - encoding of template files (utf8)
+    tsFormat            - timestamp format (theme 'short')
+    descWidth           - max desc width (45)
+    progBarChar         - progress bar character (▒)
+    compressThreshold   - threshold to kick in comrpession for lists (1.44 MiB)
+    templates           - object containing:
+        header          - filename of header template (misc/file_list_header.asc)
+        entry           - filename of entry template (misc/file_list_entry.asc)
 
-	Header template variables:
-	nowTs, boardName, totalFileCount, totalFileSize,
-	filterAreaTag, filterAreaName, filterAreaDesc,
-	filterTerms, filterHashTags
+    Header template variables:
+    nowTs, boardName, totalFileCount, totalFileSize,
+    filterAreaTag, filterAreaName, filterAreaDesc,
+    filterTerms, filterHashTags
 
-	Entry template variables:
-	fileId, areaName, areaDesc, userRating, fileName,
-	fileSize, fileDesc, fileDescShort, fileSha256, fileCrc32,
-	fileMd5, fileSha1, uploadBy, fileUploadTs, fileHashTags,
-	currentFile, progress,
+    Entry template variables:
+    fileId, areaName, areaDesc, userRating, fileName,
+    fileSize, fileDesc, fileDescShort, fileSha256, fileCrc32,
+    fileMd5, fileSha1, uploadBy, fileUploadTs, fileHashTags,
+    currentFile, progress,
 */
 
 exports.moduleInfo = {
-    name	: 'File Base List Export',
-    desc	: 'Exports file base listings for download',
-    author	: 'NuSkooler',
+    name    : 'File Base List Export',
+    desc    : 'Exports file base listings for download',
+    author  : 'NuSkooler',
 };
 
 const FormIds = {
-    main	: 0,
+    main    : 0,
 };
 
 const MciViewIds = {
     main : {
-        status				: 1,
-        progressBar			: 2,
+        status              : 1,
+        progressBar         : 2,
 
-        customRangeStart	: 10,
+        customRangeStart    : 10,
     }
 };
 
@@ -70,11 +70,11 @@ exports.getModule = class FileBaseListExport extends MenuModule {
         super(options);
         this.config = Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
 
-        this.config.templateEncoding	= this.config.templateEncoding || 'utf8';
-        this.config.tsFormat			= this.config.tsFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
-        this.config.descWidth			= this.config.descWidth || 45;	//	ie FILE_ID.DIZ
-        this.config.progBarChar			= renderSubstr( (this.config.progBarChar || '▒'), 0, 1);
-        this.config.compressThreshold	= this.config.compressThreshold || (1440000);	//	>= 1.44M by default :)
+        this.config.templateEncoding    = this.config.templateEncoding || 'utf8';
+        this.config.tsFormat            = this.config.tsFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
+        this.config.descWidth           = this.config.descWidth || 45;  //  ie FILE_ID.DIZ
+        this.config.progBarChar         = renderSubstr( (this.config.progBarChar || '▒'), 0, 1);
+        this.config.compressThreshold   = this.config.compressThreshold || (1440000);   //  >= 1.44M by default :)
     }
 
     mciReady(mciData, cb) {
@@ -154,7 +154,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
         async.waterfall(
             [
                 function buildList(callback) {
-                    //	this may take quite a while; temp disable of idle monitor
+                    //  this may take quite a while; temp disable of idle monitor
                     self.client.stopIdleMonitor();
 
                     self.client.on('key press', keyPressHandler);
@@ -165,12 +165,12 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                     }
 
                     const opts = {
-                        templateEncoding	: self.config.templateEncoding,
-                        headerTemplate		: _.get(self.config, 'templates.header', 'file_list_header.asc'),
-                        entryTemplate		: _.get(self.config, 'templates.entry', 'file_list_entry.asc'),
-                        tsFormat			: self.config.tsFormat,
-                        descWidth			: self.config.descWidth,
-                        progress			: exportListProgress,
+                        templateEncoding    : self.config.templateEncoding,
+                        headerTemplate      : _.get(self.config, 'templates.header', 'file_list_header.asc'),
+                        entryTemplate       : _.get(self.config, 'templates.entry', 'file_list_entry.asc'),
+                        tsFormat            : self.config.tsFormat,
+                        descWidth           : self.config.descWidth,
+                        progress            : exportListProgress,
                     };
 
                     exportFileList(filterCriteria, opts, (err, listBody) => {
@@ -180,8 +180,8 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                 function persistList(listBody, callback) {
                     updateStatus('Persisting list');
 
-                    const sysTempDownloadArea	= FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
-                    const sysTempDownloadDir	= FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
+                    const sysTempDownloadArea   = FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
+                    const sysTempDownloadDir    = FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
 
                     fse.mkdirs(sysTempDownloadDir, err => {
                         if(err) {
@@ -206,14 +206,14 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                 },
                 function persistFileEntry(outputFileName, fileSize, sysTempDownloadArea, callback) {
                     const newEntry = new FileEntry({
-                        areaTag		: sysTempDownloadArea.areaTag,
-                        fileName	: paths.basename(outputFileName),
-                        storageTag	: sysTempDownloadArea.storageTags[0],
-                        meta		: {
-                            upload_by_username	: self.client.user.username,
-                            upload_by_user_id	: self.client.user.userId,
-                            byte_size			: fileSize,
-                            session_temp_dl		: 1,	//	download is valid until session is over
+                        areaTag     : sysTempDownloadArea.areaTag,
+                        fileName    : paths.basename(outputFileName),
+                        storageTag  : sysTempDownloadArea.storageTags[0],
+                        meta        : {
+                            upload_by_username  : self.client.user.username,
+                            upload_by_user_id   : self.client.user.userId,
+                            byte_size           : fileSize,
+                            session_temp_dl     : 1,    //  download is valid until session is over
                         }
                     });
 
@@ -221,11 +221,11 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
                     newEntry.persist(err => {
                         if(!err) {
-                            //	queue it!
+                            //  queue it!
                             const dlQueue = new DownloadQueue(self.client);
-                            dlQueue.add(newEntry, true);	//	true=systemFile
+                            dlQueue.add(newEntry, true);    //  true=systemFile
 
-                            //	clean up after ourselves when the session ends
+                            //  clean up after ourselves when the session ends
                             const thisClientId = self.client.session.id;
                             Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
                                 if(thisClientId === _.get(evt, 'client.session.id')) {
@@ -243,7 +243,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                     });
                 },
                 function done(callback) {
-                    //	re-enable idle monitor
+                    //  re-enable idle monitor
                     self.client.startIdleMonitor();
 
                     updateStatus('Exported list has been added to your download queue');
@@ -264,7 +264,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
             }
 
             if(stats.size < this.config.compressThreshold) {
-                //	small enough, keep orig
+                //  small enough, keep orig
                 return cb(null, filePath, stats.size);
             }
 
@@ -276,13 +276,13 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                 const outZipFile = fs.createWriteStream(zipFilePath);
                 zipFile.outputStream.pipe(outZipFile);
                 zipFile.outputStream.on('finish', () => {
-                    //	delete the original
+                    //  delete the original
                     fse.unlink(filePath, err => {
                         if(err) {
                             return cb(err);
                         }
 
-                        //	finally stat the new output
+                        //  finally stat the new output
                         fse.stat(zipFilePath, (err, stats) => {
                             return cb(err, zipFilePath, stats ? stats.size : 0);
                         });

@@ -1,12 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config	= require('./config.js').get;
-const Log		= require('./logger.js').log;
+//  ENiGMA½
+const Config    = require('./config.js').get;
+const Log       = require('./logger.js').log;
 
-//	deps
-const assert	= require('assert');
+//  deps
+const assert    = require('assert');
 
 module.exports = function(condition, message) {
     if(Config().debug.assertsEnabled) {

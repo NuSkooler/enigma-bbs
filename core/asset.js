@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config	= require('./config.js').get;
-const StatLog	= require('./stat_log.js');
+//  ENiGMA½
+const Config    = require('./config.js').get;
+const StatLog   = require('./stat_log.js');
 
-//	deps
-const _			= require('lodash');
-const assert	= require('assert');
+//  deps
+const _         = require('lodash');
+const assert    = require('assert');
 
-exports.parseAsset				= parseAsset;
-exports.getAssetWithShorthand	= getAssetWithShorthand;
-exports.getArtAsset				= getArtAsset;
-exports.getModuleAsset			= getModuleAsset;
-exports.resolveConfigAsset		= resolveConfigAsset;
-exports.resolveSystemStatAsset	= resolveSystemStatAsset;
-exports.getViewPropertyAsset	= getViewPropertyAsset;
+exports.parseAsset              = parseAsset;
+exports.getAssetWithShorthand   = getAssetWithShorthand;
+exports.getArtAsset             = getArtAsset;
+exports.getModuleAsset          = getModuleAsset;
+exports.resolveConfigAsset      = resolveConfigAsset;
+exports.resolveSystemStatAsset  = resolveSystemStatAsset;
+exports.getViewPropertyAsset    = getViewPropertyAsset;
 
 const ALL_ASSETS = [
     'art',
@@ -39,9 +39,9 @@ function parseAsset(s) {
 
         if(m[3]) {
             result.location = m[2];
-            result.asset	= m[3];
+            result.asset    = m[3];
         } else {
-            result.asset	= m[2];
+            result.asset    = m[2];
         }
 
         return result;
@@ -61,8 +61,8 @@ function getAssetWithShorthand(spec, defaultType) {
     }
 
     return {
-        type	: defaultType,
-        asset	: spec,
+        type    : defaultType,
+        asset   : spec,
     };
 }
 
@@ -94,8 +94,8 @@ function resolveConfigAsset(spec) {
     if(asset) {
         assert('config' === asset.type);
 
-        const path	= asset.asset.split('.');
-        let conf	= Config();
+        const path  = asset.asset.split('.');
+        let conf    = Config();
         for(let i = 0; i < path.length; ++i) {
             if(_.isUndefined(conf[path[i]])) {
                 return spec;

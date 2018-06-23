@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule		= require('./menu_module.js').MenuModule;
-const ViewController	= require('./view_controller.js').ViewController;
-const StatLog			= require('./stat_log.js');
-const User				= require('./user.js');
-const stringFormat		= require('./string_format.js');
+//  ENiGMA½
+const MenuModule        = require('./menu_module.js').MenuModule;
+const ViewController    = require('./view_controller.js').ViewController;
+const StatLog           = require('./stat_log.js');
+const User              = require('./user.js');
+const stringFormat      = require('./string_format.js');
 
-//	deps
-const moment			= require('moment');
-const async				= require('async');
-const _					= require('lodash');
+//  deps
+const moment            = require('moment');
+const async             = require('async');
+const _                 = require('lodash');
 
 /*
-	Available listFormat object members:
-	userId
-	userName
-	location
-	affiliation
-	ts
+    Available listFormat object members:
+    userId
+    userName
+    location
+    affiliation
+    ts
 
 */
 
 exports.moduleInfo = {
-    name		: 'Last Callers',
-    desc		: 'Last callers to the system',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.lastcallers'
+    name        : 'Last Callers',
+    desc        : 'Last callers to the system',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.lastcallers'
 };
 
 const MciCodeIds = {
-    CallerList		: 1,
+    CallerList      : 1,
 };
 
 exports.getModule = class LastCallersModule extends MenuModule {
@@ -45,8 +45,8 @@ exports.getModule = class LastCallersModule extends MenuModule {
                 return cb(err);
             }
 
-            const self		= this;
-            const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            const self      = this;
+            const vc        = self.viewControllers.allViews = new ViewController( { client : self.client } );
 
             let loginHistory;
             let callersView;
@@ -55,9 +55,9 @@ exports.getModule = class LastCallersModule extends MenuModule {
                 [
                     function loadFromConfig(callback) {
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: mciData.menu,
-                            noInput			: true,
+                            callingMenu     : self,
+                            mciMap          : mciData.menu,
+                            noInput         : true,
                         };
 
                         vc.loadFromMenuConfig(loadOpts, callback);
@@ -65,18 +65,18 @@ exports.getModule = class LastCallersModule extends MenuModule {
                     function fetchHistory(callback) {
                         callersView = vc.getView(MciCodeIds.CallerList);
 
-                        //	fetch up
+                        //  fetch up
                         StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, 200, (err, lh) => {
                             loginHistory = lh;
 
                             if(self.menuConfig.config.hideSysOpLogin) {
                                 const noOpLoginHistory = loginHistory.filter(lh => {
-                                    return false === User.isRootUserId(parseInt(lh.log_value));	//	log_value=userId
+                                    return false === User.isRootUserId(parseInt(lh.log_value)); //  log_value=userId
                                 });
 
                                 //
-                                //	If we have enough items to display, or hideSysOpLogin is set to 'always',
-                                //	then set loginHistory to our filtered list. Else, we'll leave it be.
+                                //  If we have enough items to display, or hideSysOpLogin is set to 'always',
+                                //  then set loginHistory to our filtered list. Else, we'll leave it be.
                                 //
                                 if(noOpLoginHistory.length >= callersView.dimens.height || 'always' === self.menuConfig.config.hideSysOpLogin) {
                                     loginHistory = noOpLoginHistory;
@@ -84,7 +84,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
                             }
 
                             //
-                            //	Finally, we need to trim up the list to the needed size
+                            //  Finally, we need to trim up the list to the needed size
                             //
                             loginHistory = loginHistory.slice(0, callersView.dimens.height);
 
@@ -93,7 +93,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
                     },
                     function getUserNamesAndProperties(callback) {
                         const getPropOpts = {
-                            names		: [ 'location', 'affiliation' ]
+                            names       : [ 'location', 'affiliation' ]
                         };
 
                         const dateTimeFormat = self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
@@ -102,7 +102,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
                             loginHistory,
                             (item, next) => {
                                 item.userId = parseInt(item.log_value);
-                                item.ts		= moment(item.timestamp).format(dateTimeFormat);
+                                item.ts     = moment(item.timestamp).format(dateTimeFormat);
 
                                 User.getUserName(item.userId, (err, userName) => {
                                     if(err) {
@@ -113,11 +113,11 @@ exports.getModule = class LastCallersModule extends MenuModule {
 
                                         User.loadProperties(item.userId, getPropOpts, (err, props) => {
                                             if(!err && props) {
-                                                item.location 		= props.location || 'N/A';
-                                                item.affiliation	= item.affils = (props.affiliation || 'N/A');
+                                                item.location       = props.location || 'N/A';
+                                                item.affiliation    = item.affils = (props.affiliation || 'N/A');
                                             } else {
-                                                item.location		= 'N/A';
-                                                item.affiliation	= item.affils = 'N/A';
+                                                item.location       = 'N/A';
+                                                item.affiliation    = item.affils = 'N/A';
                                             }
                                             return next(null);
                                         });

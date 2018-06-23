@@ -1,17 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const View			= require('./view.js').View;
-const miscUtil		= require('./misc_util.js');
-const pipeToAnsi	= require('./color_codes.js').pipeToAnsi;
+//  ENiGMA½
+const View          = require('./view.js').View;
+const miscUtil      = require('./misc_util.js');
+const pipeToAnsi    = require('./color_codes.js').pipeToAnsi;
 
-//	deps
-const util			= require('util');
-const assert		= require('assert');
-const _				= require('lodash');
+//  deps
+const util          = require('util');
+const assert        = require('assert');
+const _             = require('lodash');
 
-exports.MenuView	= MenuView;
+exports.MenuView    = MenuView;
 
 function MenuView(options) {
     options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
@@ -38,14 +38,14 @@ function MenuView(options) {
     this.focusedItemIndex = options.focusedItemIndex || 0;
     this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
-    this.itemSpacing	= _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
+    this.itemSpacing    = _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
 
-    //	:TODO: probably just replace this with owner draw / pipe codes / etc. more control, less specialization
-    this.focusPrefix	= options.focusPrefix || '';
-    this.focusSuffix	= options.focusSuffix || '';
+    //  :TODO: probably just replace this with owner draw / pipe codes / etc. more control, less specialization
+    this.focusPrefix    = options.focusPrefix || '';
+    this.focusSuffix    = options.focusSuffix || '';
 
-    this.fillChar		= miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
-    this.justify		= options.justify || 'none';
+    this.fillChar       = miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
+    this.justify        = options.justify || 'none';
 
     this.hasFocusItems = function() {
         return !_.isUndefined(self.focusItems);
@@ -74,15 +74,15 @@ MenuView.prototype.setItems = function(items) {
         this.renderCache = {};
 
         //
-        //	Items can be an array of strings or an array of objects.
+        //  Items can be an array of strings or an array of objects.
         //
-        //	In the case of objects, items are considered complex and
-        //	may have one or more members that can later be formatted
-        //	against. The default member is 'text'. The member 'data'
-        //	may be overridden to provide a form value other than the
-        //	item's index.
+        //  In the case of objects, items are considered complex and
+        //  may have one or more members that can later be formatted
+        //  against. The default member is 'text'. The member 'data'
+        //  may be overridden to provide a form value other than the
+        //  item's index.
         //
-        //	Items can be formatted with 'itemFormat' and 'focusItemFormat'
+        //  Items can be formatted with 'itemFormat' and 'focusItemFormat'
         //
         let text;
         let stringItem;
@@ -96,7 +96,7 @@ MenuView.prototype.setItems = function(items) {
             }
 
             text = this.disablePipe ? text : pipeToAnsi(text, this.client);
-            return Object.assign({ }, { text }, stringItem ? {} : item);	//	ensure we have a text member, plus any others
+            return Object.assign({ }, { text }, stringItem ? {} : item);    //  ensure we have a text member, plus any others
         });
 
         if(this.complexItems) {
@@ -122,7 +122,7 @@ MenuView.prototype.setSort = function(sort) {
 
     const key = true === sort ? 'text' : sort;
     if('text' !== sort && !this.complexItems) {
-        return;	//	need a valid sort key
+        return; //  need a valid sort key
     }
 
     this.items.sort( (a, b) => {
@@ -237,26 +237,26 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
     itemSpacing = parseInt(itemSpacing);
     assert(_.isNumber(itemSpacing));
 
-    this.itemSpacing			= itemSpacing;
-    this.positionCacheExpired	= true;
+    this.itemSpacing            = itemSpacing;
+    this.positionCacheExpired   = true;
 };
 
 MenuView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
-        case 'itemSpacing' 		: this.setItemSpacing(value); break;
-        case 'items'			: this.setItems(value); break;
-        case 'focusItems'		: this.setFocusItems(value); break;
-        case 'hotKeys'			: this.setHotKeys(value); break;
-        case 'hotKeySubmit'		: this.hotKeySubmit = value; break;
-        case 'justify'			: this.justify = value; break;
-        case 'focusItemIndex'	: this.focusedItemIndex = value; break;
+        case 'itemSpacing'      : this.setItemSpacing(value); break;
+        case 'items'            : this.setItems(value); break;
+        case 'focusItems'       : this.setFocusItems(value); break;
+        case 'hotKeys'          : this.setHotKeys(value); break;
+        case 'hotKeySubmit'     : this.hotKeySubmit = value; break;
+        case 'justify'          : this.justify = value; break;
+        case 'focusItemIndex'   : this.focusedItemIndex = value; break;
 
         case 'itemFormat' :
         case 'focusItemFormat' :
             this[propName] = value;
             break;
 
-        case 'sort' 			: this.setSort(value); break;
+        case 'sort'             : this.setSort(value); break;
     }
 
     MenuView.super_.prototype.setPropertyValue.call(this, propName, value);

@@ -1,29 +1,29 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const ViewController		= require('./view_controller.js').ViewController;
-const messageArea			= require('./message_area.js');
-const displayThemeArt		= require('./theme.js').displayThemeArt;
-const resetScreen			= require('./ansi_term.js').resetScreen;
-const stringFormat			= require('./string_format.js');
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const ViewController        = require('./view_controller.js').ViewController;
+const messageArea           = require('./message_area.js');
+const displayThemeArt       = require('./theme.js').displayThemeArt;
+const resetScreen           = require('./ansi_term.js').resetScreen;
+const stringFormat          = require('./string_format.js');
 
-//	deps
-const async				= require('async');
-const _					= require('lodash');
+//  deps
+const async             = require('async');
+const _                 = require('lodash');
 
 exports.moduleInfo = {
-    name	: 'Message Conference List',
-    desc	: 'Module for listing / choosing message conferences',
-    author	: 'NuSkooler',
+    name    : 'Message Conference List',
+    desc    : 'Module for listing / choosing message conferences',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
-    ConfList	: 1,
+    ConfList    : 1,
 
-    //	:TODO:
-    //	# areas in conf .... see Obv/2, iNiQ, ...
+    //  :TODO:
+    //  # areas in conf .... see Obv/2, iNiQ, ...
     //
 };
 
@@ -37,9 +37,9 @@ exports.getModule = class MessageConfListModule extends MenuModule {
         this.menuMethods = {
             changeConference : function(formData, extraArgs, cb) {
                 if(1 === formData.submitId) {
-                    let conf		= self.messageConfs[formData.value.conf];
-                    const confTag	= conf.confTag;
-                    conf = conf.conf;	//	what we want is embedded
+                    let conf        = self.messageConfs[formData.value.conf];
+                    const confTag   = conf.confTag;
+                    conf = conf.conf;   //  what we want is embedded
 
                     messageArea.changeMessageConference(self.client, confTag, err => {
                         if(err) {
@@ -51,14 +51,14 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                         } else {
                             if(_.isString(conf.art)) {
                                 const dispOptions = {
-                                    client	: self.client,
-                                    name	: conf.art,
+                                    client  : self.client,
+                                    name    : conf.art,
                                 };
 
                                 self.client.term.rawWrite(resetScreen());
 
                                 displayThemeArt(dispOptions, () => {
-                                    //	pause by default, unless explicitly told not to
+                                    //  pause by default, unless explicitly told not to
                                     if(_.has(conf, 'options.pause') && false === conf.options.pause) {
                                         return self.prevMenuOnTimeout(1000, cb);
                                     } else {
@@ -91,23 +91,23 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                 return cb(err);
             }
 
-            const self	= this;
-            const vc	= self.viewControllers.areaList = new ViewController( { client : self.client } );
+            const self  = this;
+            const vc    = self.viewControllers.areaList = new ViewController( { client : self.client } );
 
             async.series(
                 [
                     function loadFromConfig(callback) {
                         let loadOpts = {
-                            callingMenu	: self,
-                            mciMap		: mciData.menu,
-                            formId		: 0,
+                            callingMenu : self,
+                            mciMap      : mciData.menu,
+                            formId      : 0,
                         };
 
                         vc.loadFromMenuConfig(loadOpts, callback);
                     },
                     function populateConfListView(callback) {
-                        const listFormat 		= self.menuConfig.config.listFormat || '{index} ) - {name}';
-                        const focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;
+                        const listFormat        = self.menuConfig.config.listFormat || '{index} ) - {name}';
+                        const focusListFormat   = self.menuConfig.config.focusListFormat || listFormat;
 
                         const confListView = vc.getView(MciViewIds.ConfList);
                         let i = 1;
@@ -135,7 +135,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                         callback(null);
                     },
                     function populateTextViews(callback) {
-                        //	:TODO: populate other avail MCI, e.g. current conf name
+                        //  :TODO: populate other avail MCI, e.g. current conf name
                         callback(null);
                     }
                 ],

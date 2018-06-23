@@ -1,28 +1,28 @@
 /* jslint node: true */
 'use strict';
 
-const Errors		= require('./enig_error.js').Errors;
+const Errors        = require('./enig_error.js').Errors;
 
-//	deps
-const iconv			= require('iconv-lite');
-const { Parser }	= require('binary-parser');
+//  deps
+const iconv         = require('iconv-lite');
+const { Parser }    = require('binary-parser');
 
-exports.readSAUCE		= readSAUCE;
+exports.readSAUCE       = readSAUCE;
 
-const SAUCE_SIZE	= 128;
-const SAUCE_ID		= Buffer.from([0x53, 0x41, 0x55, 0x43, 0x45]);	//	'SAUCE'
+const SAUCE_SIZE    = 128;
+const SAUCE_ID      = Buffer.from([0x53, 0x41, 0x55, 0x43, 0x45]);  //  'SAUCE'
 
-//	:TODO read comments
-//const COMNT_ID		= Buffer.from([0x43, 0x4f, 0x4d, 0x4e, 0x54]);	//	'COMNT'
+//  :TODO read comments
+//const COMNT_ID        = Buffer.from([0x43, 0x4f, 0x4d, 0x4e, 0x54]);  //  'COMNT'
 
-exports.SAUCE_SIZE		= SAUCE_SIZE;
-//	:TODO: SAUCE should be a class
-//	- with getFontName()
-//	- ...other methods
+exports.SAUCE_SIZE      = SAUCE_SIZE;
+//  :TODO: SAUCE should be a class
+//  - with getFontName()
+//  - ...other methods
 
 //
-//	See
-//	http://www.acid.org/info/sauce/sauce.htm
+//  See
+//  http://www.acid.org/info/sauce/sauce.htm
 //
 const SAUCE_VALID_DATA_TYPES = [0, 1, 2, 3, 4, 5, 6, 7, 8 ];
 
@@ -49,8 +49,8 @@ function readSAUCE(data, cb) {
             .uint16le('tinfo4')
             .int8('numComments')
             .int8('flags')
-            //	:TODO: does this need to be optional?
-            .buffer('tinfos', { length: 22 } )	//	SAUCE 00.5
+            //  :TODO: does this need to be optional?
+            .buffer('tinfos', { length: 22 } )  //  SAUCE 00.5
             .parse(data.slice(data.length - SAUCE_SIZE));
     } catch(e) {
         return cb(Errors.Invalid('Invalid SAUCE record'));
@@ -72,22 +72,22 @@ function readSAUCE(data, cb) {
     }
 
     const sauce = {
-        id 			: iconv.decode(sauceRec.id, 'cp437'),
-        version		: iconv.decode(sauceRec.version, 'cp437').trim(),
-        title		: iconv.decode(sauceRec.title, 'cp437').trim(),
-        author		: iconv.decode(sauceRec.author, 'cp437').trim(),
-        group		: iconv.decode(sauceRec.group, 'cp437').trim(),
-        date		: iconv.decode(sauceRec.date, 'cp437').trim(),
-        fileSize	: sauceRec.fileSize,
-        dataType	: sauceRec.dataType,
-        fileType	: sauceRec.fileType,
-        tinfo1		: sauceRec.tinfo1,
-        tinfo2		: sauceRec.tinfo2,
-        tinfo3		: sauceRec.tinfo3,
-        tinfo4		: sauceRec.tinfo4,
-        numComments	: sauceRec.numComments,
-        flags		: sauceRec.flags,
-        tinfos		: sauceRec.tinfos,
+        id          : iconv.decode(sauceRec.id, 'cp437'),
+        version     : iconv.decode(sauceRec.version, 'cp437').trim(),
+        title       : iconv.decode(sauceRec.title, 'cp437').trim(),
+        author      : iconv.decode(sauceRec.author, 'cp437').trim(),
+        group       : iconv.decode(sauceRec.group, 'cp437').trim(),
+        date        : iconv.decode(sauceRec.date, 'cp437').trim(),
+        fileSize    : sauceRec.fileSize,
+        dataType    : sauceRec.dataType,
+        fileType    : sauceRec.fileType,
+        tinfo1      : sauceRec.tinfo1,
+        tinfo2      : sauceRec.tinfo2,
+        tinfo3      : sauceRec.tinfo3,
+        tinfo4      : sauceRec.tinfo4,
+        numComments : sauceRec.numComments,
+        flags       : sauceRec.flags,
+        tinfos      : sauceRec.tinfos,
     };
 
     const dt = SAUCE_DATA_TYPES[sauce.dataType];
@@ -98,51 +98,51 @@ function readSAUCE(data, cb) {
     return cb(null, sauce);
 }
 
-//	:TODO: These need completed:
+//  :TODO: These need completed:
 const SAUCE_DATA_TYPES = {
-    0	: { name : 'None' },
-    1	: { name : 'Character', parser : parseCharacterSAUCE },
-    2 	: 'Bitmap',
-    3	: 'Vector',
-    4	: 'Audio',
-    5	: 'BinaryText',
-    6	: 'XBin',
-    7	: 'Archive',
-    8	: 'Executable',
+    0   : { name : 'None' },
+    1   : { name : 'Character', parser : parseCharacterSAUCE },
+    2   : 'Bitmap',
+    3   : 'Vector',
+    4   : 'Audio',
+    5   : 'BinaryText',
+    6   : 'XBin',
+    7   : 'Archive',
+    8   : 'Executable',
 };
 
 const SAUCE_CHARACTER_FILE_TYPES = {
-    0	: 'ASCII',
-    1	: 'ANSi',
-    2	: 'ANSiMation',
-    3	: 'RIP script',
-    4	: 'PCBoard',
-    5	: 'Avatar',
-    6	: 'HTML',
-    7	: 'Source',
-    8	: 'TundraDraw',
+    0   : 'ASCII',
+    1   : 'ANSi',
+    2   : 'ANSiMation',
+    3   : 'RIP script',
+    4   : 'PCBoard',
+    5   : 'Avatar',
+    6   : 'HTML',
+    7   : 'Source',
+    8   : 'TundraDraw',
 };
 
 //
-//	Map of SAUCE font -> encoding hint
+//  Map of SAUCE font -> encoding hint
 //
-//	Note that this is the same mapping that x84 uses. Be compatible!
+//  Note that this is the same mapping that x84 uses. Be compatible!
 //
 const SAUCE_FONT_TO_ENCODING_HINT = {
-    'Amiga MicroKnight'		: 'amiga',
-    'Amiga MicroKnight+'	: 'amiga',
-    'Amiga mOsOul'			: 'amiga',
-    'Amiga P0T-NOoDLE'		: 'amiga',
-    'Amiga Topaz 1'			: 'amiga',
-    'Amiga Topaz 1+'		: 'amiga',
-    'Amiga Topaz 2'			: 'amiga',
-    'Amiga Topaz 2+'		: 'amiga',
-    'Atari ATASCII'			: 'atari',
-    'IBM EGA43'				: 'cp437',
-    'IBM EGA'				: 'cp437',
-    'IBM VGA25G'			: 'cp437',
-    'IBM VGA50'				: 'cp437',
-    'IBM VGA'				: 'cp437',
+    'Amiga MicroKnight'     : 'amiga',
+    'Amiga MicroKnight+'    : 'amiga',
+    'Amiga mOsOul'          : 'amiga',
+    'Amiga P0T-NOoDLE'      : 'amiga',
+    'Amiga Topaz 1'         : 'amiga',
+    'Amiga Topaz 1+'        : 'amiga',
+    'Amiga Topaz 2'         : 'amiga',
+    'Amiga Topaz 2+'        : 'amiga',
+    'Atari ATASCII'         : 'atari',
+    'IBM EGA43'             : 'cp437',
+    'IBM EGA'               : 'cp437',
+    'IBM VGA25G'            : 'cp437',
+    'IBM VGA50'             : 'cp437',
+    'IBM VGA'               : 'cp437',
 };
 
 [
@@ -150,20 +150,20 @@ const SAUCE_FONT_TO_ENCODING_HINT = {
     '860', '861', '862', '863', '864', '865', '866', '869', '872'
 ].forEach( page => {
     const codec = 'cp' + page;
-    SAUCE_FONT_TO_ENCODING_HINT['IBM EGA43 ' + page]	= codec;
-    SAUCE_FONT_TO_ENCODING_HINT['IBM EGA ' + page]		= codec;
-    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA25g ' + page]	= codec;
-    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA50 ' + page]	= codec;
-    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA ' + page]		= codec;
+    SAUCE_FONT_TO_ENCODING_HINT['IBM EGA43 ' + page]    = codec;
+    SAUCE_FONT_TO_ENCODING_HINT['IBM EGA ' + page]      = codec;
+    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA25g ' + page]   = codec;
+    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA50 ' + page]    = codec;
+    SAUCE_FONT_TO_ENCODING_HINT['IBM VGA ' + page]      = codec;
 });
 
 function parseCharacterSAUCE(sauce) {
     const result = {};
 
-    result.fileType	= SAUCE_CHARACTER_FILE_TYPES[sauce.fileType] || 'Unknown';
+    result.fileType = SAUCE_CHARACTER_FILE_TYPES[sauce.fileType] || 'Unknown';
 
     if(sauce.fileType === 0 || sauce.fileType === 1 || sauce.fileType === 2) {
-        //	convience: create ansiFlags
+        //  convience: create ansiFlags
         sauce.ansiFlags = sauce.flags;
 
         let i = 0;

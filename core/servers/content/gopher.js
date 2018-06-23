@@ -1,62 +1,62 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Log					= require('../../logger.js').log;
-const { ServerModule }		= require('../../server_module.js');
-const Config				= require('../../config.js').get;
+//  ENiGMA½
+const Log                   = require('../../logger.js').log;
+const { ServerModule }      = require('../../server_module.js');
+const Config                = require('../../config.js').get;
 const {
     splitTextAtTerms,
     isAnsi,
     cleanControlCodes
-}							= require('../../string_util.js');
+}                           = require('../../string_util.js');
 const {
     getMessageConferenceByTag,
     getMessageAreaByTag,
     getMessageListForArea,
-}							= require('../../message_area.js');
-const { sortAreasOrConfs }	= require('../../conf_area_util.js');
-const AnsiPrep				= require('../../ansi_prep.js');
+}                           = require('../../message_area.js');
+const { sortAreasOrConfs }  = require('../../conf_area_util.js');
+const AnsiPrep              = require('../../ansi_prep.js');
 
-//	deps
-const net					= require('net');
-const _						= require('lodash');
-const fs					= require('graceful-fs');
-const paths					= require('path');
-const moment				= require('moment');
+//  deps
+const net                   = require('net');
+const _                     = require('lodash');
+const fs                    = require('graceful-fs');
+const paths                 = require('path');
+const moment                = require('moment');
 
 const ModuleInfo = exports.moduleInfo = {
-    name		: 'Gopher',
-    desc		: 'Gopher Server',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.gopher.server',
+    name        : 'Gopher',
+    desc        : 'Gopher Server',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.gopher.server',
 };
 
-const Message				= require('../../message.js');
+const Message               = require('../../message.js');
 
 const ItemTypes = {
-    Invalid				: '',	//	not really a type, of course!
+    Invalid             : '',   //  not really a type, of course!
 
-    //	Canonical, RFC-1436
-    TextFile			: '0',
-    SubMenu				: '1',
-    CCSONameserver		: '2',
-    Error				: '3',
-    BinHexFile			: '4',
-    DOSFile				: '5',
-    UuEncodedFile		: '6',
-    FullTextSearch		: '7',
-    Telnet				: '8',
-    BinaryFile			: '9',
-    AltServer			: '+',
-    GIFFile				: 'g',
-    ImageFile			: 'I',
-    Telnet3270			: 'T',
+    //  Canonical, RFC-1436
+    TextFile            : '0',
+    SubMenu             : '1',
+    CCSONameserver      : '2',
+    Error               : '3',
+    BinHexFile          : '4',
+    DOSFile             : '5',
+    UuEncodedFile       : '6',
+    FullTextSearch      : '7',
+    Telnet              : '8',
+    BinaryFile          : '9',
+    AltServer           : '+',
+    GIFFile             : 'g',
+    ImageFile           : 'I',
+    Telnet3270          : 'T',
 
-    //	Non-canonical
-    HtmlFile			: 'h',
-    InfoMessage			: 'i',
-    SoundFile			: 's',
+    //  Non-canonical
+    HtmlFile            : 'h',
+    InfoMessage         : 'i',
+    SoundFile           : 's',
 };
 
 exports.getModule = class GopherModule extends ServerModule {
@@ -64,7 +64,7 @@ exports.getModule = class GopherModule extends ServerModule {
     constructor() {
         super();
 
-        this.routes = new Map();	//	selector->generator => gopher item
+        this.routes = new Map();    //  selector->generator => gopher item
         this.log = Log.child( { server : 'Gopher' } );
     }
 
@@ -75,7 +75,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
         const config = Config();
         this.publicHostname = config.contentServers.gopher.publicHostname;
-        this.publicPort		= config.contentServers.gopher.publicPort;
+        this.publicPort     = config.contentServers.gopher.publicPort;
 
         this.addRoute(/^\/?\r\n$/, this.defaultGenerator);
         this.addRoute(/^\/msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
@@ -88,7 +88,7 @@ exports.getModule = class GopherModule extends ServerModule {
             });
 
             socket.on('error', err => {
-                if('ECONNRESET' !== err.code) {	//	normal
+                if('ECONNRESET' !== err.code) { //  normal
                     this.log.trace( { error : err.message }, 'Socket error');
                 }
             });
@@ -97,7 +97,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
     listen() {
         if(!this.enabled) {
-            return true;	//	nothing to do, but not an error
+            return true;    //  nothing to do, but not an error
         }
 
         const config = Config();
@@ -115,10 +115,10 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     isConfigured() {
-        //	public hostname & port must be set; responses contain them!
+        //  public hostname & port must be set; responses contain them!
         const config = Config();
         return _.isString(_.get(config, 'contentServers.gopher.publicHostname')) &&
-			_.isNumber(_.get(config, 'contentServers.gopher.publicPort'));
+            _.isNumber(_.get(config, 'contentServers.gopher.publicPort'));
     }
 
     addRoute(selectorRegExp, generatorHandler) {
@@ -149,7 +149,7 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     makeItem(itemType, text, selector, hostname, port) {
-        selector = selector || '';	//	e.g. for info
+        selector = selector || '';  //  e.g. for info
         hostname = hostname || this.publicHostname;
         port = port || this.publicPort;
         return `${itemType}${text}\t${selector}\t${hostname}\t${port}\r\n`;
@@ -186,10 +186,10 @@ exports.getModule = class GopherModule extends ServerModule {
             AnsiPrep(
                 body,
                 {
-                    cols			: 79,				//	Gopher std. wants 70, but we'll have to deal with it.
-                    forceLineTerm	: true,				//	ensure each line is term'd
-                    asciiMode		: true,				//	export to ASCII
-                    fillLines		: false,			//	don't fill up to |cols|
+                    cols            : 79,               //  Gopher std. wants 70, but we'll have to deal with it.
+                    forceLineTerm   : true,             //  ensure each line is term'd
+                    asciiMode       : true,             //  export to ASCII
+                    fillLines       : false,            //  don't fill up to |cols|
                 },
                 (err, prepped) => {
                     return cb(prepped || body);
@@ -207,21 +207,21 @@ exports.getModule = class GopherModule extends ServerModule {
     messageAreaGenerator(selectorMatch, cb) {
         this.log.trace( { selector : selectorMatch[0] }, 'Serving message area content');
         //
-        //	Selector should be:
-        //	/msgarea - list confs
-        //	/msgarea/conftag - list areas in conf
-        //	/msgarea/conftag/areatag - list messages in area
-        //	/msgarea/conftag/areatag/<UUID> - message as text
-        //	/msgarea/conftag/areatag/<UUID>_raw - full message as text + headers
+        //  Selector should be:
+        //  /msgarea - list confs
+        //  /msgarea/conftag - list areas in conf
+        //  /msgarea/conftag/areatag - list messages in area
+        //  /msgarea/conftag/areatag/<UUID> - message as text
+        //  /msgarea/conftag/areatag/<UUID>_raw - full message as text + headers
         //
         if(selectorMatch[3] || selectorMatch[4]) {
-            //	message
+            //  message
             //const raw = selectorMatch[4] ? true : false;
-            //	:TODO: support 'raw'
-            const msgUuid	= selectorMatch[3].replace(/\r\n|\//g, '');
-            const confTag	= selectorMatch[1].substr(1).split('/')[0];
-            const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
-            const message 	= new Message();
+            //  :TODO: support 'raw'
+            const msgUuid   = selectorMatch[3].replace(/\r\n|\//g, '');
+            const confTag   = selectorMatch[1].substr(1).split('/')[0];
+            const areaTag   = selectorMatch[2].replace(/\r\n|\//g, '');
+            const message   = new Message();
 
             return message.load( { uuid : msgUuid }, err => {
                 if(err) {
@@ -248,15 +248,15 @@ Subject: ${message.subject}
 ID     : ${message.messageUuid} (${message.messageId})
 ${'-'.repeat(70)}
 ${msgBody}
-	`;
+    `;
                     return cb(response);
                 });
             });
         } else if(selectorMatch[2]) {
-            //	list messages in area
-            const confTag	= selectorMatch[1].substr(1).split('/')[0];
-            const areaTag	= selectorMatch[2].replace(/\r\n|\//g, '');
-            const area		= getMessageAreaByTag(areaTag);
+            //  list messages in area
+            const confTag   = selectorMatch[1].substr(1).split('/')[0];
+            const areaTag   = selectorMatch[2].replace(/\r\n|\//g, '');
+            const area      = getMessageAreaByTag(areaTag);
 
             if(Message.isPrivateAreaTag(areaTag)) {
                 this.log.warn( { areaTag }, 'Attempted access to private area!');
@@ -283,10 +283,10 @@ ${msgBody}
                 return cb(response);
             });
         } else if(selectorMatch[1]) {
-            //	list areas in conf
+            //  list areas in conf
             const sysConfig = Config();
-            const confTag	= selectorMatch[1].replace(/\r\n|\//g, '');
-            const conf		= _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
+            const confTag   = selectorMatch[1].replace(/\r\n|\//g, '');
+            const conf      = _.get(sysConfig, [ 'contentServers', 'gopher', 'messageConferences', confTag ]) && getMessageConferenceByTag(confTag);
             if(!conf) {
                 return this.notFoundGenerator(selectorMatch, cb);
             }
@@ -310,10 +310,10 @@ ${msgBody}
 
             return cb(response);
         } else {
-            //	message area base (list confs)
+            //  message area base (list confs)
             const confs = Object.keys(_.get(Config(), 'contentServers.gopher.messageConferences', {}))
                 .map(confTag => Object.assign( { confTag }, getMessageConferenceByTag(confTag)))
-                .filter(conf => conf);	//	remove any baddies
+                .filter(conf => conf);  //  remove any baddies
 
             if(0 === confs.length) {
                 return cb(this.makeItem(ItemTypes.InfoMessage, 'No message conferences available'));

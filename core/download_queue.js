@@ -1,14 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-const FileEntry		= require('./file_entry.js');
+const FileEntry     = require('./file_entry.js');
 
-//	deps
-const { partition }	= require('lodash');
+//  deps
+const { partition } = require('lodash');
 
 module.exports = class DownloadQueue {
     constructor(client) {
-        this.client	= client;
+        this.client = client;
 
         if(!Array.isArray(this.client.user.downloadQueue)) {
             if(this.client.user.properties.dl_queue) {
@@ -37,12 +37,12 @@ module.exports = class DownloadQueue {
 
     add(fileEntry, systemFile=false) {
         this.client.user.downloadQueue.push({
-            fileId		: fileEntry.fileId,
-            areaTag		: fileEntry.areaTag,
-            fileName	: fileEntry.fileName,
-            path		: fileEntry.filePath,
-            byteSize	: fileEntry.meta.byte_size || 0,
-            systemFile	: systemFile,
+            fileId      : fileEntry.fileId,
+            areaTag     : fileEntry.areaTag,
+            fileName    : fileEntry.fileName,
+            path        : fileEntry.filePath,
+            byteSize    : fileEntry.meta.byte_size || 0,
+            systemFile  : systemFile,
         });
     }
 

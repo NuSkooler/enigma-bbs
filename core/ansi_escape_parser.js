@@ -1,16 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-const miscUtil	= require('./misc_util.js');
-const ansi		= require('./ansi_term.js');
-const Log		= require('./logger.js').log;
+const miscUtil  = require('./misc_util.js');
+const ansi      = require('./ansi_term.js');
+const Log       = require('./logger.js').log;
 
-//	deps
-const events	= require('events');
-const util		= require('util');
-const _			= require('lodash');
+//  deps
+const events    = require('events');
+const util      = require('util');
+const _         = require('lodash');
 
-exports.ANSIEscapeParser		= ANSIEscapeParser;
+exports.ANSIEscapeParser        = ANSIEscapeParser;
 
 const CR = 0x0d;
 const LF = 0x0a;
@@ -20,76 +20,76 @@ function ANSIEscapeParser(options) {
 
     events.EventEmitter.call(this);
 
-    this.column				= 1;
-    this.row				= 1;
-    this.scrollBack			= 0;
-    this.graphicRendition	= {};
+    this.column             = 1;
+    this.row                = 1;
+    this.scrollBack         = 0;
+    this.graphicRendition   = {};
 
     this.parseState = {
-        re	: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,	//	eslint-disable-line no-control-regex
+        re  : /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,   //  eslint-disable-line no-control-regex
     };
 
     options = miscUtil.valueWithDefault(options, {
-        mciReplaceChar		: '',
-        termHeight			: 25,
-        termWidth			: 80,
-        trailingLF			: 'default',	//	default|omit|no|yes, ...
+        mciReplaceChar      : '',
+        termHeight          : 25,
+        termWidth           : 80,
+        trailingLF          : 'default',    //  default|omit|no|yes, ...
     });
 
-    this.mciReplaceChar		= miscUtil.valueWithDefault(options.mciReplaceChar, '');
-    this.termHeight			= miscUtil.valueWithDefault(options.termHeight, 25);
-    this.termWidth			= miscUtil.valueWithDefault(options.termWidth, 80);
-    this.trailingLF			= miscUtil.valueWithDefault(options.trailingLF, 'default');
+    this.mciReplaceChar     = miscUtil.valueWithDefault(options.mciReplaceChar, '');
+    this.termHeight         = miscUtil.valueWithDefault(options.termHeight, 25);
+    this.termWidth          = miscUtil.valueWithDefault(options.termWidth, 80);
+    this.trailingLF         = miscUtil.valueWithDefault(options.trailingLF, 'default');
 
     self.moveCursor = function(cols, rows) {
-        self.column	+= cols;
-        self.row	+= rows;
+        self.column += cols;
+        self.row    += rows;
 
-        self.column	= Math.max(self.column, 1);
-        self.column	= Math.min(self.column, self.termWidth);	//	can't move past term width
-        self.row	= Math.max(self.row, 1);
+        self.column = Math.max(self.column, 1);
+        self.column = Math.min(self.column, self.termWidth);    //  can't move past term width
+        self.row    = Math.max(self.row, 1);
 
         self.positionUpdated();
     };
 
     self.saveCursorPosition = function() {
         self.savedPosition = {
-            row		: self.row,
-            column	: self.column
+            row     : self.row,
+            column  : self.column
         };
     };
 
     self.restoreCursorPosition = function() {
-        self.row	= self.savedPosition.row;
-        self.column	= self.savedPosition.column;
+        self.row    = self.savedPosition.row;
+        self.column = self.savedPosition.column;
         delete self.savedPosition;
 
         self.positionUpdated();
-        //		self.rowUpdated();
+        //      self.rowUpdated();
     };
 
     self.clearScreen = function() {
-        //	:TODO: should be doing something with row/column?
+        //  :TODO: should be doing something with row/column?
         self.emit('clear screen');
     };
 
     /*
-	self.rowUpdated = function() {
-		self.emit('row update', self.row + self.scrollBack);
-	};*/
+    self.rowUpdated = function() {
+        self.emit('row update', self.row + self.scrollBack);
+    };*/
 
     self.positionUpdated = function() {
         self.emit('position update', self.row, self.column);
     };
 
     function literal(text) {
-        const len	= text.length;
-        let pos		= 0;
-        let start	= 0;
+        const len   = text.length;
+        let pos     = 0;
+        let start   = 0;
         let charCode;
 
         while(pos < len) {
-            charCode = text.charCodeAt(pos) & 0xff;	//	8bit clean
+            charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
 
             switch(charCode) {
                 case CR :
@@ -116,7 +116,7 @@ function ANSIEscapeParser(options) {
                         start = pos + 1;
 
                         self.column = 1;
-                        self.row	+= 1;
+                        self.row    += 1;
 
                         self.positionUpdated();
                     } else {
@@ -129,11 +129,11 @@ function ANSIEscapeParser(options) {
         }
 
         //
-        //	Finalize this chunk
+        //  Finalize this chunk
         //
         if(self.column > self.termWidth) {
             self.column = 1;
-            self.row	+= 1;
+            self.row    += 1;
 
             self.positionUpdated();
         }
@@ -145,7 +145,7 @@ function ANSIEscapeParser(options) {
     }
 
     function parseMCI(buffer) {
-        //	:TODO: move this to "constants" seciton @ top
+        //  :TODO: move this to "constants" seciton @ top
         var mciRe = /%([A-Z]{2})([0-9]{1,2})?(?:\(([0-9A-Za-z,]+)\))*/g;
         var pos = 0;
         var match;
@@ -154,16 +154,16 @@ function ANSIEscapeParser(options) {
         var id;
 
         do {
-            pos		= mciRe.lastIndex;
-            match	= mciRe.exec(buffer);
+            pos     = mciRe.lastIndex;
+            match   = mciRe.exec(buffer);
 
             if(null !== match) {
                 if(match.index > pos) {
                     literal(buffer.slice(pos, match.index));
                 }
 
-                mciCode	= match[1];
-                id		= match[2] || null;
+                mciCode = match[1];
+                id      = match[2] || null;
 
                 if(match[3]) {
                     args = match[3].split(',');
@@ -171,7 +171,7 @@ function ANSIEscapeParser(options) {
                     args = [];
                 }
 
-                //	if MCI codes are changing, save off the current color
+                //  if MCI codes are changing, save off the current color
                 var fullMciCode = mciCode + (id || '');
                 if(self.lastMciCode !== fullMciCode) {
 
@@ -182,10 +182,10 @@ function ANSIEscapeParser(options) {
 
 
                 self.emit('mci', {
-                    mci		: mciCode,
-                    id		: id ? parseInt(id, 10) : null,
-                    args	: args,
-                    SGR		: ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
+                    mci     : mciCode,
+                    id      : id ? parseInt(id, 10) : null,
+                    args    : args,
+                    SGR     : ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
                 });
 
                 if(self.mciReplaceChar.length > 0) {
@@ -208,10 +208,10 @@ function ANSIEscapeParser(options) {
 
     self.reset = function(input) {
         self.parseState = {
-            //	ignore anything past EOF marker, if any
-            buffer	: input.split(String.fromCharCode(0x1a), 1)[0],
-            re		: /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,	//	eslint-disable-line no-control-regex
-            stop	: false,
+            //  ignore anything past EOF marker, if any
+            buffer  : input.split(String.fromCharCode(0x1a), 1)[0],
+            re      : /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,   //  eslint-disable-line no-control-regex
+            stop    : false,
         };
     };
 
@@ -224,13 +224,13 @@ function ANSIEscapeParser(options) {
             self.reset(input);
         }
 
-        //	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
+        //  :TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
         var pos;
         var match;
         var opCode;
         var args;
-        var re		= self.parseState.re;
-        var buffer	= self.parseState.buffer;
+        var re      = self.parseState.re;
+        var buffer  = self.parseState.buffer;
 
         self.parseState.stop = false;
 
@@ -239,16 +239,16 @@ function ANSIEscapeParser(options) {
                 return;
             }
 
-            pos		= re.lastIndex;
-            match	= re.exec(buffer);
+            pos     = re.lastIndex;
+            match   = re.exec(buffer);
 
             if(null !== match) {
                 if(match.index > pos) {
                     parseMCI(buffer.slice(pos, match.index));
                 }
 
-                opCode	= match[2];
-                args	= match[1].split(';').map(v => parseInt(v, 10));	//	convert to array of ints
+                opCode  = match[2];
+                args    = match[1].split(';').map(v => parseInt(v, 10));    //  convert to array of ints
 
                 escape(opCode, args);
 
@@ -260,13 +260,13 @@ function ANSIEscapeParser(options) {
         if(pos < buffer.length) {
             var lastBit = buffer.slice(pos);
 
-            //	:TODO: check for various ending LF's, not just DOS \r\n
+            //  :TODO: check for various ending LF's, not just DOS \r\n
             if('\r\n' === lastBit.slice(-2).toString()) {
                 switch(self.trailingLF) {
                     case 'default' :
                         //
-                        //	Default is to *not* omit the trailing LF
-                        //	if we're going to end on termHeight
+                        //  Default is to *not* omit the trailing LF
+                        //  if we're going to end on termHeight
                         //
                         if(this.termHeight === self.row) {
                             lastBit = lastBit.slice(0, -2);
@@ -288,100 +288,100 @@ function ANSIEscapeParser(options) {
     };
 
     /*
-	self.parse = function(buffer, savedRe) {
-		//	:TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
-		//	:TODO: move this to "constants" section @ top
-		var re	= /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
-		var pos = 0;
-		var match;
-		var opCode;
-		var args;
+    self.parse = function(buffer, savedRe) {
+        //  :TODO: ensure this conforms to ANSI-BBS / CTerm / bansi.txt for movement/etc.
+        //  :TODO: move this to "constants" section @ top
+        var re  = /(?:\x1b\x5b)([\?=;0-9]*?)([ABCDHJKfhlmnpsu])/g;
+        var pos = 0;
+        var match;
+        var opCode;
+        var args;
 
-		//	ignore anything past EOF marker, if any
-		buffer = buffer.split(String.fromCharCode(0x1a), 1)[0];
+        //  ignore anything past EOF marker, if any
+        buffer = buffer.split(String.fromCharCode(0x1a), 1)[0];
 
-		do {
-			pos		= re.lastIndex;
-			match	= re.exec(buffer);
+        do {
+            pos     = re.lastIndex;
+            match   = re.exec(buffer);
 
-			if(null !== match) {
-				if(match.index > pos) {
-					parseMCI(buffer.slice(pos, match.index));
-				}
+            if(null !== match) {
+                if(match.index > pos) {
+                    parseMCI(buffer.slice(pos, match.index));
+                }
 
-				opCode	= match[2];
-				args	= getArgArray(match[1].split(';'));
+                opCode  = match[2];
+                args    = getArgArray(match[1].split(';'));
 
-				escape(opCode, args);
+                escape(opCode, args);
 
-				self.emit('chunk', match[0]);
-			}
+                self.emit('chunk', match[0]);
+            }
 
 
 
-		} while(0 !== re.lastIndex);
+        } while(0 !== re.lastIndex);
 
-		if(pos < buffer.length) {
-			parseMCI(buffer.slice(pos));
-		}
+        if(pos < buffer.length) {
+            parseMCI(buffer.slice(pos));
+        }
 
-		self.emit('complete');
-	};
-	*/
+        self.emit('complete');
+    };
+    */
 
     function escape(opCode, args) {
         let arg;
 
         switch(opCode) {
-            //	cursor up
+            //  cursor up
             case 'A' :
                 //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(0, -arg);
                 break;
 
-                //	cursor down
+                //  cursor down
             case 'B' :
                 //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(0, arg);
                 break;
 
-                //	cursor forward/right
+                //  cursor forward/right
             case 'C' :
                 //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(arg, 0);
                 break;
 
-                //	cursor back/left
+                //  cursor back/left
             case 'D' :
                 //arg = args[0] || 1;
                 arg = isNaN(args[0]) ? 1 : args[0];
                 self.moveCursor(-arg, 0);
                 break;
 
-            case 'f' :	//	horiz & vertical
-            case 'H' :	//	cursor position
-                //self.row	= args[0] || 1;
-                //self.column	= args[1] || 1;
-                self.row	= isNaN(args[0]) ? 1 : args[0];
-                self.column	= isNaN(args[1]) ? 1 : args[1];
+            case 'f' :  //  horiz & vertical
+            case 'H' :  //  cursor position
+                //self.row  = args[0] || 1;
+                //self.column   = args[1] || 1;
+                self.row    = isNaN(args[0]) ? 1 : args[0];
+                self.column = isNaN(args[1]) ? 1 : args[1];
                 //self.rowUpdated();
                 self.positionUpdated();
                 break;
 
-                //	save position
+                //  save position
             case 's' :
                 self.saveCursorPosition();
                 break;
 
-                //	restore position
+                //  restore position
             case 'u' :
                 self.restoreCursorPosition();
                 break;
 
-                //	set graphic rendition
+                //  set graphic rendition
             case 'm' :
                 self.graphicRendition.reset = false;
 
@@ -395,7 +395,7 @@ function ANSIEscapeParser(options) {
                     } else if(ANSIEscapeParser.styles[arg]) {
                         switch(arg) {
                             case 0 :
-                                //	clear out everything
+                                //  clear out everything
                                 delete self.graphicRendition.intensity;
                                 delete self.graphicRendition.underline;
                                 delete self.graphicRendition.blink;
@@ -445,13 +445,13 @@ function ANSIEscapeParser(options) {
                 }
 
                 self.emit('sgr update', self.graphicRendition);
-                break;	//	m
+                break;  //  m
 
-                //	:TODO: s, u, K
+                //  :TODO: s, u, K
 
-                //	erase display/screen
+                //  erase display/screen
             case 'J' :
-                //	:TODO: Handle other 'J' types!
+                //  :TODO: Handle other 'J' types!
                 if(2 === args[0]) {
                     self.clearScreen();
                 }
@@ -463,62 +463,62 @@ function ANSIEscapeParser(options) {
 util.inherits(ANSIEscapeParser, events.EventEmitter);
 
 ANSIEscapeParser.foregroundColors = {
-    30	: 'black',
-    31	: 'red',
-    32	: 'green',
-    33	: 'yellow',
-    34	: 'blue',
-    35	: 'magenta',
-    36	: 'cyan',
-    37	: 'white',
-    39	: 'default',	//	same as white for most implementations
+    30  : 'black',
+    31  : 'red',
+    32  : 'green',
+    33  : 'yellow',
+    34  : 'blue',
+    35  : 'magenta',
+    36  : 'cyan',
+    37  : 'white',
+    39  : 'default',    //  same as white for most implementations
 
-    90	: 'grey'
+    90  : 'grey'
 };
 Object.freeze(ANSIEscapeParser.foregroundColors);
 
 ANSIEscapeParser.backgroundColors = {
-    40	: 'black',
-    41	: 'red',
-    42	: 'green',
-    43	: 'yellow',
-    44	: 'blue',
-    45	: 'magenta',
-    46	: 'cyan',
-    47	: 'white',
-    49	: 'default',	//	same as black for most implementations
+    40  : 'black',
+    41  : 'red',
+    42  : 'green',
+    43  : 'yellow',
+    44  : 'blue',
+    45  : 'magenta',
+    46  : 'cyan',
+    47  : 'white',
+    49  : 'default',    //  same as black for most implementations
 };
 Object.freeze(ANSIEscapeParser.backgroundColors);
 
-//	:TODO: ensure these names all align with that of ansi_term.js
+//  :TODO: ensure these names all align with that of ansi_term.js
 //
-//	See the following specs:
-//	* http://www.ansi-bbs.org/ansi-bbs-core-server.html
-//	* http://www.vt100.net/docs/vt510-rm/SGR
-//	* https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
+//  See the following specs:
+//  * http://www.ansi-bbs.org/ansi-bbs-core-server.html
+//  * http://www.vt100.net/docs/vt510-rm/SGR
+//  * https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt
 //
-//	Note that these are intentionally not in order such that they
-//	can be grouped by concept here in code.
+//  Note that these are intentionally not in order such that they
+//  can be grouped by concept here in code.
 //
 ANSIEscapeParser.styles = {
-    0		: 'default',			//	Everything disabled
+    0       : 'default',            //  Everything disabled
 
-    1		: 'intensityBright',	//	aka bold
-    2		: 'intensityDim',
-    22		: 'intensityNormal',
+    1       : 'intensityBright',    //  aka bold
+    2       : 'intensityDim',
+    22      : 'intensityNormal',
 
-    4		: 'underlineOn',		//	Not supported by most BBS-like terminals
-    24		: 'underlineOff',		//	Not supported by most BBS-like terminals
+    4       : 'underlineOn',        //  Not supported by most BBS-like terminals
+    24      : 'underlineOff',       //  Not supported by most BBS-like terminals
 
-    5		: 'blinkSlow',			//	blinkSlow & blinkFast are generally treated the same
-    6		: 'blinkFast',			//	blinkSlow & blinkFast are generally treated the same
-    25		: 'blinkOff',
+    5       : 'blinkSlow',          //  blinkSlow & blinkFast are generally treated the same
+    6       : 'blinkFast',          //  blinkSlow & blinkFast are generally treated the same
+    25      : 'blinkOff',
 
-    7		: 'negativeImageOn',	//	Generally not supported or treated as "reverse FG & BG"
-    27		: 'negativeImageOff',	//	Generally not supported or treated as "reverse FG & BG"
+    7       : 'negativeImageOn',    //  Generally not supported or treated as "reverse FG & BG"
+    27      : 'negativeImageOff',   //  Generally not supported or treated as "reverse FG & BG"
 
-    8		: 'invisibleOn',		//	FG set to BG
-    28		: 'invisibleOff',		//	Not supported by most BBS-like terminals
+    8       : 'invisibleOn',        //  FG set to BG
+    28      : 'invisibleOff',       //  Not supported by most BBS-like terminals
 };
 Object.freeze(ANSIEscapeParser.styles);
 

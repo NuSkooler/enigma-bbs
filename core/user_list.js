@@ -1,35 +1,35 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule		= require('./menu_module.js').MenuModule;
-const User				= require('./user.js');
-const ViewController	= require('./view_controller.js').ViewController;
-const stringFormat		= require('./string_format.js');
+const MenuModule        = require('./menu_module.js').MenuModule;
+const User              = require('./user.js');
+const ViewController    = require('./view_controller.js').ViewController;
+const stringFormat      = require('./string_format.js');
 
-const moment			= require('moment');
-const async				= require('async');
-const _					= require('lodash');
+const moment            = require('moment');
+const async             = require('async');
+const _                 = require('lodash');
 
 /*
-	Available listFormat/focusListFormat object members:
+    Available listFormat/focusListFormat object members:
 
-	userId			: User ID
-	userName		: User name/handle
-	lastLoginTs		: Last login timestamp
-	status			: Status: active | inactive
-	location		: Location
-	affiliation		: Affils
-	note			: User note
+    userId          : User ID
+    userName        : User name/handle
+    lastLoginTs     : Last login timestamp
+    status          : Status: active | inactive
+    location        : Location
+    affiliation     : Affils
+    note            : User note
 */
 
 exports.moduleInfo = {
-    name		: 'User List',
-    desc		: 'Lists all system users',
-    author		: 'NuSkooler',
+    name        : 'User List',
+    desc        : 'Lists all system users',
+    author      : 'NuSkooler',
 };
 
 const MciViewIds = {
-    UserList	: 1,
+    UserList    : 1,
 };
 
 exports.getModule = class UserListModule extends MenuModule {
@@ -43,8 +43,8 @@ exports.getModule = class UserListModule extends MenuModule {
                 return cb(err);
             }
 
-            const self		= this;
-            const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            const self      = this;
+            const vc        = self.viewControllers.allViews = new ViewController( { client : self.client } );
 
             let userList = [];
 
@@ -56,14 +56,14 @@ exports.getModule = class UserListModule extends MenuModule {
                 [
                     function loadFromConfig(callback) {
                         var loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: mciData.menu,
+                            callingMenu     : self,
+                            mciMap          : mciData.menu,
                         };
 
                         vc.loadFromMenuConfig(loadOpts, callback);
                     },
                     function fetchUserList(callback) {
-                        //	:TODO: Currently fetching all users - probably always OK, but this could be paged
+                        //  :TODO: Currently fetching all users - probably always OK, but this could be paged
                         User.getUserList(USER_LIST_OPTS, function got(err, ul) {
                             userList = ul;
                             callback(err);
@@ -72,19 +72,19 @@ exports.getModule = class UserListModule extends MenuModule {
                     function populateList(callback) {
                         var userListView = vc.getView(MciViewIds.UserList);
 
-                        var listFormat 		= self.menuConfig.config.listFormat || '{userName} - {affils}';
-                        var focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default changed color!
-                        var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
+                        var listFormat      = self.menuConfig.config.listFormat || '{userName} - {affils}';
+                        var focusListFormat = self.menuConfig.config.focusListFormat || listFormat; //  :TODO: default changed color!
+                        var dateTimeFormat  = self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
 
                         function getUserFmtObj(ue) {
                             return {
-                                userId		: ue.userId,
-                                userName	: ue.userName,
-                                affils		: ue.affiliation,
-                                location	: ue.location,
-                                //	:TODO: the rest!
-                                note		: ue.note || '',
-                                lastLoginTs	: moment(ue.last_login_timestamp).format(dateTimeFormat),
+                                userId      : ue.userId,
+                                userName    : ue.userName,
+                                affils      : ue.affiliation,
+                                location    : ue.location,
+                                //  :TODO: the rest!
+                                note        : ue.note || '',
+                                lastLoginTs : moment(ue.last_login_timestamp).format(dateTimeFormat),
                             };
                         }
 

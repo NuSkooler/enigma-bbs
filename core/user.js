@@ -1,53 +1,53 @@
 /* jslint node: true */
 'use strict';
 
-const userDb		= require('./database.js').dbs.user;
-const Config		= require('./config.js').get;
-const userGroup		= require('./user_group.js');
-const Errors		= require('./enig_error.js').Errors;
-const Events		= require('./events.js');
+const userDb        = require('./database.js').dbs.user;
+const Config        = require('./config.js').get;
+const userGroup     = require('./user_group.js');
+const Errors        = require('./enig_error.js').Errors;
+const Events        = require('./events.js');
 
-//	deps
-const crypto		= require('crypto');
-const assert		= require('assert');
-const async			= require('async');
-const _				= require('lodash');
-const moment		= require('moment');
+//  deps
+const crypto        = require('crypto');
+const assert        = require('assert');
+const async         = require('async');
+const _             = require('lodash');
+const moment        = require('moment');
 
 exports.isRootUserId = function(id) { return 1 === id; };
 
 module.exports = class User {
     constructor() {
-        this.userId		= 0;
-        this.username	= '';
-        this.properties	= {};	//	name:value
-        this.groups		= [];	//	group membership(s)
+        this.userId     = 0;
+        this.username   = '';
+        this.properties = {};   //  name:value
+        this.groups     = [];   //  group membership(s)
     }
 
-    //	static property accessors
+    //  static property accessors
     static get RootUserID() {
         return 1;
     }
 
     static get PBKDF2() {
         return {
-            iterations	: 1000,
-            keyLen		: 128,
-            saltLen		: 32,
+            iterations  : 1000,
+            keyLen      : 128,
+            saltLen     : 32,
         };
     }
 
     static get StandardPropertyGroups() {
         return {
-            password	: [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
+            password    : [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
         };
     }
 
     static get AccountStatus() {
         return {
-            disabled	: 0,
-            inactive	: 1,
-            active		: 2,
+            disabled    : 0,
+            inactive    : 1,
+            active      : 2,
         };
     }
 
@@ -69,14 +69,14 @@ module.exports = class User {
         }
 
         return ((this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2) &&
-			(this.properties.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2));
+            (this.properties.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2));
     }
 
     isRoot() {
         return User.isRootUserId(this.userId);
     }
 
-    isSysOp() {	//	alias to isRoot()
+    isSysOp() { //  alias to isRoot()
         return this.isRoot();
     }
 
@@ -98,7 +98,7 @@ module.exports = class User {
             return 30;
         }
 
-        return 10;	//	:TODO: Is this what we want?
+        return 10;  //  :TODO: Is this what we want?
     }
 
     authenticate(username, password, cb) {
@@ -108,32 +108,32 @@ module.exports = class User {
         async.waterfall(
             [
                 function fetchUserId(callback) {
-                    //	get user ID
+                    //  get user ID
                     User.getUserIdAndName(username, (err, uid, un) => {
-                        cachedInfo.userId	= uid;
-                        cachedInfo.username	= un;
+                        cachedInfo.userId   = uid;
+                        cachedInfo.username = un;
 
                         return callback(err);
                     });
                 },
                 function getRequiredAuthProperties(callback) {
-                    //	fetch properties required for authentication
+                    //  fetch properties required for authentication
                     User.loadProperties(cachedInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
                         return callback(err, props);
                     });
                 },
                 function getDkWithSalt(props, callback) {
-                    //	get DK from stored salt and password provided
+                    //  get DK from stored salt and password provided
                     User.generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, (err, dk) => {
                         return callback(err, dk, props.pw_pbkdf2_dk);
                     });
                 },
                 function validateAuth(passDk, propsDk, callback) {
                     //
-                    //	Use constant time comparison here for security feel-goods
+                    //  Use constant time comparison here for security feel-goods
                     //
-                    const passDkBuf		= Buffer.from(passDk,	'hex');
-                    const propsDkBuf	= Buffer.from(propsDk,	'hex');
+                    const passDkBuf     = Buffer.from(passDk,   'hex');
+                    const propsDkBuf    = Buffer.from(propsDk,  'hex');
 
                     if(passDkBuf.length !== propsDkBuf.length) {
                         return callback(Errors.AccessDenied('Invalid password'));
@@ -167,11 +167,11 @@ module.exports = class User {
             ],
             err => {
                 if(!err) {
-                    self.userId			= cachedInfo.userId;
-                    self.username		= cachedInfo.username;
-                    self.properties		= cachedInfo.properties;
-                    self.groups			= cachedInfo.groups;
-                    self.authenticated	= true;
+                    self.userId         = cachedInfo.userId;
+                    self.username       = cachedInfo.username;
+                    self.properties     = cachedInfo.properties;
+                    self.groups         = cachedInfo.groups;
+                    self.authenticated  = true;
                 }
 
                 return cb(err);
@@ -189,7 +189,7 @@ module.exports = class User {
 
         const self = this;
 
-        //	:TODO: set various defaults, e.g. default activation status, etc.
+        //  :TODO: set various defaults, e.g. default activation status, etc.
         self.properties.account_status = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
         async.waterfall(
@@ -200,16 +200,16 @@ module.exports = class User {
                 function createUserRec(trans, callback) {
                     trans.run(
                         `INSERT INTO user (user_name)
-						VALUES (?);`,
+                        VALUES (?);`,
                         [ self.username ],
-                        function inserted(err) {	//	use classic function for |this|
+                        function inserted(err) {    //  use classic function for |this|
                             if(err) {
                                 return callback(err);
                             }
 
                             self.userId = this.lastID;
 
-                            //	Do not require activation for userId 1 (root/admin)
+                            //  Do not require activation for userId 1 (root/admin)
                             if(User.RootUserID === self.userId) {
                                 self.properties.account_status = User.AccountStatus.active;
                             }
@@ -224,15 +224,15 @@ module.exports = class User {
                             return callback(err);
                         }
 
-                        self.properties.pw_pbkdf2_salt	= info.salt;
-                        self.properties.pw_pbkdf2_dk	= info.dk;
+                        self.properties.pw_pbkdf2_salt  = info.salt;
+                        self.properties.pw_pbkdf2_dk    = info.dk;
                         return callback(null, trans);
                     });
                 },
                 function setInitialGroupMembership(trans, callback) {
                     self.groups = config.users.defaultGroups;
 
-                    if(User.RootUserID === self.userId) {	//	root/SysOp?
+                    if(User.RootUserID === self.userId) {   //  root/SysOp?
                         self.groups.push('sysops');
                     }
 
@@ -285,12 +285,12 @@ module.exports = class User {
     }
 
     persistProperty(propName, propValue, cb) {
-        //	update live props
+        //  update live props
         this.properties[propName] = propValue;
 
         userDb.run(
             `REPLACE INTO user_property (user_id, prop_name, prop_value)
-			VALUES (?, ?, ?);`,
+            VALUES (?, ?, ?);`,
             [ this.userId, propName, propValue ],
             err => {
                 if(cb) {
@@ -301,12 +301,12 @@ module.exports = class User {
     }
 
     removeProperty(propName, cb) {
-        //	update live
+        //  update live
         delete this.properties[propName];
 
         userDb.run(
             `DELETE FROM user_property
-			WHERE user_id = ? AND prop_name = ?;`,
+            WHERE user_id = ? AND prop_name = ?;`,
             [ this.userId, propName ],
             err => {
                 if(cb) {
@@ -324,12 +324,12 @@ module.exports = class User {
 
         const self = this;
 
-        //	update live props
+        //  update live props
         _.merge(this.properties, properties);
 
         const stmt = transOrDb.prepare(
             `REPLACE INTO user_property (user_id, prop_name, prop_value)
-			VALUES (?, ?, ?);`
+            VALUES (?, ?, ?);`
         );
 
         async.each(Object.keys(properties), (propName, nextProp) => {
@@ -355,8 +355,8 @@ module.exports = class User {
             }
 
             const newProperties = {
-                pw_pbkdf2_salt	: info.salt,
-                pw_pbkdf2_dk	: info.dk,
+                pw_pbkdf2_salt  : info.salt,
+                pw_pbkdf2_dk    : info.dk,
             };
 
             this.persistProperties(newProperties, err => {
@@ -392,11 +392,11 @@ module.exports = class User {
             ],
             (err, userName, properties, groups) => {
                 const user = new User();
-                user.userId			= userId;
-                user.username		= userName;
-                user.properties		= properties;
-                user.groups			= groups;
-                user.authenticated	= false;	//	this is NOT an authenticated user!
+                user.userId         = userId;
+                user.username       = userName;
+                user.properties     = properties;
+                user.groups         = groups;
+                user.authenticated  = false;    //  this is NOT an authenticated user!
 
                 return cb(err, user);
             }
@@ -410,8 +410,8 @@ module.exports = class User {
     static getUserIdAndName(username, cb) {
         userDb.get(
             `SELECT id, user_name
-			FROM user
-			WHERE user_name LIKE ?;`,
+            FROM user
+            WHERE user_name LIKE ?;`,
             [ username ],
             (err, row) => {
                 if(err) {
@@ -430,12 +430,12 @@ module.exports = class User {
     static getUserIdAndNameByRealName(realName, cb) {
         userDb.get(
             `SELECT id, user_name
-			FROM user
-			WHERE id = (
-				SELECT user_id
-				FROM user_property
-				WHERE prop_name='real_name' AND prop_value LIKE ?
-			);`,
+            FROM user
+            WHERE id = (
+                SELECT user_id
+                FROM user_property
+                WHERE prop_name='real_name' AND prop_value LIKE ?
+            );`,
             [ realName ],
             (err, row) => {
                 if(err) {
@@ -466,8 +466,8 @@ module.exports = class User {
     static getUserName(userId, cb) {
         userDb.get(
             `SELECT user_name
-			FROM user
-			WHERE id = ?;`,
+            FROM user
+            WHERE id = ?;`,
             [ userId ],
             (err, row) => {
                 if(err) {
@@ -490,9 +490,9 @@ module.exports = class User {
         }
 
         let sql =
-			`SELECT prop_name, prop_value
-			FROM user_property
-			WHERE user_id = ?`;
+            `SELECT prop_name, prop_value
+            FROM user_property
+            WHERE user_id = ?`;
 
         if(options.names) {
             sql += ` AND prop_name IN("${options.names.join('","')}");`;
@@ -511,14 +511,14 @@ module.exports = class User {
         });
     }
 
-    //	:TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
+    //  :TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
     static getUserIdsWithProperty(propName, propValue, cb) {
         let userIds = [];
 
         userDb.each(
             `SELECT user_id
-			FROM user_property
-			WHERE prop_name = ? AND prop_value = ?;`,
+            FROM user_property
+            WHERE prop_name = ? AND prop_value = ?;`,
             [ propName, propValue ],
             (err, row) => {
                 if(row) {
@@ -537,13 +537,13 @@ module.exports = class User {
 
         userDb.each(
             `SELECT id, user_name
-			FROM user
-			${orderClause};`,
+            FROM user
+            ${orderClause};`,
             (err, row) => {
                 if(row) {
                     userList.push({
-                        userId		: row.id,
-                        userName	: row.user_name,
+                        userId      : row.id,
+                        userName    : row.user_name,
                     });
                 }
             },
@@ -552,8 +552,8 @@ module.exports = class User {
                 async.map(userList, (user, nextUser) => {
                     userDb.each(
                         `SELECT prop_name, prop_value
-						FROM user_property
-						WHERE user_id = ? AND prop_name IN ("${options.properties.join('","')}");`,
+                        FROM user_property
+                        WHERE user_id = ? AND prop_name IN ("${options.properties.join('","')}");`,
                         [ user.userId ],
                         (err, row) => {
                             if(row) {

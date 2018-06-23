@@ -1,39 +1,39 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const ViewController		= require('./view_controller.js').ViewController;
-const DownloadQueue			= require('./download_queue.js');
-const theme					= require('./theme.js');
-const ansi					= require('./ansi_term.js');
-const Errors				= require('./enig_error.js').Errors;
-const stringFormat			= require('./string_format.js');
-const FileAreaWeb			= require('./file_area_web.js');
-const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
-const Config				= require('./config.js').get;
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const ViewController        = require('./view_controller.js').ViewController;
+const DownloadQueue         = require('./download_queue.js');
+const theme                 = require('./theme.js');
+const ansi                  = require('./ansi_term.js');
+const Errors                = require('./enig_error.js').Errors;
+const stringFormat          = require('./string_format.js');
+const FileAreaWeb           = require('./file_area_web.js');
+const ErrNotEnabled         = require('./enig_error.js').ErrorReasons.NotEnabled;
+const Config                = require('./config.js').get;
 
-//	deps
-const async					= require('async');
-const _						= require('lodash');
-const moment				= require('moment');
+//  deps
+const async                 = require('async');
+const _                     = require('lodash');
+const moment                = require('moment');
 
 exports.moduleInfo = {
-    name		: 'File Base Download Web Queue Manager',
-    desc		: 'Module for interacting with web backed download queue/batch',
-    author		: 'NuSkooler',
+    name        : 'File Base Download Web Queue Manager',
+    desc        : 'Module for interacting with web backed download queue/batch',
+    author      : 'NuSkooler',
 };
 
 const FormIds = {
-    queueManager	: 0
+    queueManager    : 0
 };
 
 const MciViewIds = {
     queueManager : {
-        queue				: 1,
-        navMenu				: 2,
+        queue               : 1,
+        navMenu             : 2,
 
-        customRangeStart	: 10,
+        customRangeStart    : 10,
     }
 };
 
@@ -53,13 +53,13 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
 
                 this.dlQueue.removeItems(selectedItem.fileId);
 
-                //	:TODO: broken: does not redraw menu properly - needs fixed!
+                //  :TODO: broken: does not redraw menu properly - needs fixed!
                 return this.removeItemsFromDownloadQueueView(formData.value.queueItem, cb);
             },
             clearQueue : (formData, extraArgs, cb) => {
                 this.dlQueue.clear();
 
-                //	:TODO: broken: does not redraw menu properly - needs fixed!
+                //  :TODO: broken: does not redraw menu properly - needs fixed!
                 return this.removeItemsFromDownloadQueueView('all', cb);
             },
             getBatchLink : (formData, extraArgs, cb) => {
@@ -111,7 +111,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
         this.updateCustomViewTextsWithFilter(
             'queueManager',
             MciViewIds.queueManager.customRangeStart, fileEntry,
-            { filter : [ '{webDlLink}', '{webDlExpire}', '{fileName}' ] }	//	:TODO: Others....
+            { filter : [ '{webDlLink}', '{webDlExpire}', '{fileName}' ] }   //  :TODO: Others....
         );
     }
 
@@ -121,8 +121,8 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
             return cb(Errors.DoesNotExist('Queue view does not exist'));
         }
 
-        const queueListFormat		= this.menuConfig.config.queueListFormat || '{webDlLink}';
-        const focusQueueListFormat	= this.menuConfig.config.focusQueueListFormat || queueListFormat;
+        const queueListFormat       = this.menuConfig.config.queueListFormat || '{webDlLink}';
+        const focusQueueListFormat  = this.menuConfig.config.focusQueueListFormat || queueListFormat;
 
         queueView.setItems(this.dlQueue.items.map( queueItem => stringFormat(queueListFormat, queueItem) ) );
         queueView.setFocusItems(this.dlQueue.items.map( queueItem => stringFormat(focusQueueListFormat, queueItem) ) );
@@ -148,7 +148,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                 expireTime : expireTime
             },
             (err, webBatchDlLink) => {
-                //	:TODO: handle not enabled -> display such
+                //  :TODO: handle not enabled -> display such
                 if(err) {
                     return cb(err);
                 }
@@ -156,8 +156,8 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                 const webDlExpireTimeFormat = this.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
                 const formatObj = {
-                    webBatchDlLink		: ansi.vtxHyperlink(this.client, webBatchDlLink) + webBatchDlLink,
-                    webBatchDlExpire	: expireTime.format(webDlExpireTimeFormat),
+                    webBatchDlLink      : ansi.vtxHyperlink(this.client, webBatchDlLink) + webBatchDlLink,
+                    webBatchDlExpire    : expireTime.format(webDlExpireTimeFormat),
                 };
 
                 this.updateCustomViewTextsWithFilter(
@@ -188,7 +188,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                         FileAreaWeb.getExistingTempDownloadServeItem(self.client, fileEntry, (err, serveItem) => {
                             if(err) {
                                 if(ErrNotEnabled === err.reasonCode) {
-                                    return nextFileEntry(err);	//	we should have caught this prior
+                                    return nextFileEntry(err);  //  we should have caught this prior
                                 }
 
                                 const expireTime = moment().add(config.fileBase.web.expireMinutes, 'minutes');
@@ -202,17 +202,17 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                                             return nextFileEntry(err);
                                         }
 
-                                        fileEntry.webDlLinkRaw	= url;
-                                        fileEntry.webDlLink		= ansi.vtxHyperlink(self.client, url) + url;
-                                        fileEntry.webDlExpire	= expireTime.format(webDlExpireTimeFormat);
+                                        fileEntry.webDlLinkRaw  = url;
+                                        fileEntry.webDlLink     = ansi.vtxHyperlink(self.client, url) + url;
+                                        fileEntry.webDlExpire   = expireTime.format(webDlExpireTimeFormat);
 
                                         return nextFileEntry(null);
                                     }
                                 );
                             } else {
-                                fileEntry.webDlLinkRaw	= serveItem.url;
-                                fileEntry.webDlLink		= ansi.vtxHyperlink(self.client, serveItem.url) + serveItem.url;
-                                fileEntry.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
+                                fileEntry.webDlLinkRaw  = serveItem.url;
+                                fileEntry.webDlLink     = ansi.vtxHyperlink(self.client, serveItem.url) + serveItem.url;
+                                fileEntry.webDlExpire   = moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
                                 return nextFileEntry(null);
                             }
                         });
@@ -233,8 +233,8 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
     }
 
     displayArtAndPrepViewController(name, options, cb) {
-        const self		= this;
-        const config	= this.menuConfig.config;
+        const self      = this;
+        const config    = this.menuConfig.config;
 
         async.waterfall(
             [
@@ -255,8 +255,8 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                 function prepeareViewController(artData, callback) {
                     if(_.isUndefined(self.viewControllers[name])) {
                         const vcOpts = {
-                            client		: self.client,
-                            formId		: FormIds[name],
+                            client      : self.client,
+                            formId      : FormIds[name],
                         };
 
                         if(!_.isUndefined(options.noInput)) {
@@ -266,9 +266,9 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                         const vc = self.addViewController(name, new ViewController(vcOpts));
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds[name],
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds[name],
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);

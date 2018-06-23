@@ -1,51 +1,51 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule					= require('./menu_module.js').MenuModule;
-const ViewController				= require('./view_controller.js').ViewController;
-const messageArea					= require('./message_area.js');
-const stringFormat					= require('./string_format.js');
-const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
+//  ENiGMA½
+const MenuModule                    = require('./menu_module.js').MenuModule;
+const ViewController                = require('./view_controller.js').ViewController;
+const messageArea                   = require('./message_area.js');
+const stringFormat                  = require('./string_format.js');
+const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 
-//	deps
-const async				= require('async');
-const _					= require('lodash');
-const moment			= require('moment');
+//  deps
+const async             = require('async');
+const _                 = require('lodash');
+const moment            = require('moment');
 
 /*
-	Available listFormat/focusListFormat members (VM1):
+    Available listFormat/focusListFormat members (VM1):
 
-	msgNum			: Message number
-	to				: To username/handle
-	from			: From username/handle
-	subj			: Subject
-	ts				: Message mod timestamp (format with config.dateTimeFormat)
-	newIndicator	: New mark/indicator (config.newIndicator)
+    msgNum          : Message number
+    to              : To username/handle
+    from            : From username/handle
+    subj            : Subject
+    ts              : Message mod timestamp (format with config.dateTimeFormat)
+    newIndicator    : New mark/indicator (config.newIndicator)
 
-	MCI codes:
+    MCI codes:
 
-	VM1			: Message list
-	TL2			: Message info 1: { msgNumSelected, msgNumTotal }
+    VM1         : Message list
+    TL2         : Message info 1: { msgNumSelected, msgNumTotal }
 */
 
 exports.moduleInfo = {
-    name	: 'Message List',
-    desc	: 'Module for listing/browsing available messages',
-    author	: 'NuSkooler',
+    name    : 'Message List',
+    desc    : 'Module for listing/browsing available messages',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
-    msgList			: 1,	//	VM1
-    msgInfo1		: 2,	//	TL2
+    msgList         : 1,    //  VM1
+    msgInfo1        : 2,    //  TL2
 };
 
 exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(MenuModule) {
     constructor(options) {
         super(options);
 
-        //	:TODO: consider this pattern in base MenuModule - clean up code all over
-        this.config	= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+        //  :TODO: consider this pattern in base MenuModule - clean up code all over
+        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
 
         this.lastMessageReachedExit = _.get(options, 'lastMenuResult.lastMessageReached', false);
 
@@ -55,11 +55,11 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                     this.initialFocusIndex = formData.value.message;
 
                     const modOpts = {
-                        extraArgs 	: {
-                            messageAreaTag		: this.getSelectedAreaTag(formData.value.message),// this.config.messageAreaTag,
-                            messageList			: this.config.messageList,
-                            messageIndex		: formData.value.message,
-                            lastMessageNextExit	: true,
+                        extraArgs   : {
+                            messageAreaTag      : this.getSelectedAreaTag(formData.value.message),// this.config.messageAreaTag,
+                            messageList         : this.config.messageList,
+                            messageIndex        : formData.value.message,
+                            lastMessageNextExit : true,
                         }
                     };
 
@@ -68,8 +68,8 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                     }
 
                     //
-                    //	Provide a serializer so we don't dump *huge* bits of information to the log
-                    //	due to the size of |messageList|. See https://github.com/trentm/node-bunyan/issues/189
+                    //  Provide a serializer so we don't dump *huge* bits of information to the log
+                    //  due to the size of |messageList|. See https://github.com/trentm/node-bunyan/issues/189
                     //
                     const self = this;
                     modOpts.extraArgs.toJSON = function() {
@@ -78,11 +78,11 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                             self.config.messageList.slice(0, 2).concat(self.config.messageList.slice(-2));
 
                         return {
-                            //	note |this| is scope of toJSON()!
-                            messageAreaTag		: this.messageAreaTag,
-                            apprevMessageList	: logMsgList,
-                            messageCount		: this.messageList.length,
-                            messageIndex		: this.messageIndex,
+                            //  note |this| is scope of toJSON()!
+                            messageAreaTag      : this.messageAreaTag,
+                            apprevMessageList   : logMsgList,
+                            messageCount        : this.messageList.length,
+                            messageIndex        : this.messageIndex,
                         };
                     };
 
@@ -111,10 +111,10 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
         super.enter();
 
         //
-        //	Config can specify |messageAreaTag| else it comes from
-        //	the user's current area. If |messageList| is supplied,
-        //	each item is expected to contain |areaTag|, so we use that
-        //	instead in those cases.
+        //  Config can specify |messageAreaTag| else it comes from
+        //  the user's current area. If |messageList| is supplied,
+        //  each item is expected to contain |areaTag|, so we use that
+        //  instead in those cases.
         //
         if(!Array.isArray(this.config.messageList)) {
             if(this.config.messageAreaTag) {
@@ -136,23 +136,23 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                 return cb(err);
             }
 
-            const self	= this;
-            const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            const self  = this;
+            const vc    = self.viewControllers.allViews = new ViewController( { client : self.client } );
             let configProvidedMessageList = false;
 
             async.series(
                 [
                     function loadFromConfig(callback) {
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: mciData.menu
+                            callingMenu     : self,
+                            mciMap          : mciData.menu
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
                     },
                     function fetchMessagesInArea(callback) {
                         //
-                        //	Config can supply messages else we'll need to populate the list now
+                        //  Config can supply messages else we'll need to populate the list now
                         //
                         if(_.isArray(self.config.messageList)) {
                             configProvidedMessageList = true;
@@ -169,7 +169,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                         });
                     },
                     function getLastReadMesageId(callback) {
-                        //	messageList entries can contain |isNew| if they want to be considered new
+                        //  messageList entries can contain |isNew| if they want to be considered new
                         if(configProvidedMessageList) {
                             self.lastReadId = 0;
                             return callback(null);
@@ -177,33 +177,33 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
                         messageArea.getMessageAreaLastReadId(self.client.user.userId, self.config.messageAreaTag, function lastRead(err, lastReadId) {
                             self.lastReadId = lastReadId || 0;
-                            return callback(null);	//	ignore any errors, e.g. missing value
+                            return callback(null);  //  ignore any errors, e.g. missing value
                         });
                     },
                     function updateMessageListObjects(callback) {
-                        const dateTimeFormat	= self.menuConfig.config.dateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();
-                        const newIndicator		= self.menuConfig.config.newIndicator || '*';
-                        const regIndicator		= new Array(newIndicator.length + 1).join(' ');	//	fill with space to avoid draw issues
+                        const dateTimeFormat    = self.menuConfig.config.dateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();
+                        const newIndicator      = self.menuConfig.config.newIndicator || '*';
+                        const regIndicator      = new Array(newIndicator.length + 1).join(' '); //  fill with space to avoid draw issues
 
                         let msgNum = 1;
                         self.config.messageList.forEach( (listItem, index) => {
-                            listItem.msgNum			= msgNum++;
-                            listItem.ts				= moment(listItem.modTimestamp).format(dateTimeFormat);
-                            const isNew				= _.isBoolean(listItem.isNew) ? listItem.isNew : listItem.messageId > self.lastReadId;
-                            listItem.newIndicator	=  isNew ? newIndicator : regIndicator;
+                            listItem.msgNum         = msgNum++;
+                            listItem.ts             = moment(listItem.modTimestamp).format(dateTimeFormat);
+                            const isNew             = _.isBoolean(listItem.isNew) ? listItem.isNew : listItem.messageId > self.lastReadId;
+                            listItem.newIndicator   =  isNew ? newIndicator : regIndicator;
 
                             if(_.isUndefined(self.initialFocusIndex) && listItem.messageId > self.lastReadId) {
                                 self.initialFocusIndex = index;
                             }
 
-                            listItem.text			= `${listItem.msgNum} - ${listItem.subject} from ${listItem.fromUserName}`;	//	default text
+                            listItem.text           = `${listItem.msgNum} - ${listItem.subject} from ${listItem.fromUserName}`; //  default text
                         });
                         return callback(null);
                     },
                     function populateList(callback) {
-                        const msgListView			= vc.getView(MciViewIds.msgList);
-                        //	:TODO: replace with standard custom info MCI - msgNumSelected, msgNumTotal, areaName, areaDesc, confName, confDesc, ...
-                        const messageInfo1Format	= self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
+                        const msgListView           = vc.getView(MciViewIds.msgList);
+                        //  :TODO: replace with standard custom info MCI - msgNumSelected, msgNumTotal, areaName, areaDesc, confName, confDesc, ...
+                        const messageInfo1Format    = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
 
                         msgListView.setItems(self.config.messageList);
 
@@ -215,7 +215,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                         });
 
                         if(self.initialFocusIndex > 0) {
-                            //	note: causes redraw()
+                            //  note: causes redraw()
                             msgListView.setFocusItemIndex(self.initialFocusIndex);
                         } else {
                             msgListView.redraw();

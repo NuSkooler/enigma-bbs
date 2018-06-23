@@ -1,10 +1,10 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-var PluginModule				= require('./plugin_module.js').PluginModule;
+//  ENiGMA½
+var PluginModule                = require('./plugin_module.js').PluginModule;
 
-exports.MessageScanTossModule	= MessageScanTossModule;
+exports.MessageScanTossModule   = MessageScanTossModule;
 
 function MessageScanTossModule() {
     PluginModule.call(this);

@@ -2,36 +2,36 @@
 'use strict';
 
 
-const stringFormat	= require('./string_format.js');
+const stringFormat  = require('./string_format.js');
 
-const events		= require('events');
-const _				= require('lodash');
-const pty			= require('node-pty');
-const decode 		= require('iconv-lite').decode;
-const createServer	= require('net').createServer;
+const events        = require('events');
+const _             = require('lodash');
+const pty           = require('node-pty');
+const decode        = require('iconv-lite').decode;
+const createServer  = require('net').createServer;
 
-exports.Door		= Door;
+exports.Door        = Door;
 
 function Door(client, exeInfo) {
     events.EventEmitter.call(this);
 
-    const self 				= this;
-    this.client				= client;
-    this.exeInfo			= exeInfo;
-    this.exeInfo.encoding	= (this.exeInfo.encoding || 'cp437').toLowerCase();
-    let restored			= false;
+    const self              = this;
+    this.client             = client;
+    this.exeInfo            = exeInfo;
+    this.exeInfo.encoding   = (this.exeInfo.encoding || 'cp437').toLowerCase();
+    let restored            = false;
 
     //
-    //	Members of exeInfo:
-    //	cmd
-    //	args[]
-    //	env{}
-    //	cwd
-    //	io
-    //	encoding
-    //	dropFile
-    //	node
-    //	inhSocket
+    //  Members of exeInfo:
+    //  cmd
+    //  args[]
+    //  env{}
+    //  cwd
+    //  io
+    //  encoding
+    //  dropFile
+    //  node
+    //  inhSocket
     //
 
     this.doorDataHandler = function(data) {
@@ -52,7 +52,7 @@ function Door(client, exeInfo) {
 
                 sockServer.getConnections( (err, count) => {
 
-                    //	We expect only one connection from our DOOR/emulator/etc.
+                    //  We expect only one connection from our DOOR/emulator/etc.
                     if(!err && count <= 1) {
                         self.client.term.output.pipe(conn);
 
@@ -94,25 +94,25 @@ Door.prototype.run = function() {
             return self.doorExited();
         }
 
-        //	Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
-        //	:TODO: Use .map() here
-        let args = _.clone(self.exeInfo.args);	//	we need a copy so the original is not modified
+        //  Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
+        //  :TODO: Use .map() here
+        let args = _.clone(self.exeInfo.args);  //  we need a copy so the original is not modified
 
         for(let i = 0; i < args.length; ++i) {
             args[i] = stringFormat(self.exeInfo.args[i], {
-                dropFile		: self.exeInfo.dropFile,
-                node			: self.exeInfo.node.toString(),
-                srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
-                userId			: self.client.user.userId.toString(),
+                dropFile        : self.exeInfo.dropFile,
+                node            : self.exeInfo.node.toString(),
+                srvPort         : sockServer ? sockServer.address().port.toString() : '-1',
+                userId          : self.client.user.userId.toString(),
             });
         }
 
         const door = pty.spawn(self.exeInfo.cmd, args, {
-            cols 		: self.client.term.termWidth,
-            rows		: self.client.term.termHeight,
-            //	:TODO: cwd
-            env			: self.exeInfo.env,
-            encoding	: null,	//	we want to handle all encoding ourself
+            cols        : self.client.term.termWidth,
+            rows        : self.client.term.termHeight,
+            //  :TODO: cwd
+            env         : self.exeInfo.env,
+            encoding    : null, //  we want to handle all encoding ourself
         });
 
         if('stdio' === self.exeInfo.io) {
@@ -136,7 +136,7 @@ Door.prototype.run = function() {
                 sockServer.close();
             }
 
-            //	we may not get a close
+            //  we may not get a close
             if('stdio' === self.exeInfo.io) {
                 self.restoreIo(door);
             }

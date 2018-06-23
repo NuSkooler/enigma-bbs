@@ -1,25 +1,25 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Address		= require('./ftn_address.js');
-const Errors		= require('./enig_error.js').Errors;
-const EnigAssert	= require('./enigma_assert.js');
+//  ENiGMA½
+const Address       = require('./ftn_address.js');
+const Errors        = require('./enig_error.js').Errors;
+const EnigAssert    = require('./enigma_assert.js');
 
-//	deps
-const fs			= require('graceful-fs');
-const CRC32			= require('./crc.js').CRC32;
-const _				= require('lodash');
-const async			= require('async');
-const paths			= require('path');
-const crypto		= require('crypto');
+//  deps
+const fs            = require('graceful-fs');
+const CRC32         = require('./crc.js').CRC32;
+const _             = require('lodash');
+const async         = require('async');
+const paths         = require('path');
+const crypto        = require('crypto');
 
 //
-//	Class to read and hold information from a TIC file
+//  Class to read and hold information from a TIC file
 //
-//	* FTS-5006.001 @ http://www.filegate.net/ftsc/FTS-5006.001
-//	* FSP-1039.001 @ http://ftsc.org/docs/old/fsp-1039.001
-//	* FSC-0087.001 @ http://ftsc.org/docs/fsc-0087.001
+//  * FTS-5006.001 @ http://www.filegate.net/ftsc/FTS-5006.001
+//  * FSP-1039.001 @ http://ftsc.org/docs/old/fsp-1039.001
+//  * FSC-0087.001 @ http://ftsc.org/docs/fsc-0087.001
 //
 module.exports = class TicFileInfo {
     constructor() {
@@ -29,8 +29,8 @@ module.exports = class TicFileInfo {
     static get requiredFields() {
         return [
             'Area', 'Origin', 'From', 'File', 'Crc',
-            //	:TODO: validate this:
-            //'Path', 'Seenby'	//	these two are questionable; some systems don't send them?
+            //  :TODO: validate this:
+            //'Path', 'Seenby'  //  these two are questionable; some systems don't send them?
         ];
     }
 
@@ -42,7 +42,7 @@ module.exports = class TicFileInfo {
         const value = this.get(key);
         if(value) {
             //
-            //	We call toString() on values to ensure numbers, addresses, etc. are converted
+            //  We call toString() on values to ensure numbers, addresses, etc. are converted
             //
             joinWith = joinWith || '';
             if(Array.isArray(value)) {
@@ -67,9 +67,9 @@ module.exports = class TicFileInfo {
     }
 
     validate(config, cb) {
-        //	config.nodes
-        //	config.defaultPassword (optional)
-        //	config.localAreaTags
+        //  config.nodes
+        //  config.defaultPassword (optional)
+        //  config.localAreaTags
         EnigAssert(config.nodes && config.localAreaTags);
 
         const self = this;
@@ -84,7 +84,7 @@ module.exports = class TicFileInfo {
                     const area = self.getAsString('Area').toUpperCase();
 
                     const localInfo = {
-                        areaTag	: config.localAreaTags.find( areaTag => areaTag.toUpperCase() === area ),
+                        areaTag : config.localAreaTags.find( areaTag => areaTag.toUpperCase() === area ),
                     };
 
                     if(!localInfo.areaTag) {
@@ -96,17 +96,17 @@ module.exports = class TicFileInfo {
                         return callback(Errors.Invalid(`Invalid "From" address: ${self.getAsString('From')}`));
                     }
 
-                    //	note that our config may have wildcards, such as "80:774/*"
+                    //  note that our config may have wildcards, such as "80:774/*"
                     localInfo.node = Object.keys(config.nodes).find( nodeAddrWildcard => from.isPatternMatch(nodeAddrWildcard) );
 
                     if(!localInfo.node) {
                         return callback(Errors.Invalid('TIC is not from a known node'));
                     }
 
-                    //	if we require a password, "PW" must match
+                    //  if we require a password, "PW" must match
                     const passActual = _.get(config.nodes, [ localInfo.node, 'tic', 'password' ] ) || config.defaultPassword;
                     if(!passActual) {
-                        return callback(null, localInfo);	//	no pw validation
+                        return callback(null, localInfo);   //  no pw validation
                     }
 
                     const passTic = self.getAsString('Pw');
@@ -117,22 +117,22 @@ module.exports = class TicFileInfo {
                     return callback(null, localInfo);
                 },
                 function checksumAndSize(localInfo, callback) {
-                    const crcTic	= self.get('Crc');
-                    const stream	= fs.createReadStream(self.filePath);
-                    const crc		= new CRC32();
-                    let sizeActual	= 0;
+                    const crcTic    = self.get('Crc');
+                    const stream    = fs.createReadStream(self.filePath);
+                    const crc       = new CRC32();
+                    let sizeActual  = 0;
 
-                    let sha256Tic	= self.getAsString('Sha256');
+                    let sha256Tic   = self.getAsString('Sha256');
                     let sha256;
                     if(sha256Tic) {
-                        sha256Tic	= sha256Tic.toLowerCase();
-                        sha256		= crypto.createHash('sha256');
+                        sha256Tic   = sha256Tic.toLowerCase();
+                        sha256      = crypto.createHash('sha256');
                     }
 
                     stream.on('data', data => {
                         sizeActual += data.length;
 
-                        //	sha256 if possible, else crc32
+                        //  sha256 if possible, else crc32
                         if(sha256) {
                             sha256.update(data);
                         } else {
@@ -141,7 +141,7 @@ module.exports = class TicFileInfo {
                     });
 
                     stream.on('end', () => {
-                        //	again, use sha256 if possible
+                        //  again, use sha256 if possible
                         if(sha256) {
                             const sha256Actual = sha256.digest('hex');
                             if(sha256Tic != sha256Actual) {
@@ -182,20 +182,20 @@ module.exports = class TicFileInfo {
 
     isToAddress(address, allowNonExplicit) {
         //
-        //	FSP-1039.001:
-        //	"This keyword specifies the FTN address of the system where to
-        //	send the file to be distributed and the accompanying TIC file.
-        //	Some File processors (Allfix) only insert a line with this
-        //	keyword when the file and the associated TIC file are to be
-        //	file routed through a third sysem instead of being processed
-        //	by a file processor on that system. Others always insert it.
-        //	Note that the To keyword may cause problems when the TIC file
-        //	is proecessed by software that does not recognise it and
-        //	passes the line "as is" to other systems.
+        //  FSP-1039.001:
+        //  "This keyword specifies the FTN address of the system where to
+        //  send the file to be distributed and the accompanying TIC file.
+        //  Some File processors (Allfix) only insert a line with this
+        //  keyword when the file and the associated TIC file are to be
+        //  file routed through a third sysem instead of being processed
+        //  by a file processor on that system. Others always insert it.
+        //  Note that the To keyword may cause problems when the TIC file
+        //  is proecessed by software that does not recognise it and
+        //  passes the line "as is" to other systems.
         //
-        //	Example:  To 292/854
+        //  Example:  To 292/854
         //
-        //	This is an optional keyword."
+        //  This is an optional keyword."
         //
         const to = this.get('To');
 
@@ -212,12 +212,12 @@ module.exports = class TicFileInfo {
                 return cb(err);
             }
 
-            const ticFileInfo	= new TicFileInfo();
-            ticFileInfo.path	= path;
+            const ticFileInfo   = new TicFileInfo();
+            ticFileInfo.path    = path;
 
             //
-            //	Lines in a TIC file should be separated by CRLF (DOS)
-            //	may be separated by LF (UNIX)
+            //  Lines in a TIC file should be separated by CRLF (DOS)
+            //  may be separated by LF (UNIX)
             //
             const lines = ticData.split(/\r\n|\n/g);
             let keyEnd;
@@ -226,7 +226,7 @@ module.exports = class TicFileInfo {
             let entry;
 
             lines.forEach(line => {
-                keyEnd	= line.search(/\s/);
+                keyEnd  = line.search(/\s/);
 
                 if(keyEnd < 0) {
                     keyEnd = line.length;
@@ -240,12 +240,12 @@ module.exports = class TicFileInfo {
 
                 value = line.substr(keyEnd + 1);
 
-                //	don't trim Ldesc; may mess with FILE_ID.DIZ type descriptions
+                //  don't trim Ldesc; may mess with FILE_ID.DIZ type descriptions
                 if('ldesc' !== key) {
                     value = value.trim();
                 }
 
-                //	convert well known keys to a more reasonable format
+                //  convert well known keys to a more reasonable format
                 switch(key) {
                     case 'origin' :
                     case 'from' :

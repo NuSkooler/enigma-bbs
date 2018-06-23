@@ -1,36 +1,36 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule					= require('./menu_module.js').MenuModule;
-const ViewController				= require('./view_controller.js').ViewController;
-const getSortedAvailableFileAreas	= require('./file_base_area.js').getSortedAvailableFileAreas;
-const FileBaseFilters				= require('./file_base_filter.js');
-const stringFormat					= require('./string_format.js');
+//  ENiGMA½
+const MenuModule                    = require('./menu_module.js').MenuModule;
+const ViewController                = require('./view_controller.js').ViewController;
+const getSortedAvailableFileAreas   = require('./file_base_area.js').getSortedAvailableFileAreas;
+const FileBaseFilters               = require('./file_base_filter.js');
+const stringFormat                  = require('./string_format.js');
 
-//	deps
-const async				= require('async');
+//  deps
+const async             = require('async');
 
 exports.moduleInfo = {
-    name		: 'File Area Filter Editor',
-    desc		: 'Module for adding, deleting, and modifying file base filters',
-    author		: 'NuSkooler',
+    name        : 'File Area Filter Editor',
+    desc        : 'Module for adding, deleting, and modifying file base filters',
+    author      : 'NuSkooler',
 };
 
 const MciViewIds = {
     editor : {
-        searchTerms			: 1,
-        tags				: 2,
-        area				: 3,
-        sort				: 4,
-        order				: 5,
-        filterName			: 6,
-        navMenu				: 7,
+        searchTerms         : 1,
+        tags                : 2,
+        area                : 3,
+        sort                : 4,
+        order               : 5,
+        filterName          : 6,
+        navMenu             : 7,
 
-        //	:TODO: use the customs new standard thing - filter obj can have active/selected, etc.
-        selectedFilterInfo	: 10,	//	{ ...filter object ... }
-        activeFilterInfo	: 11,	//	{ ...filter object ... }
-        error				: 12,	//	validation errors
+        //  :TODO: use the customs new standard thing - filter obj can have active/selected, etc.
+        selectedFilterInfo  : 10,   //  { ...filter object ... }
+        activeFilterInfo    : 11,   //  { ...filter object ... }
+        error               : 12,   //  validation errors
     }
 };
 
@@ -38,11 +38,11 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.filtersArray		= new FileBaseFilters(this.client).toArray();	//	ordered, such that we can index into them
-        this.currentFilterIndex	= 0;	//	into |filtersArray|
+        this.filtersArray       = new FileBaseFilters(this.client).toArray();   //  ordered, such that we can index into them
+        this.currentFilterIndex = 0;    //  into |filtersArray|
 
         //
-        //	Lexical sort + keep currently active filter (if any) as the first item in |filtersArray|
+        //  Lexical sort + keep currently active filter (if any) as the first item in |filtersArray|
         //
         const activeFilter = FileBaseFilters.getActiveFilter(this.client);
         this.filtersArray.sort( (filterA, filterB) => {
@@ -87,41 +87,41 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                 return cb(null);
             },
             newFilter : (formData, extraArgs, cb) => {
-                this.currentFilterIndex = this.filtersArray.length;	//	next avail slot
+                this.currentFilterIndex = this.filtersArray.length; //  next avail slot
                 this.clearForm(MciViewIds.editor.searchTerms);
                 return cb(null);
             },
             deleteFilter : (formData, extraArgs, cb) => {
-                const selectedFilter	= this.filtersArray[this.currentFilterIndex];
-                const filterUuid		= selectedFilter.uuid;
+                const selectedFilter    = this.filtersArray[this.currentFilterIndex];
+                const filterUuid        = selectedFilter.uuid;
 
-                //	cannot delete built-in/system filters
+                //  cannot delete built-in/system filters
                 if(true === selectedFilter.system) {
                     this.showError('Cannot delete built in filters!');
                     return cb(null);
                 }
 
-                this.filtersArray.splice(this.currentFilterIndex, 1);	//	remove selected entry
+                this.filtersArray.splice(this.currentFilterIndex, 1);   //  remove selected entry
 
-                //	remove from stored properties
+                //  remove from stored properties
                 const filters = new FileBaseFilters(this.client);
                 filters.remove(filterUuid);
                 filters.persist( () => {
 
                     //
-                    //	If the item was also the active filter, we need to make a new one active
+                    //  If the item was also the active filter, we need to make a new one active
                     //
                     if(filterUuid === this.client.user.properties.file_base_filter_active_uuid) {
                         const newActive = this.filtersArray[this.currentFilterIndex];
                         if(newActive) {
                             filters.setActive(newActive.uuid);
                         } else {
-                            //	nothing to set active to
+                            //  nothing to set active to
                             this.client.user.removeProperty('file_base_filter_active_uuid');
                         }
                     }
 
-                    //	update UI
+                    //  update UI
                     this.updateActiveLabel();
 
                     if(this.filtersArray.length > 0) {
@@ -140,7 +140,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                 if(errorView) {
                     if(err) {
                         errorView.setText(err.message);
-                        err.view.clearText();	//	clear out the invalid data
+                        err.view.clearText();   //  clear out the invalid data
                     } else {
                         errorView.clearText();
                     }
@@ -168,8 +168,8 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                 return cb(err);
             }
 
-            const self	= this;
-            const vc	= self.addViewController( 'editor', new ViewController( { client : this.client } ) );
+            const self  = this;
+            const vc    = self.addViewController( 'editor', new ViewController( { client : this.client } ) );
 
             async.series(
                 [
@@ -241,7 +241,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
 
     getSelectedAreaTag(index) {
         if(0 === index) {
-            return '';	//	-ALL-
+            return '';  //  -ALL-
         }
         const area = this.availAreas[index];
         if(!area) {
@@ -258,7 +258,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
         let index;
         const filter = this.getCurrentFilter();
         if(filter) {
-            //	special treatment: areaTag saved as blank ("") if -ALL-
+            //  special treatment: areaTag saved as blank ("") if -ALL-
             index = (filter.areaTag && this.availAreas.findIndex(area => filter.areaTag === area.areaTag)) || 0;
         } else {
             index = 0;
@@ -293,31 +293,31 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
     }
 
     setFilterValuesFromFormData(filter, formData) {
-        filter.name		= formData.value.name;
-        filter.areaTag	= this.getSelectedAreaTag(formData.value.areaIndex);
-        filter.terms	= formData.value.searchTerms;
-        filter.tags		= formData.value.tags;
-        filter.order	= this.getOrderBy(formData.value.orderByIndex);
-        filter.sort		= this.getSortBy(formData.value.sortByIndex);
+        filter.name     = formData.value.name;
+        filter.areaTag  = this.getSelectedAreaTag(formData.value.areaIndex);
+        filter.terms    = formData.value.searchTerms;
+        filter.tags     = formData.value.tags;
+        filter.order    = this.getOrderBy(formData.value.orderByIndex);
+        filter.sort     = this.getSortBy(formData.value.sortByIndex);
     }
 
     saveCurrentFilter(formData, cb) {
-        const filters			= new FileBaseFilters(this.client);
-        const selectedFilter	= this.filtersArray[this.currentFilterIndex];
+        const filters           = new FileBaseFilters(this.client);
+        const selectedFilter    = this.filtersArray[this.currentFilterIndex];
 
         if(selectedFilter) {
-            //	*update* currently selected filter
+            //  *update* currently selected filter
             this.setFilterValuesFromFormData(selectedFilter, formData);
             filters.replace(selectedFilter.uuid, selectedFilter);
         } else {
-            //	add a new entry; note that UUID will be generated
+            //  add a new entry; note that UUID will be generated
             const newFilter = {};
             this.setFilterValuesFromFormData(newFilter, formData);
 
-            //	set current to what we just saved
+            //  set current to what we just saved
             newFilter.uuid = filters.add(newFilter);
 
-            //	add to our array (at current index position)
+            //  add to our array (at current index position)
             this.filtersArray[this.currentFilterIndex] = newFilter;
         }
 
@@ -327,9 +327,9 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
     loadDataForFilter(filterIndex) {
         const filter = this.filtersArray[filterIndex];
         if(filter) {
-            this.setText(MciViewIds.editor.searchTerms,	filter.terms);
-            this.setText(MciViewIds.editor.tags,			filter.tags);
-            this.setText(MciViewIds.editor.filterName,		filter.name);
+            this.setText(MciViewIds.editor.searchTerms, filter.terms);
+            this.setText(MciViewIds.editor.tags,            filter.tags);
+            this.setText(MciViewIds.editor.filterName,      filter.name);
 
             this.setAreaIndexFromCurrentFilter();
             this.setSortByFromCurrentFilter();

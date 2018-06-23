@@ -1,15 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-let loadModulesForCategory	= require('./module_util.js').loadModulesForCategory;
+//  ENiGMA½
+let loadModulesForCategory  = require('./module_util.js').loadModulesForCategory;
 
-//	standard/deps
-let async				= require('async');
+//  standard/deps
+let async               = require('async');
 
-exports.startup			= startup;
-exports.shutdown		= shutdown;
-exports.recordMessage	= recordMessage;
+exports.startup         = startup;
+exports.shutdown        = shutdown;
+exports.recordMessage   = recordMessage;
 
 let msgNetworkModules = [];
 
@@ -53,9 +53,9 @@ function shutdown(cb) {
 
 function recordMessage(message, cb) {
     //
-    //	Give all message network modules (scanner/tossers)
-    //	a chance to do something with |message|. Any or all can
-    //	choose to ignore it.
+    //  Give all message network modules (scanner/tossers)
+    //  a chance to do something with |message|. Any or all can
+    //  choose to ignore it.
     //
     async.each(msgNetworkModules, (modInst, next) => {
         modInst.record(message);

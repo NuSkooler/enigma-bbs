@@ -1,10 +1,10 @@
 /* jslint node: true */
 'use strict';
 
-//	deps
-const fs			= require('graceful-fs');
-const iconv			= require('iconv-lite');
-const async			= require('async');
+//  deps
+const fs            = require('graceful-fs');
+const iconv         = require('iconv-lite');
+const async         = require('async');
 
 module.exports = class DescriptIonFile {
     constructor() {
@@ -30,34 +30,34 @@ module.exports = class DescriptIonFile {
 
             const descIonFile = new DescriptIonFile();
 
-            //	DESCRIPT.ION entries are terminated with a CR and/or LF
+            //  DESCRIPT.ION entries are terminated with a CR and/or LF
             const lines = iconv.decode(descData, 'cp437').split(/\r?\n/g);
 
             async.each(lines, (entryData, nextLine) => {
                 //
-                //	We allow quoted (long) filenames or non-quoted filenames.
-                //	FILENAME<SPC>DESC<0x04><program data><CR/LF>
+                //  We allow quoted (long) filenames or non-quoted filenames.
+                //  FILENAME<SPC>DESC<0x04><program data><CR/LF>
                 //
-                const parts = entryData.match(/^(?:(?:"([^"]+)" )|(?:([^ ]+) ))([^\x04]+)\x04(.)[^\r\n]*$/);	//	eslint-disable-line no-control-regex
+                const parts = entryData.match(/^(?:(?:"([^"]+)" )|(?:([^ ]+) ))([^\x04]+)\x04(.)[^\r\n]*$/);    //  eslint-disable-line no-control-regex
                 if(!parts) {
                     return nextLine(null);
                 }
 
-                const fileName	= parts[1] || parts[2];
+                const fileName  = parts[1] || parts[2];
 
                 //
-                //	Un-escape CR/LF's
-                //	- escapped \r and/or \n
-                //	- BBBS style @n - See https://www.bbbs.net/sysop.html
+                //  Un-escape CR/LF's
+                //  - escapped \r and/or \n
+                //  - BBBS style @n - See https://www.bbbs.net/sysop.html
                 //
-                const desc		= parts[3].replace(/\\r\\n|\\n|[^@]@n/g, '\r\n');
+                const desc      = parts[3].replace(/\\r\\n|\\n|[^@]@n/g, '\r\n');
 
                 descIonFile.entries.set(
                     fileName,
                     {
-                        desc		: desc,
-                        programId	: parts[4],
-                        programData	: parts[5],
+                        desc        : desc,
+                        programId   : parts[4],
+                        programData : parts[5],
                     }
                 );
 

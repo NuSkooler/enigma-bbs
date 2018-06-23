@@ -1,42 +1,42 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const ViewController		= require('./view_controller.js').ViewController;
-const theme					= require('./theme.js');
-const resetScreen			= require('./ansi_term.js').resetScreen;
-const StatLog				= require('./stat_log.js');
-const renderStringLength	= require('./string_util.js').renderStringLength;
-const stringFormat			= require('./string_format.js');
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const ViewController        = require('./view_controller.js').ViewController;
+const theme                 = require('./theme.js');
+const resetScreen           = require('./ansi_term.js').resetScreen;
+const StatLog               = require('./stat_log.js');
+const renderStringLength    = require('./string_util.js').renderStringLength;
+const stringFormat          = require('./string_format.js');
 
-//	deps
-const async					= require('async');
-const _						= require('lodash');
+//  deps
+const async                 = require('async');
+const _                     = require('lodash');
 
 exports.moduleInfo = {
-    name		: 'Rumorz',
-    desc		: 'Standard local rumorz',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.rumorz',
+    name        : 'Rumorz',
+    desc        : 'Standard local rumorz',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.rumorz',
 };
 
-const STATLOG_KEY_RUMORZ	= 'system_rumorz';
+const STATLOG_KEY_RUMORZ    = 'system_rumorz';
 
 const FormIds = {
-    View	: 0,
-    Add		: 1,
+    View    : 0,
+    Add     : 1,
 };
 
 const MciCodeIds = {
-    ViewForm	:  {
-        Entries		: 1,
-        AddPrompt	: 2,
+    ViewForm    :  {
+        Entries     : 1,
+        AddPrompt   : 2,
     },
     AddForm : {
-        NewEntry		: 1,
-        EntryPreview	: 2,
-        AddPrompt		: 3,
+        NewEntry        : 1,
+        EntryPreview    : 2,
+        AddPrompt       : 3,
     }
 };
 
@@ -51,21 +51,21 @@ exports.getModule = class RumorzModule extends MenuModule {
 
             addEntry : (formData, extraArgs, cb) => {
                 if(_.isString(formData.value.rumor) && renderStringLength(formData.value.rumor) > 0) {
-                    const rumor = formData.value.rumor.trim();	//	remove any trailing ws
+                    const rumor = formData.value.rumor.trim();  //  remove any trailing ws
 
                     StatLog.appendSystemLogEntry(STATLOG_KEY_RUMORZ, rumor, StatLog.KeepDays.Forever, StatLog.KeepType.Forever, () => {
                         this.clearAddForm();
-                        return this.displayViewScreen(true, cb);	//	true=cls
+                        return this.displayViewScreen(true, cb);    //  true=cls
                     });
                 } else {
-                    //	empty message - treat as if cancel was hit
-                    return this.displayViewScreen(true, cb);	//	true=cls
+                    //  empty message - treat as if cancel was hit
+                    return this.displayViewScreen(true, cb);    //  true=cls
                 }
             },
 
             cancelAdd : (formData, extraArgs, cb) => {
                 this.clearAddForm();
-                return this.displayViewScreen(true, cb);	//	true=cls
+                return this.displayViewScreen(true, cb);    //  true=cls
             }
         };
     }
@@ -73,12 +73,12 @@ exports.getModule = class RumorzModule extends MenuModule {
     get config() { return this.menuConfig.config; }
 
     clearAddForm() {
-        const newEntryView	= this.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
-        const previewView	= this.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
+        const newEntryView  = this.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
+        const previewView   = this.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
 
         newEntryView.setText('');
 
-        //	preview is optional
+        //  preview is optional
         if(previewView) {
             previewView.setText('');
         }
@@ -98,7 +98,7 @@ exports.getModule = class RumorzModule extends MenuModule {
             ],
             err => {
                 if(err) {
-                    //	:TODO: Handle me -- initSequence() should really take a completion callback
+                    //  :TODO: Handle me -- initSequence() should really take a completion callback
                 }
                 self.finishedLoading();
             }
@@ -135,9 +135,9 @@ exports.getModule = class RumorzModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.View,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.View,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -155,9 +155,9 @@ exports.getModule = class RumorzModule extends MenuModule {
                     });
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    const config			= self.config;
-                    const listFormat		= config.listFormat || '{rumor}';
-                    const focusListFormat	= config.focusListFormat || listFormat;
+                    const config            = self.config;
+                    const listFormat        = config.listFormat || '{rumor}';
+                    const focusListFormat   = config.focusListFormat || listFormat;
 
                     entriesView.setItems(entries.map( e => stringFormat(listFormat, { rumor : e.log_value } ) ) );
                     entriesView.setFocusItems(entries.map(e => stringFormat(focusListFormat, { rumor : e.log_value } ) ) );
@@ -167,7 +167,7 @@ exports.getModule = class RumorzModule extends MenuModule {
                 },
                 function finalPrep(callback) {
                     const promptView = self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt);
-                    promptView.setFocusItemIndex(1);	//	default to NO
+                    promptView.setFocusItemIndex(1);    //  default to NO
                     return callback(null);
                 }
             ],
@@ -205,9 +205,9 @@ exports.getModule = class RumorzModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.Add,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.Add,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -219,8 +219,8 @@ exports.getModule = class RumorzModule extends MenuModule {
                     }
                 },
                 function initPreviewUpdates(callback) {
-                    const previewView	= self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
-                    const entryView		= self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
+                    const previewView   = self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
+                    const entryView     = self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
                     if(previewView) {
                         let timerId;
                         entryView.on('key press', () => {

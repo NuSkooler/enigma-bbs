@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-const Config			= require('./config.js').get;
-const art				= require('./art.js');
-const ansi				= require('./ansi_term.js');
-const Log				= require('./logger.js').log;
-const ConfigCache		= require('./config_cache.js');
-const getFullConfig		= require('./config_util.js').getFullConfig;
-const asset				= require('./asset.js');
-const ViewController	= require('./view_controller.js').ViewController;
-const Errors			= require('./enig_error.js').Errors;
-const ErrorReasons		= require('./enig_error.js').ErrorReasons;
-const Events			= require('./events.js');
+const Config            = require('./config.js').get;
+const art               = require('./art.js');
+const ansi              = require('./ansi_term.js');
+const Log               = require('./logger.js').log;
+const ConfigCache       = require('./config_cache.js');
+const getFullConfig     = require('./config_util.js').getFullConfig;
+const asset             = require('./asset.js');
+const ViewController    = require('./view_controller.js').ViewController;
+const Errors            = require('./enig_error.js').Errors;
+const ErrorReasons      = require('./enig_error.js').ErrorReasons;
+const Events            = require('./events.js');
 
-const fs				= require('graceful-fs');
-const paths				= require('path');
-const async				= require('async');
-const _					= require('lodash');
-const assert			= require('assert');
+const fs                = require('graceful-fs');
+const paths             = require('path');
+const async             = require('async');
+const _                 = require('lodash');
+const assert            = require('assert');
 
-exports.getThemeArt				= getThemeArt;
-exports.getAvailableThemes		= getAvailableThemes;
-exports.getRandomTheme			= getRandomTheme;
+exports.getThemeArt             = getThemeArt;
+exports.getAvailableThemes      = getAvailableThemes;
+exports.getRandomTheme          = getRandomTheme;
 exports.setClientTheme          = setClientTheme;
-exports.initAvailableThemes		= initAvailableThemes;
-exports.displayThemeArt			= displayThemeArt;
-exports.displayThemedPause		= displayThemedPause;
-exports.displayThemedPrompt		= displayThemedPrompt;
-exports.displayThemedAsset		= displayThemedAsset;
+exports.initAvailableThemes     = initAvailableThemes;
+exports.displayThemeArt         = displayThemeArt;
+exports.displayThemedPause      = displayThemedPause;
+exports.displayThemedPrompt     = displayThemedPrompt;
+exports.displayThemedAsset      = displayThemedAsset;
 
 function refreshThemeHelpers(theme) {
     //
-    //	Create some handy helpers
+    //  Create some handy helpers
     //
     theme.helpers = {
         getPasswordChar : function() {
@@ -75,9 +75,9 @@ function loadTheme(themeId, cb) {
     };
 
     const getOpts = {
-        filePath 		: path,
-        forceReCache	: true,
-        callback		: changed,
+        filePath        : path,
+        forceReCache    : true,
+        callback        : changed,
     };
 
     ConfigCache.getConfigWithOptions(getOpts, (err, theme) => {
@@ -86,8 +86,8 @@ function loadTheme(themeId, cb) {
         }
 
         if(!_.isObject(theme.info) ||
-			!_.isString(theme.info.name) ||
-			!_.isString(theme.info.author))
+            !_.isString(theme.info.name) ||
+            !_.isString(theme.info.author))
         {
             return cb(Errors.Invalid('Invalid or missing "info" section'));
         }
@@ -113,7 +113,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
     assert(_.isObject(theme));
 
     //  :TODO: merge in defaults (customization.defaults{} )
-    //	:TODO: apply generic stuff, e.g. "VM" (vs "VM1")
+    //  :TODO: apply generic stuff, e.g. "VM" (vs "VM1")
 
     //
     //  Create a *clone* of menuConfig (menu.hjson) then bring in
@@ -213,7 +213,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
             if(_.has(theme, [ 'customization', sectionName, menuName ])) {
                 const menuTheme = theme.customization[sectionName][menuName];
 
-                //	config block is direct assign/overwrite
+                //  config block is direct assign/overwrite
                 //  :TODO: should probably be _.merge()
                 if(menuTheme.config) {
                     mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
@@ -250,7 +250,7 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
             //  *   There is no 'prompt' specified
             //
             if('menus' === sectionName && !_.isString(mergedThemeMenu.prompt) &&
-				(createdFormSection || !_.isObject(mergedThemeMenu.form)))
+                (createdFormSection || !_.isObject(mergedThemeMenu.form)))
             {
                 mergedThemeMenu.runtime = _.merge(mergedThemeMenu.runtime || {}, { autoNext : true } );
             }
@@ -337,21 +337,21 @@ function initAvailableThemes(cb) {
                         menuConfig,
                         promptConfig,
                         files.filter( f => {
-                            //	sync normally not allowed -- initAvailableThemes() is a startup-only method, however
+                            //  sync normally not allowed -- initAvailableThemes() is a startup-only method, however
                             return fs.statSync(paths.join(config.paths.themes, f)).isDirectory();
                         })
                     );
                 });
             },
             function populateAvailable(menuConfig, promptConfig, themeDirectories, callback) {
-                async.each(themeDirectories, (themeId, nextThemeDir) => {	//	theme dir = theme ID
+                async.each(themeDirectories, (themeId, nextThemeDir) => {   //  theme dir = theme ID
                     loadTheme(themeId, (err, theme) => {
                         if(err) {
                             if(ErrorReasons.NotEnabled !== err.reasonCode) {
                                 Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
                             }
 
-                            return nextThemeDir(null);	//	try next
+                            return nextThemeDir(null);  //  try next
                         }
 
                         Object.assign(theme.info, { themeId } );
@@ -413,15 +413,15 @@ function setClientTheme(client, themeId) {
 
 function getThemeArt(options, cb) {
     //
-    //	options - required:
-    //		name
+    //  options - required:
+    //      name
     //
-    //	options - optional
-    //		client - needed for user's theme/etc.
-    //		themeId
-    //		asAnsi
-    //		readSauce
-    //		random
+    //  options - optional
+    //      client - needed for user's theme/etc.
+    //      themeId
+    //      asAnsi
+    //      readSauce
+    //      random
     //
     const config = Config();
     if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
@@ -430,30 +430,30 @@ function getThemeArt(options, cb) {
         options.themeId = config.defaults.theme;
     }
 
-    //	:TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
-    //	:TODO: Some of these options should only be set if not provided!
-    options.asAnsi		= true;	//	always convert to ANSI
-    options.readSauce	= true;	//	read SAUCE, if avail
-    options.random		= _.get(options, 'random', true);	//	FILENAME<n>.EXT support
+    //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
+    //  :TODO: Some of these options should only be set if not provided!
+    options.asAnsi      = true; //  always convert to ANSI
+    options.readSauce   = true; //  read SAUCE, if avail
+    options.random      = _.get(options, 'random', true);   //  FILENAME<n>.EXT support
 
     //
-    //	We look for themed art in the following order:
-    //	1)	Direct/relative path
-    //	2)	Via theme supplied by |themeId|
-    //	3)	Via default theme
-    //	4)	General art directory
+    //  We look for themed art in the following order:
+    //  1)  Direct/relative path
+    //  2)  Via theme supplied by |themeId|
+    //  3)  Via default theme
+    //  4)  General art directory
     //
     async.waterfall(
         [
             function fromPath(callback) {
                 //
-                //	We allow relative (to enigma-bbs) or full paths
+                //  We allow relative (to enigma-bbs) or full paths
                 //
                 if('/' === options.name.charAt(0)) {
-                    //	just take the path as-is
+                    //  just take the path as-is
                     options.basePath = paths.dirname(options.name);
                 } else if(options.name.indexOf('/') > -1) {
-                    //	make relative to base BBS dir
+                    //  make relative to base BBS dir
                     options.basePath = paths.join(__dirname, '../', paths.dirname(options.name));
                 } else {
                     return callback(null, null);
@@ -513,11 +513,11 @@ function displayThemeArt(options, cb) {
         if(err) {
             return cb(err);
         }
-        //	:TODO: just use simple merge of options -> displayOptions
+        //  :TODO: just use simple merge of options -> displayOptions
         const displayOpts = {
-            sauce		: artInfo.sauce,
-            font		: options.font,
-            trailingLF	: options.trailingLF,
+            sauce       : artInfo.sauce,
+            font        : options.font,
+            trailingLF  : options.trailingLF,
         };
 
         art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
@@ -543,14 +543,14 @@ function displayThemedPrompt(name, client, options, cb) {
                 }
 
                 //
-                //	If we did *not* clear the screen, don't let the font change
-                //	doing so messes things up -- most terminals that support font
-                //	changing can only display a single font at at time.
+                //  If we did *not* clear the screen, don't let the font change
+                //  doing so messes things up -- most terminals that support font
+                //  changing can only display a single font at at time.
                 //
-                //	:TODO: We can use term detection to do nifty things like avoid this kind of kludge:
+                //  :TODO: We can use term detection to do nifty things like avoid this kind of kludge:
                 const dispOptions = Object.assign( {}, promptConfig.options );
                 if(!options.clearScreen) {
-                    dispOptions.font = 'not_really_a_font!';	//	kludge :)
+                    dispOptions.font = 'not_really_a_font!';    //  kludge :)
                 }
 
                 displayThemedAsset(
@@ -568,7 +568,7 @@ function displayThemedPrompt(name, client, options, cb) {
             },
             function discoverCursorPosition(promptConfig, artInfo, callback) {
                 if(!options.clearPrompt) {
-                    //	no need to query cursor - we're not gonna use it
+                    //  no need to query cursor - we're not gonna use it
                     return callback(null, promptConfig, artInfo);
                 }
 
@@ -583,9 +583,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 const tempViewController = useTempViewController ? new ViewController( { client : client } ) : options.viewController;
 
                 const loadOpts = {
-                    promptName	: name,
-                    mciMap		: artInfo.mciMap,
-                    config		: promptConfig,
+                    promptName  : name,
+                    mciMap      : artInfo.mciMap,
+                    config      : promptConfig,
                 };
 
                 tempViewController.loadFromPromptConfig(loadOpts, () => {
@@ -606,7 +606,7 @@ function displayThemedPrompt(name, client, options, cb) {
                     if(artInfo.startRow && artInfo.height) {
                         client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
 
-                        //	Note: Does not work properly in NetRunner < 2.0b17:
+                        //  Note: Does not work properly in NetRunner < 2.0b17:
                         client.term.rawWrite(ansi.deleteLine(artInfo.height));
                     } else {
                         client.term.rawWrite(ansi.eraseLine(1));
@@ -631,7 +631,7 @@ function displayThemedPrompt(name, client, options, cb) {
 }
 
 //
-//	Pause prompts are a special prompt by the name 'pause'.
+//  Pause prompts are a special prompt by the name 'pause'.
 //
 function displayThemedPause(client, options, cb) {
 
@@ -651,7 +651,7 @@ function displayThemedPause(client, options, cb) {
 function displayThemedAsset(assetSpec, client, options, cb) {
     assert(_.isObject(client));
 
-    //	options are... optional
+    //  options are... optional
     if(3 === arguments.length) {
         cb = options;
         options = {};
@@ -666,12 +666,12 @@ function displayThemedAsset(assetSpec, client, options, cb) {
         return cb(new Error('Asset not found: ' + assetSpec));
     }
 
-    //	:TODO: just use simple merge of options -> displayOptions
+    //  :TODO: just use simple merge of options -> displayOptions
     var dispOpts = {
-        name			: artAsset.asset,
-        client			: client,
-        font			: options.font,
-        trailingLF		: options.trailingLF,
+        name            : artAsset.asset,
+        client          : client,
+        font            : options.font,
+        trailingLF      : options.trailingLF,
     };
 
     switch(artAsset.type) {
@@ -682,13 +682,13 @@ function displayThemedAsset(assetSpec, client, options, cb) {
             break;
 
         case 'method' :
-            //	:TODO: fetch & render via method
+            //  :TODO: fetch & render via method
             break;
 
         case 'inline ' :
-            //	:TODO: think about this more in relation to themes, etc. How can this come
-            //	from a theme (with override from menu.json) ???
-            //	look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
+            //  :TODO: think about this more in relation to themes, etc. How can this come
+            //  from a theme (with override from menu.json) ???
+            //  look @ client.currentTheme.inlineArt[name] -> menu/prompt[name]
             break;
 
         default :

@@ -1,13 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-const MenuView		= require('./menu_view.js').MenuView;
-const strUtil		= require('./string_util.js');
+const MenuView      = require('./menu_view.js').MenuView;
+const strUtil       = require('./string_util.js');
 
-const util			= require('util');
-const assert		= require('assert');
+const util          = require('util');
+const assert        = require('assert');
 
-exports.ToggleMenuView		= ToggleMenuView;
+exports.ToggleMenuView      = ToggleMenuView;
 
 function ToggleMenuView (options) {
     options.cursor = options.cursor || 'hide';
@@ -17,10 +17,10 @@ function ToggleMenuView (options) {
     var self = this;
 
     /*
-	this.cachePositions = function() {
-		self.positionCacheExpired = false;
-	};
-	*/
+    this.cachePositions = function() {
+        self.positionCacheExpired = false;
+    };
+    */
 
     this.updateSelection = function() {
         assert(this.focusedItemIndex >= 0 && this.focusedItemIndex <= self.items.length);
@@ -47,8 +47,8 @@ ToggleMenuView.prototype.redraw = function() {
             //console.log(this.styleColor1)
             //var sepColor = this.getANSIColor(this.styleColor1 || this.getColor());
             //console.log(sepColor.substr(1))
-            //var sepColor = '\u001b[0m\u001b[1;30m';	//	:TODO: FIX ME!!!
-            //	:TODO: sepChar needs to be configurable!!!
+            //var sepColor = '\u001b[0m\u001b[1;30m';   //  :TODO: FIX ME!!!
+            //  :TODO: sepChar needs to be configurable!!!
             this.client.term.write(this.styleSGR1 + ' / ');
             //this.client.term.write(sepColor + ' / ');
         }
@@ -59,7 +59,7 @@ ToggleMenuView.prototype.redraw = function() {
 };
 
 ToggleMenuView.prototype.setFocusItemIndex = function(index) {
-    ToggleMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+    ToggleMenuView.super_.prototype.setFocusItemIndex.call(this, index);    //  sets this.focusedItemIndex
 
     this.updateSelection();
 };
@@ -113,9 +113,9 @@ ToggleMenuView.prototype.getData = function() {
 };
 
 ToggleMenuView.prototype.setItems = function(items) {
-    items = items.slice(0, 2);	//	switch/toggle only works with two elements
+    items = items.slice(0, 2);  //  switch/toggle only works with two elements
 
     ToggleMenuView.super_.prototype.setItems.call(this, items);
 
-    this.dimens.width = items.join(' / ').length;	//	:TODO: allow configurable seperator... string & color, e.g. styleColor1 (same as fillChar color)
+    this.dimens.width = items.join(' / ').length;   //  :TODO: allow configurable seperator... string & color, e.g. styleColor1 (same as fillChar color)
 };

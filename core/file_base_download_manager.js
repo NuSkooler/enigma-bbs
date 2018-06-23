@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const ViewController		= require('./view_controller.js').ViewController;
-const DownloadQueue			= require('./download_queue.js');
-const theme					= require('./theme.js');
-const ansi					= require('./ansi_term.js');
-const Errors				= require('./enig_error.js').Errors;
-const stringFormat			= require('./string_format.js');
-const FileAreaWeb			= require('./file_area_web.js');
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const ViewController        = require('./view_controller.js').ViewController;
+const DownloadQueue         = require('./download_queue.js');
+const theme                 = require('./theme.js');
+const ansi                  = require('./ansi_term.js');
+const Errors                = require('./enig_error.js').Errors;
+const stringFormat          = require('./string_format.js');
+const FileAreaWeb           = require('./file_area_web.js');
 
-//	deps
-const async					= require('async');
-const _						= require('lodash');
-const moment				= require('moment');
+//  deps
+const async                 = require('async');
+const _                     = require('lodash');
+const moment                = require('moment');
 
 exports.moduleInfo = {
-    name		: 'File Base Download Queue Manager',
-    desc		: 'Module for interacting with download queue/batch',
-    author		: 'NuSkooler',
+    name        : 'File Base Download Queue Manager',
+    desc        : 'Module for interacting with download queue/batch',
+    author      : 'NuSkooler',
 };
 
 const FormIds = {
-    queueManager	: 0,
+    queueManager    : 0,
 };
 
 const MciViewIds = {
     queueManager : {
-        queue				: 1,
-        navMenu				: 2,
+        queue               : 1,
+        navMenu             : 2,
 
-        customRangeStart	: 10,
+        customRangeStart    : 10,
     },
 };
 
@@ -52,8 +52,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
             downloadAll : (formData, extraArgs, cb) => {
                 const modOpts = {
                     extraArgs : {
-                        sendQueue 	: this.dlQueue.items,
-                        direction	: 'send',
+                        sendQueue   : this.dlQueue.items,
+                        direction   : 'send',
                     }
                 };
 
@@ -67,13 +67,13 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
 
                 this.dlQueue.removeItems(selectedItem.fileId);
 
-                //	:TODO: broken: does not redraw menu properly - needs fixed!
+                //  :TODO: broken: does not redraw menu properly - needs fixed!
                 return this.removeItemsFromDownloadQueueView(formData.value.queueItem, cb);
             },
             clearQueue : (formData, extraArgs, cb) => {
                 this.dlQueue.clear();
 
-                //	:TODO: broken: does not redraw menu properly - needs fixed!
+                //  :TODO: broken: does not redraw menu properly - needs fixed!
                 return this.removeItemsFromDownloadQueueView('all', cb);
             }
         };
@@ -82,11 +82,11 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
     initSequence() {
         if(0 === this.dlQueue.items.length) {
             if(this.sendFileIds) {
-                //	we've finished everything up - just fall back
+                //  we've finished everything up - just fall back
                 return this.prevMenu();
             }
 
-            //	Simply an empty D/L queue: Present a specialized "empty queue" page
+            //  Simply an empty D/L queue: Present a specialized "empty queue" page
             return this.gotoMenu(this.menuConfig.config.emptyQueueMenu || 'fileBaseDownloadManagerEmptyQueue');
         }
 
@@ -129,11 +129,11 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
             if(serveItem && serveItem.url) {
                 const webDlExpireTimeFormat = this.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
-                fileEntry.webDlLink 	= ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
-                fileEntry.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
+                fileEntry.webDlLink     = ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
+                fileEntry.webDlExpire   = moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
             } else {
-                fileEntry.webDlLink		= '';
-                fileEntry.webDlExpire	= '';
+                fileEntry.webDlLink     = '';
+                fileEntry.webDlExpire   = '';
             }
 
             this.updateCustomViewTextsWithFilter(
@@ -150,8 +150,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
             return cb(Errors.DoesNotExist('Queue view does not exist'));
         }
 
-        const queueListFormat		= this.menuConfig.config.queueListFormat || '{fileName} {byteSize}';
-        const focusQueueListFormat	= this.menuConfig.config.focusQueueListFormat || queueListFormat;
+        const queueListFormat       = this.menuConfig.config.queueListFormat || '{fileName} {byteSize}';
+        const focusQueueListFormat  = this.menuConfig.config.focusQueueListFormat || queueListFormat;
 
         queueView.setItems(this.dlQueue.items.map( queueItem => stringFormat(queueListFormat, queueItem) ) );
         queueView.setFocusItems(this.dlQueue.items.map( queueItem => stringFormat(focusQueueListFormat, queueItem) ) );
@@ -188,8 +188,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
     }
 
     displayArtAndPrepViewController(name, options, cb) {
-        const self		= this;
-        const config	= this.menuConfig.config;
+        const self      = this;
+        const config    = this.menuConfig.config;
 
         async.waterfall(
             [
@@ -210,8 +210,8 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                 function prepeareViewController(artData, callback) {
                     if(_.isUndefined(self.viewControllers[name])) {
                         const vcOpts = {
-                            client		: self.client,
-                            formId		: FormIds[name],
+                            client      : self.client,
+                            formId      : FormIds[name],
                         };
 
                         if(!_.isUndefined(options.noInput)) {
@@ -221,9 +221,9 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
                         const vc = self.addViewController(name, new ViewController(vcOpts));
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds[name],
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds[name],
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);

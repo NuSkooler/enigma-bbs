@@ -1,40 +1,40 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule					= require('./menu_module.js').MenuModule;
-const ViewController				= require('./view_controller.js').ViewController;
-const Errors						= require('./enig_error.js').Errors;
-const FileEntry						= require('./file_entry.js');
-const FileBaseFilters				= require('./file_base_filter.js');
-const { getAvailableFileAreaTags }	= require('./file_base_area.js');
+//  ENiGMA½
+const MenuModule                    = require('./menu_module.js').MenuModule;
+const ViewController                = require('./view_controller.js').ViewController;
+const Errors                        = require('./enig_error.js').Errors;
+const FileEntry                     = require('./file_entry.js');
+const FileBaseFilters               = require('./file_base_filter.js');
+const { getAvailableFileAreaTags }  = require('./file_base_area.js');
 const {
     getSortedAvailMessageConferences,
     getSortedAvailMessageAreasByConfTag,
     updateMessageAreaLastReadId,
     getMessageIdNewerThanTimestampByArea
-}									= require('./message_area.js');
-const stringFormat					= require('./string_format.js');
+}                                   = require('./message_area.js');
+const stringFormat                  = require('./string_format.js');
 
-//	deps
-const async					= require('async');
-const moment				= require('moment');
-const _						= require('lodash');
+//  deps
+const async                 = require('async');
+const moment                = require('moment');
+const _                     = require('lodash');
 
 exports.moduleInfo = {
-    name	: 'Set New Scan Date',
-    desc	: 'Sets new scan date for applicable scans',
-    author	: 'NuSkooler',
+    name    : 'Set New Scan Date',
+    desc    : 'Sets new scan date for applicable scans',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
     main : {
-        scanDate		: 1,
-        targetSelection	: 2,
+        scanDate        : 1,
+        targetSelection : 2,
     }
 };
 
-//	:TODO: for messages, we could insert "conf - all areas" into targets, and allow such
+//  :TODO: for messages, we could insert "conf - all areas" into targets, and allow such
 
 exports.getModule = class SetNewScanDate extends MenuModule {
     constructor(options) {
@@ -42,8 +42,8 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
         const config = this.menuConfig.config;
 
-        this.target			= config.target || 'message';
-        this.scanDateFormat	= config.scanDateFormat || 'YYYYMMDD';
+        this.target         = config.target || 'message';
+        this.scanDateFormat = config.scanDateFormat || 'YYYYMMDD';
 
         this.menuMethods = {
             scanDateSubmit : (formData, extraArgs, cb) => {
@@ -57,7 +57,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                     return cb(Errors.Invalid(`"${_.get(formData, 'value.scanDate')}" is not a valid date`));
                 }
 
-                const targetSelection = _.get(formData, 'value.targetSelection');	//	may be undefined if N/A
+                const targetSelection = _.get(formData, 'value.targetSelection');   //  may be undefined if N/A
 
                 this[`setNewScanDateFor${_.capitalize(this.target)}Base`](targetSelection, scanDate, () => {
                     return this.prevMenu(cb);
@@ -72,12 +72,12 @@ exports.getModule = class SetNewScanDate extends MenuModule {
             return cb(Errors.UnexpectedState('Unable to get target in which to set new scan'));
         }
 
-        //	selected area, or all of 'em
+        //  selected area, or all of 'em
         let updateAreaTags;
         if('' === target.area.areaTag) {
             updateAreaTags = this.targetSelections
                 .map( targetSelection => targetSelection.area.areaTag )
-                .filter( areaTag => areaTag );	//	remove the blank 'all' entry
+                .filter( areaTag => areaTag );  //  remove the blank 'all' entry
         } else {
             updateAreaTags = [ target.area.areaTag ];
         }
@@ -89,7 +89,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 }
 
                 if(!messageId) {
-                    return nextAreaTag(null);	//	nothing to do
+                    return nextAreaTag(null);   //  nothing to do
                 }
 
                 messageId = Math.max(messageId - 1, 0);
@@ -98,7 +98,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                     this.client.user.userId,
                     areaTag,
                     messageId,
-                    true,	//	allowOlder
+                    true,   //  allowOlder
                     nextAreaTag
                 );
             });
@@ -109,16 +109,16 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
     setNewScanDateForFileBase(targetSelection, scanDate, cb) {
         //
-        //	ENiGMA doesn't currently have the concept of per-area
-        //	scan pointers for users, so we use all areas avail
-        //	to the user.
+        //  ENiGMA doesn't currently have the concept of per-area
+        //  scan pointers for users, so we use all areas avail
+        //  to the user.
         //
         const filterCriteria = {
-            areaTag				: getAvailableFileAreaTags(this.client),
-            newerThanTimestamp	: scanDate,
-            limit				: 1,
-            orderBy				: 'upload_timestamp',
-            order				: 'ascending',
+            areaTag             : getAvailableFileAreaTags(this.client),
+            newerThanTimestamp  : scanDate,
+            limit               : 1,
+            orderBy             : 'upload_timestamp',
+            order               : 'ascending',
         };
 
         FileEntry.findFiles(filterCriteria, (err, fileIds) => {
@@ -127,7 +127,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
             }
 
             if(!fileIds || 0 === fileIds.length) {
-                //	nothing to do
+                //  nothing to do
                 return cb(null);
             }
 
@@ -136,7 +136,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
             return FileBaseFilters.setFileBaseLastViewedFileIdForUser(
                 this.client.user,
                 pointerFileId,
-                true,	//	allowOlder
+                true,   //  allowOlder
                 cb
             );
         });
@@ -144,22 +144,22 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
     loadAvailMessageBaseSelections(cb) {
         //
-        //	Create an array of objects with conf/area information per entry,
-        //	sorted naturally or via the 'sort' member in config
+        //  Create an array of objects with conf/area information per entry,
+        //  sorted naturally or via the 'sort' member in config
         //
         const selections = [];
         getSortedAvailMessageConferences(this.client).forEach(conf => {
             getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } ).forEach(area => {
                 selections.push({
-                    conf	: {
+                    conf    : {
                         confTag : conf.confTag,
-                        name	: conf.conf.name,
-                        desc	: conf.conf.desc,
+                        name    : conf.conf.name,
+                        desc    : conf.conf.desc,
                     },
-                    area	: {
-                        areaTag	: area.areaTag,
-                        name	: area.area.name,
-                        desc	: area.area.desc,
+                    area    : {
+                        areaTag : area.areaTag,
+                        name    : area.area.name,
+                        desc    : area.area.desc,
                     }
                 });
             });
@@ -167,20 +167,20 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
         selections.unshift({
             conf : {
-                confTag	: '',
-                name	: 'All conferences',
-                desc	: 'All conferences',
+                confTag : '',
+                name    : 'All conferences',
+                desc    : 'All conferences',
             },
-            area	: {
-                areaTag	: '',
-                name	: 'All areas',
-                desc	: 'All areas',
+            area    : {
+                areaTag : '',
+                name    : 'All areas',
+                desc    : 'All areas',
             }
         });
 
-        //	Find current conf/area & move it directly under "All"
-        const currConfTag 	= this.client.user.properties.message_conf_tag;
-        const currAreaTag	= this.client.user.properties.message_area_tag;
+        //  Find current conf/area & move it directly under "All"
+        const currConfTag   = this.client.user.properties.message_conf_tag;
+        const currAreaTag   = this.client.user.properties.message_area_tag;
         if(currConfTag && currAreaTag) {
             const confAreaIndex = selections.findIndex( confArea => {
                 return confArea.conf.confTag === currConfTag && confArea.area.areaTag === currAreaTag;
@@ -202,8 +202,8 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 return cb(err);
             }
 
-            const self	= this;
-            const vc	= self.addViewController( 'main', new ViewController( { client : this.client } ) );
+            const self  = this;
+            const vc    = self.addViewController( 'main', new ViewController( { client : this.client } ) );
 
             async.series(
                 [
@@ -211,7 +211,7 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         if(![ 'message', 'file' ].includes(self.target)) {
                             return callback(Errors.Invalid(`Invalid "target" in config: ${self.target}`));
                         }
-                        //	:TOD0: validate scanDateFormat
+                        //  :TOD0: validate scanDateFormat
                         return callback(null);
                     },
                     function loadFromConfig(callback) {
@@ -231,13 +231,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
 
                         const scanDateView = vc.getView(MciViewIds.main.scanDate);
 
-                        //	:TODO: MaskTextEditView needs some love: If setText() with input that matches the mask, we should ignore the non-mask chars! Hack in place for now
+                        //  :TODO: MaskTextEditView needs some love: If setText() with input that matches the mask, we should ignore the non-mask chars! Hack in place for now
                         const scanDateFormat = self.scanDateFormat.replace(/[/\-. ]/g, '');
                         scanDateView.setText(today.format(scanDateFormat));
 
                         if('message' === self.target) {
-                            const messageSelectionsFormat		= self.menuConfig.config.messageSelectionsFormat || '{conf.name} - {area.name}';
-                            const messageSelectionFocusFormat	= self.menuConfig.config.messageSelectionFocusFormat || messageSelectionsFormat;
+                            const messageSelectionsFormat       = self.menuConfig.config.messageSelectionsFormat || '{conf.name} - {area.name}';
+                            const messageSelectionFocusFormat   = self.menuConfig.config.messageSelectionFocusFormat || messageSelectionsFormat;
 
                             const targetSelectionView = vc.getView(MciViewIds.main.targetSelection);
 

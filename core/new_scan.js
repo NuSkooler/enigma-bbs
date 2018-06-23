@@ -1,24 +1,24 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const msgArea						= require('./message_area.js');
-const MenuModule					= require('./menu_module.js').MenuModule;
-const ViewController				= require('./view_controller.js').ViewController;
-const stringFormat					= require('./string_format.js');
-const FileEntry						= require('./file_entry.js');
-const FileBaseFilters				= require('./file_base_filter.js');
-const Errors						= require('./enig_error.js').Errors;
-const { getAvailableFileAreaTags }	= require('./file_base_area.js');
+//  ENiGMA½
+const msgArea                       = require('./message_area.js');
+const MenuModule                    = require('./menu_module.js').MenuModule;
+const ViewController                = require('./view_controller.js').ViewController;
+const stringFormat                  = require('./string_format.js');
+const FileEntry                     = require('./file_entry.js');
+const FileBaseFilters               = require('./file_base_filter.js');
+const Errors                        = require('./enig_error.js').Errors;
+const { getAvailableFileAreaTags }  = require('./file_base_area.js');
 
-//	deps
-const _					= require('lodash');
-const async				= require('async');
+//  deps
+const _                 = require('lodash');
+const async             = require('async');
 
 exports.moduleInfo = {
-    name		: 'New Scan',
-    desc		: 'Performs a new scan against various areas of the system',
-    author		: 'NuSkooler',
+    name        : 'New Scan',
+    desc        : 'Performs a new scan against various areas of the system',
+    author      : 'NuSkooler',
 };
 
 /*
@@ -30,15 +30,15 @@ exports.moduleInfo = {
 */
 
 const MciCodeIds = {
-    ScanStatusLabel	: 1,	//	TL1
-    ScanStatusList	: 2,	//	VM2 (appends)
+    ScanStatusLabel : 1,    //  TL1
+    ScanStatusList  : 2,    //  VM2 (appends)
 };
 
 const Steps = {
-    MessageConfs	: 'messageConferences',
-    FileBase		: 'fileBase',
+    MessageConfs    : 'messageConferences',
+    FileBase        : 'fileBase',
 
-    Finished		: 'finished',
+    Finished        : 'finished',
 };
 
 exports.getModule = class NewScanModule extends MenuModule {
@@ -46,17 +46,17 @@ exports.getModule = class NewScanModule extends MenuModule {
         super(options);
 
 
-        this.newScanFullExit	= _.get(options, 'lastMenuResult.fullExit', false);
+        this.newScanFullExit    = _.get(options, 'lastMenuResult.fullExit', false);
 
-        this.currentStep		= Steps.MessageConfs;
-        this.currentScanAux		= {};
+        this.currentStep        = Steps.MessageConfs;
+        this.currentScanAux     = {};
 
         //  :TODO: Make this conf/area specific:
-        const config			= this.menuConfig.config;
-        this.scanStartFmt		= config.scanStartFmt || 'Scanning {confName} - {areaName}...';
-        this.scanFinishNoneFmt	= config.scanFinishNoneFmt || 'Nothing new';
-        this.scanFinishNewFmt	= config.scanFinishNewFmt || '{count} entries found';
-        this.scanCompleteMsg	= config.scanCompleteMsg || 'Finished newscan';
+        const config            = this.menuConfig.config;
+        this.scanStartFmt       = config.scanStartFmt || 'Scanning {confName} - {areaName}...';
+        this.scanFinishNoneFmt  = config.scanFinishNoneFmt || 'Nothing new';
+        this.scanFinishNewFmt   = config.scanFinishNewFmt || '{count} entries found';
+        this.scanCompleteMsg    = config.scanCompleteMsg || 'Finished newscan';
     }
 
     updateScanStatus(statusText) {
@@ -76,9 +76,9 @@ exports.getModule = class NewScanModule extends MenuModule {
             });
 
             //
-            //	Sort conferences by name, other than 'system_internal' which should
-            //	always come first such that we display private mails/etc. before
-            //	other conferences & areas
+            //  Sort conferences by name, other than 'system_internal' which should
+            //  always come first such that we display private mails/etc. before
+            //  other conferences & areas
             //
             this.sortedMessageConfs.sort((a, b) => {
                 if('system_internal' === a.confTag) {
@@ -110,23 +110,23 @@ exports.getModule = class NewScanModule extends MenuModule {
     newScanMessageArea(conf, cb) {
         //  :TODO: it would be nice to cache this - must be done by conf!
         const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } );
-        const currentArea	= sortedAreas[this.currentScanAux.area];
+        const currentArea   = sortedAreas[this.currentScanAux.area];
 
         //
-        //	Scan and update index until we find something. If results are found,
-        //	we'll goto the list module & show them.
+        //  Scan and update index until we find something. If results are found,
+        //  we'll goto the list module & show them.
         //
         const self = this;
         async.waterfall(
             [
                 function checkAndUpdateIndex(callback) {
-                    //	Advance to next area if possible
+                    //  Advance to next area if possible
                     if(sortedAreas.length >= self.currentScanAux.area + 1) {
                         self.currentScanAux.area += 1;
                         return callback(null);
                     } else {
                         self.updateScanStatus(self.scanCompleteMsg);
-                        return callback(Errors.DoesNotExist('No more areas'));	//	this will stop our scan
+                        return callback(Errors.DoesNotExist('No more areas'));  //  this will stop our scan
                     }
                 },
                 function updateStatusScanStarted(callback) {
@@ -147,7 +147,7 @@ exports.getModule = class NewScanModule extends MenuModule {
                 },
                 function displayMessageList(newMessageCount) {
                     if(newMessageCount <= 0) {
-                        return self.newScanMessageArea(conf, cb);	//	next area, if any
+                        return self.newScanMessageArea(conf, cb);   //  next area, if any
                     }
 
                     const nextModuleOpts = {
@@ -166,11 +166,11 @@ exports.getModule = class NewScanModule extends MenuModule {
     }
 
     newScanFileBase(cb) {
-        //	:TODO: add in steps
+        //  :TODO: add in steps
         const filterCriteria = {
             newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user),
-            areaTag			: getAvailableFileAreaTags(this.client),
-            order			: 'ascending',	//	oldest first
+            areaTag         : getAvailableFileAreaTags(this.client),
+            order           : 'ascending',  //  oldest first
         };
 
         FileEntry.findFiles(
@@ -195,14 +195,14 @@ exports.getModule = class NewScanModule extends MenuModule {
 
     getSaveState() {
         return {
-            currentStep 	: this.currentStep,
-            currentScanAux	: this.currentScanAux,
+            currentStep     : this.currentStep,
+            currentScanAux  : this.currentScanAux,
         };
     }
 
     restoreSavedState(savedState) {
-        this.currentStep 	= savedState.currentStep;
-        this.currentScanAux	= savedState.currentScanAux;
+        this.currentStep    = savedState.currentStep;
+        this.currentScanAux = savedState.currentScanAux;
     }
 
     performScanCurrentStep(cb) {
@@ -227,7 +227,7 @@ exports.getModule = class NewScanModule extends MenuModule {
 
     mciReady(mciData, cb) {
         if(this.newScanFullExit) {
-            //	user has canceled the entire scan @ message list view
+            //  user has canceled the entire scan @ message list view
             return cb(null);
         }
 
@@ -236,18 +236,18 @@ exports.getModule = class NewScanModule extends MenuModule {
                 return cb(err);
             }
 
-            const self	= this;
-            const vc	= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            const self  = this;
+            const vc    = self.viewControllers.allViews = new ViewController( { client : self.client } );
 
-            //	:TODO: display scan step/etc.
+            //  :TODO: display scan step/etc.
 
             async.series(
                 [
                     function loadFromConfig(callback) {
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: mciData.menu,
-                            noInput			: true,
+                            callingMenu     : self,
+                            mciMap          : mciData.menu,
+                            noInput         : true,
                         };
 
                         vc.loadFromMenuConfig(loadOpts, callback);

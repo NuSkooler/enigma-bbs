@@ -1,35 +1,35 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const events			= require('events');
-const util				= require('util');
-const ansi				= require('./ansi_term.js');
-const colorCodes		= require('./color_codes.js');
-const enigAssert		= require('./enigma_assert.js');
-const { renderSubstr }	= require('./string_util.js');
+//  ENiGMA½
+const events            = require('events');
+const util              = require('util');
+const ansi              = require('./ansi_term.js');
+const colorCodes        = require('./color_codes.js');
+const enigAssert        = require('./enigma_assert.js');
+const { renderSubstr }  = require('./string_util.js');
 
-//	deps
-const _				= require('lodash');
+//  deps
+const _             = require('lodash');
 
-exports.View							= View;
+exports.View                            = View;
 
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
-    accept		: [ 'return' ],
-    exit		: [ 'esc' ],
-    backspace	: [ 'backspace', 'del' ],
-    del			: [ 'del' ],
-    next		: [ 'tab' ],
-    up			: [ 'up arrow' ],
-    down		: [ 'down arrow' ],
-    end			: [ 'end' ],
-    home		: [ 'home' ],
-    left		: [ 'left arrow' ],
-    right		: [ 'right arrow' ],
-    clearLine	: [ 'ctrl + y' ],
+    accept      : [ 'return' ],
+    exit        : [ 'esc' ],
+    backspace   : [ 'backspace', 'del' ],
+    del         : [ 'del' ],
+    next        : [ 'tab' ],
+    up          : [ 'up arrow' ],
+    down        : [ 'down arrow' ],
+    end         : [ 'end' ],
+    home        : [ 'home' ],
+    left        : [ 'left arrow' ],
+    right       : [ 'right arrow' ],
+    clearLine   : [ 'ctrl + y' ],
 };
 
-exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
+exports.VIEW_SPECIAL_KEY_MAP_DEFAULT    = VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
 function View(options) {
     events.EventEmitter.call(this);
@@ -37,21 +37,21 @@ function View(options) {
     enigAssert(_.isObject(options));
     enigAssert(_.isObject(options.client));
 
-    var self			= this;
+    var self            = this;
 
-    this.client			= options.client;
+    this.client         = options.client;
 
-    this.cursor			= options.cursor || 'show';
-    this.cursorStyle	= options.cursorStyle || 'default';
+    this.cursor         = options.cursor || 'show';
+    this.cursorStyle    = options.cursorStyle || 'default';
 
-    this.acceptsFocus	= options.acceptsFocus || false;
-    this.acceptsInput	= options.acceptsInput || false;
+    this.acceptsFocus   = options.acceptsFocus || false;
+    this.acceptsInput   = options.acceptsInput || false;
 
-    this.position 		= { x : 0, y : 0 };
-    this.dimens			= { height : 1, width : 0 };
+    this.position       = { x : 0, y : 0 };
+    this.dimens         = { height : 1, width : 0 };
 
-    this.textStyle		= options.textStyle || 'normal';
-    this.focusTextStyle	= options.focusTextStyle || this.textStyle;
+    this.textStyle      = options.textStyle || 'normal';
+    this.focusTextStyle = options.focusTextStyle || this.textStyle;
 
     if(options.id) {
         this.setId(options.id);
@@ -72,17 +72,17 @@ function View(options) {
         this.autoScale = { height : false, width : false };
     } else {
         this.dimens = {
-            width	: options.width || 0,
-            height	: 0
+            width   : options.width || 0,
+            height  : 0
         };
     }
 
-    //	:TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
-    this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
-    this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
+    //  :TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
+    this.ansiSGR        = options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+    this.ansiFocusSGR   = options.ansiFocusSGR || this.ansiSGR;
 
-    this.styleSGR1		= options.styleSGR1 || this.ansiSGR;
-    this.styleSGR2		= options.styleSGR2 || this.ansiFocusSGR;
+    this.styleSGR1      = options.styleSGR1 || this.ansiSGR;
+    this.styleSGR2      = options.styleSGR2 || this.ansiFocusSGR;
 
     if(this.acceptsInput) {
         this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
@@ -126,7 +126,7 @@ View.prototype.getId = function() {
 
 View.prototype.setPosition = function(pos) {
     //
-    //	Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
+    //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
     //
     if(util.isArray(pos)) {
         this.position.row = pos[0];
@@ -139,34 +139,34 @@ View.prototype.setPosition = function(pos) {
         this.position.col = parseInt(arguments[1], 10);
     }
 
-    //	sanatize
-    this.position.row	= Math.max(this.position.row, 1);
-    this.position.col	= Math.max(this.position.col, 1);
-    this.position.row	= Math.min(this.position.row, this.client.term.termHeight);
-    this.position.col	= Math.min(this.position.col, this.client.term.termWidth);
+    //  sanatize
+    this.position.row   = Math.max(this.position.row, 1);
+    this.position.col   = Math.max(this.position.col, 1);
+    this.position.row   = Math.min(this.position.row, this.client.term.termHeight);
+    this.position.col   = Math.min(this.position.col, this.client.term.termWidth);
 };
 
 View.prototype.setDimension = function(dimens) {
     enigAssert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
 
-    this.dimens		= dimens;
-    this.autoScale	= { height : false, width : false };
+    this.dimens     = dimens;
+    this.autoScale  = { height : false, width : false };
 };
 
 View.prototype.setHeight = function(height) {
-    height	= parseInt(height) || 1;
-    height	= Math.min(height, this.client.term.termHeight);
+    height  = parseInt(height) || 1;
+    height  = Math.min(height, this.client.term.termHeight);
 
-    this.dimens.height		= height;
-    this.autoScale.height	= false;
+    this.dimens.height      = height;
+    this.autoScale.height   = false;
 };
 
 View.prototype.setWidth = function(width) {
-    width	= parseInt(width) || 1;
-    width	= Math.min(width, this.client.term.termWidth);
+    width   = parseInt(width) || 1;
+    width   = Math.min(width, this.client.term.termWidth);
 
-    this.dimens.width		= width;
-    this.autoScale.width	= false;
+    this.dimens.width       = width;
+    this.autoScale.width    = false;
 };
 
 View.prototype.getSGR = function() {
@@ -188,20 +188,20 @@ View.prototype.setSpecialKeyMapOverride = function(specialKeyMapOverride) {
 
 View.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
-        case 'height'	: this.setHeight(value); break;
-        case 'width'	: this.setWidth(value); break;
-        case 'focus'	: this.setFocus(value); break;
+        case 'height'   : this.setHeight(value); break;
+        case 'width'    : this.setWidth(value); break;
+        case 'focus'    : this.setFocus(value); break;
 
-        case 'text'		:
+        case 'text'     :
             if('setText' in this) {
                 this.setText(value);
             }
             break;
 
-        case 'textStyle'		: this.textStyle = value; break;
-        case 'focusTextStyle'	: this.focusTextStyle = value; break;
+        case 'textStyle'        : this.textStyle = value; break;
+        case 'focusTextStyle'   : this.focusTextStyle = value; break;
 
-        case 'justify'	: this.justify = value; break;
+        case 'justify'  : this.justify = value; break;
 
         case 'fillChar' :
             if('fillChar' in this) {
@@ -217,9 +217,9 @@ View.prototype.setPropertyValue = function(propName, value) {
             if(_.isBoolean(value)) {
                 this.submit = value;
             }/* else {
-				this.submit = _.isArray(value) && value.length > 0;
-			}
-			*/
+                this.submit = _.isArray(value) && value.length > 0;
+            }
+            */
             break;
 
         case 'resizable' :
@@ -258,8 +258,8 @@ View.prototype.setFocus = function(focused) {
 };
 
 View.prototype.onKeyPress = function(ch, key) {
-    enigAssert(this.hasFocus,		'View does not have focus');
-    enigAssert(this.acceptsInput,	'View does not accept input');
+    enigAssert(this.hasFocus,       'View does not have focus');
+    enigAssert(this.acceptsInput,   'View does not accept input');
 
     if(!this.hasFocus || !this.acceptsInput) {
         return;

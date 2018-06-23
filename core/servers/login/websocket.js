@@ -1,25 +1,25 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config			= require('../../config.js').get;
-const TelnetClient		= require('./telnet.js').TelnetClient;
-const Log				= require('../../logger.js').log;
-const LoginServerModule	= require('../../login_server_module.js');
+//  ENiGMA½
+const Config            = require('../../config.js').get;
+const TelnetClient      = require('./telnet.js').TelnetClient;
+const Log               = require('../../logger.js').log;
+const LoginServerModule = require('../../login_server_module.js');
 
-//	deps
-const _					= require('lodash');
-const WebSocketServer	= require('ws').Server;
-const http				= require('http');
-const https				= require('https');
-const fs				= require('graceful-fs');
-const Writable			= require('stream');
+//  deps
+const _                 = require('lodash');
+const WebSocketServer   = require('ws').Server;
+const http              = require('http');
+const https             = require('https');
+const fs                = require('graceful-fs');
+const Writable          = require('stream');
 
 const ModuleInfo = exports.moduleInfo = {
-    name		: 'WebSocket',
-    desc		: 'WebSocket Server',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.websocket.server',
+    name        : 'WebSocket',
+    desc        : 'WebSocket Server',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.websocket.server',
 };
 
 function WebSocketClient(ws, req, serverType) {
@@ -35,8 +35,8 @@ function WebSocketClient(ws, req, serverType) {
     };
 
     //
-    //	This bridge makes accessible various calls that client sub classes
-    //	want to access on I/O socket
+    //  This bridge makes accessible various calls that client sub classes
+    //  want to access on I/O socket
     //
     this.socketBridge = new class SocketBridge extends Writable {
         constructor(ws) {
@@ -49,12 +49,12 @@ function WebSocketClient(ws, req, serverType) {
         }
 
         write(data, cb) {
-            cb = cb || ( () => { /* eat it up */} );	//	handle data writes after close
+            cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
 
             return this.ws.send(data, { binary : true }, cb);
         }
 
-        //	we need to fake some streaming work
+        //  we need to fake some streaming work
         unpipe() {
             Log.trace('WebSocket SocketBridge unpipe()');
         }
@@ -64,7 +64,7 @@ function WebSocketClient(ws, req, serverType) {
         }
 
         get remoteAddress() {
-            //	Support X-Forwarded-For and X-Real-IP headers for proxied connections
+            //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
             return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
         }
     }(ws);
@@ -72,12 +72,12 @@ function WebSocketClient(ws, req, serverType) {
     ws.on('message', this.dataHandler);
 
     ws.on('close', () => {
-        //	we'll remove client connection which will in turn end() via our SocketBridge above
+        //  we'll remove client connection which will in turn end() via our SocketBridge above
         return this.emit('end');
     });
 
     //
-    //	Montior connection status with ping/pong
+    //  Montior connection status with ping/pong
     //
     ws.on('pong', () => {
         Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
@@ -89,11 +89,11 @@ function WebSocketClient(ws, req, serverType) {
     Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
 
     //
-    //	If the config allows it, look for 'x-forwarded-proto' as "https"
-    //	to override |isSecure|
+    //  If the config allows it, look for 'x-forwarded-proto' as "https"
+    //  to override |isSecure|
     //
     if(true === _.get(Config(), 'loginServers.webSocket.proxied') &&
-		'https' === req.headers['x-forwarded-proto'])
+        'https' === req.headers['x-forwarded-proto'])
     {
         Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
         this.proxied = true;
@@ -101,7 +101,7 @@ function WebSocketClient(ws, req, serverType) {
         this.proxied = false;
     }
 
-    //	start handshake process
+    //  start handshake process
     this.banner();
 }
 
@@ -116,40 +116,40 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 
     createServer() {
         //
-        //	We will actually create up to two servers:
-        //	* insecure websocket (ws://)
-        //	* secure (tls) websocket (wss://)
+        //  We will actually create up to two servers:
+        //  * insecure websocket (ws://)
+        //  * secure (tls) websocket (wss://)
         //
         const config = _.get(Config(), 'loginServers.webSocket');
         if(!_.isObject(config)) {
             return;
         }
 
-        const wsPort 	= _.get(config, 'ws.port');
-        const wssPort	= _.get(config, 'wss.port');
+        const wsPort    = _.get(config, 'ws.port');
+        const wssPort   = _.get(config, 'wss.port');
 
         if(true === _.get(config, 'ws.enabled') && _.isNumber(wsPort)) {
             const httpServer = http.createServer( (req, resp) => {
-                //	dummy handler
+                //  dummy handler
                 resp.writeHead(200);
                 return resp.end('ENiGMA½ BBS WebSocket Server!');
             });
 
             this.insecure = {
-                httpServer	: httpServer,
-                wsServer	: new WebSocketServer( { server : httpServer } ),
+                httpServer  : httpServer,
+                wsServer    : new WebSocketServer( { server : httpServer } ),
             };
         }
 
         if(_.isObject(config, 'wss') && true === _.get(config, 'wss.enabled') && _.isNumber(wssPort)) {
             const httpServer = https.createServer({
-                key		: fs.readFileSync(config.wss.keyPem),
-                cert	: fs.readFileSync(config.wss.certPem),
+                key     : fs.readFileSync(config.wss.keyPem),
+                cert    : fs.readFileSync(config.wss.certPem),
             });
 
             this.secure = {
-                httpServer	: httpServer,
-                wsServer	: new WebSocketServer( { server : httpServer } ),
+                httpServer  : httpServer,
+                wsServer    : new WebSocketServer( { server : httpServer } ),
             };
         }
     }
@@ -161,8 +161,8 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                 return;
             }
 
-            const serverName 	= `${ModuleInfo.name} (${serverType})`;
-            const port			= parseInt(_.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
+            const serverName    = `${ModuleInfo.name} (${serverType})`;
+            const port          = parseInt(_.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
 
             if(isNaN(port)) {
                 Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );
@@ -180,7 +180,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
         });
 
         //
-        //	Send pings every 30s
+        //  Send pings every 30s
         //
         setInterval( () => {
             WSS_SERVER_TYPES.forEach(serverType => {
@@ -191,10 +191,10 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                             return ws.terminate();
                         }
 
-                        ws.isConnectionAlive = false;	//	pong will reset this
+                        ws.isConnectionAlive = false;   //  pong will reset this
 
                         Log.trace('Ping to remote WebSocket client');
-                        return ws.ping('', false);	//	false=don't mask
+                        return ws.ping('', false);  //  false=don't mask
                     });
                 }
             });

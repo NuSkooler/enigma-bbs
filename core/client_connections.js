@@ -1,23 +1,23 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const logger			= require('./logger.js');
+//  ENiGMA½
+const logger            = require('./logger.js');
 const Events            = require('./events.js');
 
-//	deps
-const _					= require('lodash');
-const moment			= require('moment');
-const hashids			= require('hashids');
+//  deps
+const _                 = require('lodash');
+const moment            = require('moment');
+const hashids           = require('hashids');
 
-exports.getActiveConnections	= getActiveConnections;
-exports.getActiveNodeList		= getActiveNodeList;
-exports.addNewClient			= addNewClient;
-exports.removeClient			= removeClient;
-exports.getConnectionByUserId	= getConnectionByUserId;
+exports.getActiveConnections    = getActiveConnections;
+exports.getActiveNodeList       = getActiveNodeList;
+exports.addNewClient            = addNewClient;
+exports.removeClient            = removeClient;
+exports.getConnectionByUserId   = getConnectionByUserId;
 
 const clientConnections = [];
-exports.clientConnections		= clientConnections;
+exports.clientConnections       = clientConnections;
 
 function getActiveConnections() { return clientConnections; }
 
@@ -35,48 +35,48 @@ function getActiveNodeList(authUsersOnly) {
 
     return _.map(activeConnections, ac => {
         const entry = {
-            node			: ac.node,
-            authenticated	: ac.user.isAuthenticated(),
-            userId			: ac.user.userId,
-            action			: _.has(ac, 'currentMenuModule.menuConfig.desc') ? ac.currentMenuModule.menuConfig.desc : 'Unknown',
+            node            : ac.node,
+            authenticated   : ac.user.isAuthenticated(),
+            userId          : ac.user.userId,
+            action          : _.has(ac, 'currentMenuModule.menuConfig.desc') ? ac.currentMenuModule.menuConfig.desc : 'Unknown',
         };
 
         //
-        //	There may be a connection, but not a logged in user as of yet
+        //  There may be a connection, but not a logged in user as of yet
         //
         if(ac.user.isAuthenticated()) {
-            entry.userName	= ac.user.username;
-            entry.realName	= ac.user.properties.real_name;
-            entry.location	= ac.user.properties.location;
-            entry.affils	= ac.user.properties.affiliation;
+            entry.userName  = ac.user.username;
+            entry.realName  = ac.user.properties.real_name;
+            entry.location  = ac.user.properties.location;
+            entry.affils    = ac.user.properties.affiliation;
 
-            const diff 		= now.diff(moment(ac.user.properties.last_login_timestamp), 'minutes');
-            entry.timeOn	= moment.duration(diff, 'minutes');
+            const diff      = now.diff(moment(ac.user.properties.last_login_timestamp), 'minutes');
+            entry.timeOn    = moment.duration(diff, 'minutes');
         }
         return entry;
     });
 }
 
 function addNewClient(client, clientSock) {
-    const id			= client.session.id		= clientConnections.push(client) - 1;
-    const remoteAddress = client.remoteAddress	= clientSock.remoteAddress;
+    const id            = client.session.id     = clientConnections.push(client) - 1;
+    const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
 
-    //	create a uniqe identifier one-time ID for this session
+    //  create a uniqe identifier one-time ID for this session
     client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
 
-    //	Create a client specific logger
-    //	Note that this will be updated @ login with additional information
+    //  Create a client specific logger
+    //  Note that this will be updated @ login with additional information
     client.log = logger.log.child( { clientId : id, sessionId : client.session.uniqueId } );
 
     const connInfo = {
-        remoteAddress	: remoteAddress,
-        serverName		: client.session.serverName,
-        isSecure		: client.session.isSecure,
+        remoteAddress   : remoteAddress,
+        serverName      : client.session.serverName,
+        isSecure        : client.session.isSecure,
     };
 
     if(client.log.debug()) {
-        connInfo.port		= clientSock.localPort;
-        connInfo.family		= clientSock.localFamily;
+        connInfo.port       = clientSock.localPort;
+        connInfo.family     = clientSock.localFamily;
     }
 
     client.log.info(connInfo, 'Client connected');
@@ -98,8 +98,8 @@ function removeClient(client) {
 
         logger.log.info(
             {
-                connectionCount	: clientConnections.length,
-                clientId		: client.session.id
+                connectionCount : clientConnections.length,
+                clientId        : client.session.id
             },
             'Client disconnected'
         );

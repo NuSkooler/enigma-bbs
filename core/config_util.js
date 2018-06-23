@@ -1,19 +1,19 @@
 /* jslint node: true */
 'use strict';
 
-const Config			= require('./config.js').get;
-const ConfigCache		= require('./config_cache.js');
-const Events			= require('./events.js');
+const Config            = require('./config.js').get;
+const ConfigCache       = require('./config_cache.js');
+const Events            = require('./events.js');
 
-//	deps
-const paths				= require('path');
-const async				= require('async');
+//  deps
+const paths             = require('path');
+const async             = require('async');
 
-exports.init			= init;
-exports.getFullConfig	= getFullConfig;
+exports.init            = init;
+exports.getFullConfig   = getFullConfig;
 
 function getConfigPath(filePath) {
-    //	|filePath| is assumed to be in the config path if it's only a file name
+    //  |filePath| is assumed to be in the config path if it's only a file name
     if('.' === paths.dirname(filePath)) {
         filePath = paths.join(Config().paths.config, filePath);
     }
@@ -21,7 +21,7 @@ function getConfigPath(filePath) {
 }
 
 function init(cb) {
-    //	pre-cache menu.hjson and prompt.hjson + establish events
+    //  pre-cache menu.hjson and prompt.hjson + establish events
     const changed = ( { fileName, fileRoot } ) => {
         const reCachedPath = paths.join(fileRoot, fileName);
         if(reCachedPath === getConfigPath(Config().general.menuFile)) {

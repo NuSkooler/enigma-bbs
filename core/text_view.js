@@ -1,26 +1,26 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const View					= require('./view.js').View;
-const miscUtil				= require('./misc_util.js');
-const ansi					= require('./ansi_term.js');
-const padStr				= require('./string_util.js').pad;
-const stylizeString			= require('./string_util.js').stylizeString;
-const renderSubstr			= require('./string_util.js').renderSubstr;
-const renderStringLength	= require('./string_util.js').renderStringLength;
-const pipeToAnsi			= require('./color_codes.js').pipeToAnsi;
-const stripAllLineFeeds		= require('./string_util.js').stripAllLineFeeds;
+//  ENiGMA½
+const View                  = require('./view.js').View;
+const miscUtil              = require('./misc_util.js');
+const ansi                  = require('./ansi_term.js');
+const padStr                = require('./string_util.js').pad;
+const stylizeString         = require('./string_util.js').stylizeString;
+const renderSubstr          = require('./string_util.js').renderSubstr;
+const renderStringLength    = require('./string_util.js').renderStringLength;
+const pipeToAnsi            = require('./color_codes.js').pipeToAnsi;
+const stripAllLineFeeds     = require('./string_util.js').stripAllLineFeeds;
 
-//	deps
-const util			= require('util');
-const _				= require('lodash');
+//  deps
+const util          = require('util');
+const _             = require('lodash');
 
-exports.TextView			= TextView;
+exports.TextView            = TextView;
 
 function TextView(options) {
     if(options.dimens) {
-        options.dimens.height = 1;	//	force height of 1 for TextView's & sub classes
+        options.dimens.height = 1;  //  force height of 1 for TextView's & sub classes
     }
 
     View.call(this, options);
@@ -31,10 +31,10 @@ function TextView(options) {
         this.maxLength = this.client.term.termWidth - this.position.col;
     }
 
-    this.fillChar			= renderSubstr(miscUtil.valueWithDefault(options.fillChar, ' '), 0, 1);
-    this.justify			= options.justify || 'left';
-    this.resizable			= miscUtil.valueWithDefault(options.resizable, true);
-    this.horizScroll		= miscUtil.valueWithDefault(options.horizScroll, true);
+    this.fillChar           = renderSubstr(miscUtil.valueWithDefault(options.fillChar, ' '), 0, 1);
+    this.justify            = options.justify || 'left';
+    this.resizable          = miscUtil.valueWithDefault(options.resizable, true);
+    this.horizScroll        = miscUtil.valueWithDefault(options.horizScroll, true);
 
     if(_.isString(options.textOverflow)) {
         this.textOverflow = options.textOverflow;
@@ -45,57 +45,57 @@ function TextView(options) {
     }
 
     /*
-	this.drawText = function(s) {
+    this.drawText = function(s) {
 
-		//
-		//                     |<- this.maxLength
-		//	 ABCDEFGHIJK
-		//	|ABCDEFG|  ^_ this.text.length
-		//	        ^-- this.dimens.width
-		//
-		let textToDraw = _.isString(this.textMaskChar) ?
-			new Array(s.length + 1).join(this.textMaskChar) :
-			stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
+        //
+        //                     |<- this.maxLength
+        //   ABCDEFGHIJK
+        //  |ABCDEFG|  ^_ this.text.length
+        //          ^-- this.dimens.width
+        //
+        let textToDraw = _.isString(this.textMaskChar) ?
+            new Array(s.length + 1).join(this.textMaskChar) :
+            stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
 
-		if(textToDraw.length > this.dimens.width) {
-			if(this.hasFocus) {
-				if(this.horizScroll) {
-					textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
-				}
-			} else {
-				if(textToDraw.length > this.dimens.width) {
-					if(this.textOverflow &&
-						this.dimens.width > this.textOverflow.length &&
-						textToDraw.length - this.textOverflow.length >= this.textOverflow.length)
-					{
-						textToDraw = textToDraw.substr(0, this.dimens.width - this.textOverflow.length) + this.textOverflow;
-					} else {
-						textToDraw = textToDraw.substr(0, this.dimens.width);
-					}
-				}
-			}
-		}
+        if(textToDraw.length > this.dimens.width) {
+            if(this.hasFocus) {
+                if(this.horizScroll) {
+                    textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
+                }
+            } else {
+                if(textToDraw.length > this.dimens.width) {
+                    if(this.textOverflow &&
+                        this.dimens.width > this.textOverflow.length &&
+                        textToDraw.length - this.textOverflow.length >= this.textOverflow.length)
+                    {
+                        textToDraw = textToDraw.substr(0, this.dimens.width - this.textOverflow.length) + this.textOverflow;
+                    } else {
+                        textToDraw = textToDraw.substr(0, this.dimens.width);
+                    }
+                }
+            }
+        }
 
-		this.client.term.write(padStr(
-			textToDraw,
-			this.dimens.width + 1,
-			this.fillChar,
-			this.justify,
-			this.hasFocus ? this.getFocusSGR() : this.getSGR(),
-			this.getStyleSGR(1) || this.getSGR()
-			), false);
-	};
+        this.client.term.write(padStr(
+            textToDraw,
+            this.dimens.width + 1,
+            this.fillChar,
+            this.justify,
+            this.hasFocus ? this.getFocusSGR() : this.getSGR(),
+            this.getStyleSGR(1) || this.getSGR()
+            ), false);
+    };
 */
 
     this.drawText = function(s) {
 
         //
         //                     |<- this.maxLength
-        //	 ABCDEFGHIJK
-        //	|ABCDEFG|  ^_ this.text.length
-        //	        ^-- this.dimens.width
+        //   ABCDEFGHIJK
+        //  |ABCDEFG|  ^_ this.text.length
+        //          ^-- this.dimens.width
         //
-        let renderLength = renderStringLength(s);	//	initial; may be adjusted below:
+        let renderLength = renderStringLength(s);   //  initial; may be adjusted below:
 
         let textToDraw = _.isString(this.textMaskChar) ?
             new Array(renderLength + 1).join(this.textMaskChar) :
@@ -110,8 +110,8 @@ function TextView(options) {
                 }
             } else {
                 if(this.textOverflow &&
-					this.dimens.width > this.textOverflow.length &&
-					renderLength - this.textOverflow.length >= this.textOverflow.length)
+                    this.dimens.width > this.textOverflow.length &&
+                    renderLength - this.textOverflow.length >= this.textOverflow.length)
                 {
                     textToDraw = renderSubstr(textToDraw, 0, this.dimens.width - this.textOverflow.length) + this.textOverflow;
                 } else {
@@ -130,9 +130,9 @@ function TextView(options) {
                 this.justify,
                 this.hasFocus ? this.getFocusSGR() : this.getSGR(),
                 this.getStyleSGR(1) || this.getSGR(),
-                true	//	use render len
+                true    //  use render len
             ),
-            false	//	no converting CRLF needed
+            false   //  no converting CRLF needed
         );
     };
 
@@ -142,16 +142,16 @@ function TextView(options) {
         return this.position.col + offset;
     };
 
-    this.setText(options.text || '', false);	//	false=do not redraw now
+    this.setText(options.text || '', false);    //  false=do not redraw now
 }
 
 util.inherits(TextView, View);
 
 TextView.prototype.redraw = function() {
     //
-    //	A lot of views will get an initial redraw() with empty text (''). We can short
-    //	circuit this by NOT doing any of the work if this is the initial drawText
-    //	and there is no actual text (e.g. save SGR's and processing)
+    //  A lot of views will get an initial redraw() with empty text (''). We can short
+    //  circuit this by NOT doing any of the work if this is the initial drawText
+    //  and there is no actual text (e.g. save SGR's and processing)
     //
     if(!this.hasDrawnOnce) {
         if(_.isUndefined(this.text)) {
@@ -187,7 +187,7 @@ TextView.prototype.setText = function(text, redraw) {
         text = text.toString();
     }
 
-    text = pipeToAnsi(stripAllLineFeeds(text), this.client);	//	expand MCI/etc.
+    text = pipeToAnsi(stripAllLineFeeds(text), this.client);    //  expand MCI/etc.
 
     var widthDelta = 0;
     if(this.text && this.text !== text) {
@@ -201,7 +201,7 @@ TextView.prototype.setText = function(text, redraw) {
         //this.text = this.text.substr(0, this.maxLength);
     }
 
-    //	:TODO: it would be nice to be able to stylize strings with MCI and {special} MCI syntax, e.g. "|BN {UN!toUpper}"
+    //  :TODO: it would be nice to be able to stylize strings with MCI and {special} MCI syntax, e.g. "|BN {UN!toUpper}"
     this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
 
     if(this.autoScale.width) {
@@ -215,32 +215,32 @@ TextView.prototype.setText = function(text, redraw) {
 
 /*
 TextView.prototype.setText = function(text) {
-	if(!_.isString(text)) {
-		text = text.toString();
-	}
+    if(!_.isString(text)) {
+        text = text.toString();
+    }
 
-	var widthDelta = 0;
-	if(this.text && this.text !== text) {
-		widthDelta = Math.abs(this.text.length - text.length);
-	}
+    var widthDelta = 0;
+    if(this.text && this.text !== text) {
+        widthDelta = Math.abs(this.text.length - text.length);
+    }
 
-	this.text = text;
+    this.text = text;
 
-	if(this.maxLength > 0) {
-		this.text = this.text.substr(0, this.maxLength);
-	}
+    if(this.maxLength > 0) {
+        this.text = this.text.substr(0, this.maxLength);
+    }
 
-	this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
+    this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
 
-	//if(this.resizable) {
-	//	this.dimens.width = this.text.length + widthDelta;
-	//}
+    //if(this.resizable) {
+    //  this.dimens.width = this.text.length + widthDelta;
+    //}
 
-	if(this.autoScale.width) {
-		this.dimens.width = this.text.length + widthDelta;
-	}
+    if(this.autoScale.width) {
+        this.dimens.width = this.text.length + widthDelta;
+    }
 
-	this.redraw();
+    this.redraw();
 };
 */
 
@@ -251,9 +251,9 @@ TextView.prototype.clearText = function() {
 TextView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
         case 'textMaskChar' : this.textMaskChar = value.substr(0, 1); break;
-        case 'textOverflow'	: this.textOverflow = value; break;
-        case 'maxLength'	: this.maxLength = parseInt(value, 10); break;
-        case 'password'		:
+        case 'textOverflow' : this.textOverflow = value; break;
+        case 'maxLength'    : this.maxLength = parseInt(value, 10); break;
+        case 'password'     :
             if(true === value) {
                 this.textMaskChar = this.client.currentTheme.helpers.getPasswordChar();
             }

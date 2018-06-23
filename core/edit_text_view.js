@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const TextView		= require('./text_view.js').TextView;
-const miscUtil		= require('./misc_util.js');
-const strUtil		= require('./string_util.js');
+//  ENiGMA½
+const TextView      = require('./text_view.js').TextView;
+const miscUtil      = require('./misc_util.js');
+const strUtil       = require('./string_util.js');
 
-//	deps
-const _				= require('lodash');
+//  deps
+const _             = require('lodash');
 
-exports.EditTextView	= EditTextView;
+exports.EditTextView    = EditTextView;
 
 function EditTextView(options) {
-    options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.cursorStyle		= miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
-    options.resizable		= false;
+    options.acceptsFocus    = miscUtil.valueWithDefault(options.acceptsFocus, true);
+    options.acceptsInput    = miscUtil.valueWithDefault(options.acceptsInput, true);
+    options.cursorStyle     = miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
+    options.resizable       = false;
 
     TextView.call(this, options);
 
@@ -47,9 +47,9 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 
             return EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
         } else if(this.isKeyMapped('clearLine', key.name)) {
-            this.text			= '';
-            this.cursorPos.col	= 0;
-            this.setFocus(true);	//	resetting focus will redraw & adjust cursor
+            this.text           = '';
+            this.cursorPos.col  = 0;
+            this.setFocus(true);    //  resetting focus will redraw & adjust cursor
 
             return EditTextView.super_.prototype.onKeyPress.call(this, ch, key);
         }
@@ -62,7 +62,7 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
             this.text += ch;
 
             if(this.text.length > this.dimens.width) {
-                //	no shortcuts - redraw the view
+                //  no shortcuts - redraw the view
                 this.redraw();
             } else {
                 this.cursorPos.col += 1;
@@ -82,9 +82,9 @@ EditTextView.prototype.onKeyPress = function(ch, key) {
 };
 
 EditTextView.prototype.setText = function(text) {
-    //	draw & set |text|
+    //  draw & set |text|
     EditTextView.super_.prototype.setText.call(this, text);
 
-    //	adjust local cursor tracking
+    //  adjust local cursor tracking
     this.cursorPos = { row : 0, col : text.length };
 };

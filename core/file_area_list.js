@@ -1,71 +1,71 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
-const ViewController		= require('./view_controller.js').ViewController;
-const ansi					= require('./ansi_term.js');
-const theme					= require('./theme.js');
-const FileEntry				= require('./file_entry.js');
-const stringFormat			= require('./string_format.js');
-const FileArea				= require('./file_base_area.js');
-const Errors				= require('./enig_error.js').Errors;
-const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
-const ArchiveUtil			= require('./archive_util.js');
-const Config				= require('./config.js').get;
-const DownloadQueue			= require('./download_queue.js');
-const FileAreaWeb			= require('./file_area_web.js');
-const FileBaseFilters		= require('./file_base_filter.js');
-const resolveMimeType		= require('./mime_util.js').resolveMimeType;
-const isAnsi				= require('./string_util.js').isAnsi;
-const controlCodesToAnsi	= require('./color_codes.js').controlCodesToAnsi;
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
+const ViewController        = require('./view_controller.js').ViewController;
+const ansi                  = require('./ansi_term.js');
+const theme                 = require('./theme.js');
+const FileEntry             = require('./file_entry.js');
+const stringFormat          = require('./string_format.js');
+const FileArea              = require('./file_base_area.js');
+const Errors                = require('./enig_error.js').Errors;
+const ErrNotEnabled         = require('./enig_error.js').ErrorReasons.NotEnabled;
+const ArchiveUtil           = require('./archive_util.js');
+const Config                = require('./config.js').get;
+const DownloadQueue         = require('./download_queue.js');
+const FileAreaWeb           = require('./file_area_web.js');
+const FileBaseFilters       = require('./file_base_filter.js');
+const resolveMimeType       = require('./mime_util.js').resolveMimeType;
+const isAnsi                = require('./string_util.js').isAnsi;
+const controlCodesToAnsi    = require('./color_codes.js').controlCodesToAnsi;
 
-//	deps
-const async				= require('async');
-const _					= require('lodash');
-const moment			= require('moment');
-const paths				= require('path');
+//  deps
+const async             = require('async');
+const _                 = require('lodash');
+const moment            = require('moment');
+const paths             = require('path');
 
 exports.moduleInfo = {
-    name	: 'File Area List',
-    desc	: 'Lists contents of file an file area',
-    author	: 'NuSkooler',
+    name    : 'File Area List',
+    desc    : 'Lists contents of file an file area',
+    author  : 'NuSkooler',
 };
 
 const FormIds = {
-    browse			: 0,
-    details			: 1,
-    detailsGeneral	: 2,
-    detailsNfo		: 3,
-    detailsFileList	: 4,
+    browse          : 0,
+    details         : 1,
+    detailsGeneral  : 2,
+    detailsNfo      : 3,
+    detailsFileList : 4,
 };
 
 const MciViewIds = {
-    browse	: {
-        desc				: 1,
-        navMenu				: 2,
+    browse  : {
+        desc                : 1,
+        navMenu             : 2,
 
-        customRangeStart	: 10,	//	10+ = customs
+        customRangeStart    : 10,   //  10+ = customs
     },
-    details	: {
-        navMenu				: 1,
-        infoXyTop			: 2,	//	%XY starting position for info area
-        infoXyBottom		: 3,
+    details : {
+        navMenu             : 1,
+        infoXyTop           : 2,    //  %XY starting position for info area
+        infoXyBottom        : 3,
 
-        customRangeStart	: 10,	//	10+ = customs
+        customRangeStart    : 10,   //  10+ = customs
     },
     detailsGeneral : {
-        customRangeStart	: 10, //	10+ = customs
+        customRangeStart    : 10, //    10+ = customs
     },
     detailsNfo : {
-        nfo		: 1,
+        nfo     : 1,
 
-        customRangeStart	: 10,	//	10+ = customs
+        customRangeStart    : 10,   //  10+ = customs
     },
     detailsFileList : {
-        fileList	: 1,
+        fileList    : 1,
 
-        customRangeStart	: 10,	//	10+ = customs
+        customRangeStart    : 10,   //  10+ = customs
     },
 };
 
@@ -74,12 +74,12 @@ exports.getModule = class FileAreaList extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.filterCriteria		= _.get(options, 'extraArgs.filterCriteria');
-        this.fileList			= _.get(options, 'extraArgs.fileList');
-        this.lastFileNextExit	= _.get(options, 'extraArgs.lastFileNextExit', true);
+        this.filterCriteria     = _.get(options, 'extraArgs.filterCriteria');
+        this.fileList           = _.get(options, 'extraArgs.fileList');
+        this.lastFileNextExit   = _.get(options, 'extraArgs.lastFileNextExit', true);
 
         if(this.fileList) {
-            //	we'll need to adjust position as well!
+            //  we'll need to adjust position as well!
             this.fileListPosition = 0;
         }
 
@@ -102,7 +102,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 if(this.fileListPosition + 1 < this.fileList.length) {
                     this.fileListPosition += 1;
 
-                    return this.displayBrowsePage(true, cb);	//	true=clerarScreen
+                    return this.displayBrowsePage(true, cb);    //  true=clerarScreen
                 }
 
                 if(this.lastFileNextExit) {
@@ -115,7 +115,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 if(this.fileListPosition > 0) {
                     --this.fileListPosition;
 
-                    return this.displayBrowsePage(true, cb);	//	true=clearScreen
+                    return this.displayBrowsePage(true, cb);    //  true=clearScreen
                 }
 
                 return cb(null);
@@ -132,7 +132,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                     }
                 });
 
-                return this.displayBrowsePage(true, cb);	//	true=clearScreen
+                return this.displayBrowsePage(true, cb);    //  true=clearScreen
             },
             toggleQueue : (formData, extraArgs, cb) => {
                 this.dlQueue.toggle(this.currentFileEntry);
@@ -158,15 +158,15 @@ exports.getModule = class FileAreaList extends MenuModule {
 
     getSaveState() {
         return {
-            fileList			: this.fileList,
-            fileListPosition	: this.fileListPosition,
+            fileList            : this.fileList,
+            fileListPosition    : this.fileListPosition,
         };
     }
 
     restoreSavedState(savedState) {
         if(savedState) {
-            this.fileList			= savedState.fileList;
-            this.fileListPosition	= savedState.fileListPosition;
+            this.fileList           = savedState.fileList;
+            this.fileListPosition   = savedState.fileListPosition;
         }
     }
 
@@ -215,35 +215,35 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     populateCurrentEntryInfo(cb) {
-        const config		= this.menuConfig.config;
-        const currEntry		= this.currentFileEntry;
+        const config        = this.menuConfig.config;
+        const currEntry     = this.currentFileEntry;
 
         const uploadTimestampFormat = config.browseUploadTimestampFormat || config.uploadTimestampFormat || 'YYYY-MMM-DD';
-        const area					= FileArea.getFileAreaByTag(currEntry.areaTag);
-        const hashTagsSep			= config.hashTagsSep || ', ';
-        const isQueuedIndicator		= config.isQueuedIndicator || 'Y';
-        const isNotQueuedIndicator	= config.isNotQueuedIndicator || 'N';
+        const area                  = FileArea.getFileAreaByTag(currEntry.areaTag);
+        const hashTagsSep           = config.hashTagsSep || ', ';
+        const isQueuedIndicator     = config.isQueuedIndicator || 'Y';
+        const isNotQueuedIndicator  = config.isNotQueuedIndicator || 'N';
 
         const entryInfo = currEntry.entryInfo = {
-            fileId				: currEntry.fileId,
-            areaTag				: currEntry.areaTag,
-            areaName			: _.get(area, 'name') || 'N/A',
-            areaDesc			: _.get(area, 'desc') || 'N/A',
-            fileSha256			: currEntry.fileSha256,
-            fileName			: currEntry.fileName,
-            desc				: currEntry.desc || '',
-            descLong			: currEntry.descLong || '',
-            userRating			: currEntry.userRating,
-            uploadTimestamp		: moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
-            hashTags			: Array.from(currEntry.hashTags).join(hashTagsSep),
-            isQueued			: this.dlQueue.isQueued(currEntry) ? isQueuedIndicator : isNotQueuedIndicator,
-            webDlLink			: '',	//	:TODO: fetch web any existing web d/l link
-            webDlExpire			: '',	//	:TODO: fetch web d/l link expire time
+            fileId              : currEntry.fileId,
+            areaTag             : currEntry.areaTag,
+            areaName            : _.get(area, 'name') || 'N/A',
+            areaDesc            : _.get(area, 'desc') || 'N/A',
+            fileSha256          : currEntry.fileSha256,
+            fileName            : currEntry.fileName,
+            desc                : currEntry.desc || '',
+            descLong            : currEntry.descLong || '',
+            userRating          : currEntry.userRating,
+            uploadTimestamp     : moment(currEntry.uploadTimestamp).format(uploadTimestampFormat),
+            hashTags            : Array.from(currEntry.hashTags).join(hashTagsSep),
+            isQueued            : this.dlQueue.isQueued(currEntry) ? isQueuedIndicator : isNotQueuedIndicator,
+            webDlLink           : '',   //  :TODO: fetch web any existing web d/l link
+            webDlExpire         : '',   //  :TODO: fetch web d/l link expire time
         };
 
         //
-        //	We need the entry object to contain meta keys even if they are empty as
-        //	consumers may very likely attempt to use them
+        //  We need the entry object to contain meta keys even if they are empty as
+        //  consumers may very likely attempt to use them
         //
         const metaValues = FileEntry.WellKnownMetaValues;
         metaValues.forEach(name => {
@@ -258,7 +258,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 let fileType = _.get(Config(), [ 'fileTypes', mimeType ] );
 
                 if(Array.isArray(fileType)) {
-                    //	further refine by extention
+                    //  further refine by extention
                     fileType = fileType.find(ft => paths.extname(currEntry.fileName) === ft.ext);
                 }
                 desc = fileType && fileType.desc;
@@ -268,31 +268,31 @@ exports.getModule = class FileAreaList extends MenuModule {
             entryInfo.archiveTypeDesc = 'N/A';
         }
 
-        entryInfo.uploadByUsername 	= entryInfo.uploadByUsername || 'N/A';	//	may be imported
-        entryInfo.hashTags			= entryInfo.hashTags || '(none)';
+        entryInfo.uploadByUsername  = entryInfo.uploadByUsername || 'N/A';  //  may be imported
+        entryInfo.hashTags          = entryInfo.hashTags || '(none)';
 
-        //	create a rating string, e.g. "**---"
-        const userRatingTicked		= config.userRatingTicked || '*';
-        const userRatingUnticked	= config.userRatingUnticked || '';
-        entryInfo.userRating		= ~~Math.round(entryInfo.userRating) || 0;	//	be safe!
-        entryInfo.userRatingString	= userRatingTicked.repeat(entryInfo.userRating);
+        //  create a rating string, e.g. "**---"
+        const userRatingTicked      = config.userRatingTicked || '*';
+        const userRatingUnticked    = config.userRatingUnticked || '';
+        entryInfo.userRating        = ~~Math.round(entryInfo.userRating) || 0;  //  be safe!
+        entryInfo.userRatingString  = userRatingTicked.repeat(entryInfo.userRating);
         if(entryInfo.userRating < 5) {
             entryInfo.userRatingString += userRatingUnticked.repeat( (5 - entryInfo.userRating) );
         }
 
         FileAreaWeb.getExistingTempDownloadServeItem(this.client, this.currentFileEntry, (err, serveItem) => {
             if(err) {
-                entryInfo.webDlExpire	= '';
+                entryInfo.webDlExpire   = '';
                 if(ErrNotEnabled === err.reasonCode) {
-                    entryInfo.webDlExpire	= config.webDlLinkNoWebserver || 'Web server is not enabled';
+                    entryInfo.webDlExpire   = config.webDlLinkNoWebserver || 'Web server is not enabled';
                 } else {
-                    entryInfo.webDlLink 	= config.webDlLinkNeedsGenerated || 'Not yet generated';
+                    entryInfo.webDlLink     = config.webDlLinkNeedsGenerated || 'Not yet generated';
                 }
             } else {
                 const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
-                entryInfo.webDlLink		= ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
-                entryInfo.webDlExpire	= moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
+                entryInfo.webDlLink     = ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
+                entryInfo.webDlExpire   = moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
             }
 
             return cb(null);
@@ -304,8 +304,8 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayArtAndPrepViewController(name, options, cb) {
-        const self		= this;
-        const config	= this.menuConfig.config;
+        const self      = this;
+        const config    = this.menuConfig.config;
 
         async.waterfall(
             [
@@ -326,8 +326,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                 function prepeareViewController(artData, callback) {
                     if(_.isUndefined(self.viewControllers[name])) {
                         const vcOpts = {
-                            client		: self.client,
-                            formId		: FormIds[name],
+                            client      : self.client,
+                            formId      : FormIds[name],
                         };
 
                         if(!_.isUndefined(options.noInput)) {
@@ -339,8 +339,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                         if('details' === name) {
                             try {
                                 self.detailsInfoArea = {
-                                    top		: artData.mciMap.XY2.position,
-                                    bottom	: artData.mciMap.XY3.position,
+                                    top     : artData.mciMap.XY2.position,
+                                    bottom  : artData.mciMap.XY3.position,
                                 };
                             } catch(e) {
                                 return callback(Errors.DoesNotExist('Missing XY2 and XY3 position indicators!'));
@@ -348,9 +348,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                         }
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds[name],
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds[name],
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -368,7 +368,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayBrowsePage(clearScreen, cb) {
-        const self		= this;
+        const self      = this;
 
         async.series(
             [
@@ -376,7 +376,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                     if(self.fileList) {
                         return callback(null);
                     }
-                    return self.loadFileIds(false, callback);	//	false=do not force
+                    return self.loadFileIds(false, callback);   //  false=do not force
                 },
                 function checkEmptyResults(callback) {
                     if(0 === self.fileList.length) {
@@ -403,21 +403,21 @@ exports.getModule = class FileAreaList extends MenuModule {
                         const descView = self.viewControllers.browse.getView(MciViewIds.browse.desc);
                         if(descView) {
                             //
-                            //	For descriptions we want to support as many color code systems
-                            //	as we can for coverage of what is found in the while (e.g. Renegade
-                            //	pipes, PCB @X##, etc.)
+                            //  For descriptions we want to support as many color code systems
+                            //  as we can for coverage of what is found in the while (e.g. Renegade
+                            //  pipes, PCB @X##, etc.)
                             //
-                            //	MLTEV doesn't support all of this, so convert. If we produced ANSI
-                            //	esc sequences, we'll proceed with specialization, else just treat
-                            //	it as text.
+                            //  MLTEV doesn't support all of this, so convert. If we produced ANSI
+                            //  esc sequences, we'll proceed with specialization, else just treat
+                            //  it as text.
                             //
                             const desc = controlCodesToAnsi(self.currentFileEntry.desc);
                             if(desc.length != self.currentFileEntry.desc.length || isAnsi(desc)) {
                                 descView.setAnsi(
                                     desc,
                                     {
-                                        prepped			: false,
-                                        forceLineTerm	: true
+                                        prepped         : false,
+                                        forceLineTerm   : true
                                     },
                                     () => {
                                         return callback(null);
@@ -447,7 +447,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayDetailsPage(cb) {
-        const self		= this;
+        const self      = this;
 
         async.series(
             [
@@ -467,9 +467,9 @@ exports.getModule = class FileAreaList extends MenuModule {
 
                     navMenu.on('index update', index => {
                         const sectionName = {
-                            0	: 'general',
-                            1	: 'nfo',
-                            2	: 'fileList',
+                            0   : 'general',
+                            1   : 'nfo',
+                            2   : 'fileList',
                         }[index];
 
                         if(sectionName) {
@@ -524,8 +524,8 @@ exports.getModule = class FileAreaList extends MenuModule {
 
                             const webDlExpireTimeFormat = self.menuConfig.config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
 
-                            self.currentFileEntry.entryInfo.webDlLink 	= ansi.vtxHyperlink(self.client, url) + url;
-                            self.currentFileEntry.entryInfo.webDlExpire	= expireTime.format(webDlExpireTimeFormat);
+                            self.currentFileEntry.entryInfo.webDlLink   = ansi.vtxHyperlink(self.client, url) + url;
+                            self.currentFileEntry.entryInfo.webDlExpire = expireTime.format(webDlExpireTimeFormat);
 
                             return callback(null);
                         }
@@ -547,8 +547,8 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     updateQueueIndicator() {
-        const isQueuedIndicator		= this.menuConfig.config.isQueuedIndicator || 'Y';
-        const isNotQueuedIndicator	= this.menuConfig.config.isNotQueuedIndicator || 'N';
+        const isQueuedIndicator     = this.menuConfig.config.isQueuedIndicator || 'Y';
+        const isNotQueuedIndicator  = this.menuConfig.config.isNotQueuedIndicator || 'N';
 
         this.currentFileEntry.entryInfo.isQueued = stringFormat(
             this.dlQueue.isQueued(this.currentFileEntry) ?
@@ -565,7 +565,7 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     cacheArchiveEntries(cb) {
-        //	check cache
+        //  check cache
         if(this.currentFileEntry.archiveEntries) {
             return cb(null, 'cache');
         }
@@ -575,8 +575,8 @@ exports.getModule = class FileAreaList extends MenuModule {
             return cb(Errors.Invalid('Invalid area tag'));
         }
 
-        const filePath		= this.currentFileEntry.filePath;
-        const archiveUtil	= ArchiveUtil.getInstance();
+        const filePath      = this.currentFileEntry.filePath;
+        const archiveUtil   = ArchiveUtil.getInstance();
 
         archiveUtil.listEntries(filePath, this.currentFileEntry.entryInfo.archiveType, (err, entries) => {
             if(err) {
@@ -594,14 +594,14 @@ exports.getModule = class FileAreaList extends MenuModule {
         if(this.currentFileEntry.entryInfo.archiveType) {
             this.cacheArchiveEntries( (err, cacheStatus) => {
                 if(err) {
-                    //	:TODO: Handle me!!!
-                    fileListView.setItems( [ 'Failed getting file listing' ] );	//	:TODO: make this not suck
+                    //  :TODO: Handle me!!!
+                    fileListView.setItems( [ 'Failed getting file listing' ] ); //  :TODO: make this not suck
                     return;
                 }
 
                 if('re-cached' === cacheStatus) {
-                    const fileListEntryFormat 		= this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';	//	:TODO: use byteSize here?
-                    const focusFileListEntryFormat	= this.menuConfig.config.focusFileListEntryFormat || fileListEntryFormat;
+                    const fileListEntryFormat       = this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';    //  :TODO: use byteSize here?
+                    const focusFileListEntryFormat  = this.menuConfig.config.focusFileListEntryFormat || fileListEntryFormat;
 
                     fileListView.setItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(fileListEntryFormat, entry) ) );
                     fileListView.setFocusItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(focusFileListEntryFormat, entry) ) );
@@ -615,8 +615,8 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayDetailsSection(sectionName, clearArea, cb) {
-        const self		= this;
-        const name		= `details${_.upperFirst(sectionName)}`;
+        const self      = this;
+        const name      = `details${_.upperFirst(sectionName)}`;
 
         async.series(
             [
@@ -637,8 +637,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                     if(clearArea) {
                         self.client.term.rawWrite(ansi.reset());
 
-                        let pos 		= self.detailsInfoArea.top[0];
-                        const bottom	= self.detailsInfoArea.bottom[0];
+                        let pos         = self.detailsInfoArea.top[0];
+                        const bottom    = self.detailsInfoArea.bottom[0];
 
                         while(pos++ <= bottom) {
                             self.client.term.rawWrite(ansi.eraseLine() + ansi.down());
@@ -664,8 +664,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                                     nfoView.setAnsi(
                                         self.currentFileEntry.entryInfo.descLong,
                                         {
-                                            prepped			: false,
-                                            forceLineTerm	: true,
+                                            prepped         : false,
+                                            forceLineTerm   : true,
                                         },
                                         () => {
                                             return callback(null);
@@ -701,7 +701,7 @@ exports.getModule = class FileAreaList extends MenuModule {
 
     loadFileIds(force, cb) {
         if(force || (_.isUndefined(this.fileList) || _.isUndefined(this.fileListPosition))) {
-            this.fileListPosition	= 0;
+            this.fileListPosition   = 0;
 
             const filterCriteria = Object.assign({}, this.filterCriteria);
             if(!filterCriteria.areaTag) {

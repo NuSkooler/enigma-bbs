@@ -1,57 +1,57 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config			= require('./config.js').get;
-const Errors			= require('./enig_error.js').Errors;
-const sortAreasOrConfs	= require('./conf_area_util.js').sortAreasOrConfs;
-const FileEntry			= require('./file_entry.js');
-const FileDb			= require('./database.js').dbs.file;
-const ArchiveUtil		= require('./archive_util.js');
-const CRC32				= require('./crc.js').CRC32;
-const Log				= require('./logger.js').log;
-const resolveMimeType	= require('./mime_util.js').resolveMimeType;
-const stringFormat		= require('./string_format.js');
-const wordWrapText		= require('./word_wrap.js').wordWrapText;
-const StatLog			= require('./stat_log.js');
+//  ENiGMA½
+const Config            = require('./config.js').get;
+const Errors            = require('./enig_error.js').Errors;
+const sortAreasOrConfs  = require('./conf_area_util.js').sortAreasOrConfs;
+const FileEntry         = require('./file_entry.js');
+const FileDb            = require('./database.js').dbs.file;
+const ArchiveUtil       = require('./archive_util.js');
+const CRC32             = require('./crc.js').CRC32;
+const Log               = require('./logger.js').log;
+const resolveMimeType   = require('./mime_util.js').resolveMimeType;
+const stringFormat      = require('./string_format.js');
+const wordWrapText      = require('./word_wrap.js').wordWrapText;
+const StatLog           = require('./stat_log.js');
 
-//	deps
-const _				= require('lodash');
-const async			= require('async');
-const fs			= require('graceful-fs');
-const crypto		= require('crypto');
-const paths			= require('path');
-const temptmp		= require('temptmp').createTrackedSession('file_area');
-const iconv			= require('iconv-lite');
-const execFile		= require('child_process').execFile;
-const moment		= require('moment');
+//  deps
+const _             = require('lodash');
+const async         = require('async');
+const fs            = require('graceful-fs');
+const crypto        = require('crypto');
+const paths         = require('path');
+const temptmp       = require('temptmp').createTrackedSession('file_area');
+const iconv         = require('iconv-lite');
+const execFile      = require('child_process').execFile;
+const moment        = require('moment');
 
-exports.startup							= startup;
-exports.isInternalArea					= isInternalArea;
-exports.getAvailableFileAreas			= getAvailableFileAreas;
-exports.getAvailableFileAreaTags		= getAvailableFileAreaTags;
-exports.getSortedAvailableFileAreas		= getSortedAvailableFileAreas;
-exports.isValidStorageTag				= isValidStorageTag;
-exports.getAreaStorageDirectoryByTag	= getAreaStorageDirectoryByTag;
-exports.getAreaDefaultStorageDirectory	= getAreaDefaultStorageDirectory;
-exports.getAreaStorageLocations			= getAreaStorageLocations;
-exports.getDefaultFileAreaTag			= getDefaultFileAreaTag;
-exports.getFileAreaByTag				= getFileAreaByTag;
-exports.getFileEntryPath				= getFileEntryPath;
-exports.changeFileAreaWithOptions		= changeFileAreaWithOptions;
-exports.scanFile						= scanFile;
-exports.scanFileAreaForChanges			= scanFileAreaForChanges;
-exports.getDescFromFileName				= getDescFromFileName;
-exports.getAreaStats					= getAreaStats;
-exports.cleanUpTempSessionItems			= cleanUpTempSessionItems;
+exports.startup                         = startup;
+exports.isInternalArea                  = isInternalArea;
+exports.getAvailableFileAreas           = getAvailableFileAreas;
+exports.getAvailableFileAreaTags        = getAvailableFileAreaTags;
+exports.getSortedAvailableFileAreas     = getSortedAvailableFileAreas;
+exports.isValidStorageTag               = isValidStorageTag;
+exports.getAreaStorageDirectoryByTag    = getAreaStorageDirectoryByTag;
+exports.getAreaDefaultStorageDirectory  = getAreaDefaultStorageDirectory;
+exports.getAreaStorageLocations         = getAreaStorageLocations;
+exports.getDefaultFileAreaTag           = getDefaultFileAreaTag;
+exports.getFileAreaByTag                = getFileAreaByTag;
+exports.getFileEntryPath                = getFileEntryPath;
+exports.changeFileAreaWithOptions       = changeFileAreaWithOptions;
+exports.scanFile                        = scanFile;
+exports.scanFileAreaForChanges          = scanFileAreaForChanges;
+exports.getDescFromFileName             = getDescFromFileName;
+exports.getAreaStats                    = getAreaStats;
+exports.cleanUpTempSessionItems         = cleanUpTempSessionItems;
 
-//	for scheduler:
-exports.updateAreaStatsScheduledEvent	= updateAreaStatsScheduledEvent;
+//  for scheduler:
+exports.updateAreaStatsScheduledEvent   = updateAreaStatsScheduledEvent;
 
-const WellKnownAreaTags					= exports.WellKnownAreaTags = {
-    Invalid				: '',
-    MessageAreaAttach	: 'system_message_attachment',
-    TempDownloads		: 'system_temporary_download',
+const WellKnownAreaTags                 = exports.WellKnownAreaTags = {
+    Invalid             : '',
+    MessageAreaAttach   : 'system_message_attachment',
+    TempDownloads       : 'system_temporary_download',
 };
 
 function startup(cb) {
@@ -65,7 +65,7 @@ function isInternalArea(areaTag) {
 function getAvailableFileAreas(client, options) {
     options = options || { };
 
-    //	perform ACS check per conf & omit internal if desired
+    //  perform ACS check per conf & omit internal if desired
     const allAreas = _.map(Config().fileBase.areas, (areaInfo, areaTag) => Object.assign(areaInfo, { areaTag : areaTag } ));
 
     return _.omitBy(allAreas, areaInfo => {
@@ -74,11 +74,11 @@ function getAvailableFileAreas(client, options) {
         }
 
         if(options.skipAcsCheck) {
-            return false;	//	no ACS checks (below)
+            return false;   //  no ACS checks (below)
         }
 
         if(options.writeAcs && !client.acs.hasFileAreaWrite(areaInfo)) {
-            return true;	//	omit
+            return true;    //  omit
         }
 
         return !client.acs.hasFileAreaRead(areaInfo);
@@ -116,8 +116,8 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 function getFileAreaByTag(areaTag) {
     const areaInfo = Config().fileBase.areas[areaTag];
     if(areaInfo) {
-        areaInfo.areaTag	= areaTag;	//	convienence!
-        areaInfo.storage	= getAreaStorageLocations(areaInfo);
+        areaInfo.areaTag    = areaTag;  //  convienence!
+        areaInfo.storage    = getAreaStorageLocations(areaInfo);
         return areaInfo;
     }
 }
@@ -183,8 +183,8 @@ function getAreaStorageLocations(areaInfo) {
     return _.compact(storageTags.map(storageTag => {
         if(avail[storageTag]) {
             return {
-                storageTag	: storageTag,
-                dir			: getAreaStorageDirectoryByTag(storageTag),
+                storageTag  : storageTag,
+                dir         : getAreaStorageDirectoryByTag(storageTag),
             };
         }
     }));
@@ -202,14 +202,14 @@ function getExistingFileEntriesBySha256(sha256, cb) {
 
     FileDb.each(
         `SELECT file_id, area_tag
-		FROM file
-		WHERE file_sha256=?;`,
+        FROM file
+        WHERE file_sha256=?;`,
         [ sha256 ],
         (err, fileRow) => {
             if(fileRow) {
                 entries.push({
-                    fileId	: fileRow.file_id,
-                    areaTag	: fileRow.area_tag,
+                    fileId  : fileRow.file_id,
+                    areaTag : fileRow.area_tag,
                 });
             }
         },
@@ -219,10 +219,10 @@ function getExistingFileEntriesBySha256(sha256, cb) {
     );
 }
 
-//	:TODO: This is bascially sliceAtEOF() from art.js .... DRY!
+//  :TODO: This is bascially sliceAtEOF() from art.js .... DRY!
 function sliceAtSauceMarker(data) {
-    let eof			= data.length;
-    const stopPos	= Math.max(data.length - (256), 0);	//	256 = 2 * sizeof(SAUCE)
+    let eof         = data.length;
+    const stopPos   = Math.max(data.length - (256), 0); //  256 = 2 * sizeof(SAUCE)
 
     for(let i = eof - 1; i > stopPos; i--) {
         if(0x1a === data[i]) {
@@ -234,8 +234,8 @@ function sliceAtSauceMarker(data) {
 }
 
 function attemptSetEstimatedReleaseDate(fileEntry) {
-    //	:TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
-    const patterns	= Config().fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
+    //  :TODO: yearEstPatterns RegExp's should be cached - we can do this @ Config (re)load time
+    const patterns  = Config().fileBase.yearEstPatterns.map( p => new RegExp(p, 'gmi'));
 
     function getMatch(input) {
         if(input) {
@@ -250,10 +250,10 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
     }
 
     //
-    //	We attempt detection in short -> long order
+    //  We attempt detection in short -> long order
     //
-    //	Throw out anything that is current_year + 2 (we give some leway)
-    //	with the assumption that must be wrong.
+    //  Throw out anything that is current_year + 2 (we give some leway)
+    //  with the assumption that must be wrong.
     //
     const maxYear = moment().add(2, 'year').year();
     const match = getMatch(fileEntry.desc) || getMatch(fileEntry.descLong);
@@ -279,7 +279,7 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
     }
 }
 
-//	a simple log proxy for when we call from oputil.js
+//  a simple log proxy for when we call from oputil.js
 function logDebug(obj, msg) {
     if(Log) {
         Log.debug(obj, msg);
@@ -290,8 +290,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
     async.waterfall(
         [
             function extractDescFiles(callback) {
-                //	:TODO: would be nice if these RegExp's were cached
-                //	:TODO: this is long winded...
+                //  :TODO: would be nice if these RegExp's were cached
+                //  :TODO: this is long winded...
                 const config = Config();
                 const extractList = [];
 
@@ -327,8 +327,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                         }
 
                         const descFiles = {
-                            desc		: shortDescFile ? paths.join(tempDir, shortDescFile.fileName) : null,
-                            descLong	: longDescFile ? paths.join(tempDir, longDescFile.fileName) : null,
+                            desc        : shortDescFile ? paths.join(tempDir, shortDescFile.fileName) : null,
+                            descLong    : longDescFile ? paths.join(tempDir, longDescFile.fileName) : null,
                         };
 
                         return callback(null, descFiles);
@@ -348,7 +348,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                             return next(null);
                         }
 
-                        //	skip entries that are too large
+                        //  skip entries that are too large
                         const maxFileSizeKey = `max${_.upperFirst(descType)}FileByteSize`;
                         if(config.fileBase[maxFileSizeKey] && stats.size > config.fileBase[maxFileSizeKey]) {
                             logDebug( { byteSize : stats.size, maxByteSize : config.fileBase[maxFileSizeKey] }, `Skipping "${descType}"; Too large` );
@@ -361,18 +361,18 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                             }
 
                             //
-                            //	Assume FILE_ID.DIZ, NFO files, etc. are CP437.
+                            //  Assume FILE_ID.DIZ, NFO files, etc. are CP437.
                             //
-                            //	:TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-                            fileEntry[descType]			= iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
-                            fileEntry[`${descType}Src`]	= 'descFile';
+                            //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
+                            fileEntry[descType]         = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
+                            fileEntry[`${descType}Src`] = 'descFile';
                             return next(null);
                         });
                     });
                 }, () => {
-                    //	cleanup but don't wait
+                    //  cleanup but don't wait
                     temptmp.cleanup( paths => {
-                        //	note: don't use client logger here - may not be avail
+                        //  note: don't use client logger here - may not be avail
                         logDebug( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
                     });
                     return callback(null);
@@ -390,7 +390,7 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
     async.waterfall(
         [
             function extractToTemp(callback) {
-                //	:TODO: we may want to skip this if the compressed file is too large...
+                //  :TODO: we may want to skip this if the compressed file is too large...
                 temptmp.mkdir( { prefix : 'enigextract-' }, (err, tempDir) => {
                     if(err) {
                         return callback(err);
@@ -398,7 +398,7 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 
                     const archiveUtil = ArchiveUtil.getInstance();
 
-                    //	ensure we only extract one - there should only be one anyway -- we also just need the fileName
+                    //  ensure we only extract one - there should only be one anyway -- we also just need the fileName
                     const extractList = archiveEntries.slice(0, 1).map(entry => entry.fileName);
 
                     archiveUtil.extractTo(filePath, tempDir, fileEntry.meta.archive_type, extractList, err => {
@@ -413,8 +413,8 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
             function processSingleExtractedFile(extractedFile, callback) {
                 populateFileEntryInfoFromFile(fileEntry, extractedFile, err => {
                     if(!fileEntry.desc) {
-                        fileEntry.desc		= getDescFromFileName(filePath);
-                        fileEntry.descSrc	= 'fileName';
+                        fileEntry.desc      = getDescFromFileName(filePath);
+                        fileEntry.descSrc   = 'fileName';
                     }
                     return callback(err);
                 });
@@ -427,8 +427,8 @@ function extractAndProcessSingleArchiveEntry(fileEntry, filePath, archiveEntries
 }
 
 function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, cb) {
-    const archiveUtil 	= ArchiveUtil.getInstance();
-    const archiveType	= fileEntry.meta.archive_type;	//	we set this previous to populateFileEntryWithArchive()
+    const archiveUtil   = ArchiveUtil.getInstance();
+    const archiveType   = fileEntry.meta.archive_type;  //  we set this previous to populateFileEntryWithArchive()
 
     async.waterfall(
         [
@@ -449,7 +449,7 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
                         }
 
                         iterator(iterErr => {
-                            return callback( iterErr, entries || [] );	//	ignore original |err| here
+                            return callback( iterErr, entries || [] );  //  ignore original |err| here
                         });
                     });
                 });
@@ -462,12 +462,12 @@ function populateFileEntryWithArchive(fileEntry, filePath, stepInfo, iterator, c
             },
             function extractDescFromArchive(entries, callback) {
                 //
-                //	If we have a -single- entry in the archive, extract that file
-                //	and try retrieving info in the non-archive manor. This should
-                //	work for things like zipped up .pdf files.
+                //  If we have a -single- entry in the archive, extract that file
+                //  and try retrieving info in the non-archive manor. This should
+                //  work for things like zipped up .pdf files.
                 //
-                //	Otherwise, try to find particular desc files such as FILE_ID.DIZ
-                //	and README.1ST
+                //  Otherwise, try to find particular desc files such as FILE_ID.DIZ
+                //  and README.1ST
                 //
                 const archDescHandler = (1 === entries.length) ? extractAndProcessSingleArchiveEntry : extractAndProcessDescFiles;
                 archDescHandler(fileEntry, filePath, entries, err => {
@@ -494,7 +494,7 @@ function getInfoExtractUtilForDesc(mimeType, filePath, descType) {
     let fileType = _.get(config, [ 'fileTypes', mimeType ] );
 
     if(Array.isArray(fileType)) {
-        //	further refine by extention
+        //  further refine by extention
         fileType = fileType.find(ft => paths.extname(filePath) === ft.ext);
     }
 
@@ -542,17 +542,17 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
                     const key = 'short' === descType ? 'desc' : 'descLong';
                     if('desc' === key) {
                         //
-                        //	Word wrap short descriptions to FILE_ID.DIZ spec
+                        //  Word wrap short descriptions to FILE_ID.DIZ spec
                         //
-                        //	"...no more than 45 characters long"
+                        //  "...no more than 45 characters long"
                         //
-                        //	See http://www.textfiles.com/computers/fileid.txt
+                        //  See http://www.textfiles.com/computers/fileid.txt
                         //
                         stdout = (wordWrapText( stdout, { width : 45 } ).wrapped || []).join('\n');
                     }
 
-                    fileEntry[key]			= stdout;
-                    fileEntry[`${key}Src`]	= 'infoTool';
+                    fileEntry[key]          = stdout;
+                    fileEntry[`${key}Src`]  = 'infoTool';
                 }
             }
 
@@ -574,8 +574,8 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
             function getDescriptions(callback) {
                 populateFileEntryInfoFromFile(fileEntry, filePath, err => {
                     if(!fileEntry.desc) {
-                        fileEntry.desc		= getDescFromFileName(filePath);
-                        fileEntry.descSrc	= 'fileName';
+                        fileEntry.desc      = getDescFromFileName(filePath);
+                        fileEntry.descSrc   = 'fileName';
                     }
                     return callback(err);
                 });
@@ -592,7 +592,7 @@ function populateFileEntryNonArchive(fileEntry, filePath, stepInfo, iterator, cb
 }
 
 function addNewFileEntry(fileEntry, filePath, cb) {
-    //	:TODO: Use detectTypeWithBuf() once avail - we *just* read some file data
+    //  :TODO: Use detectTypeWithBuf() once avail - we *just* read some file data
 
     async.series(
         [
@@ -611,26 +611,26 @@ const HASH_NAMES =  [ 'sha1', 'sha256', 'md5', 'crc32' ];
 function scanFile(filePath, options, iterator, cb) {
 
     if(3 === arguments.length && _.isFunction(iterator)) {
-        cb			= iterator;
-        iterator	= null;
+        cb          = iterator;
+        iterator    = null;
     } else if(2 === arguments.length && _.isFunction(options)) {
-        cb			= options;
-        iterator	= null;
-        options		= {};
+        cb          = options;
+        iterator    = null;
+        options     = {};
     }
 
     const fileEntry = new FileEntry({
-        areaTag		: options.areaTag,
-        meta		: options.meta,
-        hashTags	: options.hashTags,	//	Set() or Array
-        fileName	: paths.basename(filePath),
-        storageTag	: options.storageTag,
-        fileSha256	: options.sha256,	//	caller may know this already
+        areaTag     : options.areaTag,
+        meta        : options.meta,
+        hashTags    : options.hashTags, //  Set() or Array
+        fileName    : paths.basename(filePath),
+        storageTag  : options.storageTag,
+        fileSha256  : options.sha256,   //  caller may know this already
     });
 
     const stepInfo = {
-        filePath	: filePath,
-        fileName	: paths.basename(filePath),
+        filePath    : filePath,
+        fileName    : paths.basename(filePath),
     };
 
     const callIter = (next) => {
@@ -638,8 +638,8 @@ function scanFile(filePath, options, iterator, cb) {
     };
 
     const readErrorCallIter = (origError, next) => {
-        stepInfo.step	= 'read_error';
-        stepInfo.error	= origError.message;
+        stepInfo.step   = 'read_error';
+        stepInfo.error  = origError.message;
 
         callIter( () => {
             return next(origError);
@@ -648,7 +648,7 @@ function scanFile(filePath, options, iterator, cb) {
 
     let lastCalcHashPercent;
 
-    //	don't re-calc hashes for any we already have in |options|
+    //  don't re-calc hashes for any we already have in |options|
     const hashesToCalc = HASH_NAMES.filter(hn =>  {
         if('sha256' === hn && fileEntry.fileSha256) {
             return false;
@@ -669,8 +669,8 @@ function scanFile(filePath, options, iterator, cb) {
                         return readErrorCallIter(err, callback);
                     }
 
-                    stepInfo.step		= 'start';
-                    stepInfo.byteSize	= fileEntry.meta.byte_size = stats.size;
+                    stepInfo.step       = 'start';
+                    stepInfo.byteSize   = fileEntry.meta.byte_size = stats.size;
 
                     return callIter(callback);
                 });
@@ -694,9 +694,9 @@ function scanFile(filePath, options, iterator, cb) {
                 };
 
                 //
-                //	Note that we are not using fs.createReadStream() here:
-                //	While convenient, it is quite a bit slower -- which adds
-                //	up to many seconds in time for larger files.
+                //  Note that we are not using fs.createReadStream() here:
+                //  While convenient, it is quite a bit slower -- which adds
+                //  up to many seconds in time for larger files.
                 //
                 const chunkSize = 1024 * 64;
                 const buffer = new Buffer(chunkSize);
@@ -714,7 +714,7 @@ function scanFile(filePath, options, iterator, cb) {
                             }
 
                             if(0 === bytesRead) {
-                                //	done - finalize
+                                //  done - finalize
                                 fileEntry.meta.byte_size = stepInfo.bytesProcessed;
 
                                 for(let i = 0; i < hashesToCalc.length; ++i) {
@@ -733,11 +733,11 @@ function scanFile(filePath, options, iterator, cb) {
                                 return callIter(callback);
                             }
 
-                            stepInfo.bytesProcessed		+= bytesRead;
-                            stepInfo.calcHashPercent	= Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
+                            stepInfo.bytesProcessed     += bytesRead;
+                            stepInfo.calcHashPercent    = Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
 
                             //
-                            //	Only send 'hash_update' step update if we have a noticable percentage change in progress
+                            //  Only send 'hash_update' step update if we have a noticable percentage change in progress
                             //
                             const data = bytesRead < chunkSize ? buffer.slice(0, bytesRead) : buffer;
                             if(!iterator || stepInfo.calcHashPercent === lastCalcHashPercent) {
@@ -745,7 +745,7 @@ function scanFile(filePath, options, iterator, cb) {
                                 return nextChunk();
                             } else {
                                 lastCalcHashPercent = stepInfo.calcHashPercent;
-                                stepInfo.step		= 'hash_update';
+                                stepInfo.step       = 'hash_update';
 
                                 callIter(err => {
                                     if(err) {
@@ -767,7 +767,7 @@ function scanFile(filePath, options, iterator, cb) {
 
                 archiveUtil.detectType(filePath, (err, archiveType) => {
                     if(archiveType) {
-                        //	save this off
+                        //  save this off
                         fileEntry.meta.archive_type = archiveType;
 
                         populateFileEntryWithArchive(fileEntry, filePath, stepInfo, callIter, err => {
@@ -776,7 +776,7 @@ function scanFile(filePath, options, iterator, cb) {
                                     if(err) {
                                         logDebug( { error : err.message }, 'Non-archive file entry population failed');
                                     }
-                                    return callback(null);	//	ignore err
+                                    return callback(null);  //  ignore err
                                 });
                             } else {
                                 return callback(null);
@@ -787,7 +787,7 @@ function scanFile(filePath, options, iterator, cb) {
                             if(err) {
                                 logDebug( { error : err.message }, 'Non-archive file entry population failed');
                             }
-                            return callback(null);	//	ignore err
+                            return callback(null);  //  ignore err
                         });
                     }
                 });
@@ -816,12 +816,12 @@ function scanFile(filePath, options, iterator, cb) {
 
 function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
     if(3 === arguments.length && _.isFunction(iterator)) {
-        cb			= iterator;
-        iterator	= null;
+        cb          = iterator;
+        iterator    = null;
     } else if(2 === arguments.length && _.isFunction(options)) {
-        cb			= options;
-        iterator	= null;
-        options		= {};
+        cb          = options;
+        iterator    = null;
+        options     = {};
     }
 
     const storageLocations = getAreaStorageLocations(areaInfo);
@@ -842,8 +842,8 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
 
                             fs.stat(fullPath, (err, stats) => {
                                 if(err) {
-                                    //	:TODO: Log me!
-                                    return nextFile(null);	//	always try next file
+                                    //  :TODO: Log me!
+                                    return nextFile(null);  //  always try next file
                                 }
 
                                 if(!stats.isFile()) {
@@ -853,18 +853,18 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
                                 scanFile(
                                     fullPath,
                                     {
-                                        areaTag		: areaInfo.areaTag,
-                                        storageTag	: storageLoc.storageTag
+                                        areaTag     : areaInfo.areaTag,
+                                        storageTag  : storageLoc.storageTag
                                     },
                                     iterator,
                                     (err, fileEntry, dupeEntries) => {
                                         if(err) {
-                                            //	:TODO: Log me!!!
-                                            return nextFile(null);	//	try next anyway
+                                            //  :TODO: Log me!!!
+                                            return nextFile(null);  //  try next anyway
                                         }
 
                                         if(dupeEntries.length > 0) {
-                                            //	:TODO: Handle duplidates -- what to do here???
+                                            //  :TODO: Handle duplidates -- what to do here???
                                         } else {
                                             if(Array.isArray(options.tags)) {
                                                 options.tags.forEach(tag => {
@@ -872,7 +872,7 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
                                                 });
                                             }
                                             addNewFileEntry(fileEntry, fullPath, err => {
-                                                //	pass along error; we failed to insert a record in our DB or something else bad
+                                                //  pass along error; we failed to insert a record in our DB or something else bad
                                                 return nextFile(err);
                                             });
                                         }
@@ -885,7 +885,7 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
                     });
                 },
                 function scanDbEntries(callback) {
-                    //	:TODO: Look @ db entries for area that were *not* processed above
+                    //  :TODO: Look @ db entries for area that were *not* processed above
                     return callback(null);
                 }
             ],
@@ -900,7 +900,7 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
 }
 
 function getDescFromFileName(fileName) {
-    //	:TODO: this method could use some more logic to really be nice.
+    //  :TODO: this method could use some more logic to really be nice.
     const ext   = paths.extname(fileName);
     const name  = paths.basename(fileName, ext);
 
@@ -908,26 +908,26 @@ function getDescFromFileName(fileName) {
 }
 
 //
-//	Return an object of stats about an area(s)
+//  Return an object of stats about an area(s)
 //
-//	{
+//  {
 //
-//		totalFiles : <totalFileCount>,
-//		totalBytes : <totalByteSize>,
-//		areas : {
-//			<areaTag> : {
-//				files : <fileCount>,
-//				bytes : <byteSize>
-//			}
-//		}
-//	}
+//      totalFiles : <totalFileCount>,
+//      totalBytes : <totalByteSize>,
+//      areas : {
+//          <areaTag> : {
+//              files : <fileCount>,
+//              bytes : <byteSize>
+//          }
+//      }
+//  }
 //
 function getAreaStats(cb) {
     FileDb.all(
         `SELECT DISTINCT f.area_tag, COUNT(f.file_id) AS total_files, SUM(m.meta_value) AS total_byte_size
-		FROM file f, file_meta m
-		WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
-		GROUP BY f.area_tag;`,
+        FROM file f, file_meta m
+        WHERE f.file_id = m.file_id AND m.meta_name='byte_size'
+        GROUP BY f.area_tag;`,
         (err, statRows) => {
             if(err) {
                 return cb(err);
@@ -946,8 +946,8 @@ function getAreaStats(cb) {
                     stats.areas = stats.areas || {};
 
                     stats.areas[v.area_tag] = {
-                        files 	: v.total_files,
-                        bytes	: v.total_byte_size,
+                        files   : v.total_files,
+                        bytes   : v.total_byte_size,
                     };
                     return stats;
                 }, {})
@@ -956,7 +956,7 @@ function getAreaStats(cb) {
     );
 }
 
-//	method exposed for event scheduler
+//  method exposed for event scheduler
 function updateAreaStatsScheduledEvent(args, cb) {
     getAreaStats( (err, stats) => {
         if(!err) {
@@ -968,13 +968,13 @@ function updateAreaStatsScheduledEvent(args, cb) {
 }
 
 function cleanUpTempSessionItems(cb) {
-    //	find (old) temporary session items and nuke 'em
+    //  find (old) temporary session items and nuke 'em
     const filter = {
-        areaTag 	: WellKnownAreaTags.TempDownloads,
-        metaPairs	: [
+        areaTag     : WellKnownAreaTags.TempDownloads,
+        metaPairs   : [
             {
-                name	: 'session_temp_dl',
-                value	: 1
+                name    : 'session_temp_dl',
+                value   : 1
             }
         ]
     };

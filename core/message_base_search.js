@@ -1,34 +1,34 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule					= require('./menu_module.js').MenuModule;
+//  ENiGMA½
+const MenuModule                    = require('./menu_module.js').MenuModule;
 const {
     getSortedAvailMessageConferences,
     getAvailableMessageAreasByConfTag,
     getSortedAvailMessageAreasByConfTag,
-}									= require('./message_area.js');
-const Errors						= require('./enig_error.js').Errors;
-const Message						= require('./message.js');
+}                                   = require('./message_area.js');
+const Errors                        = require('./enig_error.js').Errors;
+const Message                       = require('./message.js');
 
-//	deps
-const _								= require('lodash');
+//  deps
+const _                             = require('lodash');
 
 exports.moduleInfo = {
-    name	: 'Message Base Search',
-    desc	: 'Module for quickly searching the message base',
-    author	: 'NuSkooler',
+    name    : 'Message Base Search',
+    desc    : 'Module for quickly searching the message base',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
     search : {
-        searchTerms	: 1,
-        search		: 2,
-        conf		: 3,
-        area		: 4,
-        to			: 5,
-        from		: 6,
-        advSearch	: 7,
+        searchTerms : 1,
+        search      : 2,
+        conf        : 3,
+        area        : 4,
+        to          : 5,
+        from        : 6,
+        advSearch   : 7,
     }
 };
 
@@ -54,8 +54,8 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
                     return cb(err);
                 }
 
-                const confView 	= vc.getView(MciViewIds.search.conf);
-                const areaView	= vc.getView(MciViewIds.search.area);
+                const confView  = vc.getView(MciViewIds.search.conf);
+                const areaView  = vc.getView(MciViewIds.search.area);
 
                 if(!confView || !areaView) {
                     return cb(Errors.DoesNotExist('Missing one or more required views'));
@@ -65,7 +65,7 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
                     getSortedAvailMessageConferences(this.client).map(conf => Object.assign(conf, { text : conf.conf.name, data : conf.confTag } )) || []
                 );
 
-                let availAreas = [ { text : '-ALL-', data : '' } ];	//	note: will populate if conf changes from ALL
+                let availAreas = [ { text : '-ALL-', data : '' } ]; //  note: will populate if conf changes from ALL
 
                 confView.setItems(availConfs);
                 areaView.setItems(availAreas);
@@ -90,30 +90,30 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
     }
 
     searchNow(formData, cb) {
-        const isAdvanced	= formData.submitId === MciViewIds.search.advSearch;
-        const value			= formData.value;
+        const isAdvanced    = formData.submitId === MciViewIds.search.advSearch;
+        const value         = formData.value;
 
         const filter = {
-            resultType		: 'messageList',
-            sort			: 'modTimestamp',
-            terms			: value.searchTerms,
-            //extraFields		: [ 'area_tag', 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
-            limit			: 2048,	//	:TODO: best way to handle this? we should probably let the user know if some results are returned
+            resultType      : 'messageList',
+            sort            : 'modTimestamp',
+            terms           : value.searchTerms,
+            //extraFields       : [ 'area_tag', 'message_uuid', 'reply_to_message_id', 'to_user_name', 'from_user_name', 'subject', 'modified_timestamp' ],
+            limit           : 2048, //  :TODO: best way to handle this? we should probably let the user know if some results are returned
         };
 
         if(isAdvanced) {
-            filter.toUserName	= value.toUserName;
-            filter.fromUserName	= value.fromUserName;
+            filter.toUserName   = value.toUserName;
+            filter.fromUserName = value.fromUserName;
 
             if(value.confTag && !value.areaTag) {
-                //	areaTag may be a string or array of strings
-                //	getAvailableMessageAreasByConfTag() returns a obj - we only need tags
+                //  areaTag may be a string or array of strings
+                //  getAvailableMessageAreasByConfTag() returns a obj - we only need tags
                 filter.areaTag = _.map(
                     getAvailableMessageAreasByConfTag(value.confTag, { client : this.client } ),
                     (area, areaTag) => areaTag
                 );
             } else if(value.areaTag) {
-                filter.areaTag = value.areaTag;	//	specific conf + area
+                filter.areaTag = value.areaTag; //  specific conf + area
             }
         }
 
@@ -133,9 +133,9 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
             const menuOpts = {
                 extraArgs : {
                     messageList,
-                    noUpdateLastReadId	: true
+                    noUpdateLastReadId  : true
                 },
-                menuFlags	: [ 'popParent' ],
+                menuFlags   : [ 'popParent' ],
             };
 
             return this.gotoMenu(

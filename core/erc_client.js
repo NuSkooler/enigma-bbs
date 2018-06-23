@@ -1,55 +1,55 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule	= require('./menu_module.js').MenuModule;
-const stringFormat	= require('./string_format.js');
+const MenuModule    = require('./menu_module.js').MenuModule;
+const stringFormat  = require('./string_format.js');
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
-const net			= require('net');
+//  deps
+const async         = require('async');
+const _             = require('lodash');
+const net           = require('net');
 
 /*
-	Expected configuration block example:
+    Expected configuration block example:
 
-	config: {
-		host: 192.168.1.171
-		port: 5001
-		bbsTag: SOME_TAG
-	}
+    config: {
+        host: 192.168.1.171
+        port: 5001
+        bbsTag: SOME_TAG
+    }
 
 */
 
-exports.getModule	= ErcClientModule;
+exports.getModule   = ErcClientModule;
 
 exports.moduleInfo = {
-    name	: 'ENiGMA Relay Chat Client',
-    desc	: 'Chat with other ENiGMA BBSes',
-    author	: 'Andrew Pamment',
+    name    : 'ENiGMA Relay Chat Client',
+    desc    : 'Chat with other ENiGMA BBSes',
+    author  : 'Andrew Pamment',
 };
 
 var MciViewIds = {
     ChatDisplay : 1,
-    InputArea 	: 3,
+    InputArea   : 3,
 };
 
-//	:TODO: needs converted to ES6 MenuModule subclass
+//  :TODO: needs converted to ES6 MenuModule subclass
 function ErcClientModule(options) {
     MenuModule.prototype.ctorShim.call(this, options);
 
-    const self			= this;
-    this.config			= options.menuConfig.config;
+    const self          = this;
+    this.config         = options.menuConfig.config;
 
-    this.chatEntryFormat	= this.config.chatEntryFormat || '[{bbsTag}] {userName}: {message}';
-    this.systemEntryFormat	= this.config.systemEntryFormat || '[*SYSTEM*] {message}';
+    this.chatEntryFormat    = this.config.chatEntryFormat || '[{bbsTag}] {userName}: {message}';
+    this.systemEntryFormat  = this.config.systemEntryFormat || '[*SYSTEM*] {message}';
 
     this.finishedLoading = function() {
         async.waterfall(
             [
                 function validateConfig(callback) {
                     if(_.isString(self.config.host) &&
-						_.isNumber(self.config.port) &&
-						_.isString(self.config.bbsTag))
+                        _.isNumber(self.config.port) &&
+                        _.isString(self.config.bbsTag))
                     {
                         return callback(null);
                     } else {
@@ -58,8 +58,8 @@ function ErcClientModule(options) {
                 },
                 function connectToServer(callback) {
                     const connectOpts = {
-                        port	: self.config.port,
-                        host	: self.config.host,
+                        port    : self.config.port,
+                        host    : self.config.host,
                     };
 
                     const chatMessageView = self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
@@ -69,7 +69,7 @@ function ErcClientModule(options) {
 
                     self.viewControllers.menu.switchFocus(MciViewIds.InputArea);
 
-                    //	:TODO: Track actual client->enig connection for optional prevMenu @ final CB
+                    //  :TODO: Track actual client->enig connection for optional prevMenu @ final CB
                     self.chatConnection = net.createConnection(connectOpts.port, connectOpts.host);
 
                     self.chatConnection.on('data', data => {
@@ -87,10 +87,10 @@ function ErcClientModule(options) {
                             let text;
                             try {
                                 if(data.userName) {
-                                    //	user message
+                                    //  user message
                                     text = stringFormat(self.chatEntryFormat, data);
                                 } else {
-                                    //	system message
+                                    //  system message
                                     text = stringFormat(self.systemEntryFormat, data);
                                 }
                             } catch(e) {
@@ -99,7 +99,7 @@ function ErcClientModule(options) {
 
                             chatMessageView.addText(text);
 
-                            if(chatMessageView.getLineCount() > 30) {	//	:TODO: should probably be ChatDisplay.height?
+                            if(chatMessageView.getLineCount() > 30) {   //  :TODO: should probably be ChatDisplay.height?
                                 chatMessageView.deleteLine(0);
                                 chatMessageView.scrollDown();
                             }
@@ -130,8 +130,8 @@ function ErcClientModule(options) {
     };
 
     this.scrollHandler = function(keyName) {
-        const inputAreaView 	= self.viewControllers.menu.getView(MciViewIds.InputArea);
-        const chatDisplayView	= self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
+        const inputAreaView     = self.viewControllers.menu.getView(MciViewIds.InputArea);
+        const chatDisplayView   = self.viewControllers.menu.getView(MciViewIds.ChatDisplay);
 
         if('up arrow' === keyName) {
             chatDisplayView.scrollUp();
@@ -147,7 +147,7 @@ function ErcClientModule(options) {
     this.menuMethods = {
         inputAreaSubmit : function(formData, extraArgs, cb) {
             const inputAreaView = self.viewControllers.menu.getView(MciViewIds.InputArea);
-            const inputData		= inputAreaView.getData();
+            const inputData     = inputAreaView.getData();
 
             if('/quit' === inputData.toLowerCase()) {
                 self.chatConnection.end();

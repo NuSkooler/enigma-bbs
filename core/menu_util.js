@@ -1,22 +1,22 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-var moduleUtil			= require('./module_util.js');
-var Log					= require('./logger.js').log;
-var Config				= require('./config.js').get;
-var asset				= require('./asset.js');
-var MCIViewFactory		= require('./mci_view_factory.js').MCIViewFactory;
+//  ENiGMA½
+var moduleUtil          = require('./module_util.js');
+var Log                 = require('./logger.js').log;
+var Config              = require('./config.js').get;
+var asset               = require('./asset.js');
+var MCIViewFactory      = require('./mci_view_factory.js').MCIViewFactory;
 
-var paths				= require('path');
-var async				= require('async');
-var assert				= require('assert');
-var _					= require('lodash');
+var paths               = require('path');
+var async               = require('async');
+var assert              = require('assert');
+var _                   = require('lodash');
 
-exports.loadMenu						= loadMenu;
-exports.getFormConfigByIDAndMap			= getFormConfigByIDAndMap;
-exports.handleAction					= handleAction;
-exports.handleNext						= handleNext;
+exports.loadMenu                        = loadMenu;
+exports.getFormConfigByIDAndMap         = getFormConfigByIDAndMap;
+exports.handleAction                    = handleAction;
+exports.handleNext                      = handleNext;
 
 function getMenuConfig(client, name, cb) {
     var menuConfig;
@@ -70,20 +70,20 @@ function loadMenu(options, cb) {
                     menuConfig.options.menuFlags = [ menuConfig.options.menuFlags ];
                 }
 
-                const modAsset		= asset.getModuleAsset(menuConfig.module);
-                const modSupplied	= null !== modAsset;
+                const modAsset      = asset.getModuleAsset(menuConfig.module);
+                const modSupplied   = null !== modAsset;
 
                 const modLoadOpts = {
-                    name		: modSupplied ? modAsset.asset : 'standard_menu',
-                    path		: (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config().paths.mods,
-                    category	: (!modSupplied || 'systemModule' === modAsset.type) ? null : 'mods',
+                    name        : modSupplied ? modAsset.asset : 'standard_menu',
+                    path        : (!modSupplied || 'systemModule' === modAsset.type) ? __dirname : Config().paths.mods,
+                    category    : (!modSupplied || 'systemModule' === modAsset.type) ? null : 'mods',
                 };
 
                 moduleUtil.loadModuleEx(modLoadOpts, (err, mod) => {
                     const modData = {
-                        name	: modLoadOpts.name,
-                        config	: menuConfig,
-                        mod		: mod,
+                        name    : modLoadOpts.name,
+                        config  : menuConfig,
+                        mod     : mod,
                     };
 
                     return callback(err, modData);
@@ -97,11 +97,11 @@ function loadMenu(options, cb) {
                 let moduleInstance;
                 try {
                     moduleInstance = new modData.mod.getModule({
-                        menuName		: options.name,
-                        menuConfig		: modData.config,
-                        extraArgs		: options.extraArgs,
-                        client			: options.client,
-                        lastMenuResult	: options.lastMenuResult,
+                        menuName        : options.name,
+                        menuConfig      : modData.config,
+                        extraArgs       : options.extraArgs,
+                        client          : options.client,
+                        lastMenuResult  : options.lastMenuResult,
                     });
                 } catch(e) {
                     return callback(e);
@@ -137,7 +137,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
     Log.trace( { mciKey : mciReqKey }, 'Looking for MCI configuration key');
 
     //
-    //	Exact, explicit match?
+    //  Exact, explicit match?
     //
     if(_.isObject(formForId[mciReqKey])) {
         Log.trace( { mciKey : mciReqKey }, 'Using exact configuration key match');
@@ -146,7 +146,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
     }
 
     //
-    //	Generic match
+    //  Generic match
     //
     if(_.has(formForId, 'mci') || _.has(formForId, 'submit')) {
         Log.trace('Using generic configuration');
@@ -156,7 +156,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
     cb(new Error('No matching form configuration found for key \'' + mciReqKey + '\''));
 }
 
-//	:TODO: Most of this should be moved elsewhere .... DRY...
+//  :TODO: Most of this should be moved elsewhere .... DRY...
 function callModuleMenuMethod(client, asset, path, formData, extraArgs, cb) {
     if('' === paths.extname(path)) {
         path += '.js';
@@ -194,8 +194,8 @@ function handleAction(client, formData, conf, cb) {
                     conf.extraArgs,
                     cb);
             } else if('systemMethod' === actionAsset.type) {
-                //	:TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
-                //	:TODO: Probably better as system_method.js
+                //  :TODO: Need to pass optional args here -- conf.extraArgs and args between e.g. ()
+                //  :TODO: Probably better as system_method.js
                 return callModuleMenuMethod(
                     client,
                     actionAsset,
@@ -204,7 +204,7 @@ function handleAction(client, formData, conf, cb) {
                     conf.extraArgs,
                     cb);
             } else {
-                //	local to current module
+                //  local to current module
                 const currentModule = client.currentMenuModule;
                 if(_.isFunction(currentModule.menuMethods[actionAsset.asset])) {
                     return currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs, cb);
@@ -221,28 +221,28 @@ function handleAction(client, formData, conf, cb) {
 }
 
 function handleNext(client, nextSpec, conf, cb) {
-    nextSpec = client.acs.getConditionalValue(nextSpec, 'next');	//	handle any conditionals
+    nextSpec = client.acs.getConditionalValue(nextSpec, 'next');    //  handle any conditionals
 
     const nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
-    //	:TODO: getAssetWithShorthand() can return undefined - handle it!
+    //  :TODO: getAssetWithShorthand() can return undefined - handle it!
 
     conf = conf || {};
     const extraArgs = conf.extraArgs || {};
 
-    //	:TODO: DRY this with handleAction()
+    //  :TODO: DRY this with handleAction()
     switch(nextAsset.type) {
         case 'method' :
         case 'systemMethod' :
             if(_.isString(nextAsset.location)) {
                 return callModuleMenuMethod(client, nextAsset, paths.join(Config().paths.mods, nextAsset.location), {}, extraArgs, cb);
             } else if('systemMethod' === nextAsset.type) {
-                //	:TODO: see other notes about system_menu_method.js here
+                //  :TODO: see other notes about system_menu_method.js here
                 return callModuleMenuMethod(client, nextAsset, paths.join(__dirname, 'system_menu_method.js'), {}, extraArgs, cb);
             } else {
-                //	local to current module
+                //  local to current module
                 const currentModule = client.currentMenuModule;
                 if(_.isFunction(currentModule.menuMethods[nextAsset.asset])) {
-                    const formData = {};	//	 we don't have any
+                    const formData = {};    //   we don't have any
                     return currentModule.menuMethods[nextAsset.asset]( formData, extraArgs, cb );
                 }
 

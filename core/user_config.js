@@ -1,38 +1,38 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule		= require('./menu_module.js').MenuModule;
-const ViewController	= require('./view_controller.js').ViewController;
-const theme 			= require('./theme.js');
-const sysValidate		= require('./system_view_validate.js');
+const MenuModule        = require('./menu_module.js').MenuModule;
+const ViewController    = require('./view_controller.js').ViewController;
+const theme             = require('./theme.js');
+const sysValidate       = require('./system_view_validate.js');
 
-const async				= require('async');
-const assert			= require('assert');
-const _					= require('lodash');
-const moment			= require('moment');
+const async             = require('async');
+const assert            = require('assert');
+const _                 = require('lodash');
+const moment            = require('moment');
 
 exports.moduleInfo = {
-    name		: 'User Configuration',
-    desc		: 'Module for user configuration',
-    author		: 'NuSkooler',
+    name        : 'User Configuration',
+    desc        : 'Module for user configuration',
+    author      : 'NuSkooler',
 };
 
 const MciCodeIds = {
-    RealName	: 1,
-    BirthDate	: 2,
-    Sex			: 3,
-    Loc			: 4,
-    Affils		: 5,
-    Email		: 6,
-    Web			: 7,
-    TermHeight	: 8,
-    Theme		: 9,
-    Password	: 10,
-    PassConfirm	: 11,
-    ThemeInfo	: 20,
-    ErrorMsg	: 21,
+    RealName    : 1,
+    BirthDate   : 2,
+    Sex         : 3,
+    Loc         : 4,
+    Affils      : 5,
+    Email       : 6,
+    Web         : 7,
+    TermHeight  : 8,
+    Theme       : 9,
+    Password    : 10,
+    PassConfirm : 11,
+    ThemeInfo   : 20,
+    ErrorMsg    : 21,
 
-    SaveCancel	: 25,
+    SaveCancel  : 25,
 };
 
 exports.getModule = class UserConfigModule extends MenuModule {
@@ -43,29 +43,29 @@ exports.getModule = class UserConfigModule extends MenuModule {
 
         this.menuMethods = {
             //
-            //	Validation support
+            //  Validation support
             //
             validateEmailAvail : function(data, cb) {
                 //
-                //	If nothing changed, we know it's OK
+                //  If nothing changed, we know it's OK
                 //
                 if(self.client.user.properties.email_address.toLowerCase() === data.toLowerCase()) {
                     return cb(null);
                 }
 
-                //	Otherwise we can use the standard system method
+                //  Otherwise we can use the standard system method
                 return sysValidate.validateEmailAvail(data, cb);
             },
 
             validatePassword : function(data, cb) {
                 //
-                //	Blank is OK - this means we won't be changing it
+                //  Blank is OK - this means we won't be changing it
                 //
                 if(!data || 0 === data.length) {
                     return cb(null);
                 }
 
-                //	Otherwise we can use the standard system method
+                //  Otherwise we can use the standard system method
                 return sysValidate.validatePasswordSpec(data, cb);
             },
 
@@ -95,21 +95,21 @@ exports.getModule = class UserConfigModule extends MenuModule {
             },
 
             //
-            //	Handlers
+            //  Handlers
             //
             saveChanges : function(formData, extraArgs, cb) {
                 assert(formData.value.password === formData.value.passwordConfirm);
 
                 const newProperties = {
-                    real_name			: formData.value.realName,
-                    birthdate			: new Date(Date.parse(formData.value.birthdate)).toISOString(),
-                    sex					: formData.value.sex,
-                    location			: formData.value.location,
-                    affiliation			: formData.value.affils,
-                    email_address		: formData.value.email,
-                    web_address			: formData.value.web,
-                    term_height			: formData.value.termHeight.toString(),
-                    theme_id			: self.availThemeInfo[formData.value.theme].themeId,
+                    real_name           : formData.value.realName,
+                    birthdate           : new Date(Date.parse(formData.value.birthdate)).toISOString(),
+                    sex                 : formData.value.sex,
+                    location            : formData.value.location,
+                    affiliation         : formData.value.affils,
+                    email_address       : formData.value.email,
+                    web_address         : formData.value.web,
+                    term_height         : formData.value.termHeight.toString(),
+                    theme_id            : self.availThemeInfo[formData.value.theme].themeId,
                 };
 
                 //  runtime set theme
@@ -119,11 +119,11 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 self.client.user.persistProperties(newProperties, err => {
                     if(err) {
                         self.client.log.warn( { error : err.toString() }, 'Failed persisting updated properties');
-                        //	:TODO: warn end user!
+                        //  :TODO: warn end user!
                         return self.prevMenu(cb);
                     }
                     //
-                    //	New password if it's not empty
+                    //  New password if it's not empty
                     //
                     self.client.log.info('User updated properties');
 
@@ -154,8 +154,8 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 return cb(err);
             }
 
-            const self 				= this;
-            const vc				= self.viewControllers.menu = new ViewController( { client : self.client} );
+            const self              = this;
+            const vc                = self.viewControllers.menu = new ViewController( { client : self.client} );
             let currentThemeIdIndex = 0;
 
             async.series(
@@ -167,11 +167,11 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.availThemeInfo = _.sortBy([...theme.getAvailableThemes()].map(entry => {
                             const theme = entry[1];
                             return {
-                                themeId		: theme.info.themeId,
-                                name		: theme.info.name,
-                                author		: theme.info.author,
-                                desc		: _.isString(theme.info.desc) ? theme.info.desc : '',
-                                group		: _.isString(theme.info.group) ? theme.info.group : '',
+                                themeId     : theme.info.themeId,
+                                name        : theme.info.name,
+                                author      : theme.info.author,
+                                desc        : _.isString(theme.info.desc) ? theme.info.desc : '',
+                                group       : _.isString(theme.info.group) ? theme.info.group : '',
                             };
                         }), 'name');
 
@@ -202,7 +202,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
 
                         var realNameView = self.getView(MciCodeIds.RealName);
                         if(realNameView) {
-                            realNameView.setFocus(true);	//	:TODO: HACK! menu.hjson sets focus, but manual population above breaks this. Needs a real fix!
+                            realNameView.setFocus(true);    //  :TODO: HACK! menu.hjson sets focus, but manual population above breaks this. Needs a real fix!
                         }
 
                         callback(null);

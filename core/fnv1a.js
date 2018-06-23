@@ -1,9 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-let _		= require('lodash');
+let _       = require('lodash');
 
-//	FNV-1a based on work here: https://github.com/wiedi/node-fnv
+//  FNV-1a based on work here: https://github.com/wiedi/node-fnv
 module.exports = class FNV1a {
     constructor(data) {
         this.hash = 0x811c9dc5;
@@ -29,8 +29,8 @@ module.exports = class FNV1a {
         for(let b of data) {
             this.hash = this.hash ^ b;
             this.hash +=
-				(this.hash << 24) + (this.hash << 8) + (this.hash << 7) +
-				(this.hash << 4) + (this.hash << 1);
+                (this.hash << 24) + (this.hash << 8) + (this.hash << 7) +
+                (this.hash << 4) + (this.hash << 1);
         }
 
         return this;

@@ -1,36 +1,36 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule				= require('./menu_module.js').MenuModule;
-const resetScreen				= require('./ansi_term.js').resetScreen;
-const setSyncTermFontWithAlias	= require('./ansi_term.js').setSyncTermFontWithAlias;
+//  ENiGMA½
+const MenuModule                = require('./menu_module.js').MenuModule;
+const resetScreen               = require('./ansi_term.js').resetScreen;
+const setSyncTermFontWithAlias  = require('./ansi_term.js').setSyncTermFontWithAlias;
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
-const net			= require('net');
-const EventEmitter	= require('events');
-const buffers		= require('buffers');
+//  deps
+const async         = require('async');
+const _             = require('lodash');
+const net           = require('net');
+const EventEmitter  = require('events');
+const buffers       = require('buffers');
 
 /*
-	Expected configuration block:
+    Expected configuration block:
 
-	{
-		module: telnet_bridge
-		...
-		config: {
-			host: somehost.net
-			port: 23
-		}
-	}
+    {
+        module: telnet_bridge
+        ...
+        config: {
+            host: somehost.net
+            port: 23
+        }
+    }
 */
 
-//	:TODO: ENH: Support nodeMax and tooManyArt
+//  :TODO: ENH: Support nodeMax and tooManyArt
 exports.moduleInfo = {
-    name	: 'Telnet Bridge',
-    desc	: 'Connect to other Telnet Systems',
-    author	: 'Andrew Pamment',
+    name    : 'Telnet Bridge',
+    desc    : 'Connect to other Telnet Systems',
+    author  : 'Andrew Pamment',
 };
 
 const IAC_DO_TERM_TYPE = Buffer.from( [ 255, 253, 24 ] );
@@ -39,7 +39,7 @@ class TelnetClientConnection extends EventEmitter {
     constructor(client) {
         super();
 
-        this.client		= client;
+        this.client     = client;
     }
 
 
@@ -47,7 +47,7 @@ class TelnetClientConnection extends EventEmitter {
         if(!this.pipeRestored) {
             this.pipeRestored = true;
 
-            //	client may have bailed
+            //  client may have bailed
             if(null !== _.get(this, 'client.term.output', null)) {
                 if(this.bridgeConnection) {
                     this.client.term.output.unpipe(this.bridgeConnection);
@@ -69,9 +69,9 @@ class TelnetClientConnection extends EventEmitter {
             this.client.term.rawWrite(data);
 
             //
-            //	Wait for a terminal type request, and send it eactly once.
-            //	This is enough (in additional to other negotiations handled in telnet.js)
-            //	to get us in on most systems
+            //  Wait for a terminal type request, and send it eactly once.
+            //  This is enough (in additional to other negotiations handled in telnet.js)
+            //  to get us in on most systems
             //
             if(!this.termSent && data.indexOf(IAC_DO_TERM_TYPE) > -1) {
                 this.termSent = true;
@@ -107,23 +107,23 @@ class TelnetClientConnection extends EventEmitter {
 
     getTermTypeNegotiationBuffer() {
         //
-        //	Create a TERMINAL-TYPE sub negotiation buffer using the
-        //	actual/current terminal type.
+        //  Create a TERMINAL-TYPE sub negotiation buffer using the
+        //  actual/current terminal type.
         //
         let bufs = buffers();
 
         bufs.push(Buffer.from(
             [
-                255,	//	IAC
-                250,	//	SB
-                24,		//	TERMINAL-TYPE
-                0,		//	IS
+                255,    //  IAC
+                250,    //  SB
+                24,     //  TERMINAL-TYPE
+                0,      //  IS
             ]
         ));
 
         bufs.push(
-            Buffer.from(this.client.term.termType),	//	e.g. "ansi"
-            Buffer.from( [ 255, 240 ] )				//	IAC, SE
+            Buffer.from(this.client.term.termType), //  e.g. "ansi"
+            Buffer.from( [ 255, 240 ] )             //  IAC, SE
         );
 
         return bufs.toBuffer();
@@ -135,8 +135,8 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.config			= Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
-        this.config.port	= this.config.port || 23;
+        this.config         = Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+        this.config.port    = this.config.port || 23;
     }
 
     initSequence() {
@@ -147,7 +147,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
             [
                 function validateConfig(callback) {
                     if(_.isString(self.config.host) &&
-						_.isNumber(self.config.port))
+                        _.isNumber(self.config.port))
                     {
                         callback(null);
                     } else {
@@ -156,8 +156,8 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
                 },
                 function createTelnetBridge(callback) {
                     const connectOpts = {
-                        port	: self.config.port,
-                        host	: self.config.host,
+                        port    : self.config.port,
+                        host    : self.config.host,
                     };
 
                     self.client.term.write(resetScreen());

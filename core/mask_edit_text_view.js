@@ -1,42 +1,42 @@
 /* jslint node: true */
 'use strict';
 
-var TextView		= require('./text_view.js').TextView;
-var miscUtil		= require('./misc_util.js');
-var strUtil			= require('./string_util.js');
-var ansi			= require('./ansi_term.js');
+var TextView        = require('./text_view.js').TextView;
+var miscUtil        = require('./misc_util.js');
+var strUtil         = require('./string_util.js');
+var ansi            = require('./ansi_term.js');
 
-//var util			= require('util');
-var assert			= require('assert');
-var _				= require('lodash');
+//var util          = require('util');
+var assert          = require('assert');
+var _               = require('lodash');
 
-exports.MaskEditTextView	= MaskEditTextView;
+exports.MaskEditTextView    = MaskEditTextView;
 
-//	##/##/#### <--styleSGR2 if fillChar
-//	  ^- styleSGR1
-//	buildPattern -> [ RE, RE, '/', RE, RE, '/', RE, RE, RE, RE ]
-//	patternIndex -----^
+//  ##/##/#### <--styleSGR2 if fillChar
+//    ^- styleSGR1
+//  buildPattern -> [ RE, RE, '/', RE, RE, '/', RE, RE, RE, RE ]
+//  patternIndex -----^
 
-//	styleSGR1: Literal's (non-focus)
-//	styleSGR2: Literals (focused)
-//	styleSGR3: fillChar
+//  styleSGR1: Literal's (non-focus)
+//  styleSGR2: Literals (focused)
+//  styleSGR3: fillChar
 
 //
-//	:TODO:
-//	* Hint, e.g. YYYY/MM/DD
-//	* Return values with literals in place
+//  :TODO:
+//  * Hint, e.g. YYYY/MM/DD
+//  * Return values with literals in place
 //
 
 function MaskEditTextView(options) {
-    options.acceptsFocus 	= miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.cursorStyle		= miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
-    options.resizable		= false;
+    options.acceptsFocus    = miscUtil.valueWithDefault(options.acceptsFocus, true);
+    options.acceptsInput    = miscUtil.valueWithDefault(options.acceptsInput, true);
+    options.cursorStyle     = miscUtil.valueWithDefault(options.cursorStyle, 'steady block');
+    options.resizable       = false;
 
     TextView.call(this, options);
 
-    this.cursorPos			= { x : 0 };
-    this.patternArrayPos	= 0;
+    this.cursorPos          = { x : 0 };
+    this.patternArrayPos    = 0;
 
     var self = this;
 
@@ -52,7 +52,7 @@ function MaskEditTextView(options) {
 
         assert(textToDraw.length <= self.patternArray.length);
 
-        //	draw out the text we have so far
+        //  draw out the text we have so far
         var i = 0;
         var t = 0;
         while(i < self.patternArray.length) {
@@ -72,11 +72,11 @@ function MaskEditTextView(options) {
     };
 
     this.buildPattern = function() {
-        self.patternArray	= [];
-        self.maxLength		= 0;
+        self.patternArray   = [];
+        self.maxLength      = 0;
 
         for(var i = 0; i < self.maskPattern.length; i++) {
-            //	:TODO: support escaped characters, e.g. \#. Also allow \\ for a '\' mark!
+            //  :TODO: support escaped characters, e.g. \#. Also allow \\ for a '\' mark!
             if(self.maskPattern[i] in MaskEditTextView.maskPatternCharacterRegEx) {
                 self.patternArray.push(MaskEditTextView.maskPatternCharacterRegEx[self.maskPattern[i]]);
                 ++self.maxLength;
@@ -97,16 +97,16 @@ function MaskEditTextView(options) {
 require('util').inherits(MaskEditTextView, TextView);
 
 MaskEditTextView.maskPatternCharacterRegEx = {
-    '#'				: /[0-9]/,				//	Numeric
-    'A'				: /[a-zA-Z]/,			//	Alpha
-    '@'				: /[0-9a-zA-Z]/,		//	Alphanumeric
-    '&'				: /[\w\d\s]/,			//	Any "printable" 32-126, 128-255
+    '#'             : /[0-9]/,              //  Numeric
+    'A'             : /[a-zA-Z]/,           //  Alpha
+    '@'             : /[0-9a-zA-Z]/,        //  Alphanumeric
+    '&'             : /[\w\d\s]/,           //  Any "printable" 32-126, 128-255
 };
 
 MaskEditTextView.prototype.setText = function(text) {
     MaskEditTextView.super_.prototype.setText.call(this, text);
 
-    if(this.patternArray) {	//	:TODO: This is a hack - see TextView ctor note about setText()
+    if(this.patternArray) { //  :TODO: This is a hack - see TextView ctor note about setText()
         this.patternArrayPos = this.patternArray.length;
     }
 };
@@ -143,9 +143,9 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 
             return;
         } else if(this.isKeyMapped('clearLine', key.name)) {
-            this.text				= '';
-            this.patternArrayPos	= 0;
-            this.setFocus(true);	//	redraw + adjust cursor
+            this.text               = '';
+            this.patternArrayPos    = 0;
+            this.setFocus(true);    //  redraw + adjust cursor
 
             return;
         }
@@ -163,7 +163,7 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
             this.patternArrayPos++;
 
             while(this.patternArrayPos < this.patternArray.length &&
-				!_.isRegExp(this.patternArray[this.patternArrayPos]))
+                !_.isRegExp(this.patternArray[this.patternArrayPos]))
             {
                 this.patternArrayPos++;
             }
@@ -178,7 +178,7 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
 
 MaskEditTextView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
-        case 'maskPattern'	: this.setMaskPattern(value); break;
+        case 'maskPattern'  : this.setMaskPattern(value); break;
     }
 
     MaskEditTextView.super_.prototype.setPropertyValue.call(this, propName, value);
@@ -191,7 +191,7 @@ MaskEditTextView.prototype.getData = function() {
         return rawData;
     }
 
-    var data	= '';
+    var data    = '';
 
     assert(rawData.length <= this.patternArray.length);
 

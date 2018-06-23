@@ -1,29 +1,29 @@
 /* jslint node: true */
 'use strict';
 
-const MenuView		= require('./menu_view.js').MenuView;
-const ansi			= require('./ansi_term.js');
-const strUtil		= require('./string_util.js');
+const MenuView      = require('./menu_view.js').MenuView;
+const ansi          = require('./ansi_term.js');
+const strUtil       = require('./string_util.js');
 
-const util			= require('util');
-const assert		= require('assert');
-const _				= require('lodash');
+const util          = require('util');
+const assert        = require('assert');
+const _             = require('lodash');
 
-exports.SpinnerMenuView	= SpinnerMenuView;
+exports.SpinnerMenuView = SpinnerMenuView;
 
 function SpinnerMenuView(options) {
-    options.justify	= options.justify || 'left';
-    options.cursor	= options.cursor || 'hide';
+    options.justify = options.justify || 'left';
+    options.cursor  = options.cursor || 'hide';
 
     MenuView.call(this, options);
 
     var self = this;
 
     /*
-	this.cachePositions = function() {
-		self.positionCacheExpired = false;
-	};
-	*/
+    this.cachePositions = function() {
+        self.positionCacheExpired = false;
+    };
+    */
 
     this.updateSelection = function() {
         //assert(!self.positionCacheExpired);
@@ -66,9 +66,9 @@ SpinnerMenuView.prototype.setFocus = function(focused) {
 };
 
 SpinnerMenuView.prototype.setFocusItemIndex = function(index) {
-    SpinnerMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+    SpinnerMenuView.super_.prototype.setFocusItemIndex.call(this, index);   //  sets this.focusedItemIndex
 
-    this.updateSelection();	//	will redraw
+    this.updateSelection(); //  will redraw
 };
 
 SpinnerMenuView.prototype.onKeyPress = function(ch, key) {

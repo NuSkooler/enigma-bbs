@@ -1,13 +1,13 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const checkAcs	= require('./acs_parser.js').parse;
-const Log		= require('./logger.js').log;
+//  ENiGMA½
+const checkAcs  = require('./acs_parser.js').parse;
+const Log       = require('./logger.js').log;
 
-//	deps
-const assert	= require('assert');
-const _			= require('lodash');
+//  deps
+const assert    = require('assert');
+const _         = require('lodash');
 
 class ACS {
     constructor(client) {
@@ -26,7 +26,7 @@ class ACS {
     }
 
     //
-    //	Message Conferences & Areas
+    //  Message Conferences & Areas
     //
     hasMessageConfRead(conf) {
         return this.check(conf.acs, 'read', ACS.Defaults.MessageConfRead);
@@ -37,7 +37,7 @@ class ACS {
     }
 
     //
-    //	File Base / Areas
+    //  File Base / Areas
     //
     hasFileAreaRead(area) {
         return this.check(area.acs, 'read', ACS.Defaults.FileAreaRead);
@@ -53,7 +53,7 @@ class ACS {
 
     getConditionalValue(condArray, memberName) {
         if(!Array.isArray(condArray)) {
-            //	no cond array, just use the value
+            //  no cond array, just use the value
             return condArray;
         }
 
@@ -68,7 +68,7 @@ class ACS {
                     return false;
                 }
             } else {
-                return true;	//	no acs check req.
+                return true;    //  no acs check req.
             }
         });
 
@@ -79,12 +79,12 @@ class ACS {
 }
 
 ACS.Defaults = {
-    MessageAreaRead		: 'GM[users]',
-    MessageConfRead		: 'GM[users]',
+    MessageAreaRead     : 'GM[users]',
+    MessageConfRead     : 'GM[users]',
 
-    FileAreaRead		: 'GM[users]',
-    FileAreaWrite		: 'GM[sysops]',
-    FileAreaDownload	: 'GM[users]',
+    FileAreaRead        : 'GM[users]',
+    FileAreaWrite       : 'GM[sysops]',
+    FileAreaDownload    : 'GM[users]',
 };
 
 module.exports = ACS;

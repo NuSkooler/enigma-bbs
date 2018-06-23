@@ -1,20 +1,20 @@
 /* jslint node: true */
 'use strict';
 
-const paths				= require('path');
-const events			= require('events');
-const Log				= require('./logger.js').log;
-const SystemEvents		= require('./system_events.js');
+const paths             = require('path');
+const events            = require('events');
+const Log               = require('./logger.js').log;
+const SystemEvents      = require('./system_events.js');
 
-//	deps
-const _					= require('lodash');
-const async				= require('async');
-const glob				= require('glob');
+//  deps
+const _                 = require('lodash');
+const async             = require('async');
+const glob              = require('glob');
 
 module.exports = new class Events extends events.EventEmitter {
     constructor() {
         super();
-        this.setMaxListeners(32);	//	:TODO: play with this...
+        this.setMaxListeners(32);   //  :TODO: play with this...
     }
 
     getSystemEvents() {
@@ -60,7 +60,7 @@ module.exports = new class Events extends events.EventEmitter {
                         const mod = require(fullModulePath);
 
                         if(_.isFunction(mod.registerEvents)) {
-                            //	:TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
+                            //  :TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
                             mod.registerEvents(this);
                         }
                     } catch(e) {

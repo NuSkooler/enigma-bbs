@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config			= require('../../config.js').get;
-const baseClient		= require('../../client.js');
-const Log				= require('../../logger.js').log;
-const LoginServerModule	= require('../../login_server_module.js');
-const userLogin			= require('../../user_login.js').userLogin;
-const enigVersion 		= require('../../../package.json').version;
-const theme				= require('../../theme.js');
-const stringFormat		= require('../../string_format.js');
+//  ENiGMA½
+const Config            = require('../../config.js').get;
+const baseClient        = require('../../client.js');
+const Log               = require('../../logger.js').log;
+const LoginServerModule = require('../../login_server_module.js');
+const userLogin         = require('../../user_login.js').userLogin;
+const enigVersion       = require('../../../package.json').version;
+const theme             = require('../../theme.js');
+const stringFormat      = require('../../string_format.js');
 
-//	deps
-const ssh2			= require('ssh2');
-const fs			= require('graceful-fs');
-const util			= require('util');
-const _				= require('lodash');
-const assert		= require('assert');
+//  deps
+const ssh2          = require('ssh2');
+const fs            = require('graceful-fs');
+const util          = require('util');
+const _             = require('lodash');
+const assert        = require('assert');
 
 const ModuleInfo = exports.moduleInfo = {
-    name		: 'SSH',
-    desc		: 'SSH Server',
-    author		: 'NuSkooler',
-    isSecure	: true,
-    packageName	: 'codes.l33t.enigma.ssh.server',
+    name        : 'SSH',
+    desc        : 'SSH Server',
+    author      : 'NuSkooler',
+    isSecure    : true,
+    packageName : 'codes.l33t.enigma.ssh.server',
 };
 
 function SSHClient(clientConn) {
     baseClient.Client.apply(this, arguments);
 
     //
-    //	WARNING: Until we have emit 'ready', self.input, and self.output and
-    //	not yet defined!
+    //  WARNING: Until we have emit 'ready', self.input, and self.output and
+    //  not yet defined!
     //
 
     const self = this;
@@ -39,11 +39,11 @@ function SSHClient(clientConn) {
     let loginAttempts = 0;
 
     clientConn.on('authentication', function authAttempt(ctx) {
-        const username	= ctx.username || '';
-        const password	= ctx.password || '';
+        const username  = ctx.username || '';
+        const password  = ctx.password || '';
 
-        const config	= Config();
-        self.isNewUser	= (config.users.newUserNames || []).indexOf(username) > -1;
+        const config    = Config();
+        self.isNewUser  = (config.users.newUserNames || []).indexOf(username) > -1;
 
         self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
@@ -58,8 +58,8 @@ function SSHClient(clientConn) {
         }
 
         //
-        //	If the system is open and |isNewUser| is true, the login
-        //	sequence is hijacked in order to start the applicaiton process.
+        //  If the system is open and |isNewUser| is true, the login
+        //  sequence is hijacked in order to start the applicaiton process.
         //
         if(false === config.general.closedSystem && self.isNewUser) {
             return ctx.accept();
@@ -85,7 +85,7 @@ function SSHClient(clientConn) {
             }
 
             if(0 === username.length) {
-                //	:TODO: can we display something here?
+                //  :TODO: can we display something here?
                 return ctx.reject();
             }
 
@@ -105,9 +105,9 @@ function SSHClient(clientConn) {
                         }
 
                         const artOpts = {
-                            client		: self,
-                            name 		: 'SSHPMPT.ASC',
-                            readSauce	: false,
+                            client      : self,
+                            name        : 'SSHPMPT.ASC',
+                            readSauce   : false,
                         };
 
                         theme.getThemeArt(artOpts, (err, artInfo) => {
@@ -136,31 +136,31 @@ function SSHClient(clientConn) {
 
     this.updateTermInfo = function(info) {
         //
-        //	From ssh2 docs:
-        //	"rows and cols override width and height when rows and cols are non-zero."
+        //  From ssh2 docs:
+        //  "rows and cols override width and height when rows and cols are non-zero."
         //
         let termHeight;
         let termWidth;
 
         if(info.rows > 0 && info.cols > 0) {
-            termHeight 	= info.rows;
-            termWidth	= info.cols;
+            termHeight  = info.rows;
+            termWidth   = info.cols;
         } else if(info.width > 0 && info.height > 0) {
-            termHeight	= info.height;
-            termWidth	= info.width;
+            termHeight  = info.height;
+            termWidth   = info.width;
         }
 
         assert(_.isObject(self.term));
 
         //
-        //	Note that if we fail here, connect.js attempts some non-standard
-        //	queries/etc., and ultimately will default to 80x24 if all else fails
+        //  Note that if we fail here, connect.js attempts some non-standard
+        //  queries/etc., and ultimately will default to 80x24 if all else fails
         //
         if(termHeight > 0 && termWidth > 0) {
             self.term.termHeight = termHeight;
-            self.term.termWidth	= termWidth;
+            self.term.termWidth = termWidth;
 
-            self.clearMciCache();	//	term size changes = invalidate cache
+            self.clearMciCache();   //  term size changes = invalidate cache
         }
 
         if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
@@ -182,7 +182,7 @@ function SSHClient(clientConn) {
                     accept();
                 }
 
-                if(self.input) {	//	do we have I/O?
+                if(self.input) {    //  do we have I/O?
                     self.updateTermInfo(info);
                 } else {
                     self.cachedTermInfo = info;
@@ -203,7 +203,7 @@ function SSHClient(clientConn) {
                     delete self.cachedTermInfo;
                 }
 
-                //	we're ready!
+                //  we're ready!
                 const firstMenu = self.isNewUser ? Config().loginServers.ssh.firstMenuNewUser : Config().loginServers.ssh.firstMenu;
                 self.emit('ready', { firstMenu : firstMenu } );
             });
@@ -222,7 +222,7 @@ function SSHClient(clientConn) {
     });
 
     clientConn.on('end', () => {
-        self.emit('end');	//	remove client connection/tracking
+        self.emit('end');   //  remove client connection/tracking
     });
 
     clientConn.on('error', err => {
@@ -244,13 +244,13 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
         const serverConf = {
             hostKeys : [
                 {
-                    key			: fs.readFileSync(config.loginServers.ssh.privateKeyPem),
-                    passphrase	: config.loginServers.ssh.privateKeyPass,
+                    key         : fs.readFileSync(config.loginServers.ssh.privateKeyPem),
+                    passphrase  : config.loginServers.ssh.privateKeyPass,
                 }
             ],
             ident : 'enigma-bbs-' + enigVersion + '-srv',
 
-            //	Note that sending 'banner' breaks at least EtherTerm!
+            //  Note that sending 'banner' breaks at least EtherTerm!
             debug : (sshDebugLine) => {
                 if(true === config.loginServers.ssh.traceConnections) {
                     Log.trace(`SSH: ${sshDebugLine}`);

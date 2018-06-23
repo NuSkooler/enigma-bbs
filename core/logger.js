@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-//	deps
-const bunyan	= require('bunyan');
-const paths		= require('path');
-const fs		= require('graceful-fs');
-const _			= require('lodash');
+//  deps
+const bunyan    = require('bunyan');
+const paths     = require('path');
+const fs        = require('graceful-fs');
+const _         = require('lodash');
 
 module.exports = class Log {
 
     static init() {
-        const Config	= require('./config.js').get();
-        const logPath	= Config.paths.logs;
+        const Config    = require('./config.js').get();
+        const logPath   = Config.paths.logs;
 
         const err = this.checkLogPath(logPath);
         if(err) {
-            console.error(err.message);	//	eslint-disable-line no-console
+            console.error(err.message); //  eslint-disable-line no-console
             return process.exit();
         }
 
@@ -26,18 +26,18 @@ module.exports = class Log {
         }
 
         const serializers = {
-            err	: bunyan.stdSerializers.err,		//	handle 'err' fields with stack/etc.
+            err : bunyan.stdSerializers.err,        //  handle 'err' fields with stack/etc.
         };
 
-        //	try to remove sensitive info by default, e.g. 'password' fields
+        //  try to remove sensitive info by default, e.g. 'password' fields
         [ 'formData', 'formValue' ].forEach(keyName => {
             serializers[keyName] = (fd) => Log.hideSensitive(fd);
         });
 
         this.log = bunyan.createLogger({
-            name			: 'ENiGMA½ BBS',
-            streams			: logStreams,
-            serializers		: serializers,
+            name            : 'ENiGMA½ BBS',
+            streams         : logStreams,
+            serializers     : serializers,
         });
     }
 
@@ -59,7 +59,7 @@ module.exports = class Log {
     static hideSensitive(obj) {
         try {
             //
-            //	Use a regexp -- we don't know how nested fields we want to seek and destroy may be
+            //  Use a regexp -- we don't know how nested fields we want to seek and destroy may be
             //
             return JSON.parse(
                 JSON.stringify(obj).replace(/"(password|passwordConfirm|key|authCode)"\s?:\s?"([^"]+)"/, (match, valueName) => {
@@ -67,7 +67,7 @@ module.exports = class Log {
                 })
             );
         } catch(e) {
-            //	be safe and return empty obj!
+            //  be safe and return empty obj!
             return {};
         }
     }

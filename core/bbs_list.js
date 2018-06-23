@@ -1,73 +1,73 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
 
 const {
     getModDatabasePath,
     getTransactionDatabase
-}							= require('./database.js');
+}                           = require('./database.js');
 
-const ViewController		= require('./view_controller.js').ViewController;
-const ansi					= require('./ansi_term.js');
-const theme					= require('./theme.js');
-const User					= require('./user.js');
-const stringFormat			= require('./string_format.js');
+const ViewController        = require('./view_controller.js').ViewController;
+const ansi                  = require('./ansi_term.js');
+const theme                 = require('./theme.js');
+const User                  = require('./user.js');
+const stringFormat          = require('./string_format.js');
 
-//	deps
-const async 				= require('async');
-const sqlite3				= require('sqlite3');
-const _						= require('lodash');
+//  deps
+const async                 = require('async');
+const sqlite3               = require('sqlite3');
+const _                     = require('lodash');
 
-//	:TODO: add notes field
+//  :TODO: add notes field
 
 const moduleInfo = exports.moduleInfo = {
-    name		: 'BBS List',
-    desc		: 'List of other BBSes',
-    author		: 'Andrew Pamment',
-    packageName	: 'com.magickabbs.enigma.bbslist'
+    name        : 'BBS List',
+    desc        : 'List of other BBSes',
+    author      : 'Andrew Pamment',
+    packageName : 'com.magickabbs.enigma.bbslist'
 };
 
 const MciViewIds = {
     view : {
-        BBSList					: 1,
-        SelectedBBSName			: 2,
-        SelectedBBSSysOp		: 3,
-        SelectedBBSTelnet		: 4,
-        SelectedBBSWww			: 5,
-        SelectedBBSLoc			: 6,
-        SelectedBBSSoftware		: 7,
-        SelectedBBSNotes		: 8,
-        SelectedBBSSubmitter	: 9,
+        BBSList                 : 1,
+        SelectedBBSName         : 2,
+        SelectedBBSSysOp        : 3,
+        SelectedBBSTelnet       : 4,
+        SelectedBBSWww          : 5,
+        SelectedBBSLoc          : 6,
+        SelectedBBSSoftware     : 7,
+        SelectedBBSNotes        : 8,
+        SelectedBBSSubmitter    : 9,
     },
     add : {
-        BBSName		: 1,
-        Sysop		: 2,
-        Telnet		: 3,
-        Www			: 4,
-        Location	: 5,
-        Software	: 6,
-        Notes		: 7,
-        Error		: 8,
+        BBSName     : 1,
+        Sysop       : 2,
+        Telnet      : 3,
+        Www         : 4,
+        Location    : 5,
+        Software    : 6,
+        Notes       : 7,
+        Error       : 8,
     }
 };
 
 const FormIds = {
-    View	: 0,
-    Add		: 1,
+    View    : 0,
+    Add     : 1,
 };
 
 const SELECTED_MCI_NAME_TO_ENTRY = {
-    SelectedBBSName			: 'bbsName',
-    SelectedBBSSysOp		: 'sysOp',
-    SelectedBBSTelnet		: 'telnet',
-    SelectedBBSWww			: 'www',
-    SelectedBBSLoc			: 'location',
-    SelectedBBSSoftware		: 'software',
-    SelectedBBSSubmitter	: 'submitter',
-    SelectedBBSSubmitterId	: 'submitterUserId',
-    SelectedBBSNotes		: 'notes',
+    SelectedBBSName         : 'bbsName',
+    SelectedBBSSysOp        : 'sysOp',
+    SelectedBBSTelnet       : 'telnet',
+    SelectedBBSWww          : 'www',
+    SelectedBBSLoc          : 'location',
+    SelectedBBSSoftware     : 'software',
+    SelectedBBSSubmitter    : 'submitter',
+    SelectedBBSSubmitterId  : 'submitterUserId',
+    SelectedBBSNotes        : 'notes',
 };
 
 exports.getModule = class BBSListModule extends MenuModule {
@@ -77,7 +77,7 @@ exports.getModule = class BBSListModule extends MenuModule {
         const self = this;
         this.menuMethods = {
             //
-            //	Validators
+            //  Validators
             //
             viewValidationListener : function(err, cb) {
                 const errMsgView = self.viewControllers.add.getView(MciViewIds.add.Error);
@@ -93,7 +93,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             },
 
             //
-            //	Key & submit handlers
+            //  Key & submit handlers
             //
             addBBS : function(formData, extraArgs, cb) {
                 self.displayAddScreen(cb);
@@ -106,7 +106,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                 const entriesView = self.viewControllers.view.getView(MciViewIds.view.BBSList);
 
                 if(self.entries[self.selectedBBS].submitterUserId !== self.client.user.userId && !self.client.user.isSysOp()) {
-                    //	must be owner or +op
+                    //  must be owner or +op
                     return cb(null);
                 }
 
@@ -117,7 +117,7 @@ exports.getModule = class BBSListModule extends MenuModule {
 
                 self.database.run(
                     `DELETE FROM bbs_list 
-					WHERE id=?;`,
+                    WHERE id=?;`,
                     [ entry.id ],
                     err => {
                         if (err) {
@@ -147,13 +147,13 @@ exports.getModule = class BBSListModule extends MenuModule {
                     }
                 });
                 if(!ok) {
-                    //	validators should prevent this!
+                    //  validators should prevent this!
                     return cb(null);
                 }
 
                 self.database.run(
                     `INSERT INTO bbs_list (bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes) 
-					VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?);`,
                     [
                         formData.value.name, formData.value.sysop, formData.value.telnet, formData.value.www,
                         formData.value.location, formData.value.software, self.client.user.userId, formData.value.notes
@@ -188,7 +188,7 @@ exports.getModule = class BBSListModule extends MenuModule {
             ],
             err => {
                 if(err) {
-                    //	:TODO: Handle me -- initSequence() should really take a completion callback
+                    //  :TODO: Handle me -- initSequence() should really take a completion callback
                 }
                 self.finishedLoading();
             }
@@ -218,9 +218,9 @@ exports.getModule = class BBSListModule extends MenuModule {
     }
 
     setEntries(entriesView) {
-        const config			= this.menuConfig.config;
-        const listFormat		= config.listFormat || '{bbsName}';
-        const focusListFormat	= config.focusListFormat || '{bbsName}';
+        const config            = this.menuConfig.config;
+        const listFormat        = config.listFormat || '{bbsName}';
+        const focusListFormat   = config.focusListFormat || '{bbsName}';
 
         entriesView.setItems(this.entries.map( e => stringFormat(listFormat, e) ) );
         entriesView.setFocusItems(this.entries.map( e => stringFormat(focusListFormat, e) ) );
@@ -255,9 +255,9 @@ exports.getModule = class BBSListModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.View,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.View,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -273,19 +273,19 @@ exports.getModule = class BBSListModule extends MenuModule {
 
                     self.database.each(
                         `SELECT id, bbs_name, sysop, telnet, www, location, software, submitter_user_id, notes
-						FROM bbs_list;`,
+                        FROM bbs_list;`,
                         (err, row) => {
                             if (!err) {
                                 self.entries.push({
-                                    id				: row.id,
-                                    bbsName			: row.bbs_name,
-                                    sysOp			: row.sysop,
-                                    telnet			: row.telnet,
-                                    www				: row.www,
-                                    location		: row.location,
-                                    software		: row.software,
-                                    submitterUserId	: row.submitter_user_id,
-                                    notes			: row.notes,
+                                    id              : row.id,
+                                    bbsName         : row.bbs_name,
+                                    sysOp           : row.sysop,
+                                    telnet          : row.telnet,
+                                    www             : row.www,
+                                    location        : row.location,
+                                    software        : row.software,
+                                    submitterUserId : row.submitter_user_id,
+                                    notes           : row.notes,
                                 });
                             }
                         },
@@ -371,9 +371,9 @@ exports.getModule = class BBSListModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.Add,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.Add,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -414,16 +414,16 @@ exports.getModule = class BBSListModule extends MenuModule {
                     self.database.serialize( () => {
                         self.database.run(
                             `CREATE TABLE IF NOT EXISTS bbs_list (
-								id					INTEGER PRIMARY KEY,
-								bbs_name			VARCHAR NOT NULL,
-								sysop				VARCHAR NOT NULL,
-								telnet				VARCHAR NOT NULL,
-								www					VARCHAR,
-								location			VARCHAR,
-								software			VARCHAR,
-								submitter_user_id	INTEGER NOT NULL,
-								notes				VARCHAR
-							);`
+                                id                  INTEGER PRIMARY KEY,
+                                bbs_name            VARCHAR NOT NULL,
+                                sysop               VARCHAR NOT NULL,
+                                telnet              VARCHAR NOT NULL,
+                                www                 VARCHAR,
+                                location            VARCHAR,
+                                software            VARCHAR,
+                                submitter_user_id   INTEGER NOT NULL,
+                                notes               VARCHAR
+                            );`
                         );
                     });
                     callback(null);

@@ -1,38 +1,38 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const ANSIEscapeParser	= require('./ansi_escape_parser.js').ANSIEscapeParser;
-const ANSI				= require('./ansi_term.js');
+//  ENiGMA½
+const ANSIEscapeParser  = require('./ansi_escape_parser.js').ANSIEscapeParser;
+const ANSI              = require('./ansi_term.js');
 const {
     splitTextAtTerms,
     renderStringLength
-}						= require('./string_util.js');
+}                       = require('./string_util.js');
 
-//	deps
-const _					= require('lodash');
+//  deps
+const _                 = require('lodash');
 
 module.exports = function ansiPrep(input, options, cb) {
     if(!input) {
         return cb(null, '');
     }
 
-    options.termWidth			= options.termWidth 	|| 80;
-    options.termHeight			= options.termHeight	|| 25;
-    options.cols				= options.cols || options.termWidth		|| 80;
-    options.rows				= options.rows || options.termHeight	|| 'auto';
-    options.startCol			= options.startCol || 1;
-    options.exportMode			= options.exportMode || false;
-    options.fillLines			= _.get(options, 'fillLines', true);
-    options.indent				= options.indent || 0;
+    options.termWidth           = options.termWidth     || 80;
+    options.termHeight          = options.termHeight    || 25;
+    options.cols                = options.cols || options.termWidth     || 80;
+    options.rows                = options.rows || options.termHeight    || 'auto';
+    options.startCol            = options.startCol || 1;
+    options.exportMode          = options.exportMode || false;
+    options.fillLines           = _.get(options, 'fillLines', true);
+    options.indent              = options.indent || 0;
 
-    //	in auto we start out at 25 rows, but can always expand for more
+    //  in auto we start out at 25 rows, but can always expand for more
     const canvas = Array.from( { length : 'auto' === options.rows ? 25 : options.rows }, () => Array.from( { length : options.cols}, () => new Object() ) );
     const parser = new ANSIEscapeParser( { termHeight : options.termHeight, termWidth : options.termWidth } );
 
     const state = {
-        row	: 0,
-        col	: 0,
+        row : 0,
+        col : 0,
     };
 
     let lastRow = 0;
@@ -46,19 +46,19 @@ module.exports = function ansiPrep(input, options, cb) {
     }
 
     parser.on('position update', (row, col) => {
-        state.row	= row - 1;
-        state.col	= col - 1;
+        state.row   = row - 1;
+        state.col   = col - 1;
 
         if(0 === state.col) {
             state.initialSgr = state.lastSgr;
         }
 
-        lastRow		= Math.max(state.row, lastRow);
+        lastRow     = Math.max(state.row, lastRow);
     });
 
     parser.on('literal', literal => {
         //
-        //	CR/LF are handled for 'position update'; we don't need the chars themselves
+        //  CR/LF are handled for 'position update'; we don't need the chars themselves
         //
         literal = literal.replace(/\r?\n|[\r\u2028\u2029]/g, '');
 
@@ -73,9 +73,9 @@ module.exports = function ansiPrep(input, options, cb) {
                 canvas[state.row][state.col].char = c;
 
                 if(state.sgr) {
-                    canvas[state.row][state.col].sgr	= _.clone(state.sgr);
-                    state.lastSgr						= canvas[state.row][state.col].sgr;
-                    state.sgr							= null;
+                    canvas[state.row][state.col].sgr    = _.clone(state.sgr);
+                    state.lastSgr                       = canvas[state.row][state.col].sgr;
+                    state.sgr                           = null;
                 }
             }
 
@@ -87,8 +87,8 @@ module.exports = function ansiPrep(input, options, cb) {
         ensureRow(state.row);
 
         if(state.col < options.cols) {
-            canvas[state.row][state.col].sgr	= _.clone(sgr);
-            state.lastSgr						= canvas[state.row][state.col].sgr;
+            canvas[state.row][state.col].sgr    = _.clone(sgr);
+            state.lastSgr                       = canvas[state.row][state.col].sgr;
         } else {
             state.sgr = sgr;
         }
@@ -147,16 +147,16 @@ module.exports = function ansiPrep(input, options, cb) {
 
         if(options.exportMode) {
             //
-            //	If we're in export mode, we do some additional hackery:
+            //  If we're in export mode, we do some additional hackery:
             //
-            //	* Hard wrap ALL lines at <= 79 *characters* (not visible columns)
-            //	  if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
-            //	  represents chars to get back to the position we were previously at
+            //  * Hard wrap ALL lines at <= 79 *characters* (not visible columns)
+            //    if a line must wrap early, we'll place a ESC[A ESC[<N>C where <N>
+            //    represents chars to get back to the position we were previously at
             //
-            //	* Replace contig spaces with ESC[<N>C as well to save... space.
+            //  * Replace contig spaces with ESC[<N>C as well to save... space.
             //
-            //	:TODO: this would be better to do as part of the processing above, but this will do for now
-            const MAX_CHARS	= 79 - 8;	//	79 max, - 8 for max ESC seq's we may prefix a line with
+            //  :TODO: this would be better to do as part of the processing above, but this will do for now
+            const MAX_CHARS = 79 - 8;   //  79 max, - 8 for max ESC seq's we may prefix a line with
             let exportOutput = '';
 
             let m;
@@ -176,16 +176,16 @@ module.exports = function ansiPrep(input, options, cb) {
                         afterSeq = m.index + m[0].length;
 
                         if(afterSeq < MAX_CHARS) {
-                            //	after current seq
+                            //  after current seq
                             splitAt = afterSeq;
                         } else {
                             if(m.index < MAX_CHARS) {
-                                //	before last found seq
+                                //  before last found seq
                                 splitAt = m.index;
-                                wantMore = false;	//	can't eat up any more
+                                wantMore = false;   //  can't eat up any more
                             }
 
-                            break;	//	seq's beyond this point are >= MAX_CHARS
+                            break;  //  seq's beyond this point are >= MAX_CHARS
                         }
                     }
 
@@ -202,7 +202,7 @@ module.exports = function ansiPrep(input, options, cb) {
                     renderStart += renderStringLength(part);
                     exportOutput += `${part}\r\n`;
 
-                    if(fullLine.length > 0) {	//	more to go for this line?
+                    if(fullLine.length > 0) {   //  more to go for this line?
                         exportOutput += `${ANSI.up()}${ANSI.right(renderStart)}`;
                     } else {
                         exportOutput += ANSI.up();

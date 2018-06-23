@@ -1,50 +1,50 @@
 /* jslint node: true */
 'use strict';
 
-//	enigma-bbs
-const MenuModule		= require('./menu_module.js').MenuModule;
-const Config			= require('./config.js').get;
-const stringFormat		= require('./string_format.js');
-const Errors			= require('./enig_error.js').Errors;
-const DownloadQueue		= require('./download_queue.js');
-const StatLog			= require('./stat_log.js');
-const FileEntry			= require('./file_entry.js');
-const Log				= require('./logger.js').log;
-const Events			= require('./events.js');
+//  enigma-bbs
+const MenuModule        = require('./menu_module.js').MenuModule;
+const Config            = require('./config.js').get;
+const stringFormat      = require('./string_format.js');
+const Errors            = require('./enig_error.js').Errors;
+const DownloadQueue     = require('./download_queue.js');
+const StatLog           = require('./stat_log.js');
+const FileEntry         = require('./file_entry.js');
+const Log               = require('./logger.js').log;
+const Events            = require('./events.js');
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
-const pty			= require('node-pty');
-const temptmp		= require('temptmp').createTrackedSession('transfer_file');
-const paths			= require('path');
-const fs			= require('graceful-fs');
-const fse			= require('fs-extra');
+//  deps
+const async         = require('async');
+const _             = require('lodash');
+const pty           = require('node-pty');
+const temptmp       = require('temptmp').createTrackedSession('transfer_file');
+const paths         = require('path');
+const fs            = require('graceful-fs');
+const fse           = require('fs-extra');
 
-//	some consts
-const SYSTEM_EOL	= require('os').EOL;
-const TEMP_SUFFIX	= 'enigtf-';	//	temp CWD/etc.
+//  some consts
+const SYSTEM_EOL    = require('os').EOL;
+const TEMP_SUFFIX   = 'enigtf-';    //  temp CWD/etc.
 
 /*
-	Notes
-	-----------------------------------------------------------------------------
+    Notes
+    -----------------------------------------------------------------------------
 
-	See core/config.js for external protocol configuration
+    See core/config.js for external protocol configuration
 
 
-	Resources
-	-----------------------------------------------------------------------------
+    Resources
+    -----------------------------------------------------------------------------
 
-	ZModem
-		* http://gallium.inria.fr/~doligez/zmodem/zmodem.txt
-		* https://github.com/protomouse/synchronet/blob/master/src/sbbs3/zmodem.c
+    ZModem
+        * http://gallium.inria.fr/~doligez/zmodem/zmodem.txt
+        * https://github.com/protomouse/synchronet/blob/master/src/sbbs3/zmodem.c
 
 */
 
 exports.moduleInfo = {
-    name	: 'Transfer file',
-    desc	: 'Sends or receives a file(s)',
-    author	: 'NuSkooler',
+    name    : 'Transfer file',
+    desc    : 'Sends or receives a file(s)',
+    author  : 'NuSkooler',
 };
 
 exports.getModule = class TransferFileModule extends MenuModule {
@@ -54,7 +54,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
         this.config = this.menuConfig.config || {};
 
         //
-        //	Most options can be set via extraArgs or config block
+        //  Most options can be set via extraArgs or config block
         //
         const config = Config();
         if(options.extraArgs) {
@@ -99,11 +99,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         }
 
-        this.protocolConfig = this.protocolConfig || config.fileTransferProtocols.zmodem8kSz;	//	try for *something*
-        this.direction		= this.direction || 'send';
-        this.sendQueue		= this.sendQueue || [];
+        this.protocolConfig = this.protocolConfig || config.fileTransferProtocols.zmodem8kSz;   //  try for *something*
+        this.direction      = this.direction || 'send';
+        this.sendQueue      = this.sendQueue || [];
 
-        //	Ensure sendQueue is an array of objects that contain at least a 'path' member
+        //  Ensure sendQueue is an array of objects that contain at least a 'path' member
         this.sendQueue = this.sendQueue.map(item => {
             if(_.isString(item)) {
                 return { path : item };
@@ -128,8 +128,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     sendFiles(cb) {
-        //	assume *sending* can always batch
-        //	:TODO: Look into this further
+        //  assume *sending* can always batch
+        //  :TODO: Look into this further
         const allFiles = this.sendQueue.map(f => f.path);
         this.executeExternalProtocolHandlerForSend(allFiles, err => {
             if(err) {
@@ -149,64 +149,64 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     /*
-	sendFiles(cb) {
-		//	:TODO: built in/native protocol support
+    sendFiles(cb) {
+        //  :TODO: built in/native protocol support
 
-		if(this.protocolConfig.external.supportsBatch) {
-			const allFiles = this.sendQueue.map(f => f.path);
-			this.executeExternalProtocolHandlerForSend(allFiles, err => {
-				if(err) {
-					this.client.log.warn( { files : allFiles, error : err.message }, 'Error sending file(s)' );
-				} else {
-					const sentFiles = [];
-					this.sendQueue.forEach(f => {
-						f.sent = true;
-						sentFiles.push(f.path);
+        if(this.protocolConfig.external.supportsBatch) {
+            const allFiles = this.sendQueue.map(f => f.path);
+            this.executeExternalProtocolHandlerForSend(allFiles, err => {
+                if(err) {
+                    this.client.log.warn( { files : allFiles, error : err.message }, 'Error sending file(s)' );
+                } else {
+                    const sentFiles = [];
+                    this.sendQueue.forEach(f => {
+                        f.sent = true;
+                        sentFiles.push(f.path);
 
-					});
+                    });
 
-					this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
-				}
-				return cb(err);
-			});
-		} else {
-			//	:TODO: we need to prompt between entries such that users can prepare their clients
-			async.eachSeries(this.sendQueue, (queueItem, next) => {
-				this.executeExternalProtocolHandlerForSend(queueItem.path, err => {
-					if(err) {
-						this.client.log.warn( { file : queueItem.path, error : err.message }, 'Error sending file' );
-					} else {
-						queueItem.sent = true;
+                    this.client.log.info( { sentFiles : sentFiles }, `Successfully sent ${sentFiles.length} file(s)` );
+                }
+                return cb(err);
+            });
+        } else {
+            //  :TODO: we need to prompt between entries such that users can prepare their clients
+            async.eachSeries(this.sendQueue, (queueItem, next) => {
+                this.executeExternalProtocolHandlerForSend(queueItem.path, err => {
+                    if(err) {
+                        this.client.log.warn( { file : queueItem.path, error : err.message }, 'Error sending file' );
+                    } else {
+                        queueItem.sent = true;
 
-						this.client.log.info( { sentFile : queueItem.path }, 'Successfully sent file' );
-					}
-					return next(err);
-				});
-			}, err => {
-				return cb(err);
-			});
-		}
-	}
-	*/
+                        this.client.log.info( { sentFile : queueItem.path }, 'Successfully sent file' );
+                    }
+                    return next(err);
+                });
+            }, err => {
+                return cb(err);
+            });
+        }
+    }
+    */
 
     moveFileWithCollisionHandling(src, dst, cb) {
         //
-        //	Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc.
-        //	in the case of collisions.
+        //  Move |src| -> |dst| renaming to file(1).ext, file(2).ext, etc.
+        //  in the case of collisions.
         //
-        const dstPath		= paths.dirname(dst);
-        const dstFileExt	= paths.extname(dst);
-        const dstFileSuffix	= paths.basename(dst, dstFileExt);
+        const dstPath       = paths.dirname(dst);
+        const dstFileExt    = paths.extname(dst);
+        const dstFileSuffix = paths.basename(dst, dstFileExt);
 
-        let renameIndex		= 0;
-        let movedOk			= false;
+        let renameIndex     = 0;
+        let movedOk         = false;
         let tryDstPath;
 
         async.until(
-            () => movedOk,	//	until moved OK
+            () => movedOk,  //  until moved OK
             (cb) => {
                 if(0 === renameIndex) {
-                    //	try originally supplied path first
+                    //  try originally supplied path first
                     tryDstPath = dst;
                 } else {
                     tryDstPath = paths.join(dstPath, `${dstFileSuffix}(${renameIndex})${dstFileExt}`);
@@ -216,7 +216,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     if(err) {
                         if('EEXIST' === err.code) {
                             renameIndex += 1;
-                            return cb(null);	//	keep trying
+                            return cb(null);    //  keep trying
                         }
 
                         return cb(err);
@@ -242,8 +242,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
             if(this.recvFileName) {
                 //
-                //	file name specified - we expect a single file in |this.recvDirectory|
-                //	by the name of |this.recvFileName|
+                //  file name specified - we expect a single file in |this.recvDirectory|
+                //  by the name of |this.recvFileName|
                 //
                 const recvFullPath = paths.join(this.recvDirectory, this.recvFileName);
                 fs.stat(recvFullPath, (err, stats) => {
@@ -260,21 +260,21 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 });
             } else {
                 //
-                //	Blind Upload (recv): files in |this.recvDirectory| should be named appropriately already
+                //  Blind Upload (recv): files in |this.recvDirectory| should be named appropriately already
                 //
                 fs.readdir(this.recvDirectory, (err, files) => {
                     if(err) {
                         return cb(err);
                     }
 
-                    //	stat each to grab files only
+                    //  stat each to grab files only
                     async.each(files, (fileName, nextFile) => {
                         const recvFullPath = paths.join(this.recvDirectory, fileName);
 
                         fs.stat(recvFullPath, (err, stats) => {
                             if(err) {
                                 this.client.log.warn('Failed to stat file', { path : recvFullPath } );
-                                return nextFile(null);	//	just try the next one
+                                return nextFile(null);  //  just try the next one
                             }
 
                             if(stats.isFile()) {
@@ -299,7 +299,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     prepAndBuildSendArgs(filePaths, cb) {
-        const externalArgs	= this.protocolConfig.external['sendArgs'];
+        const externalArgs  = this.protocolConfig.external['sendArgs'];
 
         async.waterfall(
             [
@@ -311,7 +311,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
                     temptmp.open( { prefix : TEMP_SUFFIX, suffix : '.txt' }, (err, tempFileInfo) => {
                         if(err) {
-                            return callback(err);	//	failed to create it
+                            return callback(err);   //  failed to create it
                         }
 
                         fs.write(tempFileInfo.fd, filePaths.join(SYSTEM_EOL));
@@ -321,16 +321,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     });
                 },
                 function createArgs(tempFileListPath, callback) {
-                    //	initial args: ignore {filePaths} as we must break that into it's own sep array items
+                    //  initial args: ignore {filePaths} as we must break that into it's own sep array items
                     const args = externalArgs.map(arg => {
                         return '{filePaths}' === arg ? arg : stringFormat(arg, {
-                            fileListPath	: tempFileListPath || '',
+                            fileListPath    : tempFileListPath || '',
                         });
                     });
 
                     const filePathsPos = args.indexOf('{filePaths}');
                     if(filePathsPos > -1) {
-                        //	replace {filePaths} with 0:n individual entries in |args|
+                        //  replace {filePaths} with 0:n individual entries in |args|
                         args.splice.apply( args, [ filePathsPos, 1 ].concat(filePaths) );
                     }
 
@@ -344,19 +344,19 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     prepAndBuildRecvArgs(cb) {
-        const argsKey		= this.recvFileName ? 'recvArgsNonBatch' : 'recvArgs';
-        const externalArgs	= this.protocolConfig.external[argsKey];
-        const args			= externalArgs.map(arg => stringFormat(arg, {
-            uploadDir		: this.recvDirectory,
-            fileName		: this.recvFileName || '',
+        const argsKey       = this.recvFileName ? 'recvArgsNonBatch' : 'recvArgs';
+        const externalArgs  = this.protocolConfig.external[argsKey];
+        const args          = externalArgs.map(arg => stringFormat(arg, {
+            uploadDir       : this.recvDirectory,
+            fileName        : this.recvFileName || '',
         }));
 
         return cb(null, args);
     }
 
     executeExternalProtocolHandler(args, cb) {
-        const external	= this.protocolConfig.external;
-        const cmd		= external[`${this.direction}Cmd`];
+        const external  = this.protocolConfig.external;
+        const cmd       = external[`${this.direction}Cmd`];
 
         this.client.log.debug(
             { cmd : cmd, args : args, tempDir : this.recvDirectory, direction : this.direction },
@@ -364,18 +364,18 @@ exports.getModule = class TransferFileModule extends MenuModule {
         );
 
         const spawnOpts = {
-            cols		: this.client.term.termWidth,
-            rows		: this.client.term.termHeight,
-            cwd			: this.recvDirectory,
-            encoding	: null,	//	don't bork our data!
+            cols        : this.client.term.termWidth,
+            rows        : this.client.term.termHeight,
+            cwd         : this.recvDirectory,
+            encoding    : null, //  don't bork our data!
         };
 
         const externalProc = pty.spawn(cmd, args, spawnOpts);
 
         this.client.setTemporaryDirectDataHandler(data => {
-            //	needed for things like sz/rz
+            //  needed for things like sz/rz
             if(external.escapeTelnet) {
-                const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');	//	de-escape
+                const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
                 externalProc.write(Buffer.from(tmp, 'binary'));
             } else {
                 externalProc.write(data);
@@ -383,9 +383,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
 
         externalProc.on('data', data => {
-            //	needed for things like sz/rz
+            //  needed for things like sz/rz
             if(external.escapeTelnet) {
-                const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');	//	escape
+                const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');   //  escape
                 this.client.term.rawWrite(Buffer.from(tmp, 'binary'));
             } else {
                 this.client.term.rawWrite(data);
@@ -443,9 +443,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     updateSendStats(cb) {
-        let downloadBytes 	= 0;
-        let downloadCount	= 0;
-        let fileIds			= [];
+        let downloadBytes   = 0;
+        let downloadCount   = 0;
+        let fileIds         = [];
 
         async.each(this.sendQueue, (queueItem, next) => {
             if(!queueItem.sent) {
@@ -462,7 +462,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 return next(null);
             }
 
-            //	we just have a path - figure it out
+            //  we just have a path - figure it out
             fs.stat(queueItem.path, (err, stats) => {
                 if(err) {
                     this.client.log.warn( { error : err.message, path : queueItem.path }, 'File stat failed' );
@@ -474,7 +474,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 return next(null);
             });
         }, () => {
-            //	All stats/meta currently updated via fire & forget - if this is ever a issue, we can wait for callbacks
+            //  All stats/meta currently updated via fire & forget - if this is ever a issue, we can wait for callbacks
             StatLog.incrementUserStat(this.client.user, 'dl_total_count', downloadCount);
             StatLog.incrementUserStat(this.client.user, 'dl_total_bytes', downloadBytes);
             StatLog.incrementSystemStat('dl_total_count', downloadCount);
@@ -489,16 +489,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
     }
 
     updateRecvStats(cb) {
-        let uploadBytes	= 0;
-        let uploadCount	= 0;
+        let uploadBytes = 0;
+        let uploadCount = 0;
 
         async.each(this.recvFilePaths, (filePath, next) => {
-            //	we just have a path - figure it out
+            //  we just have a path - figure it out
             fs.stat(filePath, (err, stats) => {
                 if(err) {
                     this.client.log.warn( { error : err.message, path : filePath }, 'File stat failed' );
                 } else {
-                    uploadCount	+= 1;
+                    uploadCount += 1;
                     uploadBytes += stats.size;
                 }
 
@@ -517,7 +517,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
     initSequence() {
         const self = this;
 
-        //	:TODO: break this up to send|recv
+        //  :TODO: break this up to send|recv
 
         async.series(
             [
@@ -545,16 +545,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
                             });
 
                             if(sentFileIds.length > 0) {
-                                //	remove items we sent from the D/L queue
+                                //  remove items we sent from the D/L queue
                                 const dlQueue = new DownloadQueue(self.client);
                                 const dlFileEntries = dlQueue.removeItems(sentFileIds);
 
-                                //	fire event for downloaded entries
+                                //  fire event for downloaded entries
                                 Events.emit(
                                     Events.getSystemEvents().UserDownload,
                                     {
-                                        user	: self.client.user,
-                                        files	: dlFileEntries
+                                        user    : self.client.user,
+                                        files   : dlFileEntries
                                     }
                                 );
 

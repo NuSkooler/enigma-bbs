@@ -1,56 +1,56 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule			= require('./menu_module.js').MenuModule;
+//  ENiGMA½
+const MenuModule            = require('./menu_module.js').MenuModule;
 
 const {
     getModDatabasePath,
     getTransactionDatabase
-}							= require('./database.js');
+}                           = require('./database.js');
 
-const ViewController		= require('./view_controller.js').ViewController;
-const theme					= require('./theme.js');
-const ansi					= require('./ansi_term.js');
-const stringFormat			= require('./string_format.js');
+const ViewController        = require('./view_controller.js').ViewController;
+const theme                 = require('./theme.js');
+const ansi                  = require('./ansi_term.js');
+const stringFormat          = require('./string_format.js');
 
-//	deps
-const sqlite3				= require('sqlite3');
-const async					= require('async');
-const _						= require('lodash');
-const moment				= require('moment');
+//  deps
+const sqlite3               = require('sqlite3');
+const async                 = require('async');
+const _                     = require('lodash');
+const moment                = require('moment');
 
 /*
-	Module :TODO:
-	* Add pipe code support
-		- override max length & monitor *display* len as user types in order to allow for actual display len with color
-	* Add preview control: Shows preview with pipe codes resolved
-	* Add ability to at least alternate formatStrings -- every other
+    Module :TODO:
+    * Add pipe code support
+        - override max length & monitor *display* len as user types in order to allow for actual display len with color
+    * Add preview control: Shows preview with pipe codes resolved
+    * Add ability to at least alternate formatStrings -- every other
 */
 
 
 exports.moduleInfo = {
-    name		: 'Onelinerz',
-    desc		: 'Standard local onelinerz',
-    author		: 'NuSkooler',
-    packageName	: 'codes.l33t.enigma.onelinerz',
+    name        : 'Onelinerz',
+    desc        : 'Standard local onelinerz',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.onelinerz',
 };
 
 const MciViewIds = {
-    ViewForm	:  {
-        Entries		: 1,
-        AddPrompt	: 2,
+    ViewForm    :  {
+        Entries     : 1,
+        AddPrompt   : 2,
     },
     AddForm : {
-        NewEntry		: 1,
-        EntryPreview	: 2,
-        AddPrompt		: 3,
+        NewEntry        : 1,
+        EntryPreview    : 2,
+        AddPrompt       : 3,
     }
 };
 
 const FormIds = {
-    View	: 0,
-    Add		: 1,
+    View    : 0,
+    Add     : 1,
 };
 
 exports.getModule = class OnelinerzModule extends MenuModule {
@@ -66,7 +66,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 
             addEntry : function(formData, extraArgs, cb) {
                 if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
-                    const oneliner = formData.value.oneliner.trim();	//	remove any trailing ws
+                    const oneliner = formData.value.oneliner.trim();    //  remove any trailing ws
 
                     self.storeNewOneliner(oneliner, err => {
                         if(err) {
@@ -74,18 +74,18 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         }
 
                         self.clearAddForm();
-                        return self.displayViewScreen(true, cb);	//	true=cls
+                        return self.displayViewScreen(true, cb);    //  true=cls
                     });
 
                 } else {
-                    //	empty message - treat as if cancel was hit
-                    return self.displayViewScreen(true, cb);	//	true=cls
+                    //  empty message - treat as if cancel was hit
+                    return self.displayViewScreen(true, cb);    //  true=cls
                 }
             },
 
             cancelAdd : function(formData, extraArgs, cb) {
                 self.clearAddForm();
-                return self.displayViewScreen(true, cb);	//	true=cls
+                return self.displayViewScreen(true, cb);    //  true=cls
             }
         };
     }
@@ -103,7 +103,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             ],
             err => {
                 if(err) {
-                    //	:TODO: Handle me -- initSequence() should really take a completion callback
+                    //  :TODO: Handle me -- initSequence() should really take a completion callback
                 }
                 self.finishedLoading();
             }
@@ -141,9 +141,9 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.View,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.View,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -160,16 +160,16 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 
                     self.db.each(
                         `SELECT *
-						FROM (
-							SELECT * 
-							FROM onelinerz
-							ORDER BY timestamp DESC
-							LIMIT ${limit}
-							)
-						ORDER BY timestamp ASC;`,
+                        FROM (
+                            SELECT * 
+                            FROM onelinerz
+                            ORDER BY timestamp DESC
+                            LIMIT ${limit}
+                            )
+                        ORDER BY timestamp ASC;`,
                         (err, row) => {
                             if(!err) {
-                                row.timestamp = moment(row.timestamp);	//	convert -> moment
+                                row.timestamp = moment(row.timestamp);  //  convert -> moment
                                 entries.push(row);
                             }
                         },
@@ -179,15 +179,15 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     );
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    const listFormat	= self.menuConfig.config.listFormat || '{username}@{ts}: {oneliner}';//	:TODO: should be userName to be consistent
-                    const tsFormat		= self.menuConfig.config.timestampFormat || 'ddd h:mma';
+                    const listFormat    = self.menuConfig.config.listFormat || '{username}@{ts}: {oneliner}';// :TODO: should be userName to be consistent
+                    const tsFormat      = self.menuConfig.config.timestampFormat || 'ddd h:mma';
 
                     entriesView.setItems(entries.map( e => {
                         return stringFormat(listFormat, {
-                            userId		: e.user_id,
-                            username	: e.user_name,
-                            oneliner	: e.oneliner,
-                            ts			: e.timestamp.format(tsFormat),
+                            userId      : e.user_id,
+                            username    : e.user_name,
+                            oneliner    : e.oneliner,
+                            ts          : e.timestamp.format(tsFormat),
                         } );
                     }));
 
@@ -197,7 +197,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                 },
                 function finalPrep(callback) {
                     const promptView = self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt);
-                    promptView.setFocusItemIndex(1);	//	default to NO
+                    promptView.setFocusItemIndex(1);    //  default to NO
                     return callback(null);
                 }
             ],
@@ -235,9 +235,9 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         );
 
                         const loadOpts = {
-                            callingMenu		: self,
-                            mciMap			: artData.mciMap,
-                            formId			: FormIds.Add,
+                            callingMenu     : self,
+                            mciMap          : artData.mciMap,
+                            formId          : FormIds.Add,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -278,12 +278,12 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                 function createTables(callback) {
                     self.db.run(
                         `CREATE TABLE IF NOT EXISTS onelinerz (
-							id				INTEGER PRIMARY KEY,
-							user_id			INTEGER_NOT NULL,
-							user_name		VARCHAR NOT NULL,								
-							oneliner		VARCHAR NOT NULL,
-							timestamp		DATETIME NOT NULL
-						);`
+                            id              INTEGER PRIMARY KEY,
+                            user_id         INTEGER_NOT NULL,
+                            user_name       VARCHAR NOT NULL,                               
+                            oneliner        VARCHAR NOT NULL,
+                            timestamp       DATETIME NOT NULL
+                        );`
                         ,
                         err => {
                             return callback(err);
@@ -297,29 +297,29 @@ exports.getModule = class OnelinerzModule extends MenuModule {
     }
 
     storeNewOneliner(oneliner, cb) {
-        const self	= this;
-        const ts	= moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        const self  = this;
+        const ts    = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 
         async.series(
             [
                 function addRec(callback) {
                     self.db.run(
                         `INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
-						VALUES (?, ?, ?, ?);`,
+                        VALUES (?, ?, ?, ?);`,
                         [ self.client.user.userId, self.client.user.username, oneliner, ts ],
                         callback
                     );
                 },
                 function removeOld(callback) {
-                    //	keep 25 max most recent items - remove the older ones
+                    //  keep 25 max most recent items - remove the older ones
                     self.db.run(
                         `DELETE FROM onelinerz
-						WHERE id IN (
-							SELECT id
-							FROM onelinerz
-							ORDER BY id DESC
-							LIMIT -1 OFFSET 25
-						);`,
+                        WHERE id IN (
+                            SELECT id
+                            FROM onelinerz
+                            ORDER BY id DESC
+                            LIMIT -1 OFFSET 25
+                        );`,
                         callback
                     );
                 }

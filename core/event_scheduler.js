@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const PluginModule			= require('./plugin_module.js').PluginModule;
-const Config				= require('./config.js').get;
-const Log					= require('./logger.js').log;
+//  ENiGMA½
+const PluginModule          = require('./plugin_module.js').PluginModule;
+const Config                = require('./config.js').get;
+const Log                   = require('./logger.js').log;
 
-const _						= require('lodash');
-const later					= require('later');
-const path					= require('path');
-const pty					= require('node-pty');
-const sane					= require('sane');
-const moment				= require('moment');
-const paths					= require('path');
-const fse					= require('fs-extra');
+const _                     = require('lodash');
+const later                 = require('later');
+const path                  = require('path');
+const pty                   = require('node-pty');
+const sane                  = require('sane');
+const moment                = require('moment');
+const paths                 = require('path');
+const fse                   = require('fs-extra');
 
-exports.getModule				= EventSchedulerModule;
-exports.EventSchedulerModule	= EventSchedulerModule;	//	allow for loadAndStart
+exports.getModule               = EventSchedulerModule;
+exports.EventSchedulerModule    = EventSchedulerModule; //  allow for loadAndStart
 
 exports.moduleInfo = {
-    name	: 'Event Scheduler',
-    desc	: 'Support for scheduling arbritary events',
-    author	: 'NuSkooler',
+    name    : 'Event Scheduler',
+    desc    : 'Support for scheduling arbritary events',
+    author  : 'NuSkooler',
 };
 
-const SCHEDULE_REGEXP	= /(?:^|or )?(@watch:)([^\0]+)?$/;
-const ACTION_REGEXP		= /@(method|execute):([^\0]+)?$/;
+const SCHEDULE_REGEXP   = /(?:^|or )?(@watch:)([^\0]+)?$/;
+const ACTION_REGEXP     = /@(method|execute):([^\0]+)?$/;
 
 class ScheduledEvent {
     constructor(events, name) {
-        this.name		= name;
-        this.schedule 	= this.parseScheduleString(events[name].schedule);
-        this.action		= this.parseActionSpec(events[name].action);
+        this.name       = name;
+        this.schedule   = this.parseScheduleString(events[name].schedule);
+        this.action     = this.parseActionSpec(events[name].action);
         if(this.action) {
             this.action.args = events[name].args || [];
         }
@@ -72,7 +72,7 @@ class ScheduledEvent {
             }
         }
 
-        //	return undefined if we couldn't parse out anything useful
+        //  return undefined if we couldn't parse out anything useful
         if(!_.isEmpty(schedule)) {
             return schedule;
         }
@@ -86,21 +86,21 @@ class ScheduledEvent {
                     if(m[2].indexOf(':') > -1) {
                         const parts = m[2].split(':');
                         return {
-                            type		: m[1],
-                            location	: parts[0],
-                            what		: parts[1],
+                            type        : m[1],
+                            location    : parts[0],
+                            what        : parts[1],
                         };
                     } else {
                         return {
-                            type	: m[1],
-                            what	: m[2],
+                            type    : m[1],
+                            what    : m[2],
                         };
                     }
                 }
             } else {
                 return {
-                    type	: 'execute',
-                    what	: actionSpec,
+                    type    : 'execute',
+                    what    : actionSpec,
                 };
             }
         }
@@ -110,7 +110,7 @@ class ScheduledEvent {
         Log.info( { eventName : this.name, action : this.action, reason : reason }, 'Executing scheduled event action...');
 
         if('method' === this.action.type) {
-            const modulePath = path.join(__dirname, '../', this.action.location);	//	enigma-bbs base + supplied location (path/file.js')
+            const modulePath = path.join(__dirname, '../', this.action.location);   //  enigma-bbs base + supplied location (path/file.js')
             try {
                 const methodModule = require(modulePath);
                 methodModule[this.action.what](this.action.args, err => {
@@ -131,11 +131,11 @@ class ScheduledEvent {
             }
         } else if('execute' === this.action.type) {
             const opts = {
-                //	:TODO: cwd
-                name	: this.name,
-                cols	: 80,
-                rows	: 24,
-                env		: process.env,
+                //  :TODO: cwd
+                name    : this.name,
+                cols    : 80,
+                rows    : 24,
+                env     : process.env,
             };
 
             const proc = pty.spawn(this.action.what, this.action.args, opts);
@@ -165,7 +165,7 @@ function EventSchedulerModule(options) {
 
     this.performAction = function(schedEvent, reason) {
         if(self.runningActions.has(schedEvent.name)) {
-            return;	//	already running
+            return; //  already running
         }
 
         self.runningActions.add(schedEvent.name);
@@ -176,13 +176,13 @@ function EventSchedulerModule(options) {
     };
 }
 
-//	convienence static method for direct load + start
+//  convienence static method for direct load + start
 EventSchedulerModule.loadAndStart = function(cb) {
     const loadModuleEx = require('./module_util.js').loadModuleEx;
 
     const loadOpts = {
-        name		: path.basename(__filename, '.js'),
-        path		: __dirname,
+        name        : path.basename(__filename, '.js'),
+        path        : __dirname,
     };
 
     loadModuleEx(loadOpts, (err, mod) => {
@@ -199,7 +199,7 @@ EventSchedulerModule.loadAndStart = function(cb) {
 
 EventSchedulerModule.prototype.startup = function(cb) {
 
-    this.eventTimers	= [];
+    this.eventTimers    = [];
     const self = this;
 
     if(this.moduleConfig && _.has(this.moduleConfig, 'events')) {
@@ -215,10 +215,10 @@ EventSchedulerModule.prototype.startup = function(cb) {
 
             Log.debug(
                 {
-                    eventName	: schedEvent.name,
-                    schedule	: this.moduleConfig.events[schedEvent.name].schedule,
-                    action		: schedEvent.action,
-                    next		: schedEvent.schedule.sched ? moment(later.schedule(schedEvent.schedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a') : 'N/A',
+                    eventName   : schedEvent.name,
+                    schedule    : this.moduleConfig.events[schedEvent.name].schedule,
+                    action      : schedEvent.action,
+                    next        : schedEvent.schedule.sched ? moment(later.schedule(schedEvent.schedule.sched).next(1)).format('ddd, MMM Do, YYYY @ h:m:ss a') : 'N/A',
                 },
                 'Scheduled event loaded'
             );
@@ -237,7 +237,7 @@ EventSchedulerModule.prototype.startup = function(cb) {
                     }
                 );
 
-                //	:TODO: should track watched files & stop watching @ shutdown?
+                //  :TODO: should track watched files & stop watching @ shutdown?
 
                 [ 'change', 'add', 'delete' ].forEach(event => {
                     watcher.on(event, (fileName, fileRoot) => {

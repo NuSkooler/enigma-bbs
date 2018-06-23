@@ -1,20 +1,20 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule	= require('./menu_module.js').MenuModule;
-const Errors		= require('../core/enig_error.js').Errors;
-const ANSI			= require('./ansi_term.js');
-const Config		= require('./config.js').get;
+//  ENiGMA½
+const MenuModule    = require('./menu_module.js').MenuModule;
+const Errors        = require('../core/enig_error.js').Errors;
+const ANSI          = require('./ansi_term.js');
+const Config        = require('./config.js').get;
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
+//  deps
+const async         = require('async');
+const _             = require('lodash');
 
 exports.moduleInfo = {
-    name	: 'Show Art',
-    desc	: 'Module for more advanced methods of displaying art',
-    author	: 'NuSkooler',
+    name    : 'Show Art',
+    desc    : 'Module for more advanced methods of displaying art',
+    author  : 'NuSkooler',
 };
 
 exports.getModule = class ShowArtModule extends MenuModule {
@@ -36,13 +36,13 @@ exports.getModule = class ShowArtModule extends MenuModule {
                 },
                 function showArt(callback) {
                     //
-                    //	How we show art depends on our configuration
+                    //  How we show art depends on our configuration
                     //
                     let handler = {
-                        extraArgs		: self.showByExtraArgs,
-                        sequence		: self.showBySequence,
-                        random			: self.showByRandom,
-                        fileBaseArea	: self.showByFileBaseArea,
+                        extraArgs       : self.showByExtraArgs,
+                        sequence        : self.showBySequence,
+                        random          : self.showByRandom,
+                        fileBaseArea    : self.showByFileBaseArea,
                     }[self.config.method] || self.showRandomArt;
 
                     handler = handler.bind(self);
@@ -68,8 +68,8 @@ exports.getModule = class ShowArtModule extends MenuModule {
                 return cb(err);
             }
             const options = {
-                pause 	: this.shouldPause(),
-                desc	: 'extraArgs',
+                pause   : this.shouldPause(),
+                desc    : 'extraArgs',
             };
             return this.displaySingleArtWithOptions(artSpec, options, cb);
         });
@@ -89,14 +89,14 @@ exports.getModule = class ShowArtModule extends MenuModule {
                 return cb(err);
             }
 
-            //	further resolve key -> file base area art
+            //  further resolve key -> file base area art
             const artSpec = _.get(Config(), [ 'fileBase', 'areas', key, 'art' ]);
             if(!artSpec) {
                 return cb(Errors.MissingConfig(`No art defined for file base area "${key}"`));
             }
             const options = {
-                pause 	: this.shouldPause(),
-                desc	: 'fileBaseArea',
+                pause   : this.shouldPause(),
+                desc    : 'fileBaseArea',
             };
             return this.displaySingleArtWithOptions(artSpec, options, cb);
         });
@@ -122,7 +122,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
         async.waterfall(
             [
                 function art(callback) {
-                    //	:TODO: we really need a way to supply an explicit path to look in, e.g. general/area_art/
+                    //  :TODO: we really need a way to supply an explicit path to look in, e.g. general/area_art/
                     self.displayAsset(
                         artSpec,
                         self.menuConfig.options,
@@ -137,7 +137,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
                 },
                 function recordCursorPosition(mciData, callback) {
                     if(!options.pause) {
-                        return callback(null, mciData, null);	//	cursor position not needed
+                        return callback(null, mciData, null);   //  cursor position not needed
                     }
 
                     self.client.once('cursor position report', pos => {

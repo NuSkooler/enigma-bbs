@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-const userDb		= require('./database.js').dbs.user;
+const userDb        = require('./database.js').dbs.user;
 
-const async			= require('async');
-const _				= require('lodash');
+const async         = require('async');
+const _             = require('lodash');
 
-exports.getGroupsForUser	 	= getGroupsForUser;
-exports.addUserToGroup			= addUserToGroup;
-exports.addUserToGroups			= addUserToGroups;
-exports.removeUserFromGroup		= removeUserFromGroup;
+exports.getGroupsForUser        = getGroupsForUser;
+exports.addUserToGroup          = addUserToGroup;
+exports.addUserToGroups         = addUserToGroups;
+exports.removeUserFromGroup     = removeUserFromGroup;
 
 function getGroupsForUser(userId, cb) {
     const sql =
-		`SELECT group_name
-		FROM user_group_member
-		WHERE user_id=?;`;
+        `SELECT group_name
+        FROM user_group_member
+        WHERE user_id=?;`;
 
     const groups = [];
 
@@ -39,7 +39,7 @@ function addUserToGroup(userId, groupName, transOrDb, cb) {
 
     transOrDb.run(
         `REPLACE INTO user_group_member (group_name, user_id)
-		VALUES(?, ?);`,
+        VALUES(?, ?);`,
         [ groupName, userId ],
         err => {
             return cb(err);
@@ -59,7 +59,7 @@ function addUserToGroups(userId, groups, transOrDb, cb) {
 function removeUserFromGroup(userId, groupName, cb) {
     userDb.run(
         `DELETE FROM user_group_member
-		WHERE group_name=? AND user_id=?;`,
+        WHERE group_name=? AND user_id=?;`,
         [ groupName, userId ],
         err => {
             return cb(err);

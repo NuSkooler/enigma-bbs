@@ -1,37 +1,37 @@
 /* jslint node: true */
 'use strict';
 
-const PluginModule				= require('./plugin_module.js').PluginModule;
-const theme						= require('./theme.js');
-const ansi						= require('./ansi_term.js');
-const ViewController			= require('./view_controller.js').ViewController;
-const menuUtil					= require('./menu_util.js');
-const Config					= require('./config.js').get;
-const stringFormat				= require('../core/string_format.js');
-const MultiLineEditTextView		= require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
-const Errors					= require('../core/enig_error.js').Errors;
-const { getPredefinedMCIValue }	= require('../core/predefined_mci.js');
+const PluginModule              = require('./plugin_module.js').PluginModule;
+const theme                     = require('./theme.js');
+const ansi                      = require('./ansi_term.js');
+const ViewController            = require('./view_controller.js').ViewController;
+const menuUtil                  = require('./menu_util.js');
+const Config                    = require('./config.js').get;
+const stringFormat              = require('../core/string_format.js');
+const MultiLineEditTextView     = require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
+const Errors                    = require('../core/enig_error.js').Errors;
+const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 
-//	deps
-const async					= require('async');
-const assert				= require('assert');
-const _						= require('lodash');
+//  deps
+const async                 = require('async');
+const assert                = require('assert');
+const _                     = require('lodash');
 
 exports.MenuModule = class MenuModule extends PluginModule {
 
     constructor(options) {
         super(options);
 
-        this.menuName			= options.menuName;
-        this.menuConfig			= options.menuConfig;
-        this.client				= options.client;
-        this.menuConfig.options	= options.menuConfig.options || {};
-        this.menuMethods		= {};	//	methods called from @method's
-        this.menuConfig.config	= this.menuConfig.config || {};
+        this.menuName           = options.menuName;
+        this.menuConfig         = options.menuConfig;
+        this.client             = options.client;
+        this.menuConfig.options = options.menuConfig.options || {};
+        this.menuMethods        = {};   //  methods called from @method's
+        this.menuConfig.config  = this.menuConfig.config || {};
 
         this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
 
-        this.viewControllers	= {};
+        this.viewControllers    = {};
     }
 
     enter() {
@@ -43,8 +43,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     initSequence() {
-        const self		= this;
-        const mciData	= {};
+        const self      = this;
+        const mciData   = {};
         let pausePosition;
 
         async.series(
@@ -67,13 +67,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
                                 mciData.menu = artData.mciMap;
                             }
 
-                            return callback(null);	//	any errors are non-fatal
+                            return callback(null);  //  any errors are non-fatal
                         }
                     );
                 },
                 function moveToPromptLocation(callback) {
                     if(self.menuConfig.prompt) {
-                        //	:TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
+                        //  :TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
                     }
 
                     return callback(null);
@@ -94,13 +94,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
                             if(artData) {
                                 mciData.prompt = artData.mciMap;
                             }
-                            return callback(err);	//	pass err here; prompts *must* have art
+                            return callback(err);   //  pass err here; prompts *must* have art
                         }
                     );
                 },
                 function recordCursorPosition(callback) {
                     if(!self.shouldPause()) {
-                        return callback(null);	//	cursor position not needed
+                        return callback(null);  //  cursor position not needed
                     }
 
                     self.client.once('cursor position report', pos => {
@@ -138,7 +138,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     beforeArt(cb) {
         if(_.isNumber(this.menuConfig.options.baudRate)) {
-            //	:TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
+            //  :TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
             this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
         }
 
@@ -150,30 +150,30 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     mciReady(mciData, cb) {
-        //	available for sub-classes
+        //  available for sub-classes
         return cb(null);
     }
 
     finishedLoading() {
-        //	nothing in base
+        //  nothing in base
     }
 
     getSaveState() {
-        //	nothing in base
+        //  nothing in base
     }
 
     restoreSavedState(/*savedState*/) {
-        //	nothing in base
+        //  nothing in base
     }
 
     getMenuResult() {
-        //	default to the formData that was provided @ a submit, if any
+        //  default to the formData that was provided @ a submit, if any
         return this.submitFormData;
     }
 
     nextMenu(cb) {
         if(!this.haveNext()) {
-            return this.prevMenu(cb);	//	no next, go to prev
+            return this.prevMenu(cb);   //  no next, go to prev
         }
 
         return this.client.menuStack.next(cb);
@@ -236,10 +236,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     standardMCIReadyHandler(mciData, cb) {
         //
-        //	A quick rundown:
-        //	*	We may have mciData.menu, mciData.prompt, or both.
-        //	*	Prompt form is favored over menu form if both are present.
-        //	*	Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+        //  A quick rundown:
+        //  *   We may have mciData.menu, mciData.prompt, or both.
+        //  *   Prompt form is favored over menu form if both are present.
+        //  *   Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
         //
         const self = this;
 
@@ -259,9 +259,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     }
 
                     const menuLoadOpts = {
-                        mciMap		: mciData.menu,
-                        callingMenu	: self,
-                        withoutForm	: _.isObject(mciData.prompt),
+                        mciMap      : mciData.menu,
+                        callingMenu : self,
+                        withoutForm : _.isObject(mciData.prompt),
                     };
 
                     self.viewControllers.menu.loadFromMenuConfig(menuLoadOpts, err => {
@@ -274,8 +274,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
                     }
 
                     const promptLoadOpts = {
-                        callingMenu		: self,
-                        mciMap			: mciData.prompt,
+                        callingMenu     : self,
+                        mciMap          : mciData.prompt,
                     };
 
                     self.viewControllers.prompt.loadFromPromptConfig(promptLoadOpts, err => {
@@ -314,16 +314,16 @@ exports.MenuModule = class MenuModule extends PluginModule {
     prepViewController(name, formId, mciMap, cb) {
         if(_.isUndefined(this.viewControllers[name])) {
             const vcOpts = {
-                client		: this.client,
-                formId		: formId,
+                client      : this.client,
+                formId      : formId,
             };
 
             const vc = this.addViewController(name, new ViewController(vcOpts));
 
             const loadOpts = {
-                callingMenu		: this,
-                mciMap			: mciMap,
-                formId			: formId,
+                callingMenu     : this,
+                mciMap          : mciMap,
+                formId          : formId,
             };
 
             return vc.loadFromMenuConfig(loadOpts, err => {
@@ -371,20 +371,20 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     /*
-	:TODO: this needs quite a bit of work - but would be nice: promptForInput(..., (err, formData) => ... )
-	promptForInput(formName, name, options, cb) {
-		if(!cb && _.isFunction(options)) {
-			cb = options;
-			options = {};
-		}
+    :TODO: this needs quite a bit of work - but would be nice: promptForInput(..., (err, formData) => ... )
+    promptForInput(formName, name, options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
 
-		options.viewController = this.viewControllers[formName];
+        options.viewController = this.viewControllers[formName];
 
-		this.optionalMoveToPosition(options.position);
+        this.optionalMoveToPosition(options.position);
 
-		return theme.displayThemedPrompt(name, this.client, options, cb);
-	}
-	*/
+        return theme.displayThemedPrompt(name, this.client, options, cb);
+    }
+    */
 
     setViewText(formName, mciId, text, appendMultiLine) {
         const view = this.viewControllers[formName].getView(mciId);
@@ -404,12 +404,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         let textView;
         let customMciId = startId;
-        const config	= this.menuConfig.config;
-        const endId		= options.endId || 99;	//	we'll fail to get a view before 99
+        const config    = this.menuConfig.config;
+        const endId     = options.endId || 99;  //  we'll fail to get a view before 99
 
         while(customMciId <= endId && (textView = this.viewControllers[formName].getView(customMciId)) ) {
-            const key		= `${formName}InfoFormat${customMciId}`;	//	e.g. "mainInfoFormat10"
-            const format	= config[key];
+            const key       = `${formName}InfoFormat${customMciId}`;    //  e.g. "mainInfoFormat10"
+            const format    = config[key];
 
             if(format && (!options.filter || options.filter.find(f => format.indexOf(f) > - 1))) {
                 const text = stringFormat(format, fmtObj);

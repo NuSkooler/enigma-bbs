@@ -1,32 +1,32 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuView		= require('./menu_view.js').MenuView;
-const ansi			= require('./ansi_term.js');
-const strUtil		= require('./string_util.js');
-const formatString	= require('./string_format');
-const pipeToAnsi	= require('./color_codes.js').pipeToAnsi;
+//  ENiGMA½
+const MenuView      = require('./menu_view.js').MenuView;
+const ansi          = require('./ansi_term.js');
+const strUtil       = require('./string_util.js');
+const formatString  = require('./string_format');
+const pipeToAnsi    = require('./color_codes.js').pipeToAnsi;
 
-//	deps
-const util			= require('util');
-const _				= require('lodash');
+//  deps
+const util          = require('util');
+const _             = require('lodash');
 
-exports.VerticalMenuView		= VerticalMenuView;
+exports.VerticalMenuView        = VerticalMenuView;
 
 function VerticalMenuView(options) {
-    options.cursor	= options.cursor || 'hide';
+    options.cursor  = options.cursor || 'hide';
     options.justify = options.justify || 'left';
 
     MenuView.call(this, options);
 
     const self = this;
 
-    //	we want page up/page down by default
+    //  we want page up/page down by default
     if(!_.isObject(options.specialKeyMap)) {
         Object.assign(this.specialKeyMap, {
-            'page up'		: [ 'page up' ],
-            'page down'		: [ 'page down' ],
+            'page up'       : [ 'page up' ],
+            'page down'     : [ 'page down' ],
         });
     }
 
@@ -53,8 +53,8 @@ function VerticalMenuView(options) {
         self.maxVisibleItems = Math.ceil(self.dimens.height / (self.itemSpacing + 1));
 
         self.viewWindow = {
-            top		: self.focusedItemIndex,
-            bottom	: Math.min(self.focusedItemIndex + self.maxVisibleItems, self.items.length) - 1,
+            top     : self.focusedItemIndex,
+            bottom  : Math.min(self.focusedItemIndex + self.maxVisibleItems, self.items.length) - 1,
         };
     };
 
@@ -94,7 +94,7 @@ util.inherits(VerticalMenuView, MenuView);
 VerticalMenuView.prototype.redraw = function() {
     VerticalMenuView.super_.prototype.redraw.call(this);
 
-    //	:TODO: rename positionCacheExpired to something that makese sense; combine methods for such
+    //  :TODO: rename positionCacheExpired to something that makese sense; combine methods for such
     if(this.positionCacheExpired) {
         this.performAutoScale();
         this.updateViewVisibleItems();
@@ -102,13 +102,13 @@ VerticalMenuView.prototype.redraw = function() {
         this.positionCacheExpired = false;
     }
 
-    //	erase old items
-    //	:TODO: optimize this: only needed if a item is removed or new max width < old.
+    //  erase old items
+    //  :TODO: optimize this: only needed if a item is removed or new max width < old.
     if(this.oldDimens) {
-        const blank 	= new Array(Math.max(this.oldDimens.width, this.dimens.width)).join(' ');
-        let seq			= ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
-        let row			= this.position.row + 1;
-        const endRow	= (row + this.oldDimens.height) - 2;
+        const blank     = new Array(Math.max(this.oldDimens.width, this.dimens.width)).join(' ');
+        let seq         = ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
+        let row         = this.position.row + 1;
+        const endRow    = (row + this.oldDimens.height) - 2;
 
         while(row <= endRow) {
             seq += ansi.goto(row, this.position.col) + blank;
@@ -148,16 +148,16 @@ VerticalMenuView.prototype.setFocus = function(focused) {
 };
 
 VerticalMenuView.prototype.setFocusItemIndex = function(index) {
-    VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index);	//	sets this.focusedItemIndex
+    VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index);  //  sets this.focusedItemIndex
 
     const remainAfterFocus = this.items.length - index;
     if(remainAfterFocus >= this.maxVisibleItems) {
         this.viewWindow = {
-            top		: this.focusedItemIndex,
-            bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+            top     : this.focusedItemIndex,
+            bottom  : Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
         };
 
-        this.positionCacheExpired = false;	//	skip standard behavior
+        this.positionCacheExpired = false;  //  skip standard behavior
         this.performAutoScale();
     }
 
@@ -190,7 +190,7 @@ VerticalMenuView.prototype.getData = function() {
 };
 
 VerticalMenuView.prototype.setItems = function(items) {
-    //	if we have items already, save off their drawing area so we don't leave fragments at redraw
+    //  if we have items already, save off their drawing area so we don't leave fragments at redraw
     if(this.items && this.items.length) {
         this.oldDimens = Object.assign({}, this.dimens);
     }
@@ -208,15 +208,15 @@ VerticalMenuView.prototype.removeItem = function(index) {
     VerticalMenuView.super_.prototype.removeItem.call(this, index);
 };
 
-//	:TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
+//  :TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
 
 VerticalMenuView.prototype.focusNext = function() {
     if(this.items.length - 1 === this.focusedItemIndex) {
         this.focusedItemIndex = 0;
 
         this.viewWindow = {
-            top		: 0,
-            bottom	: Math.min(this.maxVisibleItems, this.items.length) - 1
+            top     : 0,
+            bottom  : Math.min(this.maxVisibleItems, this.items.length) - 1
         };
     } else {
         this.focusedItemIndex++;
@@ -237,9 +237,9 @@ VerticalMenuView.prototype.focusPrevious = function() {
         this.focusedItemIndex = this.items.length - 1;
 
         this.viewWindow = {
-            //top		: this.items.length - this.maxVisibleItems,
-            top		: Math.max(this.items.length - this.maxVisibleItems, 0),
-            bottom	: this.items.length - 1
+            //top       : this.items.length - this.maxVisibleItems,
+            top     : Math.max(this.items.length - this.maxVisibleItems, 0),
+            bottom  : this.items.length - 1
         };
 
     } else {
@@ -249,7 +249,7 @@ VerticalMenuView.prototype.focusPrevious = function() {
             this.viewWindow.top--;
             this.viewWindow.bottom--;
 
-            //	adjust for focus index being set & window needing expansion as we scroll up
+            //  adjust for focus index being set & window needing expansion as we scroll up
             const rem = (this.viewWindow.bottom - this.viewWindow.top) + 1;
             if(rem < this.maxVisibleItems && (this.items.length - 1) > this.focusedItemIndex) {
                 this.viewWindow.bottom = this.items.length - 1;
@@ -264,11 +264,11 @@ VerticalMenuView.prototype.focusPrevious = function() {
 
 VerticalMenuView.prototype.focusPreviousPageItem = function() {
     //
-    //	Jump to current - up to page size or top
-    //	If already at the top, jump to bottom
+    //  Jump to current - up to page size or top
+    //  If already at the top, jump to bottom
     //
     if(0 === this.focusedItemIndex) {
-        return this.focusPrevious();	//	will jump to bottom
+        return this.focusPrevious();    //  will jump to bottom
     }
 
     const index = Math.max(this.focusedItemIndex - this.dimens.height, 0);
@@ -284,11 +284,11 @@ VerticalMenuView.prototype.focusPreviousPageItem = function() {
 
 VerticalMenuView.prototype.focusNextPageItem = function() {
     //
-    //	Jump to current + up to page size or bottom
-    //	If already at the bottom, jump to top
+    //  Jump to current + up to page size or bottom
+    //  If already at the bottom, jump to top
     //
     if(this.items.length - 1 === this.focusedItemIndex) {
-        return this.focusNext();	//	will jump to top
+        return this.focusNext();    //  will jump to top
     }
 
     const index = Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length - 1);
@@ -299,8 +299,8 @@ VerticalMenuView.prototype.focusNextPageItem = function() {
         this.focusedItemIndex = index;
 
         this.viewWindow = {
-            top		: this.focusedItemIndex,
-            bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+            top     : this.focusedItemIndex,
+            bottom  : Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
         };
 
         this.redraw();
@@ -328,8 +328,8 @@ VerticalMenuView.prototype.focusLast = function() {
         this.focusedItemIndex = index;
 
         this.viewWindow = {
-            top		: this.focusedItemIndex,
-            bottom	: Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
+            top     : this.focusedItemIndex,
+            bottom  : Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length) - 1
         };
 
         this.redraw();

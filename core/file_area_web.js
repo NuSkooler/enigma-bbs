@@ -1,29 +1,29 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config				= require('./config.js').get;
-const FileDb				= require('./database.js').dbs.file;
-const getISOTimestampString	= require('./database.js').getISOTimestampString;
-const FileEntry				= require('./file_entry.js');
-const getServer				= require('./listening_server.js').getServer;
-const Errors				= require('./enig_error.js').Errors;
-const ErrNotEnabled			= require('./enig_error.js').ErrorReasons.NotEnabled;
-const StatLog				= require('./stat_log.js');
-const User					= require('./user.js');
-const Log					= require('./logger.js').log;
-const getConnectionByUserId	= require('./client_connections.js').getConnectionByUserId;
-const webServerPackageName	= require('./servers/content/web.js').moduleInfo.packageName;
-const Events				= require('./events.js');
+//  ENiGMA½
+const Config                = require('./config.js').get;
+const FileDb                = require('./database.js').dbs.file;
+const getISOTimestampString = require('./database.js').getISOTimestampString;
+const FileEntry             = require('./file_entry.js');
+const getServer             = require('./listening_server.js').getServer;
+const Errors                = require('./enig_error.js').Errors;
+const ErrNotEnabled         = require('./enig_error.js').ErrorReasons.NotEnabled;
+const StatLog               = require('./stat_log.js');
+const User                  = require('./user.js');
+const Log                   = require('./logger.js').log;
+const getConnectionByUserId = require('./client_connections.js').getConnectionByUserId;
+const webServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
+const Events                = require('./events.js');
 
-//	deps
-const hashids		= require('hashids');
-const moment		= require('moment');
-const paths			= require('path');
-const async			= require('async');
-const fs			= require('graceful-fs');
-const mimeTypes		= require('mime-types');
-const yazl			= require('yazl');
+//  deps
+const hashids       = require('hashids');
+const moment        = require('moment');
+const paths         = require('path');
+const async         = require('async');
+const fs            = require('graceful-fs');
+const mimeTypes     = require('mime-types');
+const yazl          = require('yazl');
 
 function notEnabledError() {
     return Errors.General('Web server is not enabled', ErrNotEnabled);
@@ -31,8 +31,8 @@ function notEnabledError() {
 
 class FileAreaWebAccess {
     constructor() {
-        this.hashids		= new hashids(Config().general.boardName);
-        this.expireTimers	= {};	//	hashId->timer
+        this.hashids        = new hashids(Config().general.boardName);
+        this.expireTimers   = {};   //  hashId->timer
     }
 
     startup(cb) {
@@ -51,13 +51,13 @@ class FileAreaWebAccess {
 
                     if(self.isEnabled()) {
                         const routeAdded = self.webServer.instance.addRoute({
-                            method	: 'GET',
-                            path	: Config().fileBase.web.routePath,
-                            handler	: self.routeWebRequest.bind(self),
+                            method  : 'GET',
+                            path    : Config().fileBase.web.routePath,
+                            handler : self.routeWebRequest.bind(self),
                         });
                         return callback(routeAdded ? null : Errors.General('Failed adding route'));
                     } else {
-                        return callback(null);	//	not enabled, but no error
+                        return callback(null);  //  not enabled, but no error
                     }
                 }
             ],
@@ -77,18 +77,18 @@ class FileAreaWebAccess {
 
     static getHashIdTypes() {
         return {
-            SingleFile		: 0,
-            BatchArchive	: 1,
+            SingleFile      : 0,
+            BatchArchive    : 1,
         };
     }
 
     load(cb) {
         //
-        //	Load entries, register expiration timers
+        //  Load entries, register expiration timers
         //
         FileDb.each(
             `SELECT hash_id, expire_timestamp
-			FROM file_web_serve;`,
+            FROM file_web_serve;`,
             (err, row) => {
                 if(row) {
                     this.scheduleExpire(row.hash_id, moment(row.expire_timestamp));
@@ -102,11 +102,11 @@ class FileAreaWebAccess {
 
     removeEntry(hashId) {
         //
-        //	Delete record from DB, and our timer
+        //  Delete record from DB, and our timer
         //
         FileDb.run(
             `DELETE FROM file_web_serve
-			WHERE hash_id = ?;`,
+            WHERE hash_id = ?;`,
             [ hashId ]
         );
 
@@ -115,7 +115,7 @@ class FileAreaWebAccess {
 
     scheduleExpire(hashId, expireTime) {
 
-        //	remove any previous entry for this hashId
+        //  remove any previous entry for this hashId
         const previous = this.expireTimers[hashId];
         if(previous) {
             clearTimeout(previous);
@@ -138,8 +138,8 @@ class FileAreaWebAccess {
     loadServedHashId(hashId, cb) {
         FileDb.get(
             `SELECT expire_timestamp FROM
-			file_web_serve
-			WHERE hash_id = ?`,
+            file_web_serve
+            WHERE hash_id = ?`,
             [ hashId ],
             (err, result) => {
                 if(err || !result) {
@@ -148,16 +148,16 @@ class FileAreaWebAccess {
 
                 const decoded = this.hashids.decode(hashId);
 
-                //	decode() should provide an array of [ userId, hashIdType, id, ... ]
+                //  decode() should provide an array of [ userId, hashIdType, id, ... ]
                 if(!Array.isArray(decoded) || decoded.length < 3) {
                     return cb(Errors.Invalid('Invalid or unknown hash ID'));
                 }
 
                 const servedItem = {
-                    hashId			: hashId,
-                    userId			: decoded[0],
-                    hashIdType		: decoded[1],
-                    expireTimestamp	: moment(result.expire_timestamp),
+                    hashId          : hashId,
+                    userId          : decoded[0],
+                    hashIdType      : decoded[1],
+                    expireTimestamp : moment(result.expire_timestamp),
                 };
 
                 if(FileAreaWebAccess.getHashIdTypes().SingleFile === servedItem.hashIdType) {
@@ -209,10 +209,10 @@ class FileAreaWebAccess {
     }
 
     _addOrUpdateHashIdRecord(dbOrTrans, hashId, expireTime, cb) {
-        //	add/update rec with hash id and (latest) timestamp
+        //  add/update rec with hash id and (latest) timestamp
         dbOrTrans.run(
             `REPLACE INTO file_web_serve (hash_id, expire_timestamp)
-			VALUES (?, ?);`,
+            VALUES (?, ?);`,
             [ hashId, getISOTimestampString(expireTime) ],
             err => {
                 if(err) {
@@ -231,9 +231,9 @@ class FileAreaWebAccess {
             return cb(notEnabledError());
         }
 
-        const hashId		= this.getSingleFileHashId(client, fileEntry);
-        const url			= this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
-        options.expireTime	= options.expireTime || moment().add(2, 'days');
+        const hashId        = this.getSingleFileHashId(client, fileEntry);
+        const url           = this.buildSingleFileTempDownloadLink(client, fileEntry, hashId);
+        options.expireTime  = options.expireTime || moment().add(2, 'days');
 
         this._addOrUpdateHashIdRecord(FileDb, hashId, options.expireTime, err => {
             return cb(err, url);
@@ -245,10 +245,10 @@ class FileAreaWebAccess {
             return cb(notEnabledError());
         }
 
-        const batchId		= moment().utc().unix();
-        const hashId		= this.getBatchArchiveHashId(client, batchId);
-        const url			= this.buildBatchArchiveTempDownloadLink(client, hashId);
-        options.expireTime	= options.expireTime || moment().add(2, 'days');
+        const batchId       = moment().utc().unix();
+        const hashId        = this.getBatchArchiveHashId(client, batchId);
+        const url           = this.buildBatchArchiveTempDownloadLink(client, hashId);
+        options.expireTime  = options.expireTime || moment().add(2, 'days');
 
         FileDb.beginTransaction( (err, trans) => {
             if(err) {
@@ -265,7 +265,7 @@ class FileAreaWebAccess {
                 async.eachSeries(fileEntries, (entry, nextEntry) => {
                     trans.run(
                         `INSERT INTO file_web_serve_batch (hash_id, file_id)
-						VALUES (?, ?);`,
+                        VALUES (?, ?);`,
                         [ hashId, entry.fileId ],
                         err => {
                             return nextEntry(err);
@@ -332,19 +332,19 @@ class FileAreaWebAccess {
                 }
 
                 resp.on('close', () => {
-                    //	connection closed *before* the response was fully sent
-                    //	:TODO: Log and such
+                    //  connection closed *before* the response was fully sent
+                    //  :TODO: Log and such
                 });
 
                 resp.on('finish', () => {
-                    //	transfer completed fully
+                    //  transfer completed fully
                     this.updateDownloadStatsForUserIdAndSystem(servedItem.userId, stats.size, [ fileEntry ]);
                 });
 
                 const headers = {
-                    'Content-Type'			: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
-                    'Content-Length'		: stats.size,
-                    'Content-Disposition'	: `attachment; filename="${fileEntry.fileName}"`,
+                    'Content-Type'          : mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
+                    'Content-Length'        : stats.size,
+                    'Content-Disposition'   : `attachment; filename="${fileEntry.fileName}"`,
                 };
 
                 const readStream = fs.createReadStream(filePath);
@@ -358,10 +358,10 @@ class FileAreaWebAccess {
         Log.debug( { servedItem : servedItem }, 'Batch file web request');
 
         //
-        //	We are going to build an on-the-fly zip file stream of 1:n
-        //	files in the batch.
+        //  We are going to build an on-the-fly zip file stream of 1:n
+        //  files in the batch.
         //
-        //	First, collect all file IDs
+        //  First, collect all file IDs
         //
         const self = this;
 
@@ -370,8 +370,8 @@ class FileAreaWebAccess {
                 function fetchFileIds(callback) {
                     FileDb.all(
                         `SELECT file_id
-						FROM file_web_serve_batch
-						WHERE hash_id = ?;`,
+                        FROM file_web_serve_batch
+                        WHERE hash_id = ?;`,
                         [ servedItem.hashId ],
                         (err, fileIdRows) => {
                             if(err || !Array.isArray(fileIdRows) || 0 === fileIdRows.length) {
@@ -408,10 +408,10 @@ class FileAreaWebAccess {
 
                     filePaths.forEach(fp => {
                         zipFile.addFile(
-                            fp,					//	path to physical file
-                            paths.basename(fp),	//	filename/path *stored in archive*
+                            fp,                 //  path to physical file
+                            paths.basename(fp), //  filename/path *stored in archive*
                             {
-                                compress : false,	//	:TODO: do this smartly - if ext is in set = false, else true via isArchive() or such... mimeDB has this for us.
+                                compress : false,   //  :TODO: do this smartly - if ext is in set = false, else true via isArchive() or such... mimeDB has this for us.
                             }
                         );
                     });
@@ -422,21 +422,21 @@ class FileAreaWebAccess {
                         }
 
                         resp.on('close', () => {
-                            //	connection closed *before* the response was fully sent
-                            //	:TODO: Log and such
+                            //  connection closed *before* the response was fully sent
+                            //  :TODO: Log and such
                         });
 
                         resp.on('finish', () => {
-                            //	transfer completed fully
+                            //  transfer completed fully
                             self.updateDownloadStatsForUserIdAndSystem(servedItem.userId, finalZipSize, fileEntries);
                         });
 
                         const batchFileName = `batch_${servedItem.hashId}.zip`;
 
                         const headers = {
-                            'Content-Type'			: mimeTypes.contentType(batchFileName) || mimeTypes.contentType('.bin'),
-                            'Content-Length'		: finalZipSize,
-                            'Content-Disposition'	: `attachment; filename="${batchFileName}"`,
+                            'Content-Type'          : mimeTypes.contentType(batchFileName) || mimeTypes.contentType('.bin'),
+                            'Content-Length'        : finalZipSize,
+                            'Content-Disposition'   : `attachment; filename="${batchFileName}"`,
                         };
 
                         resp.writeHead(200, headers);
@@ -446,11 +446,11 @@ class FileAreaWebAccess {
             ],
             err => {
                 if(err) {
-                    //	:TODO: Log me!
+                    //  :TODO: Log me!
                     return this.fileNotFound(resp);
                 }
 
-                //	...otherwise, we would have called resp() already.
+                //  ...otherwise, we would have called resp() already.
             }
         );
     }
@@ -464,7 +464,7 @@ class FileAreaWebAccess {
                         return callback(null, clientForUserId.user);
                     }
 
-                    //	not online now - look 'em up
+                    //  not online now - look 'em up
                     User.getUser(userId, (err, assocUser) => {
                         return callback(err, assocUser);
                     });
@@ -481,8 +481,8 @@ class FileAreaWebAccess {
                     Events.emit(
                         Events.getSystemEvents().UserDownload,
                         {
-                            user	: user,
-                            files	: fileEntries,
+                            user    : user,
+                            files   : fileEntries,
                         }
                     );
                     return callback(null);

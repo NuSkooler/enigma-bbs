@@ -1,16 +1,16 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config				= require('./config.js').get;
-const Errors				= require('./enig_error.js').Errors;
-const Log					= require('./logger.js').log;
+//  ENiGMA½
+const Config                = require('./config.js').get;
+const Errors                = require('./enig_error.js').Errors;
+const Log                   = require('./logger.js').log;
 
-//	deps
-const _						= require('lodash');
-const nodeMailer			= require('nodemailer');
+//  deps
+const _                     = require('lodash');
+const nodeMailer            = require('nodemailer');
 
-exports.sendMail			= sendMail;
+exports.sendMail            = sendMail;
 
 function sendMail(message, cb) {
     const config = Config();
@@ -21,7 +21,7 @@ function sendMail(message, cb) {
     message.from = message.from || config.email.defaultFrom;
 
     const transportOptions = Object.assign( {}, config.email.transport, {
-        logger	: Log,
+        logger  : Log,
     });
 
     const transport = nodeMailer.createTransport(transportOptions);

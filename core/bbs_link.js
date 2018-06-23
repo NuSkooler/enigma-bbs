@@ -1,54 +1,54 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule	= require('./menu_module.js').MenuModule;
-const resetScreen	= require('./ansi_term.js').resetScreen;
+const MenuModule    = require('./menu_module.js').MenuModule;
+const resetScreen   = require('./ansi_term.js').resetScreen;
 
-const async			= require('async');
-const _				= require('lodash');
-const http			= require('http');
-const net			= require('net');
-const crypto		= require('crypto');
+const async         = require('async');
+const _             = require('lodash');
+const http          = require('http');
+const net           = require('net');
+const crypto        = require('crypto');
 
-const packageJson 	= require('../package.json');
+const packageJson   = require('../package.json');
 
 /*
-	Expected configuration block:
+    Expected configuration block:
 
-	{
-		module: bbs_link
-		...
-		config: {
-			sysCode: XXXXX
-			authCode: XXXXX
-			schemeCode: XXXX
-			door: lord
+    {
+        module: bbs_link
+        ...
+        config: {
+            sysCode: XXXXX
+            authCode: XXXXX
+            schemeCode: XXXX
+            door: lord
 
-			//	default hoss: games.bbslink.net
-			host: games.bbslink.net
+            //  default hoss: games.bbslink.net
+            host: games.bbslink.net
 
-			//	defualt port: 23
-			port: 23
-		}
-	}
+            //  defualt port: 23
+            port: 23
+        }
+    }
 */
 
-//	:TODO: BUG: When a client disconnects, it's not handled very well -- the log is spammed with tons of errors
-//	:TODO: ENH: Support nodeMax and tooManyArt
+//  :TODO: BUG: When a client disconnects, it's not handled very well -- the log is spammed with tons of errors
+//  :TODO: ENH: Support nodeMax and tooManyArt
 
 exports.moduleInfo = {
-    name	: 'BBSLink',
-    desc	: 'BBSLink Access Module',
-    author	: 'NuSkooler',
+    name    : 'BBSLink',
+    desc    : 'BBSLink Access Module',
+    author  : 'NuSkooler',
 };
 
 exports.getModule = class BBSLinkModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.config			= options.menuConfig.config;
-        this.config.host	= this.config.host || 'games.bbslink.net';
-        this.config.port	= this.config.port || 23;
+        this.config         = options.menuConfig.config;
+        this.config.host    = this.config.host || 'games.bbslink.net';
+        this.config.port    = this.config.port || 23;
     }
 
     initSequence() {
@@ -61,9 +61,9 @@ exports.getModule = class BBSLinkModule extends MenuModule {
             [
                 function validateConfig(callback) {
                     if(_.isString(self.config.sysCode) &&
-						_.isString(self.config.authCode) &&
-						_.isString(self.config.schemeCode) &&
-						_.isString(self.config.door))
+                        _.isString(self.config.authCode) &&
+                        _.isString(self.config.schemeCode) &&
+                        _.isString(self.config.door))
                     {
                         callback(null);
                     } else {
@@ -72,7 +72,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                 },
                 function acquireToken(callback) {
                     //
-                    //	Acquire an authentication token
+                    //  Acquire an authentication token
                     //
                     crypto.randomBytes(16, function rand(ex, buf) {
                         if(ex) {
@@ -93,19 +93,19 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                 },
                 function authenticateToken(callback) {
                     //
-                    //	Authenticate the token we acquired previously
+                    //  Authenticate the token we acquired previously
                     //
                     var headers = {
-                        'X-User'	: self.client.user.userId.toString(),
-                        'X-System'	: self.config.sysCode,
-                        'X-Auth'	: crypto.createHash('md5').update(self.config.authCode + token).digest('hex'),
-                        'X-Code'	: crypto.createHash('md5').update(self.config.schemeCode + token).digest('hex'),
-                        'X-Rows'	: self.client.term.termHeight.toString(),
-                        'X-Key'		: randomKey,
-                        'X-Door'	: self.config.door,
-                        'X-Token'	: token,
-                        'X-Type'	: 'enigma-bbs',
-                        'X-Version'	: packageJson.version,
+                        'X-User'    : self.client.user.userId.toString(),
+                        'X-System'  : self.config.sysCode,
+                        'X-Auth'    : crypto.createHash('md5').update(self.config.authCode + token).digest('hex'),
+                        'X-Code'    : crypto.createHash('md5').update(self.config.schemeCode + token).digest('hex'),
+                        'X-Rows'    : self.client.term.termHeight.toString(),
+                        'X-Key'     : randomKey,
+                        'X-Door'    : self.config.door,
+                        'X-Token'   : token,
+                        'X-Type'    : 'enigma-bbs',
+                        'X-Version' : packageJson.version,
                     };
 
                     self.simpleHttpRequest('/auth.php?key=' + randomKey, headers, function resp(err, body) {
@@ -120,12 +120,12 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                 },
                 function createTelnetBridge(callback) {
                     //
-                    //	Authentication with BBSLink successful. Now, we need to create a telnet
-                    //	bridge from us to them
+                    //  Authentication with BBSLink successful. Now, we need to create a telnet
+                    //  bridge from us to them
                     //
                     var connectOpts = {
-                        port	: self.config.port,
-                        host	: self.config.host,
+                        port    : self.config.port,
+                        host    : self.config.host,
                     };
 
                     var clientTerminated;
@@ -151,8 +151,8 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     };
 
                     bridgeConnection.on('data', function incomingData(data) {
-                        //	pass along
-                        //	:TODO: just pipe this as well
+                        //  pass along
+                        //  :TODO: just pipe this as well
                         self.client.term.rawWrite(data);
                     });
 
@@ -182,9 +182,9 @@ exports.getModule = class BBSLinkModule extends MenuModule {
 
     simpleHttpRequest(path, headers, cb) {
         const getOpts = {
-            host	: this.config.host,
-            path	: path,
-            headers	: headers,
+            host    : this.config.host,
+            path    : path,
+            headers : headers,
         };
 
         const req = http.get(getOpts, function response(resp) {

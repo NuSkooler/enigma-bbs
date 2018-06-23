@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-const MenuView			= require('./menu_view.js').MenuView;
-const strUtil			= require('./string_util.js');
-const formatString		= require('./string_format');
-const { pipeToAnsi }	= require('./color_codes.js');
-const { goto }			= require('./ansi_term.js');
+const MenuView          = require('./menu_view.js').MenuView;
+const strUtil           = require('./string_util.js');
+const formatString      = require('./string_format');
+const { pipeToAnsi }    = require('./color_codes.js');
+const { goto }          = require('./ansi_term.js');
 
-const assert			= require('assert');
-const _					= require('lodash');
+const assert            = require('assert');
+const _                 = require('lodash');
 
-exports.HorizontalMenuView		= HorizontalMenuView;
+exports.HorizontalMenuView      = HorizontalMenuView;
 
-//	:TODO: Update this to allow scrolling if number of items cannot fit in width (similar to VerticalMenuView)
+//  :TODO: Update this to allow scrolling if number of items cannot fit in width (similar to VerticalMenuView)
 
 function HorizontalMenuView(options) {
-    options.cursor	= options.cursor || 'hide';
+    options.cursor  = options.cursor || 'hide';
 
     if(!_.isNumber(options.itemSpacing)) {
         options.itemSpacing = 1;
@@ -23,7 +23,7 @@ function HorizontalMenuView(options) {
 
     MenuView.call(this, options);
 
-    this.dimens.height = 1;	//	always the case
+    this.dimens.height = 1; //  always the case
 
     var self = this;
 
@@ -33,8 +33,8 @@ function HorizontalMenuView(options) {
 
     this.performAutoScale = function() {
         if(self.autoScale.width) {
-            var spacer	= self.getSpacer();
-            var width	= self.items.join(spacer).length + (spacer.length * 2);
+            var spacer  = self.getSpacer();
+            var width   = self.items.join(spacer).length + (spacer.length * 2);
             assert(width <= self.client.term.termWidth - self.position.col);
             self.dimens.width = width;
         }
@@ -44,8 +44,8 @@ function HorizontalMenuView(options) {
 
     this.cachePositions = function() {
         if(this.positionCacheExpired) {
-            var col		= self.position.col;
-            var spacer	= self.getSpacer();
+            var col     = self.position.col;
+            var spacer  = self.getSpacer();
 
             for(var i = 0; i < self.items.length; ++i) {
                 self.items[i].col = col;
@@ -90,7 +90,7 @@ require('util').inherits(HorizontalMenuView, MenuView);
 
 HorizontalMenuView.prototype.setHeight = function(height) {
     height = parseInt(height, 10);
-    assert(1 === height);	//	nothing else allowed here
+    assert(1 === height);   //  nothing else allowed here
     HorizontalMenuView.super_.prototype.setHeight(this, height);
 };
 
@@ -130,7 +130,7 @@ HorizontalMenuView.prototype.focusNext = function() {
         this.focusedItemIndex++;
     }
 
-    //	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+    //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
     this.redraw();
 
     HorizontalMenuView.super_.prototype.focusNext.call(this);
@@ -144,7 +144,7 @@ HorizontalMenuView.prototype.focusPrevious = function() {
         this.focusedItemIndex--;
     }
 
-    //	:TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
+    //  :TODO: Optimize this in cases where we only need to redraw two items. Always the case now, somtimes
     this.redraw();
 
     HorizontalMenuView.super_.prototype.focusPrevious.call(this);

@@ -1,29 +1,29 @@
 /* jslint node: true */
 'use strict';
 
-//	enigma-bbs
-const MenuModule	= require('../core/menu_module.js').MenuModule;
-const resetScreen	= require('../core/ansi_term.js').resetScreen;
+//  enigma-bbs
+const MenuModule    = require('../core/menu_module.js').MenuModule;
+const resetScreen   = require('../core/ansi_term.js').resetScreen;
 
-//	deps
-const async			= require('async');
-const _				= require('lodash');
+//  deps
+const async         = require('async');
+const _             = require('lodash');
 const RLogin        = require('rlogin');
 
 exports.moduleInfo = {
-    name	: 'CombatNet',
-    desc	: 'CombatNet Access Module',
-    author	: 'Dave Stephens',
+    name    : 'CombatNet',
+    desc    : 'CombatNet Access Module',
+    author  : 'Dave Stephens',
 };
 
 exports.getModule = class CombatNetModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        //	establish defaults
-        this.config				= options.menuConfig.config;
-        this.config.host		= this.config.host || 'bbs.combatnet.us';
-        this.config.rloginPort	= this.config.rloginPort || 4513;
+        //  establish defaults
+        this.config             = options.menuConfig.config;
+        this.config.host        = this.config.host || 'bbs.combatnet.us';
+        this.config.rloginPort  = this.config.rloginPort || 4513;
     }
 
     initSequence() {
@@ -51,7 +51,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     };
 
                     const rlogin = new RLogin(
-                        {	'clientUsername' : self.config.password,
+                        {   'clientUsername' : self.config.password,
                             'serverUsername' : `${self.config.bbsTag}${self.client.user.username}`,
                             'host' : self.config.host,
                             'port' : self.config.rloginPort,
@@ -79,7 +79,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     }
 
                     rlogin.on('connect',
-                        /*	The 'connect' event handler will be supplied with one argument,
+                        /*  The 'connect' event handler will be supplied with one argument,
                             a boolean indicating whether or not the connection was established. */
 
                         function(state) {
@@ -101,7 +101,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     // connect...
                     rlogin.connect();
 
-                    //	note: no explicit callback() until we're finished!
+                    //  note: no explicit callback() until we're finished!
                 }
             ],
             err => {
@@ -109,7 +109,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     self.client.log.warn( { error : err.message }, 'CombatNet error');
                 }
 
-                //	if the client is still here, go to previous
+                //  if the client is still here, go to previous
                 self.prevMenu();
             }
         );

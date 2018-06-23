@@ -1,17 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const logger			= require('./logger.js');
+//  ENiGMA½
+const logger            = require('./logger.js');
 
-//	deps
-const async				= require('async');
+//  deps
+const async             = require('async');
 
-const listeningServers = {};	//	packageName -> info
+const listeningServers = {};    //  packageName -> info
 
-exports.startup			= startup;
-exports.shutdown		= shutdown;
-exports.getServer		= getServer;
+exports.startup         = startup;
+exports.shutdown        = shutdown;
+exports.getServer       = getServer;
 
 function startup(cb) {
     return startListening(cb);
@@ -26,11 +26,11 @@ function getServer(packageName) {
 }
 
 function startListening(cb) {
-    const moduleUtil = require('./module_util.js');	//	late load so we get Config
+    const moduleUtil = require('./module_util.js'); //  late load so we get Config
 
     async.each( [ 'login', 'content' ], (category, next) => {
         moduleUtil.loadModulesForCategory(`${category}Servers`, (err, module) => {
-            //	:TODO: use enig error here!
+            //  :TODO: use enig error here!
             if(err) {
                 if('EENIGMODDISABLED' === err.code) {
                     logger.log.debug(err.message);
@@ -48,8 +48,8 @@ function startListening(cb) {
                 }
 
                 listeningServers[module.moduleInfo.packageName] = {
-                    instance	: moduleInst,
-                    info		: module.moduleInfo,
+                    instance    : moduleInst,
+                    info        : module.moduleInfo,
                 };
 
             } catch(e) {

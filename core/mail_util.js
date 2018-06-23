@@ -1,25 +1,25 @@
 /* jslint node: true */
 'use strict';
 
-const Address				= require('./ftn_address.js');
-const Message				= require('./message.js');
+const Address               = require('./ftn_address.js');
+const Message               = require('./message.js');
 
-exports.getAddressedToInfo	= getAddressedToInfo;
+exports.getAddressedToInfo  = getAddressedToInfo;
 
 const EMAIL_REGEX = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
 
 /*
-	Input                              Output
-	----------------------------------------------------------------------------------------------------
-	User                               { name : 'User', flavor : 'local' }
-	Some User                          { name : 'Some User', flavor : 'local' }
-	JoeUser @ 1:103/75                 { name : 'JoeUser', flavor : 'ftn', remote : '1:103/75' }
-	Bob@1:103/705@fidonet.org          { name : 'Bob', flavor : 'ftn', remote : '1:103/705@fidonet.org' }
-	1:103/705@fidonet.org              { flavor : 'ftn', remote : '1:103/705@fidonet.org' }
-	Jane <23:4/100>                    { name : 'Jane', flavor : 'ftn', remote : '23:4/100' }
-	43:20/100.2                        { flavor : 'ftn', remote : '43:20/100.2' }
-	foo@host.com                       { name : 'foo', flavor : 'email', remote : 'foo@host.com' }
-	Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
+    Input                              Output
+    ----------------------------------------------------------------------------------------------------
+    User                               { name : 'User', flavor : 'local' }
+    Some User                          { name : 'Some User', flavor : 'local' }
+    JoeUser @ 1:103/75                 { name : 'JoeUser', flavor : 'ftn', remote : '1:103/75' }
+    Bob@1:103/705@fidonet.org          { name : 'Bob', flavor : 'ftn', remote : '1:103/705@fidonet.org' }
+    1:103/705@fidonet.org              { flavor : 'ftn', remote : '1:103/705@fidonet.org' }
+    Jane <23:4/100>                    { name : 'Jane', flavor : 'ftn', remote : '23:4/100' }
+    43:20/100.2                        { flavor : 'ftn', remote : '43:20/100.2' }
+    foo@host.com                       { name : 'foo', flavor : 'email', remote : 'foo@host.com' }
+    Bar <baz@foobar.net>               { name : 'Bar', flavor : 'email', remote : 'baz@foobar.com' }
 */
 function getAddressedToInfo(input) {
     input = input.trim();
@@ -50,8 +50,8 @@ function getAddressedToInfo(input) {
         return { name : input, flavor : Message.AddressFlavor.Local };
     }
 
-    const lessThanPos		= input.indexOf('<');
-    const greaterThanPos	= input.indexOf('>');
+    const lessThanPos       = input.indexOf('<');
+    const greaterThanPos    = input.indexOf('>');
     if(lessThanPos > 0 && greaterThanPos > lessThanPos) {
         const addr = input.slice(lessThanPos + 1, greaterThanPos);
         const m = addr.match(EMAIL_REGEX);
@@ -67,7 +67,7 @@ function getAddressedToInfo(input) {
         return { name : input.slice(0, firstAtPos), flavor : Message.AddressFlavor.Email, remote : input };
     }
 
-    let addr = Address.fromString(input);	//	5D?
+    let addr = Address.fromString(input);   //  5D?
     if(Address.isValidAddress(addr)) {
         return { flavor : Message.AddressFlavor.FTN, remote : addr.toString() } ;
     }

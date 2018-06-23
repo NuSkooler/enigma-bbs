@@ -1,21 +1,21 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config	= require('./config.js').get;
+//  ENiGMA½
+const Config    = require('./config.js').get;
 
-//	deps
-const fs 		= require('graceful-fs');
-const paths		= require('path');
-const _			= require('lodash');
-const assert	= require('assert');
-const async		= require('async');
+//  deps
+const fs        = require('graceful-fs');
+const paths     = require('path');
+const _         = require('lodash');
+const assert    = require('assert');
+const async     = require('async');
 
-//	exports
-exports.loadModuleEx			= loadModuleEx;
-exports.loadModule				= loadModule;
-exports.loadModulesForCategory	= loadModulesForCategory;
-exports.getModulePaths			= getModulePaths;
+//  exports
+exports.loadModuleEx            = loadModuleEx;
+exports.loadModule              = loadModule;
+exports.loadModulesForCategory  = loadModulesForCategory;
+exports.getModulePaths          = getModulePaths;
 
 function loadModuleEx(options, cb) {
     assert(_.isObject(options));
@@ -25,18 +25,18 @@ function loadModuleEx(options, cb) {
     const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
     if(_.isObject(modConfig) && false === modConfig.enabled) {
-        const err	= new Error(`Module "${options.name}" is disabled`);
-        err.code	= 'EENIGMODDISABLED';
+        const err   = new Error(`Module "${options.name}" is disabled`);
+        err.code    = 'EENIGMODDISABLED';
         return cb(err);
     }
 
     //
-    //	Modules are allowed to live in /path/to/<moduleName>/<moduleName>.js or
-    //	simply in /path/to/<moduleName>.js. This allows for more advanced modules
-    //	to have their own containing folder, package.json & dependencies, etc.
+    //  Modules are allowed to live in /path/to/<moduleName>/<moduleName>.js or
+    //  simply in /path/to/<moduleName>.js. This allows for more advanced modules
+    //  to have their own containing folder, package.json & dependencies, etc.
     //
     let mod;
-    let modPath = paths.join(options.path, `${options.name}.js`);	//	general case first
+    let modPath = paths.join(options.path, `${options.name}.js`);   //  general case first
     try {
         mod = require(modPath);
     } catch(e) {

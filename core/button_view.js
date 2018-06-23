@@ -1,17 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-const TextView		= require('./text_view.js').TextView;
-const miscUtil		= require('./misc_util.js');
-const util			= require('util');
+const TextView      = require('./text_view.js').TextView;
+const miscUtil      = require('./misc_util.js');
+const util          = require('util');
 
-exports.ButtonView			= ButtonView;
+exports.ButtonView          = ButtonView;
 
 function ButtonView(options) {
-    options.acceptsFocus	= miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput	= miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.justify			= miscUtil.valueWithDefault(options.justify, 'center');
-    options.cursor 			= miscUtil.valueWithDefault(options.cursor, 'hide');
+    options.acceptsFocus    = miscUtil.valueWithDefault(options.acceptsFocus, true);
+    options.acceptsInput    = miscUtil.valueWithDefault(options.acceptsInput, true);
+    options.justify         = miscUtil.valueWithDefault(options.justify, 'center');
+    options.cursor          = miscUtil.valueWithDefault(options.cursor, 'hide');
 
     TextView.call(this, options);
 }
@@ -29,12 +29,12 @@ ButtonView.prototype.onKeyPress = function(ch, key) {
 };
 /*
 ButtonView.prototype.onKeyPress = function(ch, key) {
-	//	allow space = submit
-	if(' ' === ch) {
-		this.emit('action', 'accept');
-	}
+    //  allow space = submit
+    if(' ' === ch) {
+        this.emit('action', 'accept');
+    }
 
-	ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
+    ButtonView.super_.prototype.onKeyPress.call(this, ch, key);
 };
 */
 

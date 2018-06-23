@@ -1,39 +1,39 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-var Log				= require('./logger.js').log;
-var enigmaToAnsi	= require('./color_codes.js').enigmaToAnsi;
-var renegadeToAnsi	= require('./color_codes.js').renegadeToAnsi;
+//  ENiGMA½
+var Log             = require('./logger.js').log;
+var enigmaToAnsi    = require('./color_codes.js').enigmaToAnsi;
+var renegadeToAnsi  = require('./color_codes.js').renegadeToAnsi;
 
-var iconv			= require('iconv-lite');
-var assert			= require('assert');
-var _				= require('lodash');
+var iconv           = require('iconv-lite');
+var assert          = require('assert');
+var _               = require('lodash');
 
-exports.ClientTerminal	= ClientTerminal;
+exports.ClientTerminal  = ClientTerminal;
 
 function ClientTerminal(output) {
-    this.output		= output;
+    this.output     = output;
 
     var outputEncoding = 'cp437';
     assert(iconv.encodingExists(outputEncoding));
 
-    //	convert line feeds such as \n -> \r\n
-    this.convertLF		= true;
+    //  convert line feeds such as \n -> \r\n
+    this.convertLF      = true;
 
     //
-    //	Some terminal we handle specially
-    //	They can also be found in this.env{}
+    //  Some terminal we handle specially
+    //  They can also be found in this.env{}
     //
-    var termType		= 'unknown';
-    var termHeight		= 0;
-    var termWidth		= 0;
-    var termClient		= 'unknown';
+    var termType        = 'unknown';
+    var termHeight      = 0;
+    var termWidth       = 0;
+    var termClient      = 'unknown';
 
-    this.currentSyncFont	= 'not_set';
+    this.currentSyncFont    = 'not_set';
 
-    //	Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
-    this.env			= {};
+    //  Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
+    this.env            = {};
 
     Object.defineProperty(this, 'outputEncoding', {
         get : function() {
@@ -58,13 +58,13 @@ function ClientTerminal(output) {
             if(this.isANSI()) {
                 this.outputEncoding = 'cp437';
             } else {
-                //	:TODO: See how x84 does this -- only set if local/remote are binary
+                //  :TODO: See how x84 does this -- only set if local/remote are binary
                 this.outputEncoding = 'utf8';
             }
 
-            //	:TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
-            //	Windows telnet will send "VTNT". If so, set termClient='windows'
-            //	there are some others on the page as well
+            //  :TODO: according to this: http://mud-dev.wikidot.com/article:telnet-client-identification
+            //  Windows telnet will send "VTNT". If so, set termClient='windows'
+            //  there are some others on the page as well
 
             Log.debug( { encoding : this.outputEncoding }, 'Set output encoding due to terminal type change');
         }
@@ -110,7 +110,7 @@ ClientTerminal.prototype.disconnect = function() {
 
 ClientTerminal.prototype.isNixTerm = function() {
     //
-    //	Standard *nix type terminals
+    //  Standard *nix type terminals
     //
     if(this.termType.startsWith('xterm')) {
         return true;
@@ -121,40 +121,40 @@ ClientTerminal.prototype.isNixTerm = function() {
 
 ClientTerminal.prototype.isANSI = function() {
     //
-    //	ANSI terminals should be encoded to CP437
+    //  ANSI terminals should be encoded to CP437
     //
-    //	Some terminal types provided by Mercyful Fate / Enthral:
-    //		ANSI-BBS
-    //		PC-ANSI
-    //		QANSI
-    //		SCOANSI
-    //		VT100
-    //		QNX
+    //  Some terminal types provided by Mercyful Fate / Enthral:
+    //      ANSI-BBS
+    //      PC-ANSI
+    //      QANSI
+    //      SCOANSI
+    //      VT100
+    //      QNX
     //
-    //	Reports from various terminals
+    //  Reports from various terminals
     //
-    //	syncterm:
-    //		* SyncTERM
+    //  syncterm:
+    //      * SyncTERM
     //
-    //	xterm:
-    //		* PuTTY
+    //  xterm:
+    //      * PuTTY
     //
-    //	ansi-bbs:
-    //		* fTelnet
+    //  ansi-bbs:
+    //      * fTelnet
     //
-    //	pcansi:
-    //		* ZOC
+    //  pcansi:
+    //      * ZOC
     //
-    //	screen:
-    //		* ConnectBot (Android)
+    //  screen:
+    //      * ConnectBot (Android)
     //
-    //	linux:
-    //		* JuiceSSH (note: TERM=linux also)
+    //  linux:
+    //      * JuiceSSH (note: TERM=linux also)
     //
     return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].includes(this.termType);
 };
 
-//	:TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
+//  :TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
 
 ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
     this.rawWrite(this.encode(s, convertLineFeeds), cb);
@@ -178,11 +178,11 @@ ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
     spec = spec || 'renegade';
 
     var conv = {
-        enigma		: enigmaToAnsi,
-        renegade	: renegadeToAnsi,
+        enigma      : enigmaToAnsi,
+        renegade    : renegadeToAnsi,
     }[spec] || renegadeToAnsi;
 
-    this.write(conv(s, this), null, cb);	//	null = use default for |convertLineFeeds|
+    this.write(conv(s, this), null, cb);    //  null = use default for |convertLineFeeds|
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {

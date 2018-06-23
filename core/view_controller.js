@@ -1,23 +1,23 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-var MCIViewFactory	= require('./mci_view_factory.js').MCIViewFactory;
-var menuUtil		= require('./menu_util.js');
-var asset			= require('./asset.js');
-var ansi			= require('./ansi_term.js');
+//  ENiGMA½
+var MCIViewFactory  = require('./mci_view_factory.js').MCIViewFactory;
+var menuUtil        = require('./menu_util.js');
+var asset           = require('./asset.js');
+var ansi            = require('./ansi_term.js');
 
-//	deps
-var events			= require('events');
-var util			= require('util');
-var assert			= require('assert');
-var async			= require('async');
-var _				= require('lodash');
-var paths			= require('path');
+//  deps
+var events          = require('events');
+var util            = require('util');
+var assert          = require('assert');
+var async           = require('async');
+var _               = require('lodash');
+var paths           = require('path');
 
-exports.ViewController		= ViewController;
+exports.ViewController      = ViewController;
 
-var MCI_REGEXP	= /([A-Z]{2})([0-9]{1,2})/;
+var MCI_REGEXP  = /([A-Z]{2})([0-9]{1,2})/;
 
 function ViewController(options) {
     assert(_.isObject(options));
@@ -25,29 +25,29 @@ function ViewController(options) {
 
     events.EventEmitter.call(this);
 
-    var self			= this;
+    var self            = this;
 
-    this.client			= options.client;
-    this.views			= {};	//	map of ID -> view
-    this.formId			= options.formId || 0;
-    this.mciViewFactory	= new MCIViewFactory(this.client);	//	:TODO: can this not be a singleton?
-    this.noInput		= _.isBoolean(options.noInput) ? options.noInput : false;
+    this.client         = options.client;
+    this.views          = {};   //  map of ID -> view
+    this.formId         = options.formId || 0;
+    this.mciViewFactory = new MCIViewFactory(this.client);  //  :TODO: can this not be a singleton?
+    this.noInput        = _.isBoolean(options.noInput) ? options.noInput : false;
 
-    this.actionKeyMap	= {};
+    this.actionKeyMap   = {};
 
     //
-    //	Small wrapper/proxy around handleAction() to ensure we do not allow
-    //	input/additional actions queued while performing an action
+    //  Small wrapper/proxy around handleAction() to ensure we do not allow
+    //  input/additional actions queued while performing an action
     //
     this.handleActionWrapper = function(formData, actionBlock) {
         if(self.waitActionCompletion) {
-            return;	//	ignore until this is finished!
+            return; //  ignore until this is finished!
         }
 
         self.waitActionCompletion = true;
         menuUtil.handleAction(self.client, formData, actionBlock, (err) => {
             if(err) {
-                //	:TODO: What can we really do here?
+                //  :TODO: What can we really do here?
                 if('ALREADYTHERE' === err.reasonCode) {
                     self.client.log.trace( err.reason );
                 } else {
@@ -61,22 +61,22 @@ function ViewController(options) {
 
     this.clientKeyPressHandler = function(ch, key) {
         //
-        //	Process key presses treating form submit mapped	keys special.
-        //	Everything else is forwarded on to the focused View, if any.
+        //  Process key presses treating form submit mapped keys special.
+        //  Everything else is forwarded on to the focused View, if any.
         //
         var actionForKey = key ? self.actionKeyMap[key.name] : self.actionKeyMap[ch];
         if(actionForKey) {
             if(_.isNumber(actionForKey.viewId)) {
                 //
-                //	Key works on behalf of a view -- switch focus & submit
+                //  Key works on behalf of a view -- switch focus & submit
                 //
                 self.switchFocus(actionForKey.viewId);
                 self.submitForm(key);
             } else if(_.isString(actionForKey.action)) {
                 const formData = self.getFocusedView() ? self.getFormData() : { };
                 self.handleActionWrapper(
-                    Object.assign( { ch : ch, key : key }, formData ),	//	formData + key info
-                    actionForKey);			//	actionBlock
+                    Object.assign( { ch : ch, key : key }, formData ),  //  formData + key info
+                    actionForKey);          //  actionBlock
             }
         } else {
             if(self.focusedView && self.focusedView.acceptsInput) {
@@ -94,7 +94,7 @@ function ViewController(options) {
 
             case 'accept' :
                 if(self.focusedView && self.focusedView.submit) {
-                    //	:TODO: need to do validation here!!!
+                    //  :TODO: need to do validation here!!!
                     var focusedView = self.focusedView;
                     self.validateView(focusedView, function validated(err, newFocusedViewId) {
                         if(err) {
@@ -116,9 +116,9 @@ function ViewController(options) {
         self.emit('submit', this.getFormData(key));
     };
 
-    //	:TODO: replace this in favor of overriding toJSON() for various things such that logging will *never* output them
+    //  :TODO: replace this in favor of overriding toJSON() for various things such that logging will *never* output them
     this.getLogFriendlyFormData = function(formData) {
-        //	:TODO: these fields should be part of menu.json sensitiveMembers[]
+        //  :TODO: these fields should be part of menu.json sensitiveMembers[]
         var safeFormData = _.cloneDeep(formData);
         if(safeFormData.value.password) {
             safeFormData.value.password = '*****';
@@ -141,8 +141,8 @@ function ViewController(options) {
 
     this.createViewsFromMCI = function(mciMap, cb) {
         async.each(Object.keys(mciMap), (name, nextItem) => {
-            const mci	= mciMap[name];
-            const view	= self.mciViewFactory.createFromMCI(mci);
+            const mci   = mciMap[name];
+            const view  = self.mciViewFactory.createFromMCI(mci);
 
             if(view) {
                 if(false === self.noInput) {
@@ -160,7 +160,7 @@ function ViewController(options) {
         });
     };
 
-    //	:TODO: move this elsewhere
+    //  :TODO: move this elsewhere
     this.setViewPropertiesFromMCIConf = function(view, conf) {
 
         var propAsset;
@@ -178,14 +178,14 @@ function ViewController(options) {
                         propValue = asset.resolveSystemStatAsset(conf[propName]);
                         break;
 
-                        //	:TODO: handle @art (e.g. text : @art ...)
+                        //  :TODO: handle @art (e.g. text : @art ...)
 
                     case 'method' :
                     case 'systemMethod' :
                         if('validate' === propName) {
-                            //	:TODO: handle propAsset.location for @method script specification
+                            //  :TODO: handle propAsset.location for @method script specification
                             if('systemMethod' === propAsset.type) {
-                                //	:TODO: implementation validation @systemMethod handling!
+                                //  :TODO: implementation validation @systemMethod handling!
                                 var methodModule = require(paths.join(__dirname, 'system_view_validate.js'));
                                 if(_.isFunction(methodModule[propAsset.asset])) {
                                     propValue = methodModule[propAsset.asset];
@@ -200,12 +200,12 @@ function ViewController(options) {
                                 // :TODO: clean this code up!
                             } else {
                                 if('systemMethod' === propAsset.type) {
-                                    //	:TODO:
+                                    //  :TODO:
                                 } else {
-                                    //	local to current module
+                                    //  local to current module
                                     var currentModule = self.client.currentMenuModule;
                                     if(_.isFunction(currentModule.menuMethods[propAsset.asset])) {
-                                        //	:TODO: Fix formData & extraArgs... this all needs general processing
+                                        //  :TODO: Fix formData & extraArgs... this all needs general processing
                                         propValue = currentModule.menuMethods[propAsset.asset]({}, {});//formData, conf.extraArgs);
                                     }
                                 }
@@ -233,14 +233,14 @@ function ViewController(options) {
         let initialFocusId = 1;
 
         async.each(Object.keys(config.mci || {}), function entry(mci, nextItem) {
-            const mciMatch = mci.match(MCI_REGEXP);	//	:TODO: How to handle auto-generated IDs????
+            const mciMatch = mci.match(MCI_REGEXP); //  :TODO: How to handle auto-generated IDs????
             if(null === mciMatch) {
                 self.client.log.warn( { mci : mci }, 'Unable to parse MCI code');
                 return;
             }
 
             const viewId = parseInt(mciMatch[2]);
-            assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]);	//	shouldn't be possible with RegExp used
+            assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]); //  shouldn't be possible with RegExp used
 
             if(viewId > highestId) {
                 highestId = viewId;
@@ -269,7 +269,7 @@ function ViewController(options) {
             nextItem(null);
         },
         err => {
-            //	default to highest ID if no 'submit' entry present
+            //  default to highest ID if no 'submit' entry present
             if(!submitId) {
                 var highestIdView = self.getView(highestId);
                 if(highestIdView) {
@@ -283,19 +283,19 @@ function ViewController(options) {
         });
     };
 
-    //	method for comparing submitted form data to configuration entries
+    //  method for comparing submitted form data to configuration entries
     this.actionBlockValueComparator = function(formValue, actionValue) {
         //
-        //	For a match to occur, one of the following must be true:
+        //  For a match to occur, one of the following must be true:
         //
-        //	*	actionValue is a Object:
-        //		a)	All key/values must exactly match
-        //		b)	value is null; The key (view ID or "argName") must be present
-        //			in formValue. This is a wildcard/any match.
-        //	*	actionValue is a Number: This represents a view ID that
-        //		must be present in formValue.
-        //	* 	actionValue is a string: This represents a view with
-        //		"argName" set that must be present in formValue.
+        //  *   actionValue is a Object:
+        //      a)  All key/values must exactly match
+        //      b)  value is null; The key (view ID or "argName") must be present
+        //          in formValue. This is a wildcard/any match.
+        //  *   actionValue is a Number: This represents a view ID that
+        //      must be present in formValue.
+        //  *   actionValue is a string: This represents a view with
+        //      "argName" set that must be present in formValue.
         //
         if(_.isUndefined(actionValue)) {
             return false;
@@ -307,12 +307,12 @@ function ViewController(options) {
             }
         } else {
             /*
-				:TODO: support:
-				value: {
-					someArgName: [ "key1", "key2", ... ],
-					someOtherArg: [ "key1, ... ]
-				}
-			*/
+                :TODO: support:
+                value: {
+                    someArgName: [ "key1", "key2", ... ],
+                    someOtherArg: [ "key1, ... ]
+                }
+            */
             var actionValueKeys = Object.keys(actionValue);
             for(var i = 0; i < actionValueKeys.length; ++i) {
                 var viewId = actionValueKeys[i];
@@ -328,8 +328,8 @@ function ViewController(options) {
 
         self.client.log.trace(
             {
-                formValue	: formValue,
-                actionValue	: actionValue
+                formValue   : formValue,
+                actionValue : actionValue
             },
             'Action match'
         );
@@ -362,7 +362,7 @@ function ViewController(options) {
                 var viewValidationListener = self.client.currentMenuModule.menuMethods.viewValidationListener;
                 if(_.isFunction(viewValidationListener)) {
                     if(err) {
-                        err.view = view;	//	pass along the view that failed
+                        err.view = view;    //  pass along the view that failed
                     }
 
                     viewValidationListener(err, function validationComplete(newViewFocusId) {
@@ -390,7 +390,7 @@ ViewController.prototype.attachClientEvents = function() {
     this.client.on('key press', this.clientKeyPressHandler);
 
     Object.keys(this.views).forEach(function vid(i) {
-        //	remove, then add to ensure we only have one listener
+        //  remove, then add to ensure we only have one listener
         self.views[i].removeListener('action', self.viewActionListener);
         self.views[i].on('action', self.viewActionListener);
     });
@@ -462,10 +462,10 @@ ViewController.prototype.resetInitialFocus = function() {
 
 ViewController.prototype.switchFocus = function(id) {
     //
-    //	Perform focus switching validation now
+    //  Perform focus switching validation now
     //
-    var self 		= this;
-    var focusedView	= self.focusedView;
+    var self        = this;
+    var focusedView = self.focusedView;
 
     self.validateView(focusedView, function validated(err, newFocusedViewId) {
         if(err) {
@@ -474,10 +474,10 @@ ViewController.prototype.switchFocus = function(id) {
         } else {
             self.attachClientEvents();
 
-            //	remove from old
+            //  remove from old
             self.setViewFocusWithEvents(focusedView, false);
 
-            //	set to new
+            //  set to new
             self.setViewFocusWithEvents(self.getView(id), true);
         }
     });
@@ -486,7 +486,7 @@ ViewController.prototype.switchFocus = function(id) {
 ViewController.prototype.nextFocus = function() {
     let nextFocusView = this.focusedView ? this.focusedView : this.views[this.firstId];
 
-    //	find the next view that accepts focus
+    //  find the next view that accepts focus
     while(nextFocusView && nextFocusView.nextId) {
         nextFocusView = this.getView(nextFocusView.nextId);
         if(!nextFocusView || nextFocusView.acceptsFocus) {
@@ -531,7 +531,7 @@ ViewController.prototype.redrawAll = function(initialFocusId) {
 
     for(var id in this.views) {
         if(initialFocusId === id) {
-            continue;	//	will draw @ focus
+            continue;   //  will draw @ focus
         }
         this.views[id].redraw();
     }
@@ -543,9 +543,9 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
     assert(_.isObject(options));
     assert(_.isObject(options.mciMap));
 
-    var self			= this;
-    var promptConfig	= _.isObject(options.config) ? options.config : self.client.currentMenuModule.menuConfig.promptConfig;
-    var initialFocusId	= 1;	//	default to first
+    var self            = this;
+    var promptConfig    = _.isObject(options.config) ? options.config : self.client.currentMenuModule.menuConfig.promptConfig;
+    var initialFocusId  = 1;    //  default to first
 
     async.waterfall(
         [
@@ -574,12 +574,12 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
                             self.handleActionWrapper(formData, self.client.currentMenuModule.menuConfig);
                         } else {
                             //
-                            //	Menus that reference prompts can have a sepcial "submit" block without the
-                            //	hassle of by-form-id configurations, etc.
+                            //  Menus that reference prompts can have a sepcial "submit" block without the
+                            //  hassle of by-form-id configurations, etc.
                             //
-                            //	"submit" : [
-                            //		{ ... }
-                            //	]
+                            //  "submit" : [
+                            //      { ... }
+                            //  ]
                             //
                             var menuSubmit = self.client.currentMenuModule.menuConfig.submit;
                             if(!_.isArray(menuSubmit)) {
@@ -588,15 +588,15 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
                             }
 
                             //
-                            //	Locate matching action block
+                            //  Locate matching action block
                             //
-                            //	:TODO: this is basically the same as for menus -- DRY it up!
+                            //  :TODO: this is basically the same as for menus -- DRY it up!
                             for(var c = 0; c < menuSubmit.length; ++c) {
                                 var actionBlock = menuSubmit[c];
 
                                 if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
                                     self.handleActionWrapper(formData, actionBlock);
-                                    break;	//	there an only be one...
+                                    break;  //  there an only be one...
                                 }
                             }
                         }
@@ -612,13 +612,13 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
 
                 promptConfig.actionKeys.forEach(ak => {
                     //
-                    //	*	'keys' must be present and be an array of key names
-                    //	*	If 'viewId' is present, key(s) will focus & submit on behalf
-                    //		of the specified view.
-                    //	*	If 'action' is present, that action will be procesed when
-                    //		triggered by key(s)
+                    //  *   'keys' must be present and be an array of key names
+                    //  *   If 'viewId' is present, key(s) will focus & submit on behalf
+                    //      of the specified view.
+                    //  *   If 'action' is present, that action will be procesed when
+                    //      triggered by key(s)
                     //
-                    //	Ultimately, create a map of key -> { action block }
+                    //  Ultimately, create a map of key -> { action block }
                     //
                     if(!_.isArray(ak.keys)) {
                         return;
@@ -657,12 +657,12 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
         return;
     }
 
-    var self			= this;
-    var formIdKey		= options.formId ? options.formId.toString() : '0';
-    this.formInitialFocusId	 = 1;	//	default to first
+    var self            = this;
+    var formIdKey       = options.formId ? options.formId.toString() : '0';
+    this.formInitialFocusId  = 1;   //  default to first
     var formConfig;
 
-    //	:TODO: honor options.withoutForm
+    //  :TODO: honor options.withoutForm
 
     async.waterfall(
         [
@@ -671,7 +671,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                     formConfig = fc;
 
                     if(err) {
-                        //	non-fatal
+                        //  non-fatal
                         self.client.log.trace(
                             { reason : err.message, mci : Object.keys(options.mciMap), formId : formIdKey },
                             'Unable to find matching form configuration');
@@ -686,28 +686,28 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                 });
             },
             /*
-			function applyThemeCustomization(callback) {
-				formConfig = formConfig || {};
-				formConfig.mci = formConfig.mci || {};
-				//self.client.currentMenuModule.menuConfig.config = self.client.currentMenuModule.menuConfig.config || {};
+            function applyThemeCustomization(callback) {
+                formConfig = formConfig || {};
+                formConfig.mci = formConfig.mci || {};
+                //self.client.currentMenuModule.menuConfig.config = self.client.currentMenuModule.menuConfig.config || {};
 
-				//console.log('menu config.....');
-				//console.log(self.client.currentMenuModule.menuConfig)
+                //console.log('menu config.....');
+                //console.log(self.client.currentMenuModule.menuConfig)
 
-				menuUtil.applyMciThemeCustomization({
-					name		: self.client.currentMenuModule.menuName,
-					type		: 'menus',
-					client		: self.client,
-					mci			: formConfig.mci,
-					//config		: self.client.currentMenuModule.menuConfig.config,
-					formId		: formIdKey,
-				});
+                menuUtil.applyMciThemeCustomization({
+                    name        : self.client.currentMenuModule.menuName,
+                    type        : 'menus',
+                    client      : self.client,
+                    mci         : formConfig.mci,
+                    //config        : self.client.currentMenuModule.menuConfig.config,
+                    formId      : formIdKey,
+                });
 
-				//console.log('after theme...')
-				//console.log(self.client.currentMenuModule.menuConfig.config)
+                //console.log('after theme...')
+                //console.log(self.client.currentMenuModule.menuConfig.config)
 
-				callback(null);
-			},
+                callback(null);
+            },
             */
             function applyViewConfiguration(callback) {
                 if(_.isObject(formConfig)) {
@@ -730,7 +730,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                     self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Form submit');
 
                     //
-                    //	Locate configuration for this form ID
+                    //  Locate configuration for this form ID
                     //
                     var confForFormId;
                     if(_.isObject(formConfig.submit[formData.submitId])) {
@@ -738,20 +738,20 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                     } else if(_.isObject(formConfig.submit['*'])) {
                         confForFormId = formConfig.submit['*'];
                     } else {
-                        //	no configuration for this submitId
+                        //  no configuration for this submitId
                         self.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
                         return;
                     }
 
                     //
-                    //	Locate a matching action block based on the submitted data
+                    //  Locate a matching action block based on the submitted data
                     //
                     for(var c = 0; c < confForFormId.length; ++c) {
                         var actionBlock = confForFormId[c];
 
                         if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
                             self.handleActionWrapper(formData, actionBlock);
-                            break;	//	there an only be one...
+                            break;  //  there an only be one...
                         }
                     }
                 });
@@ -766,13 +766,13 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
 
                 formConfig.actionKeys.forEach(function akEntry(ak) {
                     //
-                    //	*	'keys' must be present and be an array of key names
-                    //	*	If 'viewId' is present, key(s) will focus & submit on behalf
-                    //		of the specified view.
-                    //	*	If 'action' is present, that action will be procesed when
-                    //		triggered by key(s)
+                    //  *   'keys' must be present and be an array of key names
+                    //  *   If 'viewId' is present, key(s) will focus & submit on behalf
+                    //      of the specified view.
+                    //  *   If 'action' is present, that action will be procesed when
+                    //      triggered by key(s)
                     //
-                    //	Ultimately, create a map of key -> { action block }
+                    //  Ultimately, create a map of key -> { action block }
                     //
                     if(!_.isArray(ak.keys)) {
                         return;
@@ -822,23 +822,23 @@ ViewController.prototype.formatMCIString = function(format) {
 
 ViewController.prototype.getFormData = function(key) {
     /*
-		Example form data:
-		{
-			id : 0,
-			submitId : 1,
-			value : {
-				"1" : "hurp",
-				"2" : [ 'a', 'b', ... ],
-				"3" 2,
-				"pants" : "no way"
-			}
+        Example form data:
+        {
+            id : 0,
+            submitId : 1,
+            value : {
+                "1" : "hurp",
+                "2" : [ 'a', 'b', ... ],
+                "3" 2,
+                "pants" : "no way"
+            }
 
-		}
-	*/
+        }
+    */
     const formData = {
-        id			: this.formId,
-        submitId	: this.focusedView.id,
-        value		: {},
+        id          : this.formId,
+        submitId    : this.focusedView.id,
+        value       : {},
     };
 
     if(key) {
@@ -848,7 +848,7 @@ ViewController.prototype.getFormData = function(key) {
     let viewData;
     _.each(this.views, view => {
         try {
-            //	don't fill forms with static, non user-editable data data
+            //  don't fill forms with static, non user-editable data data
             if(!view.acceptsInput) {
                 return;
             }

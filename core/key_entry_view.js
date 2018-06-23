@@ -1,12 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const View				= require('./view.js').View;
-const valueWithDefault	= require('./misc_util.js').valueWithDefault;
-const isPrintable		= require('./string_util.js').isPrintable;
-const stylizeString		= require('./string_util.js').stylizeString;
+const View              = require('./view.js').View;
+const valueWithDefault  = require('./misc_util.js').valueWithDefault;
+const isPrintable       = require('./string_util.js').isPrintable;
+const stylizeString     = require('./string_util.js').stylizeString;
 
-const _					= require('lodash');
+const _                 = require('lodash');
 
 module.exports = class KeyEntryView extends View {
     constructor(options) {
@@ -15,8 +15,8 @@ module.exports = class KeyEntryView extends View {
 
         super(options);
 
-        this.eatTabKey			= options.eatTabKey || true;
-        this.caseInsensitive	= options.caseInsensitive || true;
+        this.eatTabKey          = options.eatTabKey || true;
+        this.caseInsensitive    = options.caseInsensitive || true;
 
         if(Array.isArray(options.keys)) {
             if(this.caseInsensitive) {
@@ -35,7 +35,7 @@ module.exports = class KeyEntryView extends View {
         }
 
         if(drawKey && isPrintable(drawKey) && (!this.keys || this.keys.indexOf(ch) > -1)) {
-            this.redraw();	//	sets position
+            this.redraw();  //  sets position
             this.client.term.write(stylizeString(ch, this.textStyle));
         }
 
@@ -46,7 +46,7 @@ module.exports = class KeyEntryView extends View {
         }
 
         this.emit('action', 'accept');
-        //	NOTE: we don't call super here. KeyEntryView is a special snowflake.
+        //  NOTE: we don't call super here. KeyEntryView is a special snowflake.
     }
 
     setPropertyValue(propName, propValue) {
@@ -73,5 +73,5 @@ module.exports = class KeyEntryView extends View {
         super.setPropertyValue(propName, propValue);
     }
 
-    getData() {	return this.keyEntered; }
+    getData() { return this.keyEntered; }
 };

@@ -1,118 +1,118 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule					= require('./menu_module.js').MenuModule;
-const ViewController				= require('./view_controller.js').ViewController;
-const ansi							= require('./ansi_term.js');
-const theme							= require('./theme.js');
-const Message						= require('./message.js');
-const updateMessageAreaLastReadId	= require('./message_area.js').updateMessageAreaLastReadId;
-const getMessageAreaByTag			= require('./message_area.js').getMessageAreaByTag;
-const User							= require('./user.js');
-const StatLog						= require('./stat_log.js');
-const stringFormat					= require('./string_format.js');
-const MessageAreaConfTempSwitcher	= require('./mod_mixins.js').MessageAreaConfTempSwitcher;
-const { isAnsi, cleanControlCodes, insert }	= require('./string_util.js');
-const Config						= require('./config.js').get;
-const { getAddressedToInfo } 		= require('./mail_util.js');
+//  ENiGMA½
+const MenuModule                    = require('./menu_module.js').MenuModule;
+const ViewController                = require('./view_controller.js').ViewController;
+const ansi                          = require('./ansi_term.js');
+const theme                         = require('./theme.js');
+const Message                       = require('./message.js');
+const updateMessageAreaLastReadId   = require('./message_area.js').updateMessageAreaLastReadId;
+const getMessageAreaByTag           = require('./message_area.js').getMessageAreaByTag;
+const User                          = require('./user.js');
+const StatLog                       = require('./stat_log.js');
+const stringFormat                  = require('./string_format.js');
+const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
+const { isAnsi, cleanControlCodes, insert } = require('./string_util.js');
+const Config                        = require('./config.js').get;
+const { getAddressedToInfo }        = require('./mail_util.js');
 
-//	deps
-const async							= require('async');
-const assert						= require('assert');
-const _								= require('lodash');
-const moment						= require('moment');
+//  deps
+const async                         = require('async');
+const assert                        = require('assert');
+const _                             = require('lodash');
+const moment                        = require('moment');
 
 exports.moduleInfo = {
-    name	: 'Full Screen Editor (FSE)',
-    desc	: 'A full screen editor/viewer',
-    author	: 'NuSkooler',
+    name    : 'Full Screen Editor (FSE)',
+    desc    : 'A full screen editor/viewer',
+    author  : 'NuSkooler',
 };
 
 const MciViewIds = {
     header : {
-        from 				: 1,
-        to					: 2,
-        subject				: 3,
-        errorMsg			: 4,
-        modTimestamp		: 5,
-        msgNum				: 6,
-        msgTotal			: 7,
+        from                : 1,
+        to                  : 2,
+        subject             : 3,
+        errorMsg            : 4,
+        modTimestamp        : 5,
+        msgNum              : 6,
+        msgTotal            : 7,
 
-        customRangeStart	: 10,	//	10+ = customs
+        customRangeStart    : 10,   //  10+ = customs
     },
 
     body : {
-        message	: 1,
+        message : 1,
     },
 
-    //	:TODO: quote builder MCIs - remove all magic #'s
+    //  :TODO: quote builder MCIs - remove all magic #'s
 
-    //	:TODO: consolidate all footer MCI's - remove all magic #'s
+    //  :TODO: consolidate all footer MCI's - remove all magic #'s
     ViewModeFooter : {
-        MsgNum			: 6,
-        MsgTotal		: 7,
-        //	:TODO: Just use custom ranges
+        MsgNum          : 6,
+        MsgTotal        : 7,
+        //  :TODO: Just use custom ranges
     },
 
     quoteBuilder : {
-        quotedMsg	: 1,
-        //	2 NYI
-        quoteLines	: 3,
+        quotedMsg   : 1,
+        //  2 NYI
+        quoteLines  : 3,
     }
 };
 
 /*
-	Custom formatting:
-	header
-		fromUserName
-		toUserName
+    Custom formatting:
+    header
+        fromUserName
+        toUserName
 
-		fromRealName (may be fromUserName) NYI
-		toRealName (may be toUserName) NYI
+        fromRealName (may be fromUserName) NYI
+        toRealName (may be toUserName) NYI
 
-		fromRemoteUser (may be "N/A")
-		toRemoteUser (may be "N/A")
-		subject
-		modTimestamp
-		msgNum
-		msgTotal (in area)
-		messageId
+        fromRemoteUser (may be "N/A")
+        toRemoteUser (may be "N/A")
+        subject
+        modTimestamp
+        msgNum
+        msgTotal (in area)
+        messageId
 */
 
-//	:TODO: convert code in this class to newer styles, conventions, etc. There is a lot of experimental stuff here that has better (DRY) alternatives
+//  :TODO: convert code in this class to newer styles, conventions, etc. There is a lot of experimental stuff here that has better (DRY) alternatives
 
 exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModule extends MessageAreaConfTempSwitcher(MenuModule) {
 
     constructor(options) {
         super(options);
 
-        const self		= this;
-        const config	= this.menuConfig.config;
+        const self      = this;
+        const config    = this.menuConfig.config;
 
         //
-        //	menuConfig.config:
-        //		editorType				: email | area
-        //		editorMode				: view | edit | quote
+        //  menuConfig.config:
+        //      editorType              : email | area
+        //      editorMode              : view | edit | quote
         //
-        //	menuConfig.config or extraArgs
-        //		messageAreaTag
-        //		messageIndex / messageTotal
-        //		toUserId
+        //  menuConfig.config or extraArgs
+        //      messageAreaTag
+        //      messageIndex / messageTotal
+        //      toUserId
         //
-        this.editorType			= config.editorType;
-        this.editorMode			= config.editorMode;
+        this.editorType         = config.editorType;
+        this.editorMode         = config.editorMode;
 
         if(config.messageAreaTag) {
-            //	:TODO: swtich to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
-            this.messageAreaTag	= config.messageAreaTag;
+            //  :TODO: swtich to this.config.messageAreaTag so we can follow Object.assign pattern for config/extraArgs
+            this.messageAreaTag = config.messageAreaTag;
         }
 
-        this.messageIndex		= config.messageIndex || 0;
-        this.messageTotal		= config.messageTotal || 0;
-        this.toUserId			= config.toUserId || 0;
+        this.messageIndex       = config.messageIndex || 0;
+        this.messageTotal       = config.messageTotal || 0;
+        this.toUserId           = config.toUserId || 0;
 
-        //	extraArgs can override some config
+        //  extraArgs can override some config
         if(_.isObject(options.extraArgs)) {
             if(options.extraArgs.messageAreaTag) {
                 this.messageAreaTag = options.extraArgs.messageAreaTag;
@@ -140,7 +140,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
         this.menuMethods = {
             //
-            //	Validation stuff
+            //  Validation stuff
             //
             viewValidationListener : function(err, cb) {
                 var errMsgView = self.viewControllers.header.getView(MciViewIds.header.errorMsg);
@@ -150,7 +150,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         errMsgView.setText(err.message);
 
                         if(MciViewIds.header.subject === err.view.getId()) {
-                            //	:TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
+                            //  :TODO: for "area" mode, should probably just bail if this is emtpy (e.g. cancel)
                         }
                     } else {
                         errMsgView.clearText();
@@ -201,19 +201,19 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 if(self.newQuoteBlock) {
                     self.newQuoteBlock = false;
 
-                    //	:TODO: If replying to ANSI, add a blank sepration line here
+                    //  :TODO: If replying to ANSI, add a blank sepration line here
 
                     quoteMsgView.addText(self.getQuoteByHeader());
                 }
 
                 const quoteListView = self.viewControllers.quoteBuilder.getView(MciViewIds.quoteBuilder.quoteLines);
-                const quoteText		= quoteListView.getItem(formData.value.quote);
+                const quoteText     = quoteListView.getItem(formData.value.quote);
 
                 quoteMsgView.addText(quoteText);
 
                 //
-                //	If this is *not* the last item, advance. Otherwise, do nothing as we
-                //	don't want to jump back to the top and repeat already quoted lines
+                //  If this is *not* the last item, advance. Otherwise, do nothing as we
+                //  don't want to jump back to the top and repeat already quoted lines
                 //
 
                 if(quoteListView.getData() !== quoteListView.getCount() - 1) {
@@ -229,18 +229,18 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 return cb(null);
             },
             /*
-			replyDiscard : function(formData, extraArgs) {
-				//	:TODO: need to prompt yes/no
-				//	:TODO: @method for fallback would be better
-				self.prevMenu();
-			},
-			*/
+            replyDiscard : function(formData, extraArgs) {
+                //  :TODO: need to prompt yes/no
+                //  :TODO: @method for fallback would be better
+                self.prevMenu();
+            },
+            */
             editModeMenuHelp : function(formData, extraArgs, cb) {
                 self.viewControllers.footerEditorMenu.setFocus(false);
                 return self.displayHelp(cb);
             },
             ///////////////////////////////////////////////////////////////////////
-            //	View Mode
+            //  View Mode
             ///////////////////////////////////////////////////////////////////////
             viewModeMenuHelp : function(formData, extraArgs, cb) {
                 self.viewControllers.footerView.setFocus(false);
@@ -266,43 +266,43 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     getFooterName() {
-        return 'footer' + _.upperFirst(this.footerMode);	//	e.g. 'footerEditor', 'footerEditorMenu', ...
+        return 'footer' + _.upperFirst(this.footerMode);    //  e.g. 'footerEditor', 'footerEditorMenu', ...
     }
 
     getFormId(name) {
         return {
-            header				: 0,
-            body				: 1,
-            footerEditor		: 2,
-            footerEditorMenu	: 3,
-            footerView			: 4,
-            quoteBuilder		: 5,
+            header              : 0,
+            body                : 1,
+            footerEditor        : 2,
+            footerEditorMenu    : 3,
+            footerView          : 4,
+            quoteBuilder        : 5,
 
-            help				: 50,
+            help                : 50,
         }[name];
     }
 
     getHeaderFormatObj() {
-        const remoteUserNotAvail 	= this.menuConfig.config.remoteUserNotAvail || 'N/A';
-        const localUserIdNotAvail	= this.menuConfig.config.localUserIdNotAvail || 'N/A';
-        const modTimestampFormat	= this.menuConfig.config.modTimestampFormat || this.client.currentTheme.helpers.getDateTimeFormat();
+        const remoteUserNotAvail    = this.menuConfig.config.remoteUserNotAvail || 'N/A';
+        const localUserIdNotAvail   = this.menuConfig.config.localUserIdNotAvail || 'N/A';
+        const modTimestampFormat    = this.menuConfig.config.modTimestampFormat || this.client.currentTheme.helpers.getDateTimeFormat();
 
         return {
-            //	:TODO: ensure we show real names for form/to if they are enforced in the area
-            fromUserName		: this.message.fromUserName,
-            toUserName			: this.message.toUserName,
-            //	:TODO:
+            //  :TODO: ensure we show real names for form/to if they are enforced in the area
+            fromUserName        : this.message.fromUserName,
+            toUserName          : this.message.toUserName,
+            //  :TODO:
             //fromRealName
             //toRealName
-            fromUserId			: _.get(this.message, 'meta.System.local_from_user_id', localUserIdNotAvail),
-            toUserId			: _.get(this.message, 'meta.System.local_to_user_id', localUserIdNotAvail),
-            fromRemoteUser		: _.get(this.message, 'meta.System.remote_from_user', remoteUserNotAvail),
-            toRemoteUser		: _.get(this.messgae, 'meta.System.remote_to_user', remoteUserNotAvail),
-            subject				: this.message.subject,
-            modTimestamp		: this.message.modTimestamp.format(modTimestampFormat),
-            msgNum				: this.messageIndex + 1,
-            msgTotal			: this.messageTotal,
-            messageId			: this.message.messageId,
+            fromUserId          : _.get(this.message, 'meta.System.local_from_user_id', localUserIdNotAvail),
+            toUserId            : _.get(this.message, 'meta.System.local_to_user_id', localUserIdNotAvail),
+            fromRemoteUser      : _.get(this.message, 'meta.System.remote_from_user', remoteUserNotAvail),
+            toRemoteUser        : _.get(this.messgae, 'meta.System.remote_to_user', remoteUserNotAvail),
+            subject             : this.message.subject,
+            modTimestamp        : this.message.modTimestamp.format(modTimestampFormat),
+            msgNum              : this.messageIndex + 1,
+            msgTotal            : this.messageTotal,
+            messageId           : this.message.messageId,
         };
     }
 
@@ -317,26 +317,26 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         const headerValues = this.viewControllers.header.getFormData().value;
 
         const msgOpts = {
-            areaTag			: this.messageAreaTag,
-            toUserName		: headerValues.to,
-            fromUserName	: this.client.user.username,
-            subject			: headerValues.subject,
-            //	:TODO: don't hard code 1 here:
-            message			: this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
+            areaTag         : this.messageAreaTag,
+            toUserName      : headerValues.to,
+            fromUserName    : this.client.user.username,
+            subject         : headerValues.subject,
+            //  :TODO: don't hard code 1 here:
+            message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
         };
 
         if(this.isReply()) {
-            msgOpts.replyToMsgId	= this.replyToMessage.messageId;
+            msgOpts.replyToMsgId    = this.replyToMessage.messageId;
 
             if(this.replyIsAnsi) {
                 //
-                //	Ensure first characters indicate ANSI for detection down
-                //	the line (other boards/etc.). We also set explicit_encoding
-                //	to packetAnsiMsgEncoding (generally cp437) as various boards
-                //	really don't like ANSI messages in UTF-8 encoding (they should!)
+                //  Ensure first characters indicate ANSI for detection down
+                //  the line (other boards/etc.). We also set explicit_encoding
+                //  to packetAnsiMsgEncoding (generally cp437) as various boards
+                //  really don't like ANSI messages in UTF-8 encoding (they should!)
                 //
-                msgOpts.meta		= { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
-                msgOpts.message		= `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
+                msgOpts.meta        = { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
+                msgOpts.message     = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
             }
         }
 
@@ -363,18 +363,18 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 this.initHeaderViewMode();
                 this.initFooterViewMode();
 
-                const bodyMessageView	= this.viewControllers.body.getView(MciViewIds.body.message);
-                let msg					= this.message.message;
+                const bodyMessageView   = this.viewControllers.body.getView(MciViewIds.body.message);
+                let msg                 = this.message.message;
 
                 if(bodyMessageView && _.has(this, 'message.message')) {
                     //
-                    //	We handle ANSI messages differently than standard messages -- this is required as
-                    //	we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
-                    //	how the author wanted it
+                    //  We handle ANSI messages differently than standard messages -- this is required as
+                    //  we don't want to do things like word wrap ANSI, but instead, trust that it's formatted
+                    //  how the author wanted it
                     //
                     if(isAnsi(msg)) {
                         //
-                        //	Find tearline - we want to color it differently.
+                        //  Find tearline - we want to color it differently.
                         //
                         const tearLinePos = this.message.getTearLinePosition(msg);
 
@@ -383,10 +383,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         }
 
                         bodyMessageView.setAnsi(
-                            msg.replace(/\r?\n/g, '\r\n'),	//	messages are stored with CRLF -> LF
+                            msg.replace(/\r?\n/g, '\r\n'),  //  messages are stored with CRLF -> LF
                             {
-                                prepped				: false,
-                                forceLineTerm		: true,
+                                prepped             : false,
+                                forceLineTerm       : true,
                             }
                         );
                     } else {
@@ -404,7 +404,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             [
                 function buildIfNecessary(callback) {
                     if(self.isEditMode()) {
-                        return self.buildMessage(callback);	//	creates initial self.message
+                        return self.buildMessage(callback); //  creates initial self.message
                     }
 
                     return callback(null);
@@ -422,9 +422,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     }
 
                     //
-                    //	If the message we're replying to is from a remote user
-                    //	don't try to look up the local user ID. Instead, mark the mail
-                    //	for export with the remote to address.
+                    //  If the message we're replying to is from a remote user
+                    //  don't try to look up the local user ID. Instead, mark the mail
+                    //  for export with the remote to address.
                     //
                     if(self.replyToMessage && self.replyToMessage.isFromRemoteUser()) {
                         self.message.setRemoteToUser(self.replyToMessage.meta.System[Message.SystemMetaNames.RemoteFromUser]);
@@ -433,9 +433,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     }
 
                     //
-                    //	Detect if the user is attempting to send to a remote mail type that we support
+                    //  Detect if the user is attempting to send to a remote mail type that we support
                     //
-                    //	:TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
+                    //  :TODO: how to plug in support without tying to various types here? isSupportedExteranlType() or such
                     const addressedToInfo = getAddressedToInfo(self.message.toUserName);
                     if(addressedToInfo.name && Message.AddressFlavor.FTN === addressedToInfo.flavor) {
                         self.message.setRemoteToUser(addressedToInfo.remote);
@@ -444,7 +444,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         return callback(null);
                     }
 
-                    //	we need to look it up
+                    //  we need to look it up
                     User.getUserIdAndNameByLookup(self.message.toUserName, (err, toUserId) => {
                         if(err) {
                             return callback(err);
@@ -466,7 +466,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             if(cb) {
                 cb(null);
             }
-            return;	//	don't inc stats for private messages
+            return; //  don't inc stats for private messages
         }
 
         return StatLog.incrementUserStat(this.client.user, 'post_count', 1, cb);
@@ -479,9 +479,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             [
                 function moveToFooterPosition(callback) {
                     //
-                    //	Calculate footer starting position
+                    //  Calculate footer starting position
                     //
-                    //	row = (header height + body height)
+                    //  row = (header height + body height)
                     //
                     var footerRow = self.header.height + self.body.height;
                     self.client.term.rawWrite(ansi.goto(footerRow, 1));
@@ -489,10 +489,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 },
                 function clearFooterArea(callback) {
                     if(options.clear) {
-                        //	footer up to 3 rows in height
+                        //  footer up to 3 rows in height
 
-                        //	:TODO: We'd like to delete up to N rows, but this does not work
-                        //	in NetRunner:
+                        //  :TODO: We'd like to delete up to N rows, but this does not work
+                        //  in NetRunner:
                         self.client.term.rawWrite(ansi.reset() + ansi.deleteLine(3));
 
                         self.client.term.rawWrite(ansi.reset() + ansi.eraseLine(2));
@@ -519,9 +519,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     redrawScreen(cb) {
-        var comps	= [ 'header', 'body' ];
-        const self	= this;
-        var art		= self.menuConfig.config.art;
+        var comps   = [ 'header', 'body' ];
+        const self  = this;
+        var art     = self.menuConfig.config.art;
 
         self.client.term.rawWrite(ansi.resetScreen());
 
@@ -543,7 +543,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 function displayFooter(callback) {
-                    //	we have to treat the footer special
+                    //  we have to treat the footer special
                     self.redrawFooter( { clear : false, footerName : self.getFooterName() }, function footerDisplayed(err) {
                         callback(err);
                     });
@@ -577,9 +577,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
             if(_.isUndefined(this.viewControllers[footerName])) {
                 var menuLoadOpts = {
-                    callingMenu	: this,
-                    formId		: formId,
-                    mciMap		: artData.mciMap
+                    callingMenu : this,
+                    formId      : formId,
+                    mciMap      : artData.mciMap
                 };
 
                 this.addViewController(
@@ -597,8 +597,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     initSequence() {
         var mciData = { };
-        const self	= this;
-        var art		= self.menuConfig.config.art;
+        const self  = this;
+        var art     = self.menuConfig.config.art;
 
         assert(_.isObject(art));
 
@@ -659,7 +659,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             [
                 function header(callback) {
                     menuLoadOpts.formId = self.getFormId('header');
-                    menuLoadOpts.mciMap	= mciData.header.mciMap;
+                    menuLoadOpts.mciMap = mciData.header.mciMap;
 
                     self.addViewController(
                         'header',
@@ -669,8 +669,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 function body(callback) {
-                    menuLoadOpts.formId	= self.getFormId('body');
-                    menuLoadOpts.mciMap	= mciData.body.mciMap;
+                    menuLoadOpts.formId = self.getFormId('body');
+                    menuLoadOpts.mciMap = mciData.body.mciMap;
 
                     self.addViewController(
                         'body',
@@ -698,12 +698,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     from.acceptsFocus = false;
                     //from.setText(self.client.user.username);
 
-                    //	:TODO: make this a method
+                    //  :TODO: make this a method
                     var body = self.viewControllers.body.getView(MciViewIds.body.message);
                     self.updateTextEditMode(body.getTextEditMode());
                     self.updateEditModePosition(body.getEditPosition());
 
-                    //	:TODO: If view mode, set body to read only... which needs an impl...
+                    //  :TODO: If view mode, set body to read only... which needs an impl...
 
                     callback(null);
                 },
@@ -767,22 +767,22 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     mciReadyHandler(mciData, cb) {
 
         this.createInitialViews(mciData, err => {
-            //	:TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in
-            //	place - if this is for existing usernames else validate spec
+            //  :TODO: Can probably be replaced with @systemMethod:validateUserNameExists when the framework is in
+            //  place - if this is for existing usernames else validate spec
 
             /*
-			self.viewControllers.header.on('leave', function headerViewLeave(view) {
+            self.viewControllers.header.on('leave', function headerViewLeave(view) {
 
-				if(2 === view.id) {	//	"to" field
-					self.validateToUserName(view.getData(), function result(err) {
-						if(err) {
-							//	:TODO: display a error in a %TL area or such
-							view.clearText();
-							self.viewControllers.headers.switchFocus(2);
-						}
-					});
-				}
-			});*/
+                if(2 === view.id) { //  "to" field
+                    self.validateToUserName(view.getData(), function result(err) {
+                        if(err) {
+                            //  :TODO: display a error in a %TL area or such
+                            view.clearText();
+                            self.viewControllers.headers.switchFocus(2);
+                        }
+                    });
+                }
+            });*/
 
             cb(err);
         });
@@ -793,7 +793,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             var posView = this.viewControllers.footerEditor.getView(1);
             if(posView) {
                 this.client.term.rawWrite(ansi.savePos());
-                //	:TODO: Use new formatting techniques here, e.g. state.cursorPositionRow, cursorPositionCol and cursorPositionFormat
+                //  :TODO: Use new formatting techniques here, e.g. state.cursorPositionRow, cursorPositionCol and cursorPositionFormat
                 posView.setText(_.padStart(String(pos.row + 1), 2, '0') + ',' + _.padEnd(String(pos.col + 1), 2, '0'));
                 this.client.term.rawWrite(ansi.restorePos());
             }
@@ -816,16 +816,16 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     initHeaderViewMode() {
-        this.setHeaderText(MciViewIds.header.from,			this.message.fromUserName);
-        this.setHeaderText(MciViewIds.header.to,			this.message.toUserName);
-        this.setHeaderText(MciViewIds.header.subject,		this.message.subject);
-        this.setHeaderText(MciViewIds.header.modTimestamp,	moment(this.message.modTimestamp).format(this.client.currentTheme.helpers.getDateTimeFormat()));
-        this.setHeaderText(MciViewIds.header.msgNum,		(this.messageIndex + 1).toString());
-        this.setHeaderText(MciViewIds.header.msgTotal,		this.messageTotal.toString());
+        this.setHeaderText(MciViewIds.header.from,          this.message.fromUserName);
+        this.setHeaderText(MciViewIds.header.to,            this.message.toUserName);
+        this.setHeaderText(MciViewIds.header.subject,       this.message.subject);
+        this.setHeaderText(MciViewIds.header.modTimestamp,  moment(this.message.modTimestamp).format(this.client.currentTheme.helpers.getDateTimeFormat()));
+        this.setHeaderText(MciViewIds.header.msgNum,        (this.messageIndex + 1).toString());
+        this.setHeaderText(MciViewIds.header.msgTotal,      this.messageTotal.toString());
 
         this.updateCustomViewTextsWithFilter('header', MciViewIds.header.customRangeStart, this.getHeaderFormatObj());
 
-        //	if we changed conf/area we need to update any related standard MCI view
+        //  if we changed conf/area we need to update any related standard MCI view
         this.refreshPredefinedMciViewsByCode('header', [ 'MA', 'MC', 'ML', 'CM' ] );
     }
 
@@ -835,15 +835,15 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         this.setHeaderText(MciViewIds.header.to, this.replyToMessage.fromUserName);
 
         //
-        //	We want to prefix the subject with "RE: " only if it's not already
-        //	that way -- avoid RE: RE: RE: RE: ...
+        //  We want to prefix the subject with "RE: " only if it's not already
+        //  that way -- avoid RE: RE: RE: RE: ...
         //
         let newSubj = this.replyToMessage.subject;
         if(false === /^RE:\s+/i.test(newSubj)) {
             newSubj = `RE: ${newSubj}`;
         }
 
-        this.setHeaderText(MciViewIds.header.subject,	newSubj);
+        this.setHeaderText(MciViewIds.header.subject,   newSubj);
     }
 
     initFooterViewMode() {
@@ -869,7 +869,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     displayQuoteBuilder() {
         //
-        //	Clear body area
+        //  Clear body area
         //
         this.newQuoteBlock = true;
         const self = this;
@@ -877,10 +877,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         async.waterfall(
             [
                 function clearAndDisplayArt(callback) {
-                    //	:TODO: NetRunner does NOT support delete line, so this does not work:
+                    //  :TODO: NetRunner does NOT support delete line, so this does not work:
                     self.client.term.rawWrite(
                         ansi.goto(self.header.height + 1, 1) +
-						ansi.deleteLine((self.client.term.termHeight - self.header.height) - 1));
+                        ansi.deleteLine((self.client.term.termHeight - self.header.height) - 1));
 
                     theme.displayThemeArt( { name : self.menuConfig.config.art.quote, client : self.client }, function displayed(err, artData) {
                         callback(err, artData);
@@ -891,9 +891,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
                     if(_.isUndefined(self.viewControllers.quoteBuilder)) {
                         var menuLoadOpts = {
-                            callingMenu	: self,
-                            formId		: formId,
-                            mciMap		: artData.mciMap,
+                            callingMenu : self,
+                            formId      : formId,
+                            mciMap      : artData.mciMap,
                         };
 
                         self.addViewController(
@@ -909,16 +909,16 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 },
                 function loadQuoteLines(callback) {
                     const quoteView = self.viewControllers.quoteBuilder.getView(MciViewIds.quoteBuilder.quoteLines);
-                    const bodyView	= self.viewControllers.body.getView(MciViewIds.body.message);
+                    const bodyView  = self.viewControllers.body.getView(MciViewIds.body.message);
 
                     self.replyToMessage.getQuoteLines(
                         {
-                            termWidth			: self.client.term.termWidth,
-                            termHeight			: self.client.term.termHeight,
-                            cols				: quoteView.dimens.width,
-                            startCol			: quoteView.position.col,
-                            ansiResetSgr		: bodyView.styleSGR1,
-                            ansiFocusPrefixSgr	: quoteView.styleSGR2,
+                            termWidth           : self.client.term.termWidth,
+                            termHeight          : self.client.term.termHeight,
+                            cols                : quoteView.dimens.width,
+                            startCol            : quoteView.position.col,
+                            ansiResetSgr        : bodyView.styleSGR1,
+                            ansiFocusPrefixSgr  : quoteView.styleSGR2,
                         },
                         (err, quoteLines, focusQuoteLines, replyIsAnsi) => {
                             if(err) {
@@ -959,16 +959,16 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     /*
-	this.observeViewPosition = function() {
-		self.viewControllers.body.getView(MciViewIds.body.message).on('edit position', function positionUpdate(pos) {
-			console.log(pos.percent + ' / ' + pos.below)
-		});
-	};
-	*/
+    this.observeViewPosition = function() {
+        self.viewControllers.body.getView(MciViewIds.body.message).on('edit position', function positionUpdate(pos) {
+            console.log(pos.percent + ' / ' + pos.below)
+        });
+    };
+    */
 
     switchToHeader() {
         this.viewControllers.body.setFocus(false);
-        this.viewControllers.header.switchFocus(2);	//	to
+        this.viewControllers.header.switchFocus(2); //  to
     }
 
     switchToBody() {
@@ -982,7 +982,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         this.viewControllers.header.setFocus(false);
         this.viewControllers.body.setFocus(false);
 
-        this.viewControllers[this.getFooterName()].switchFocus(1);	//	HM1
+        this.viewControllers[this.getFooterName()].switchFocus(1);  //  HM1
     }
 
     switchFromQuoteBuilderToBody() {
@@ -991,7 +991,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         body.redraw();
         this.viewControllers.body.switchFocus(1);
 
-        //	:TODO: create method (DRY)
+        //  :TODO: create method (DRY)
 
         this.updateTextEditMode(body.getTextEditMode());
         this.updateEditModePosition(body.getEditPosition());
@@ -1000,11 +1000,11 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     quoteBuilderFinalize() {
-        //	:TODO: fix magic #'s
-        const quoteMsgView	= this.viewControllers.quoteBuilder.getView(MciViewIds.quoteBuilder.quotedMsg);
-        const msgView		= this.viewControllers.body.getView(MciViewIds.body.message);
+        //  :TODO: fix magic #'s
+        const quoteMsgView  = this.viewControllers.quoteBuilder.getView(MciViewIds.quoteBuilder.quotedMsg);
+        const msgView       = this.viewControllers.body.getView(MciViewIds.body.message);
 
-        let quoteLines 		= quoteMsgView.getData().trim();
+        let quoteLines      = quoteMsgView.getData().trim();
 
         if(quoteLines.length > 0) {
             if(this.replyIsAnsi) {
@@ -1034,8 +1034,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
         const dtFormat = this.menuConfig.config.quoteDateTimeFormat || this.client.currentTheme.helpers.getDateTimeFormat();
         return stringFormat(quoteFormat, {
-            dateTime	: moment(this.replyToMessage.modTimestamp).format(dtFormat),
-            userName	: this.replyToMessage.fromUserName,
+            dateTime    : moment(this.replyToMessage.modTimestamp).format(dtFormat),
+            userName    : this.replyToMessage.fromUserName,
         });
     }
 

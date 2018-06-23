@@ -1,7 +1,7 @@
 /* jslint node: true */
 'use strict';
 
-const _		= require('lodash');
+const _     = require('lodash');
 
 const FTN_ADDRESS_REGEXP = /^([0-9]+:)?([0-9]+)(\/[0-9]+)?(\.[0-9]+)?(@[a-z0-9\-.]+)?$/i;
 const FTN_PATTERN_REGEXP = /^([0-9*]+:)?([0-9*]+)(\/[0-9*]+)?(\.[0-9*]+)?(@[a-z0-9\-.*]+)?$/i;
@@ -25,7 +25,7 @@ module.exports = class Address {
     }
 
     isValid() {
-        //	FTN address is valid if we have at least a net/node
+        //  FTN address is valid if we have at least a net/node
         return _.isNumber(this.net) && _.isNumber(this.node);
     }
 
@@ -36,10 +36,10 @@ module.exports = class Address {
 
         return (
             this.net === other.net &&
-			this.node === other.node &&
-			this.zone === other.zone &&
-			this.point === other.point &&
-			this.domain === other.domain
+            this.node === other.node &&
+            this.zone === other.zone &&
+            this.point === other.point &&
+            this.domain === other.domain
         );
     }
 
@@ -95,36 +95,36 @@ module.exports = class Address {
     }
 
     /*
-	getMatchScore(pattern) {
-		let score = 0;
-		const addr = this.getMatchAddr(pattern);
-		if(addr) {
-			const PARTS = [ 'net', 'node', 'zone', 'point', 'domain' ];
-			for(let i = 0; i < PARTS.length; ++i) {
-				const member = PARTS[i];
-				if(this[member] === addr[member]) {
-					score += 2;
-				} else if('*' === addr[member]) {
-					score += 1;
-				} else {
-					break;
-				}
-			}
-		}
+    getMatchScore(pattern) {
+        let score = 0;
+        const addr = this.getMatchAddr(pattern);
+        if(addr) {
+            const PARTS = [ 'net', 'node', 'zone', 'point', 'domain' ];
+            for(let i = 0; i < PARTS.length; ++i) {
+                const member = PARTS[i];
+                if(this[member] === addr[member]) {
+                    score += 2;
+                } else if('*' === addr[member]) {
+                    score += 1;
+                } else {
+                    break;
+                }
+            }
+        }
 
-		return score;
-	}
-	*/
+        return score;
+    }
+    */
 
     isPatternMatch(pattern) {
         const addr = this.getMatchAddr(pattern);
         if(addr) {
             return (
                 ('*' === addr.net || this.net === addr.net) &&
-				('*' === addr.node || this.node === addr.node) &&
-				('*' === addr.zone || this.zone === addr.zone) &&
-				('*' === addr.point || this.point === addr.point) &&
-				('*' === addr.domain || this.domain === addr.domain)
+                ('*' === addr.node || this.node === addr.node) &&
+                ('*' === addr.zone || this.zone === addr.zone) &&
+                ('*' === addr.point || this.point === addr.point) &&
+                ('*' === addr.domain || this.domain === addr.domain)
             );
         }
 
@@ -137,8 +137,8 @@ module.exports = class Address {
         if(m) {
             //  start with a 2D
             let addr = {
-                net		: parseInt(m[2]),
-                node	: parseInt(m[3].substr(1)),
+                net     : parseInt(m[2]),
+                node    : parseInt(m[3].substr(1)),
             };
 
             //  3D: Addition of zone if present
@@ -165,14 +165,14 @@ module.exports = class Address {
 
         let addrStr = `${this.zone}:${this.net}`;
 
-        //	allow for e.g. '4D' or 5
+        //  allow for e.g. '4D' or 5
         const dim = parseInt(dimensions.toString()[0]);
 
         if(dim >= 3) {
             addrStr += `/${this.node}`;
         }
 
-        //	missing & .0 are equiv for point
+        //  missing & .0 are equiv for point
         if(dim >= 4 && this.point) {
             addrStr += `.${this.point}`;
         }
