@@ -5,30 +5,30 @@
 //var SegfaultHandler = require('segfault-handler');
 //SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
 
-//	ENiGMA½
-const conf			= require('./config.js');
-const logger		= require('./logger.js');
-const database		= require('./database.js');
-const resolvePath	= require('./misc_util.js').resolvePath;
+//  ENiGMA½
+const conf          = require('./config.js');
+const logger        = require('./logger.js');
+const database      = require('./database.js');
+const resolvePath   = require('./misc_util.js').resolvePath;
 
-//	deps
-const async			= require('async');
-const util			= require('util');
-const _				= require('lodash');
-const mkdirs		= require('fs-extra').mkdirs;
-const fs			= require('graceful-fs');
-const paths			= require('path');
+//  deps
+const async         = require('async');
+const util          = require('util');
+const _             = require('lodash');
+const mkdirs        = require('fs-extra').mkdirs;
+const fs            = require('graceful-fs');
+const paths         = require('path');
 
-//	our main entry point
-exports.main	= main;
+//  our main entry point
+exports.main    = main;
 
-//	object with various services we want to de-init/shutdown cleanly if possible
+//  object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
 
-//	only include bbs.js once @ startup; this should be fine
+//  only include bbs.js once @ startup; this should be fine
 const COPYRIGHT = fs.readFileSync(paths.join(__dirname, '../LICENSE.TXT'), 'utf8').split(/\r?\n/g)[0];
 
-const FULL_COPYRIGHT	= `ENiGMA½ ${COPYRIGHT}`;
+const FULL_COPYRIGHT    = `ENiGMA½ ${COPYRIGHT}`;
 const HELP =
 `${FULL_COPYRIGHT}
 usage: main.js <args>
@@ -64,15 +64,15 @@ function main() {
                 conf.init(resolvePath(configFile), function configInit(err) {
 
                     //
-                    //	If the user supplied a path and we can't read/parse it
-                    //	then it's a fatal error
+                    //  If the user supplied a path and we can't read/parse it
+                    //  then it's a fatal error
                     //
                     if(err) {
                         if('ENOENT' === err.code)  {
                             if(configPathSupplied) {
                                 console.error('Configuration file does not exist: ' + configFile);
                             } else {
-                                configPathSupplied = null;	//	make non-fatal; we'll go with defaults
+                                configPathSupplied = null;  //  make non-fatal; we'll go with defaults
                             }
                         } else {
                             console.error(err.toString());
@@ -91,7 +91,7 @@ function main() {
             }
         ],
         function complete(err) {
-            //	note this is escaped:
+            //  note this is escaped:
             fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
                 console.info(FULL_COPYRIGHT);
                 if(!err) {
@@ -129,13 +129,13 @@ function shutdownSystem() {
             },
             function stopListeningServers(callback) {
                 return require('./listening_server.js').shutdown( () => {
-                    return callback(null);	//	ignore err
+                    return callback(null);  //  ignore err
                 });
             },
             function stopEventScheduler(callback) {
                 if(initServices.eventScheduler) {
                     return initServices.eventScheduler.shutdown( () => {
-                        return callback(null);	// ignore err
+                        return callback(null);  // ignore err
                     });
                 } else {
                     return callback(null);
@@ -143,7 +143,7 @@ function shutdownSystem() {
             },
             function stopFileAreaWeb(callback) {
                 require('./file_area_web.js').startup( () => {
-                    return callback(null);	// ignore err
+                    return callback(null);  // ignore err
                 });
             },
             function stopMsgNetwork(callback) {
@@ -180,7 +180,7 @@ function initialize(cb) {
 
                 process.on('SIGINT', shutdownSystem);
 
-                require('later').date.localTime();	//	use local times for later.js/scheduling
+                require('later').date.localTime();  //  use local times for later.js/scheduling
 
                 return callback(null);
             },
@@ -197,7 +197,7 @@ function initialize(cb) {
                 return require('./config_util.js').init(callback);
             },
             function initThemes(callback) {
-                //	Have to pull in here so it's after Config init
+                //  Have to pull in here so it's after Config init
                 require('./theme.js').initAvailableThemes( (err, themeCount) => {
                     logger.log.info({ themeCount }, 'Themes initialized');
                     return callback(err);
@@ -205,10 +205,10 @@ function initialize(cb) {
             },
             function loadSysOpInformation(callback) {
                 //
-                //	Copy over some +op information from the user DB -> system propertys.
-                //	* Makes this accessible for MCI codes, easy non-blocking access, etc.
-                //	* We do this every time as the op is free to change this information just
-                //	  like any other user
+                //  Copy over some +op information from the user DB -> system propertys.
+                //  * Makes this accessible for MCI codes, easy non-blocking access, etc.
+                //  * We do this every time as the op is free to change this information just
+                //    like any other user
                 //
                 const User = require('./user.js');
 
@@ -219,7 +219,7 @@ function initialize(cb) {
                         },
                         function getOpProps(opUserName, next) {
                             const propLoadOpts = {
-                                names	: [ 'real_name', 'sex', 'email_address', 'location', 'affiliation' ],
+                                names   : [ 'real_name', 'sex', 'email_address', 'location', 'affiliation' ],
                             };
                             User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
                                 return next(err, opUserName, opProps);
