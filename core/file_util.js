@@ -51,7 +51,7 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
                 if(err) {
                     //  for some reason fs-extra copy doesn't pass err.code
                     //  :TODO: this is dangerous: submit a PR to fs-extra to set EEXIST
-                    if('EEXIST' === err.code || 'copy' === operation) {
+                    if('EEXIST' === err.code || 'dest already exists.' === err.message) {
                         renameIndex += 1;
                         return cb(null);    //  keep trying
                     }
