@@ -386,7 +386,7 @@ exports.getModule = class UploadModule extends MenuModule {
                         'Failed moving physical upload file', { error : err.message, fileName : newEntry.fileName, source : src, dest : dst }
                     );
 
-                    if(dst !== finalPath) {
+                    if(!err && dst !== finalPath) {
                         //  name changed; ajust before persist
                         newEntry.fileName = paths.basename(finalPath);
                     }
