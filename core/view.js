@@ -100,6 +100,10 @@ function View(options) {
         //this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
         this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
     };
+
+    this.initDefaultWidth = function(width = 15) {
+        this.dimens.width = this.dimens.width || Math.min(width, this.client.term.termWidth - this.position.col);
+    };
 }
 
 util.inherits(View, events.EventEmitter);

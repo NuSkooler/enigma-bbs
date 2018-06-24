@@ -19,6 +19,8 @@ function EditTextView(options) {
 
     TextView.call(this, options);
 
+    this.initDefaultWidth();
+
     this.cursorPos = { row : 0, col : 0 };
 
     this.clientBackspace = function() {

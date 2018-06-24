@@ -35,6 +35,8 @@ function MaskEditTextView(options) {
 
     TextView.call(this, options);
 
+    this.initDefaultWidth();
+
     this.cursorPos          = { x : 0 };
     this.patternArrayPos    = 0;
 

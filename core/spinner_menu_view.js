@@ -17,6 +17,8 @@ function SpinnerMenuView(options) {
 
     MenuView.call(this, options);
 
+    this.initDefaultWidth();
+
     var self = this;
 
     /*

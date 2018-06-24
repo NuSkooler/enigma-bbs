@@ -20,7 +20,7 @@ function VerticalMenuView(options) {
 
     MenuView.call(this, options);
 
-    this.dimens.width = this.dimens.width || Math.min(15, this.client.term.termWidth - this.position.col);
+    this.initDefaultWidth();
 
     const self = this;
 

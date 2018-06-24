@@ -97,6 +97,8 @@ function MultiLineEditTextView(options) {
 
     View.call(this, options);
 
+    this.initDefaultWidth();
+
     var self = this;
 
     //

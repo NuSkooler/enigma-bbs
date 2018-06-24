@@ -14,6 +14,8 @@ function ToggleMenuView (options) {
 
     MenuView.call(this, options);
 
+    this.initDefaultWidth();
+
     var self = this;
 
     /*

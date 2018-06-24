@@ -15,7 +15,7 @@ function ButtonView(options) {
 
     TextView.call(this, options);
 
-    this.dimens.width = this.dimens.width || Math.min(10, this.client.term.termWidth - this.position.col);
+    this.initDefaultWidth();
 }
 
 util.inherits(ButtonView, TextView);
