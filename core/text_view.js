@@ -183,66 +183,22 @@ TextView.prototype.getData = function() {
 TextView.prototype.setText = function(text, redraw) {
     redraw = _.isBoolean(redraw) ? redraw : true;
 
-    if(!_.isString(text)) {
+    if(!_.isString(text)) { //  allow |text| to be numbers/etc.
         text = text.toString();
     }
 
-    text = pipeToAnsi(stripAllLineFeeds(text), this.client);    //  expand MCI/etc.
-
-    var widthDelta = 0;
-    if(this.text && this.text !== text) {
-        widthDelta = Math.abs(renderStringLength(this.text) - renderStringLength(text));
-    }
-
-    this.text = text;
-
+    this.text = pipeToAnsi(stripAllLineFeeds(text), this.client);    //  expand MCI/etc.
     if(this.maxLength > 0) {
         this.text = renderSubstr(this.text, 0, this.maxLength);
-        //this.text = this.text.substr(0, this.maxLength);
     }
 
     //  :TODO: it would be nice to be able to stylize strings with MCI and {special} MCI syntax, e.g. "|BN {UN!toUpper}"
     this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
 
-    if(this.autoScale.width) {
-        this.dimens.width = renderStringLength(this.text) + widthDelta;
-    }
-
     if(redraw) {
         this.redraw();
     }
 };
-
-/*
-TextView.prototype.setText = function(text) {
-    if(!_.isString(text)) {
-        text = text.toString();
-    }
-
-    var widthDelta = 0;
-    if(this.text && this.text !== text) {
-        widthDelta = Math.abs(this.text.length - text.length);
-    }
-
-    this.text = text;
-
-    if(this.maxLength > 0) {
-        this.text = this.text.substr(0, this.maxLength);
-    }
-
-    this.text = stylizeString(this.text, this.hasFocus ? this.focusTextStyle : this.textStyle);
-
-    //if(this.resizable) {
-    //  this.dimens.width = this.text.length + widthDelta;
-    //}
-
-    if(this.autoScale.width) {
-        this.dimens.width = this.text.length + widthDelta;
-    }
-
-    this.redraw();
-};
-*/
 
 TextView.prototype.clearText = function() {
     this.setText('');

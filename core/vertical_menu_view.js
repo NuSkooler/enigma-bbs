@@ -15,10 +15,12 @@ const _             = require('lodash');
 exports.VerticalMenuView        = VerticalMenuView;
 
 function VerticalMenuView(options) {
-    options.cursor  = options.cursor || 'hide';
-    options.justify = options.justify || 'left';
+    options.cursor          = options.cursor || 'hide';
+    options.justify         = options.justify || 'left';
 
     MenuView.call(this, options);
+
+    this.dimens.width = this.dimens.width || Math.min(15, this.client.term.termWidth - this.position.col);
 
     const self = this;
 
@@ -30,24 +32,14 @@ function VerticalMenuView(options) {
         });
     }
 
-    this.performAutoScale = function() {
-        if(this.autoScale.height) {
-            this.dimens.height = (self.items.length * (self.itemSpacing + 1)) - (self.itemSpacing);
-            this.dimens.height = Math.min(self.dimens.height, self.client.term.termHeight - self.position.row);
-        }
-
-        if(self.autoScale.width) {
-            let maxLen = 0;
-            self.items.forEach( item => {
-                if(item.text.length > maxLen) {
-                    maxLen = Math.min(item.text.length, self.client.term.termWidth - self.position.col);
-                }
-            });
-            self.dimens.width = maxLen + 1;
+    this.autoAdjustHeightIfEnabled = function() {
+        if(this.autoAdjustHeight) {
+            this.dimens.height = (this.items.length * (this.itemSpacing + 1)) - (this.itemSpacing);
+            this.dimens.height = Math.min(this.dimens.height, this.client.term.termHeight - this.position.row);
         }
     };
 
-    this.performAutoScale();
+    this.autoAdjustHeightIfEnabled();
 
     this.updateViewVisibleItems = function() {
         self.maxVisibleItems = Math.ceil(self.dimens.height / (self.itemSpacing + 1));
@@ -96,7 +88,7 @@ VerticalMenuView.prototype.redraw = function() {
 
     //  :TODO: rename positionCacheExpired to something that makese sense; combine methods for such
     if(this.positionCacheExpired) {
-        this.performAutoScale();
+        this.autoAdjustHeightIfEnabled();
         this.updateViewVisibleItems();
 
         this.positionCacheExpired = false;
@@ -133,6 +125,7 @@ VerticalMenuView.prototype.setHeight = function(height) {
     VerticalMenuView.super_.prototype.setHeight.call(this, height);
 
     this.positionCacheExpired = true;
+    this.autoAdjustHeight = false;
 };
 
 VerticalMenuView.prototype.setPosition = function(pos) {
@@ -158,7 +151,7 @@ VerticalMenuView.prototype.setFocusItemIndex = function(index) {
         };
 
         this.positionCacheExpired = false;  //  skip standard behavior
-        this.performAutoScale();
+        this.autoAdjustHeightIfEnabled();
     }
 
     this.redraw();

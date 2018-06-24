@@ -31,17 +31,6 @@ function HorizontalMenuView(options) {
         return new Array(self.itemSpacing + 1).join(' ');
     };
 
-    this.performAutoScale = function() {
-        if(self.autoScale.width) {
-            var spacer  = self.getSpacer();
-            var width   = self.items.join(spacer).length + (spacer.length * 2);
-            assert(width <= self.client.term.termWidth - self.position.col);
-            self.dimens.width = width;
-        }
-    };
-
-    this.performAutoScale();
-
     this.cachePositions = function() {
         if(this.positionCacheExpired) {
             var col     = self.position.col;

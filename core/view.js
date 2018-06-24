@@ -37,21 +37,16 @@ function View(options) {
     enigAssert(_.isObject(options));
     enigAssert(_.isObject(options.client));
 
-    var self            = this;
+    this.client             = options.client;
+    this.cursor             = options.cursor || 'show';
+    this.cursorStyle        = options.cursorStyle || 'default';
 
-    this.client         = options.client;
-
-    this.cursor         = options.cursor || 'show';
-    this.cursorStyle    = options.cursorStyle || 'default';
-
-    this.acceptsFocus   = options.acceptsFocus || false;
-    this.acceptsInput   = options.acceptsInput || false;
-
-    this.position       = { x : 0, y : 0 };
-    this.dimens         = { height : 1, width : 0 };
-
-    this.textStyle      = options.textStyle || 'normal';
-    this.focusTextStyle = options.focusTextStyle || this.textStyle;
+    this.acceptsFocus       = options.acceptsFocus || false;
+    this.acceptsInput       = options.acceptsInput || false;
+    this.autoAdjustHeight = _.get(options, 'dimens.height') ? false : _.get(options, 'autoAdjustHeight', true);
+    this.position           = { x : 0, y : 0 };
+    this.textStyle          = options.textStyle || 'normal';
+    this.focusTextStyle     = options.focusTextStyle || this.textStyle;
 
     if(options.id) {
         this.setId(options.id);
@@ -61,15 +56,8 @@ function View(options) {
         this.setPosition(options.position);
     }
 
-    if(_.isObject(options.autoScale)) {
-        this.autoScale = options.autoScale;
-    } else {
-        this.autoScale = { height : true, width : true };
-    }
-
     if(options.dimens) {
         this.setDimension(options.dimens);
-        this.autoScale = { height : false, width : false };
     } else {
         this.dimens = {
             width   : options.width || 0,
@@ -105,7 +93,7 @@ function View(options) {
     };
 
     this.hideCusor = function() {
-        self.client.term.rawWrite(ansi.hideCursor());
+        this.client.term.rawWrite(ansi.hideCursor());
     };
 
     this.restoreCursor = function() {
@@ -148,25 +136,23 @@ View.prototype.setPosition = function(pos) {
 
 View.prototype.setDimension = function(dimens) {
     enigAssert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
-
-    this.dimens     = dimens;
-    this.autoScale  = { height : false, width : false };
+    this.dimens = dimens;
+    this.autoAdjustHeight = false;
 };
 
 View.prototype.setHeight = function(height) {
     height  = parseInt(height) || 1;
     height  = Math.min(height, this.client.term.termHeight);
 
-    this.dimens.height      = height;
-    this.autoScale.height   = false;
+    this.dimens.height = height;
+    this.autoAdjustHeight = false;
 };
 
 View.prototype.setWidth = function(width) {
     width   = parseInt(width) || 1;
     width   = Math.min(width, this.client.term.termWidth);
 
-    this.dimens.width       = width;
-    this.autoScale.width    = false;
+    this.dimens.width = width;
 };
 
 View.prototype.getSGR = function() {
