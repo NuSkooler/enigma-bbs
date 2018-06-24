@@ -6,6 +6,7 @@ const Config            = require('./config.js').get;
 const stringFormat      = require('./string_format.js');
 const Errors            = require('./enig_error.js').Errors;
 const resolveMimeType   = require('./mime_util.js').resolveMimeType;
+const Events            = require('./events.js');
 
 //  base/modules
 const fs        = require('graceful-fs');
@@ -58,9 +59,13 @@ module.exports = class ArchiveUtil {
     }
 
     init() {
-        //
-        //  Load configuration
-        //
+        this.reloadConfig();
+        Events.on(Events.getSystemEvents().ConfigChanged, () => {
+            this.reloadConfig();
+        });
+    }
+
+    reloadConfig() {
         const config = Config();
         if(_.has(config, 'archives.archivers')) {
             Object.keys(config.archives.archivers).forEach(archKey => {

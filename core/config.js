@@ -94,7 +94,12 @@ function init(configPath, options, cb) {
         const reCachedPath = paths.join(fileRoot, fileName);
         ConfigCache.getConfig(reCachedPath, (err, config) => {
             if(!err) {
-                mergeValidateAndFinalize(config);
+                mergeValidateAndFinalize(config, err => {
+                    if(!err) {
+                        const Events = require('./events.js');
+                        Events.emit(Events.getSystemEvents().ConfigChanged);
+                    }
+                });
             }
         });
     };

@@ -6,10 +6,10 @@ module.exports = {
     ClientDisconnected  : 'codes.l33t.enigma.system.disconnected',      //  { client, connectionCount }
     TermDetected        : 'codes.l33t.enigma.system.term_detected',     //  { client }
 
-    ThemeChanged        : 'codes.l33t.enigma.system.theme_changed',     //  { themeId }
-    ConfigChanged       : 'codes.l33t.enigma.system.config_changed',
-    MenusChanged        : 'codes.l33t.enigma.system.menus_changed',
-    PromptsChanged      : 'codes.l33t.enigma.system.prompts_changed',
+    ThemeChanged        : 'codes.l33t.enigma.system.theme_changed',     //  (theme.hjson): { themeId }
+    ConfigChanged       : 'codes.l33t.enigma.system.config_changed',    //  (config.hjson)
+    MenusChanged        : 'codes.l33t.enigma.system.menus_changed',     //  (menu.hjson)
+    PromptsChanged      : 'codes.l33t.enigma.system.prompts_changed',   //  (prompt.hjson)
 
     //  User - includes { user, ...}
     NewUser             : 'codes.l33t.enigma.system.new_user',
