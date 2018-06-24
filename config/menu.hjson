@@ -1020,10 +1020,6 @@
 					action: @menu:mainMenuRumorz
 				}
 				{
-					value: { command: "CHAT"}
-					action: @menu:ercClient
-				}
-				{
 					value: { command: "BBS"}
 					action: @menu:bbsList
 				}
@@ -1467,58 +1463,6 @@
 						{
 							keys: [ "escape" ]
 							action: @method:cancelAdd
-						}
-					]
-				}
-			}
-		}
-
-		ercClient: {
-			art: erc
-			module: erc_client
-			config: {
-				host: localhost
-        		port: 5001
-				bbsTag: CHANGEME
-      		}
-
-			form: {
-				0: {
-					mci: {
-						MT1: {
-							width: 79
-							height: 21
-							mode: preview
-							autoScroll: true
-						}
-						ET3: {
-							autoScale: false
-							width: 77
-							argName: inputArea
-							focus: true
-							submit: true
-						}
-					}
-
-					submit: {
-						*: [
-							{
-								value: { inputArea: null }
-								action: @method:inputAreaSubmit
-							}
-						]
-					}
-					actionKeys: [
-						{
-							keys: [ "tab" ]
-						}
-						{
-							keys: [ "up arrow" ]
-							action: @method:scrollDown
-						}
-						{
-							keys: [ "down arrow" ]
-							action: @method:scrollUp
 						}
 					]
 				}
