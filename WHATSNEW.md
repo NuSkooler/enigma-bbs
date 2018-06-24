@@ -12,6 +12,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * You can now set the `sort` property on a menu to sort items. If `true` items are sorted by `text`. If the value is a string, it represents the key in menu objects to sort by.
 * Hot-reload of configuration files such as menu.hjson, config.hjson, your themes.hjson, etc.: When a file is saved, it will be hot-reloaded into the running system
   * Note that any custom modules should make use of the new Config.get() method.
+* The old concept of `autoScale` has been removed. See https://github.com/NuSkooler/enigma-bbs/issues/166
 
 ## 0.0.8-alpha
 * [Mystic BBS style](http://wiki.mysticbbs.com/doku.php?id=displaycodes) extended pipe color codes. These allow for example, to set "iCE" background colors.
