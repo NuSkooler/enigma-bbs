@@ -14,6 +14,8 @@ function ButtonView(options) {
     options.cursor          = miscUtil.valueWithDefault(options.cursor, 'hide');
 
     TextView.call(this, options);
+
+    this.dimens.width = this.dimens.width || Math.min(10, this.client.term.termWidth - this.position.col);
 }
 
 util.inherits(ButtonView, TextView);
