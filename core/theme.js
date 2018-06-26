@@ -139,14 +139,18 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
     };
 
     function getFormKeys(fromObj) {
-        return _.remove(_.keys(fromObj), function pred(k) {
-            return !isNaN(k);    //  remove all non-numbers
-        });
+        //  remove all non-numbers
+        return _.remove(_.keys(fromObj), k => !isNaN(k));
     }
 
     function mergeMciProperties(dest, src) {
-        Object.keys(src).forEach(function mciEntry(mci) {
-            _.mergeWith(dest[mci], src[mci], mciCustomizer);
+        Object.keys(src).forEach(mci => {
+            if(dest[mci]) {
+                _.mergeWith(dest[mci], src[mci], mciCustomizer);
+            } else {
+                //  theme contains MCI not in menu; bring in as-is
+                dest[mci] = src[mci];
+            }
         });
     }
 
@@ -186,11 +190,9 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
         if(_.isObject(form.mci)) {
             //   non-explicit: no MCI code(s) key assumed since we found 'mci' directly under form ID
             applyThemeMciBlock(form.mci, menuTheme, formKey);
-
         } else {
-            const menuMciCodeKeys = _.remove(_.keys(form), function pred(k) {
-                return k === k.toUpperCase(); //  remove anything not uppercase
-            });
+            //  remove anything not uppercase
+            const menuMciCodeKeys = _.remove(_.keys(form), k => k === k.toUpperCase());
 
             menuMciCodeKeys.forEach(function mciKeyEntry(mciKey) {
                 let applyFrom;
