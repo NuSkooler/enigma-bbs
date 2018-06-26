@@ -492,7 +492,7 @@
 			fileBaseListEntries: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"				
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
@@ -593,7 +593,7 @@
 			newScanFileBaseList: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"				
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
