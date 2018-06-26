@@ -7,6 +7,7 @@ const { Errors }    = require('./enig_error.js');
 const pty           = require('node-pty');
 const decode        = require('iconv-lite').decode;
 const createServer  = require('net').createServer;
+const paths         = require('path');
 
 module.exports = class Door {
     constructor(client) {
@@ -55,12 +56,15 @@ module.exports = class Door {
             return cb(Errors.UnexpectedState('Socket server is not running'));
         }
 
+        const cwd = exeInfo.cwd || paths.dirname(exeInfo.cmd);
+
         const formatObj = {
             dropFile        : exeInfo.dropFile,
             dropFilePath    : exeInfo.dropFilePath,
             node            : exeInfo.node.toString(),
             srvPort         : this.sockServer ? this.sockServer.address().port.toString() : '-1',
             userId          : this.client.user.userId.toString(),
+            cwd             : cwd,
         };
 
         const args = exeInfo.args.map( arg => stringFormat(arg, formatObj) );
@@ -68,7 +72,7 @@ module.exports = class Door {
         const door = pty.spawn(exeInfo.cmd, args, {
             cols        : this.client.term.termWidth,
             rows        : this.client.term.termHeight,
-            //  :TODO: cwd
+            cwd         : cwd,
             env         : exeInfo.env,
             encoding    : null, //  we want to handle all encoding ourself
         });

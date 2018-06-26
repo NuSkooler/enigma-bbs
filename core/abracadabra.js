@@ -149,6 +149,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
         const exeInfo = {
             cmd             : this.config.cmd,
+            cwd             : this.config.cwd,  //  null/undefined=path of |cwd|
             args            : this.config.args,
             io              : this.config.io || 'stdio',
             encoding        : this.config.encoding || this.client.term.outputEncoding,
