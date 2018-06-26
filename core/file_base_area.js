@@ -280,9 +280,17 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 }
 
 //  a simple log proxy for when we call from oputil.js
-function logDebug(obj, msg) {
+const logDebug = (obj, msg) => {
     if(Log) {
         Log.debug(obj, msg);
+    }
+}
+
+const logError = (obj, msg) => {
+    if(Log) {
+        Log.error(obj, msg);
+    } else {
+        console.error(`${msg}: ${JSON.stringify(obj)}`);
     }
 }
 
@@ -709,8 +717,12 @@ function scanFile(filePath, options, iterator, cb) {
                     const nextChunk = () => {
                         fs.read(fd, buffer, 0, chunkSize, null, (err, bytesRead) => {
                             if(err) {
-                                fs.close(fd);
-                                return readErrorCallIter(err, callback);
+                                return fs.close(fd, closeErr => {
+                                    if(closeErr) {
+                                        logError( { filePath, error : err.message }, 'Failed to close file');
+                                    }
+                                    return readErrorCallIter(err, callback);
+                                });
                             }
 
                             if(0 === bytesRead) {
@@ -729,8 +741,12 @@ function scanFile(filePath, options, iterator, cb) {
                                 }
 
                                 stepInfo.step = 'hash_finish';
-                                fs.close(fd);
-                                return callIter(callback);
+                                return fs.close(fd, closeErr => {
+                                    if(closeErr) {
+                                        logError( { filePath, error : err.message }, 'Failed to close file');
+                                    }
+                                    return callIter(callback);
+                                });
                             }
 
                             stepInfo.bytesProcessed     += bytesRead;
