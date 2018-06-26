@@ -92,16 +92,16 @@ exports.getModule = class UploadModule extends MenuModule {
 
             //  validation
             validateNonBlindFileName : (fileName, cb) => {
-                fileName = sanatizeFilename(fileName);  //  remove unsafe chars, path info, etc.
-                if(0 === fileName.length) {
-                    return cb(new Error('Invalid filename'));
-                }
-
                 if(0 === fileName.length) {
                     return cb(new Error('Filename cannot be empty'));
                 }
 
-                //  At least SEXYZ doesn't like non-blind names that start with a number - it becomes confused
+                fileName = sanatizeFilename(fileName);  //  remove unsafe chars, path info, etc.
+                if(0 === fileName.length) { //  sanatize nuked everything?
+                    return cb(new Error('Invalid filename'));
+                }
+
+                //  At least SEXYZ doesn't like non-blind names that start with a number - it becomes confused ;-(
                 if(/^[0-9].*$/.test(fileName)) {
                     return cb(new Error('Invalid filename'));
                 }
