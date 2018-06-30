@@ -67,6 +67,11 @@ function initConfigAndDatabases(cb) {
             function initDb(callback) {
                 db.initializeDatabases(callback);
             },
+            function initArchiveUtil(callback) {
+                //  ensure we init ArchiveUtil without events
+                require('../../core/archive_util').getInstance(true);  //  true=noWatch
+                return callback(null);
+            }
         ],
         err => {
             return cb(err);
