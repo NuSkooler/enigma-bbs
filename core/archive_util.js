@@ -50,19 +50,21 @@ module.exports = class ArchiveUtil {
     }
 
     //  singleton access
-    static getInstance() {
+    static getInstance(noWatch = false) {
         if(!archiveUtil) {
             archiveUtil = new ArchiveUtil();
-            archiveUtil.init();
+            archiveUtil.init(noWatch);
         }
         return archiveUtil;
     }
 
-    init() {
+    init(noWatch = false) {
         this.reloadConfig();
-        Events.on(Events.getSystemEvents().ConfigChanged, () => {
-            this.reloadConfig();
-        });
+        if(!noWatch) {
+            Events.on(Events.getSystemEvents().ConfigChanged, () => {
+                this.reloadConfig();
+            });
+        }
     }
 
     reloadConfig() {
@@ -147,6 +149,10 @@ module.exports = class ArchiveUtil {
     */
 
     detectType(path, cb) {
+        const closeFile = (fd) => {
+            fs.close(fd, () => { /* sadface */ });
+        };
+
         fs.open(path, 'r', (err, fd) => {
             if(err) {
                 return cb(err);
@@ -155,6 +161,7 @@ module.exports = class ArchiveUtil {
             const buf = Buffer.alloc(this.longestSignature);
             fs.read(fd, buf, 0, buf.length, 0, (err, bytesRead) => {
                 if(err) {
+                    closeFile(fd);
                     return cb(err);
                 }
 
@@ -176,6 +183,7 @@ module.exports = class ArchiveUtil {
                     });
                 });
 
+                closeFile(fd);
                 return cb(archFormat ? null : Errors.General('Unknown type'), archFormat);
             });
         });
