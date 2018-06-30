@@ -601,11 +601,8 @@ function getDefaultConfig() {
                     },
                     extract         : {
                         cmd         : 'atr',
-                        //  :TODO: If text, we need to ensure to normalize
-                        //  :TODO: can only do a single file & need full path. May need e.g. {fileName}, '{extractPath}\{fileName}' ???
-                        //  ....create a small wrapper .js: atrex.js --extract {archivePath} --to {extractPath}
                         //  note: -l converts Atari 0x9b line feeds to 0x0a; not ideal if we're dealing with a binary of course.
-                        args        : [ '{archivePath}', 'x', '-a', '-o', '{extractPath}', '{fileList}' ]
+                        args        : [ '{archivePath}', 'x', '-a', '-l', '-o', '{extractPath}', '{fileList}' ]
                     }
                 }
             },
