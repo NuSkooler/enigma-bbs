@@ -916,11 +916,48 @@ function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
 }
 
 function getDescFromFileName(fileName) {
-    //  :TODO: this method could use some more logic to really be nice.
-    const ext   = paths.extname(fileName);
-    const name  = paths.basename(fileName, ext);
+    //
+    //  Example filenames:
+    //
+    //  input                                                               desired output
+    //  -----------------------------------------------------------------------------------------
+    //  Nintendo_Power_Issue_011_March-April_1990.cbr                       Nintendo Power Issue 011 March-April 1990
+    //  Atari User Issue 3 (July 1985).pdf                                  Atari User Issue 3 (July 1985)
+    //  Out_Of_The_Shadows_010__1953_.cbz                                   Out Of The Shadows 010 1953
+    //  ABC A Basic Compiler 1.03 [pro].atr                                 ABC A Basic Compiler 1.03 [pro]
+    //  221B Baker Street v1.0 (1987)(Datasoft)(Side B)[cr The Bounty].zip  221B Baker Street v1.0 (1987)(Datasoft)(Side B)[cr the Bounty]
+    //
+    //  See also:
+    //  * https://scenerules.org/
+    //
 
-    return _.upperFirst(name.replace(/[-_.+]/g, ' ').replace(/\s+/g, ' '));
+    const ext       = paths.extname(fileName);
+    const name      = paths.basename(fileName, ext);
+    const asIsRe    = /([vV]?(?:[0-9]{1,4})(?:\.[0-9]{1,4})+[-+]?(?:[a-z]{1,4})?)|(Incl\.)|(READ\.NFO)/g;
+
+    const normalize = (s) => {
+        return _.upperFirst(s.replace(/[-_.+]/g, ' ').replace(/\s+/g, ' '));
+    };
+
+    let out = '';
+    let m;
+    let pos;
+    do {
+        pos = asIsRe.lastIndex;
+        m = asIsRe.exec(name);
+        if(m) {
+            if(m.index > pos) {
+                out += normalize(name.slice(pos, m.index));
+            }
+            out += m[0];    //  as-is
+        }
+    } while(0 != asIsRe.lastIndex);
+
+    if(pos < name.length) {
+        out += normalize(name.slice(pos));
+    }
+
+    return out;
 }
 
 //
