@@ -100,6 +100,8 @@ function init(configPath, options, cb) {
                         Events.emit(Events.getSystemEvents().ConfigChanged);
                     }
                 });
+            } else {
+                console.stdout(`Configuration ${reCachedPath} is invalid: ${err.message}`); //  eslint-disable-line no-console
             }
         });
     };

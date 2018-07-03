@@ -75,10 +75,10 @@ function main() {
                                 configPathSupplied = null;  //  make non-fatal; we'll go with defaults
                             }
                         } else {
-                            console.error(err.toString());
+                            console.error(err.message);
                         }
                     }
-                    callback(err);
+                    return callback(err);
                 });
             },
             function initSystem(callback) {
@@ -91,14 +91,16 @@ function main() {
             }
         ],
         function complete(err) {
-            //  note this is escaped:
-            fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
-                console.info(FULL_COPYRIGHT);
-                if(!err) {
-                    console.info(banner);
-                }
-                console.info('System started!');
-            });
+            if(!err) {
+                //  note this is escaped:
+                fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
+                    console.info(FULL_COPYRIGHT);
+                    if(!err) {
+                        console.info(banner);
+                    }
+                    console.info('System started!');
+                });
+            }
 
             if(err) {
                 console.error('Error initializing: ' + util.inspect(err));
