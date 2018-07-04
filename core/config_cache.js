@@ -62,7 +62,11 @@ module.exports = new class ConfigCache
                 parsed = hjson.parse(data);
                 this.cache.set(path, parsed);
             } catch(e) {
-                require('./logger.js').log.error( { filePath : path, error : e.message }, 'Failed to re-cache' );
+                try {
+                    require('./logger.js').log.error( { filePath : path, error : e.message }, 'Failed to re-cache' );
+                } catch(ignored) {
+                    //  nothing - we may be failing to parse the config in which we can't log here!
+                }
                 return cb(e);
             }
 
