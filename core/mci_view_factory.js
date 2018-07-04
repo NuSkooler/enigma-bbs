@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const TextView              = require('./text_view.js').TextView;
+const View                  = require('./view.js').View;
 const EditTextView          = require('./edit_text_view.js').EditTextView;
 const ButtonView            = require('./button_view.js').ButtonView;
 const VerticalMenuView      = require('./vertical_menu_view.js').VerticalMenuView;
@@ -184,6 +185,10 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
 
         case 'KE' :
             view = new KeyEntryView(options);
+            break;
+
+        case 'XY' :
+            view = new View(options);
             break;
 
         default :
