@@ -7,6 +7,8 @@ const ViewController                = require('./view_controller.js').ViewContro
 const messageArea                   = require('./message_area.js');
 const stringFormat                  = require('./string_format.js');
 const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
+const Errors                        = require('./enig_error.js').Errors;
+const Message                       = require('./message.js');
 
 //  deps
 const async             = require('async');
@@ -14,7 +16,7 @@ const _                 = require('lodash');
 const moment            = require('moment');
 
 /*
-    Available listFormat/focusListFormat members (VM1):
+    Available listFormat/focusListFormat members for |msgList|
 
     msgNum          : Message number
     to              : To username/handle
@@ -22,22 +24,28 @@ const moment            = require('moment');
     subj            : Subject
     ts              : Message mod timestamp (format with config.dateTimeFormat)
     newIndicator    : New mark/indicator (config.newIndicator)
-
-    MCI codes:
-
-    VM1         : Message list
-    TL2         : Message info 1: { msgNumSelected, msgNumTotal }
 */
-
 exports.moduleInfo = {
     name    : 'Message List',
     desc    : 'Module for listing/browsing available messages',
     author  : 'NuSkooler',
 };
 
+const FormIds = {
+    allViews    : 0,
+    delPrompt   : 1,
+};
+
 const MciViewIds = {
-    msgList         : 1,    //  VM1
-    msgInfo1        : 2,    //  TL2
+    allViews : {
+        msgList             : 1,    //  VM1 - see above
+        delPromptXy         : 2,    //  %XY2, e.g: delete confirmation
+        customRangeStart    : 10,   //  Everything |msgList| has plus { msgNumSelected, msgNumTotal }
+    },
+
+    delPrompt: {
+        prompt  : 1,
+    }
 };
 
 exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(MenuModule) {
@@ -51,7 +59,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
         this.menuMethods = {
             selectMessage : (formData, extraArgs, cb) => {
-                if(MciViewIds.msgList === formData.submitId) {
+                if(MciViewIds.allViews.msgList === formData.submitId) {
                     this.initialFocusIndex = formData.value.message;
 
                     const modOpts = {
@@ -91,10 +99,40 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                     return cb(null);
                 }
             },
-
             fullExit : (formData, extraArgs, cb) => {
                 this.menuResult = { fullExit : true };
                 return this.prevMenu(cb);
+            },
+            deleteSelected : (formData, extraArgs, cb) => {
+                if(MciViewIds.allViews.msgList != formData.submitId) {
+                    return cb(null);
+                }
+                const messageIndex = _.get(formData, 'value.message');
+                return this.promptDeleteMessageConfirm(messageIndex, cb);
+            },
+            deleteMessageYes : (formData, extraArgs, cb) => {
+                const msgListView = this.viewControllers.allViews.getView(MciViewIds.allViews.msgList);
+                this.enableMessageListIndexUpdates(msgListView);
+                if(this.selectedMessageForDelete) {
+                    this.selectedMessageForDelete.deleteMessage(this.client.user, err => {
+                        if(err) {
+                            this.client.log.error(`Failed to delete message: ${this.selectedMessageForDelete.messageUuid}`);
+                        } else {
+                            this.client.log.info(`User deleted message: ${this.selectedMessageForDelete.messageUuid}`);
+                            this.config.messageList.splice(msgListView.focusedItemIndex, 1);
+                            this.updateMessageNumbersAfterDelete(msgListView.focusedItemIndex);
+                            msgListView.setItems(this.config.messageList);
+                        }
+                        this.selectedMessageForDelete = null;
+                        msgListView.redraw();
+                        return cb(null);
+                    });
+                } else {
+                    return cb(null);
+                }
+            },
+            deleteMessageNo : (formData, extraArgs, cb) => {
+                return cb(null);
             }
         };
     }
@@ -128,6 +166,17 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
     leave() {
         this.tempMessageConfAndAreaRestore();
         super.leave();
+    }
+
+    populateCustomLabelsForSelected(selectedIndex) {
+        const formatObj = Object.assign(
+            {
+                msgNumSelected  : (selectedIndex + 1),
+                msgNumTotal     : this.config.messageList.length,
+            },
+            this.config.messageList[selectedIndex] //  plus, all the selected message props
+        );
+        return this.updateCustomViewTextsWithFilter('allViews', MciViewIds.allViews.customRangeStart, formatObj);
     }
 
     mciReady(mciData, cb) {
@@ -183,7 +232,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                     function updateMessageListObjects(callback) {
                         const dateTimeFormat    = self.menuConfig.config.dateTimeFormat || self.client.currentTheme.helpers.getDateTimeFormat();
                         const newIndicator      = self.menuConfig.config.newIndicator || '*';
-                        const regIndicator      = new Array(newIndicator.length + 1).join(' '); //  fill with space to avoid draw issues
+                        const regIndicator      = ' '.repeat(newIndicator.length); //  fill with space to avoid draw issues
 
                         let msgNum = 1;
                         self.config.messageList.forEach( (listItem, index) => {
@@ -200,19 +249,10 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                         });
                         return callback(null);
                     },
-                    function populateList(callback) {
-                        const msgListView           = vc.getView(MciViewIds.msgList);
-                        //  :TODO: replace with standard custom info MCI - msgNumSelected, msgNumTotal, areaName, areaDesc, confName, confDesc, ...
-                        const messageInfo1Format    = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
-
+                    function populateAndDrawViews(callback) {
+                        const msgListView = vc.getView(MciViewIds.allViews.msgList);
                         msgListView.setItems(self.config.messageList);
-
-                        msgListView.on('index update', idx => {
-                            self.setViewText(
-                                'allViews',
-                                MciViewIds.msgInfo1,
-                                stringFormat(messageInfo1Format, { msgNumSelected : (idx + 1), msgNumTotal : self.config.messageList.length } ));
-                        });
+                        self.enableMessageListIndexUpdates(msgListView);
 
                         if(self.initialFocusIndex > 0) {
                             //  note: causes redraw()
@@ -221,14 +261,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                             msgListView.redraw();
                         }
 
-                        return callback(null);
-                    },
-                    function drawOtherViews(callback) {
-                        const messageInfo1Format = self.menuConfig.config.messageInfo1Format || '{msgNumSelected} / {msgNumTotal}';
-                        self.setViewText(
-                            'allViews',
-                            MciViewIds.msgInfo1,
-                            stringFormat(messageInfo1Format, { msgNumSelected : self.initialFocusIndex + 1, msgNumTotal : self.config.messageList.length } ));
+                        self.populateCustomLabelsForSelected(self.initialFocusIndex || 0);
                         return callback(null);
                     },
                 ],
@@ -254,5 +287,70 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
     getMenuResult() {
         return this.menuResult;
+    }
+
+    enableMessageListIndexUpdates(msgListView) {
+        msgListView.on('index update', idx => this.populateCustomLabelsForSelected(idx) );
+    }
+
+    updateMessageNumbersAfterDelete(startIndex) {
+        //  all index -= 1 from this point on.
+        for(let i = startIndex; i < this.config.messageList.length; ++i) {
+            const msgItem = this.config.messageList[i];
+            msgItem.msgNum -= 1;
+            msgItem.text = `${msgItem.msgNum} - ${msgItem.subject} from ${msgItem.fromUserName}`; //  default text
+        }
+    }
+
+    promptDeleteMessageConfirm(messageIndex, cb) {
+        const messageInfo = this.config.messageList[messageIndex];
+        if(!_.isObject(messageInfo)) {
+            return cb(Errors.Invalid(`Invalid message index: ${messageIndex}`));
+        }
+
+        //  :TODO: create static userHasDeleteRights() that takes id || uuid that doesn't require full msg load
+        this.selectedMessageForDelete = new Message();
+        this.selectedMessageForDelete.load( { uuid : messageInfo.messageUuid }, err => {
+            if(err) {
+                this.selectedMessageForDelete = null;
+                return cb(err);
+            }
+
+            if(!this.selectedMessageForDelete.userHasDeleteRights(this.client.user)) {
+                this.selectedMessageForDelete = null;
+                return cb(Errors.AccessDenied('User does not have rights to delete this message'));
+            }
+
+            //  user has rights to delete -- prompt/confirm then proceed
+            return this.promptConfirmDelete(cb);
+        });
+    }
+
+    promptConfirmDelete(cb) {
+        const promptXyView = this.viewControllers.allViews.getView(MciViewIds.allViews.delPromptXy);
+        if(!promptXyView) {
+            return cb(Errors.MissingMci(`Missing prompt XY${MciViewIds.allViews.delPromptXy} MCI`));
+        }
+
+        const promptOpts = {
+            clearAtSubmit : true,
+        };
+        if(promptXyView.dimens.width) {
+            promptOpts.clearWidth = promptXyView.dimens.width;
+        }
+
+        return this.promptForInput(
+            {
+                formName        : 'delPrompt',
+                formId          : FormIds.delPrompt,
+                promptName      : this.config.deleteMessageFromListPrompt || 'deleteMessageFromListPrompt',
+                prevFormName    : 'allViews',
+                position        : promptXyView.position,
+            },
+            promptOpts,
+            err => {
+                return cb(err);
+            }
+        );
     }
 };
