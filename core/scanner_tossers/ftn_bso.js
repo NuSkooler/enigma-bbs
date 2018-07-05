@@ -114,7 +114,7 @@ function FTNMessageScanTossModule() {
     this.getLocalAreaTagByFtnAreaTag = function(ftnAreaTag) {
         ftnAreaTag = ftnAreaTag.toUpperCase();  //  always compare upper
         return _.findKey(Config().messageNetworks.ftn.areas, areaConf => {
-            return areaConf.tag.toUpperCase() === ftnAreaTag;
+            return _.isString(areaConf.tag) && areaConf.tag.toUpperCase() === ftnAreaTag;
         });
     };
 
