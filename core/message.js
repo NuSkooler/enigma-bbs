@@ -137,6 +137,32 @@ module.exports = class Message {
         return null !== _.get(this, 'meta.System.remote_from_user', null);
     }
 
+    /*
+    :TODO: finish me
+    static checkUserHasDeleteRights(user, messageIdOrUuid, cb) {
+        const isMessageId = _.isNumber(messageIdOrUuid);
+        const getMetaName = isMessageId ? 'getMetaValuesByMessageId' : 'getMetaValuesByMessageUuid';
+
+        Message[getMetaName](messageIdOrUuid, 'System', Message.SystemMetaNames.LocalToUserID, (err, localUserId) => {
+            if(err) {
+                return cb(err);
+            }
+
+            //  expect single value
+            if(!_.isString(localUserId)) {
+                return cb(Errors.Invalid(`Invalid ${Message.SystemMetaNames.LocalToUserID} value: ${localUserId}`));
+            }
+
+            localUserId = parseInt(localUserId);
+        });
+    }
+    */
+
+    userHasDeleteRights(user) {
+        const messageLocalUserId = parseInt(this.meta.System[Message.SystemMetaNames.LocalToUserID]);
+        return (this.isPrivate() && user.userId === messageLocalUserId) || user.isSysOp();
+    }
+
     static get WellKnownAreaTags() {
         return WELL_KNOWN_AREA_TAGS;
     }
@@ -656,6 +682,21 @@ module.exports = class Message {
                 } else {
                     return cb(err);
                 }
+            }
+        );
+    }
+
+    deleteMessage(requestingUser, cb) {
+        if(!this.userHasDeleteRights(requestingUser)) {
+            return cb(Errors.AccessDenied('User does not have rights to delete this message'));
+        }
+
+        msgDb.run(
+            `DELETE FROM message
+            WHERE message_uuid = ?;`,
+            [ this.messageUuid ],
+            err => {
+                return cb(err);
             }
         );
     }
