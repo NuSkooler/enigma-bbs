@@ -194,6 +194,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return vc;
     }
 
+    removeViewController(name) {
+        if(this.viewControllers[name]) {
+            this.viewControllers[name].detachClientEvents();
+            delete this.viewControllers[name];
+        }
+    }
+
     detachViewControllers() {
         Object.keys(this.viewControllers).forEach( name => {
             this.viewControllers[name].detachClientEvents();
@@ -370,21 +377,56 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return theme.displayThemedPause(this.client, cb);
     }
 
-    /*
-    :TODO: this needs quite a bit of work - but would be nice: promptForInput(..., (err, formData) => ... )
-    promptForInput(formName, name, options, cb) {
+    promptForInput( { formName, formId, promptName, prevFormName, position } = {}, options, cb) {
         if(!cb && _.isFunction(options)) {
             cb = options;
             options = {};
         }
 
-        options.viewController = this.viewControllers[formName];
+        options.viewController = this.addViewController(
+            formName,
+            new ViewController( { client : this.client, formId } )
+        );
 
-        this.optionalMoveToPosition(options.position);
+        options.trailingLF = _.get(options, 'trailingLF', false);
 
-        return theme.displayThemedPrompt(name, this.client, options, cb);
+        let prevVc;
+        if(prevFormName) {
+            prevVc = this.viewControllers[prevFormName];
+            if(prevVc) {
+                prevVc.setFocus(false);
+            }
+        }
+
+        //let artHeight;
+        options.submitNotify = () => {
+            if(prevVc) {
+                prevVc.setFocus(true);
+            }
+            this.removeViewController(formName);
+            if(options.clearAtSubmit) {
+                this.optionalMoveToPosition(position);
+                if(options.clearWidth) {
+                    this.client.term.rawWrite(`${ansi.reset()}${' '.repeat(options.clearWidth)}`);
+                } else {
+                    //  :TODO: handle multi-rows via artHeight
+                    this.client.term.rawWrite(ansi.eraseLine());
+                }
+            }
+        };
+
+        options.viewController.setFocus(true);
+
+        this.optionalMoveToPosition(position);
+        theme.displayThemedPrompt(promptName, this.client, options, (err, artInfo) => {
+            /*
+            if(artInfo) {
+                artHeight = artInfo.height;
+            }
+            */
+            return cb(err, artInfo);
+        });
     }
-    */
 
     setViewText(formName, mciId, text, appendMultiLine) {
         const view = this.viewControllers[formName].getView(mciId);
