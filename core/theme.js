@@ -12,6 +12,7 @@ const ViewController    = require('./view_controller.js').ViewController;
 const Errors            = require('./enig_error.js').Errors;
 const ErrorReasons      = require('./enig_error.js').ErrorReasons;
 const Events            = require('./events.js');
+const AnsiPrep          = require('./ansi_prep.js');
 
 const fs                = require('graceful-fs');
 const paths             = require('path');
@@ -511,26 +512,47 @@ function displayThemeArt(options, cb) {
     assert(_.isObject(options.client));
     assert(_.isString(options.name));
 
-    getThemeArt(options, (err, artInfo) => {
-        if(err) {
-            return cb(err);
+    async.waterfall(
+        [
+            function getArt(callback) {
+                return getThemeArt(options, callback);
+            },
+            function prepWork(artInfo, callback) {
+                if(_.isObject(options.ansiPrepOptions)) {
+                    AnsiPrep(
+                        artInfo.data,
+                        options.ansiPrepOptions,
+                        (err, prepped) => {
+                            if(!err && prepped) {
+                                artInfo.data = prepped;
+                                return callback(null, artInfo);
+                            }
+                        }
+                    );
+                } else {
+                    return callback(null, artInfo);
+                }
+            },
+            function disp(artInfo, callback) {
+                const displayOpts = {
+                    sauce       : artInfo.sauce,
+                    font        : options.font,
+                    trailingLF  : options.trailingLF,
+                };
+                art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
+                    return callback(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
+                });
+            }
+        ],
+        (err, artData) => {
+            return cb(err, artData);
         }
-        //  :TODO: just use simple merge of options -> displayOptions
-        const displayOpts = {
-            sauce       : artInfo.sauce,
-            font        : options.font,
-            trailingLF  : options.trailingLF,
-        };
-
-        art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
-            return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
-        });
-    });
+    );
 }
 
 function displayThemedPrompt(name, client, options, cb) {
 
-    const useTempViewController = _.isUndefined(options.viewController);
+    const usingTempViewController = _.isUndefined(options.viewController);
 
     async.waterfall(
         [
@@ -549,8 +571,8 @@ function displayThemedPrompt(name, client, options, cb) {
                 //  doing so messes things up -- most terminals that support font
                 //  changing can only display a single font at at time.
                 //
+                const dispOptions = Object.assign( {}, options, promptConfig.options );
                 //  :TODO: We can use term detection to do nifty things like avoid this kind of kludge:
-                const dispOptions = Object.assign( {}, promptConfig.options );
                 if(!options.clearScreen) {
                     dispOptions.font = 'not_really_a_font!';    //  kludge :)
                 }
@@ -582,28 +604,29 @@ function displayThemedPrompt(name, client, options, cb) {
                 client.term.rawWrite(ansi.queryPos());
             },
             function createMCIViews(promptConfig, artInfo, callback) {
-                const tempViewController = useTempViewController ? new ViewController( { client : client } ) : options.viewController;
+                const assocViewController = usingTempViewController ? new ViewController( { client : client } ) : options.viewController;
 
                 const loadOpts = {
-                    promptName  : name,
-                    mciMap      : artInfo.mciMap,
-                    config      : promptConfig,
+                    promptName      : name,
+                    mciMap          : artInfo.mciMap,
+                    config          : promptConfig,
+                    submitNotify    : options.submitNotify,
                 };
 
-                tempViewController.loadFromPromptConfig(loadOpts, () => {
-                    return callback(null, artInfo, tempViewController);
+                assocViewController.loadFromPromptConfig(loadOpts, () => {
+                    return callback(null, artInfo, assocViewController);
                 });
             },
-            function pauseForUserInput(artInfo, tempViewController, callback) {
+            function pauseForUserInput(artInfo, assocViewController, callback) {
                 if(!options.pause) {
-                    return callback(null, artInfo, tempViewController);
+                    return callback(null, artInfo, assocViewController);
                 }
 
                 client.waitForKeyPress( () => {
-                    return callback(null, artInfo, tempViewController);
+                    return callback(null, artInfo, assocViewController);
                 });
             },
-            function clearPauseArt(artInfo, tempViewController, callback) {
+            function clearPauseArt(artInfo, assocViewController, callback) {
                 if(options.clearPrompt) {
                     if(artInfo.startRow && artInfo.height) {
                         client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
@@ -615,19 +638,19 @@ function displayThemedPrompt(name, client, options, cb) {
                     }
                 }
 
-                return callback(null, tempViewController);
+                return callback(null, assocViewController, artInfo);
             }
         ],
-        (err, tempViewController) => {
+        (err, assocViewController, artInfo) => {
             if(err) {
                 client.log.warn( { error : err.message }, `Failed displaying "${name}" prompt` );
             }
 
-            if(tempViewController && useTempViewController) {
-                tempViewController.detachClientEvents();
+            if(assocViewController && usingTempViewController) {
+                assocViewController.detachClientEvents();
             }
 
-            return cb(null);
+            return cb(null, artInfo);
         }
     );
 }
@@ -668,14 +691,7 @@ function displayThemedAsset(assetSpec, client, options, cb) {
         return cb(new Error('Asset not found: ' + assetSpec));
     }
 
-    //  :TODO: just use simple merge of options -> displayOptions
-    var dispOpts = {
-        name            : artAsset.asset,
-        client          : client,
-        font            : options.font,
-        trailingLF      : options.trailingLF,
-    };
-
+    const dispOpts = Object.assign( {}, options, { client, name : artAsset.asset } );
     switch(artAsset.type) {
         case 'art' :
             displayThemeArt(dispOpts, function displayed(err, artData) {
