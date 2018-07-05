@@ -209,10 +209,12 @@
 			messageAreaMessageList: {
 				config: {					
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
 					}
@@ -261,12 +263,17 @@
 			mailMenuInbox: {
 				config: {
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
 						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
 						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
+					}
+					XY2: {
+						width: 30
 					}
 				}
 			}
@@ -468,10 +475,12 @@
 			newScanMessageList: {
 				config: {					
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
 						itemFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
 						focusItemFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
 					}

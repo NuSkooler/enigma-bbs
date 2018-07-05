@@ -133,6 +133,19 @@
 			}
 		},
 
+		deleteMessageFromListPrompt: {
+			art: MSGDELPMPT
+			mci: {
+				TM1: {
+					argName: promptValue
+					items: [ "yes", "no" ]
+					focus: true
+					hotKeys: { Y: 0, N: 1 }
+					hotKeySubmit: true
+				}
+			}
+		}
+
 		"newAreaPostPrompt" : {
 			"art"	: "message_area_new_post",
 			"mci"	: {
