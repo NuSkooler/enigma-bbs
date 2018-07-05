@@ -102,6 +102,8 @@ MenuView.prototype.setItems = function(items) {
         if(this.complexItems) {
             this.itemFormat = this.itemFormat || '{text}';
         }
+
+        this.invalidateRenderCache();
     }
 };
 
@@ -110,9 +112,17 @@ MenuView.prototype.getRenderCacheItem = function(index, focusItem = false) {
     return item && item[focusItem ? 'focus' : 'standard'];
 };
 
+MenuView.prototype.removeRenderCacheItem = function(index) {
+    delete this.renderCache[index];
+};
+
 MenuView.prototype.setRenderCacheItem = function(index, rendered, focusItem = false) {
     this.renderCache[index] = this.renderCache[index] || {};
     this.renderCache[index][focusItem ? 'focus' : 'standard'] = rendered;
+};
+
+MenuView.prototype.invalidateRenderCache = function() {
+    this.renderCache = {};
 };
 
 MenuView.prototype.setSort = function(sort) {
@@ -151,6 +161,8 @@ MenuView.prototype.removeItem = function(index) {
     if(this.focusedItemIndex >= index) {
         this.focusedItemIndex = Math.max(this.focusedItemIndex - 1, 0);
     }
+
+    this.removeRenderCacheItem(index);
 
     this.positionCacheExpired = true;
 };
