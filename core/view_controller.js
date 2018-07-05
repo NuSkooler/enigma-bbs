@@ -32,15 +32,17 @@ function ViewController(options) {
     this.formId         = options.formId || 0;
     this.mciViewFactory = new MCIViewFactory(this.client);  //  :TODO: can this not be a singleton?
     this.noInput        = _.isBoolean(options.noInput) ? options.noInput : false;
-
     this.actionKeyMap   = {};
 
     //
     //  Small wrapper/proxy around handleAction() to ensure we do not allow
     //  input/additional actions queued while performing an action
     //
-    this.handleActionWrapper = function(formData, actionBlock) {
+    this.handleActionWrapper = function(formData, actionBlock, cb) {
         if(self.waitActionCompletion) {
+            if(cb) {
+                return cb(null);
+            }
             return; //  ignore until this is finished!
         }
 
@@ -56,6 +58,9 @@ function ViewController(options) {
             }
 
             self.waitActionCompletion = false;
+            if(cb) {
+                return cb(null);
+            }
         });
     };
 
@@ -570,34 +575,51 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
                     self.on('submit', function promptSubmit(formData) {
                         self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
 
+                        const doSubmitNotify = () => {
+                            if(options.submitNotify) {
+                                options.submitNotify();
+                            }
+                        };
+
+                        const handleIt = (fd, conf) => {
+                            self.handleActionWrapper(fd, conf, () => {
+                                doSubmitNotify();
+                            });
+                        };
+
                         if(_.isString(self.client.currentMenuModule.menuConfig.action)) {
-                            self.handleActionWrapper(formData, self.client.currentMenuModule.menuConfig);
+                            handleIt(formData, self.client.currentMenuModule.menuConfig);
                         } else {
                             //
-                            //  Menus that reference prompts can have a sepcial "submit" block without the
+                            //  Menus that reference prompts can have a special "submit" block without the
                             //  hassle of by-form-id configurations, etc.
                             //
                             //  "submit" : [
                             //      { ... }
                             //  ]
                             //
-                            var menuSubmit = self.client.currentMenuModule.menuConfig.submit;
-                            if(!_.isArray(menuSubmit)) {
-                                self.client.log.debug('No configuration to handle submit');
-                                return;
+                            const menuConfig = self.client.currentMenuModule.menuConfig;
+                            let submitConf;
+                            if(Array.isArray(menuConfig.submit)) {    //  standalone prompts)) {
+                                submitConf = menuConfig.submit;
+                            } else {
+                                //  look for embedded prompt configurations - using their own form ID within the menu
+                                submitConf =
+                                    _.get(menuConfig, [ 'form', formData.id, 'submit', formData.submitId ]) ||
+                                    _.get(menuConfig, [ 'form', formData.id, 'submit', '*' ]);
                             }
 
-                            //
-                            //  Locate matching action block
-                            //
-                            //  :TODO: this is basically the same as for menus -- DRY it up!
-                            for(var c = 0; c < menuSubmit.length; ++c) {
-                                var actionBlock = menuSubmit[c];
+                            if(!Array.isArray(submitConf)) {
+                                doSubmitNotify();
+                                return self.client.log.debug('No configuration to handle submit');
+                            }
 
-                                if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
-                                    self.handleActionWrapper(formData, actionBlock);
-                                    break;  //  there an only be one...
-                                }
+                            //  locate any matching action block
+                            const actionBlock = submitConf.find(actionBlock => _.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator));
+                            if(actionBlock) {
+                                handleIt(formData, actionBlock);
+                            } else {
+                                doSubmitNotify();
                             }
                         }
                     });
@@ -732,27 +754,18 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                     //
                     //  Locate configuration for this form ID
                     //
-                    var confForFormId;
-                    if(_.isObject(formConfig.submit[formData.submitId])) {
-                        confForFormId = formConfig.submit[formData.submitId];
-                    } else if(_.isObject(formConfig.submit['*'])) {
-                        confForFormId = formConfig.submit['*'];
-                    } else {
-                        //  no configuration for this submitId
-                        self.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
-                        return;
+                    const confForFormId =
+                        _.get(formConfig, [ 'submit', formData.submitId ]) ||
+                        _.get(formConfig, [ 'submit', '*' ]);
+
+                    if(!Array.isArray(confForFormId)) {
+                        return self.client.log.debug( { formId : formData.submitId }, 'No configuration for form ID');
                     }
 
-                    //
-                    //  Locate a matching action block based on the submitted data
-                    //
-                    for(var c = 0; c < confForFormId.length; ++c) {
-                        var actionBlock = confForFormId[c];
-
-                        if(_.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator)) {
-                            self.handleActionWrapper(formData, actionBlock);
-                            break;  //  there an only be one...
-                        }
+                    //  locate a matching action block, if any
+                    const actionBlock = confForFormId.find(actionBlock => _.isEqualWith(formData.value, actionBlock.value, self.actionBlockValueComparator));
+                    if(actionBlock) {
+                        self.handleActionWrapper(formData, actionBlock);
                     }
                 });
 
