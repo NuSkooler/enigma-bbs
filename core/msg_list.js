@@ -132,6 +132,8 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                 }
             },
             deleteMessageNo : (formData, extraArgs, cb) => {
+                const msgListView = this.viewControllers.allViews.getView(MciViewIds.allViews.msgList);
+                this.enableMessageListIndexUpdates(msgListView);
                 return cb(null);
             }
         };
