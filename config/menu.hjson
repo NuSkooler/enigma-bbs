@@ -1714,10 +1714,122 @@
 					action: @menu:messageAreaSetNewScanDate
 				}
 				{
+					value: { command: "S" }
+					action: @menu:messageSearch
+				}
+				{
 					value: 1
 					action: @menu:messageArea
 				}
 			]
+		}
+
+		messageSearch: {
+			desc: Message Search
+			module: message_base_search
+			art: MSEARCH
+			config: {
+				messageListMenu: messageAreaSearchMessageList
+			}
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							focus: true
+							argName: searchTerms
+						}
+						BT2: {
+							argName: search
+							text: search
+							submit: true
+						}
+						SM3: {
+							argName: confTag
+						}
+						SM4: {
+							argName: areaTag
+						}
+						ET5: {
+							argName: toUserName
+							maxLength: @config:users.usernameMax
+						}
+						ET6: {
+							argName: fromUserName
+							maxLength: @config:users.usernameMax
+						}
+						BT7: {
+							argName: advancedSearch
+							text: advanced search
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { search: null }
+								action: @method:search
+							}
+							{
+								value: { advancedSearch: null }
+								action: @method:search
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		messageAreaSearchMessageList: {
+			desc: Message Search
+			module: msg_list
+			art: MSRCHLST
+			config: {
+				menuViewPost: messageAreaViewPost
+			}
+			form: {
+				0: {
+					mci:  {
+						VM1: {
+							focus: true
+							submit: true
+							argName: message
+						}
+						TL6: {
+							//	theme me!
+						}
+					}
+					submit: {
+						*: [
+							{
+								value: { message: null }
+								action: @method:selectMessage
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "escape", "q", "shift + q" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		messageSearchNoResults: {
+			desc: Message Search
+			art: MSRCNORES
+			options: {
+				pause: true
+			}
 		}
 
 		messageAreaChangeCurrentConference: {
@@ -2411,7 +2523,7 @@
 				messageAreaTag: private_mail
 			}
 			form: {
-				0: {
+				0: {	//	main list
 					mci:  {
 						VM1: {
 							focus: true
@@ -2432,7 +2544,25 @@
 							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:prevMenu
 						}
+						{
+							keys: [ "delete", "d", "shift + d" ]
+							action: @method:deleteSelected
+						}
 					]
+				}
+				1: {	//	delete prompt form
+					submit: {
+						*: [
+							{
+								value: { promptValue: 0 }
+								action: @method:deleteMessageYes
+							}
+							{
+								value: { promptValue: 1 }
+								action: @method:deleteMessageNo
+							}
+						]
+					}
 				}
 			}
 		}
@@ -2486,7 +2616,117 @@
 					value: { menuOption: "P" }
 					action: @menu:fileBaseSetNewScanDate
 				}
+				{
+					value: { menuOption: "E" }
+					action: @menu:fileBaseExportListFilter
+				}
 			]
+		}
+
+		fileBaseExportListFilter: {
+			module: file_base_search
+			//	:TODO: fixme:
+			art: FSEARCH
+			config: {
+				fileBaseListEntriesMenu: fileBaseExportList
+			}
+			form: {
+				0: {
+					mci: {
+						ET1: {
+							focus: true
+							argName: searchTerms
+						}
+						BT2: {
+							argName: search
+							text: search
+							submit: true
+						}
+						ET3: {
+							maxLength: 64
+							argName: tags
+						}
+						SM4: {
+							maxLength: 64
+							argName: areaIndex
+						}
+						SM5: {
+							items: [
+								"upload date",
+								"uploaded by",
+								"downloads",
+								"rating",
+								"estimated year",
+								"size",
+								"filename"
+							]
+							argName: sortByIndex
+						}
+						SM6: {
+							items: [
+								"decending",
+								"ascending"
+							]
+							argName: orderByIndex
+						}
+						BT7: {
+							argName: advancedSearch
+							text: advanced search
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { search: null }
+								action: @method:search
+							}
+							{
+								value: { advancedSearch: null }
+								action: @method:search
+							}
+						]
+					}
+
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+				}
+			}
+		}
+
+		fileBaseExportList: {
+			module: file_base_user_list_export
+			art: FBLISTEXP
+			options: {
+				pause: true
+			}
+			config: {
+				templates: {
+					entry: file_list_entry.asc
+				}
+			}
+			form: {
+				0: {
+					mci:  {
+						TL1: { }
+						TL2: { }
+					}
+				}
+			}
+		}
+
+		fileBaseExportListNoResults: {
+			desc: Browsing Files
+			art: FBNORES
+			options: {
+				pause: true
+				menuFlags: [ "noHistory", "popParent" ]
+			}
 		}
 
 		fileBaseSetNewScanDate: {
@@ -2694,7 +2934,7 @@
 
 					actionKeys: [
 						{
-							keys: [ "escape" ]
+							keys: [ "escape", "q", "shift + q" ]
 							action: @systemMethod:prevMenu
 						}
 					]
