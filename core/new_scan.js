@@ -10,6 +10,7 @@ const FileEntry                     = require('./file_entry.js');
 const FileBaseFilters               = require('./file_base_filter.js');
 const Errors                        = require('./enig_error.js').Errors;
 const { getAvailableFileAreaTags }  = require('./file_base_area.js');
+const { valueAsArray }              = require('./misc_util.js');
 
 //  deps
 const _                 = require('lodash');
@@ -52,6 +53,7 @@ exports.getModule = class NewScanModule extends MenuModule {
         this.currentScanAux     = {};
 
         //  :TODO: Make this conf/area specific:
+        //  :TODO: Use newer custom info format - TL10+
         const config            = this.menuConfig.config;
         this.scanStartFmt       = config.scanStartFmt || 'Scanning {confName} - {areaName}...';
         this.scanFinishNoneFmt  = config.scanFinishNoneFmt || 'Nothing new';
@@ -109,8 +111,12 @@ exports.getModule = class NewScanModule extends MenuModule {
 
     newScanMessageArea(conf, cb) {
         //  :TODO: it would be nice to cache this - must be done by conf!
-        const sortedAreas   = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } );
-        const currentArea   = sortedAreas[this.currentScanAux.area];
+        const omitMessageAreaTags = valueAsArray(_.get(this, 'menuConfig.config.omitMessageAreaTags', []));
+        const sortedAreas = _.omitBy(
+            msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } ),
+            area => omitMessageAreaTags.includes(area.areaTag)
+        );
+        const currentArea = sortedAreas[this.currentScanAux.area];
 
         //
         //  Scan and update index until we find something. If results are found,
@@ -167,9 +173,10 @@ exports.getModule = class NewScanModule extends MenuModule {
 
     newScanFileBase(cb) {
         //  :TODO: add in steps
+        const omitFileAreaTags = valueAsArray(_.get(this, 'menuConfig.config.omitFileAreaTags', []));
         const filterCriteria = {
             newerThanFileId : FileBaseFilters.getFileBaseLastViewedFileIdByUser(this.client.user),
-            areaTag         : getAvailableFileAreaTags(this.client),
+            areaTag         : getAvailableFileAreaTags(this.client).filter(ft => !omitFileAreaTags.includes(ft)),
             order           : 'ascending',  //  oldest first
         };
 

@@ -12,6 +12,7 @@ exports.valueWithDefault        = valueWithDefault;
 exports.resolvePath             = resolvePath;
 exports.getCleanEnigmaVersion   = getCleanEnigmaVersion;
 exports.getEnigmaUserAgent      = getEnigmaUserAgent;
+exports.valueAsArray            = valueAsArray;
 
 function isProduction() {
     var env = process.env.NODE_ENV || 'dev';
@@ -49,4 +50,11 @@ function getEnigmaUserAgent() {
     const nodeVer = process.version.substr(1);  //  remove 'v' prefix
 
     return `ENiGMA-BBS/${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+}
+
+function valueAsArray(value) {
+    if(!value) {
+        return [];
+    }
+    return Array.isArray(value) ? value : [ value ];
 }
