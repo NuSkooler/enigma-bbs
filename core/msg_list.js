@@ -5,7 +5,6 @@
 const MenuModule                    = require('./menu_module.js').MenuModule;
 const ViewController                = require('./view_controller.js').ViewController;
 const messageArea                   = require('./message_area.js');
-const stringFormat                  = require('./string_format.js');
 const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const Errors                        = require('./enig_error.js').Errors;
 const Message                       = require('./message.js');
@@ -64,7 +63,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
                     const modOpts = {
                         extraArgs   : {
-                            messageAreaTag      : this.getSelectedAreaTag(formData.value.message),// this.config.messageAreaTag,
+                            messageAreaTag      : this.getSelectedAreaTag(formData.value.message),
                             messageList         : this.config.messageList,
                             messageIndex        : formData.value.message,
                             lastMessageNextExit : true,
@@ -135,6 +134,13 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                 const msgListView = this.viewControllers.allViews.getView(MciViewIds.allViews.msgList);
                 this.enableMessageListIndexUpdates(msgListView);
                 return cb(null);
+            },
+            markAllRead : (formData, extraArgs, cb) => {
+                if(this.config.noUpdateLastReadId) {
+                    return cb(null);
+                }
+
+                return this.markAllMessagesAsRead(cb);
             }
         };
     }
@@ -293,6 +299,48 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
 
     enableMessageListIndexUpdates(msgListView) {
         msgListView.on('index update', idx => this.populateCustomLabelsForSelected(idx) );
+    }
+
+    markAllMessagesAsRead(cb) {
+        if(!this.config.messageList || this.config.messageList.length === 0) {
+            return cb(null);    //  nothing to do.
+        }
+
+        //
+        //  Generally we'll have a message list for a specific area,
+        //  but this is not always the case. For a given area, we need
+        //  to find the highest message ID in the list to set a
+        //  last read pointer.
+        //
+        const areaHighestIds = {};
+        this.config.messageList.forEach(msg => {
+            const highestId = areaHighestIds[msg.areaTag];
+            if(highestId) {
+                if(msg.messageId > highestId) {
+                    areaHighestIds[msg.areaTag] = msg.messageId;
+                }
+            } else {
+                areaHighestIds[msg.areaTag] = msg.messageId;
+            }
+        });
+
+        async.forEachOf(areaHighestIds, (highestId, areaTag, nextArea) => {
+            messageArea.updateMessageAreaLastReadId(
+                this.client.user.userId,
+                areaTag,
+                highestId,
+                err => {
+                    if(err) {
+                        this.client.log.warn( { error : err.message }, 'Failed marking area as read');
+                    } else {
+                        this.client.log.info( { highestId, areaTag }, 'User marked area as read');
+                    }
+                    return nextArea(null);  //  always continue
+                }
+            );
+        }, () => {
+            return cb(null);
+        });
     }
 
     updateMessageNumbersAfterDelete(startIndex) {

@@ -783,6 +783,10 @@
 							keys: [ "x", "shift + x" ]
 							action: @method:fullExit
 						}
+						{
+							keys: [ "m", "shift + m" ]
+							action: @method:markAllRead
+						}
 					]
 				}
 			}
