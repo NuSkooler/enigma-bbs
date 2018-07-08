@@ -124,6 +124,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                         }
                         this.selectedMessageForDelete = null;
                         msgListView.redraw();
+                        this.populateCustomLabelsForSelected(msgListView.focusedItemIndex);
                         return cb(null);
                     });
                 } else {
