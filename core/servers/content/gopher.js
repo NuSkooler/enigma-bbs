@@ -156,7 +156,7 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     defaultGenerator(selectorMatch, cb) {
-        this.log.trace( { selector : selectorMatch[0] }, 'Serving default content');
+        this.log.debug( { selector : selectorMatch[0] }, 'Serving default content');
 
         let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'startup_banner.asc');
         bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
@@ -172,7 +172,7 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     notFoundGenerator(selector, cb) {
-        this.log.trace( { selector }, 'Serving not found content');
+        this.log.debug( { selector }, 'Serving not found content');
         return cb('Not found');
     }
 
@@ -205,7 +205,7 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     messageAreaGenerator(selectorMatch, cb) {
-        this.log.trace( { selector : selectorMatch[0] }, 'Serving message area content');
+        this.log.debug( { selector : selectorMatch[0] }, 'Serving message area content');
         //
         //  Selector should be:
         //  /msgarea - list confs
