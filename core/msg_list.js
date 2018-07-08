@@ -324,6 +324,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
             }
         });
 
+        const regIndicator = ' '.repeat( (this.menuConfig.config.newIndicator || '*').length );
         async.forEachOf(areaHighestIds, (highestId, areaTag, nextArea) => {
             messageArea.updateMessageAreaLastReadId(
                 this.client.user.userId,
@@ -333,6 +334,15 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                     if(err) {
                         this.client.log.warn( { error : err.message }, 'Failed marking area as read');
                     } else {
+                        //  update newIndicator on messages
+                        this.config.messageList.forEach(msg => {
+                            if(areaTag === msg.areaTag) {
+                                msg.newIndicator = regIndicator;
+                            }
+                        });
+                        const msgListView = this.viewControllers.allViews.getView(MciViewIds.allViews.msgList);
+                        msgListView.setItems(this.config.messageList);
+                        msgListView.redraw();
                         this.client.log.info( { highestId, areaTag }, 'User marked area as read');
                     }
                     return nextArea(null);  //  always continue
