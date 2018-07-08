@@ -112,10 +112,9 @@ exports.getModule = class NewScanModule extends MenuModule {
     newScanMessageArea(conf, cb) {
         //  :TODO: it would be nice to cache this - must be done by conf!
         const omitMessageAreaTags = valueAsArray(_.get(this, 'menuConfig.config.omitMessageAreaTags', []));
-        const sortedAreas = _.omitBy(
-            msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } ),
-            area => omitMessageAreaTags.includes(area.areaTag)
-        );
+        const sortedAreas = msgArea.getSortedAvailMessageAreasByConfTag(conf.confTag, { client : this.client } ).filter(area => {
+            return area => !omitMessageAreaTags.includes(area.areaTag);
+        });
         const currentArea = sortedAreas[this.currentScanAux.area];
 
         //
