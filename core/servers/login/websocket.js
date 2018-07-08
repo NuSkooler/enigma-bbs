@@ -31,7 +31,11 @@ function WebSocketClient(ws, req, serverType) {
     const self = this;
 
     this.dataHandler = function(data) {
-        self.socketBridge.emit('data', data);
+        if(self.pipedDest) {
+            self.pipedDest.write(data);
+        } else {
+            self.socketBridge.emit('data', data);
+        }
     };
 
     //
@@ -54,9 +58,14 @@ function WebSocketClient(ws, req, serverType) {
             return this.ws.send(data, { binary : true }, cb);
         }
 
-        //  we need to fake some streaming work
+        pipe(dest) {
+            Log.trace('WebSocket SocketBridge pipe()');
+            self.pipedDest = dest;
+        }
+
         unpipe() {
             Log.trace('WebSocket SocketBridge unpipe()');
+            self.pipedDest = null;
         }
 
         resume() {
