@@ -15,7 +15,7 @@ const _                 = require('lodash');
 const moment            = require('moment');
 
 /*
-    Available listFormat/focusListFormat members for |msgList|
+    Available itemFormat/focusItemFormat members for |msgList|
 
     msgNum          : Message number
     to              : To username/handle
