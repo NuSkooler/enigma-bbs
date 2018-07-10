@@ -43,6 +43,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 * Possible breaking changes in FSE: The MCI code `%TL13` for error indicator is now `%TL4`. This is part of a cleanup and standardization on "custom ranges". You may need to update your `theme.hjson` and related artwork.
 * Removed view width auto-size: Some views still can auto-size their height, but in general you should be explicit in your themes
 * More standardization using "custom ranges" and `itemFormat` / `focusItemFormat` semantics. Update your themes!
+* In addition to using `itemFormat`, the `onelinerz` module uses `userName` vs `username` (note the case) to match other modules
 
 
 # 0.0.7-alpha to 0.0.8-alpha

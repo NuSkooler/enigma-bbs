@@ -88,11 +88,15 @@
 
 			fullLoginSequenceOnelinerz: {
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.59}"
+					tsFormat: ddd h:mma
 				}
 				0: {
 					mci: {
-						VM1: { height: 10, width: 20 }
+						VM1: {
+							height: 10
+							width: 20
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
 						TM2: {
 							focusTextStyle: first lower
 						}						
@@ -183,13 +187,15 @@
 			}
 
 			mainMenuOnelinerz: {
-				//	:TODO: Need way to just duplicate entry here & in menu.hjson, e.g. use: someName + must supply next/etc. in menu
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.59}"
+					tsFormat: ddd h:mma
 				}
 				0: {
 					mci: {
-						VM1: { height: 10, width: 10 }
+						VM1: {
+							height: 10
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
 						TM2: {
 							focusTextStyle: first lower
 						}						

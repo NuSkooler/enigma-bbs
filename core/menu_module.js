@@ -319,7 +319,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     prepViewController(name, formId, mciMap, cb) {
-        if(_.isUndefined(this.viewControllers[name])) {
+        const needsCreated = _.isUndefined(this.viewControllers[name]);
+        if(needsCreated) {
             const vcOpts = {
                 client      : this.client,
                 formId      : formId,
@@ -334,13 +335,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
             };
 
             return vc.loadFromMenuConfig(loadOpts, err => {
-                return cb(err, vc);
+                return cb(err, vc, true);
             });
         }
 
         this.viewControllers[name].setFocus(true);
 
-        return cb(null, this.viewControllers[name]);
+        return cb(null, this.viewControllers[name], false);
     }
 
     prepViewControllerWithArt(name, formId, options, cb) {

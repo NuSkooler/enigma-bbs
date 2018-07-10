@@ -9,11 +9,6 @@ const {
     getTransactionDatabase
 }                           = require('./database.js');
 
-const ViewController        = require('./view_controller.js').ViewController;
-const theme                 = require('./theme.js');
-const ansi                  = require('./ansi_term.js');
-const stringFormat          = require('./string_format.js');
-
 //  deps
 const sqlite3               = require('sqlite3');
 const async                 = require('async');
@@ -22,12 +17,8 @@ const moment                = require('moment');
 
 /*
     Module :TODO:
-    * Add pipe code support
-        - override max length & monitor *display* len as user types in order to allow for actual display len with color
-    * Add preview control: Shows preview with pipe codes resolved
     * Add ability to at least alternate formatStrings -- every other
 */
-
 
 exports.moduleInfo = {
     name        : 'Onelinerz',
@@ -37,20 +28,20 @@ exports.moduleInfo = {
 };
 
 const MciViewIds = {
-    ViewForm    :  {
-        Entries     : 1,
-        AddPrompt   : 2,
+    view    :  {
+        entries     : 1,
+        addPrompt   : 2,
     },
-    AddForm : {
-        NewEntry        : 1,
-        EntryPreview    : 2,
-        AddPrompt       : 3,
+    add : {
+        newEntry        : 1,
+        entryPreview    : 2,
+        addPrompt       : 3,
     }
 };
 
 const FormIds = {
-    View    : 0,
-    Add     : 1,
+    view    : 0,
+    add     : 1,
 };
 
 exports.getModule = class OnelinerzModule extends MenuModule {
@@ -115,46 +106,29 @@ exports.getModule = class OnelinerzModule extends MenuModule {
 
         async.waterfall(
             [
-                function clearAndDisplayArt(callback) {
+                function prepArtAndViewController(callback) {
                     if(self.viewControllers.add) {
                         self.viewControllers.add.setFocus(false);
                     }
 
-                    if(clearScreen) {
-                        self.client.term.rawWrite(ansi.resetScreen());
-                    }
-
-                    theme.displayThemedAsset(
-                        self.menuConfig.config.art.entries,
-                        self.client,
-                        { font : self.menuConfig.font, trailingLF : false },
-                        (err, artData) => {
-                            return callback(err, artData);
+                    return self.prepViewControllerWithArt(
+                        'view',
+                        FormIds.view,
+                        {
+                            clearScreen,
+                            trailingLF : false
+                        },
+                        (err, artInfo, wasCreated) => {
+                            if(!wasCreated) {
+                                self.viewControllers.view.setFocus(true);
+                                self.viewControllers.view.getView(MciViewIds.view.addPrompt).redraw();
+                            }
+                            return callback(err);
                         }
                     );
                 },
-                function initOrRedrawViewController(artData, callback) {
-                    if(_.isUndefined(self.viewControllers.add)) {
-                        const vc = self.addViewController(
-                            'view',
-                            new ViewController( { client : self.client, formId : FormIds.View } )
-                        );
-
-                        const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : artData.mciMap,
-                            formId          : FormIds.View,
-                        };
-
-                        return vc.loadFromMenuConfig(loadOpts, callback);
-                    } else {
-                        self.viewControllers.view.setFocus(true);
-                        self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt).redraw();
-                        return callback(null);
-                    }
-                },
                 function fetchEntries(callback) {
-                    const entriesView = self.viewControllers.view.getView(MciViewIds.ViewForm.Entries);
+                    const entriesView = self.viewControllers.view.getView(MciViewIds.view.entries);
                     const limit = entriesView.dimens.height;
                     let entries = [];
 
@@ -179,24 +153,22 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     );
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    const listFormat    = self.menuConfig.config.listFormat || '{username}@{ts}: {oneliner}';// :TODO: should be userName to be consistent
-                    const tsFormat      = self.menuConfig.config.timestampFormat || 'ddd h:mma';
+                    const tsFormat = self.menuConfig.config.timestampFormat || self.client.currentTheme.helpers.getDateFormat('short');
 
                     entriesView.setItems(entries.map( e => {
-                        return stringFormat(listFormat, {
+                        return {
                             userId      : e.user_id,
-                            username    : e.user_name,
+                            userName    : e.user_name,
                             oneliner    : e.oneliner,
                             ts          : e.timestamp.format(tsFormat),
-                        } );
+                        };
                     }));
 
                     entriesView.redraw();
-
                     return callback(null);
                 },
                 function finalPrep(callback) {
-                    const promptView = self.viewControllers.view.getView(MciViewIds.ViewForm.AddPrompt);
+                    const promptView = self.viewControllers.view.getView(MciViewIds.view.addPrompt);
                     promptView.setFocusItemIndex(1);    //  default to NO
                     return callback(null);
                 }
@@ -216,37 +188,41 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             [
                 function clearAndDisplayArt(callback) {
                     self.viewControllers.view.setFocus(false);
-                    self.client.term.rawWrite(ansi.resetScreen());
 
-                    theme.displayThemedAsset(
-                        self.menuConfig.config.art.add,
-                        self.client,
-                        { font : self.menuConfig.font },
-                        (err, artData) => {
-                            return callback(err, artData);
+                    return self.prepViewControllerWithArt(
+                        'add',
+                        FormIds.add,
+                        {
+                            clearScreen : true,
+                            trailingLF  : false
+                        },
+                        (err, artInfo, wasCreated) => {
+                            if(!wasCreated) {
+                                self.viewControllers.add.setFocus(true);
+                                self.viewControllers.add.redrawAll();
+                                self.viewControllers.add.switchFocus(MciViewIds.add.newEntry);
+                            }
+                            return callback(err);
                         }
                     );
                 },
-                function initOrRedrawViewController(artData, callback) {
-                    if(_.isUndefined(self.viewControllers.add)) {
-                        const vc = self.addViewController(
-                            'add',
-                            new ViewController( { client : self.client, formId : FormIds.Add } )
-                        );
-
-                        const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : artData.mciMap,
-                            formId          : FormIds.Add,
-                        };
-
-                        return vc.loadFromMenuConfig(loadOpts, callback);
-                    } else {
-                        self.viewControllers.add.setFocus(true);
-                        self.viewControllers.add.redrawAll();
-                        self.viewControllers.add.switchFocus(MciViewIds.AddForm.NewEntry);
-                        return callback(null);
+                function initPreviewUpdates(callback) {
+                    const previewView   = self.viewControllers.add.getView(MciViewIds.add.entryPreview);
+                    const entryView     = self.viewControllers.add.getView(MciViewIds.add.newEntry);
+                    if(previewView) {
+                        let timerId;
+                        entryView.on('key press', () => {
+                            clearTimeout(timerId);
+                            timerId = setTimeout( () => {
+                                const focused = self.viewControllers.add.getFocusedView();
+                                if(focused === entryView) {
+                                    previewView.setText(entryView.getData());
+                                    focused.setFocus(true);
+                                }
+                            }, 500);
+                        });
                     }
+                    return callback(null);
                 }
             ],
             err => {
@@ -258,8 +234,8 @@ exports.getModule = class OnelinerzModule extends MenuModule {
     }
 
     clearAddForm() {
-        this.setViewText('add', MciViewIds.AddForm.NewEntry, '');
-        this.setViewText('add', MciViewIds.AddForm.EntryPreview, '');
+        this.setViewText('add', MciViewIds.add.newEntry, '');
+        this.setViewText('add', MciViewIds.add.entryPreview, '');
     }
 
     initDatabase(cb) {
