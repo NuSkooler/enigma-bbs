@@ -44,6 +44,19 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 * Removed view width auto-size: Some views still can auto-size their height, but in general you should be explicit in your themes
 * More standardization using "custom ranges" and `itemFormat` / `focusItemFormat` semantics. Update your themes!
 * In addition to using `itemFormat`, the `onelinerz` module uses `userName` vs `username` (note the case) to match other modules
+* `loginServers.webSocket` configuration block has changed to be more consistent with other servers. Example:
+```
+webSocket: {
+    ws: {
+        enabled: true
+    }
+    wss: {
+        enabled: true
+        port: 1234
+    }
+    proxied: true	//	X-Forwarded-Proto: https support
+}
+```
 
 
 # 0.0.7-alpha to 0.0.8-alpha
