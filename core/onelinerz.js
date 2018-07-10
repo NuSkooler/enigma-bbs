@@ -119,7 +119,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             trailingLF : false
                         },
                         (err, artInfo, wasCreated) => {
-                            if(!wasCreated) {
+                            if(!err && !wasCreated) {
                                 self.viewControllers.view.setFocus(true);
                                 self.viewControllers.view.getView(MciViewIds.view.addPrompt).redraw();
                             }
