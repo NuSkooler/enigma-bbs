@@ -1,13 +1,15 @@
 /* jslint node: true */
 'use strict';
 
-const stringFormat  = require('./string_format.js');
-const { Errors }    = require('./enig_error.js');
+const stringFormat      = require('./string_format.js');
+const { Errors }        = require('./enig_error.js');
 
-const pty           = require('node-pty');
-const decode        = require('iconv-lite').decode;
-const createServer  = require('net').createServer;
-const paths         = require('path');
+//  deps
+const pty               = require('node-pty');
+const decode            = require('iconv-lite').decode;
+const createServer      = require('net').createServer;
+const paths             = require('path');
+const sanatizeFilename  = require('sanitize-filename');
 
 module.exports = class Door {
     constructor(client) {
@@ -64,6 +66,8 @@ module.exports = class Door {
             node            : exeInfo.node.toString(),
             srvPort         : this.sockServer ? this.sockServer.address().port.toString() : '-1',
             userId          : this.client.user.userId.toString(),
+            userName        : sanatizeFilename(this.client.user.username),
+            userNameRaw     : this.client.user.username,
             cwd             : cwd,
         };
 

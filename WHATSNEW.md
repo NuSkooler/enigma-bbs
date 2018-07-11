@@ -15,6 +15,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * The old concept of `autoScale` has been removed. See https://github.com/NuSkooler/enigma-bbs/issues/166
 * Ability to delete from personal mailbox (finally!)
 * Add ability to skip file and/or message areas during newscan. Set config.omitFileAreaTags and config.omitMessageAreaTags in new_scan configuration of your menu.hjson
+* `{userName}` (sanatized) and `{userNameRaw}` as well as `{cwd}` have been added to param options when launching a door.
+
 
 ## 0.0.8-alpha
 * [Mystic BBS style](http://wiki.mysticbbs.com/doku.php?id=displaycodes) extended pipe color codes. These allow for example, to set "iCE" background colors.
