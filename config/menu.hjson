@@ -1287,7 +1287,7 @@
 			}
 			config: {
 				art: {
-					entries: ONELINER
+					view: ONELINER
 					add: ONEADD
 				}
 			}
