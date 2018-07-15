@@ -2,16 +2,17 @@
 'use strict';
 
 //  ENiGMA½
-var moduleUtil          = require('./module_util.js');
-var Log                 = require('./logger.js').log;
-var Config              = require('./config.js').get;
-var asset               = require('./asset.js');
-var MCIViewFactory      = require('./mci_view_factory.js').MCIViewFactory;
+const moduleUtil            = require('./module_util.js');
+const Log                   = require('./logger.js').log;
+const Config                = require('./config.js').get;
+const asset                 = require('./asset.js');
+const { MCIViewFactory }    = require('./mci_view_factory.js');
+const { Errors }            = require('./enig_error.js');
 
-var paths               = require('path');
-var async               = require('async');
-var assert              = require('assert');
-var _                   = require('lodash');
+//  deps
+const paths                 = require('path');
+const async                 = require('async');
+const _                     = require('lodash');
 
 exports.loadMenu                        = loadMenu;
 exports.getFormConfigByIDAndMap         = getFormConfigByIDAndMap;
@@ -19,41 +20,37 @@ exports.handleAction                    = handleAction;
 exports.handleNext                      = handleNext;
 
 function getMenuConfig(client, name, cb) {
-    var menuConfig;
-
     async.waterfall(
         [
             function locateMenuConfig(callback) {
                 if(_.has(client.currentTheme, [ 'menus', name ])) {
-                    menuConfig = client.currentTheme.menus[name];
-                    callback(null);
-                } else {
-                    callback(new Error('No menu entry for \'' + name + '\''));
+                    const menuConfig = client.currentTheme.menus[name];
+                    return callback(null, menuConfig);
                 }
+                return callback(Errors.DoesNotExist(`No menu entry for "${name}"`));
             },
-            function locatePromptConfig(callback) {
+            function locatePromptConfig(menuConfig, callback) {
                 if(_.isString(menuConfig.prompt)) {
                     if(_.has(client.currentTheme, [ 'prompts', menuConfig.prompt ])) {
                         menuConfig.promptConfig = client.currentTheme.prompts[menuConfig.prompt];
-                        callback(null);
-                    } else {
-                        callback(new Error('No prompt entry for \'' + menuConfig.prompt + '\''));
+                        return callback(null, menuConfig);
                     }
-                } else {
-                    callback(null);
+                    return callback(Error.DoesNotExist(`No prompt entry for "${menuConfig.prompt}"`));
                 }
+                return callback(null, menuConfig);
             }
         ],
-        function complete(err) {
-            cb(err, menuConfig);
+        (err, menuConfig) => {
+            return cb(err, menuConfig);
         }
     );
 }
 
+//  :TODO: name/client should not be part of options - they are required always
 function loadMenu(options, cb) {
-    assert(_.isObject(options));
-    assert(_.isString(options.name));
-    assert(_.isObject(options.client));
+    if(!_.isString(options.name) || !_.isObject(options.client)) {
+        return cb(Errors.MissingParam('Missing required options'));
+    }
 
     async.waterfall(
         [
@@ -117,16 +114,12 @@ function loadMenu(options, cb) {
 }
 
 function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
-    assert(_.isObject(menuConfig));
-
     if(!_.isObject(menuConfig.form)) {
-        cb(new Error('Invalid or missing \'form\' member for menu'));
-        return;
+        return cb(Errors.MissingParam('Invalid or missing "form" member for menu'));
     }
 
     if(!_.isObject(menuConfig.form[formId])) {
-        cb(new Error('No form found for formId ' + formId));
-        return;
+        return cb(Errors.DoesNotExist(`No form found for formId ${formId}`));
     }
 
     const formForId = menuConfig.form[formId];
@@ -141,8 +134,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
     //
     if(_.isObject(formForId[mciReqKey])) {
         Log.trace( { mciKey : mciReqKey }, 'Using exact configuration key match');
-        cb(null, formForId[mciReqKey]);
-        return;
+        return cb(null, formForId[mciReqKey]);
     }
 
     //
@@ -153,7 +145,7 @@ function getFormConfigByIDAndMap(menuConfig, formId, mciMap, cb) {
         return cb(null, formForId);
     }
 
-    cb(new Error('No matching form configuration found for key \'' + mciReqKey + '\''));
+    return cb(Errors.DoesNotExist(`No matching form configuration found for key "${mciReqKey}"`));
 }
 
 //  :TODO: Most of this should be moved elsewhere .... DRY...
@@ -176,11 +168,14 @@ function callModuleMenuMethod(client, asset, path, formData, extraArgs, cb) {
 }
 
 function handleAction(client, formData, conf, cb) {
-    assert(_.isObject(conf));
-    assert(_.isString(conf.action));
+    if(!_.isObject(conf)) {
+        return cb(Errors.MissingParam('Missing config'));
+    }
 
     const actionAsset = asset.parseAsset(conf.action);
-    assert(_.isObject(actionAsset));
+    if(!_.isObject(actionAsset)) {
+        return cb(Errors.Invalid('Unable to parse "conf.action"'));
+    }
 
     switch(actionAsset.type) {
         case 'method' :
@@ -210,7 +205,7 @@ function handleAction(client, formData, conf, cb) {
                     return currentModule.menuMethods[actionAsset.asset](formData, conf.extraArgs, cb);
                 }
 
-                const err = new Error('Method does not exist');
+                const err = Errors.DoesNotExist('Method does not exist');
                 client.log.warn( { method : actionAsset.asset }, err.message);
                 return cb(err);
             }
@@ -246,7 +241,7 @@ function handleNext(client, nextSpec, conf, cb) {
                     return currentModule.menuMethods[nextAsset.asset]( formData, extraArgs, cb );
                 }
 
-                const err = new Error('Method does not exist');
+                const err = Errors.DoesNotExist('Method does not exist');
                 client.log.warn( { method : nextAsset.asset }, err.message);
                 return cb(err);
             }
@@ -255,7 +250,7 @@ function handleNext(client, nextSpec, conf, cb) {
             return client.currentMenuModule.gotoMenu(nextAsset.asset, { extraArgs : extraArgs }, cb );
     }
 
-    const err = new Error('Invalid asset type for "next"');
+    const err = Errors.Invalid('Invalid asset type for "next"');
     client.log.error( { nextSpec : nextSpec }, err.message);
     return cb(err);
 }
