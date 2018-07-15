@@ -29,19 +29,23 @@ const ALL_ASSETS = [
     'sysStat',
 ];
 
-const ASSET_RE = new RegExp('\\@(' + ALL_ASSETS.join('|') + ')\\:([\\w\\d\\.]*)(?:\\/([\\w\\d\\_]+))*');
+const ASSET_RE = new RegExp(
+    '^@(' + ALL_ASSETS.join('|') + ')' +
+    /:(?:([^:]+):)?([A-Za-z0-9_\-.]+)$/.source
+);
 
 function parseAsset(s) {
     const m = ASSET_RE.exec(s);
-
     if(m) {
-        let result = { type : m[1] };
+        const result = { type : m[1] };
 
         if(m[3]) {
-            result.location = m[2];
-            result.asset    = m[3];
+            result.asset = m[3];
+            if(m[2]) {
+                result.location = m[2];
+            }
         } else {
-            result.asset    = m[2];
+            result.asset = m[2];
         }
 
         return result;
