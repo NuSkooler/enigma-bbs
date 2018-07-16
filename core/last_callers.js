@@ -89,11 +89,11 @@ exports.getModule = class LastCallersModule extends MenuModule {
                                 //  If we have enough items to display, or hideSysOpLogin is set to 'always',
                                 //  then set loginHistory to our filtered list. Else, we'll leave it be.
                                 //
-                                if(noOpLoginHistory.length >= callersView.dimens.height || 'always' === self.menuConfig.config.hideSysOpLogin) {
-                                    loginHistory = noOpLoginHistory;
-                                }
-                                else if(mergeOpLoginHistory.length >= callersView.dimens.height && 'merge' === self.menuConfig.config.hideSysOpLogin) {
+                                if(mergeOpLoginHistory.length >= callersView.dimens.height && 'merge' === self.menuConfig.config.hideSysOpLogin) {
                                     loginHistory = mergeOpLoginHistory;
+                                }
+                                else if(noOpLoginHistory.length >= callersView.dimens.height || 'always' === self.menuConfig.config.hideSysOpLogin) {
+                                    loginHistory = noOpLoginHistory;
                                 }
                             }
 
