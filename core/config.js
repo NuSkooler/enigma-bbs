@@ -747,7 +747,8 @@ function getDefaultConfig() {
 
                 //  common README filename - https://en.wikipedia.org/wiki/README
                 descLong        : [
-                    '^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'    //  eslint-disable-line no-useless-escape
+                    '^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$',//  eslint-disable-line no-useless-escape
+                    '^RELEASE-INFO.ASC$'    //  eslint-disable-line no-useless-escape
                 ],
             },
 
