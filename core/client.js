@@ -111,12 +111,13 @@ function Client(/*input, output*/) {
         this.input.on('data', this.dataHandler);
     };
 
-    Events.on(Events.getSystemEvents().ThemeChanged, ( { themeId } ) => {
-        if(_.get(this.currentTheme, 'info.themeId') === themeId) {
-            this.currentTheme = require('./theme.js').getAvailableThemes().get(themeId);
+    this.themeChangedListener = function( { themeId } ) {
+        if(_.get(self.currentTheme, 'info.themeId') === themeId) {
+            self.currentTheme = require('./theme.js').getAvailableThemes().get(themeId);
         }
-    });
+    };
 
+    Events.on(Events.getSystemEvents().ThemeChanged, this.themeChangedListener);
 
     //
     //  Peek at incoming |data| and emit events for any special
@@ -458,7 +459,9 @@ Client.prototype.end = function () {
         this.term.disconnect();
     }
 
-    var currentModule = this.menuStack.getCurrentModule;
+    Events.removeListener(Events.getSystemEvents().ThemeChanged, this.themeChangedListener);
+
+    const currentModule = this.menuStack.getCurrentModule;
 
     if(currentModule) {
         currentModule.leave();
@@ -470,10 +473,9 @@ Client.prototype.end = function () {
         //
         //  We can end up calling 'end' before TTY/etc. is established, e.g. with SSH
         //
-        //  :TODO: is this OK?
         return this.output.end.apply(this.output, arguments);
     } catch(e) {
-        //  TypeError
+        //  ie TypeError
     }
 };
 
