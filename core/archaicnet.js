@@ -52,9 +52,12 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
                     let pipeRestored = false;
                     let pipedStream;
                     const restorePipe = function() {
-                        if(pipedStream && !pipeRestored && !clientTerminated) {
-                            self.client.term.output.unpipe(pipedStream);
-                            self.client.term.output.resume();
+                        if(!pipeRestored) {
+                            if(pipedStream && !clientTerminated) {
+                                self.client.term.output.unpipe(pipedStream);
+                                self.client.term.output.resume();
+                            }
+                            self.client.restoreDataHandler();
                         }
                     };
 
@@ -82,8 +85,15 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
                             pipedStream = stream;
                             self.client.term.output.pipe(stream);
 
-                            stream.on('data', d => {
-                                return self.client.term.rawWrite(d);
+                            //  we need to filter I/O for escape/de-escaping zmodem and the like
+                            self.client.setTemporaryDirectDataHandler(data => {
+                                const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
+                                stream.write(Buffer.from(tmp, 'binary'));
+                            });
+
+                            stream.on('data', data => {
+                                const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');   //  escape
+                                self.client.term.rawWrite(Buffer.from(tmp, 'binary'));
                             });
 
                             stream.on('close', () => {
