@@ -24,8 +24,8 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
         //  establish defaults
         this.config             = options.menuConfig.config;
         this.config.host        = this.config.host || 'bbs.archaicbinary.net';
-        this.config.sshPort     = this.config.sshPort || 8513;
-        this.config.rloginPort  = this.config.rloginPort || 2222;
+        this.config.sshPort     = this.config.sshPort || 2222;
+        this.config.rloginPort  = this.config.rloginPort || 8513;
     }
 
     initSequence() {
@@ -49,15 +49,12 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
 
                     const sshClient = new SSHClient();
 
-                    let pipeRestored = false;
-                    let pipedStream;
+                    let needRestore = false;
+                    //let pipedStream;
                     const restorePipe = function() {
-                        if(!pipeRestored) {
-                            if(pipedStream && !clientTerminated) {
-                                self.client.term.output.unpipe(pipedStream);
-                                self.client.term.output.resume();
-                            }
+                        if(needRestore && !clientTerminated) {
                             self.client.restoreDataHandler();
+                            needRestore = false;
                         }
                     };
 
@@ -82,14 +79,12 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
                             const rlogin = `\x00${self.client.user.username}\x00[${self.config.bbsTag}]${self.client.user.username}\x00${self.client.term.termType}\x00`;
                             stream.write(rlogin);
 
-                            pipedStream = stream;
-                            self.client.term.output.pipe(stream);
-
                             //  we need to filter I/O for escape/de-escaping zmodem and the like
                             self.client.setTemporaryDirectDataHandler(data => {
                                 const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
                                 stream.write(Buffer.from(tmp, 'binary'));
                             });
+                            needRestore = true;
 
                             stream.on('data', data => {
                                 const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');   //  escape
@@ -115,6 +110,7 @@ exports.getModule = class ArchaicNETModule extends MenuModule {
                         return callback(null);
                     });
 
+                    self.client.log.trace( { host : self.config.host, port : self.config.sshPort }, 'Connecting to ArchaicNET');
                     sshClient.connect( {
                         host        : self.config.host,
                         port        : self.config.sshPort,
