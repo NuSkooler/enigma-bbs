@@ -187,6 +187,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return this.client.menuStack.goto(name, options, cb);
     }
 
+    reload(cb) {
+        const prevMenu = this.client.menuStack.pop();
+        prevMenu.instance.leave();
+        return this.client.menuStack.goto(prevMenu.name, cb);
+    }
+
     addViewController(name, vc) {
         assert(!this.viewControllers[name], `ViewController by the name of "${name}" already exists!`);
 

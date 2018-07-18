@@ -87,11 +87,9 @@ function nextMenu(callingMenu, formData, extraArgs, cb) {
     });
 }
 
-//  :TODO: prev/nextConf, prev/nextArea should use a NYI MenuModule.redraw() or such -- avoid pop/goto() hack!
+//  :TODO: need redrawMenu() and MenuModule.redraw()
 function reloadMenu(menu, cb) {
-    const prevMenu = menu.client.menuStack.pop();
-    prevMenu.instance.leave();
-    menu.client.menuStack.goto(prevMenu.name, cb);
+    return menu.reload(cb);
 }
 
 function prevConf(callingMenu, formData, extraArgs, cb) {
