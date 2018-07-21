@@ -64,6 +64,7 @@
         - Combatnet
         - Exodus
     - [Existing Mods]({{ site.baseurl }}{% link modding/existing-mods.md %})
+    - [Last Callers]({{ site.baseurl }}{% link modding/last-callers.md %})
  
   - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
