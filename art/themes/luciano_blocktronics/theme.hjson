@@ -143,11 +143,14 @@
 
 			mainMenuLastCallers: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10, width: 20 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
 				}
 			}
 
@@ -422,11 +425,14 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10, width: 20 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
 				}
 			}
 
