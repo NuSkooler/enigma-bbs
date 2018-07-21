@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const Config    = require('./config.js').get;
+const Log       = require('./logger.js').log;
 
 //  deps
 const fs        = require('graceful-fs');
@@ -10,12 +11,14 @@ const paths     = require('path');
 const _         = require('lodash');
 const assert    = require('assert');
 const async     = require('async');
+const glob      = require('glob');
 
 //  exports
 exports.loadModuleEx            = loadModuleEx;
 exports.loadModule              = loadModule;
 exports.loadModulesForCategory  = loadModulesForCategory;
 exports.getModulePaths          = getModulePaths;
+exports.initializeModules       = initializeModules;
 
 function loadModuleEx(options, cb) {
     assert(_.isObject(options));
@@ -107,4 +110,55 @@ function getModulePaths() {
         config.paths.contentServers,
         config.paths.scannerTossers,
     ];
+}
+
+function initializeModules(cb) {
+    const Events = require('./events.js');
+
+    const modulePaths = getModulePaths().concat(__dirname);
+
+    async.each(modulePaths, (modulePath, nextPath) => {
+        glob('*{.js,/*.js}', { cwd : modulePath }, (err, files) => {
+            if(err) {
+                return nextPath(err);
+            }
+
+            const ourPath = paths.join(__dirname, __filename);
+
+            async.each(files, (moduleName, nextModule) => {
+                const fullModulePath = paths.join(modulePath, moduleName);
+                if(ourPath === fullModulePath) {
+                    return nextModule(null);
+                }
+
+                try {
+                    const mod = require(fullModulePath);
+
+                    if(_.isFunction(mod.moduleInitialize)) {
+                        const initInfo = {
+                            events : Events,
+                        };
+
+                        mod.moduleInitialize(initInfo, err => {
+                            if(err) {
+                                Log.warn( { error : err.message, modulePath : fullModulePath }, 'Error during "moduleInitialize"');
+                            }
+                            return nextModule(null);
+                        });
+                    } else {
+                        return nextModule(null);
+                    }
+                } catch(e) {
+                    Log.warn( { error : e }, 'Exception during "moduleInitialize"');
+                    return nextModule(null);
+                }
+            },
+            err => {
+                return nextPath(err);
+            });
+        });
+    },
+    err => {
+        return cb(err);
+    });
 }

@@ -1,11 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule        = require('./menu_module.js').MenuModule;
+const { MenuModule }    = require('./menu_module.js');
 const DropFile          = require('./dropfile.js');
 const Door              = require('./door.js');
 const theme             = require('./theme.js');
 const ansi              = require('./ansi_term.js');
+const Events            = require('./events.js');
 
 const async             = require('async');
 const assert            = require('assert');
@@ -145,6 +146,8 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     }
 
     runDoor() {
+        Events.emit(Events.getSystemEvents().UserRunDoor, { user : this.client.user } );
+
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {

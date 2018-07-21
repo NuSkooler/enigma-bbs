@@ -2,26 +2,34 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule                    = require('./menu_module.js').MenuModule;
-const ViewController                = require('./view_controller.js').ViewController;
-const ansi                          = require('./ansi_term.js');
-const theme                         = require('./theme.js');
-const Message                       = require('./message.js');
-const updateMessageAreaLastReadId   = require('./message_area.js').updateMessageAreaLastReadId;
-const getMessageAreaByTag           = require('./message_area.js').getMessageAreaByTag;
-const User                          = require('./user.js');
-const StatLog                       = require('./stat_log.js');
-const stringFormat                  = require('./string_format.js');
-const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
-const { isAnsi, cleanControlCodes, insert } = require('./string_util.js');
-const Config                        = require('./config.js').get;
-const { getAddressedToInfo }        = require('./mail_util.js');
+const { MenuModule }            = require('./menu_module.js');
+const { ViewController }        = require('./view_controller.js');
+const ansi                      = require('./ansi_term.js');
+const theme                     = require('./theme.js');
+const Message                   = require('./message.js');
+const {
+    updateMessageAreaLastReadId
+}                               = require('./message_area.js');
+const { getMessageAreaByTag }   = require('./message_area.js');
+const User                      = require('./user.js');
+const StatLog                   = require('./stat_log.js');
+const stringFormat              = require('./string_format.js');
+const {
+    MessageAreaConfTempSwitcher
+}                               = require('./mod_mixins.js');
+const {
+    isAnsi, cleanControlCodes,
+    insert
+}                               = require('./string_util.js');
+const Config                    = require('./config.js').get;
+const { getAddressedToInfo }    = require('./mail_util.js');
+const Events                    = require('./events.js');
 
 //  deps
-const async                         = require('async');
-const assert                        = require('assert');
-const _                             = require('lodash');
-const moment                        = require('moment');
+const async                     = require('async');
+const assert                    = require('assert');
+const _                         = require('lodash');
+const moment                    = require('moment');
 
 exports.moduleInfo = {
     name    : 'Full Screen Editor (FSE)',
@@ -463,12 +471,14 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     updateUserStats(cb) {
         if(Message.isPrivateAreaTag(this.message.areaTag)) {
+            Events.emit(Events.getSystemEvents().UserSendMail, { user : this.client.user });
             if(cb) {
                 cb(null);
             }
             return; //  don't inc stats for private messages
         }
 
+        Events.emit(Events.getSystemEvents().UserPostMessage, { user : this.client.user, areaTag : this.message.areaTag });
         return StatLog.incrementUserStat(this.client.user, 'post_count', 1, cb);
     }
 

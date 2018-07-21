@@ -252,10 +252,16 @@ class StatLog {
 
     appendUserLogEntry(user, logName, logValue, keepDays, cb) {
         sysDb.run(
-            `INSERT INTO user_event_log (timestamp, user_id, log_name, log_value)
-            VALUES (?, ?, ?, ?);`,
-            [ this.now, user.userId, logName, logValue ],
-            () => {
+            `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
+            VALUES (?, ?, ?, ?, ?);`,
+            [ this.now, user.userId, user.sessionId, logName, logValue ],
+            err => {
+                if(err) {
+                    if(cb) {
+                        cb(err);
+                    }
+                    return;
+                }
                 //
                 //  Handle keepDays
                 //
@@ -279,6 +285,33 @@ class StatLog {
                 );
             }
         );
+    }
+
+    initUserEvents(cb) {
+        //
+        //  We map some user events directly to user stat log entries such that they
+        //  are persisted for a time.
+        //
+        const Events = require('./events.js');
+        const systemEvents = Events.getSystemEvents();
+
+        const interestedEvents = [
+            systemEvents.NewUser,
+            systemEvents.UserUpload, systemEvents.UserDownload,
+            systemEvents.UserPostMessage, systemEvents.UserSendMail,
+            systemEvents.UserRunDoor,
+        ];
+
+        Events.addListenerMultipleEvents(interestedEvents, (eventName, event) => {
+            this.appendUserLogEntry(
+                event.user,
+                'system_event',
+                eventName.replace(/^codes\.l33t\.enigma\.system\./, ''),    //  strip package name prefix
+                90
+            );
+        });
+
+        return cb(null);
     }
 }
 

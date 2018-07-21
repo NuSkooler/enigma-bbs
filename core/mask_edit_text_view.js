@@ -25,7 +25,8 @@ exports.MaskEditTextView    = MaskEditTextView;
 //  :TODO:
 //  * Hint, e.g. YYYY/MM/DD
 //  * Return values with literals in place
-//
+//  * Tab in/out results in oddities such as cursor placement & ability to type in non-pattern chars
+//  * There exists some sort of condition that allows pattern position to get out of sync
 
 function MaskEditTextView(options) {
     options.acceptsFocus    = miscUtil.valueWithDefault(options.acceptsFocus, true);

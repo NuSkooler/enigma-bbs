@@ -103,7 +103,11 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 }
 
                 //  :TODO: User.create() should validate email uniqueness!
-                newUser.create(formData.value.password, err => {
+                const createUserInfo = {
+                    password    : formData.value.password,
+                    sessionId   : self.client.session.uniqueId, //  used for events/etc.
+                };
+                newUser.create(createUserInfo, err => {
                     if(err) {
                         self.client.log.info( { error : err, username : formData.value.username }, 'New user creation failed');
 

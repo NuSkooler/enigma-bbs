@@ -57,6 +57,8 @@ webSocket: {
     proxied: true	//	X-Forwarded-Proto: https support
 }
 ```
+* The module export `registerEvents` has been deprecated. If you have a module that depends on this, use the new more generic `moduleInitialize` export instead.
+* The `system.db` `user_event_log` table has been updated to include a unique session ID. Previously this table was not used, but you will need to perform a slight maintenance task before it can be properly used. After updating to `0.0.9-alpha`, please run the following: `sqlite3 db/system.db DROP TABLE user_event_log;`. The new table format will be created and used at startup.
 
 
 # 0.0.7-alpha to 0.0.8-alpha

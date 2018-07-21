@@ -267,6 +267,9 @@ function initialize(cb) {
             function readyEvents(callback) {
                 return require('./events.js').startup(callback);
             },
+            function genericModulesInit(callback) {
+                return require('./module_util.js').initializeModules(callback);
+            },
             function listenConnections(callback) {
                 return require('./listening_server.js').startup(callback);
             },
@@ -286,6 +289,9 @@ function initialize(cb) {
                     initServices.eventScheduler = modInst;
                     return callback(err);
                 });
+            },
+            function listenUserEventsForStatLog(callback) {
+                return require('./stat_log.js').initUserEvents(callback);
             }
         ],
         function onComplete(err) {

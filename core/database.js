@@ -18,6 +18,7 @@ const dbs = {};
 
 exports.getTransactionDatabase      = getTransactionDatabase;
 exports.getModDatabasePath          = getModDatabasePath;
+exports.loadDatabaseForMod          = loadDatabaseForMod;
 exports.getISOTimestampString       = getISOTimestampString;
 exports.sanatizeString              = sanatizeString;
 exports.initializeDatabases         = initializeDatabases;
@@ -53,6 +54,15 @@ function getModDatabasePath(moduleInfo, suffix) {
         'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation');
 
     return paths.join(conf.config.paths.modsDb, `${full}.sqlite3`);
+}
+
+function loadDatabaseForMod(modInfo, cb) {
+    const db = getTransactionDatabase(new sqlite3.Database(
+        getModDatabasePath(modInfo),
+        err => {
+            return cb(err, db);
+        }
+    ));
 }
 
 function getISOTimestampString(ts) {
@@ -131,10 +141,11 @@ const DB_INIT_TABLE = {
                 id              INTEGER PRIMARY KEY,
                 timestamp       DATETIME NOT NULL,
                 user_id         INTEGER NOT NULL,
+                session_id      VARCHAR NOT NULL,
                 log_name        VARCHAR NOT NULL,
                 log_value       VARCHAR NOT NULL,
 
-                UNIQUE(timestamp, user_id, log_name)
+                UNIQUE(timestamp, user_id, session_id, log_name)
             );`
         );
 

@@ -179,7 +179,7 @@ module.exports = class User {
         );
     }
 
-    create(password, cb) {
+    create(createUserInfo , cb) {
         assert(0 === this.userId);
         const config = Config();
 
@@ -219,7 +219,7 @@ module.exports = class User {
                     );
                 },
                 function genAuthCredentials(trans, callback) {
-                    User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
+                    User.generatePasswordDerivedKeyAndSalt(createUserInfo.password, (err, info) => {
                         if(err) {
                             return callback(err);
                         }
@@ -244,7 +244,12 @@ module.exports = class User {
                     });
                 },
                 function sendEvent(trans, callback) {
-                    Events.emit(Events.getSystemEvents().NewUser, { user : self });
+                    Events.emit(
+                        Events.getSystemEvents().NewUser,
+                        {
+                            user : Object.assign({}, self, { sessionId : createUserInfo.sessionId } )
+                        }
+                    );
                     return callback(null, trans);
                 }
             ],

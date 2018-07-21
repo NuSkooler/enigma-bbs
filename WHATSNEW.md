@@ -16,6 +16,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Ability to delete from personal mailbox (finally!)
 * Add ability to skip file and/or message areas during newscan. Set config.omitFileAreaTags and config.omitMessageAreaTags in new_scan configuration of your menu.hjson
 * `{userName}` (sanatized) and `{userNameRaw}` as well as `{cwd}` have been added to param options when launching a door.
+* Any module may now register for a system startup intiialization via the `initializeModules(initInfo, cb)` export.
+* User event log is now functional. Various events a user performs will be persisted to the `system.db` `user_event_log` table for up to 90 days. An example usage can be found in the updated `last_callers` module where events are turned into Ami/X style actions. Please see `UPGRADE.md`!
 
 
 ## 0.0.8-alpha
