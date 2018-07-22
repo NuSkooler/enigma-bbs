@@ -2,12 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const ViewController        = require('./view_controller.js').ViewController;
-const messageArea           = require('./message_area.js');
-const displayThemeArt       = require('./theme.js').displayThemeArt;
-const resetScreen           = require('./ansi_term.js').resetScreen;
-const stringFormat          = require('./string_format.js');
+const { MenuModule }    = require('./menu_module.js');
+const messageArea       = require('./message_area.js');
+const { Errors }        = require('./enig_error.js');
 
 //  deps
 const async             = require('async');
@@ -20,57 +17,40 @@ exports.moduleInfo = {
 };
 
 const MciViewIds = {
-    ConfList    : 1,
-
-    //  :TODO:
-    //  # areas in conf .... see Obv/2, iNiQ, ...
-    //
+    confList            : 1,
+    confDesc            : 2,    //  description updated @ index update
+    customRangeStart    : 10,   //  updated @ index update
 };
 
 exports.getModule = class MessageConfListModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.messageConfs = messageArea.getSortedAvailMessageConferences(this.client);
-        const self = this;
+        this.initList();
 
         this.menuMethods = {
-            changeConference : function(formData, extraArgs, cb) {
+            changeConference : (formData, extraArgs, cb) => {
                 if(1 === formData.submitId) {
-                    let conf        = self.messageConfs[formData.value.conf];
-                    const confTag   = conf.confTag;
-                    conf = conf.conf;   //  what we want is embedded
+                    const conf = this.messageConfs[formData.value.conf];
 
-                    messageArea.changeMessageConference(self.client, confTag, err => {
+                    messageArea.changeMessageConference(this.client, conf.confTag, err => {
                         if(err) {
-                            self.client.term.pipeWrite(`\n|00Cannot change conference: ${err.message}\n`);
-
-                            setTimeout( () => {
-                                return self.prevMenu(cb);
-                            }, 1000);
-                        } else {
-                            if(_.isString(conf.art)) {
-                                const dispOptions = {
-                                    client  : self.client,
-                                    name    : conf.art,
-                                };
-
-                                self.client.term.rawWrite(resetScreen());
-
-                                displayThemeArt(dispOptions, () => {
-                                    //  pause by default, unless explicitly told not to
-                                    if(_.has(conf, 'options.pause') && false === conf.options.pause) {
-                                        return self.prevMenuOnTimeout(1000, cb);
-                                    } else {
-                                        self.pausePrompt( () => {
-                                            return self.prevMenu(cb);
-                                        });
-                                    }
-                                });
-                            } else {
-                                return self.prevMenu(cb);
-                            }
+                            this.client.term.pipeWrite(`\n|00Cannot change conference: ${err.message}\n`);
+                            return this.prevMenuOnTimeout(1000, cb);
                         }
+
+                        if(conf.hasArt) {
+                            const menuOpts = {
+                                extraArgs : {
+                                    confTag : conf.confTag,
+                                },
+                                menuFlags : [ 'popParent', 'noHistory' ]
+                            };
+
+                            return this.gotoMenu(this.menuConfig.config.changeConfPreArtMenu || 'messageAreaChangeConfPreArt', menuOpts, cb);
+                        }
+
+                        return this.prevMenu(cb);
                     });
                 } else {
                     return cb(null);
@@ -79,70 +59,63 @@ exports.getModule = class MessageConfListModule extends MenuModule {
         };
     }
 
-    prevMenuOnTimeout(timeout, cb) {
-        setTimeout( () => {
-            return this.prevMenu(cb);
-        }, timeout);
-    }
-
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
             if(err) {
                 return cb(err);
             }
 
-            const self  = this;
-            const vc    = self.viewControllers.areaList = new ViewController( { client : self.client } );
-
             async.series(
                 [
-                    function loadFromConfig(callback) {
-                        let loadOpts = {
-                            callingMenu : self,
-                            mciMap      : mciData.menu,
-                            formId      : 0,
-                        };
-
-                        vc.loadFromMenuConfig(loadOpts, callback);
+                    (next) => {
+                        return this.prepViewController('confList', 0, mciData.menu, next);
                     },
-                    function populateConfListView(callback) {
-                        const listFormat        = self.menuConfig.config.listFormat || '{index} ) - {name}';
-                        const focusListFormat   = self.menuConfig.config.focusListFormat || listFormat;
+                    (next) => {
+                        const confListView = this.viewControllers.confList.getView(MciViewIds.confList);
+                        if(!confListView) {
+                            return cb(Errors.MissingMci(`Missing conf list MCI ${MciViewIds.onlineList}`));
+                        }
 
-                        const confListView = vc.getView(MciViewIds.ConfList);
-                        let i = 1;
-                        confListView.setItems(_.map(self.messageConfs, v => {
-                            return stringFormat(listFormat, {
-                                index   : i++,
-                                confTag : v.conf.confTag,
-                                name    : v.conf.name,
-                                desc    : v.conf.desc,
-                            });
-                        }));
+                        confListView.on('index update', idx => {
+                            this.selectionIndexUpdate(idx);
+                        });
 
-                        i = 1;
-                        confListView.setFocusItems(_.map(self.messageConfs, v => {
-                            return stringFormat(focusListFormat, {
-                                index   : i++,
-                                confTag : v.conf.confTag,
-                                name    : v.conf.name,
-                                desc    : v.conf.desc,
-                            });
-                        }));
-
+                        confListView.setItems(this.messageConfs);
                         confListView.redraw();
-
-                        callback(null);
-                    },
-                    function populateTextViews(callback) {
-                        //  :TODO: populate other avail MCI, e.g. current conf name
-                        callback(null);
+                        return next(null);
                     }
                 ],
-                function complete(err) {
-                    cb(err);
+                err => {
+                    if(err) {
+                        this.client.log.error( { error : err.message }, 'Failed loading message conference list');
+                    }
                 }
             );
+        });
+    }
+
+    selectionIndexUpdate(idx) {
+        const conf = this.messageConfs[idx];
+        if(!conf) {
+            return;
+        }
+        this.setViewText('confList', MciViewIds.confDesc, conf.desc);
+        this.updateCustomViewTextsWithFilter('confList', MciViewIds.customRangeStart, conf);
+    }
+
+    initList()
+    {
+        let index = 1;
+        this.messageConfs = messageArea.getSortedAvailMessageConferences(this.client).map(conf => {
+            return {
+                index       : index++,
+                confTag     : conf.confTag,
+                name        : conf.conf.name,
+                text        : conf.conf.name,
+                desc        : conf.conf.desc,
+                areaCount   : Object.keys(conf.conf.areas || {}).length,
+                hasArt      : _.isString(conf.conf.art),
+            };
         });
     }
 };

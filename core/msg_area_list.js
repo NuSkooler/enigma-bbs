@@ -93,12 +93,6 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
         };
     }
 
-    prevMenuOnTimeout(timeout, cb) {
-        setTimeout( () => {
-            return this.prevMenu(cb);
-        }, timeout);
-    }
-
     //  :TODO: these concepts have been replaced with the {someKey} style formatting - update me!
     updateGeneralAreaInfoViews(areaIndex) {
         /*

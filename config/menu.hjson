@@ -1907,6 +1907,19 @@
 			}
 		}
 
+		messageAreaChangeConfPreArt: {
+			module: show_art
+			config: {
+				method: messageConf
+				key: confTag
+			}
+			options: {
+				pause: true
+				cls: true
+				menuFlags: [ "popParent", "noHistory" ]
+			}
+		}
+
 		messageAreaChangeCurrentArea: {
 			//	:TODO: rename this art to ACHANGE
 			art: CHANGE

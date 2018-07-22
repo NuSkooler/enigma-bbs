@@ -2,7 +2,7 @@
 layout: page
 title: Who's Online
 ---
-## The Who's OnlineModule
+## The Who's Online Module
 The built in `whos_online` module provides a basic who's online mod.
 
 ### Theming

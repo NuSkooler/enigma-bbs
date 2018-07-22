@@ -67,6 +67,7 @@
     - [Last Callers]({{ site.baseurl }}{% link modding/last-callers.md %})
     - [Who's Online]({{ site.baseurl }}{% link modding/whos-online.md %})
     - [User List]({{ site.baseurl }}{% link modding/user-list.md %})
+    - [Message Conference List]({{ site.baseurl }}{% link modding/msg-conf-list.md %})
  
   - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
