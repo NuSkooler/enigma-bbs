@@ -43,6 +43,8 @@ exports.getModule = class ShowArtModule extends MenuModule {
                         sequence        : self.showBySequence,
                         random          : self.showByRandom,
                         fileBaseArea    : self.showByFileBaseArea,
+                        messageConf     : self.showByMessageConf,
+                        messageArea     : self.showByMessageArea,
                     }[self.config.method] || self.showRandomArt;
 
                     handler = handler.bind(self);
@@ -88,18 +90,34 @@ exports.getModule = class ShowArtModule extends MenuModule {
             if(err) {
                 return cb(err);
             }
-
-            //  further resolve key -> file base area art
-            const artSpec = _.get(Config(), [ 'fileBase', 'areas', key, 'art' ]);
-            if(!artSpec) {
-                return cb(Errors.MissingConfig(`No art defined for file base area "${key}"`));
-            }
-            const options = {
-                pause   : this.shouldPause(),
-                desc    : 'fileBaseArea',
-            };
-            return this.displaySingleArtWithOptions(artSpec, options, cb);
+            return this.displaySingleArtByConfigPath( [ 'fileBase', 'areas', key, 'art' ], cb);
         });
+    }
+
+    showByMessageConf(cb) {
+        this.getArtKeyValue( (err, key) => {
+            if(err) {
+                return cb(err);
+            }
+            return this.displaySingleArtByConfigPath( [ 'messageConferences', key, 'art' ], cb);
+        });
+    }
+
+    showByMessageArea(cb) {
+        return cb(null);    //  NYI
+    }
+
+    displaySingleArtByConfigPath(configPath, cb) {
+        const desc = configPath.join('.');
+        const artSpec = _.get(Config(), configPath);
+        if(!artSpec) {
+            return cb(Errors.MissingConfig(`No art defined at path ${desc}`));
+        }
+        const options = {
+            desc,
+            pause   : this.shouldPause(),
+        };
+        return this.displaySingleArtWithOptions(artSpec, options, cb);
     }
 
     getArtKeyValue(cb) {
