@@ -124,41 +124,31 @@ exports.getModule = class LastCallersModule extends MenuModule {
                 const hideSysOp     = _.get(this, 'menuConfig.config.sysop.hide');
                 const sysOpCollapse = this.getCollapse('menuConfig.config.sysop.collapse');
 
+                const collapseList = (withUserId, minAge) => {
+                    let lastUserId;
+                    let lastTimestamp;
+                    loginHistory = loginHistory.filter(item => {
+                        const secApart = lastTimestamp ? moment.duration(lastTimestamp.diff(item.timestamp)).asSeconds() : 0;
+                        const collapse = (null === withUserId ? true : withUserId === item.userId) &&
+                            (lastUserId === item.userId) &&
+                            (secApart < minAge);
+
+                        lastUserId = item.userId;
+                        lastTimestamp = item.timestamp;
+
+                        return !collapse;
+                    });
+                };
+
                 if(hideSysOp) {
                     loginHistory = loginHistory.filter(item => false === User.isRootUserId(item.userId));
                 } else if(sysOpCollapse) {
-                    //  :TODO: DRY op & user collapse code
-                    const maxAge = sysOpCollapse.asSeconds();
-                    let lastUserId;
-                    let lastTimestamp;
-
-                    loginHistory = loginHistory.filter(item => {
-                        const op        = User.isRootUserId(item.userId);
-                        const repeat    = lastUserId === item.userId;
-                        const recent    = lastTimestamp ? moment.duration(lastTimestamp.diff(item.timestamp)).seconds() < maxAge : false;
-
-                        lastUserId = item.userId;
-                        lastTimestamp = item.timestamp;
-
-                        return !op || !repeat || !recent;
-                    });
+                    collapseList(User.RootUserID, sysOpCollapse.asSeconds());
                 }
 
-                const userCollapse  = this.getCollapse('menuConfig.config.user.collapse');
+                const userCollapse = this.getCollapse('menuConfig.config.user.collapse');
                 if(userCollapse) {
-                    const maxAge = userCollapse.asSeconds();
-                    let lastUserId;
-                    let lastTimestamp;
-
-                    loginHistory = loginHistory.filter(item => {
-                        const repeat    = lastUserId === item.userId;
-                        const recent    = lastTimestamp ? moment.duration(lastTimestamp.diff(item.timestamp)).seconds() < maxAge : false;
-
-                        lastUserId = item.userId;
-                        lastTimestamp = item.timestamp;
-
-                        return !repeat || !recent;
-                    });
+                    collapseList(null, userCollapse.asSeconds());
                 }
 
                 return cb(
