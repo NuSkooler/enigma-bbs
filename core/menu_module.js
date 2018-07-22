@@ -193,6 +193,12 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return this.client.menuStack.goto(prevMenu.name, cb);
     }
 
+    prevMenuOnTimeout(timeout, cb) {
+        setTimeout( () => {
+            return this.prevMenu(cb);
+        }, timeout);
+    }
+
     addViewController(name, vc) {
         assert(!this.viewControllers[name], `ViewController by the name of "${name}" already exists!`);
 
