@@ -22,6 +22,8 @@ Available `config` block entries:
     * `userRunDoor`
 * `actionIndicatorDefault`: Default indicator when an action is not set. Defaults to "-".
 
+Remember that entries such as `actionIndicators` and `actionIndicatorDefault` may contain pipe color codes!
+
 ### Theming
 The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `userId`: User ID.
