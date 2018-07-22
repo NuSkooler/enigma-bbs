@@ -2,10 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const ViewController        = require('./view_controller.js').ViewController;
-const getActiveNodeList     = require('./client_connections.js').getActiveNodeList;
-const stringFormat          = require('./string_format.js');
+const { MenuModule }        = require('./menu_module.js');
+const { getActiveNodeList } = require('./client_connections.js');
+const { Errors }            = require('./enig_error.js');
 
 //  deps
 const async                 = require('async');
@@ -33,48 +32,29 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                 return cb(err);
             }
 
-            const self  = this;
-            const vc    = self.viewControllers.allViews = new ViewController( { client : self.client } );
-
             async.series(
                 [
-                    function loadFromConfig(callback) {
-                        const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : mciData.menu,
-                            noInput         : true,
-                        };
-
-                        return vc.loadFromMenuConfig(loadOpts, callback);
+                    (next) => {
+                        return this.prepViewController('online', 0, mciData.menu, next);
                     },
-                    function populateList(callback) {
-                        const onlineListView    = vc.getView(MciViewIds.OnlineList);
-                        const listFormat        = self.menuConfig.config.listFormat || '{node} - {userName} - {action} - {timeOn}';
-                        const nonAuthUser       = self.menuConfig.config.nonAuthUser || 'Logging In';
-                        const otherUnknown      = self.menuConfig.config.otherUnknown || 'N/A';
-                        const onlineList        = getActiveNodeList(self.menuConfig.config.authUsersOnly).slice(0, onlineListView.height);
+                    (next) => {
+                        const onlineListView = this.viewControllers.online.getView(MciViewIds.OnlineList);
+                        if(!onlineListView) {
+                            return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.OnlineList}`));
+                        }
 
-                        onlineListView.setItems(_.map(onlineList, oe => {
-                            if(oe.authenticated) {
-                                oe.timeOn = _.upperFirst(oe.timeOn.humanize());
-                            } else {
-                                [ 'realName', 'location', 'affils', 'timeOn' ].forEach(m => {
-                                    oe[m] = otherUnknown;
-                                });
-                                oe.userName = nonAuthUser;
-                            }
-                            return stringFormat(listFormat, oe);
-                        }));
+                        const onlineList = getActiveNodeList(true).slice(0, onlineListView.height).map(
+                            oe => Object.assign(oe, { timeOn : _.upperFirst(oe.timeOn.humanize()) })
+                        );
 
-                        onlineListView.focusItems = onlineListView.items;
+                        onlineListView.setItems(onlineList);
                         onlineListView.redraw();
-
-                        return callback(null);
+                        return next(null);
                     }
                 ],
-                function complete(err) {
+                err => {
                     if(err) {
-                        self.client.log.error( { error : err.message }, 'Error loading who\'s online');
+                        this.client.log.error( { error : err.message }, 'Error loading who\'s online');
                     }
                     return cb(err);
                 }
