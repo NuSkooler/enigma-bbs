@@ -166,11 +166,12 @@
 			}
 
 			mainMenuWhosOnline: {
-				config: {
-					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
-				}
 				mci: {
-					VM1: { height: 10, width: 20 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
 				}
 			}
 
@@ -437,11 +438,12 @@
 			}
 
 			fullLoginSequenceWhosOnline: {
-				config: {
-					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
-				}
 				mci: {
-					VM1: { height: 10, width: 20 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
 				}
 			}
 
