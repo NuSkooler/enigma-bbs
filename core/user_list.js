@@ -11,18 +11,6 @@ const moment            = require('moment');
 const async             = require('async');
 const _                 = require('lodash');
 
-/*
-    Available listFormat/focusListFormat object members:
-
-    userId          : User ID
-    userName        : User name/handle
-    lastLoginTs     : Last login timestamp
-    status          : Status: active | inactive
-    location        : Location
-    affiliation     : Affils
-    note            : User note
-*/
-
 exports.moduleInfo = {
     name        : 'User List',
     desc        : 'Lists all system users',
