@@ -537,8 +537,8 @@ module.exports = class User {
     }
 
     static getUserList(options, cb) {
-        let userList = [];
-        let orderClause = 'ORDER BY ' + (options.order || 'user_name');
+        const userList = [];
+        const orderClause = 'ORDER BY ' + (options.order || 'user_name');
 
         userDb.each(
             `SELECT id, user_name
@@ -562,7 +562,11 @@ module.exports = class User {
                         [ user.userId ],
                         (err, row) => {
                             if(row) {
-                                user[row.prop_name] = row.prop_value;
+                                if(options.propsCamelCase) {
+                                    user[_.camelCase(row.prop_name)] = row.prop_value;
+                                } else {
+                                    user[row.prop_name] = row.prop_value;
+                                }
                             }
                         },
                         err => {

@@ -2,10 +2,11 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }            = require('./menu_module.js');
-const StatLog                   = require('./stat_log.js');
-const User                      = require('./user.js');
-const sysDb                     = require('./database.js').dbs.system;
+const { MenuModule }    = require('./menu_module.js');
+const StatLog           = require('./stat_log.js');
+const User              = require('./user.js');
+const sysDb             = require('./database.js').dbs.system;
+const { Errors }        = require('./enig_error.js');
 
 //  deps
 const moment            = require('moment');
@@ -19,8 +20,8 @@ exports.moduleInfo = {
     packageName : 'codes.l33t.enigma.lastcallers'
 };
 
-const MciCodeIds = {
-    CallerList      : 1,
+const MciViewIds = {
+    callerList      : 1,
 };
 
 exports.getModule = class LastCallersModule extends MenuModule {
@@ -55,7 +56,10 @@ exports.getModule = class LastCallersModule extends MenuModule {
                         });
                     },
                     (loginHistory, next) => {
-                        const callersView = this.viewControllers.callers.getView(MciCodeIds.CallerList);
+                        const callersView = this.viewControllers.callers.getView(MciViewIds.callerList);
+                        if(!callersView) {
+                            return cb(Errors.MissingMci(`Missing caller list MCI ${MciViewIds.callerList}`));
+                        }
                         callersView.setItems(loginHistory);
                         callersView.redraw();
                         return next(null);
@@ -80,7 +84,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
     }
 
     fetchHistory(cb) {
-        const callersView = this.viewControllers.callers.getView(MciCodeIds.CallerList);
+        const callersView = this.viewControllers.callers.getView(MciViewIds.callerList);
         if(!callersView || 0 === callersView.dimens.height) {
             return cb(null);
         }
@@ -178,12 +182,12 @@ exports.getModule = class LastCallersModule extends MenuModule {
                     return cb(null, null);
                 }
 
-                item.userName = item.text = (userName || 'N/A');
+                item.userName = item.text = userName;
 
                 User.loadProperties(item.userId, getPropOpts, (err, props) => {
-                    item.location       = (props && props.location) || 'N/A';
-                    item.affiliation    = item.affils = (props && props.affiliation) || 'N/A';
-                    item.realName       = (props && props.real_name) || 'N/A';
+                    item.location       = (props && props.location) || '';
+                    item.affiliation    = item.affils = (props && props.affiliation) || '';
+                    item.realName       = (props && props.real_name) || '';
 
                     if(!indicatorSumsSql) {
                         return next(null, item);

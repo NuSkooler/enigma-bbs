@@ -38,13 +38,13 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                         return this.prepViewController('online', 0, mciData.menu, next);
                     },
                     (next) => {
-                        const onlineListView = this.viewControllers.online.getView(MciViewIds.OnlineList);
+                        const onlineListView = this.viewControllers.online.getView(MciViewIds.onlineList);
                         if(!onlineListView) {
-                            return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.OnlineList}`));
+                            return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.onlineList}`));
                         }
 
                         const onlineList = getActiveNodeList(true).slice(0, onlineListView.height).map(
-                            oe => Object.assign(oe, { timeOn : _.upperFirst(oe.timeOn.humanize()) })
+                            oe => Object.assign(oe, { text : oe.userName, timeOn : _.upperFirst(oe.timeOn.humanize()) })
                         );
 
                         onlineListView.setItems(onlineList);

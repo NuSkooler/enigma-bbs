@@ -27,10 +27,11 @@ Remember that entries such as `actionIndicators` and `actionIndicatorDefault` ma
 ### Theming
 The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `userId`: User ID.
-* `realName`: User's real name or "N/A".
+* `userName`: Login username.
+* `realName`: User's real name.
 * `ts`: Timestamp in `dateTimeFormat` format.
-* `location`: User's location or "N/A".
-* `affiliation` or `affils`: Users affiliations or "N/A".
+* `location`: User's location.
+* `affiliation` or `affils`: Users affiliations.
 * `actions`: A string built by concatenating action indicators for a users logged in session. For example, given a indincator of `userDownload` mapped to "D", the string may be "-D----". The format was made popular on Amiga style boards.
 
 

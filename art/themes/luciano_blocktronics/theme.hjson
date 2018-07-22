@@ -156,12 +156,15 @@
 
 			mainMenuUserList: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{note:<19.19}|03{lastLoginTs}"
-					focusListFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 15, width: 50}
+					VM1: {
+						height: 15,
+						width: 50
+						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{note:<19.19}|03{lastLoginTs}"
+						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
+					}
 				}
 			}
 

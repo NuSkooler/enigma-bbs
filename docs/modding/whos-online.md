@@ -8,6 +8,7 @@ The built in `whos_online` module provides a basic who's online mod.
 ### Theming
 The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `userId`: User ID.
+* `userName`: Login username.
 * `node`: Node ID the user is connected to.
 * `timeOn`: A human friendly amount of time the user has been online.
 * `realName`: User's real name.
