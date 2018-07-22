@@ -38,7 +38,7 @@ function getActiveNodeList(authUsersOnly) {
             node            : ac.node,
             authenticated   : ac.user.isAuthenticated(),
             userId          : ac.user.userId,
-            action          : _.has(ac, 'currentMenuModule.menuConfig.desc') ? ac.currentMenuModule.menuConfig.desc : 'Unknown',
+            action          : _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown'),
         };
 
         //
@@ -48,7 +48,7 @@ function getActiveNodeList(authUsersOnly) {
             entry.userName  = ac.user.username;
             entry.realName  = ac.user.properties.real_name;
             entry.location  = ac.user.properties.location;
-            entry.affils    = ac.user.properties.affiliation;
+            entry.affils    = entry.affiliation = ac.user.properties.affiliation;
 
             const diff      = now.diff(moment(ac.user.properties.last_login_timestamp), 'minutes');
             entry.timeOn    = moment.duration(diff, 'minutes');

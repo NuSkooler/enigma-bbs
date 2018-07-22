@@ -23,7 +23,7 @@ Available `config` block entries:
 * `actionIndicatorDefault`: Default indicator when an action is not set. Defaults to "-".
 
 ### Theming
-When in a list view, the following `itemFormat` object is provided:
+The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `userId`: User ID.
 * `realName`: User's real name or "N/A".
 * `ts`: Timestamp in `dateTimeFormat` format.
