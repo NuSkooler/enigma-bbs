@@ -18,7 +18,7 @@ exports.moduleInfo = {
 };
 
 const MciViewIds = {
-    OnlineList      : 1,
+    onlineList      : 1,
 };
 
 exports.getModule = class WhosOnlineModule extends MenuModule {
