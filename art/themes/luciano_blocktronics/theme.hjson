@@ -162,8 +162,8 @@
 					VM1: {
 						height: 15,
 						width: 50
-						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{note:<19.19}|03{lastLoginTs}"
-						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
+						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}"
+						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}"
 					}
 				}
 			}
