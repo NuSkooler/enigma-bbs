@@ -1951,6 +1951,19 @@
 			}
 		}
 
+		changeMessageAreaPreArt: {
+			module: show_art
+			config: {
+				method: messageArea
+				key: areaTag
+			}
+			options: {
+				pause: true
+				cls: true
+				menuFlags: [ "popParent", "noHistory" ]
+			}
+		}
+
 		messageAreaMessageList: {
 			module: msg_list
 			art: MSGLIST
