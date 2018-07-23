@@ -1907,7 +1907,7 @@
 			}
 		}
 
-		messageAreaChangeConfPreArt: {
+		changeMessageConfPreArt: {
 			module: show_art
 			config: {
 				method: messageConf

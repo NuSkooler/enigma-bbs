@@ -47,7 +47,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                                 menuFlags : [ 'popParent', 'noHistory' ]
                             };
 
-                            return this.gotoMenu(this.menuConfig.config.changeConfPreArtMenu || 'messageAreaChangeConfPreArt', menuOpts, cb);
+                            return this.gotoMenu(this.menuConfig.config.changeConfPreArtMenu || 'changeMessageConfPreArt', menuOpts, cb);
                         }
 
                         return this.prevMenu(cb);
@@ -73,7 +73,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                     (next) => {
                         const confListView = this.viewControllers.confList.getView(MciViewIds.confList);
                         if(!confListView) {
-                            return cb(Errors.MissingMci(`Missing conf list MCI ${MciViewIds.onlineList}`));
+                            return cb(Errors.MissingMci(`Missing conf list MCI ${MciViewIds.confList}`));
                         }
 
                         confListView.on('index update', idx => {
@@ -82,6 +82,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
 
                         confListView.setItems(this.messageConfs);
                         confListView.redraw();
+                        this.selectionIndexUpdate(0);
                         return next(null);
                     }
                 ],

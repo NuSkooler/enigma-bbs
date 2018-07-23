@@ -6,6 +6,9 @@ const MenuModule    = require('./menu_module.js').MenuModule;
 const Errors        = require('../core/enig_error.js').Errors;
 const ANSI          = require('./ansi_term.js');
 const Config        = require('./config.js').get;
+const {
+    getMessageAreaByTag
+}                   = require('./message_area.js');
 
 //  deps
 const async         = require('async');
@@ -104,7 +107,17 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByMessageArea(cb) {
-        return cb(null);    //  NYI
+        this.getArtKeyValue( (err, key) => {
+            if(err) {
+                return cb(err);
+            }
+
+            const area = getMessageAreaByTag(key);
+            if(!area) {
+                return cb(Errors.DoesNotExist(`No area by areaTag ${key} found`));
+            }
+            return cb(null);    //  :TODO: REM OVE ME
+        });
     }
 
     displaySingleArtByConfigPath(configPath, cb) {

@@ -2,13 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const ViewController        = require('./view_controller.js').ViewController;
+const { MenuModule }        = require('./menu_module.js');
 const messageArea           = require('./message_area.js');
-const displayThemeArt       = require('./theme.js').displayThemeArt;
-const resetScreen           = require('./ansi_term.js').resetScreen;
-const stringFormat          = require('./string_format.js');
-const Errors                = require('./enig_error.js').Errors;
+const { Errors }            = require('./enig_error.js');
 
 //  deps
 const async             = require('async');
@@ -20,71 +16,43 @@ exports.moduleInfo = {
     author  : 'NuSkooler',
 };
 
-/*
-    :TODO:
-
-    Obv/2 has the following:
-    CHANGE .ANS - Message base changing ansi
-          |SN      Current base name
-          |SS      Current base sponsor
-          |NM      Number of messages in current base
-          |UP      Number of posts current user made (total)
-          |LR      Last read message by current user
-          |DT      Current date
-          |TI      Current time
-*/
+//    :TODO: Obv/2 others can show # of messages in area
 
 const MciViewIds = {
-    AreaList        : 1,
-    SelAreaInfo1    : 2,
-    SelAreaInfo2    : 3,
+    areaList            : 1,
+    areaDesc            : 2,    //  area desc updated @ index update
+    customRangeStart    : 10,   //  updated @ index update
 };
 
 exports.getModule = class MessageAreaListModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
-            this.client.user.properties.message_conf_tag,
-            { client : this.client }
-        );
+        this.initList();
 
-        const self = this;
         this.menuMethods = {
-            changeArea : function(formData, extraArgs, cb) {
+            changeArea : (formData, extraArgs, cb) => {
                 if(1 === formData.submitId) {
-                    let area        = self.messageAreas[formData.value.area];
-                    const areaTag   =  area.areaTag;
-                    area = area.area;   //  what we want is actually embedded
+                    const area = this.messageAreas[formData.value.area];
 
-                    messageArea.changeMessageArea(self.client, areaTag, err => {
+                    messageArea.changeMessageArea(this.client, area.areaTag, err => {
                         if(err) {
-                            self.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
-
-                            self.prevMenuOnTimeout(1000, cb);
-                        } else {
-                            if(_.isString(area.art)) {
-                                const dispOptions = {
-                                    client  : self.client,
-                                    name    : area.art,
-                                };
-
-                                self.client.term.rawWrite(resetScreen());
-
-                                displayThemeArt(dispOptions, () => {
-                                    //  pause by default, unless explicitly told not to
-                                    if(_.has(area, 'options.pause') && false === area.options.pause) {
-                                        return self.prevMenuOnTimeout(1000, cb);
-                                    } else {
-                                        self.pausePrompt( () => {
-                                            return self.prevMenu(cb);
-                                        });
-                                    }
-                                });
-                            } else {
-                                return self.prevMenu(cb);
-                            }
+                            this.client.term.pipeWrite(`\n|00Cannot change area: ${err.message}\n`);
+                            return this.prevMenuOnTimeout(1000, cb);
                         }
+
+                        if(area.hasArt) {
+                            const menuOpts = {
+                                extraArgs : {
+                                    areaTag : area.areaTag,
+                                },
+                                menuFlags : [ 'popParent', 'noHistory' ]
+                            };
+
+                            return this.gotoMenu(this.menuConfig.config.changeAreaPreArtMenu || 'changeMessageAreaPreArt', menuOpts, cb);
+                        }
+
+                        return this.prevMenu(cb);
                     });
                 } else {
                     return cb(null);
@@ -93,71 +61,66 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
         };
     }
 
-    //  :TODO: these concepts have been replaced with the {someKey} style formatting - update me!
-    updateGeneralAreaInfoViews(areaIndex) {
-        /*
-        const areaInfo = self.messageAreas[areaIndex];
-
-        [ MciViewIds.SelAreaInfo1, MciViewIds.SelAreaInfo2 ].forEach(mciId => {
-            const v = self.viewControllers.areaList.getView(mciId);
-            if(v) {
-                v.setFormatObject(areaInfo.area);
-            }
-        });
-        */
-    }
-
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
             if(err) {
                 return cb(err);
             }
 
-            const self  = this;
-            const vc    = self.viewControllers.areaList = new ViewController( { client : self.client } );
-
             async.series(
                 [
-                    function loadFromConfig(callback) {
-                        const loadOpts = {
-                            callingMenu : self,
-                            mciMap      : mciData.menu,
-                            formId      : 0,
-                        };
-
-                        vc.loadFromMenuConfig(loadOpts, function startingViewReady(err) {
-                            callback(err);
-                        });
+                    (next) => {
+                        return this.prepViewController('areaList', 0, mciData.menu, next);
                     },
-                    function populateAreaListView(callback) {
-                        const areaListView = vc.getView(MciViewIds.AreaList);
+                    (next) => {
+                        const areaListView = this.viewControllers.areaList.getView(MciViewIds.areaList);
                         if(!areaListView) {
-                            return callback(Errors.MissingMci('A MenuView compatible MCI code is required'));
+                            return cb(Errors.MissingMci(`Missing area list MCI ${MciViewIds.areaList}`));
                         }
 
-                        let i = 1;
-                        areaListView.setItems(self.messageAreas.map(a => {
-                            return {
-                                index       : i++,
-                                areaTag     : a.area.areaTag,
-                                text        : a.area.name,  //  standard
-                                name        : a.area.name,
-                                desc        : a.area.desc,
-                            };
-                        }));
-
-                        areaListView.on('index update', areaIndex => {
-                            self.updateGeneralAreaInfoViews(areaIndex);
+                        areaListView.on('index update', idx => {
+                            this.selectionIndexUpdate(idx);
                         });
 
+                        areaListView.setItems(this.messageAreas);
                         areaListView.redraw();
-                        return callback(null);
+                        this.selectionIndexUpdate(0);
+                        return next(null);
                     }
                 ],
-                function complete(err) {
+                err => {
+                    if(err) {
+                        this.client.log.error( { error : err.message }, 'Failed loading message area list');
+                    }
                     return cb(err);
                 }
             );
+        });
+    }
+
+    selectionIndexUpdate(idx) {
+        const area = this.messageAreas[idx];
+        if(!area) {
+            return;
+        }
+        this.setViewText('areaList', MciViewIds.areaDesc, area.desc);
+        this.updateCustomViewTextsWithFilter('areaList', MciViewIds.customRangeStart, area);
+    }
+
+    initList() {
+        let index = 1;
+        this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
+            this.client.user.properties.message_conf_tag,
+            { client : this.client }
+        ).map(area => {
+            return {
+                index       : index++,
+                areaTag     : area.area.areaTag,
+                name        : area.area.name,
+                text        : area.area.name,  //  standard
+                desc        : area.area.desc,
+                hasArt      : _.isString(area.area.art),
+            };
         });
     }
 };
