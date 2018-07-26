@@ -77,7 +77,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
 
     getCollapse(conf) {
         let collapse = _.get(this, conf);
-        collapse = collapse && collapse.match(/^([0-9]+)\s*(minutes|seconds|hours|days|months)$/);
+        collapse = collapse && collapse.match(/^([0-9]+)\s*(minutes?|seconds?|hours?|days?|months?)$/);
         if(collapse) {
             return moment.duration(parseInt(collapse[1]), collapse[2]);
         }
