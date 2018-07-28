@@ -18,7 +18,7 @@ Available `config` block entries:
 * `hashTagsSep`: Separator for hash entries. Defaults to ", ".
 * `isQueuedIndicator`: Indicator for items that are in the users download queue. Defaults to "Y".
 * `isNotQueuedIndicator`: Indicator for items that are _not_ in the users download queue. Defaults to "N".
-* `userRatingTicked`: Indicator for a items current _n_/5 "star" rating. Defaults to "*". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
+* `userRatingTicked`: Indicator for a items current _n_/5 "star" rating. Defaults to "\*". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `userRatingUnticked`: Indicator for missing "stars" in a items _n_/5 rating. Defaults to "-". `userRatingTicked` and `userRatingUnticked` are combined to build strings such as "***--" for 3/5 rating.
 * `webDlExpireTimeFormat`: Presents the expiration time of a web download URL. Defaults to current theme → system `short` date/time format.
 * `webDlLinkNeedsGenerated`: Text to present when no web download link is yet generated. Defaults to "Not yet generated".
