@@ -6,7 +6,7 @@ title: File Area List
 The built in `file_area_list` module provides a very flexible file listing UI.
 
 ## Configuration
-### Config Block
+## Config Block
 Available `config` block entries:
 * `art`: Sup configuration block used to establish art files used for file browsing:
     * `browse`: The main browse screen.
@@ -24,19 +24,24 @@ Available `config` block entries:
 * `webDlLinkNeedsGenerated`: Text to present when no web download link is yet generated. Defaults to "Not yet generated".
 * `webDlLinkNoWebserver`: Text to present when no web download is available (ie: webserver not enabled). Defaults to "Web server is not enabled".
 * `notAnArchiveFormat`: Presents text for the "archive type" field for non-archives. Defaults to "Not an archive".
-* `browseUploadTimestampFormat`: Timestamp format for `browseInfoFormatXXX`. Defaults to current theme → system `short` date format. See also **Browse Info Format** below.
+* `uploadTimestampFormat`: Timestamp format for `xxxxxxInfoFormat##`. Defaults to current theme → system `short` date format. See also **Custom Info Formats** below.
 
 Remember that entries such as `isQueuedIndicator` and `userRatingTicked` may contain pipe color codes!
 
-### Browse Info Format
-Additional `config` block entries used for the `browse` page are as follows:
-* `browseInfoFormatXXX`: Where XXX is 10..._N_ such as `browseInfoFormat10`. See **Browse Page** below for format members.
+## Custom Info Formats
+Additional `config` block entries can set `xxxxxxInfoFormat##` formatting (where xxxxxx is the page name and ## is 10...99 such as `browseInfoFormat10`) for the various available pages:
+* `browseInfoFormat##` for the `browse` page. See **Browse Page** below.
+* `detailsInfoFormat##` for the `details` page. See **Details Page** below.
+* `detailsGeneralInfoFormat##` for the `detailsGeneral` tab. See **Details Page - General Tab** below.
+* `detailsNfoInfoFormat##` for the `detialsNfo` tab. See **Details Page - NFO/README Viewer Tab** below.
+* `detailsFileListInfoFormat##` for the `detailsFileList` tab. See **Details Page - Archive/File Listing Tab** below.
 
-### Theming
-#### Browse Page
+## Theming
+### Browse Page
+The browse page uses the `browse` art described above. The following MCI codes are available:
 * MCI 1 (ie: `%MT1`): File's short description (user entered, FILE_ID.DIZ, etc.).
 * MCI 2 (ie: `%HM2`): Navigation menu.
-* MCI 10..._N_: Custom entires with the following format members:
+* MCI 10...99: Custom entires with the following format members:
     * `{fileId}`: File identifier.
     * `{fileName}`: File name (long).
     * `{desc}`: File short description (user entered, FILE_ID.DIZ, etc.).
@@ -67,20 +72,24 @@ Additional `config` block entries used for the `browse` page are as follows:
     * `{webDlLink}`: Web download link if generated else `webDlLinkNeedsGenerated` or `webDlLinkNoWebserver` described above.
     * `{webDlExpire}`: Web download link expiration using `webDlExpireTimeFormat` described above.
 
-#### Details Page
+### Details Page
+The details page uses the `details` art described above. The following MCI codes are available:
 * MCI 1 (ie: `%HM1`): Navigation menu
 * `%XY2`: Info area's top X,Y position.
 * `%XY3`: Info area's bottom X,Y position.
-* MCI 10..._N_: Custom entries with the format options described above in **Browse Page** via the `detailsInfoFormatXXX` `config` block entry.
+* MCI 10...99: Custom entries with the format options described above in **Browse Page** via the `detailsInfoFormat##` `config` block entry.
 
-#### Details Page - General Tab
-* MCI 10..._N_: Custom entries with the format options described above in **Browse Page** via the `detailsGeneralInfoFormatXXX` `config` block entry.
+### Details Page - General Tab
+The details page general tab uses the `detailsGeneral` art described above. The following MCI codes are available:
+* MCI 10...99: Custom entries with the format options described above in **Browse Page** via the `detailsGeneralInfoFormat##` `config` block entry.
 
-#### Details Page - NFO/README Viewer Tab
+### Details Page - NFO/README Viewer Tab
+The details page nfo tab uses the `detailsNfo` art described above. The following MCI codes are available:
 * MCI 1 (ie: `%MT1`): NFO/README viewer using the entries `longDesc`.
-* MCI 10..._N_: Custom entries with the format options described above in **Browse Page** via the `detailsNfoInfoFormatXXX` `config` block entry.
+* MCI 10...99: Custom entries with the format options described above in **Browse Page** via the `detailsNfoInfoFormat##` `config` block entry.
 
-#### Detilas Page - Archive/File Listing Tab
+### Details Page - Archive/File Listing Tab
+The details page file list tab uses the `detailsFileList` art described above. The following MCI codes are available:
 * MCI 1 (ie: `%VM1`): List of entries in archive. Entries are formatted using the standard `itemFormat` and `focusItemFormat` properties of the view and have all of the format options described above in **Browse Page**.
-* MCI 10..._N_: Custom entries with the format options described above in **Browse Page** via the `detailsFileListInfoFormatXXX` `config` block entry.
+* MCI 10...99: Custom entries with the format options described above in **Browse Page** via the `detailsFileListInfoFormat##` `config` block entry.
 

@@ -218,7 +218,7 @@ exports.getModule = class FileAreaList extends MenuModule {
         const config        = this.menuConfig.config;
         const currEntry     = this.currentFileEntry;
 
-        const uploadTimestampFormat = config.browseUploadTimestampFormat || this.client.currentTheme.helpers.getDateFormat('short');
+        const uploadTimestampFormat = config.uploadTimestampFormat || this.client.currentTheme.helpers.getDateFormat('short');
         const area                  = FileArea.getFileAreaByTag(currEntry.areaTag);
         const hashTagsSep           = config.hashTagsSep || ', ';
         const isQueuedIndicator     = config.isQueuedIndicator || 'Y';
