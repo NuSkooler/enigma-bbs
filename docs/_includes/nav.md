@@ -64,6 +64,7 @@
         - Combatnet
         - Exodus
     - [Existing Mods]({{ site.baseurl }}{% link modding/existing-mods.md %})
+    - [File Area List]({{ site.baseurl }}{% link modding/file-area-list.md %})
     - [Last Callers]({{ site.baseurl }}{% link modding/last-callers.md %})
     - [Who's Online]({{ site.baseurl }}{% link modding/whos-online.md %})
     - [User List]({{ site.baseurl }}{% link modding/user-list.md %})

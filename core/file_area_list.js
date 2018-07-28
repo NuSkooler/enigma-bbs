@@ -218,7 +218,7 @@ exports.getModule = class FileAreaList extends MenuModule {
         const config        = this.menuConfig.config;
         const currEntry     = this.currentFileEntry;
 
-        const uploadTimestampFormat = config.browseUploadTimestampFormat || config.uploadTimestampFormat || 'YYYY-MMM-DD';
+        const uploadTimestampFormat = config.browseUploadTimestampFormat || this.client.currentTheme.helpers.getDateFormat('short');
         const area                  = FileArea.getFileAreaByTag(currEntry.areaTag);
         const hashTagsSep           = config.hashTagsSep || ', ';
         const isQueuedIndicator     = config.isQueuedIndicator || 'Y';
@@ -268,7 +268,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             entryInfo.archiveTypeDesc = 'N/A';
         }
 
-        entryInfo.uploadByUsername  = entryInfo.uploadByUsername || 'N/A';  //  may be imported
+        entryInfo.uploadByUsername  = entryInfo.uploadByUserName = entryInfo.uploadByUsername || 'N/A';  //  may be imported
         entryInfo.hashTags          = entryInfo.hashTags || '(none)';
 
         //  create a rating string, e.g. "**---"
@@ -289,7 +289,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                     entryInfo.webDlLink     = config.webDlLinkNeedsGenerated || 'Not yet generated';
                 }
             } else {
-                const webDlExpireTimeFormat = config.webDlExpireTimeFormat || 'YYYY-MMM-DD @ h:mm';
+                const webDlExpireTimeFormat = config.webDlExpireTimeFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
 
                 entryInfo.webDlLink     = ansi.vtxHyperlink(this.client, serveItem.url) + serveItem.url;
                 entryInfo.webDlExpire   = moment(serveItem.expireTimestamp).format(webDlExpireTimeFormat);
@@ -583,7 +583,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                 return cb(err);
             }
 
-            this.currentFileEntry.archiveEntries = entries;
+            //  assign and add standard "text" member for itemFormat
+            this.currentFileEntry.archiveEntries = entries.map(e => Object.assign(e, { text : `${e.fileName} (${e.byteSize})` } ));
             return cb(null, 're-cached');
         });
     }
@@ -600,12 +601,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 }
 
                 if('re-cached' === cacheStatus) {
-                    const fileListEntryFormat       = this.menuConfig.config.fileListEntryFormat || '{fileName} {fileSize}';    //  :TODO: use byteSize here?
-                    const focusFileListEntryFormat  = this.menuConfig.config.focusFileListEntryFormat || fileListEntryFormat;
-
-                    fileListView.setItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(fileListEntryFormat, entry) ) );
-                    fileListView.setFocusItems( this.currentFileEntry.archiveEntries.map( entry => stringFormat(focusFileListEntryFormat, entry) ) );
-
+                    fileListView.setItems(this.currentFileEntry.archiveEntries);
                     fileListView.redraw();
                 }
             });

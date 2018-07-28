@@ -548,9 +548,6 @@
 					detailsGeneralInfoFormat21: "{uploadTimestamp}"
 					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
 
-					fileListEntryFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusFileListEntryFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
-
 					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
 				}
 
@@ -609,6 +606,8 @@
 						VM1: {
 							height: 17
 							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 					}
 				}
@@ -649,9 +648,6 @@
 					detailsGeneralInfoFormat21: "{uploadTimestamp}"
 					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
 
-					fileListEntryFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusFileListEntryFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
-
 					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
 				}
 
@@ -710,6 +706,8 @@
 						VM1: {
 							height: 17
 							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 					}
 				}
