@@ -72,7 +72,7 @@ iNiQUiTY, etc.
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
 
-A special `XY` MCI code may also be utilized for placement identification when creating menus.
+A special `XY` MCI code may also be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen.
 
 
 ## Views
@@ -92,7 +92,7 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input | 
 | `KE` | Key Entry            | A *single* key input control |
 
-     
+
 Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to 
 see additional information.
 
@@ -112,10 +112,14 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `focus` | If set to `true`, establishes initial focus |
 | `text` | (initial) text of a view |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
+| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
+| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
 
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default 
 `menu.hjson` and `theme.hjson` files!
 
+### Custom Properties
+Often a module will provide custom properties that receive format objects (See **Entry Formatting** below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_base_search` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
 
 ### Text Styles
 
@@ -133,3 +137,24 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 | `small i` | ENiGMA BULLETiN BOARD SOFTWARE |
 | `mixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
 | `l33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
+
+### Entry Fromatting
+Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
+
+### Additional Text Styles
+Additional text styles are available for numbers:
+
+| Style             | Description   |
+|-------------------|---------------|
+| `sizeWithAbbr`    | File size (converted from bytes) with abbreviation such as `1 MB`, `2.2 GB`, `34 KB`, etc. |
+| `sizeWithoutAbbr` | Just the file size (converted from bytes) without the abbreviation. For example: 1024 becomes 1.  |
+| `sizeAbbr`        | Just the abbreviation given a file size (converted from bytes) such as `MB` or `GB`.  |
+| `countWithAbbr`   | Count with abbreviation such as `100 K`, `4.3 B`, etc.  |
+| `countWithoutAbbr`    | Just the count |
+| `countAbbr`       | Just the abbreviation such as `M` for millions.   |
+
+
+#### Examples
+Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as "<font color="red">eVIL cURRENT</font> <font color="grey">-</font> <font color="magenta">Razor 1911</font>".
+
+Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
