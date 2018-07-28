@@ -8,7 +8,7 @@ The built in `file_area_list` module provides a very flexible file listing UI.
 ## Configuration
 ## Config Block
 Available `config` block entries:
-* `art`: Sup configuration block used to establish art files used for file browsing:
+* `art`: Sub-configuration block used to establish art files used for file browsing:
     * `browse`: The main browse screen.
     * `details`: The main file details screen.
     * `detailsGeneral`: The "general" tab of the details page.
