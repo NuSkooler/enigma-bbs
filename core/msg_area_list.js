@@ -115,7 +115,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
         ).map(area => {
             return {
                 index       : index++,
-                areaTag     : area.area.areaTag,
+                areaTag     : area.areaTag,
                 name        : area.area.name,
                 text        : area.area.name,  //  standard
                 desc        : area.area.desc,
