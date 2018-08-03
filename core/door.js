@@ -26,22 +26,20 @@ module.exports = class Door {
         }
 
         this.sockServer = createServer(conn => {
-            this.sockServer.getConnections( (err, count) => {
+            conn.once('end', () => {
+                return this.restoreIo(conn);
+            });
 
+            conn.once('error', err => {
+                this.client.log.info( { error : err.message }, 'Door socket server connection');
+                return this.restoreIo(conn);
+            });
+
+            this.sockServer.getConnections( (err, count) => {
                 //  We expect only one connection from our DOOR/emulator/etc.
                 if(!err && count <= 1) {
                     this.client.term.output.pipe(conn);
-
                     conn.on('data', this.doorDataHandler.bind(this));
-
-                    conn.once('end', () => {
-                        return this.restoreIo(conn);
-                    });
-
-                    conn.once('error', err => {
-                        this.client.log.info( { error : err.message }, 'Door socket server connection');
-                        return this.restoreIo(conn);
-                    });
                 }
             });
         });
