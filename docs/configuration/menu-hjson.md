@@ -31,9 +31,9 @@ Let's look a couple basic menu entries:
 
 ```hjson
 telnetConnected: {
-  art: CONNECT
-  next: matrix
-  options: { nextTimeout: 1500 }
+    art: CONNECT
+    next: matrix
+    options: { nextTimeout: 1500 }
 }
 ```
 
@@ -54,38 +54,38 @@ Now let's look at `matrix`, the `next` entry from `telnetConnected`:
 
 ```hjson
 matrix: {
-  art: matrix
-  desc: Login Matrix
-  form: {
+    art: matrix
+    desc: Login Matrix
+    form: {
     0: {
-      VM: {
+        VM: {
         mci: {
-          VM1:  {
+            VM1:  {
             submit: true
             focus:  true            
             items: [ "login", "apply", "log off" ]
             argName: matrixSubmit
-          }
+            }
         }
         submit: {
-          *: [
-              {
-                  value: { matrixSubmit: 0 }
-                  action: @menu:login
-              }
-              {
-                  value: { matrixSubmit: 1 },
-                  action: @menu:newUserApplication
-              }
-              {
-                  value: { matrixSubmit: 2 },
-                  action: @menu:logoff
-              }
-          ]
+            *: [
+                {
+                    value: { matrixSubmit: 0 }
+                    action: @menu:login
+                }
+                {
+                    value: { matrixSubmit: 1 },
+                    action: @menu:newUserApplication
+                }
+                {
+                    value: { matrixSubmit: 2 },
+                    action: @menu:logoff
+                }
+            ]
         }
-      }
+        }
     }
-  }
+    }
 }
 ```
 
@@ -99,3 +99,35 @@ The `submit` object tells the system to attempt to apply provided match entries 
  Upon submit, the first match will be executed. For example, if the user selects "login", the first entry 
  with a value of `{ matrixSubmit: 0 }` will match causing `action` of `@menu:login` to be executed (go 
  to `login` menu).
+
+## ACS Checks
+Menu modules can check user ACS in order to restrict areas and perform flow control. See [ACS](acs.md) for available ACS syntax.
+
+### Menu Access
+To restrict menu access add an `acs` key to `config`. Example:
+```
+opOnlyMenu: {
+    desc: Ops Only!
+    config: {
+        acs: ID1
+    }
+}
+```
+
+### Flow Control
+The `next` member of a menu may be an array of objects containing an `acs` check as well as the destination. Depending on the current user's ACS, the system will pick the appropriate target. The last element in an array without an `acs` can be used as a catch all. Example:
+```
+login: {
+    desc: Logging In
+    next: [
+        {
+            //	>= 2 calls else you get the full login
+            acs: NC2
+            next: loginSequenceLoginFlavorSelect
+        }
+        {
+            next: fullLoginSequenceLoginArt
+        }
+    ]
+}
+```

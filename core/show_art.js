@@ -116,7 +116,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
             if(!area) {
                 return cb(Errors.DoesNotExist(`No area by areaTag ${key} found`));
             }
-            return cb(null);    //  :TODO: REM OVE ME
+            return cb(null);    //  :TODO: REMOVE ME --- currently NYI
         });
     }
 

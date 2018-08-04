@@ -51,6 +51,19 @@ class ACS {
         return this.check(area.acs, 'download', ACS.Defaults.FileAreaDownload);
     }
 
+    hasMenuModuleAccess(modInst) {
+        const acs = _.get(modInst, 'menuConfig.config.acs');
+        if(!_.isString(acs)) {
+            return true;    //  no ACS check req.
+        }
+        try {
+            return checkAcs(acs, { client : this.client } );
+        } catch(e) {
+            Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
+            return false;
+        }
+    }
+
     getConditionalValue(condArray, memberName) {
         if(!Array.isArray(condArray)) {
             //  no cond array, just use the value
@@ -68,7 +81,7 @@ class ACS {
                     return false;
                 }
             } else {
-                return true;    //  no acs check req.
+                return true;    //  no ACS check req.
             }
         });
 

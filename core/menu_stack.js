@@ -127,6 +127,13 @@ module.exports = class MenuStack {
             } else {
                 self.client.log.debug( { menuName : name }, 'Goto menu module');
 
+                if(!this.client.acs.hasMenuModuleAccess(modInst)) {
+                    if(cb) {
+                        return cb(Errors.AccessDenied('No access to this menu'));
+                    }
+                    return;
+                }
+
                 //
                 //  If menuFlags were supplied in menu.hjson, they should win over
                 //  anything supplied in code.
