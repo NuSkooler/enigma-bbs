@@ -233,7 +233,7 @@
 			//	Any menu 'pause' will use this prompt
 			//
 			art: pause
-			options: {
+			config: {
 				trailingLF: no
 			}
 			/*

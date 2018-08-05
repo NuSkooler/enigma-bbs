@@ -61,10 +61,10 @@ function loadMenu(options, cb) {
             },
             function loadMenuModule(menuConfig, callback) {
 
-                menuConfig.options = menuConfig.options || {};
-                menuConfig.options.menuFlags = menuConfig.options.menuFlags || [];
-                if(!Array.isArray(menuConfig.options.menuFlags)) {
-                    menuConfig.options.menuFlags = [ menuConfig.options.menuFlags ];
+                menuConfig.config = menuConfig.config || {};
+                menuConfig.config.menuFlags = menuConfig.config.menuFlags || [];
+                if(!Array.isArray(menuConfig.config.menuFlags)) {
+                    menuConfig.config.menuFlags = [ menuConfig.config.menuFlags ];
                 }
 
                 const modAsset      = asset.getModuleAsset(menuConfig.module);

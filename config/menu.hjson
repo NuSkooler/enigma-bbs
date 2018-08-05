@@ -32,7 +32,7 @@
 		telnetConnected: {
 			art: CONNECT
 			next: matrix
-			options: { nextTimeout: 1500 }
+			config: { nextTimeout: 1500 }
 		}
 
 		//
@@ -42,7 +42,7 @@
 		sshConnected: {
 			art: CONNECT
 			next: fullLoginSequenceLoginArt
-			options: { nextTimeout: 1500 }
+			config: { nextTimeout: 1500 }
 		}
 
 		//
@@ -53,7 +53,7 @@
 		sshConnectedNewUser: {
 			art: CONNECT
 			next: newUserApplicationPreSsh
-			options: { nextTimeout: 1500 }
+			config: { nextTimeout: 1500 }
 		}
 
 		//	Ye ol' standard matrix
@@ -158,7 +158,7 @@
 
 		loginAttemptTooNode: {
 			art: TOONODE
-			options: {
+			config: {
 				cls: true
 				nextTimeout: 2000
 			}
@@ -179,7 +179,7 @@
 		forgotPasswordSubmitted: {
 			desc: Forgot password
 			art: FORGOTPWSENT
-			options: {
+			config: {
 				cls: true
 				pause: true
 			}
@@ -206,7 +206,7 @@
 			art: PRELOGAD
 			desc: Logging Off
 			next: fullLogoffSequenceRandomBoardAd
-			options: {
+			config: {
 				cls: true
 				nextTimeout: 1500
 			}
@@ -216,7 +216,7 @@
 			art: OTHRBBS
 			desc: Logging Off
 			next: logoff
-			options: {
+			config: {
 				baudRate: 57600
 				pause: true
 				cls: true
@@ -234,7 +234,7 @@
 			art: NEWUSER1
 			next: newUserApplication
 			desc: Applying
-			options: {
+			config: {
 				pause: true
 				cls: true
 				menuFlags: [ "noHistory" ]
@@ -349,7 +349,7 @@
 			art: NEWUSER1
 			next: newUserApplicationSsh
 			desc: Applying
-			options: {
+			config: {
 				pause: true
 				cls: true
 				menuFlags: [ "noHistory" ]
@@ -456,7 +456,7 @@
 
 		newUserFeedbackToSysOpPreamble: {
 			art: LETTER
-			options: { pause: true }
+			config: { pause: true }
 			next: newUserFeedbackToSysOp
 		}
 
@@ -583,14 +583,14 @@
 		newUserInactiveDone: {
 			desc: Finished with NUA
 			art: DONE
-			options: { pause: true }
+			config: { pause: true }
 			next: @menu:logoff
 		}
 
 		fullLoginSequenceLoginArt: {
 			desc: Logging In
 			art: WELCOME
-			options: { pause: true }
+			config: { pause: true }
 			next: fullLoginSequenceLastCallers
 		}
 
@@ -598,7 +598,7 @@
 			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
-			options: {
+			config: {
 				pause: true
 				font: cp437
 			}
@@ -608,7 +608,7 @@
 			desc: Who's Online
 			module: whos_online
 			art: WHOSON
-			options: { pause: true }
+			config: { pause: true }
 			next: fullLoginSequenceOnelinerz
 		}
 
@@ -626,10 +626,8 @@
 					next: fullLoginSequenceUserStats
 				}
 			]
-			options: {
-				cls: true
-			}
 			config: {
+				cls: true
 				art: {
 					view: ONELINER
 					add: ONEADD
@@ -737,13 +735,13 @@
 		fullLoginSequenceSysStats: {
 			desc: System Stats
 			art: SYSSTAT
-			options: { pause: true }
+			config: { pause: true }
 			next: fullLoginSequenceUserStats
 		}
 		fullLoginSequenceUserStats: {
 			desc: User Stats
 			art: STATUS
-			options: { pause: true }
+			config: { pause: true }
 			next: mainMenu
 		}
 
@@ -937,7 +935,7 @@
 			art: MMENU
 			desc: Main Menu
 			prompt: menuCommand
-			options: {
+			config: {
 				font: cp437
 			}
 			submit: [
@@ -1016,26 +1014,26 @@
 			desc: Last Callers
 			module: last_callers
 			art: LASTCALL
-			options: { pause: true }
+			config: { pause: true }
 		}
 
 		mainMenuWhosOnline: {
 			desc: Who's Online
 			module: whos_online
 			art: WHOSON
-			options: { pause: true }
+			config: { pause: true }
 		}
 
 		mainMenuUserStats: {
 			desc: User Stats
 			art: STATUS
-			options: { pause: true }
+			config: { pause: true }
 		}
 
 		mainMenuSystemStats: {
 			desc: System Stats
 			art: SYSSTAT
-			options: { pause: true }
+			config: { pause: true }
 		}
 
 		mainMenuUserList: {
@@ -1282,10 +1280,8 @@
 		mainMenuOnelinerz: {
 			desc: Viewing Onelinerz
 			module: onelinerz
-			options: {
-				cls: true
-			}
 			config: {
+				cls: true
 				art: {
 					view: ONELINER
 					add: ONEADD
@@ -1368,10 +1364,8 @@
 		mainMenuRumorz: {
 			desc: Rumorz
 			module: rumorz
-			options: {
-				cls: true
-			}
 			config: {
+				cls: true
 				art: {
 					entries: RUMORS
 					add: RUMORADD
@@ -1454,10 +1448,8 @@
 		bbsList: {
 			desc: Viewing BBS List
 			module: bbs_list
-			options: {
-				cls: true
-			}
 			config: {
+				cls: true
 				art: {
 					entries: BBSLIST
 					add: BBSADD
@@ -1831,7 +1823,7 @@
 		messageSearchNoResults: {
 			desc: Message Search
 			art: MSRCNORES
-			options: {
+			config: {
 				pause: true
 			}
 		}
@@ -1912,8 +1904,6 @@
 			config: {
 				method: messageConf
 				key: confTag
-			}
-			options: {
 				pause: true
 				cls: true
 				menuFlags: [ "popParent", "noHistory" ]
@@ -1956,8 +1946,6 @@
 			config: {
 				method: messageArea
 				key: areaTag
-			}
-			options: {
 				pause: true
 				cls: true
 				menuFlags: [ "popParent", "noHistory" ]
@@ -2732,10 +2720,8 @@
 		fileBaseExportList: {
 			module: file_base_user_list_export
 			art: FBLISTEXP
-			options: {
-				pause: true
-			}
 			config: {
+				pause: true
 				templates: {
 					entry: file_list_entry.asc
 				}
@@ -2753,7 +2739,7 @@
 		fileBaseExportListNoResults: {
 			desc: Browsing Files
 			art: FBNORES
-			options: {
+			config: {
 				pause: true
 				menuFlags: [ "noHistory", "popParent" ]
 			}
@@ -2975,7 +2961,7 @@
 		fileBaseGetRatingForSelectedEntry: {
 			desc: Rating a File
 			prompt: fileBaseRateEntryPrompt
-			options: {
+			config: {
 				cls: true
 			}
 			submit: [
@@ -2991,7 +2977,7 @@
 		fileBaseListEntriesNoResults: {
 			desc: Browsing Files
 			art: FBNORES
-			options: {
+			config: {
 				pause: true
 				menuFlags: [ "noHistory", "popParent" ]
 			}
@@ -3282,7 +3268,7 @@
 		fileBaseDownloadManagerEmptyQueue: {
 			desc: Empty Download Queue
 			art: FEMPTYQ
-			options: {
+			config: {
 				pause: true
 				menuFlags: [ "noHistory", "popParent" ]
 			}
@@ -3446,7 +3432,7 @@
 		fileBaseNoUploadAreasAvail: {
 			desc: File Base
 			art: ULNOAREA
-			options: {
+			config: {
 				pause: true
 				menuFlags: [ "noHistory", "popParent" ]
 			}

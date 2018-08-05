@@ -135,14 +135,27 @@ module.exports = class MenuStack {
                 }
 
                 //
+                //  Handle deprecated 'options' block by merging to config and warning user.
+                //  :TODO: Remove in 0.0.10+
+                //
+                if(modInst.menuConfig.options) {
+                    self.client.log.warn(
+                        { options : modInst.menuConfig.options },
+                        'Use of "options" is deprecated. Move relevant members to "config" block! Support will be fully removed in future versions'
+                    );
+                    Object.assign(modInst.menuConfig.config || {}, modInst.menuConfig.options);
+                    delete modInst.menuConfig.options;
+                }
+
+                //
                 //  If menuFlags were supplied in menu.hjson, they should win over
                 //  anything supplied in code.
                 //
                 let menuFlags;
-                if(0 === modInst.menuConfig.options.menuFlags.length) {
+                if(0 === modInst.menuConfig.config.menuFlags.length) {
                     menuFlags = Array.isArray(options.menuFlags) ? options.menuFlags : [];
                 } else {
-                    menuFlags = modInst.menuConfig.options.menuFlags;
+                    menuFlags = modInst.menuConfig.config.menuFlags;
 
                     //  in code we can ask to merge in
                     if(Array.isArray(options.menuFlags) && options.menuFlags.includes('mergeFlags')) {
@@ -179,8 +192,8 @@ module.exports = class MenuStack {
 
                 const stackEntries = self.stack.map(stackEntry => {
                     let name = stackEntry.name;
-                    if(stackEntry.instance.menuConfig.options.menuFlags.length > 0) {
-                        name += ` (${stackEntry.instance.menuConfig.options.menuFlags.join(', ')})`;
+                    if(stackEntry.instance.menuConfig.config.menuFlags.length > 0) {
+                        name += ` (${stackEntry.instance.menuConfig.config.menuFlags.join(', ')})`;
                     }
                     return name;
                 });

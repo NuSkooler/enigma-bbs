@@ -156,7 +156,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
                     //  :TODO: we really need a way to supply an explicit path to look in, e.g. general/area_art/
                     self.displayAsset(
                         artSpec,
-                        self.menuConfig.options,
+                        self.menuConfig.config,
                         (err, artData) => {
                             if(err) {
                                 return callback(err);

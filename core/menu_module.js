@@ -25,11 +25,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.menuName           = options.menuName;
         this.menuConfig         = options.menuConfig;
         this.client             = options.client;
-        this.menuConfig.options = options.menuConfig.options || {};
+        //this.menuConfig.options = options.menuConfig.options || {};
         this.menuMethods        = {};   //  methods called from @method's
         this.menuConfig.config  = this.menuConfig.config || {};
 
-        this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
+        this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
+
+        //this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
 
         this.viewControllers    = {};
     }
@@ -59,7 +61,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                     self.displayAsset(
                         self.menuConfig.art,
-                        self.menuConfig.options,
+                        self.menuConfig.config,
                         (err, artData) => {
                             if(err) {
                                 self.client.log.trace('Could not display art', { art : self.menuConfig.art, reason : err.message } );
@@ -89,7 +91,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                     self.displayAsset(
                         self.menuConfig.promptConfig.art,
-                        self.menuConfig.options,
+                        self.menuConfig.config,
                         (err, artData) => {
                             if(artData) {
                                 mciData.prompt = artData.mciMap;
@@ -137,9 +139,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     beforeArt(cb) {
-        if(_.isNumber(this.menuConfig.options.baudRate)) {
+        if(_.isNumber(this.menuConfig.config.baudRate)) {
             //  :TODO: some terminals not supporting cterm style emulated baud rate end up displaying a broken ESC sequence or a single "r" here
-            this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.options.baudRate));
+            this.client.term.rawWrite(ansi.setEmulatedBaudRate(this.menuConfig.config.baudRate));
         }
 
         if(this.cls) {
@@ -220,11 +222,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     shouldPause() {
-        return ('end' === this.menuConfig.options.pause || true === this.menuConfig.options.pause);
+        return ('end' === this.menuConfig.config.pause || true === this.menuConfig.config.pause);
     }
 
     hasNextTimeout() {
-        return _.isNumber(this.menuConfig.options.nextTimeout);
+        return _.isNumber(this.menuConfig.config.nextTimeout);
     }
 
     haveNext() {
@@ -246,7 +248,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
             if(this.hasNextTimeout()) {
                 setTimeout( () => {
                     return gotoNextMenu();
-                }, this.menuConfig.options.nextTimeout);
+                }, this.menuConfig.config.nextTimeout);
             } else {
                 return gotoNextMenu();
             }
