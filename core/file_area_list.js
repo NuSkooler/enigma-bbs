@@ -589,15 +589,22 @@ exports.getModule = class FileAreaList extends MenuModule {
         });
     }
 
+    setFileListNoListing(text) {
+        const fileListView = this.viewControllers.detailsFileList.getView(MciViewIds.detailsFileList.fileList);
+        if(fileListView) {
+            fileListView.complexItems = false;
+            fileListView.setItems( [ text ] );
+            fileListView.redraw();
+        }
+    }
+
     populateFileListing() {
         const fileListView = this.viewControllers.detailsFileList.getView(MciViewIds.detailsFileList.fileList);
 
         if(this.currentFileEntry.entryInfo.archiveType) {
             this.cacheArchiveEntries( (err, cacheStatus) => {
                 if(err) {
-                    //  :TODO: Handle me!!!
-                    fileListView.setItems( [ 'Failed getting file listing' ] ); //  :TODO: make this not suck
-                    return;
+                    return this.setFileListNoListing('Failed to get file listing');
                 }
 
                 if('re-cached' === cacheStatus) {
@@ -606,7 +613,8 @@ exports.getModule = class FileAreaList extends MenuModule {
                 }
             });
         } else {
-            fileListView.setItems( [ stringFormat(this.menuConfig.config.notAnArchiveFormat || 'Not an archive', { fileName : this.currentFileEntry.fileName } ) ] );
+            const notAnArchiveFileName = stringFormat(this.menuConfig.config.notAnArchiveFormat || 'Not an archive', { fileName : this.currentFileEntry.fileName } );
+            this.setFileListNoListing(notAnArchiveFileName);
         }
     }
 

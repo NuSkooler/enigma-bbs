@@ -331,17 +331,25 @@ module.exports = function format(fmt, obj) {
             transformer = match[2];
             formatSpec  = match[3];
 
-            value = getValue(obj,  objPath);
-            if(transformer) {
-                value = transformValue(transformer, value);
-            }
+            try {
+                value = getValue(obj,  objPath);
+                if(transformer) {
+                    value = transformValue(transformer, value);
+                }
 
-            tokens = tokenizeFormatSpec(formatSpec || '');
+                tokens = tokenizeFormatSpec(formatSpec || '');
 
-            if(_.isNumber(value)) {
-                out += formatNumber(value, tokens);
-            } else {
-                out += formatString(value, tokens);
+                if(_.isNumber(value)) {
+                    out += formatNumber(value, tokens);
+                } else {
+                    out += formatString(value, tokens);
+                }
+            } catch(e) {
+                if(e instanceof KeyError) {
+                    out += match[0];    //  preserve full thing
+                } else if(e instanceof ValueError) {
+                    out += value.toString();
+                }
             }
         }
 
