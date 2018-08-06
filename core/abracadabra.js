@@ -155,7 +155,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             cwd             : this.config.cwd,  //  null/undefined = parent_of(cmd)
             args            : this.config.args,
             io              : this.config.io || 'stdio',
-            encoding        : this.config.encoding || this.client.term.outputEncoding,
+            encoding        : this.config.encoding || 'cp437',
             dropFile        : this.dropFile.fileName,
             dropFilePath    : this.dropFile.fullPath,
             node            : this.client.node,
