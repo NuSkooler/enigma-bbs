@@ -23,6 +23,7 @@ commands:
 ```
 
 Commands break up operations by groups:
+
 | Command   | Description   |
 |-----------|---------------|
 | `user`    | User management   |
