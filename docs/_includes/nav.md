@@ -25,7 +25,6 @@
     - [Access Condition System (ACS)]({{ site.baseurl }}{% link configuration/acs.md %})
     - Scheduled jobs
 
-
   - File Base
     - [About]({{ site.baseurl }}{% link filebase/index.md %})
     - [Configuring a File Area]({{ site.baseurl }}{% link filebase/first-file-area.md %})
@@ -70,6 +69,9 @@
     - [User List]({{ site.baseurl }}{% link modding/user-list.md %})
     - [Message Conference List]({{ site.baseurl }}{% link modding/msg-conf-list.md %})
     - [Message Area List]({{ site.baseurl }}{% link modding/msg-area-list.md %})
+
+  - Administration
+    - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
  
   - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
