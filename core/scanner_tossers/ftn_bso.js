@@ -1240,7 +1240,7 @@ function FTNMessageScanTossModule() {
                             //  we can only assume the message is to the +op, else we'll have to fail.
                             //
                             const toUserNameAsAddress = Address.fromString(message.toUserName);
-                            if(toUserNameAsAddress.isValid()) {
+                            if(toUserNameAsAddress && toUserNameAsAddress.isValid()) {
 
                                 Log.info(
                                     { toUserName : message.toUserName, fromUserName : message.fromUserName },
@@ -1879,7 +1879,7 @@ function FTNMessageScanTossModule() {
                         if(err) {
                             Log.warn( { error : err.message, oldPath : oldPath }, 'Failed removing old physical file during TIC replacement');
                         } else {
-                            Log.debug( { oldPath : oldPath }, 'Removed old physical file during TIC replacement');
+                            Log.trace( { oldPath : oldPath }, 'Removed old physical file during TIC replacement');
                         }
                         return callback(null, localInfo);   //  continue even if err
                     });
@@ -1889,7 +1889,7 @@ function FTNMessageScanTossModule() {
                 if(err) {
                     Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.filePath }, 'Failed import/update TIC record' );
                 } else {
-                    Log.debug(
+                    Log.info(
                         { tic : ticFileInfo.path, file : ticFileInfo.filePath, area : localInfo.areaTag },
                         'TIC imported successfully'
                     );
