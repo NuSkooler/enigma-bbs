@@ -287,14 +287,15 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     );
                 },
                 function removeOld(callback) {
-                    //  keep 25 max most recent items - remove the older ones
+                    //  keep 25 max most recent items by default - remove the older ones
+                    const retainCount = self.menuConfig.config.retainCount || 25;
                     self.db.run(
                         `DELETE FROM onelinerz
                         WHERE id IN (
                             SELECT id
                             FROM onelinerz
                             ORDER BY id DESC
-                            LIMIT -1 OFFSET 25
+                            LIMIT -1 OFFSET ${retainCount}
                         );`,
                         callback
                     );
