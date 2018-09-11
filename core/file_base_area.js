@@ -280,19 +280,17 @@ function attemptSetEstimatedReleaseDate(fileEntry) {
 }
 
 //  a simple log proxy for when we call from oputil.js
-const logDebug = (obj, msg) => {
+const maybeLog = (obj, msg, level) => {
     if(Log) {
-        Log.debug(obj, msg);
+        Log[level](obj, msg);
+    } else if ('error' === level) {
+        console.error(`${msg}: ${JSON.stringify(obj)}`);    //  eslint-disable-line no-console
     }
-}
+};
 
-const logError = (obj, msg) => {
-    if(Log) {
-        Log.error(obj, msg);
-    } else {
-        console.error(`${msg}: ${JSON.stringify(obj)}`);
-    }
-}
+const logDebug = (obj, msg) => maybeLog(obj, msg, 'debug');
+const logTrace = (obj, msg) => maybeLog(obj, msg, 'trace');
+const logError = (obj, msg) => maybeLog(obj, msg, 'error');
 
 function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
     async.waterfall(
@@ -381,7 +379,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                     //  cleanup but don't wait
                     temptmp.cleanup( paths => {
                         //  note: don't use client logger here - may not be avail
-                        logDebug( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
+                        logTrace( { paths : paths, sessionId : temptmp.sessionId }, 'Cleaned up temporary files' );
                     });
                     return callback(null);
                 });
