@@ -97,7 +97,9 @@ actions:
                                may also contain optional GLOB as last parameter,
                                for examle: scan some_area *.zip
 
-  info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
+  info CRITERIA                display information about areas and/or files
+                               where CRITERIA is one of the following:
+                               AREA_TAG|SHA|FILE_ID|FILENAME_WC
                                SHA may be a full or partial SHA-256
 
   mv SRC [SRC...] DST          move entry(s) from SRC to DST
@@ -135,13 +137,53 @@ general information:
 #### Scan File Area
 The `scan` action can (re)scan a file area for new entries as well as update (`--update`) existing entry records (description, etc.). When scanning, a valid area tag must be specified. Optionally, storage tag may also be supplied in order to scan a specific filesystem location using the `@the_storage_tag` syntax. If a [GLOB](http://man7.org/linux/man-pages/man7/glob.7.html) is supplied as the last argument, only file entries with filenames matching will be processed.
 
-#### Examples
+##### Examples
 Performing a quick scan of a specific area's storage location ("retro_warez", "retro_warez_games) matching only *.zip extentions:
 ```
-./oputil.js fb scan --quick retro_warez@retro_warez_games *.zip`
+$ ./oputil.js fb scan --quick retro_warez@retro_warez_games *.zip`
 ```
 
 Update all entries in the "artscene" area supplying the file tags "artscene", and "textmode".
 ```
-./oputil.js fb scan --update --quick --tags artscene,textmode artscene`
+$ ./oputil.js fb scan --update --quick --tags artscene,textmode artscene`
+```
+
+Scan "oldschoolbbs" area using the description file at "/path/to/DESCRIPT.ION":
+```
+$ ./oputil.js fb scan --desc-file /path/to/DESCRIPT.ION oldschoolbbs
+```
+
+#### Retrieve Information
+The `info` action can retrieve information about an area or file entry(s).
+
+##### Examples
+Information about a particular area:
+```
+$ ./oputil.js fb info retro_pc
+areaTag: retro_pc
+name: Retro PC
+desc: Oldschool / retro PC
+storageTag: retro_pc_tdc_1990 => /file_base/dos/tdc/1990
+storageTag: retro_pc_tdc_1991 => /file_base/dos/tdc/1991
+storageTag: retro_pc_tdc_1992 => /file_base/dos/tdc/1992
+storageTag: retro_pc_tdc_1993 => /file_base/dos/tdc/1993
+```
+
+Perhaps we want to fetch some information about a file in which we know piece of the filename:
+```
+$ ./oputil.js fb info "impulse*"
+file_id: 143
+sha_256: 547299301254ccd73eba4c0ec9cd6ab8c5929fbb655e72c4cc842f11332792d4
+area_tag: impulse_project
+storage_tag: impulse_project
+path: /file_base/impulse_project/impulseproject01.tar.gz
+hashTags: impulse.project,8bit.music,cid
+uploaded: 2018-03-10T11:36:41-07:00
+dl_count: 23
+archive_type: application/gzip
+byte_size: 114313
+est_release_year: 2015
+file_crc32: fc6655d
+file_md5: 3455f74bbbf9539e69bd38f45e039a4e
+file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 ```
