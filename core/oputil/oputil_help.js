@@ -54,7 +54,9 @@ actions:
                                may also contain optional GLOB as last parameter,
                                for examle: scan some_area *.zip
 
-  info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
+  info CRITERIA                display information about areas and/or files
+                               where CRITERIA is one of the following:
+                               AREA_TAG|SHA|FILE_ID|FILENAME_WC
                                SHA may be a full or partial SHA-256
 
   mv SRC [SRC...] DST          move entry(s) from SRC to DST
