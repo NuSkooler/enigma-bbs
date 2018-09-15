@@ -68,29 +68,22 @@ function renegadeToAnsi(s, client) {
     }
 
     let result  = '';
-    const re    = /\|([A-Z\d]{2}|\|)/g;
-    //const re    = /\|(?:(C[FBUD])([0-9]{1,2})|([A-Z\d]{2})|(\|))/g;
+    const re    = /\|(?:(C[FBUD])([0-9]{1,2})|([0-9]{2})|([A-Z]{2})|(\|))/g;
     let m;
     let lastIndex = 0;
     while((m = re.exec(s))) {
-        var val = m[1];
-
-        if('|' == val) {
-            result += '|';
-            continue;
-        }
-
-        //  convert to number
-        val = parseInt(val, 10);
-        if(isNaN(val)) {
-            val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);  //  value itself or literal
-        }
-
-        if(_.isString(val)) {
-            result += s.substr(lastIndex, m.index - lastIndex) + val;
-        } else {
+        if(m[3]) {
+            //  |## color
+            const val = parseInt(m[3], 10);
             const attr = ansiSgrFromRenegadeColorCode(val);
             result += s.substr(lastIndex, m.index - lastIndex) + attr;
+        } else if(m[4] || m[1]) {
+            //  |AA MCI code or |Cx## movement where ## is in m[1]
+            const val = getPredefinedMCIValue(client, m[4] || m[1], m[2]) || (m[0]);  //  value itself or literal
+            result += s.substr(lastIndex, m.index - lastIndex) + val;
+        } else if(m[5]) {
+            //  || -- literal '|', that is.
+            result += '|';
         }
 
         lastIndex = re.lastIndex;
