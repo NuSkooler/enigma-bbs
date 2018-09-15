@@ -7,19 +7,19 @@ const { getPredefinedMCIValue } = require('./predefined_mci.js');
 //  deps
 const _                       = require('lodash');
 
-exports.stripPipeCodes      = exports.stripEnigmaCodes      = stripEnigmaCodes;
-exports.pipeStrLen          = exports.enigmaStrLen          = enigmaStrLen;
-exports.pipeToAnsi          = exports.renegadeToAnsi        = renegadeToAnsi;
+exports.stripMciColorCodes  = stripMciColorCodes;
+exports.pipeStringLength    = pipeStringLength;
+exports.pipeToAnsi          = exports.renegadeToAnsi = renegadeToAnsi;
 exports.controlCodesToAnsi  = controlCodesToAnsi;
 
-//  :TODO: Not really happy with the module name of "color_codes". Would like something better
+//  :TODO: Not really happy with the module name of "color_codes". Would like something better ... control_code_string?
 
-function stripEnigmaCodes(s) {
+function stripMciColorCodes(s) {
     return s.replace(/\|[A-Z\d]{2}/g, '');
 }
 
-function enigmaStrLen(s) {
-    return stripEnigmaCodes(s).length;
+function pipeStringLength(s) {
+    return stripMciColorCodes(s).length;
 }
 
 function ansiSgrFromRenegadeColorCode(cc) {
@@ -62,6 +62,37 @@ function ansiSgrFromRenegadeColorCode(cc) {
     }[cc] || 'normal');
 }
 
+function ansiSgrFromCnetStyleColorCode(cc) {
+    return ANSI.sgr({
+        c0  : [ 'reset', 'black' ],
+        c1  : [ 'reset', 'red' ],
+        c2  : [ 'reset', 'green' ],
+        c3  : [ 'reset', 'yellow' ],
+        c4  : [ 'reset', 'blue' ],
+        c5  : [ 'reset', 'magenta' ],
+        c6  : [ 'reset', 'cyan' ],
+        c7  : [ 'reset', 'white' ],
+
+        c8  : [ 'bold', 'black' ],
+        c9  : [ 'bold', 'red' ],
+        ca  : [ 'bold', 'green' ],
+        cb  : [ 'bold', 'yellow' ],
+        cc  : [ 'bold', 'blue' ],
+        cd  : [ 'bold', 'magenta' ],
+        ce  : [ 'bold', 'cyan' ],
+        cf  : [ 'bold', 'white' ],
+
+        z0  : [ 'blackBG' ],
+        z1  : [ 'redBG' ],
+        z2  : [ 'greenBG' ],
+        z3  : [ 'yellowBG' ],
+        z4  : [ 'blueBG' ],
+        z5  : [ 'magentaBG' ],
+        z6  : [ 'cyanBG' ],
+        z7  : [ 'whiteBG' ],
+    }[cc] || 'normal');
+}
+
 function renegadeToAnsi(s, client) {
     if(-1 == s.indexOf('|')) {
         return s;   //  no pipe codes present
@@ -98,10 +129,12 @@ function renegadeToAnsi(s, client) {
 //  MCI codes.
 //
 //  Supported control code formats:
-//  * Renegade  : |##
-//  * PCBoard   : @X## where the first number/char is FG color, and second is BG
-//  * WildCat!  : @##@ the same as PCBoard without the X prefix, but with a @ suffix
-//  * WWIV      : ^#
+//  * Renegade      : |##
+//  * PCBoard       : @X## where the first number/char is FG color, and second is BG
+//  * WildCat!      : @##@ the same as PCBoard without the X prefix, but with a @ suffix
+//  * WWIV          : ^#
+//  * CNET Y-Style  : 0x19## where ## is a specific set of codes -- this is the older format
+//  * CNET Q-style  : 0x11##} where ## is a specific set of codes -- this is the newer format
 //
 //  TODO: Add Synchronet and Celerity format support
 //
@@ -109,7 +142,7 @@ function renegadeToAnsi(s, client) {
 //  * http://wiki.synchro.net/custom:colors
 //
 function controlCodesToAnsi(s, client) {
-    const RE = /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)/g;    //  eslint-disable-line no-control-regex
+    const RE = /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)|(\x19(c[0-9a-f]|z[0-7]|n1|f1)|\x19)|(\x11(c[0-9a-f]|z[0-7]|n1|f1)}|\x11)/g;    //  eslint-disable-line no-control-regex
 
     let m;
     let result      = '';
@@ -212,6 +245,19 @@ function controlCodesToAnsi(s, client) {
 
                 result += s.substr(lastIndex, m.index - lastIndex) + v;
 
+                break;
+
+            case '\x19'     :
+            case '\0x11'    :
+                //  CNET "Y-Style" & "Q-Style"
+                v = m[9] || m[11];
+                if('n1' === v) {
+                    result += '\n';
+                } else if('f1' === v) {
+                    result += ANSI.clearScreen();
+                } else {
+                    result += ansiSgrFromCnetStyleColorCode(v);
+                }
                 break;
         }
 
