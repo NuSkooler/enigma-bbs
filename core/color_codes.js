@@ -1,83 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var ansi                    = require('./ansi_term.js');
-var getPredefinedMCIValue   = require('./predefined_mci.js').getPredefinedMCIValue;
+const ANSI                      = require('./ansi_term.js');
+const { getPredefinedMCIValue } = require('./predefined_mci.js');
 
-var assert                  = require('assert');
-var _                       = require('lodash');
+//  deps
+const _                       = require('lodash');
 
-exports.enigmaToAnsi        = enigmaToAnsi;
 exports.stripPipeCodes      = exports.stripEnigmaCodes      = stripEnigmaCodes;
 exports.pipeStrLen          = exports.enigmaStrLen          = enigmaStrLen;
 exports.pipeToAnsi          = exports.renegadeToAnsi        = renegadeToAnsi;
 exports.controlCodesToAnsi  = controlCodesToAnsi;
 
 //  :TODO: Not really happy with the module name of "color_codes". Would like something better
-
-
-
-
-//  Also add:
-//  * fromCelerity(): |<case sensitive letter>
-//  * fromPCBoard(): (@X<bg><fg>)
-//  * fromWildcat(): (@<bg><fg>@ (same as PCBoard without 'X' prefix and '@' suffix)
-//  * fromWWIV(): <ctrl-c><0-7>
-//  * fromSyncronet(): <ctrl-a><colorCode>
-//  See http://wiki.synchro.net/custom:colors
-
-//  :TODO: rid of enigmaToAnsi() -- never really use. Instead, create bbsToAnsi() that supports renegade, PCB, WWIV, etc...
-function enigmaToAnsi(s, client) {
-    if(-1 == s.indexOf('|')) {
-        return s;   //  no pipe codes present
-    }
-
-    var result  = '';
-    var re      = /\|([A-Z\d]{2}|\|)/g;
-    var m;
-    var lastIndex = 0;
-    while((m = re.exec(s))) {
-        var val = m[1];
-
-        if('|' == val) {
-            result += '|';
-            continue;
-        }
-
-        //  convert to number
-        val = parseInt(val, 10);
-        if(isNaN(val)) {
-            //
-            //  ENiGMA MCI code? Only available if |client|
-            //  is supplied.
-            //
-            val = getPredefinedMCIValue(client, m[1]) || ('|' + m[1]);  //  value itself or literal
-        }
-
-        if(_.isString(val)) {
-            result += s.substr(lastIndex, m.index - lastIndex) + val;
-        } else {
-            assert(val >= 0 && val <= 47);
-
-            var attr = '';
-            if(7 == val) {
-                attr = ansi.sgr('normal');
-            } else if (val < 7 || val >= 16) {
-                attr = ansi.sgr(['normal', val]);
-            } else if (val <= 15) {
-                attr = ansi.sgr(['normal', val - 8, 'bold']);
-            }
-
-            result += s.substr(lastIndex, m.index - lastIndex) + attr;
-        }
-
-        lastIndex = re.lastIndex;
-    }
-
-    result = (0 === result.length ? s : result + s.substr(lastIndex));
-
-    return result;
-}
 
 function stripEnigmaCodes(s) {
     return s.replace(/\|[A-Z\d]{2}/g, '');
@@ -88,7 +23,7 @@ function enigmaStrLen(s) {
 }
 
 function ansiSgrFromRenegadeColorCode(cc) {
-    return ansi.sgr({
+    return ANSI.sgr({
         0   : [ 'reset', 'black' ],
         1   : [ 'reset', 'blue' ],
         2   : [ 'reset', 'green' ],
@@ -132,10 +67,11 @@ function renegadeToAnsi(s, client) {
         return s;   //  no pipe codes present
     }
 
-    var result  = '';
-    var re      = /\|([A-Z\d]{2}|\|)/g;
-    var m;
-    var lastIndex = 0;
+    let result  = '';
+    const re    = /\|([A-Z\d]{2}|\|)/g;
+    //const re    = /\|(?:(C[FBUD])([0-9]{1,2})|([A-Z\d]{2})|(\|))/g;
+    let m;
+    let lastIndex = 0;
     while((m = re.exec(s))) {
         var val = m[1];
 
@@ -192,7 +128,7 @@ function controlCodesToAnsi(s, client) {
     while((m = RE.exec(s))) {
         switch(m[0].charAt(0)) {
             case '|' :
-                //  Renegade or ENiGMA MCI
+                //  Renegade |##
                 v = parseInt(m[2], 10);
 
                 if(isNaN(v)) {
@@ -256,17 +192,18 @@ function controlCodesToAnsi(s, client) {
                     F   : [ 'bold', 'whiteBG' ],
                 }[v.charAt(1)] || [ 'normal' ];
 
-                v = ansi.sgr(fg.concat(bg));
+                v = ANSI.sgr(fg.concat(bg));
                 result += s.substr(lastIndex, m.index - lastIndex) + v;
                 break;
 
             case '\x03' :
+                //  WWIV
                 v = parseInt(m[8], 10);
 
                 if(isNaN(v)) {
                     v += m[0];
                 } else {
-                    v = ansi.sgr({
+                    v = ANSI.sgr({
                         0   : [ 'reset', 'black' ],
                         1   : [ 'bold', 'cyan' ],
                         2   : [ 'bold', 'yellow' ],

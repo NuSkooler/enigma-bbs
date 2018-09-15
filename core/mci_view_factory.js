@@ -37,6 +37,10 @@ MCIViewFactory.UserViewCodes = [
     'XY',
 ];
 
+MCIViewFactory.MovementCodes = [
+    'CF', 'CB', 'CU', 'CD',
+];
+
 MCIViewFactory.prototype.createFromMCI = function(mci) {
     assert(mci.code);
     assert(mci.id > 0);
@@ -192,14 +196,16 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
             break;
 
         default :
-            options.text = getPredefinedMCIValue(this.client, mci.code);
-            if(_.isString(options.text)) {
-                setWidth(0);
+            if(!MCIViewFactory.MovementCodes.includes(mci.code)) {
+                options.text = getPredefinedMCIValue(this.client, mci.code);
+                if(_.isString(options.text)) {
+                    setWidth(0);
 
-                setOption(1,    'textStyle');
-                setOption(2,    'justify');
+                    setOption(1,    'textStyle');
+                    setOption(2,    'justify');
 
-                view = new TextView(options);
+                    view = new TextView(options);
+                }
             }
             break;
     }

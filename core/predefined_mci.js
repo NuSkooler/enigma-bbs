@@ -4,12 +4,15 @@
 //  ENiGMA½
 const Config                            = require('./config.js').get;
 const Log                               = require('./logger.js').log;
-const getMessageAreaByTag               = require('./message_area.js').getMessageAreaByTag;
-const getMessageConferenceByTag         = require('./message_area.js').getMessageConferenceByTag;
+const {
+    getMessageAreaByTag,
+    getMessageConferenceByTag
+}                                       = require('./message_area.js');
 const clientConnections                 = require('./client_connections.js');
 const StatLog                           = require('./stat_log.js');
 const FileBaseFilters                   = require('./file_base_filter.js');
-const formatByteSize                    = require('./string_util.js').formatByteSize;
+const { formatByteSize }                = require('./string_util.js');
+const ANSI                              = require('./ansi_term.js');
 
 //  deps
 const packageJson           = require('../package.json');
@@ -227,9 +230,17 @@ const PREDEFINED_MCI_GENERATORS = {
     //  Special handling for XY
     //
     XY  : function xyHack() { return; /* nothing */ },
+
+    //
+    //  Various movement by N
+    //
+    CF  : function cursorForwardBy(client, n = 1) { return ANSI.forward(n); },
+    CB  : function cursorBackBy(client, n = 1) { return ANSI.back(n); },
+    CU  : function cursorUpBy(client, n = 1) { return ANSI.up(n); },
+    CD  : function cursorDownBy(client, n = 1) { return ANSI.down(n); },
 };
 
-function getPredefinedMCIValue(client, code) {
+function getPredefinedMCIValue(client, code, extra) {
 
     if(!client || !code) {
         return;
@@ -240,7 +251,7 @@ function getPredefinedMCIValue(client, code) {
     if(generator) {
         let value;
         try {
-            value = generator(client);
+            value = generator(client, extra);
         } catch(e) {
             Log.error( { code : code, exception : e.message }, 'Exception caught generating predefined MCI value' );
         }

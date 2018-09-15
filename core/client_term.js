@@ -3,7 +3,6 @@
 
 //  ENiGMA½
 var Log             = require('./logger.js').log;
-var enigmaToAnsi    = require('./color_codes.js').enigmaToAnsi;
 var renegadeToAnsi  = require('./color_codes.js').renegadeToAnsi;
 
 var iconv           = require('iconv-lite');
@@ -174,15 +173,8 @@ ClientTerminal.prototype.rawWrite = function(s, cb) {
     }
 };
 
-ClientTerminal.prototype.pipeWrite = function(s, spec, cb) {
-    spec = spec || 'renegade';
-
-    var conv = {
-        enigma      : enigmaToAnsi,
-        renegade    : renegadeToAnsi,
-    }[spec] || renegadeToAnsi;
-
-    this.write(conv(s, this), null, cb);    //  null = use default for |convertLineFeeds|
+ClientTerminal.prototype.pipeWrite = function(s, cb) {
+    this.write(renegadeToAnsi(s, this), null, cb);    //  null = use default for |convertLineFeeds|
 };
 
 ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
