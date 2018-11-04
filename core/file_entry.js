@@ -369,7 +369,7 @@ module.exports = class FileEntry {
         return Object.keys(FILE_WELL_KNOWN_META);
     }
 
-    static findFileBySha(sha, cb) {
+    static findBySha(sha, cb) {
         //  full or partial SHA-256
         fileDb.all(
             `SELECT file_id
@@ -395,6 +395,29 @@ module.exports = class FileEntry {
                 });
             }
         );
+    }
+
+    //  Attempt to fine a file by an *existing* full path.
+    //  Checkums may have changed and are not validated here.
+    static findByFullPath(fullPath, cb) {
+        //  first, basic by-filename lookup.
+        FileEntry.findByFileNameWildcard(paths.basename(fuillPath), (err, entries) => {
+            if(err) {
+                return cb(err);
+            }
+            if(!entries || !entries.length || entries.length > 1) {
+                return cb(Errors.DoesNotExist('No matches'));
+            }
+
+            //  ensure the *full* path has not changed
+            //  :TODO: if FS is case-insensitive, we probably want a better check here
+            const possibleMatch = entries[0];
+            if(possibleMatch.fullPath === fullPath) {
+                return cb(null, possibleMatch);
+            }
+
+            return cb(Errors.DoesNotExist('No matches'));
+        });
     }
 
     static findByFileNameWildcard(wc, cb) {

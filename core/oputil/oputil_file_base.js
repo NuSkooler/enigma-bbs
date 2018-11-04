@@ -319,7 +319,7 @@ function getFileEntries(pattern, cb) {
                     return callback(null, entries);	//	already got it by FILE_ID
                 }
 
-                FileEntry.findFileBySha(pattern, (err, fileEntry) => {
+                FileEntry.findBySha(pattern, (err, fileEntry) => {
                     return callback(null, fileEntry ? [ fileEntry ] : null );
                 });
             },
