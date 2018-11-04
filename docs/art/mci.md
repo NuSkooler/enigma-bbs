@@ -11,8 +11,7 @@ are set by placing duplicate codes back to back in art files.
 ## Predefined MCI Codes
 There are many predefined MCI codes that can be used anywhere on the system (placed in any art file). More are added all 
 the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) 
-for a full listing. Many codes attempt to pay homage to Oblivion/2, 
-iNiQUiTY, etc.
+for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 | Code | Description  |
 |------|--------------|
@@ -72,7 +71,14 @@ iNiQUiTY, etc.
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
 
-A special `XY` MCI code may also be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen.
+Some additional special case codes also exist:
+| Code   | Description  |
+|--------|--------------|
+| `CF##` | Moves the cursor position forward _##_ characters |
+| `CB##` | Moves the cursor position back _##_ characters |
+| `CU##` | Moves the cursor position up _##_ characters |
+| `CD##` | Moves the cursor position down _##_ characters |
+| `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen.
 
 
 ## Views
