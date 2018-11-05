@@ -314,9 +314,13 @@ exports.getModule = class TransferFileModule extends MenuModule {
                             return callback(err);   //  failed to create it
                         }
 
-                        fs.write(tempFileInfo.fd, filePaths.join(SYSTEM_EOL));
-                        fs.close(tempFileInfo.fd, err => {
-                            return callback(err, tempFileInfo.path);
+                        fs.write(tempFileInfo.fd, filePaths.join(SYSTEM_EOL), err => {
+                            if(err) {
+                                return callback(err);
+                            }
+                            fs.close(tempFileInfo.fd, err => {
+                                return callback(err, tempFileInfo.path);
+                            });
                         });
                     });
                 },
