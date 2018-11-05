@@ -222,7 +222,9 @@ function askNewConfigQuestions(cb) {
                     }
 
                     config.logging = {
-                        level : answers.loggingLevel,
+                        rotatingFile : {
+                            level : answers.loggingLevel,
+                        }
                     };
 
                     callback(null);
