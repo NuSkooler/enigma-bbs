@@ -16,10 +16,10 @@ You then need to enable the SSH server in your `config.hjson`:
 {
 	loginServers: {
 		ssh: {
-                    enabled: true
+            enabled: true
 		    port: 8889
 		    privateKeyPem: /path/to/ssh_private_key.pem
-                    privateKeyPass: YOUR_PK_PASS
+            privateKeyPass: YOUR_PK_PASS
         }                                                             
     }
 }
@@ -29,9 +29,11 @@ You then need to enable the SSH server in your `config.hjson`:
 
 | Option              | Description
 |---------------------|--------------------------------------------------------------------------------------|
-| `privateKeyPem`	  | Path to private key file
-| `privateKeyPass`    | Password to private key file
-| `firstMenu`		  | First menu an SSH connected user is presented with
-| `firstMenuNewUser`  | Menu presented to user when logging in with `users::newUserNames` in your config.hjson (defaults to `new` and `apply`)
-| `enabled`           | Enable/disable SSH server
-| `port`              | Configure a custom port for the SSH server
+| `privateKeyPem`	  | Path to private key file.
+| `privateKeyPass`    | Password to private key file.
+| `firstMenu`		  | First menu an SSH connected user is presented with.
+| `firstMenuNewUser`  | Menu presented to user when logging in with `users::newUserNames` in your config.hjson (defaults to `new` and `apply`).
+| `enabled`           | Enable/disable SSH server.
+| `port`              | Configure a custom port for the SSH server.
+| `algorithms`        | Configuration block for SSH algoritms. Includes arrays with keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config.js`.
+| `traceConnections`  | Set to `true` to enable full trace-level information on SSH connections.
