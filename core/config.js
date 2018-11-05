@@ -671,6 +671,7 @@ function getDefaultConfig() {
                 sort        : 1,
                 external    : {
                     //  :TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
+                    //  Linux x86_64 binary: https://l33t.codes/outgoing/sexyz
                     sendCmd             : 'sexyz',
                     sendArgs            : [ '-telnet', '-8', 'sz', '@{fileListPath}' ],
                     recvCmd             : 'sexyz',

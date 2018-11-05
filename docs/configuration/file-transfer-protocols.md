@@ -11,7 +11,7 @@ File transfer protocols are managed via the `fileTransferProtocols` configuratio
 The following file transfer protocols are pre-configured in ENiGMA½ as of this writing. System operators may override or extend this list. PRs are welcome for pre-configured additions!
 
 #### SEXYZ
-[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](http://132.0.0.249/bbs-linux-binaries/).
+[SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/bbs-linux-binaries/).
 
 #### sz/rz
 ZModem-8k is configured using the standard Linux [sz(1)](https://linux.die.net/man/1/sz) and [rz(1)](https://linux.die.net/man/1/rz) binaries. Note that these binaries also support XModem and YModem, and as such adding the configurations to your system should be fairly straight forward.
