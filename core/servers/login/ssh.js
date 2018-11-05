@@ -251,12 +251,13 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             ident : 'enigma-bbs-' + enigVersion + '-srv',
 
             //  Note that sending 'banner' breaks at least EtherTerm!
+
             debug : (sshDebugLine) => {
                 if(true === config.loginServers.ssh.traceConnections) {
                     Log.trace(`SSH: ${sshDebugLine}`);
                 }
             },
-            algorithms: { compress: ['none'] },
+            algorithms : config.loginServers.ssh.algorithms,
         };
 
         this.server = ssh2.Server(serverConf);
