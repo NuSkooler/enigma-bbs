@@ -8,7 +8,6 @@ const theme                 = require('./theme.js');
 const resetScreen           = require('./ansi_term.js').resetScreen;
 const StatLog               = require('./stat_log.js');
 const renderStringLength    = require('./string_util.js').renderStringLength;
-const stringFormat          = require('./string_format.js');
 
 //  deps
 const async                 = require('async');
@@ -155,12 +154,13 @@ exports.getModule = class RumorzModule extends MenuModule {
                     });
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    const config            = self.config;
-                    const listFormat        = config.listFormat || '{rumor}';
-                    const focusListFormat   = config.focusListFormat || listFormat;
+                    entriesView.setItems(entries.map(e => {
+                        return {
+                            text    : e.log_value,  //  standard
+                            rumor   : e.log_value,
+                        }
+                    }));
 
-                    entriesView.setItems(entries.map( e => stringFormat(listFormat, { rumor : e.log_value } ) ) );
-                    entriesView.setFocusItems(entries.map(e => stringFormat(focusListFormat, { rumor : e.log_value } ) ) );
                     entriesView.redraw();
 
                     return callback(null);

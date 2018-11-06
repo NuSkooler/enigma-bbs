@@ -290,13 +290,14 @@
 			}
 
 			mainMenuRumorz: {
-				config: {
-					listFormat:      "|00|11  {rumor}"
-					focusListFormat: "|00|15> |14{rumor}"
-				}
 				0: {
 					mci: {
-						VM1: { height: 14, width: 70 }
+						VM1: {
+							height: 14,
+							width: 70
+							itemFormat:      "|00|11  {rumor}"
+							focusItemFormat: "|00|15> |14{rumor}"
+						}
 						TM2: {
 							focusTextStyle: upper
 							items: [ "yes", "no" ]
