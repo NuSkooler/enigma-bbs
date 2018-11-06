@@ -88,7 +88,7 @@
 
 			fullLoginSequenceOnelinerz: {
 				config: {
-					tsFormat: ddd h:mma
+					dateTimeFormat: ddd h:mma
 				}
 				0: {
 					mci: {
@@ -195,7 +195,7 @@
 
 			mainMenuOnelinerz: {
 				config: {
-					tsFormat: ddd h:mma
+					dateTimeFormat: ddd h:mma
 				}
 				0: {
 					mci: {
