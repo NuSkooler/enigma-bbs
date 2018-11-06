@@ -4,7 +4,6 @@
 //  enigma-bbs
 const MenuModule        = require('./menu_module.js').MenuModule;
 const Config            = require('./config.js').get;
-const stringFormat      = require('./string_format.js');
 const ViewController    = require('./view_controller.js').ViewController;
 
 //  deps
@@ -110,12 +109,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
                     function populateList(callback) {
                         const protListView = vc.getView(MciViewIds.protList);
 
-                        const protListFormat        = self.config.protListFormat || '{name}';
-                        const protListFocusFormat   = self.config.protListFocusFormat || protListFormat;
-
-                        protListView.setItems(self.protocols.map(p => stringFormat(protListFormat, p) ) );
-                        protListView.setFocusItems(self.protocols.map(p => stringFormat(protListFocusFormat, p) ) );
-
+                        protListView.setItems(self.protocols);
                         protListView.redraw();
 
                         return callback(null);
@@ -131,6 +125,7 @@ exports.getModule = class FileTransferProtocolSelectModule extends MenuModule {
     loadAvailProtocols() {
         this.protocols = _.map(Config().fileTransferProtocols, (protInfo, protocol) => {
             return {
+                text        : protInfo.name,    //  standard
                 protocol    : protocol,
                 name        : protInfo.name,
                 hasBatch    : _.has(protInfo, 'external.recvArgs'),

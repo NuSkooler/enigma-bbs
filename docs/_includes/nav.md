@@ -71,6 +71,7 @@
     - [Message Area List]({{ site.baseurl }}{% link modding/msg-area-list.md %})
     - [BBS List]({{ site.baseurl }}{% link modding/bbs-list.md %})
     - [Rumorz]({{ site.baseurl }}{% link modding/rumorz.md %})
+    - [File Transfer Protocol Select]({{ site.baseurl }}{% link modding/file-transfer-protocol-select.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
