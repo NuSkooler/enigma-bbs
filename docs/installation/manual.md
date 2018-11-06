@@ -6,7 +6,7 @@ For Linux environments it's recommended you run the [install script](install-scr
 do things manually, read on...
 
 ## Prerequisites
-* [Node.js](https://nodejs.org/) version **v6.x or higher**
+* [Node.js](https://nodejs.org/) version **v10.x LTS or higher** (Note that 8.x LTS *probably* works but is unsupported).
   * :information_source: It is **highly** recommended to use [nvm](https://github.com/creationix/nvm) to manage your 
   Node.js installation if you're on a Linux/Unix environment.
   
