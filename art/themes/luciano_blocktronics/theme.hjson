@@ -713,17 +713,14 @@
 			}
 
 			fileBaseBrowseByAreaSelect: {
-				config: {
-					protListFormat: "|00|03{name}"
-					protListFocusFormat: "|00|19|15{name}"
-				}
-
 				0: {
 					mci: {
 						VM1: {
 							height: 15
 							width: 30
 							focusTextStyle: first lower
+							itemFormat: "|00|03{name}"
+							focusItemFormat: "|00|19|15{name}"
 						}
 					}
 				}
