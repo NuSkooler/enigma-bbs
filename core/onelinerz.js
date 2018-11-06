@@ -153,10 +153,14 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     );
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    const tsFormat = self.menuConfig.config.timestampFormat || self.client.currentTheme.helpers.getDateFormat('short');
+                    const tsFormat =
+                        self.menuConfig.config.dateTimeFormat ||
+                        self.menuConfig.config.timestampFormat ||   //  deprecated
+                        self.client.currentTheme.helpers.getDateFormat('short');
 
                     entriesView.setItems(entries.map( e => {
                         return {
+                            text        : e.oneliner,   //  standard
                             userId      : e.user_id,
                             userName    : e.user_name,
                             oneliner    : e.oneliner,

@@ -19,6 +19,3 @@ The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `lastLoginTs`: Last login timestamp formatted with `dateTimeFormat` style.
 * `location`: User's location.
 * `affiliation` or `affils`: Users affiliations.
-
-
-
