@@ -218,12 +218,7 @@ exports.getModule = class BBSListModule extends MenuModule {
     }
 
     setEntries(entriesView) {
-        const config            = this.menuConfig.config;
-        const listFormat        = config.listFormat || '{bbsName}';
-        const focusListFormat   = config.focusListFormat || '{bbsName}';
-
-        entriesView.setItems(this.entries.map( e => stringFormat(listFormat, e) ) );
-        entriesView.setFocusItems(this.entries.map( e => stringFormat(focusListFormat, e) ) );
+        return entriesView.setItems(this.entries);
     }
 
     displayBBSList(clearScreen, cb) {
@@ -277,6 +272,7 @@ exports.getModule = class BBSListModule extends MenuModule {
                         (err, row) => {
                             if (!err) {
                                 self.entries.push({
+                                    text            : row.bbs_name, //  standard field
                                     id              : row.id,
                                     bbsName         : row.bbs_name,
                                     sysOp           : row.sysop,

@@ -315,16 +315,14 @@
 			}
 
 			bbsList: {
-				config: {
-					listFormat: "|00|07{bbsName}"
-					focusListFormat: "|00|19|15{bbsName!styleFirstLower}"
-				}
 				0: {
 					mci: {
 						VM1: {
 							height: 11
 							width: 22
 							focusTextStyle: first upper
+							itemFormat: "|00|07{bbsName}"
+							focusItemFormat: "|00|19|15{bbsName!styleFirstLower}"
 						}
 						TL2: { width: 28 }
 						TL3: { width: 28 }

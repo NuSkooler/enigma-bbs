@@ -69,6 +69,7 @@
     - [User List]({{ site.baseurl }}{% link modding/user-list.md %})
     - [Message Conference List]({{ site.baseurl }}{% link modding/msg-conf-list.md %})
     - [Message Area List]({{ site.baseurl }}{% link modding/msg-area-list.md %})
+    - [BBS List]({{ site.baseurl }}{% link modding/bbs-list.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
