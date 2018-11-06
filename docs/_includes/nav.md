@@ -70,6 +70,7 @@
     - [Message Conference List]({{ site.baseurl }}{% link modding/msg-conf-list.md %})
     - [Message Area List]({{ site.baseurl }}{% link modding/msg-area-list.md %})
     - [BBS List]({{ site.baseurl }}{% link modding/bbs-list.md %})
+    - [Rumorz]({{ site.baseurl }}{% link modding/rumorz.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
