@@ -46,11 +46,9 @@ Below is a **sample** `config.hjson` illustrating various (but certainly not all
 		menuFile: "your_bbs.hjson" // copy of menu.hjson file (and adapt to your needs)
 	}
 
-	defaults: {
-		theme: "super-fancy-theme" // default-assigned theme (for new users) 
+	theme: {
+		default: "super-fancy-theme" // default-assigned theme (for new users) 
 	}
-
-	preLoginTheme: "luciano_blocktronics" // theme used before a user logs in (matrix, NUA, etc.)
 
 	messageConferences: {
 		local_general: {

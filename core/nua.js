@@ -9,6 +9,9 @@ const login         = require('./system_menu_method.js').login;
 const Config        = require('./config.js').get;
 const messageArea   = require('./message_area.js');
 
+//  deps
+const _             = require('lodash');
+
 exports.moduleInfo = {
     name    : 'NUA',
     desc    : 'New User Application',
@@ -96,10 +99,11 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                     //  :TODO: should probably have a place to create defaults/etc.
                 };
 
-                if('*' === config.defaults.theme) {
+                const defaultTheme = _.get(config, 'theme.default');
+                if('*' === defaultTheme) {
                     newUser.properties.theme_id = theme.getRandomTheme();
                 } else {
-                    newUser.properties.theme_id = config.defaults.theme;
+                    newUser.properties.theme_id = defaultTheme;
                 }
 
                 //  :TODO: User.create() should validate email uniqueness!

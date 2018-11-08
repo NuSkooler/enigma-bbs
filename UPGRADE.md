@@ -60,6 +60,7 @@ webSocket: {
 * The module export `registerEvents` has been deprecated. If you have a module that depends on this, use the new more generic `moduleInitialize` export instead.
 * The `system.db` `user_event_log` table has been updated to include a unique session ID. Previously this table was not used, but you will need to perform a slight maintenance task before it can be properly used. After updating to `0.0.9-alpha`, please run the following: `sqlite3 db/system.db DROP TABLE user_event_log;`. The new table format will be created and used at startup.
 * If you have art configured for message conference or area selection via the `art` configuration value, you will need to include a `show_art` menu reference. Defaulted to `changeMessageConfPreArt` for conferences and `changeMessageAreaPreArt` for areas & included in the example `menu.hjson`.
+* Config `defaults` section was theme related and as such, has been renamed to `theme`. `defaults.theme` is now `theme.default`, and `preLoginTheme` is now `theme.preLogin`. See `config.js` if this isn't clear as mud.
 
 
 # 0.0.7-alpha to 0.0.8-alpha

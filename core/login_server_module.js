@@ -23,10 +23,11 @@ module.exports = class LoginServerModule extends ServerModule {
         //
         //  Choose initial theme before we have user context
         //
-        if('*' === conf.config.preLoginTheme) {
+        const preLoginTheme = _.get(conf.config, 'theme.preLogin');
+        if('*' === preLoginTheme) {
             client.user.properties.theme_id = theme.getRandomTheme() || '';
         } else {
-            client.user.properties.theme_id = conf.config.preLoginTheme;
+            client.user.properties.theme_id = preLoginTheme;
         }
 
         theme.setClientTheme(client, client.user.properties.theme_id);

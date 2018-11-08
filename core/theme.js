@@ -39,7 +39,7 @@ function refreshThemeHelpers(theme) {
             let pwChar = _.get(
                 theme,
                 'customization.defaults.general.passwordChar',
-                Config().defaults.passwordChar
+                Config().theme.passwordChar
             );
 
             if(_.isString(pwChar)) {
@@ -51,15 +51,15 @@ function refreshThemeHelpers(theme) {
             return pwChar;
         },
         getDateFormat : function(style = 'short') {
-            const format = Config().defaults.dateFormat[style] || 'MM/DD/YYYY';
+            const format = Config().theme.dateFormat[style] || 'MM/DD/YYYY';
             return _.get(theme, `customization.defaults.dateFormat.${style}`, format);
         },
         getTimeFormat : function(style = 'short') {
-            const format = Config().defaults.timeFormat[style] || 'h:mm a';
+            const format = Config().theme.timeFormat[style] || 'h:mm a';
             return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
         },
         getDateTimeFormat : function(style = 'short') {
-            const format = Config().defaults.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+            const format = Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
             return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
         }
     };
@@ -402,9 +402,9 @@ function setClientTheme(client, themeId) {
     if(availThemes.has(themeId)) {
         msg = 'Set client theme';
         setThemeId = themeId;
-    } else if(availThemes.has(config.defaults.theme)) {
+    } else if(availThemes.has(config.theme.default)) {
         msg = 'Failed setting theme by supplied ID; Using default';
-        setThemeId = config.defaults.theme;
+        setThemeId = config.theme.default;
     } else {
         msg = 'Failed setting theme by system default ID; Using the first one we can find';
         setThemeId = availThemes.keys().next().value;
@@ -430,7 +430,7 @@ function getThemeArt(options, cb) {
     if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
         options.themeId = options.client.user.properties.theme_id;
     } else {
-        options.themeId = config.defaults.theme;
+        options.themeId = config.theme.default;
     }
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
@@ -477,11 +477,11 @@ function getThemeArt(options, cb) {
                 });
             },
             function fromDefaultTheme(artInfo, callback) {
-                if(artInfo || config.defaults.theme === options.themeId) {
+                if(artInfo || config.theme.default === options.themeId) {
                     return callback(null, artInfo);
                 }
 
-                options.basePath = paths.join(config.paths.themes, config.defaults.theme);
+                options.basePath = paths.join(config.paths.themes, config.theme.default);
                 art.getArt(options.name, options, (err, artInfo) => {
                     return callback(null, artInfo);
                 });

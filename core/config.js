@@ -141,9 +141,6 @@ function getDefaultConfig() {
             promptFile      : 'prompt.hjson',           //  Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./config)
         },
 
-        //  :TODO: see notes below about 'theme' section - move this!
-        preLoginTheme : 'luciano_blocktronics',
-
         users : {
             usernameMin         : 2,
             usernameMax         : 16,   //  Note that FidoNet wants 36 max
@@ -172,18 +169,10 @@ function getDefaultConfig() {
             ],
         },
 
-        //  :TODO: better name for "defaults"... which is redundant here!
-        /*
-        Concept
-        "theme" : {
-            "default" : "defaultThemeName", // or "*"
-            "preLogin" : "*",
-            "passwordChar" : "*",
-            ...
-        }
-        */
-        defaults : {
-            theme           : 'luciano_blocktronics',
+        theme : {
+            default     : 'luciano_blocktronics',
+            preLogin    : 'luciano_blocktronics',
+
             passwordChar    : '*',      //  TODO: move to user ?
             dateFormat  : {
                 short   : 'MM/DD/YYYY',
@@ -202,7 +191,7 @@ function getDefaultConfig() {
             cls     : true, //  Clear screen before each menu by default?
         },
 
-        paths       : {
+        paths : {
             config              : paths.join(__dirname, './../config/'),
             mods                : paths.join(__dirname, './../mods/'),
             loginServers        : paths.join(__dirname, './servers/login/'),
