@@ -30,6 +30,10 @@ function getAnswers(questions, cb) {
     });
 }
 
+const ConfigIncludeKeys = [
+    'theme',
+];
+
 const QUESTIONS = {
     Intro		: [
         {
@@ -72,12 +76,6 @@ const QUESTIONS = {
             default	: 2,
             filter	: s => s.toLowerCase(),
         },
-        {
-            name	: 'sevenZipExe',
-            message	: '7-Zip executable:',
-            type	: 'list',
-            choices	: [ '7z', '7za', 'None' ]
-        }
     ],
 
     MessageConfAndArea	: [
@@ -149,27 +147,34 @@ function askNewConfigQuestions(cb) {
             function promptOverwrite(needPrompt, callback) {
                 if(needPrompt) {
                     getAnswers(QUESTIONS.OverwriteConfig, answers => {
-                        callback(answers.overwriteConfig ? null : 'exit');
+                        return callback(answers.overwriteConfig ? null : 'exit');
                     });
                 } else {
-                    callback(null);
+                    return callback(null);
                 }
             },
             function basic(callback) {
                 getAnswers(QUESTIONS.Basic, answers => {
-                    config = {
-                        general : {
-                            boardName : answers.boardName,
-                        },
-                    };
+                    const defaultConfig	= require('../../core/config.js').getDefaultConfig();
 
-                    callback(null);
+                    //  start by plopping in values we want directly from config.js
+                    const template = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/config_template.in.hjson'), 'utf8'));
+
+                    const direct = {};
+                    _.each(ConfigIncludeKeys, keyPath => {
+                        _.set(direct, keyPath, _.get(defaultConfig, keyPath));
+                    });
+
+                    config = _.mergeWith(template, direct);
+
+                    //  we can override/add to it based on user input from this point on...
+                    config.general.boardName = answers.boardName;
+  
+                    return callback(null);
                 });
             },
             function msgConfAndArea(callback) {
                 getAnswers(QUESTIONS.MessageConfAndArea, answers => {
-                    config.messageConferences = {};
-
                     const confName	= makeMsgConfAreaName(answers.msgConfName);
                     const areaName	= makeMsgConfAreaName(answers.msgAreaName);
 
@@ -180,12 +185,6 @@ function askNewConfigQuestions(cb) {
                         default	: true,
                     };
 
-                    config.messageConferences.another_sample_conf = {
-                        name	: 'Another Sample Conference',
-                        desc	: 'Another conference example. Change me!',
-                        sort	: 2,
-                    };
-
                     config.messageConferences[confName].areas = {};
                     config.messageConferences[confName].areas[areaName] = {
                         name	: answers.msgAreaName,
@@ -194,51 +193,25 @@ function askNewConfigQuestions(cb) {
                         default	: true,
                     };
 
-                    config.messageConferences.another_sample_conf = {
-                        name	: 'Another Sample Conference',
-                        desc	: 'Another conf sample. Change me!',
-
-                        areas :  {
-                            another_sample_area : {
-                                name	: 'Another Sample Area',
-                                desc	: 'Another area example. Change me!',
-                                sort	: 2
-                            }
-                        }
-                    };
-
-                    callback(null);
+                    return callback(null);
                 });
             },
             function misc(callback) {
                 getAnswers(QUESTIONS.Misc, answers => {
-                    if('None' !== answers.sevenZipExe) {
-                        config.archivers = {
-                            zip : {
-                                compressCmd		: answers.sevenZipExe,
-                                decompressCmd	: answers.sevenZipExe,
-                            }
-                        };
-                    }
+                    config.logging.rotatingFile.level = answers.loggingLevel;
 
-                    config.logging = {
-                        rotatingFile : {
-                            level : answers.loggingLevel,
-                        }
-                    };
-
-                    callback(null);
+                    return callback(null);
                 });
             }
         ],
         err => {
-            cb(err, configPath, config);
+            return cb(err, configPath, config);
         }
     );
 }
 
 function writeConfig(config, path) {
-    config = hjson.stringify(config, { bracesSameLine : true, spaces : '\t', keepWsc : true, quotes : 'strings' } );
+    config = hjson.stringify(config, { bracesSameLine : true, space : '\t', keepWsc : true, quotes : 'strings' } );
 
     try {
         fs.writeFileSync(path, config, 'utf8');

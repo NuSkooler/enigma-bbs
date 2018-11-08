@@ -1,0 +1,99 @@
+{
+	/*
+		./\/\.' ENiGMA½ System Configuration -/--/-------- - --   - 
+
+		_____________________   _____  ____________________    __________\_   /
+		\__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+		//   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+		/____       _____|      __________       ___|__|      ____|     \   /  _____  \
+		---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+		                                                                 /__   _\
+		<*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+
+		-------------------------------------------------------------------------------
+
+		General Information
+		-------------------------------
+		This configuration is in HJSON (http://hjson.org/) format.  Strict to-spec 
+		JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+		
+		See http://hjson.org/ for more information and syntax.
+
+		Various editors and IDEs have plugins for the HJSON format which can be
+		very useful.
+
+		Available Configuration
+		-------------------------------
+		ENiGMA½ is highly configurable! By default, this file contains common
+		configuration elements, examples, etc. To see a full list of settings
+		available to this file, don't be afraid to open up core/config.js and
+		look around. Do not make changes there however, you may override any
+		of the configuration from within this file!
+
+		See the documentation for more information, and don't be shy to ask
+		for help!
+	*/
+
+	general: {
+		//	Your BBS Name!
+		boardName: XXXXX
+	}
+
+	logging: {
+		//	By default, the system will rotate logs.
+		//	Remember you can pipe logs through bunyan to pretty-print:
+		//	> tail -F enigma/logs/enigma-bbs.log | enigma/node_modules/bunyan/bin/bunyan
+		rotatingFile: {
+			//	If you're having trouble, try setting this to "trace"
+			level: XXXXX
+		}
+	}
+
+	theme: {
+		//	Default theme applied to new users. "*" indicates random.
+		default: XXXXX
+
+		//	Theme applied before a user has logged in. "*" indicates random.
+		preLogin: XXXXX
+	}
+
+	//	Message conferences and areas are within this block
+	messageConferences: {
+		//	An entry here prepresents a conference taka aka confTag
+		another_sample_conf: {
+			name: "Another Sample Conference"
+			desc: "Another conf sample. Change me!"
+			areas: {
+				//	Similar to confTags, this is a areaTag
+				another_sample_area: {
+					name: "Another Sample Area"
+					desc: "Another area example. Change me!"
+					//	The 'sort' key can override natural sort order and can live at the conference and area levels
+					sort: 2
+				}
+			}
+		}
+	}
+
+	//	Archive files and related
+	archives: {
+		//	External utilities used for import & upload processing archives such
+		//	as .zip, .rar, .arj, etc.
+		//
+		//	You'll want to have archivers configured for the many old-school archive
+		//	formats that a BBS may encounter!
+		//
+		//	See config.js for additional configuration
+		archivers: {
+			//
+			//	Each key in the "archivers" configuration block represents a specific
+			//	external archive utility. ENiGMA½ has sane configuration by default
+			//	for many archivers, but the tools themselves are likely not yet installed
+			//	on your system!
+			//
+			//	Please consult the documentation on information as to where to find and
+			//	install these utilities!
+			//			
+		}
+	}
+}

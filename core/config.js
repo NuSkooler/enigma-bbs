@@ -10,8 +10,9 @@ const async             = require('async');
 const _                 = require('lodash');
 const assert            = require('assert');
 
-exports.init            = init;
-exports.getDefaultPath  = getDefaultPath;
+exports.init                = init;
+exports.getDefaultPath      = getDefaultPath;
+exports.getDefaultConfig    = getDefaultConfig;
 
 let currentConfiguration = {};
 
@@ -133,8 +134,8 @@ function getDefaultConfig() {
         general : {
             boardName       : 'Another Fine ENiGMA½ BBS',
 
+            //  :TODO: closedSystem and loginAttemps prob belong under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
-
             loginAttempts   : 3,
 
             menuFile        : 'menu.hjson',             //  Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./config)
@@ -173,7 +174,7 @@ function getDefaultConfig() {
             default     : 'luciano_blocktronics',
             preLogin    : 'luciano_blocktronics',
 
-            passwordChar    : '*',      //  TODO: move to user ?
+            passwordChar    : '*',
             dateFormat  : {
                 short   : 'MM/DD/YYYY',
                 long    : 'ddd, MMMM Do, YYYY',
