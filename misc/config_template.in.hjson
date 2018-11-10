@@ -40,9 +40,11 @@
 	}
 
 	logging: {
+		//
 		//	By default, the system will rotate logs.
 		//	Remember you can pipe logs through bunyan to pretty-print:
 		//	> tail -F enigma/logs/enigma-bbs.log | enigma/node_modules/bunyan/bin/bunyan
+		//
 		rotatingFile: {
 			//	If you're having trouble, try setting this to "trace"
 			level: XXXXX
@@ -77,6 +79,7 @@
 
 	//	Archive files and related
 	archives: {
+		//
 		//	External utilities used for import & upload processing archives such
 		//	as .zip, .rar, .arj, etc.
 		//
@@ -84,6 +87,7 @@
 		//	formats that a BBS may encounter!
 		//
 		//	See config.js for additional configuration
+		//
 		archivers: {
 			//
 			//	Each key in the "archivers" configuration block represents a specific
@@ -95,5 +99,14 @@
 			//	install these utilities!
 			//			
 		}
+	}
+
+	users: {
+		//
+		//	ENiGMA½ utilizes user groups similar to Windows and *nix. Built in groups
+		//	include "users" (for regular users) and "sysops" for +ops. You can add other
+		//	groups to the system as well by adding a 'groups' key in this section:
+		//	groups: [ "leet", "lamerz" ]
+		//
 	}
 }

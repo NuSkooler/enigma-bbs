@@ -169,7 +169,7 @@ function askNewConfigQuestions(cb) {
 
                     //  we can override/add to it based on user input from this point on...
                     config.general.boardName = answers.boardName;
-  
+
                     return callback(null);
                 });
             },
