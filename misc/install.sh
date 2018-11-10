@@ -3,6 +3,7 @@
 { # this ensures the entire script is downloaded before execution
 
 ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=10}
+ENIGMA_BRANCH=0.0.9-alpha
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
@@ -78,7 +79,7 @@ download_enigma_source() {
   else
     log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
     mkdir -p "$INSTALL_DIR"
-    command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" || {
+    command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" && git checkout ${ENIGMA_BRANCH} || {
       log_error "Failed to clone ENiGMA½ repo. Please report this!"
       exit 1
     }
@@ -120,6 +121,8 @@ Additionally, the following support binaires are recommended:
   sz/rz: Various X/Y/Z modem support
     Debian/Ubuntu : apt-get install lrzsz
     CentOS        : yum install lrzsz
+
+  See docs for more information!
 
 EndOfMessage
     echo -e "\e[39m"
