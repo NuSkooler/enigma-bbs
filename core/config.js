@@ -149,7 +149,17 @@ function getDefaultConfig() {
 
             passwordMin         : 6,
             passwordMax         : 128,
-            badPassFile         : paths.join(__dirname, '../misc/10_million_password_list_top_10000.txt'),  //  https://github.com/danielmiessler/SecLists
+
+            //
+            //  The bad password list is a text file containing a password per line.
+            //  Entries in this list are not allowed to be used on the system as they
+            //  are known to be too common.
+            //
+            //  A great resource can be found at https://github.com/danielmiessler/SecLists
+            //
+            //  Current list source: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/probable-v2-top12000.txt
+            //
+            badPassFile         : paths.join(__dirname, '../misc/bad_passwords.txt'),
 
             realNameMax         : 32,
             locationMax         : 32,
