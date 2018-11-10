@@ -79,7 +79,7 @@ download_enigma_source() {
   else
     log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
     mkdir -p "$INSTALL_DIR"
-    command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" && git checkout ${ENIGMA_BRANCH} || {
+    command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" || {
       log_error "Failed to clone ENiGMA½ repo. Please report this!"
       exit 1
     }
@@ -89,7 +89,7 @@ download_enigma_source() {
 install_node_packages() {
     log "Installing required Node packages"
     cd ${ENIGMA_INSTALL_DIR}
-    npm install
+    git checkout ${ENIGMA_BRANCH} && npm install
     if [ $? -eq 0 ]; then
       log "npm package installation complete"
     else
