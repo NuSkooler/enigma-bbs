@@ -57,6 +57,100 @@
 
 		//	Theme applied before a user has logged in. "*" indicates random.
 		preLogin: XXXXX
+
+		//
+		//	dateFormat, timeFormat, and dateTimeFormat blocks configure
+		//	moment.js (https://momentjs.com/docs/#/displaying/) style formats
+		//	for dates and times. Short and long versions are available.
+		//	Note that themes may override these settings.
+		//
+	}
+
+	//
+	//	Login servers represent available servers (or protocols) in which
+	//	users are permitted to access your system.
+	//
+	loginServers: {
+		//	Remember kids, Telnet is insecure!
+		telnet: {
+		}
+
+		//	...but SSH *is* secure!
+		ssh: {
+			//
+			//	To enable SSH:
+			//	1) Generate a Private Key (PK):
+			//	> openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
+			//	2) Set "privateKeyPass" below
+			//
+			enabled: XXXXX
+
+			//	set this to your PK's password, generated in step #1 above
+			privateKeyPass: SuperSecretPasswordChangeMe!
+
+			//
+			//	It's possible to lock down various algorithms available to
+			//	SSH, but be aware this may limit the clients that can connect!
+			//
+			algorithms: {}
+		}
+
+		webSocket: {
+			//
+			//	Setting "proxied" to true allows non-secure (ws://) WebSockets
+			//	to be considered secure when the X-Fowarded-Proto HTTP header
+			//	is set to "https". This is helpful when ENiGMA is running behind
+			//	another web server doing SSL/TLS termination.
+			//
+			proxied: false
+
+			//	Non-secure WebSockets, or ws://
+			ws: {}
+
+			//	Secure WebSockets, or wss://
+			wss: {}
+		}
+	}
+
+	//
+	//	Content Servers expose content from the system
+	//
+	contentServers: {
+		//
+		//	The Web Content Server can expose content over HTTP (http://) and
+		//	HTTPS (https://) for (but not limited to) the following purposes:
+		//	* Static content
+		//	* Web downloads from the file base
+		//	* Password reset forms (sent to users in PW reset emails; see
+		//	  "email" block below)
+		//
+		web: {
+			//	Set to your public FQDN
+			domain: XXXXX
+		}
+	}
+
+	//
+	//	Currently, ENiGMA½ can use external email to mail
+	//	users for password resets. Additional functionality will
+	//	be added in the future.
+	//
+	email: {
+		//
+		//	Set the following keys to configure:
+		//	* "defaultFrom" to the reply address
+		//	* "transport" to a configuration block that meets the
+		//	  requirements of Nodemailer (https://nodemailer.com/)
+		//
+		//	Example:
+		//  transport: {
+		//		service: Zoho
+		//		auth: {
+		//			user: myuser@myhost.com
+		//			pass: supersecretpassword
+		//		}
+		//	}
+		//
 	}
 
 	//	Message conferences and areas are within this block
@@ -77,17 +171,23 @@
 		}
 	}
 
+	users: {
+		//
+		//	ENiGMA½ utilizes user groups similar to Windows and *nix. Built in groups
+		//	include "users" (for regular users) and "sysops" for +ops. You can add other
+		//	groups to the system as well by adding a 'groups' key in this section:
+		//	groups: [ "leet", "lamerz" ]
+		//
+
+		//	Set default group(s) new users should automatically be assigned to
+		//	defaultGroups : [ "lamerz" ]
+
+		//	Should new users require +op activation?
+		requireActivation: false,
+	}
+
 	//	Archive files and related
 	archives: {
-		//
-		//	External utilities used for import & upload processing archives such
-		//	as .zip, .rar, .arj, etc.
-		//
-		//	You'll want to have archivers configured for the many old-school archive
-		//	formats that a BBS may encounter!
-		//
-		//	See config.js for additional configuration
-		//
 		archivers: {
 			//
 			//	Each key in the "archivers" configuration block represents a specific
@@ -95,18 +195,22 @@
 			//	for many archivers, but the tools themselves are likely not yet installed
 			//	on your system!
 			//
-			//	Please consult the documentation on information as to where to find and
-			//	install these utilities!
-			//			
+			//	You'll want to have archivers configured for the many old-school archive
+			//	formats that a BBS may encounter! Please consult the documentation on
+			//	information as to where to find and install these utilities!
+			//
 		}
 	}
 
-	users: {
+	fileTransferProtocols: {
 		//
-		//	ENiGMA½ utilizes user groups similar to Windows and *nix. Built in groups
-		//	include "users" (for regular users) and "sysops" for +ops. You can add other
-		//	groups to the system as well by adding a 'groups' key in this section:
-		//	groups: [ "leet", "lamerz" ]
+		//	Each key in the "fileTransferProtocols" configuration block defines
+		//	an external file transfer utility for legacy protocols such as
+		//	X, Y, and Z-Modem.
+		//
+		//	You will want to ensure your system has these external utilities
+		//	installed and/or define new or additional protocols. Please
+		//	see the documentation for more information!
 		//
 	}
 }

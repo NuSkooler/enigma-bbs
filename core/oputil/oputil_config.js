@@ -32,6 +32,8 @@ function getAnswers(questions, cb) {
 
 const ConfigIncludeKeys = [
     'theme',
+    'loginServers',
+    'contentServers',
 ];
 
 const QUESTIONS = {
