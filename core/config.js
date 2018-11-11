@@ -923,6 +923,12 @@ function getDefaultConfig() {
 
         debug : {
             assertsEnabled  : false,
+        },
+
+        statLog : {
+            systemEvents : {
+                loginHistoryMax: -1 //  forever
+            }
         }
     };
 }

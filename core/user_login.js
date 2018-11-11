@@ -7,6 +7,7 @@ const clientConnections = require('./client_connections.js').clientConnections;
 const StatLog           = require('./stat_log.js');
 const logger            = require('./logger.js');
 const Events            = require('./events.js');
+const Config            = require('./config.js').get;
 
 //  deps
 const async             = require('async');
@@ -86,12 +87,12 @@ function userLogin(client, username, password, cb) {
                     return StatLog.incrementUserStat(user, 'login_count', 1, callback);
                 },
                 function recordLoginHistory(callback) {
-                    const LOGIN_HISTORY_MAX = 200;  //  history of up to last 200 callers
+                    const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;
                     const historyItem = JSON.stringify({
                         userId      : user.userId,
                         sessionId   : user.sessionId,
                     });
-                    return StatLog.appendSystemLogEntry('user_login_history', historyItem, LOGIN_HISTORY_MAX, StatLog.KeepType.Max, callback);
+                    return StatLog.appendSystemLogEntry('user_login_history', historyItem, loginHistoryMax, StatLog.KeepType.Max, callback);
                 }
             ],
             err => {
