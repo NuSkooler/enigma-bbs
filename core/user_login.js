@@ -92,7 +92,14 @@ function userLogin(client, username, password, cb) {
                         userId      : user.userId,
                         sessionId   : user.sessionId,
                     });
-                    return StatLog.appendSystemLogEntry('user_login_history', historyItem, loginHistoryMax, StatLog.KeepType.Max, callback);
+
+                    return StatLog.appendSystemLogEntry(
+                        'user_login_history',
+                        historyItem,
+                        loginHistoryMax,
+                        StatLog.KeepType.Max,
+                        callback
+                    );
                 }
             ],
             err => {

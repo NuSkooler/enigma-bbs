@@ -366,4 +366,11 @@
         //  see the documentation for more information!
         //
     }
+
+    statLog: {
+        systemEvents: {
+            //  Max login history event records kept. -1 = unlimited
+            loginHistoryMax: -1
+        }
+    }
 }
