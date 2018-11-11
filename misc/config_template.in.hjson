@@ -73,10 +73,14 @@
 	loginServers: {
 		//	Remember kids, Telnet is insecure!
 		telnet: {
+			//	It's best to use non-privileged ports and NAT/foward to them
+			port: XXXXX
 		}
 
 		//	...but SSH *is* secure!
 		ssh: {
+			port: XXXXX
+
 			//
 			//	To enable SSH:
 			//	1) Generate a Private Key (PK):
@@ -105,10 +109,24 @@
 			proxied: false
 
 			//	Non-secure WebSockets, or ws://
-			ws: {}
+			ws: {
+				port: XXXXX
+			}
 
 			//	Secure WebSockets, or wss://
-			wss: {}
+			wss: {
+				port: XXXXX
+				enabled: XXXXX
+
+				//
+				//	Certificate and Key in PEM format.
+				//	Note that web browsers will not trust self-signed certs. Look
+				//	into Let's Encrypt and perhaps running ENiGMA behind another
+				//	web server such as Caddy.
+				//
+				certPem: XXXXX
+				keyPem: XXXXX
+			}
 		}
 	}
 
