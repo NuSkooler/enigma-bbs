@@ -9,16 +9,6 @@ ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
 WAIT_BEFORE_INSTALL=10
 
-is_arch_arm()
-{
-    local ARCH=`arch`
-    if [[ $ARCH == "arm"* ]]; then
-        return 1
-    else
-        return 0
-    fi
-}
-
 enigma_header() {
     clear
     cat << EndOfMessage
@@ -47,7 +37,7 @@ fatal_error() {
 }
 
 enigma_install_needs() {
-    command -v $1 >/dev/null 2>&1 || { fatal_error "ENiGMA½ requires $1 but it's not installed. Please install it and restart the installer." }
+    command -v $1 >/dev/null 2>&1 || fatal_error "ENiGMA½ requires $1 but it's not installed. Please install it and restart the installer."
 }
 
 log()  {
@@ -78,25 +68,31 @@ configure_nvm() {
 }
 
 download_enigma_source() {
-  local INSTALL_DIR
-  INSTALL_DIR=${ENIGMA_INSTALL_DIR}
+    local INSTALL_DIR
+    INSTALL_DIR=${ENIGMA_INSTALL_DIR}
 
-  if [ -d "$INSTALL_DIR/.git" ]; then
-    log "ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git"
-    command git --git-dir="$INSTALL_DIR"/.git --work-tree="$INSTALL_DIR" fetch 2> /dev/null || {
-      fatal_error "Failed to update ENiGMA½, run 'git fetch' in $INSTALL_DIR yourself."
-    }
-  else
-    log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
-    mkdir -p "$INSTALL_DIR"
-    command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" || {
-      fatal_error "Failed to clone ENiGMA½ repo. Please report this!"
-    }
-  fi
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        log "ENiGMA½ is already installed in $INSTALL_DIR, trying to update using git"
+        command git --git-dir="$INSTALL_DIR"/.git --work-tree="$INSTALL_DIR" fetch 2> /dev/null ||
+            fatal_error "Failed to update ENiGMA½, run 'git fetch' in $INSTALL_DIR yourself."
+    else
+        log "Downloading ENiGMA½ from git to '$INSTALL_DIR'"
+        mkdir -p "$INSTALL_DIR"
+        command git clone ${ENIGMA_SOURCE} "$INSTALL_DIR" ||
+            fatal_error "Failed to clone ENiGMA½ repo. Please report this!"
+    fi
 }
 
-extra_npm_install_args()
-{
+is_arch_arm() {
+    local ARCH=`arch`
+    if [[ $ARCH == "arm"* ]]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+extra_npm_install_args() {
     if is_arch_arm; then
         echo "--build-from-source"
     else
@@ -110,9 +106,9 @@ install_node_packages() {
     local EXTRA_NPM_ARGS=$(extra_npm_install_args)
     git checkout ${ENIGMA_BRANCH} && npm install ${EXTRA_NPM_ARGS}
     if [ $? -eq 0 ]; then
-      log "npm package installation complete"
+        log "npm package installation complete"
     else
-      fatal_error "Failed to install ENiGMA½ npm packages. Please report this!"
+        fatal_error "Failed to install ENiGMA½ npm packages. Please report this!"
     fi
 }
 
