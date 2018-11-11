@@ -171,6 +171,53 @@
 		}
 	}
 
+	//
+	//	ENiGMA½ comes with a very powerful File Base, but may be a bit strange
+	//	until you get used to it. Please see the documentation!
+	//
+	fileBase: {
+		//
+		//	Storage tags with relative paths (that is, paths that do not start
+		//	with a "/") are relative to the following path:
+		//
+		areaStoragePrefix: XXXXX
+
+		//
+		//	Storage tags create a tag -> directory (relative or full path)
+		//	that can be used in areas.
+		//
+		storageTags: {
+			//
+			//	Example storage tag: "super_l33t_warez":
+			//	super_l33t_warez: "/path/to/super/l33t/warez"
+			//
+		}
+
+		areas: {
+			//
+			//	Example area with the areaTag of "an_example_area":
+			//	an_example_area: {
+			//		name: "Example File Area"
+			//		desc: "It's just an example, yo!"
+			//		storageTags: [
+			//			"super_l33t_warez"
+			//		]
+			//	}
+			//
+			//	File Base Areas are read-only (ie: download only) by default.
+			//	To make a uploadable area, set ACS as you like. For example,
+			//	to allow all users to upload to an area:
+			//
+			//	an_example_area: {
+			//		// ...
+			//		acs: {
+			//			write: GM[users]
+			//		}
+			//	}
+		}
+	}
+
+	//	General user configuration
 	users: {
 		//
 		//	ENiGMA½ utilizes user groups similar to Windows and *nix. Built in groups

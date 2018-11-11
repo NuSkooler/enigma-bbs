@@ -34,6 +34,7 @@ const ConfigIncludeKeys = [
     'theme',
     'loginServers',
     'contentServers',
+    'fileBase.areaStoragePrefix',
 ];
 
 const QUESTIONS = {
