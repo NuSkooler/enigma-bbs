@@ -15,13 +15,14 @@ const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const Errors					= require('../../core/enig_error.js').Errors;
 
 //	deps
-const async			= require('async');
-const inq			= require('inquirer');
-const mkdirsSync	= require('fs-extra').mkdirsSync;
-const fs			= require('graceful-fs');
-const hjson			= require('hjson');
-const paths			= require('path');
-const _				= require('lodash');
+const async			    = require('async');
+const inq			    = require('inquirer');
+const mkdirsSync	    = require('fs-extra').mkdirsSync;
+const fs			    = require('graceful-fs');
+const hjson			    = require('hjson');
+const paths			    = require('path');
+const _				    = require('lodash');
+const sanatizeFilename  = require('sanitize-filename');
 
 const packageJson   = require('../../package.json');
 
@@ -240,11 +241,35 @@ function writeConfig(config, path) {
     }
 }
 
+const copyFileSyncSilent = (to, from, flags) => {
+    try {
+        fs.copyFileSync(to, from, flags);
+    } catch(e) {}
+};
+
 function buildNewConfig() {
     askNewConfigQuestions( (err, configPath, config) => {
         if(err) {
             return;
         }
+
+        const bn = sanatizeFilename(config.general.boardName).replace(/ /g, '_').toLowerCase();
+        const menuFile = `${bn}.hjson`;
+        copyFileSyncSilent(
+            paths.join(__dirname, '../../config/menu.hjson'),
+            paths.join(__dirname, '../../config/', menuFile),
+            fs.constants.COPYFILE_EXCL
+        );
+
+        const promptFile = `${bn}_prompt.hjson`;
+        copyFileSyncSilent(
+            paths.join(__dirname, '../../config/prompt.hjson'),
+            paths.join(__dirname, '../../config/', promptFile),
+            fs.constants.COPYFILE_EXCL
+        )
+
+        config.general.menuFile     = menuFile;
+        config.general.promptFile   = promptFile;
 
         if(writeConfig(config, configPath)) {
             console.info('Configuration generated');
