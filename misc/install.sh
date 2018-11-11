@@ -86,14 +86,14 @@ download_enigma_source() {
 is_arch_arm() {
     local ARCH=`arch`
     if [[ $ARCH == "arm"* ]]; then
-        return 1
+        true
     else
-        return 0
+        false
     fi
 }
 
 extra_npm_install_args() {
-    if is_arch_arm; then
+    if is_arch_arm ; then
         echo "--build-from-source"
     else
         echo ""
