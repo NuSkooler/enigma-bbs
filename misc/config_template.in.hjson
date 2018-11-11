@@ -52,11 +52,26 @@
         boardName: XXXXX
     }
 
+    paths: {
+        //
+        //  Other paths can also be configured as well,
+        //  but generally unnecessary
+        //
+        logs: XXXXX
+    }
+
     logging: {
         //
-        //  By default, the system will rotate logs.
-        //  Remember you can pipe logs through bunyan to pretty-print:
-        //  > tail -F enigma/logs/enigma-bbs.log | enigma/node_modules/bunyan/bin/bunyan
+        //  Each block here represents a Bunyan style config.
+        //  See https://github.com/trentm/node-bunyan#streams
+        //
+        //  Remember you can pipe logs through Bunyan to pretty-print:
+        //  tail -F ./logs/enigma-bbs.log | bunyan
+        //
+        //  (npm install -g bunyan to get the binary)
+        //
+        //  We default to a rotating-file stream:
+        //  https://github.com/trentm/node-bunyan#stream-type-rotating-file
         //
         rotatingFile: {
             //  If you're having trouble, try setting this to "trace"
@@ -156,7 +171,38 @@
         //
         web: {
             //  Set to your public FQDN
-            domain: XXXXX
+            domain: another-fine-enigma-bbs.org
+
+            //  Standard issue "www" folder. Place static content here
+            staticRoot: XXXXX
+
+            //
+            //  This block configures password reset emails. Template files
+            //  support the following variables:
+            //  * %BOARDNAME%       : Name of BBS
+            //  * %USERNAME%        : Username of whom to reset password
+            //  * %TOKEN%           : Reset token
+            //  * %RESET_URL%       : In case of email, the link to follow
+            //    for reset. In case of landing page, URL to POST submit reset form.
+            //
+            resetPassword: {
+
+            }
+
+            http: {
+                port: XXXXX
+            }
+
+            https: {
+                port: XXXXX
+                enabled: XXXXX
+
+                //
+                //  Note that web browsers will not trust self-signed certs. Look
+                //  into Let's Encrypt and perhaps running ENiGMA behind another
+                //  web server such as Caddy.
+                //
+            }
         }
 
         //  Ladies and gentlemen, a Gopher server!
@@ -268,14 +314,29 @@
         //  ENiGMA½ utilizes user groups similar to Windows and *nix. Built in groups
         //  include "users" (for regular users) and "sysops" for +ops. You can add other
         //  groups to the system as well by adding a 'groups' key in this section:
-        //  groups: [ "leet", "lamerz" ]
+        //  groups: [
+        //      "leet", "lamerz"
+        //  ]
         //
-
+        //
         //  Set default group(s) new users should automatically be assigned to
-        //  defaultGroups : [ "lamerz" ]
+        //  defaultGroups : [
+        //      "lamerz"
+        //  ]
+        //
 
         //  Should new users require +op activation?
         requireActivation: false,
+
+        //  How long pre-authenticated users (have not logged in) can idle
+        preAuthIdleLogoutSeconds: XXXXX
+
+        //  How long authenticated users (logged in) can idle
+        idleLogoutSeconds: XXXXX
+
+        //  Usernames reserved for applying to your system
+        newUserNames: []
+
     }
 
     //  Archive files and related

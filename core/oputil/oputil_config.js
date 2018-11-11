@@ -37,9 +37,13 @@ function getAnswers(questions, cb) {
 
 const ConfigIncludeKeys = [
     'theme',
+    'users.preAuthIdleLogoutSeconds', 'users.idleLogoutSeconds',
+    'users.newUserNames',
+    'paths.logs',
     'loginServers',
     'contentServers',
     'fileBase.areaStoragePrefix',
+    'logging.rotatingFile',
 ];
 
 const HJSONStringifyComonOpts = {

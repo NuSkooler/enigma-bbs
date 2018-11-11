@@ -441,8 +441,8 @@ Client.prototype.startIdleMonitor = function() {
         const nowMs = Date.now();
 
         const idleLogoutSeconds = this.user.isAuthenticated() ?
-            Config().misc.idleLogoutSeconds :
-            Config().misc.preAuthIdleLogoutSeconds;
+            Config().users.idleLogoutSeconds :
+            Config().users.preAuthIdleLogoutSeconds;
 
         if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
             this.emit('idle timeout');

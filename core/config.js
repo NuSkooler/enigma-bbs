@@ -178,6 +178,9 @@ function getDefaultConfig() {
                 'sysop', 'admin', 'administrator', 'root', 'all',
                 'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
             ],
+
+            preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
+            idleLogoutSeconds           : 60 * 6,   //  6m
         },
 
         theme : {
@@ -906,14 +909,7 @@ function getDefaultConfig() {
             }
         },
 
-        misc : {
-            preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
-            idleLogoutSeconds           : 60 * 6,   //  6m
-        },
-
         logging : {
-            level   : 'debug',
-
             rotatingFile    : { //  set to 'disabled' or false to disable
                 type        : 'rotating-file',
                 fileName    : 'enigma-bbs.log',
