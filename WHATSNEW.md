@@ -19,6 +19,9 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Any module may now register for a system startup intiialization via the `initializeModules(initInfo, cb)` export.
 * User event log is now functional. Various events a user performs will be persisted to the `system.db` `user_event_log` table for up to 90 days. An example usage can be found in the updated `last_callers` module where events are turned into Ami/X style actions. Please see `UPGRADE.md`!
 * New MCI codes including general purpose movement codes. See [MCI codes](docs/art/mci.md)
+* `install.sh` will now attempt to use NPM's `--build-from-source` option when ARM is detected.
+* `oputil.js config new` will now generate a much more complete configuration file with comments, examples, etc. `oputil.js config cat` dumps your current config to stdout.
+
 
 
 ## 0.0.8-alpha

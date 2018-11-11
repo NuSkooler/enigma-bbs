@@ -4,12 +4,14 @@
 
 //	ENiGMA½
 const resolvePath				= require('../../core/misc_util.js').resolvePath;
-const printUsageAndSetExitCode	= require('./oputil_common.js').printUsageAndSetExitCode;
-const ExitCodes					= require('./oputil_common.js').ExitCodes;
-const argv						= require('./oputil_common.js').argv;
-const getConfigPath				= require('./oputil_common.js').getConfigPath;
+const {
+    printUsageAndSetExitCode,
+    getConfigPath,
+    argv,
+    ExitCodes,
+    initConfigAndDatabases
+}                               = require('./oputil_common.js');
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const Errors					= require('../../core/enig_error.js').Errors;
 
 //	deps
@@ -20,6 +22,8 @@ const fs			= require('graceful-fs');
 const hjson			= require('hjson');
 const paths			= require('path');
 const _				= require('lodash');
+
+const packageJson   = require('../../package.json');
 
 exports.handleConfigCommand				= handleConfigCommand;
 
@@ -36,6 +40,15 @@ const ConfigIncludeKeys = [
     'contentServers',
     'fileBase.areaStoragePrefix',
 ];
+
+const HJSONStringifyComonOpts = {
+    emitRootBraces  : true,
+    bracesSameLine  : true,
+    space           : 4,
+    keepWsc         : true,
+    quotes          : 'min',
+    eol             : '\n',
+};
 
 const QUESTIONS = {
     Intro		: [
@@ -214,7 +227,10 @@ function askNewConfigQuestions(cb) {
 }
 
 function writeConfig(config, path) {
-    config = hjson.stringify(config, { bracesSameLine : true, space : '\t', keepWsc : true, quotes : 'strings' } );
+    config = hjson.stringify(config, HJSONStringifyComonOpts)
+        .replace(/%ENIG_VERSION%/g,     packageJson.version)
+        .replace(/%HJSON_VERSION%/g,    hjson.version)
+        ;
 
     try {
         fs.writeFileSync(path, config, 'utf8');
@@ -522,6 +538,24 @@ function getImportEntries(importType, importData) {
     return importEntries;
 }
 
+function catCurrentConfig() {
+    try {
+        const config    = hjson.rt.parse(fs.readFileSync(getConfigPath(), 'utf8'));
+        const hjsonOpts = Object.assign({}, HJSONStringifyComonOpts, {
+            colors  : false === argv.colors ? false : true,
+            keepWsc : false === argv.comments ? false : true,
+        });
+
+        console.log(hjson.stringify(config, hjsonOpts));
+    } catch(e) {
+        if('ENOENT' == e.code) {
+            console.error(`File not found: ${getConfigPath()}`);
+        } else {
+            console.error(e);
+        }
+    }
+}
+
 function handleConfigCommand() {
     if(true === argv.help) {
         return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
@@ -532,6 +566,7 @@ function handleConfigCommand() {
     switch(action) {
         case 'new' 			: return buildNewConfig();
         case 'import-areas' : return importAreas();
+        case 'cat'          : return catCurrentConfig();
 
         default : return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
     }

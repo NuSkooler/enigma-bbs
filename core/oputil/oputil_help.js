@@ -39,12 +39,17 @@ actions:
 actions:
   new                      generate a new/initial configuration
   import-areas PATH        import areas using fidonet *.NA or AREAS.BBS file from PATH
+  cat                      cat current configuration to stdout
 
 import-areas args:
   --conf CONF_TAG          specify conference tag in which to import areas
   --network NETWORK        specify network name/key to associate FTN areas
   --uplinks UL1,UL2,...    specify one or more comma separated uplinks
   --type TYPE              specifies area import type. valid options are "bbs" and "na"
+
+cat args:
+  --no-color               disable color
+  --no-comments            strip any comments
 `,
     FileBase :
 `usage: oputil.js fb <action> [<args>]

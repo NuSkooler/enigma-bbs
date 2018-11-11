@@ -346,6 +346,19 @@ function getDefaultConfig() {
                     certPem : paths.join(__dirname, './../config/https_cert.pem'),
                     keyPem  : paths.join(__dirname, './../config/https_cert_key.pem'),
                 }
+            },
+
+            gopher : {
+                enabled         : false,
+                port            : 8070,
+                publicHostname  : 'another-fine-enigma-bbs.org',
+                publicPort      : 8080, //  adjust if behind NAT/etc.
+                bannerFile      : 'gopher_banner.asc',
+
+                //
+                //  Set messageConferences{} to maps of confTag -> [ areaTag1, areaTag2, ... ]
+                //  to export message confs/areas
+                //
             }
         },
 
