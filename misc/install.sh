@@ -101,7 +101,9 @@ extra_npm_install_args() {
 }
 
 install_node_packages() {
-    log "Installing required Node packages"
+    log "Installing required Node packages..."
+    log "Note that on some systems such as RPi, this can take a VERY long time. Be patient!"
+
     cd ${ENIGMA_INSTALL_DIR}
     local EXTRA_NPM_ARGS=$(extra_npm_install_args)
     git checkout ${ENIGMA_BRANCH} && npm install ${EXTRA_NPM_ARGS}
