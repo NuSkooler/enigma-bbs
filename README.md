@@ -12,7 +12,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * [MCI support](docs/art/mci.md) for lightbars, toggles, input areas, and so on plus many other other bells and whistles
  * Telnet, **SSH**, and both secure and non-secure [WebSocket](https://en.wikipedia.org/wiki/WebSocket) access built in! Additional servers are easy to implement
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
- * [SyncTerm](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior
+ * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior
  * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support
  * Renegade style pipe color codes
  * [SQLite](http://sqlite.org/) storage of users, message areas, and so on
@@ -55,14 +55,15 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [MagiTerm](https://magickabbs.com/index.php/magiterm/)
 
 ## Boards
-* WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**telnet://xibalba.l33t.codes:44510** or via SSH secure on port 44511)
+* WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
 * [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
+* [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
 
 
 ## Installation
 ```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/0.0.9-alpha/misc/install.sh | bash
 ```
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) in the docs for more information.
