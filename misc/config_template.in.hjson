@@ -262,6 +262,17 @@
         }
     }
 
+    //  Configuration block for scanner/tosser modules
+    scannerTossers: {
+        //  The most popular being FTN/BSO style networks
+        ftn_bso: {
+            //
+            //  When you're ready to hook up to FTN networks, please
+            //  see the documentation on message networks.
+            //
+        }
+    }
+
     //
     //  ENiGMA½ comes with a very powerful File Base, but may be a bit strange
     //  until you get used to it. Please see the documentation!
