@@ -73,7 +73,7 @@ exports.getModule = class MessageConfListModule extends MenuModule {
                     (next) => {
                         const confListView = this.viewControllers.confList.getView(MciViewIds.confList);
                         if(!confListView) {
-                            return cb(Errors.MissingMci(`Missing conf list MCI ${MciViewIds.confList}`));
+                            return next(Errors.MissingMci(`Missing conf list MCI ${MciViewIds.confList}`));
                         }
 
                         confListView.on('index update', idx => {
