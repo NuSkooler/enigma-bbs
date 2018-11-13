@@ -25,15 +25,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.menuName           = options.menuName;
         this.menuConfig         = options.menuConfig;
         this.client             = options.client;
-        //this.menuConfig.options = options.menuConfig.options || {};
         this.menuMethods        = {};   //  methods called from @method's
         this.menuConfig.config  = this.menuConfig.config || {};
-
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
-
-        //this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
-
         this.viewControllers    = {};
+
+        //  *initial* interruptable state for this menu
+        this.disableInterruption();
     }
 
     enter() {
@@ -44,6 +42,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.detachViewControllers();
     }
 
+    toggleInterruptionAndDisplayQueued(cb) {
+        this.enableInterruption();
+        this.displayQueuedInterruptions( () => {
+            this.disableInterruption();
+            return cb(null);
+        });
+    }
+
     initSequence() {
         const self      = this;
         const mciData   = {};
@@ -51,8 +57,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         async.series(
             [
+                function beforeArtInterrupt(callback) {
+                    return self.toggleInterruptionAndDisplayQueued(callback);
+                },
                 function beforeDisplayArt(callback) {
-                    self.beforeArt(callback);
+                    return self.beforeArt(callback);
                 },
                 function displayMenuArt(callback) {
                     if(!_.isString(self.menuConfig.art)) {
@@ -160,6 +169,48 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  nothing in base
     }
 
+    neverInterruptable() {
+        return this.menuConfig.config.interruptable === 'never';
+    }
+
+    enableInterruption() {
+        if(!this.neverInterruptable()) {
+            this.interruptable = true;
+        }
+    }
+
+    disableInterruption() {
+        if(!this.neverInterruptable()) {
+            this.interruptable = false;
+        }
+    }
+
+    displayQueuedInterruptions(cb) {
+        if(true !== this.interruptable) {
+            return cb(null);
+        }
+
+        async.whilst(
+            () => this.client.interruptQueue.hasItems(),
+            next => {
+                this.client.interruptQueue.display( (err, interruptItem) => {
+                    if(err) {
+                        return next(err);
+                    }
+
+                    if(interruptItem.pause) {
+                        return this.pausePrompt(next);
+                    }
+
+                    return next(null);
+                });
+            },
+            err => {
+                return cb(err);
+            }
+        )
+    }
+
     getSaveState() {
         //  nothing in base
     }
@@ -178,11 +229,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return this.prevMenu(cb);   //  no next, go to prev
         }
 
-        return this.client.menuStack.next(cb);
+        this.displayQueuedInterruptions( () => {
+            return this.client.menuStack.next(cb);
+        });
     }
 
     prevMenu(cb) {
-        return this.client.menuStack.prev(cb);
+        this.displayQueuedInterruptions( () => {
+            return this.client.menuStack.prev(cb);
+        });
     }
 
     gotoMenu(name, options, cb) {
@@ -234,13 +289,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     autoNextMenu(cb) {
-        const self = this;
-
-        function gotoNextMenu() {
-            if(self.haveNext()) {
-                return menuUtil.handleNext(self.client, self.menuConfig.next, {}, cb);
+        const gotoNextMenu = () => {
+            if(this.haveNext()) {
+                this.displayQueuedInterruptions( () => {
+                    return menuUtil.handleNext(this.client, this.menuConfig.next, {}, cb);
+                });
             } else {
-                return self.prevMenu(cb);
+                return this.prevMenu(cb);
             }
         }
 

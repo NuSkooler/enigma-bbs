@@ -15,11 +15,16 @@ exports.getActiveNodeList       = getActiveNodeList;
 exports.addNewClient            = addNewClient;
 exports.removeClient            = removeClient;
 exports.getConnectionByUserId   = getConnectionByUserId;
+exports.getConnectionByNodeId   = getConnectionByNodeId;
 
 const clientConnections = [];
-exports.clientConnections       = clientConnections;
+exports.clientConnections = clientConnections;
 
-function getActiveConnections() { return clientConnections; }
+function getActiveConnections(authUsersOnly = false) {
+    return clientConnections.filter(conn => {
+        return ((authUsersOnly && conn.user.isAuthenticated()) || !authUsersOnly);
+    });
+}
 
 function getActiveNodeList(authUsersOnly) {
 
@@ -29,11 +34,7 @@ function getActiveNodeList(authUsersOnly) {
 
     const now = moment();
 
-    const activeConnections = getActiveConnections().filter(ac => {
-        return ((authUsersOnly && ac.user.isAuthenticated()) || !authUsersOnly);
-    });
-
-    return _.map(activeConnections, ac => {
+    return _.map(getActiveConnections(authUsersOnly), ac => {
         const entry = {
             node            : ac.node,
             authenticated   : ac.user.isAuthenticated(),
@@ -117,4 +118,8 @@ function removeClient(client) {
 
 function getConnectionByUserId(userId) {
     return getActiveConnections().find( ac => userId === ac.user.userId );
+}
+
+function getConnectionByNodeId(nodeId) {
+    return getActiveConnections().find( ac => nodeId == ac.node );
 }

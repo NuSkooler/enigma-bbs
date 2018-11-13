@@ -353,6 +353,21 @@
 				}
 			}
 
+			nodeMessage: {
+				0: {
+					mci: {
+						SM1: {
+							width: 22
+							itemFormat: "|00|07{text} |08(|07{userName}|08)"
+							focusItemFormat: "|00|15{text} |07(|15{userName}|07)"
+						}
+						ET2: {
+							width: 70
+						}
+					}
+				}
+			}
+
 
 			messageAreaViewPost: {
 				0: {
