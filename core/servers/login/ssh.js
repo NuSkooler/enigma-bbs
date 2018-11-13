@@ -241,6 +241,10 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 
     createServer() {
         const config = Config();
+        if(true != config.loginServers.ssh.enabled) {
+            return;
+        }
+
         const serverConf = {
             hostKeys : [
                 {
@@ -269,6 +273,10 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
 
     listen() {
         const config = Config();
+        if(true != config.loginServers.ssh.enabled) {
+            return true;    //  no server, but not an error
+        }
+
         const port = parseInt(config.loginServers.ssh.port);
         if(isNaN(port)) {
             Log.error( { server : ModuleInfo.name, port : config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
