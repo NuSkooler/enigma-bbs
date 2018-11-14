@@ -2,9 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }        = require('./menu_module.js');
-const { getActiveNodeList } = require('./client_connections.js');
-const { Errors }            = require('./enig_error.js');
+const { MenuModule }            = require('./menu_module.js');
+const { getActiveConnectionList } = require('./client_connections.js');
+const { Errors }                = require('./enig_error.js');
 
 //  deps
 const async                 = require('async');
@@ -43,7 +43,7 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                             return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.onlineList}`));
                         }
 
-                        const onlineList = getActiveNodeList(true).slice(0, onlineListView.height).map(
+                        const onlineList = getActiveConnectionList(true).slice(0, onlineListView.height).map(
                             oe => Object.assign(oe, { text : oe.userName, timeOn : _.upperFirst(oe.timeOn.humanize()) })
                         );
 

@@ -5,7 +5,7 @@
 const { MenuModule }        = require('./menu_module.js');
 const { Errors }            = require('./enig_error.js');
 const {
-    getActiveNodeList,
+    getActiveConnectionList,
     getConnectionByNodeId,
 }                           = require('./client_connections.js');
 const UserInterruptQueue    = require('./user_interrupt_queue.js');
@@ -110,7 +110,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             location        : 'N/A',
             affils          : 'N/A',
             timeOn          : 'N/A',
-        }].concat(getActiveNodeList(true)
+        }].concat(getActiveConnectionList(true)
             .map(node => Object.assign(node, { text : node.node.toString() } ))
         ).filter(node => node.node !== this.client.node);   //  remove our client's node
         this.nodeList.sort( (a, b) => a.node - b.node );    //  sort by node

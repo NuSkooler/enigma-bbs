@@ -11,7 +11,7 @@ const moment            = require('moment');
 const hashids           = require('hashids');
 
 exports.getActiveConnections    = getActiveConnections;
-exports.getActiveNodeList       = getActiveNodeList;
+exports.getActiveConnectionList = getActiveConnectionList;
 exports.addNewClient            = addNewClient;
 exports.removeClient            = removeClient;
 exports.getConnectionByUserId   = getConnectionByUserId;
@@ -26,7 +26,7 @@ function getActiveConnections(authUsersOnly = false) {
     });
 }
 
-function getActiveNodeList(authUsersOnly) {
+function getActiveConnectionList(authUsersOnly) {
 
     if(!_.isBoolean(authUsersOnly)) {
         authUsersOnly = true;
