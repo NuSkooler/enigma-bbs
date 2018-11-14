@@ -257,7 +257,7 @@ function buildNewConfig() {
             return;
         }
 
-        const bn = sanatizeFilename(config.general.boardName).replace(/ /g, '_').toLowerCase();
+        const bn = sanatizeFilename(config.general.boardName).replace(/[^a-z0-9_\-]/ig, '_').toLowerCase();
         const menuFile = `${bn}.hjson`;
         copyFileSyncSilent(
             paths.join(__dirname, '../../config/menu.hjson'),
