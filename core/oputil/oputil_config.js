@@ -257,15 +257,18 @@ function buildNewConfig() {
             return;
         }
 
-        const bn = sanatizeFilename(config.general.boardName).replace(/ /g, '_').toLowerCase();
-        const menuFile = `${bn}.hjson`;
+        const bn = sanatizeFilename(config.general.boardName)
+            .replace(/[^a-z0-9_\-]/ig, '_')
+            .replace(/_+/g, '_')
+            .toLowerCase();
+        const menuFile = `${bn}-menu.hjson`;
         copyFileSyncSilent(
             paths.join(__dirname, '../../config/menu.hjson'),
             paths.join(__dirname, '../../config/', menuFile),
             fs.constants.COPYFILE_EXCL
         );
 
-        const promptFile = `${bn}_prompt.hjson`;
+        const promptFile = `${bn}-prompt.hjson`;
         copyFileSyncSilent(
             paths.join(__dirname, '../../config/prompt.hjson'),
             paths.join(__dirname, '../../config/', promptFile),

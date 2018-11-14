@@ -1564,43 +1564,48 @@
 					value: { command: "Q" }
 					action: @systemMethod:prevMenu
 				}
+				//
+				//	The system supports many ways of launching doors including
+				//	modules for DoorParty!, BBSLink, etc.
+				//
+				//	Below are some examples. See the documentation for more info.
+				//
 				{
-					value: { command: "PW" }
-					action: @menu:doorPimpWars
+					value: { command: "ABRACADABRA" }
+					action: @menu:doorAbracadabraExample
 				}
 				{
-					value: { command: "TW" }
-					action: @menu:doorTradeWars2002BBSLink
-				}
-				{
-					value: { command: "DL" }
-					action: @menu:doorDarkLands
+					value: { command: "TWBBLINK" }
+					action: @menu:doorTradeWars2002BBSLinkExample
 				}
 				{
 					value: { command: "DP" }
-					action: @menu:doorParty
+					action: @menu:doorPartyExample
 				}
 				{
                     value: { command: "CN" }
-                    action: @menu:combatNet
+                    action: @menu:doorCombatNetExample
                 }
 				{
-					value: { command: "AGENT" }
-					action: @menu:telnetBridgeAgency
+					value: { command: "EXODUS" }
+					action: @menu:doorExodusCataclysm
 				}
 			]
 		}
 
 		//
-		//	Example using the abracadabra module for a retro DOS door
+		//	Local Door Example via abracadabra module
 		//
-		doorPimpWars: {
-			desc: Playing PimpWars
+		//	This example assumes launch_door.sh (which is passed args)
+		//	launches the door.
+		//
+		doorAbracadabraExample: {
+			desc: Abracadabra Example
 			module: abracadabra
 			config: {
-				name: PimpWars
+				name: Example Door
 				dropFileType: DORINFO
-				cmd: /home/enigma/DOS/scripts/pimpwars.sh
+				cmd: /home/enigma/DOS/scripts/launch_door.sh
 				args: [
 					"{node}",
 					"{dropFile}",
@@ -1613,11 +1618,11 @@
 		}
 
 		//
-		//	TradeWars 2000 example via BBSLink
+		//	BBSLink Example (TradeWars 2000)
 		//
-		//	You will need to register with BBSLink to obtain sysCode, authCode and schemeCode
+		//	Register @ https://bbslink.net/
 		//
-		doorTradeWars2002BBSLink: {
+		doorTradeWars2002BBSLinkExample: {
 			desc: Playing TW 2002 (BBSLink)
 			module: bbs_link
 			config: {
@@ -1628,8 +1633,12 @@
 			}
 		}
 
-		//	DoorParty! support. You'll need to register to obtain credentials
-		doorParty: {
+		//
+		//	DoorParty! Example
+		//
+		//	Register @ http://throwbackbbs.com/
+		//
+		doorPartyExample: {
 			desc: Using DoorParty!
 			module: door_party
 			config: {
@@ -1639,8 +1648,12 @@
 			}
 		}
 
-        //	CombatNet support. You'll need to register at http://combatnet.us/ to obtain credentials
-        combatNet: {
+		//
+        //	CombatNet Example
+        //
+        //	Register @ http://combatnet.us/
+        //
+        doorCombatNetExample: {
             desc: Using CombatNet
             module: combatnet
             config: {
@@ -1649,11 +1662,18 @@
             }
         }
 
-		telnetBridgeAgency: {
-			desc: Connected to HappyLand BBS
-			module: telnet_bridge
+        //
+        //	Exodus Example (cataclysm)
+        //	Register @ https://oddnetwork.org/exodus/
+        //
+        doorExodusCataclysm: {
+			desc: Cataclysm
+			module: exodus
 			config: {
-				host: agency.bbs.geek.nz
+				rejectUnauthorized: false
+				board: XXX
+				key: XXXXXXXX
+				door: cataclysm
 			}
 		}
 
