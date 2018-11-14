@@ -138,8 +138,8 @@ function getDefaultConfig() {
             closedSystem    : false,                    //  is the system closed to new users?
             loginAttempts   : 3,
 
-            menuFile        : 'menu.hjson',             //  Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./config)
-            promptFile      : 'prompt.hjson',           //  Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./config)
+            menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
+            promptFile      : 'prompt.hjson',   //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
         },
 
         users : {

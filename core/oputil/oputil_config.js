@@ -263,14 +263,14 @@ function buildNewConfig() {
             .toLowerCase();
         const menuFile = `${bn}-menu.hjson`;
         copyFileSyncSilent(
-            paths.join(__dirname, '../../config/menu.hjson'),
+            paths.join(__dirname, '../../misc/menu_template.in.hjson'),
             paths.join(__dirname, '../../config/', menuFile),
             fs.constants.COPYFILE_EXCL
         );
 
         const promptFile = `${bn}-prompt.hjson`;
         copyFileSyncSilent(
-            paths.join(__dirname, '../../config/prompt.hjson'),
+            paths.join(__dirname, '../../misc/prompt_template.in.hjson'),
             paths.join(__dirname, '../../config/', promptFile),
             fs.constants.COPYFILE_EXCL
         )
