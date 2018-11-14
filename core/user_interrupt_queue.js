@@ -7,6 +7,7 @@ const {
     getActiveConnections
 }                           = require('./client_connections.js');
 const ANSI                  = require('./ansi_term.js');
+const { pipeToAnsi }        = require('./color_codes.js');
 
 //  deps
 const _     = require('lodash');
@@ -31,6 +32,9 @@ module.exports = class UserInterruptQueue
     }
 
     queueItem(interruptItem) {
+        if(!_.isString(interruptItem.contents) && !_.isString(interruptItem.text)) {
+            return;
+        }
         interruptItem.pause = _.get(interruptItem, 'pause', true);
         this.queue.push(interruptItem);
     }
@@ -51,8 +55,13 @@ module.exports = class UserInterruptQueue
             this.client.term.rawWrite('\r\n\r\n');
         }
 
-        Art.display(this.client, interruptItem.contents, err => {
-            return cb(err, interruptItem);
-        });
+        if(interruptItem.contents) {
+            Art.display(this.client, interruptItem.contents, err => {
+                this.client.term.rawWrite('\r\n\r\n');
+                return cb(err, interruptItem);
+            });
+        } else {
+            return this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), cb);
+        }
     }
 };

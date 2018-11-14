@@ -9,10 +9,14 @@ const {
     getConnectionByNodeId,
 }                           = require('./client_connections.js');
 const UserInterruptQueue    = require('./user_interrupt_queue.js');
+const { getThemeArt }       = require('./theme.js');
+const { pipeToAnsi }        = require('./color_codes.js');
+const stringFormat          = require('./string_format.js');
 
 //  deps
-const series            = require('async/series');
-const _                 = require('lodash');
+const series                = require('async/series');
+const _                     = require('lodash');
+const async                 = require('async');
 
 exports.moduleInfo = {
     name    : 'Node Message',
@@ -44,18 +48,16 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                 const nodeId    = formData.value.node;
                 const message   = formData.value.message;
 
-                const interruptItem = {
-                    contents    : message,
-                }
+                this.createInterruptItem(message, (err, interruptItem) => {
+                    if(0 === nodeId) {
+                        //  ALL nodes
+                        UserInterruptQueue.queueGlobalOtherActive(interruptItem, this.client);
+                    } else {
+                        UserInterruptQueue.queueGlobal(interruptItem, [ getConnectionByNodeId(nodeId) ]);
+                    }
 
-                if(0 === nodeId) {
-                    //  ALL nodes
-                    UserInterruptQueue.queueGlobalOtherActive(interruptItem, this.client);
-                } else {
-                    UserInterruptQueue.queueGlobal(interruptItem, [ getConnectionByNodeId(nodeId) ]);
-                }
-
-                return this.prevMenu(cb);
+                    return this.prevMenu(cb);
+                });
             },
         }
     }
@@ -94,6 +96,64 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                 }
             );
         });
+    }
+
+    createInterruptItem(message, cb) {
+        const textFormatObj = {
+            fromUserName    : this.client.user.username,
+            fromRealName    : this.client.user.properties.real_name,
+            fromNodeId      : this.client.node,
+            message         : message,
+        };
+
+        const messageFormat =
+            this.config.messageFormat ||
+            'Message from {fromUserName} on node {fromNodeId}:\r\n{message}';
+
+        const item = {
+            text        : stringFormat(messageFormat, textFormatObj),
+            pause       : true,
+        };
+
+        const getArt = (name, callback) => {
+            const spec = _.get(this.config, `art.${name}`);
+            if(!spec) {
+                return callback(null);
+            }
+            const getArtOpts = {
+                name    : spec,
+                client  : this.client,
+                random  : false,
+            };
+            getThemeArt(getArtOpts, (err, artInfo) => {
+                //  ignore errors
+                return callback(artInfo ? artInfo.data : null);
+            });
+        };
+
+        async.waterfall(
+            [
+                (callback) => {
+                    getArt('header', headerArt => {
+                        return callback(null, headerArt);
+                    });
+                },
+                (headerArt, callback) => {
+                    getArt('footer', footerArt => {
+                        return callback(null, headerArt, footerArt);
+                    });
+                },
+                (headerArt, footerArt, callback) => {
+                    if(headerArt || footerArt) {
+                        item.contents = `${headerArt || ''}\r\n${pipeToAnsi(item.text)}\r\n${footerArt || ''}`;
+                    }
+                    return callback(null);
+                }
+            ],
+            err => {
+                return cb(err, item);
+            }
+        );
     }
 
     prepareNodeList() {
