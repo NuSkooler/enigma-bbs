@@ -10,20 +10,43 @@
 		                                                                 /__   _\
 		<*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
 
-		-------------------------------------------------------------------------------
+		*-----------------------------------------------------------------------------*
 
-		This configuration is in HJSON (http://hjson.org/) format.  Strict to-spec 
-		JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
-		
-		See http://hjson.org/ for more information and syntax.
+        General Information
+        ------------------------------- -   -
+        This configuration is in HJSON (http://hjson.org/) format. Strict to-spec
+        JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
 
+        See http://hjson.org/ for more information and syntax.
 
-		If you haven't yet, copy the conents of this file to something like 
-		sick_board.hjson. Point to it via config.hjson using the 
-		'general.menuFile' key:
-		
-			general: { menuFile: "sick_board.hjson" } 	
-		
+        Various editors and IDEs such as Sublime Text 3, Visual Studio Code, and so
+        on have syntax highlighting for the HJSON format which are highly recommended.
+
+        ------------------------------- -- -    -
+        Menu Configuration
+        ------------------------------- -   -
+        ENiGMA½ makes no assumptions about specific menu types (main, doors, etc.), 
+        but instead allows full customization of all menus throughout the system.
+        Some menus such as a main menu are considered "standard" while others are
+        backed by a specific module. SysOps can tweak various settings about these
+        modules (look & feel, keyboard interation, and so on) or even fully replace
+        the module with something else.
+
+        This file starts out as an example setup. Look at the examples, change
+        settings, menu ordering/flow, add/remove menus, implement ACS control,
+        etc.!
+
+        Remember you can *live edit* this file. That is, make a change and save
+        while you're logged into the system and it will take effect on the next
+        menu change or screen refresh.
+
+        Please see RTFM ...er, uh... see the documentation for more information, and
+        don't be shy to ask for help:
+
+        BBS     : Xibalba @ xibalba.l33t.codes
+        FTN     : BBS Discussion on fsxNet
+        IRC     : #enigma-bbs / FreeNode
+        Email   : bryan@l33t.codes
 	*/
 	menus: {
 		//
