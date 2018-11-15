@@ -17,6 +17,7 @@ const stringFormat          = require('./string_format.js');
 const series                = require('async/series');
 const _                     = require('lodash');
 const async                 = require('async');
+const moment                = require('moment');
 
 exports.moduleInfo = {
     name    : 'Node Message',
@@ -104,6 +105,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             fromRealName    : this.client.user.properties.real_name,
             fromNodeId      : this.client.node,
             message         : message,
+            timestamp       : moment(),
         };
 
         const messageFormat =
