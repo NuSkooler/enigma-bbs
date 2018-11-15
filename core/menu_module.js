@@ -549,4 +549,20 @@ exports.MenuModule = class MenuModule extends PluginModule {
             });
         }
     }
+
+    validateMCIByViewIds(formName, viewIds, cb) {
+        if(!Array.isArray(viewIds)) {
+            viewIds = [ viewIds ];
+        }
+        const form = _.get(this, [ 'viewControllers', formName ] );
+        if(!form) {
+            return cb(Errors.DoesNotExist(`Form does not exist: ${formName}`));
+        }
+        for(let i = 0; i < viewIds.length; ++i) {
+            if(!form.hasView(viewIds[i])) {
+                return cb(Errors.MissingMci(`Missing MCI ${viewIds[i]}`));
+            }
+        }
+        return cb(null);
+    }
 };

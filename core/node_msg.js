@@ -46,15 +46,18 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
         this.menuMethods = {
             sendMessage : (formData, extraArgs, cb) => {
-                const nodeId    = formData.value.node;
+                const nodeId    = this.nodeList[formData.value.node].node;  //  index from from -> node!
                 const message   = formData.value.message;
 
                 this.createInterruptItem(message, (err, interruptItem) => {
-                    if(0 === nodeId) {
+                    if(-1 === nodeId) {
                         //  ALL nodes
                         UserInterruptQueue.queueGlobalOtherActive(interruptItem, this.client);
                     } else {
-                        UserInterruptQueue.queueGlobal(interruptItem, [ getConnectionByNodeId(nodeId) ]);
+                        const conn = getConnectionByNodeId(nodeId);
+                        if(conn) {
+                            UserInterruptQueue.queueGlobal(interruptItem, [ conn ]);
+                        }
                     }
 
                     return this.prevMenu(cb);
@@ -71,15 +74,18 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
             series(
                 [
-                    (next) => {
-                        return this.prepViewController('sendMessage', FormIds.sendMessage, mciData.menu, next);
+                    (callback) => {
+                        return this.prepViewController('sendMessage', FormIds.sendMessage, mciData.menu, callback);
                     },
-                    (next) => {
+                    (callback) => {
+                        return this.validateMCIByViewIds(
+                            'sendMessage',
+                            [ MciViewIds.sendMessage.nodeSelect, MciViewIds.sendMessage.message ],
+                            callback
+                        );
+                    },
+                    (callback) => {
                         const nodeSelectView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.nodeSelect);
-                        if(!nodeSelectView) {
-                            return next(Errors.MissingMci(`Missing node selection MCI ${MciViewIds.sendMessage.nodeSelect}`));
-                        }
-
                         this.prepareNodeList();
 
                         nodeSelectView.on('index update', idx => {
@@ -89,7 +95,24 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                         nodeSelectView.setItems(this.nodeList);
                         nodeSelectView.redraw();
                         this.nodeListSelectionIndexUpdate(0);
-                        return next(null);
+                        return callback(null);
+                    },
+                    (callback) => {
+                        const previewView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.preview);
+                        if(!previewView) {
+                            return callback(null);  //  preview is optional
+                        }
+
+                        const messageView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.message);
+                        let timerId;
+                        messageView.on('key press', () => {
+                            clearTimeout(timerId);
+                            const focused = this.viewControllers.sendMessage.getFocusedView();
+                            if(focused === messageView) {
+                                previewView.setText(messageView.getData());
+                                focused.setFocus(true);
+                            }
+                        }, 500);
                     }
                 ],
                 err => {
@@ -163,7 +186,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
         this.nodeList = [{
             text            :  '-ALL-',
             //  dummy fields:
-            node            : 0,
+            node            : -1,
             authenticated   : false,
             userId          : 0,
             action          : 'N/A',
@@ -173,7 +196,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             affils          : 'N/A',
             timeOn          : 'N/A',
         }].concat(getActiveConnectionList(true)
-            .map(node => Object.assign(node, { text : node.node.toString() } ))
+            .map(node => Object.assign(node, { text : -1 == node.node ? '-ALL-' : node.node.toString() } ))
         ).filter(node => node.node !== this.client.node);   //  remove our client's node
         this.nodeList.sort( (a, b) => a.node - b.node );    //  sort by node
     }
