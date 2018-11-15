@@ -119,3 +119,6 @@ scannerTossers: {
   }
 }
 ```
+
+## Additional Resources
+* [Blog entry on setting up ENiGMA + Binkd on CentOS7](http2://l33t.codes/enigma-12-binkd-on-centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` refernces!
