@@ -43,12 +43,16 @@ module.exports = class UserInterruptQueue
         return this.queue.length > 0;
     }
 
-    display(cb) {
+    displayNext(cb) {
         const interruptItem = this.queue.pop();
         if(!interruptItem) {
             return cb(null);
         }
 
+        return interruptItem ? this.displayWithItem(interruptItem, cb) : cb(null);
+    }
+
+    displayWithItem(interruptItem, cb) {
         if(interruptItem.cls) {
             this.client.term.rawWrite(ANSI.clearScreen());
         } else {

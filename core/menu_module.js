@@ -42,14 +42,6 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.detachViewControllers();
     }
 
-    toggleInterruptionAndDisplayQueued(cb) {
-        this.enableInterruption();
-        this.displayQueuedInterruptions( () => {
-            this.disableInterruption();
-            return cb(null);
-        });
-    }
-
     initSequence() {
         const self      = this;
         const mciData   = {};
@@ -185,6 +177,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
     }
 
+    toggleInterruptionAndDisplayQueued(cb) {
+        this.enableInterruption();
+        this.displayQueuedInterruptions( () => {
+            this.disableInterruption();
+            return cb(null);
+        });
+    }
+
     displayQueuedInterruptions(cb) {
         if(true !== this.interruptable) {
             return cb(null);
@@ -193,7 +193,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         async.whilst(
             () => this.client.interruptQueue.hasItems(),
             next => {
-                this.client.interruptQueue.display( (err, interruptItem) => {
+                this.client.interruptQueue.displayNext( (err, interruptItem) => {
                     if(err) {
                         return next(err);
                     }
@@ -209,6 +209,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 return cb(err);
             }
         )
+    }
+
+    attemptInterruptNow(interruptItem, cb) {
+        return cb(null, false);
     }
 
     getSaveState() {
