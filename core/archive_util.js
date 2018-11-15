@@ -222,7 +222,9 @@ module.exports = class ArchiveUtil {
         try {
             proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
         } catch(e) {
-            return cb(e);
+            return cb(Errors.ExternalProcess(
+                `Error spawning archiver process "${archiver.compress.cmd}" with args "${args.join(' ')}": ${e.message}`)
+            );
         }
 
         return this.spawnHandler(proc, 'Compression', cb);
@@ -272,7 +274,9 @@ module.exports = class ArchiveUtil {
         try {
             proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
         } catch(e) {
-            return cb(e);
+            return cb(Errors.ExternalProcess(
+                `Error spawning archiver process "${archiver[action].cmd}" with args "${args.join(' ')}": ${e.message}`)
+            );
         }
 
         return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
@@ -295,7 +299,9 @@ module.exports = class ArchiveUtil {
         try {
             proc = pty.spawn(archiver.list.cmd, args, this.getPtyOpts());
         } catch(e) {
-            return cb(e);
+            return cb(Errors.ExternalProcess(
+                `Error spawning archiver process "${archiver.list.cmd}" with args "${args.join(' ')}": ${e.message}`)
+            );
         }
 
         let output = '';
