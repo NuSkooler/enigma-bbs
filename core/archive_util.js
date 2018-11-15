@@ -272,7 +272,9 @@ module.exports = class ArchiveUtil {
         try {
             proc = pty.spawn(archiver[action].cmd, args, this.getPtyOpts(extractPath));
         } catch(e) {
-            return cb(e);
+            return cb(Errors.ExternalProcess(
+                `Error spawning archiver process "${archiver[action].cmd}" with args "${args.join(' ')}": ${e.message}`)
+            );
         }
 
         return this.spawnHandler(proc, (haveFileList ? 'Extraction' : 'Decompression'), cb);
