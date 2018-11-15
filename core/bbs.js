@@ -45,6 +45,10 @@ function printHelpAndExit() {
     process.exit();
 }
 
+function printVersionAndExit() {
+    console.info(require('../package.json').version);
+}
+
 function main() {
     async.waterfall(
         [
@@ -52,7 +56,11 @@ function main() {
                 const argv = require('minimist')(process.argv.slice(2));
 
                 if(argv.help) {
-                    printHelpAndExit();
+                    return printHelpAndExit();
+                }
+
+                if(argv.version) {
+                    return printVersionAndExit();
                 }
 
                 const configOverridePath = argv.config;
