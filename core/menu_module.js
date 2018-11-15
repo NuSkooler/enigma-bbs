@@ -192,19 +192,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         async.whilst(
             () => this.client.interruptQueue.hasItems(),
-            next => {
-                this.client.interruptQueue.displayNext( (err, interruptItem) => {
-                    if(err) {
-                        return next(err);
-                    }
-
-                    if(interruptItem.pause) {
-                        return this.pausePrompt(next);
-                    }
-
-                    return next(null);
-                });
-            },
+            next => this.client.interruptQueue.displayNext(next),
             err => {
                 return cb(err);
             }
@@ -212,7 +200,21 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     attemptInterruptNow(interruptItem, cb) {
-        return cb(null, false);
+        if(true !== this.interruptable) {
+            return cb(null, false); //  don't eat up the item; queue for later
+        }
+
+        //
+        //  Default impl: clear screen -> standard display -> reload menu
+        //
+        this.client.interruptQueue.displayWithItem(Object.assign({}, interruptItem, { cls : true }), err => {
+            if(err) {
+                return cb(err, false);
+            }
+            this.reload(err => {
+                return cb(err, err ? false : true);
+            });
+        });
     }
 
     getSaveState() {
@@ -311,6 +313,8 @@ exports.MenuModule = class MenuModule extends PluginModule {
             } else {
                 return gotoNextMenu();
             }
+        } else {
+            this.enableInterruption();
         }
     }
 

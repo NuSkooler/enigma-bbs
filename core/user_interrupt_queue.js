@@ -35,8 +35,17 @@ module.exports = class UserInterruptQueue
         if(!_.isString(interruptItem.contents) && !_.isString(interruptItem.text)) {
             return;
         }
+
+        //  pause defaulted on
         interruptItem.pause = _.get(interruptItem, 'pause', true);
-        this.queue.push(interruptItem);
+
+        this.client.currentMenuModule.attemptInterruptNow(interruptItem, (err, ateIt) => {
+            if(err) {
+                //  :TODO: Log me
+            } else if(true !== ateIt) {
+                this.queue.push(interruptItem);
+            }
+        });
     }
 
     hasItems() {
@@ -61,8 +70,13 @@ module.exports = class UserInterruptQueue
 
         if(interruptItem.contents) {
             Art.display(this.client, interruptItem.contents, err => {
-                this.client.term.rawWrite('\r\n\r\n');
-                return cb(err, interruptItem);
+                if(err) {
+                    return cb(err);
+                }
+                //this.client.term.rawWrite('\r\n\r\n');  //  :TODO: Prob optional based on contents vs text
+                this.client.currentMenuModule.pausePrompt( () => {
+                    return cb(null);
+                });
             });
         } else {
             return this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), cb);
