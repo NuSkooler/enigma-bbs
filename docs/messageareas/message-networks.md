@@ -72,6 +72,7 @@ Example:
 | `packetMsgEncoding` | :-1: | Override default `utf8` encoding.
 | `defaultNetwork`       | :-1:     | Explicitly set default network (by tag in `messageNetworks.ftn.networks`). If not set, the first found is used.   |
 | `nodes`   | :+1:     | Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: `21:1/*`). `archiveType` may be set to a FTN supported archive extention that the system supports (TODO); if unset, only .PKT files are produced. `encoding` may be set to override `packetMsgEncoding` on a per-node basis. If the node requires a packet password, set `packetPassword`  |
+| `paths` | :-1: | An optional configuration block that can set a `retain` path and/or a `reject` path. These will be used for archiving processed packets. |
 
 Example:
 ```hjson
@@ -83,6 +84,12 @@ scannerTossers: {
 
       //  Export immediately, but also check every 15m to be sure
       export: every 15 minutes or @immediate
+    }
+
+    // optional
+    paths: {
+      reject: /path/to/store/bad/packets/
+      retain: /path/to/store/good/packets/
     }
 
     //  Override default FTN/BSO packet encoding. Defaults to 'utf8'
