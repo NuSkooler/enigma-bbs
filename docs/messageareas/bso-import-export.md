@@ -23,7 +23,7 @@ Schedules can be defined for importing and exporting via `import` and `export` u
 
   * `@immediate`: A message will be immediately exported if this trigger is defined in a schedule. Only used for `export`.
   * `@watch:/path/to/file`: This trigger watches the path specified for changes and will trigger an import or export when such events occur. Only used for `import`.
-  * Free form text can be things like `at 5:00 pm` or `every 2 hours`. 
+  * Free form [Later style](https://bunkat.github.io/later/parsers.html#text) text — can be things like `at 5:00 pm` or `every 2 hours`. 
   
 See [Later text parsing documentation](http://bunkat.github.io/later/parsers.html#text) for more information.
 
@@ -45,14 +45,14 @@ See [Later text parsing documentation](http://bunkat.github.io/later/parsers.htm
 ## Nodes
 The `nodes` section defines how to export messages for one or more uplinks. 
 
-A node entry starts with a FTN style address (up to 5D) **as a key** in `config.hjson`. This key may contain wildcard(s) for net/zone/node/point/domain. 
+A node entry starts with a [FTN address](http://ftsc.org/docs/old/fsp-1028.001) (up to 5D) **as a key** in `config.hjson`. This key may contain wildcard(s) for net/zone/node/point/domain.
 
 | Config Item      | Required | Description                                                                     |
 |------------------|----------|---------------------------------------------------------------------------------|
-| `packetType`     | :-1:     | `2`, `2.2`, or `2+`. Defaults to `2+` for modern mailer compatiability          |
-| `packetPassword` | :-1:     | Password for the packet                                                         |
-| `encoding`       | :-1:     | Encoding to use for message bodies; Defaults to `utf-8`                         |
-| `archiveType`    | :-1:     | Specifies the archive type for ArcMail bundles. Must be a valid archiver name such as `zip` (See archiver configuration) |
+| `packetType`     | :-1:     | `2`, `2.2`, or `2+`. Defaults to `2+` for modern mailer compatiability. |
+| `packetPassword` | :-1:     | Optional password for the packet |
+| `encoding`       | :-1:     | Encoding to use for message bodies; Defaults to `utf-8`. |
+| `archiveType`    | :-1:     | Specifies the archive type (by extension) for ArcMail bundles. This should be `zip` for most setups. Other valid examples include `arc`, `arj`, `lhz`, `pak`, `sqz`, or `zoo`. See docs on archiver configuration for more information. |
 
 **Example**:
 ```hjson
@@ -60,9 +60,9 @@ A node entry starts with a FTN style address (up to 5D) **as a key** in `config.
   scannerTossers: {
     ftn_bso: {
       nodes: {
-        "21:*": {
+        "21:*": { // wildcard address
           packetType: 2+
-          packetPassword: mypass
+          packetPassword: D@TP4SS
           encoding: cp437
           archiveType: zip
         }
