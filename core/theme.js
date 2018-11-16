@@ -38,7 +38,7 @@ function refreshThemeHelpers(theme) {
         getPasswordChar : function() {
             let pwChar = _.get(
                 theme,
-                'customization.defaults.general.passwordChar',
+                'customization.defaults.passwordChar',
                 Config().theme.passwordChar
             );
 

@@ -9,9 +9,7 @@
 	customization: {
 
 		defaults: {
-			general: {
-				passwordChar: *
-			}
+			passwordChar: *
 
 			dateTimeFormat: {
 				short: MMM Do h:mm a
