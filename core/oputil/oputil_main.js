@@ -17,7 +17,7 @@ module.exports = function() {
     process.exitCode = ExitCodes.SUCCESS;
 
     if(true === argv.version) {
-        return console.info(require('../package.json').version);
+        return console.info(require('../../package.json').version);
     }
 
     if(0 === argv._.length ||
