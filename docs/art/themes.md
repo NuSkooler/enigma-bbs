@@ -41,11 +41,11 @@ The `info` configuration block describes the theme itself.
 ### Customization Block
 The `customization` block in is itself broken up into major parts:
 
-| Item | Required | Description                                              |
+| Item | Description                                              |
 |-------------|----------|----------------------------------------------------------|
-| `defaults` | :-1: | Default values to use when this theme is active. These values override system defaults, but can still be overridden themselves in specific areas of your theme. |
-| `menus` | :-1: | The bulk of what you theme in the system will be here. Any menu (that is, anything you find in `menu.hjson`) can be tweaked. |
-| `prompts` | :-1: | Similar to `menus`, this file themes prompts found in `prompts.hjson`. |
+| `defaults` | Default values to use when this theme is active. These values override system defaults, but can still be overridden themselves in specific areas of your theme. |
+| `menus` | The bulk of what you theme in the system will be here. Any menu (that is, anything you find in `menu.hjson`) can be tweaked. |
+| `prompts` | Similar to `menus`, this file themes prompts found in `prompts.hjson`. |
 
 #### Defaults
 | Item | Description                                              |
@@ -68,10 +68,10 @@ defaults: {
 Each *key* in the `menus` block matches up with a key found in your `menu.hjson`. For example, consider a `matrix` menu defined in `menu.hjson`. In addition to perhaps providing a `MATRIX.ANS` in your themes directory, you can also theme other parts of the menu via a `matrix` entry in `theme.hjson`.
 
 Major areas to override/theme:
-* `config`: Override and/or provide additional theme information over that found in the `menu.hjson`'s entry. Common entries here are for further overriding date/time formats, and custom range info formats (`<someFormName>InfoFormat<num>`).
-* `mci`: Set `height`, `width`, override `text`, `textStyle`/`focusTextStyle`, `itemFormat`/`focusItemFormat`, etc.
+* `config`: Override and/or provide additional theme information over that found in the `menu.hjson`'s entry. Common entries here are for further overriding date/time formats, and custom range info formats (`<someFormName>InfoFormat<num>`). See Entry Formatting in [MCI Codes](mci.md) and Custom Range Info Formatting below.
+* `mci`: Set per-MCI code properties such as `height`, `width`, text styles, etc. See [MCI Codes](mci.md) for a more information.
 
-Two main formats for `mci` are allowed:
+Two formats for `mci` blocks are allowed:
 * Verbose where a form ID(s) are supplied.
 * Shorthand if only a single/first form is needed.
 
@@ -105,6 +105,16 @@ matrix: {
 }
 ```
 
+##### Custom Range Info Formatting
+Many modules support "custom range" MCI items. These are MCI codes that are left to the user to define using a format object specific to the module. For example, consider the `msg_area_list` module: This module sets MCI codes 10+ (`%TL10`, `%TL11`, etc.) as "custom range". When theming you can place these MCI codes in your artwork then define the format in `theme.hjson`:
+
+```hjson
+messageAreaChangeCurrentArea: {
+  config: {
+    areaListInfoFormat10: "|15{name}|07: |03{desc}"
+  }
+}
+```
 
 ## Creating Your Own
 :warning: ***IMPORTANT!*** It is recommended you don't make any customisations to the included `luciano_blocktronics' theme. Create your own and make changes to that instead:
