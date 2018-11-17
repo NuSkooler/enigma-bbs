@@ -33,8 +33,8 @@ Menu entries live under the `menus` section of `menu.hjson`. The *key* for a men
     * `cls`: If `true` the screen will be cleared before showing this menu.
     * `pause`: If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens.
     * `nextTimeout`: Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu.
-    * `baudRate`: Sets the SyncTERM style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.  See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
-    * `font`: Sets the SyncTERM style font. May be one of the following: `cp437`, `cp1251`, `koi8_r`,  `iso8859_2`, `iso8859_4`, `cp866`, `iso8859_9`, `haik8`, `iso8859_8`, `koi8_u`, `iso8859_15`, `iso8859_4`, `koi8_r_b`, `iso8859_4`, `iso8859_5`, `ARMSCII_8`, `iso8859_15`, `cp850`, `cp850`, `cp885`, `cp1251`, `iso8859_7`, `koi8-r_c`, `iso8859_4`, `iso8859_1`, `cp866`, `cp437`, `cp866`, `cp885`, `cp866_u`, `iso8859_1`, `cp1131`, `c64_upper`, `c64_lower`, `c128_upper`, `c128_lower`, `atari`, `pot_noodle`, `mo_soul`, `microknight_plus`, `topaz_plus`, `microknight`, `topaz`. See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+    * `baudRate`: See baud rate information in [General Art Information](docs/art/general.md).
+    * `font`: See font listing in [General Art Information](docs/art/general.md).
 
 ## Forms
 TODO

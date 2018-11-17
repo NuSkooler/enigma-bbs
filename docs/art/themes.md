@@ -9,14 +9,7 @@ ENiGMA½ comes with an advanced theming system allowing system operators to high
 Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directory within the `themes` directory. The theme itself is simply a collection of art files, and a `theme.hjson` file that further defines layout, colors & formatting, etc. ENiGMA½ comes with a default theme by [Luciano Ayres](http://blocktronics.org/tag/luciano-ayres/) of [Blocktronics](http://blocktronics.org/) called Mystery Skull. This theme is in `art/themes/luciano_blocktronics`, and thus it's *theme ID* is `luciano_blocktronics`.
 
 ## Art
-Of course one of the most basic elements of BBS theming is art. ENiGMA½ uses a fallback system for art selection by default (you may override this in a `menu.hjson` entry if desired). When a menu entry calls for a piece of art, the following search is made:
-
-1. If a direct or relative path is supplied, look there first.
-2. In the users current theme directory.
-3. In the system default theme directory.
-4. In the `art/general` directory.
-
-TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
+For information on art files, see [General Art Information](general.md). TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
 
 :information_source: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
 
