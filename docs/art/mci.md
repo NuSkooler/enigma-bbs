@@ -71,8 +71,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
 
-
 Some additional special case codes also exist:
+
 | Code   | Description  |
 |--------|--------------|
 | `CF##` | Moves the cursor position forward _##_ characters |

@@ -42,7 +42,7 @@ The `info` configuration block describes the theme itself.
 The `customization` block in is itself broken up into major parts:
 
 | Item | Description                                              |
-|-------------|----------|----------------------------------------------------------|
+|-------------|---------------------------------------------------|
 | `defaults` | Default values to use when this theme is active. These values override system defaults, but can still be overridden themselves in specific areas of your theme. |
 | `menus` | The bulk of what you theme in the system will be here. Any menu (that is, anything you find in `menu.hjson`) can be tweaked. |
 | `prompts` | Similar to `menus`, this file themes prompts found in `prompts.hjson`. |
