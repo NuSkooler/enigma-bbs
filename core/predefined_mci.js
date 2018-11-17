@@ -95,7 +95,7 @@ const PREDEFINED_MCI_GENERATORS = {
     ST  : function serverName(client) { return client.session.serverName; },
     FN  : function activeFileBaseFilterName(client) {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
-        return activeFilter ? activeFilter.name : '';
+        return activeFilter ? activeFilter.name : '(Unknown)';
     },
     DN  : function userNumDownloads(client) { return userStatAsString(client, 'dl_total_count', 0); },      //  Obv/2
     DK  : function userByteDownload(client) {   //  Obv/2 uses DK=downloaded Kbytes
