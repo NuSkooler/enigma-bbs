@@ -18,7 +18,7 @@ Of course one of the most basic elements of BBS theming is art. ENiGMA½ uses a 
 
 TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
 
-:information: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:information_source: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
 
 ## Theme Sections
 Themes are some important sections to be aware of:
@@ -50,7 +50,7 @@ The `customization` block in is itself broken up into major parts:
 #### Defaults
 | Item | Description                                              |
 |-------------|---------------------------------------------------|
-| `passwordChar` | Character to display in password fields |
+| `passwordChar` | Character to display in password fields. Defaults to `*` |
 | `dateFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for dates. |
 | `timeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for times. |
 | `dateTimeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for date/time combinations. | 
@@ -117,16 +117,16 @@ messageAreaChangeCurrentArea: {
 ```
 
 ## Creating Your Own
-:warning: ***IMPORTANT!*** It is recommended you don't make any customisations to the included `luciano_blocktronics' theme. Create your own and make changes to that instead:
+:warning: ***IMPORTANT!*** It is recommended you don't make any customisations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
 
 1. Copy `/art/themes/luciano_blocktronics` to `art/themes/your_board_theme`
 2. Update the `info` block at the top of the theme.hjson file:
 ``` hjson
     info: {
-        name: Awesome Theme
-        author: Cool Artist
-        group: Sick Group
-        enabled: true
+      name: Awesome Theme
+      author: Cool Artist
+      group: Sick Group
+      enabled: true // default
     }
 ```
 
