@@ -42,17 +42,53 @@ function hasMessageConferenceAndArea(config) {
     return result;
 }
 
+const ArrayReplaceKeyPaths = [
+    'loginServers.ssh.algorithms.kex',
+    'loginServers.ssh.algorithms.cipher',
+    'loginServers.ssh.algorithms.hmac',
+    'loginServers.ssh.algorithms.compress',
+];
+
+const ArrayReplaceKeys = [
+    'args',
+    'sendArgs', 'recvArgs', 'recvArgsNonBatch',
+];
+
 function mergeValidateAndFinalize(config, cb) {
+    const defaultConfig = getDefaultConfig();
+
+    const arrayReplaceKeyPathsMutable = _.clone(ArrayReplaceKeyPaths);
+    const shouldReplaceArray = (arr, key) => {
+        if(ArrayReplaceKeys.includes(key)) {
+            return true;
+        }
+        for(let i = 0; i < arrayReplaceKeyPathsMutable.length; ++i) {
+            const o = _.get(defaultConfig, arrayReplaceKeyPathsMutable[i]);
+            if(_.isEqual(o, arr)) {
+                arrayReplaceKeyPathsMutable.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    };
+
     async.waterfall(
         [
             function mergeWithDefaultConfig(callback) {
                 const mergedConfig = _.mergeWith(
-                    getDefaultConfig(),
-                    config, (conf1, conf2) => {
-                        //  Arrays should always concat
-                        if(_.isArray(conf1)) {
-                            //  :TODO: look for collisions & override dupes
-                            return conf1.concat(conf2);
+                    defaultConfig,
+                    config,
+                    (defConfig, userConfig, key) => {
+                        if(Array.isArray(defConfig) && Array.isArray(userConfig)) {
+                            //
+                            //  Arrays are special: Some we merge, while others
+                            //  we simply replace.
+                            //
+                            if(shouldReplaceArray(defConfig, key)) {
+                                return userConfig;
+                            } else {
+                                return _.uniq(defConfig.concat(userConfig));
+                            }
                         }
                     }
                 );
