@@ -68,7 +68,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByExtraArgs(cb) {
-        this.getArtKeyValue( (err, artSpec) => {
+        this.getArtKeyValue(this.config.key, (err, artSpec) => {
             if(err) {
                 return cb(err);
             }
@@ -89,7 +89,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByFileBaseArea(cb) {
-        this.getArtKeyValue( (err, key) => {
+        this.getArtKeyValue('areaTag', (err, key) => {
             if(err) {
                 return cb(err);
             }
@@ -98,7 +98,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByMessageConf(cb) {
-        this.getArtKeyValue( (err, key) => {
+        this.getArtKeyValue('confTag', (err, key) => {
             if(err) {
                 return cb(err);
             }
@@ -107,7 +107,7 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByMessageArea(cb) {
-        this.getArtKeyValue( (err, key) => {
+        this.getArtKeyValue('areaTag', (err, key) => {
             if(err) {
                 return cb(err);
             }
@@ -133,8 +133,8 @@ exports.getModule = class ShowArtModule extends MenuModule {
         return this.displaySingleArtWithOptions(artSpec, options, cb);
     }
 
-    getArtKeyValue(cb) {
-        const key = this.config.key;
+    getArtKeyValue(defaultKey, cb) {
+        const key = this.config.key || defaultKey;
         if(!_.isString(key)) {
             return cb(Errors.MissingConfig('Config option "key" is required for method "extraArgs"'));
         }
