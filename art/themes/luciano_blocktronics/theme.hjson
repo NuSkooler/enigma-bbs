@@ -783,16 +783,13 @@
 			}
 
 			fileBaseDownloadManager: {
-				config: {
-					queueListFormat: "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusQueueListFormat: "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
-				}
-
 				0: {
 					mci: {
 						VM1: {
 							height: 11
 							width: 69
+							itemFormat: "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 						HM2: {
 							width: 50
