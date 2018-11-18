@@ -73,6 +73,7 @@
     - [Rumorz]({{ site.baseurl }}{% link modding/rumorz.md %})
     - [File Transfer Protocol Select]({{ site.baseurl }}{% link modding/file-transfer-protocol-select.md %})
     - [Onelinerz]({{ site.baseurl }}{% link modding/onelinerz.md %})
+    - [Show Art]({{ site.baseurl }}{% link modding/show-art.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
