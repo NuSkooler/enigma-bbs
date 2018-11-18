@@ -153,11 +153,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 selections.push({
                     conf    : {
                         confTag : conf.confTag,
+                        text    : conf.conf.name,   //  standard
                         name    : conf.conf.name,
                         desc    : conf.conf.desc,
                     },
                     area    : {
                         areaTag : area.areaTag,
+                        text    : area.area.name,   //  standard
                         name    : area.area.name,
                         desc    : area.area.desc,
                     }
@@ -168,11 +170,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         selections.unshift({
             conf : {
                 confTag : '',
+                text    : 'All conferences',
                 name    : 'All conferences',
                 desc    : 'All conferences',
             },
             area    : {
                 areaTag : '',
+                text    : 'All areas',
                 name    : 'All areas',
                 desc    : 'All areas',
             }
@@ -236,14 +240,9 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         scanDateView.setText(today.format(scanDateFormat));
 
                         if('message' === self.target) {
-                            const messageSelectionsFormat       = self.menuConfig.config.messageSelectionsFormat || '{conf.name} - {area.name}';
-                            const messageSelectionFocusFormat   = self.menuConfig.config.messageSelectionFocusFormat || messageSelectionsFormat;
-
                             const targetSelectionView = vc.getView(MciViewIds.main.targetSelection);
 
-                            targetSelectionView.setItems(self.targetSelections.map(targetSelection => stringFormat(messageSelectionFocusFormat, targetSelection)));
-                            targetSelectionView.setFocusItems(self.targetSelections.map(targetSelection => stringFormat(messageSelectionFocusFormat, targetSelection)));
-
+                            targetSelectionView.setItems(self.targetSelections);
                             targetSelectionView.setFocusItemIndex(0);
                         }
 

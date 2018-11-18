@@ -19,5 +19,5 @@ The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`) and MCI 10+ 
 * `fileName`: Entry filename.
 * `path`: Full file path.
 * `byteSize`: Size in bytes of file.
-* `webDlLink`: Web download link including VTX style ANSI ESC sequences.
+* `webDlLink`: Web download link including [VTX style ANSI ESC sequences](https://raw.githubusercontent.com/codewar65/VTX_ClientServer/master/vtx.txt).
 * `webDlExpire`: Expiration date/time for this link. Formatted using `webDlExpireTimeFormat`.

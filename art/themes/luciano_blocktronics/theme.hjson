@@ -254,6 +254,16 @@
 				}
 			}
 
+			messageAreaSetNewScanDate: {
+				mci: {
+					SM2: {
+						width: 54
+						itemFormat: "|00|07{conf.name} |08- |07{area.name}"
+						focusItemFormat: "|00|15{conf.name} |07- |15{area.name}"
+					}
+				}
+			}
+
 			mailMenuCreateMessage: {
 				0: {
 					mci: {

@@ -76,6 +76,7 @@
     - [Show Art]({{ site.baseurl }}{% link modding/show-art.md %})
     - [Download Manager]({{ site.baseurl }}{% link modding/file-base-download-manager.md %})
     - [Web Download Manager]({{ site.baseurl }}{% link modding/file-base-web-download-manager.md %})
+    - [Set Newscan Date]({{ site.baseurl }}{% link modding/set-newscan-date.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
