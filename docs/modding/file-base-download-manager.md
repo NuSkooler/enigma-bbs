@@ -1,9 +1,9 @@
 ---
 layout: page
-title: File Transfer Protocol Select
+title: File Base Download Manager
 ---
 ## File Base Download Manager Module
-The `file_base_download_manager` module provides a download queue manager for "legacy" (X/Y/Z-Modem, etc.) downloads.
+The `file_base_download_manager` module provides a download queue manager for "legacy" (X/Y/Z-Modem, etc.) downloads. Web (HTTP/HTTPS) download functionality can be optionally available when the web content server is enabled.
 
 ## Configuration
 ### Configuration Block
@@ -19,4 +19,5 @@ The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`) and MCI 10+ 
 * `fileName`: Entry filename.
 * `path`: Full file path.
 * `byteSize`: Size in bytes of file.
-
+* `webDlLink`: Web download link including VTX style ANSI ESC sequences.
+* `webDlExpire`: Expiration date/time for this link. Formatted using `webDlExpireTimeFormat`.

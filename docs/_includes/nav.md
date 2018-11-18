@@ -74,7 +74,8 @@
     - [File Transfer Protocol Select]({{ site.baseurl }}{% link modding/file-transfer-protocol-select.md %})
     - [Onelinerz]({{ site.baseurl }}{% link modding/onelinerz.md %})
     - [Show Art]({{ site.baseurl }}{% link modding/show-art.md %})
-    - [Download Manager]({{ site.baseurl }}{% link modding/file_base_download_manager.md %})
+    - [Download Manager]({{ site.baseurl }}{% link modding/file-base-download-manager.md %})
+    - [Web Download Manager]({{ site.baseurl }}{% link modding/file-base-web-download-manager.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
