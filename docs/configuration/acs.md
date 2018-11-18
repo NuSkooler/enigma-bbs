@@ -61,6 +61,7 @@ The following touch points exist in the system. Many more are planned:
 
 * Message conferences and areas
 * File base areas
-* Menus within `menu.hjson`. See [menu.hjson](menu-hjson.md).
+* Menus within `menu.hjson`. See [Menu HJSON](menu-hjson.md).
+
 
 See the specific areas documentation for information on available ACS checks.
