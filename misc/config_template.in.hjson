@@ -66,7 +66,8 @@
         //  See https://github.com/trentm/node-bunyan#streams
         //
         //  Remember you can pipe logs through Bunyan to pretty-print:
-        //  tail -F ./logs/enigma-bbs.log | bunyan
+        //  Linux   : tail -F ./logs/enigma-bbs.log | bunyan
+        //  Windows : "Get-Content .\enigma-bbs.log | bunyan.cmd"
         //
         //  (npm install -g bunyan to get the binary)
         //
