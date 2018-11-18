@@ -35,8 +35,8 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `cls` | If `true` the screen will be cleared before showing this menu. |
 | `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
-| `baudRate` | See baud rate information in [General Art Information](docs/art/general.md). |
-| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](docs/art/general.md). |
+| `baudRate` | See baud rate information in [General Art Information](/docs/art/general.md). |
+| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](/docs/art/general.md). |
 
 
 
@@ -45,7 +45,7 @@ ENiGMA½ uses a concept of *forms* in menus. A form is a collection of associate
 
 Menus may also support more than one layout type by using a *MCI key*. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (`VM` key) while another uses a horizontal (`HM` key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in `menu.hjson`.
 
-For more information on views and associated MCI codes, see [MCI Codes](docs/art/mci.md).
+For more information on views and associated MCI codes, see [MCI Codes](/docs/art/mci.md).
 
 ## Submit Handlers
 TODO
@@ -62,7 +62,7 @@ telnetConnected: {
 ```
 
 The above entry `telnetConnected` is set as the Telnet server's first menu entry (set by `firstMenu` in the Telnet server's config). The entry sets up a few things:
-* A `art` spec of `CONNECT`. (See [General Art Information](docs/art/general.md)).
+* A `art` spec of `CONNECT`. (See [General Art Information](/docs/art/general.md)).
 * A `next` entry up the next menu, by name, in the stack (`matrix`) that we'll go to after `telnetConnected`.
 * An `config` block containing a single `nextTimeout` field telling the system to proceed to the `next` (`matrix`) entry automatically after 1500ms.
 
