@@ -67,7 +67,7 @@
         //
         //  Remember you can pipe logs through Bunyan to pretty-print:
         //  Linux      : tail -F ./logs/enigma-bbs.log | bunyan
-        //  PowerShell : Get-Content .\enigma-bbs.log -Wait -Tail 15 | bunyan.cmd
+        //  PowerShell : Get-Content .\enigma-bbs.log -Tail 15 | bunyan.cmd
         //
         //  (npm install -g bunyan to get the binary)
         //
