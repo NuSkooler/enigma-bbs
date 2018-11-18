@@ -542,7 +542,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         theme.displayThemedAsset(
                             art[n],
                             self.client,
-                            { font : self.menuConfig.font, acsCondMember : 'art' },
+                            { font : self.menuConfig.font },
                             function displayed(err) {
                                 next(err);
                             }
@@ -622,7 +622,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         theme.displayThemedAsset(
                             art[n],
                             self.client,
-                            { font : self.menuConfig.font, acsCondMember : 'art' },
+                            { font : self.menuConfig.font },
                             function displayed(err, artData) {
                                 if(artData) {
                                     mciData[n] = artData;

@@ -49,13 +49,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
         const mciData   = {};
         let pausePosition;
 
+        const hasArt = () => {
+            return _.isString(self.menuConfig.art) ||
+                (Array.isArray(self.menuConfig.art) && _.has(self.menuConfig.art[0], 'acs'));
+        };
+
         async.series(
             [
                 function beforeDisplayArt(callback) {
                     self.beforeArt(callback);
                 },
                 function displayMenuArt(callback) {
-                    if(!_.isString(self.menuConfig.art)) {
+                    if(!hasArt()) {
                         return callback(null);
                     }
 

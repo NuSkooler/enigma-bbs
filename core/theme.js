@@ -682,8 +682,9 @@ function displayThemedAsset(assetSpec, client, options, cb) {
         options = {};
     }
 
-    if(Array.isArray(assetSpec) && _.isString(options.acsCondMember)) {
-        assetSpec = client.acs.getConditionalValue(assetSpec, options.acsCondMember);
+    if(Array.isArray(assetSpec)) {
+        const acsCondMember = options.acsCondMember || 'art';
+        assetSpec = client.acs.getConditionalValue(assetSpec, acsCondMember);
     }
 
     const artAsset = asset.getArtAsset(assetSpec);
