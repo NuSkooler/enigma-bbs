@@ -705,7 +705,7 @@ function scanFile(filePath, options, iterator, cb) {
                 //  up to many seconds in time for larger files.
                 //
                 const chunkSize = 1024 * 64;
-                const buffer = new Buffer(chunkSize);
+                const buffer = Buffer.allocUnsafe(chunkSize);
 
                 fs.open(filePath, 'r', (err, fd) => {
                     if(err) {
