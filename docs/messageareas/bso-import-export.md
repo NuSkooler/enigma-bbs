@@ -120,5 +120,34 @@ scannerTossers: {
 }
 ```
 
+## Binkd
+Since Binkd is a very common mailer, a few tips on integrating it with ENiGMA½:
+
+### Scheduling Polls
+Binkd does not have it's own scheduler. Instead, you'll need to set up an Event Scheduler entry or perhaps a cron job:
+
+First, create a script that runs through all of your uplinks. For example:
+```bash
+#!/bin/bash
+UPLINKS=("21:1/100@fsxnet" "80:774/1@retronet" "10:101/0@araknet")
+for uplink in "${UPLINKS[@]}"
+do
+	/usr/local/sbin/binkd -p -P $uplink /home/enigma/xibalba/misc/binkd_xibalba.conf
+done
+```
+
+Now, create an Event Scheuler entry in your `config.hjson`. As an example:
+```hjson
+eventScheduler: {
+  events: {
+    pollWithBink: {
+      //  execute the script above very 1 hours
+      schedule: every 1 hours
+      action: @execute:/path/to/poll_bink.sh
+    }
+  }
+}
+```
+
 ## Additional Resources
 * [Blog entry on setting up ENiGMA + Binkd on CentOS7](https://l33t.codes/enigma-12-binkd-on-centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` refernces!
