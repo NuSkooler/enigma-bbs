@@ -1,9 +1,9 @@
 ---
 layout: page
-title: menu.hjson
+title: Menus
 ---
-## Menu HJSON
-The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/yourboardname-menu.hjson` or similar. This file determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format.
+## Menus
+The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/yourboardname-menu.hjson` or similar. This file determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
 
 Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 

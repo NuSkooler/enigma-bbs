@@ -1,0 +1,39 @@
+---
+layout: page
+title: HJSON General Information
+---
+## JSON for Humans!
+HJSON is the configuration file format used by ENiGMA½ for [System Configuration](config-hjson.md), [Menus](menu-hjson.md), [Prompts](prompt-hjson.md), etc. [HJSON](https://hjson.org/) is is [JSON](https://json.org/) for humans!
+
+For those completely unfamiliar, JSON stands for JavaScript Object Notation. But don't let that scare you! JSON is simply a text file format with a bit of structure ― kind of like a fancier INI file. HJSON on the other hand as mentioned previously, is JSON for humans. That is, it has the following features and more:
+
+* More resilliant to syntax errors such as missing a comma
+* Strings generally do not need to be quoted. Multi-line strings are also supported!
+* Comments are supported (JSON doesn't allow this!): `#`, `//` and `/* ... */` style comments are allowed.
+* Keys never need to be quoted
+* ...much more! See [the official HJSON website](https://hjson.org/).
+
+## Terminology
+Through the documentation, some terms regarding HJSON and configuration files will be used:
+
+* `config.hjson`: Refers to `/path/to/enigma-bbs/config/config.hjson`. See [System Configuration](config-hjson.md).
+* `menu.hjson`: Refers to `/path/to/enigma-bbs/config/<yourBBSName>-menu.hjson`. See [Menus](menu-hjson.md).
+* `prompt.hjson`: Refers to `/path/to/enigma-bbs/config/<yourBBSName>-prompt.hjson`. See [Prompts](prompt-hjson.md).
+* Configuration *key*: Elements in HJSON are name-value pairs where the name is the *key*. For example, provided `foo: bar`, `foo` is the key.
+* Configuration *section* or *block* (also commonly called an "Object" in code): This is referring to a section in a HJSON file that starts with a *key*. For example:
+```hjson
+someSection: {
+    foo: bar
+}
+```
+Note that `someSection` is the configuration *section* (or *block*) and `foo: bar` is within it.
+
+## Editing HJSON
+HJSON is a text file format, and ENiGMA½ configuration files **should always be saved as UTF-8**.
+
+It is **highly** recommended to use a text editor that has HJSON support. A few (but not all!) examples include:
+* Sublime Text 3 via the `sublime-hjson` package.
+* Visual Studio code via the `vscode-hjson` plugin.
+* Notepad++ via the `npp-hjson` plugin.
+
+See https://hjson.org/users.html for more information.
