@@ -331,7 +331,7 @@
         //  ]
         //
         //
-        //  Set default group(s) new users should automatically be assigned to
+        //  Set default group(s) new users should automatically be assigned to:
         //  defaultGroups : [
         //      "lamerz"
         //  ]
@@ -377,6 +377,25 @@
         //  installed and/or define new or additional protocols. Please
         //  see the documentation for more information!
         //
+    }
+
+    //
+    //  Use the Event Scheduler to set up arbitrary scheduled events
+    //  using Later style syntax and/or @watch files.
+    //  See docs/event-scheduler.md for more information.
+    //
+    eventScheduler: {
+        events: {
+            //  Example:
+            //
+            //  sampleEvent: {
+            //    schedule: every 2 hours
+            //    action: @execute:/path/to/some/script.sh
+            //    args: [
+            //        "--foo", "--bar"
+            //    ]
+            //  }
+        }
     }
 
     statLog: {
