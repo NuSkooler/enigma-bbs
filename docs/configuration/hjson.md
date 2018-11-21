@@ -7,7 +7,7 @@ HJSON is the configuration file format used by ENiGMA½ for [System Configuratio
 
 For those completely unfamiliar, JSON stands for JavaScript Object Notation. But don't let that scare you! JSON is simply a text file format with a bit of structure ― kind of like a fancier INI file. HJSON on the other hand as mentioned previously, is JSON for humans. That is, it has the following features and more:
 
-* More resilliant to syntax errors such as missing a comma
+* More resilient to syntax errors such as missing a comma
 * Strings generally do not need to be quoted. Multi-line strings are also supported!
 * Comments are supported (JSON doesn't allow this!): `#`, `//` and `/* ... */` style comments are allowed.
 * Keys never need to be quoted
@@ -36,4 +36,23 @@ It is **highly** recommended to use a text editor that has HJSON support. A few 
 * Visual Studio code via the `vscode-hjson` plugin.
 * Notepad++ via the `npp-hjson` plugin.
 
-See https://hjson.org/users.html for more information.
+See https://hjson.org/users.html for more more editors & plugins.
+
+### Hot-Reload A.K.A. Live Editing
+ENiGMA½'s configuration, menu, and theme files can edited while your BBS is running. When a file is saved, it is hot-reloaded into the running system. If users are currently connected and you change a menu for example, the next reload of that menu will show the changes.
+
+### CaSe SeNsiTiVE
+Configuration keys are **case sensitive**. That means if a configuration key is `boardName` for example, `boardname`, or `BOARDNAME` **will not work**.
+
+## Tips & Tricks
+### JSON Compatibility
+Remember that standard JSON is fully compatible with HJSON. If you are more comfortable with JSON (or have an editor that works with JSON that you prefer) simply convert your config file(s) to JSON and use that instead!
+
+HJSON can be converted to JSON with the `hjson` CLI:
+```bash
+cd /path/to/enigma-bbs
+cp ./config/config.hjson ./config/config.hjson.backup
+./node_modules/hjson/bin/hjson ./config/config.hjson.backup -j > ./config/config.hjson
+```
+
+You can always convert back to HJSON by omitting `-j` in the command above.
