@@ -211,6 +211,9 @@
             port: XXXXX
             enabled: false
 
+            //  bannerFile path in misc/ by default. Full paths allowed.
+            bannerFile: XXXXX
+
             //
             //  The Gopher Content Server can export message base
             //  conferences and areas via the "messageConferences" key.
