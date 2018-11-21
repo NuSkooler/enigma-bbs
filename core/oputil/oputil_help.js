@@ -26,9 +26,9 @@ commands:
 
 actions:
   pw USERNAME PASSWORD         set password to PASSWORD for USERNAME
-  rm USERNAME                  permanantely removes USERNAME user from system
+  rm USERNAME                  permanently removes USERNAME user from system
   activate USERNAME            sets USERNAME's status to active
-  deactivate USERNAME          sets USERNAME's status to deactive
+  deactivate USERNAME          sets USERNAME's status to inactive
   disable USERNAME             sets USERNAME's status to disabled
   group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
 `,
@@ -57,7 +57,7 @@ cat args:
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
                                may also contain optional GLOB as last parameter,
-                               for examle: scan some_area *.zip
+                               for example: scan some_area *.zip
 
   info CRITERIA                display information about areas and/or files
                                where CRITERIA is one of the following:
