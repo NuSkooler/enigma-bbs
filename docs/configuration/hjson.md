@@ -56,3 +56,6 @@ cp ./config/config.hjson ./config/config.hjson.backup
 ```
 
 You can always convert back to HJSON by omitting `-j` in the command above.
+
+### oputil
+You can easily dump out your current configuration in a pretty-printed style using oputil: ```./oputil.js config cat```
