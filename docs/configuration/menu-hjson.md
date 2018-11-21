@@ -20,7 +20,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 |--------|--------------|
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
 | `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
-| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilites dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
+| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in `prompt.hjson`. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
