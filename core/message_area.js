@@ -353,13 +353,19 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
     });
 }
 
-function getMessageListForArea(client, areaTag, cb) {
-    const filter = {
-        areaTag,
-        resultType  : 'messageList',
-        sort        : 'messageId',
-        order       : 'ascending',
-    };
+function getMessageListForArea(client, areaTag, filter, cb)
+{
+    if(!cb && _.isFunction(filter)) {
+        cb = filter;
+        filter = {
+            areaTag,
+            resultType  : 'messageList',
+            sort        : 'messageId',
+            order       : 'ascending'
+        };
+    } else {
+        Object.assign(filter, { areaTag } );
+    }
 
     if(Message.isPrivateAreaTag(areaTag)) {
         filter.privateTagUserId = client.user.userId;

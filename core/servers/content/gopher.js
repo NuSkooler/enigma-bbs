@@ -249,7 +249,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
             return message.load( { uuid : msgUuid }, err => {
                 if(err) {
-                    this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existant message UUID!');
+                    this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existent message UUID!');
                     return this.notFoundGenerator(selectorMatch, cb);
                 }
 
@@ -292,10 +292,17 @@ ${msgBody}
                 return this.notFoundGenerator(selectorMatch, cb);
             }
 
-            return getMessageListForArea(null, areaTag, (err, msgList) => {
+            const filter = {
+                resultType  : 'messageList',
+                sort        : 'messageId',
+                order       : 'descending',  //  we want newest messages first for Gopher
+            };
+
+            return getMessageListForArea(null, areaTag, filter, (err, msgList) => {
                 const response = [
                     this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                     this.makeItem(ItemTypes.InfoMessage, `Messages in ${area.name}`),
+                    this.makeItem(ItemTypes.InfoMessage, '(newest first)'),
                     this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                     ...msgList.map(msg => this.makeItem(
                         ItemTypes.TextFile,
