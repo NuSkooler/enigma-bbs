@@ -32,14 +32,10 @@ function userLogin(client, username, password, cb) {
 
         //
         //  Ensure this user is not already logged in.
-        //  Loop through active connections -- which includes the current --
-        //  and check for matching user ID. If the count is > 1, disallow.
         //
-        let existingClientConnection;
-        clientConnections.forEach(function connEntry(cc) {
-            if(cc.user !== user && cc.user.userId === user.userId) {
-                existingClientConnection = cc;
-            }
+        const existingClientConnection = clientConnections.find(cc => {
+            return user !== cc.user &&          //  not current connection
+                user.userId === cc.user.userId; //  ...but same user
         });
 
         if(existingClientConnection) {
