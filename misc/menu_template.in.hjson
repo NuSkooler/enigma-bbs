@@ -185,6 +185,7 @@
 				cls: true
 				nextTimeout: 2000
 			}
+			next: logoff
 		}
 
 		forgotPassword: {
