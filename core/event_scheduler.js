@@ -5,6 +5,7 @@
 const PluginModule          = require('./plugin_module.js').PluginModule;
 const Config                = require('./config.js').get;
 const Log                   = require('./logger.js').log;
+const { Errors }            = require('./enig_error.js');
 
 const _                     = require('lodash');
 const later                 = require('later');
@@ -138,7 +139,14 @@ class ScheduledEvent {
                 env     : process.env,
             };
 
-            const proc = pty.spawn(this.action.what, this.action.args, opts);
+            let proc;
+            try {
+                proc = pty.spawn(this.action.what, this.action.args, opts);
+            } catch(e) {
+                return cb(Errors.ExternalProcess(
+                    `Error spawning @execute process "${this.action.what}" with args "${this.action.args.join(' ')}": ${e.message}`)
+                );
+            }
 
             proc.once('exit', exitCode => {
                 if(exitCode) {
