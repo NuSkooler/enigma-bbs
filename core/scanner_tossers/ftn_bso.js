@@ -1746,7 +1746,7 @@ function FTNMessageScanTossModule() {
                                 }
                                 return callback(null, localInfo);   //  continue even if we couldn't find an old match
                             });
-                        } else if(fileIds.legnth > 1) {
+                        } else if(fileIds.length > 1) {
                             return callback(Errors.General(`More than one existing entry for TIC in ${localInfo.areaTag} ([${fileIds.join(', ')}])`));
                         } else {
                             return callback(null, localInfo);
