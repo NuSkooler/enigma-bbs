@@ -44,6 +44,14 @@ ENiGMA½'s configuration, menu, and theme files can edited while your BBS is run
 ### CaSe SeNsiTiVE
 Configuration keys are **case sensitive**. That means if a configuration key is `boardName` for example, `boardname`, or `BOARDNAME` **will not work**.
 
+### Escaping
+Some values need escaped. This is especially important to remember on Windows machines where file paths contain backslashes (`\`). To specify a path to `C:\foo\bar\baz.exe` for example, an entry may look like this in your configuration file:
+```hjson
+something: {
+    path: "C:\\foo\\bar\\baz.exe" // note the extra \'s!
+}
+```
+
 ## Tips & Tricks
 ### JSON Compatibility
 Remember that standard JSON is fully compatible with HJSON. If you are more comfortable with JSON (or have an editor that works with JSON that you prefer) simply convert your config file(s) to JSON and use that instead!
