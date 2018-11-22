@@ -10,6 +10,7 @@ const userLogin         = require('../../user_login.js').userLogin;
 const enigVersion       = require('../../../package.json').version;
 const theme             = require('../../theme.js');
 const stringFormat      = require('../../string_format.js');
+const { ErrorReasons }  = require('../../enig_error.js');
 
 //  deps
 const ssh2          = require('ssh2');
@@ -70,7 +71,7 @@ function SSHClient(clientConn) {
 
             userLogin(self, ctx.username, ctx.password, function authResult(err) {
                 if(err) {
-                    if(err.existingConn) {
+                    if(ErrorReasons.AlreadyLoggedIn === err.reasonCode) {
                         return alreadyLoggedIn(username);
                     }
 
@@ -96,7 +97,7 @@ function SSHClient(clientConn) {
 
                 userLogin(self, username, (answers[0] || ''), err => {
                     if(err) {
-                        if(err.existingConn) {
+                        if(ErrorReasons.AlreadyLoggedIn === err.reasonCode) {
                             return alreadyLoggedIn(username);
                         }
 

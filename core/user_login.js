@@ -8,6 +8,10 @@ const StatLog           = require('./stat_log.js');
 const logger            = require('./logger.js');
 const Events            = require('./events.js');
 const Config            = require('./config.js').get;
+const {
+    Errors,
+    ErrorReasons
+}                       = require('./enig_error.js');
 
 //  deps
 const async             = require('async');
@@ -48,12 +52,10 @@ function userLogin(client, username, password, cb) {
                 'Already logged in'
             );
 
-            const existingConnError = new Error('Already logged in as supplied user');
-            existingConnError.existingConn = true;
-
-            //  :TODO: We should use EnigError & pass existing connection as second param
-
-            return cb(existingConnError);
+            return cb(Errors.BadLogin(
+                `User ${user.username} already logged in.`,
+                ErrorReasons.AlreadyLoggedIn
+            ));
         }
 
         //  update client logger with addition of username

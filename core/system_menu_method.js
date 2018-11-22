@@ -2,10 +2,11 @@
 'use strict';
 
 //  ENiGMA½
-const removeClient      = require('./client_connections.js').removeClient;
+const { removeClient }  = require('./client_connections.js');
 const ansiNormal        = require('./ansi_term.js').normal;
-const userLogin         = require('./user_login.js').userLogin;
+const { userLogin }     = require('./user_login.js');
 const messageArea       = require('./message_area.js');
+const { ErrorReasons }  = require('./enig_error.js');
 
 //  deps
 const _                 = require('lodash');
@@ -26,12 +27,14 @@ function login(callingMenu, formData, extraArgs, cb) {
     userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
         if(err) {
             //  login failure
-            if(err.existingConn && _.has(callingMenu, 'menuConfig.config.tooNodeMenu')) {
+            if(ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
+                _.has(callingMenu, 'menuConfig.config.tooNodeMenu'))
+            {
                 return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
-            } else {
-                //  Other error
-                return callingMenu.prevMenu(cb);
             }
+
+            //  Other error
+            return callingMenu.prevMenu(cb);
         }
 
         //  success!

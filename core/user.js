@@ -45,9 +45,10 @@ module.exports = class User {
 
     static get AccountStatus() {
         return {
-            disabled    : 0,
-            inactive    : 1,
-            active      : 2,
+            disabled    : 0,    //  +op disabled
+            inactive    : 1,    //  inactive, aka requires +op approval/activation
+            active      : 2,    //  standard, active
+            locked      : 3,    //  locked out (too many bad login attempts, etc.)
         };
     }
 

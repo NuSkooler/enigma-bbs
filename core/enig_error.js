@@ -34,8 +34,9 @@ exports.Errors = {
     ExternalProcess     : (reason, reasonCode)  => new EnigError('External process error', -32005, reason, reasonCode),
     MissingConfig       : (reason, reasonCode)  => new EnigError('Missing configuration', -32006, reason, reasonCode),
     UnexpectedState     : (reason, reasonCode)  => new EnigError('Unexpected state', -32007, reason, reasonCode),
-    MissingParam        : (reason, reasonCode)  => new EnigError('Missing paramater(s)', -32008, reason, reasonCode),
+    MissingParam        : (reason, reasonCode)  => new EnigError('Missing paramter(s)', -32008, reason, reasonCode),
     MissingMci          : (reason, reasonCode)  => new EnigError('Missing required MCI code(s)', -32009, reason, reasonCode),
+    BadLogin            : (reason, reasonCode)  => new EnigError('Bad login attempt', -32010, reason, reasonCode),
 };
 
 exports.ErrorReasons = {
@@ -44,4 +45,5 @@ exports.ErrorReasons = {
     NoPreviousMenu      : 'NOPREV',
     NoConditionMatch    : 'NOCONDMATCH',
     NotEnabled          : 'NOTENABLED',
+    AlreadyLoggedIn     : 'ALREADYLOGGEDIN',
 };
