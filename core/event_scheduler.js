@@ -117,7 +117,7 @@ class ScheduledEvent {
                 methodModule[this.action.what](this.action.args, err => {
                     if(err) {
                         Log.debug(
-                            { error : err.toString(), eventName : this.name, action : this.action },
+                            { error : err.message, eventName : this.name, action : this.action },
                             'Error performing scheduled event action');
                     }
 
@@ -125,7 +125,7 @@ class ScheduledEvent {
                 });
             } catch(e) {
                 Log.warn(
-                    { error : e.toString(), eventName : this.name, action : this.action },
+                    { error : e.message, eventName : this.name, action : this.action },
                     'Failed to perform scheduled event action');
 
                 return cb(e);
@@ -143,9 +143,17 @@ class ScheduledEvent {
             try {
                 proc = pty.spawn(this.action.what, this.action.args, opts);
             } catch(e) {
-                return cb(Errors.ExternalProcess(
-                    `Error spawning @execute process "${this.action.what}" with args "${this.action.args.join(' ')}": ${e.message}`)
+                Log.warn(
+                    {
+                        error       : 'Failed to spawn @execute process',
+                        reason      : e.message,
+                        eventName   : this.name,
+                        action      : this.action,
+                        what        : this.action.what,
+                        args        : this.action.args
+                    }
                 );
+                return cb(e);
             }
 
             proc.once('exit', exitCode => {
