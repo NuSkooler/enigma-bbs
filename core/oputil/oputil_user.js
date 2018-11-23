@@ -8,24 +8,12 @@ const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const Errors					= require('../enig_error.js').Errors;
+const UserProps                 = require('../user_property.js');
 
 const async						= require('async');
 const _							= require('lodash');
 
 exports.handleUserCommand		= handleUserCommand;
-
-function getUser(userName, cb) {
-    const User = require('../../core/user.js');
-    User.getUserIdAndName(userName, (err, userId) => {
-        if(err) {
-            process.exitCode = ExitCodes.BAD_ARGS;
-            return cb(err);
-        }
-        const u = new User();
-        u.userId = userId;
-        return cb(null, u);
-    });
-}
 
 function initAndGetUser(userName, cb) {
     async.waterfall(
@@ -34,12 +22,12 @@ function initAndGetUser(userName, cb) {
                 initConfigAndDatabases(callback);
             },
             function getUserObject(callback) {
-                getUser(userName, (err, user) => {
+                const User = require('../../core/user.js');
+                User.getUserIdAndName(userName, (err, userId) => {
                     if(err) {
-                        process.exitCode = ExitCodes.BAD_ARGS;
                         return callback(err);
                     }
-                    return callback(null, user);
+                    return User.getUser(userId, callback);
                 });
             }
         ],
@@ -64,14 +52,29 @@ function setAccountStatus(user, status) {
     }[status];
 
     const statusDesc = _.invert(AccountStatus)[status];
-    user.persistProperty('account_status', status, err => {
-        if(err) {
-            process.exitCode = ExitCodes.ERROR;
-            console.error(err.message);
-        } else {
-            console.info(`User status set to ${statusDesc}`);
+
+    async.series(
+        [
+            (callback) => {
+                return user.persistProperty(UserProps.AccountStatus, status, callback);
+            },
+            (callback) => {
+                if(AccountStatus.active !== status) {
+                    return callback(null);
+                }
+
+                return user.unlockAccount(callback);
+            }
+        ],
+        err => {
+            if(err) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error(err.message);
+            } else {
+                console.info(`User status set to ${statusDesc}`);
+            }
         }
-    });
+    );
 }
 
 function setUserPassword(user) {
