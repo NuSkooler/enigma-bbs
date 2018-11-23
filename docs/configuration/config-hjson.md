@@ -8,7 +8,7 @@ The main system configuration file, `config.hjson` both overrides defaults and p
 See also [HJSON General Information](hjson.md) for more information on the HJSON format.
 
 ### Creating a Configuration
-Your initial configuration skeleton can be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
+Your initial configuration skeleton should be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
 ```
 ./oputil.js config new
 ```
@@ -30,9 +30,20 @@ general: {
 }
 ```
 
-(Note the very slightly different syntax. **You can use standard JSON if you wish**)
+(Note the very slightly [HJSON](hjson.md) different syntax. **You can use standard JSON if you wish!**)
 
 While not everything that is available in your `config.hjson` file can be found defaulted in `core/config.js`, a lot is. [Poke around and see what you can find](https://github.com/NuSkooler/enigma-bbs/blob/master/core/config.js)!
+
+### Configuration Sections
+Below is a list of various configuration sections. There are many more, but this should get you started:
+
+* [ACS](acs.md)
+* [Archivers](archivers.md): Set up external archive utilities for handling things like ZIP, ARJ, RAR, and so on.
+* [Email](email.md): System email support.
+* [Event Scheduler](event-scheduler.md): Set up events as you see fit!
+* [File Base](/docs/filebase/index.md)
+* [File Transfer Protocols](file-transfer-protocols.md): Oldschool file transfer protocols such as X/Y/Z-Modem!
+* [Message Areas](/docs/messageareas/configuring-a-message-area.md), [Networks](/docs/messageareas/message-networks.md), [NetMail](/docs/messageareas/netmail.md), etc.
 
 
 ### A Sample Configuration

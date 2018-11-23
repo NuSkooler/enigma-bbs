@@ -82,8 +82,6 @@
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
- 
-  - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
   - Troubleshooting
     - [Monitoring Logs]({{ site.baseurl }}{% link troubleshooting/monitoring-logs.md %})

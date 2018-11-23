@@ -27,7 +27,7 @@ Commands break up operations by groups:
 | Command   | Description   |
 |-----------|---------------|
 | `user`    | User management   |
-| `config`  | System configuration and maintentance |
+| `config`  | System configuration and maintenance |
 | `fb`      | File base configuration and management    |
 | `mb`      | Message base configuration and management |
 
@@ -45,11 +45,12 @@ usage: optutil.js user <action> [<args>]
 
 actions:
   pw USERNAME PASSWORD         set password to PASSWORD for USERNAME
-  rm USERNAME                  permanantely removes USERNAME user from system
+  rm USERNAME                  permanently removes USERNAME user from system
   activate USERNAME            sets USERNAME's status to active
-  deactivate USERNAME          sets USERNAME's status to deactive
+  deactivate USERNAME          sets USERNAME's status to inactive
   disable USERNAME             sets USERNAME's status to disabled
-  group USERNAME [+|-]GROUP    adds (+) or removes (-) USERNAME from GROUP
+  lock USERNAME                sets USERNAME's status to locked
+  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
 ```
 
 | Action    | Description       | Examples                              | Aliases   |
@@ -59,6 +60,7 @@ actions:
 | `activate` | Activates user    | `./oputil.js user activate joeuser`   | N/A   |
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |
+| `lock` | Locks the user account (prevents logins) | `./oputil.js user lock joeuser` | N/A |
 | `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser -derp`   | N/A    |
 
 ## Configuration
@@ -82,7 +84,7 @@ import-areas args:
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
 | `new`     | Generates a new/initial configuration | `./oputil.js config new` (follow the prompts) |
-| `import-areas`    | Imports areas using a Fidonet style *.NA or AREAS.BBS formatted file  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
+| `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
 
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
 
@@ -138,7 +140,7 @@ general information:
 The `scan` action can (re)scan a file area for new entries as well as update (`--update`) existing entry records (description, etc.). When scanning, a valid area tag must be specified. Optionally, storage tag may also be supplied in order to scan a specific filesystem location using the `@the_storage_tag` syntax. If a [GLOB](http://man7.org/linux/man-pages/man7/glob.7.html) is supplied as the last argument, only file entries with filenames matching will be processed.
 
 ##### Examples
-Performing a quick scan of a specific area's storage location ("retro_warez", "retro_warez_games) matching only *.zip extentions:
+Performing a quick scan of a specific area's storage location ("retro_warez", "retro_warez_games) matching only *.zip extensions:
 ```
 $ ./oputil.js fb scan --quick retro_warez@retro_warez_games *.zip`
 ```
