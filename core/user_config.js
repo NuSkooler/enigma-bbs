@@ -1,11 +1,17 @@
 /* jslint node: true */
 'use strict';
 
+//  ENiGMA½
 const MenuModule        = require('./menu_module.js').MenuModule;
 const ViewController    = require('./view_controller.js').ViewController;
 const theme             = require('./theme.js');
 const sysValidate       = require('./system_view_validate.js');
+const UserProps         = require('./user_property.js');
+const {
+    getISOTimestampString
+}                       = require('./database.js');
 
+//  deps
 const async             = require('async');
 const assert            = require('assert');
 const _                 = require('lodash');
@@ -101,15 +107,15 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 assert(formData.value.password === formData.value.passwordConfirm);
 
                 const newProperties = {
-                    real_name           : formData.value.realName,
-                    birthdate           : new Date(Date.parse(formData.value.birthdate)).toISOString(),
-                    sex                 : formData.value.sex,
-                    location            : formData.value.location,
-                    affiliation         : formData.value.affils,
-                    email_address       : formData.value.email,
-                    web_address         : formData.value.web,
-                    term_height         : formData.value.termHeight.toString(),
-                    theme_id            : self.availThemeInfo[formData.value.theme].themeId,
+                    [ UserProps.RealName ]      : formData.value.realName,
+                    [ UserProps.Birthdate ]     : getISOTimestampString(formData.value.birthdate),
+                    [ UserProps.Sex ]           : formData.value.sex,
+                    [ UserProps.Location ]      : formData.value.location,
+                    [ UserProps.Affiliations ]  : formData.value.affils,
+                    [ UserProps.EmailAddress ]  : formData.value.email,
+                    [ UserProps.WebAddress ]    : formData.value.web,
+                    [ UserProps.TermHeight ]    : formData.value.termHeight.toString(),
+                    [ UserProps.ThemeId ]       : self.availThemeInfo[formData.value.theme].themeId,
                 };
 
                 //  runtime set theme

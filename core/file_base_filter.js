@@ -1,9 +1,11 @@
 /* jslint node: true */
 'use strict';
 
+const UserProps = require('./user_property.js');
+
 //  deps
-const _                     = require('lodash');
-const uuidV4                = require('uuid/v4');
+const _         = require('lodash');
+const uuidV4    = require('uuid/v4');
 
 module.exports = class FileBaseFilters {
     constructor(client) {
@@ -90,7 +92,7 @@ module.exports = class FileBaseFilters {
     }
 
     persist(cb) {
-        return this.client.user.persistProperty('file_base_filters', JSON.stringify(this.filters), cb);
+        return this.client.user.persistProperty(UserProps.FileBaseFilters, JSON.stringify(this.filters), cb);
     }
 
     cleanTags(tags) {
@@ -102,7 +104,7 @@ module.exports = class FileBaseFilters {
 
         if(activeFilter) {
             this.activeFilter = activeFilter;
-            this.client.user.persistProperty('file_base_filter_active_uuid', filterUuid);
+            this.client.user.persistProperty(UserProps.FileBaseFilterActiveUuid, filterUuid);
             return true;
         }
 
@@ -150,6 +152,6 @@ module.exports = class FileBaseFilters {
             return;
         }
 
-        return user.persistProperty('user_file_base_last_viewed', fileId, cb);
+        return user.persistProperty(UserProps.FileBaseLastViewedId, fileId, cb);
     }
 };

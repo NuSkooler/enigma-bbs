@@ -79,8 +79,8 @@ class WebPasswordReset {
                         token = token.toString('hex');
 
                         const newProperties = {
-                            email_password_reset_token      : token,
-                            email_password_reset_token_ts   : getISOTimestampString(),
+                            [ UserProps.EmailPwResetToken ]     : token,
+                            [ UserProps.EmailPwResetTokenTs ]   : getISOTimestampString(),
                         };
 
                         //  we simply place the reset token in the user's properties

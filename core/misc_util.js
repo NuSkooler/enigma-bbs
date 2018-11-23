@@ -4,6 +4,8 @@
 const paths         = require('path');
 
 const os            = require('os');
+const moment        = require('moment');
+
 const packageJson   = require('../package.json');
 
 exports.isProduction            = isProduction;
