@@ -21,7 +21,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * New MCI codes including general purpose movement codes. See [MCI codes](docs/art/mci.md)
 * `install.sh` will now attempt to use NPM's `--build-from-source` option when ARM is detected.
 * `oputil.js config new` will now generate a much more complete configuration file with comments, examples, etc. `oputil.js config cat` dumps your current config to stdout.
-
+* Handling of failed login attempts is now fully in. Disconnect clients, lock out accounts, ability to auto or unlock at (email-driven) password reset, etc. See `users.failedLogin` in `config.hjson`.
 
 
 ## 0.0.8-alpha
