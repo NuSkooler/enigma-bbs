@@ -288,6 +288,10 @@ class WebPasswordReset {
                     user.removeProperties([ UserProps.EmailPwResetToken, UserProps.EmailPwResetTokenTs ]);
 
                     if(true === _.get(config, 'users.unlockAtEmailPwReset')) {
+                        Log.info(
+                            { username : user.username, userId : user.userId },
+                            'Remove any lock on account due to password reset policy'
+                        );
                         user.unlockAccount( () => { /* dummy */ } );
                     }
 

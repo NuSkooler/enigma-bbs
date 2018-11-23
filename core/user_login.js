@@ -24,14 +24,13 @@ function userLogin(client, username, password, cb) {
         const config = Config();
 
         if(err) {
-            client.log.info( { username : username, error : err.message }, 'Failed login attempt');
-
             client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
             const disconnect = config.users.failedLogin.disconnect;
             if(disconnect > 0 && client.user.sessionFailedLoginAttempts >= disconnect) {
-                return cb(Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany));
+                err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
             }
 
+            client.log.info( { username : username, error : err.message }, 'Failed login attempt');
             return cb(err);
         }
 

@@ -152,6 +152,7 @@ module.exports = class User {
                         if(!_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)) {
                             props[UserProps.AccountLockedPrevStatus] = tempUser.getProperty(UserProps.AccountStatus);
                         }
+                        Log.info( { userId, failedAttempts }, '(Re)setting account to locked due to failed logins');
                         return tempUser.persistProperties(props, callback);
                     }
 
@@ -243,6 +244,10 @@ module.exports = class User {
                             const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
                             if(minutesSinceLocked >= autoUnlockMinutes) {
                                 //  allow the login - we will clear any lock there
+                                Log.info(
+                                    { username, userId : tempAuthInfo.userId, lockedAt : lockedTs.format() },
+                                    'Locked account will now be unlocked due to auto-unlock minutes policy'
+                                );
                                 return callback(null);
                             }
                         }
