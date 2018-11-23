@@ -46,4 +46,8 @@ exports.ErrorReasons = {
     NoConditionMatch    : 'NOCONDMATCH',
     NotEnabled          : 'NOTENABLED',
     AlreadyLoggedIn     : 'ALREADYLOGGEDIN',
+    TooMany             : 'TOOMANY',
+    Disabled            : 'DISABLED',
+    Inactive            : 'INACTIVE',
+    Locked              : 'LOCKED',
 };

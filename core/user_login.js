@@ -15,20 +15,30 @@ const {
 
 //  deps
 const async             = require('async');
+const _                 = require('lodash');
 
 exports.userLogin       = userLogin;
 
 function userLogin(client, username, password, cb) {
-    client.user.authenticate(username, password, function authenticated(err) {
+    client.user.authenticate(username, password, err => {
+        const config = Config();
+
         if(err) {
             client.log.info( { username : username, error : err.message }, 'Failed login attempt');
 
-            //  :TODO: if username exists, record failed login attempt to properties
-            //  :TODO: check Config max failed logon attempts/etc. - set err.maxAttempts = true
+            client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
+            const disconnect = config.users.failedLogin.disconnect;
+            if(disconnect > 0 && client.user.sessionFailedLoginAttempts >= disconnect) {
+                return cb(Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany));
+            }
 
             return cb(err);
         }
-        const user  = client.user;
+
+        const user = client.user;
+
+        //  Good login; reset any failed attempts
+        delete user.sessionFailedLoginAttempts;
 
         //
         //  Ensure this user is not already logged in.

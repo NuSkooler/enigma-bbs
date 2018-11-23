@@ -55,6 +55,14 @@ function setAccountStatus(user, status) {
     }
 
     const AccountStatus = require('../../core/user.js').AccountStatus;
+
+    status = {
+        activate    : AccountStatus.active,
+        deactivate  : AccountStatus.inactive,
+        disable     : AccountStatus.disabled,
+        lock        : AccountStatus.locked,
+    }[status];
+
     const statusDesc = _.invert(AccountStatus)[status];
     user.persistProperty('account_status', status, err => {
         if(err) {
@@ -147,21 +155,6 @@ function modUserGroups(user) {
     }
 }
 
-function activateUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.active);
-}
-
-function deactivateUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.inactive);
-}
-
-function disableUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.disabled);
-}
-
 function handleUserCommand() {
     function errUsage()  {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -195,11 +188,12 @@ function handleUserCommand() {
             del			: removeUser,
             delete		: removeUser,
 
-            activate	: activateUser,
-            deactivate	: deactivateUser,
-            disable		: disableUser,
+            activate	: setAccountStatus,
+            deactivate	: setAccountStatus,
+            disable		: setAccountStatus,
+            lock        : setAccountStatus,
 
             group		: modUserGroups,
-        }[action] || errUsage)(user);
+        }[action] || errUsage)(user, action);
     });
 }

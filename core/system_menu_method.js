@@ -26,11 +26,19 @@ function login(callingMenu, formData, extraArgs, cb) {
 
     userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
         if(err) {
-            //  login failure
+            //  already logged in with this user?
             if(ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
                 _.has(callingMenu, 'menuConfig.config.tooNodeMenu'))
             {
                 return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
+            }
+
+            const ReasonsMenus = [
+                ErrorReasons.TooMany, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked
+            ];
+            if(ReasonsMenus.includes(err.reasonCode)) {
+                const menu = _.get(callingMenu, [ 'menuConfig', 'config', err.reasonCode.toLowerCase() ]);
+                return menu ? callingMenu.gotoMenu(menu, cb) : logoff(callingMenu, {}, {}, cb);
             }
 
             //  Other error

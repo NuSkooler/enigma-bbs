@@ -68,6 +68,7 @@ class StatLog {
         };
     }
 
+    //  :TODO: fix spelling :)
     setNonPeristentSystemStat(statName, statValue) {
         this.systemStats[statName] = statValue;
     }

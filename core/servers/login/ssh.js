@@ -10,7 +10,10 @@ const userLogin         = require('../../user_login.js').userLogin;
 const enigVersion       = require('../../../package.json').version;
 const theme             = require('../../theme.js');
 const stringFormat      = require('../../string_format.js');
-const { ErrorReasons }  = require('../../enig_error.js');
+const {
+    Errors,
+    ErrorReasons
+}                       = require('../../enig_error.js');
 
 //  deps
 const ssh2          = require('ssh2');
@@ -37,8 +40,6 @@ function SSHClient(clientConn) {
 
     const self = this;
 
-    let loginAttempts = 0;
-
     clientConn.on('authentication', function authAttempt(ctx) {
         const username  = ctx.username || '';
         const password  = ctx.password || '';
@@ -53,26 +54,56 @@ function SSHClient(clientConn) {
             return clientConn.end();
         }
 
-        function alreadyLoggedIn(username) {
-            ctx.prompt(`${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`);
+        function promptAndTerm(msg) {
+            if('keyboard-interactive' === ctx.method) {
+                ctx.prompt(msg);
+            }
             return terminateConnection();
+        }
+
+        function accountAlreadyLoggedIn(username) {
+            return promptAndTerm(`${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`);
+        }
+
+        function accountDisabled(username) {
+            return promptAndTerm(`${username} is disabled.\n(Press any key to continue)`);
+        }
+
+        function accountInactive(username) {
+            return promptAndTerm(`${username} is waiting for +op activation.\n(Press any key to continue)`);
+        }
+
+        function accountLocked(username) {
+            return promptAndTerm(`${username} is locked.\n(Press any key to continue)`);
+        }
+
+        function isSpecialHandleError(err) {
+            return [ ErrorReasons.AlreadyLoggedIn, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked ].includes(err.reasonCode);
+        }
+
+        function handleSpecialError(err, username) {
+            switch(err.reasonCode) {
+                case ErrorReasons.AlreadyLoggedIn   : return accountAlreadyLoggedIn(username);
+                case ErrorReasons.Inactive          : return accountInactive(username);
+                case ErrorReasons.Disabled          : return accountDisabled(username);
+                case ErrorReasons.Locked            : return accountLocked(username);
+                default                             : return terminateConnection();
+            }
         }
 
         //
         //  If the system is open and |isNewUser| is true, the login
-        //  sequence is hijacked in order to start the applicaiton process.
+        //  sequence is hijacked in order to start the application process.
         //
         if(false === config.general.closedSystem && self.isNewUser) {
             return ctx.accept();
         }
 
         if(username.length > 0 && password.length > 0) {
-            loginAttempts += 1;
-
             userLogin(self, ctx.username, ctx.password, function authResult(err) {
                 if(err) {
-                    if(ErrorReasons.AlreadyLoggedIn === err.reasonCode) {
-                        return alreadyLoggedIn(username);
+                    if(isSpecialHandleError(err)) {
+                        return handleSpecialError(err, username);
                     }
 
                     return ctx.reject(SSHClient.ValidAuthMethods);
@@ -93,15 +124,13 @@ function SSHClient(clientConn) {
             const interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
 
             ctx.prompt(interactivePrompt, function retryPrompt(answers) {
-                loginAttempts += 1;
-
                 userLogin(self, username, (answers[0] || ''), err => {
                     if(err) {
-                        if(ErrorReasons.AlreadyLoggedIn === err.reasonCode) {
-                            return alreadyLoggedIn(username);
+                        if(isSpecialHandleError(err)) {
+                            return handleSpecialError(err, username);
                         }
 
-                        if(loginAttempts >= config.general.loginAttempts) {
+                        if(Errors.BadLogin().code === err.code) {
                             return terminateConnection();
                         }
 

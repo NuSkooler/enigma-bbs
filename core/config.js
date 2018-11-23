@@ -172,7 +172,6 @@ function getDefaultConfig() {
 
             //  :TODO: closedSystem and loginAttemps prob belong under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
-            loginAttempts   : 3,
 
             menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
             promptFile      : 'prompt.hjson',   //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
@@ -217,6 +216,13 @@ function getDefaultConfig() {
 
             preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
             idleLogoutSeconds           : 60 * 6,   //  6m
+
+            failedLogin : {
+                disconnect          : 3,            //  0=disabled
+                lockAccount         : 9,            //  0=disabled; Mark user status as "locked" if >= N
+                autoUnlockMinutes   : 60 * 6,       //  0=disabled; Auto unlock after N minutes.
+            },
+            unlockAtEmailPwReset    : true,         //  if true, password reset via email will unlock locked accounts
         },
 
         theme : {

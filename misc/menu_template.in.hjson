@@ -145,6 +145,9 @@
 			next: fullLoginSequenceLoginArt
 			config: {
 				tooNodeMenu: loginAttemptTooNode
+				inactive: loginAttemptAccountInactive
+				disabled: loginAttemptAccountDisabled
+				locked: loginAttemptAccountLocked
 			}
 			form: {
 				0: {
@@ -181,6 +184,33 @@
 
 		loginAttemptTooNode: {
 			art: TOONODE
+			config: {
+				cls: true
+				nextTimeout: 2000
+			}
+			next: logoff
+		}
+
+		loginAttemptAccountLocked: {
+			art: ACCOUNTLOCKED
+			config: {
+				cls: true
+				nextTimeout: 2000
+			}
+			next: logoff
+		}
+
+		loginAttemptAccountDisabled: {
+			art: ACCOUNTDISABLED
+			config: {
+				cls: true
+				nextTimeout: 2000
+			}
+			next: logoff
+		}
+
+		loginAttemptAccountInactive: {
+			art: ACCOUNTINACTIVE
 			config: {
 				cls: true
 				nextTimeout: 2000

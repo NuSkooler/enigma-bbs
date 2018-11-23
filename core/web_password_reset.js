@@ -10,6 +10,7 @@ const User                  = require('./user.js');
 const userDb                = require('./database.js').dbs.user;
 const getISOTimestampString = require('./database.js').getISOTimestampString;
 const Log                   = require('./logger.js').log;
+const UserProps             = require('./user_property.js');
 
 //  deps
 const async                 = require('async');
@@ -17,6 +18,7 @@ const crypto                = require('crypto');
 const fs                    = require('graceful-fs');
 const url                   = require('url');
 const querystring           = require('querystring');
+const _                     = require('lodash');
 
 const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT =
     `%USERNAME%:
@@ -283,8 +285,11 @@ class WebPasswordReset {
                     }
 
                     //  delete assoc properties - no need to wait for completion
-                    user.removeProperty('email_password_reset_token');
-                    user.removeProperty('email_password_reset_token_ts');
+                    user.removeProperties([ UserProps.EmailPwResetToken, UserProps.EmailPwResetTokenTs ]);
+
+                    if(true === _.get(config, 'users.unlockAtEmailPwReset')) {
+                        user.unlockAccount( () => { /* dummy */ } );
+                    }
 
                     resp.writeHead(200);
                     return resp.end('Password changed successfully');

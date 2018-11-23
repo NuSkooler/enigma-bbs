@@ -352,6 +352,23 @@
         //  Usernames reserved for applying to your system
         newUserNames: []
 
+        //  Handling of failed logins
+        failedLogin : {
+            //  disconnect after N failed attempts. 0=disabled.
+            disconnect          : XXXXX
+
+            //  Lock the user out after N failed attempts. 0=disabled.
+            lockAccount         : XXXXX
+
+            //
+            //  If locked out, how long until the user can login again?
+            //  Set to 0 to disable auto-unlock
+            //
+            autoUnlockMinutes   : XXXXX
+        },
+
+        //  Allow email driven password resets to unlock accounts?
+        unlockAtEmailPwReset    : XXXXX
     }
 
     //  Archive files and related

@@ -30,6 +30,7 @@ actions:
   activate USERNAME            sets USERNAME's status to active
   deactivate USERNAME          sets USERNAME's status to inactive
   disable USERNAME             sets USERNAME's status to disabled
+  lock USERNAME                sets USERNAME's status to locked
   group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
 `,
 
