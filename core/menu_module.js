@@ -30,7 +30,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
         this.viewControllers    = {};
 
-        //  *initial* interruptable state for this menu
+        //  *initial* Interruptible state for this menu
         this.disableInterruption();
     }
 
@@ -167,18 +167,18 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     neverInterruptable() {
-        return this.menuConfig.config.interruptable === 'never';
+        return this.menuConfig.config.Interruptible === 'never';
     }
 
     enableInterruption() {
         if(!this.neverInterruptable()) {
-            this.interruptable = true;
+            this.Interruptible = true;
         }
     }
 
     disableInterruption() {
         if(!this.neverInterruptable()) {
-            this.interruptable = false;
+            this.Interruptible = false;
         }
     }
 
@@ -191,7 +191,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     displayQueuedInterruptions(cb) {
-        if(true !== this.interruptable) {
+        if(true !== this.Interruptible) {
             return cb(null);
         }
 
@@ -205,7 +205,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     attemptInterruptNow(interruptItem, cb) {
-        if(true !== this.interruptable) {
+        if(true !== this.Interruptible) {
             return cb(null, false); //  don't eat up the item; queue for later
         }
 
