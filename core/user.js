@@ -203,8 +203,8 @@ module.exports = class User {
                 },
                 function getDkWithSalt(props, callback) {
                     //  get DK from stored salt and password provided
-                    User.generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, (err, dk) => {
-                        return callback(err, dk, props.pw_pbkdf2_dk);
+                    User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+                        return callback(err, dk, props[UserProps.PassPbkdf2Dk]);
                     });
                 },
                 function validateAuth(passDk, propsDk, callback) {
@@ -516,8 +516,8 @@ module.exports = class User {
             }
 
             const newProperties = {
-                pw_pbkdf2_salt  : info.salt,
-                pw_pbkdf2_dk    : info.dk,
+                [ UserProps.PassPbkdf2Salt ]    : info.salt,
+                [ UserProps.PassPbkdf2Dk ]      : info.dk,
             };
 
             this.persistProperties(newProperties, err => {
@@ -596,7 +596,7 @@ module.exports = class User {
             WHERE id = (
                 SELECT user_id
                 FROM user_property
-                WHERE prop_name='real_name' AND prop_value LIKE ?
+                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
             );`,
             [ realName ],
             (err, row) => {
