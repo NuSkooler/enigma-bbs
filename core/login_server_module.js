@@ -6,6 +6,7 @@ const conf          = require('./config.js');
 const logger        = require('./logger.js');
 const ServerModule  = require('./server_module.js').ServerModule;
 const clientConns   = require('./client_connections.js');
+const UserProps     = require('./user_property.js');
 
 //  deps
 const _         = require('lodash');
@@ -25,12 +26,12 @@ module.exports = class LoginServerModule extends ServerModule {
         //
         const preLoginTheme = _.get(conf.config, 'theme.preLogin');
         if('*' === preLoginTheme) {
-            client.user.properties.theme_id = theme.getRandomTheme() || '';
+            client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
         } else {
-            client.user.properties.theme_id = preLoginTheme;
+            client.user.properties[UserProps.ThemeId] = preLoginTheme;
         }
 
-        theme.setClientTheme(client, client.user.properties.theme_id);
+        theme.setClientTheme(client, client.user.properties[UserProps.ThemeId]);
         return cb(null);   //  note: currently useless to use cb here - but this may change...again...
     }
 

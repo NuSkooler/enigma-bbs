@@ -2,6 +2,7 @@
 'use strict';
 
 const FileEntry     = require('./file_entry.js');
+const UserProps     = require('./user_property.js');
 
 //  deps
 const { partition } = require('lodash');
@@ -11,8 +12,8 @@ module.exports = class DownloadQueue {
         this.client = client;
 
         if(!Array.isArray(this.client.user.downloadQueue)) {
-            if(this.client.user.properties.dl_queue) {
-                this.loadFromProperty(this.client.user.properties.dl_queue);
+            if(this.client.user.properties[UserProps.DownloadQueue]) {
+                this.loadFromProperty(this.client.user.properties[UserProps.DownloadQueue]);
             } else {
                 this.client.user.downloadQueue = [];
             }

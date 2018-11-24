@@ -59,7 +59,7 @@ class WebPasswordReset {
                         }
 
                         User.getUser(userId, (err, user) => {
-                            if(err || !user.properties.email_address) {
+                            if(err || !user.properties[UserProps.EmailAddress]) {
                                 return callback(Errors.DoesNotExist('No email address associated with this user'));
                             }
 
@@ -105,13 +105,13 @@ class WebPasswordReset {
                 function buildAndSendEmail(user, textTemplate, htmlTemplate, callback) {
                     const sendMail = require('./email.js').sendMail;
 
-                    const resetUrl = webServer.instance.buildUrl(`/reset_password?token=${user.properties.email_password_reset_token}`);
+                    const resetUrl = webServer.instance.buildUrl(`/reset_password?token=${user.properties[UserProps.EmailPwResetToken]}`);
 
                     function replaceTokens(s) {
                         return s
                             .replace(/%BOARDNAME%/g,    Config().general.boardName)
                             .replace(/%USERNAME%/g,     user.username)
-                            .replace(/%TOKEN%/g,        user.properties.email_password_reset_token)
+                            .replace(/%TOKEN%/g,        user.properties[UserProps.EmailPwResetToken])
                             .replace(/%RESET_URL%/g,    resetUrl)
                         ;
                     }
@@ -122,7 +122,7 @@ class WebPasswordReset {
                     }
 
                     const message = {
-                        to      : `${user.properties.display_name||user.username} <${user.properties.email_address}>`,
+                        to      : `${user.properties[UserProps.RealName]||user.username} <${user.properties[UserProps.EmailAddress]}>`,
                         //  from will be filled in
                         subject : 'Forgot Password',
                         text    : textTemplate,

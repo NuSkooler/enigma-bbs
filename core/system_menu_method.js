@@ -7,6 +7,7 @@ const ansiNormal        = require('./ansi_term.js').normal;
 const { userLogin }     = require('./user_login.js');
 const messageArea       = require('./message_area.js');
 const { ErrorReasons }  = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const _                 = require('lodash');
@@ -105,7 +106,7 @@ function reloadMenu(menu, cb) {
 
 function prevConf(callingMenu, formData, extraArgs, cb) {
     const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-    const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag) || confs.length;
+    const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]) || confs.length;
 
     messageArea.changeMessageConference(callingMenu.client, confs[currIndex - 1].confTag, err => {
         if(err) {
@@ -118,7 +119,7 @@ function prevConf(callingMenu, formData, extraArgs, cb) {
 
 function nextConf(callingMenu, formData, extraArgs, cb) {
     const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-    let currIndex   = confs.findIndex( e => e.confTag === callingMenu.client.user.properties.message_conf_tag);
+    let currIndex   = confs.findIndex( e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]);
 
     if(currIndex === confs.length - 1) {
         currIndex = -1;
@@ -134,8 +135,8 @@ function nextConf(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevArea(callingMenu, formData, extraArgs, cb) {
-    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
-    const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag) || areas.length;
+    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties[UserProps.MessageConfTag]);
+    const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]) || areas.length;
 
     messageArea.changeMessageArea(callingMenu.client, areas[currIndex - 1].areaTag, err => {
         if(err) {
@@ -147,8 +148,8 @@ function prevArea(callingMenu, formData, extraArgs, cb) {
 }
 
 function nextArea(callingMenu, formData, extraArgs, cb) {
-    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties.message_conf_tag);
-    let currIndex   = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties.message_area_tag);
+    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties[UserProps.MessageConfTag]);
+    let currIndex   = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]);
 
     if(currIndex === areas.length - 1) {
         currIndex = -1;

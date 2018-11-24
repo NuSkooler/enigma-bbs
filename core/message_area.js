@@ -304,8 +304,8 @@ function tempChangeMessageConfAndArea(client, areaTag) {
         return false;
     }
 
-    client.user.properties.message_conf_tag = confTag;
-    client.user.properties.message_area_tag = areaTag;
+    client.user.properties[UserProps.MessageConfTag] = confTag;
+    client.user.properties[UserProps.MessageAreaTag] = areaTag;
 
     return true;
 }

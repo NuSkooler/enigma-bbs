@@ -12,6 +12,7 @@ const {
     Errors,
     ErrorReasons
 }                       = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async             = require('async');
@@ -74,24 +75,24 @@ function userLogin(client, username, password, cb) {
         client.log.info('Successful login');
 
         //  User's unique session identifier is the same as the connection itself
-        user.sessionId = client.session.uniqueId;   //  convienence
+        user.sessionId = client.session.uniqueId;   //  convenience
 
         Events.emit(Events.getSystemEvents().UserLogin, { user } );
 
         async.parallel(
             [
                 function setTheme(callback) {
-                    setClientTheme(client, user.properties.theme_id);
+                    setClientTheme(client, user.properties[UserProps.ThemeId]);
                     return callback(null);
                 },
                 function updateSystemLoginCount(callback) {
-                    return StatLog.incrementSystemStat('login_count', 1, callback);
+                    return StatLog.incrementSystemStat('login_count', 1, callback); //  :TODO: create system_property.js
                 },
                 function recordLastLogin(callback) {
-                    return StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
+                    return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
                 },
                 function updateUserLoginCount(callback) {
-                    return StatLog.incrementUserStat(user, 'login_count', 1, callback);
+                    return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
                 },
                 function recordLoginHistory(callback) {
                     const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;

@@ -13,7 +13,9 @@ const Errors            = require('./enig_error.js').Errors;
 const ErrorReasons      = require('./enig_error.js').ErrorReasons;
 const Events            = require('./events.js');
 const AnsiPrep          = require('./ansi_prep.js');
+const UserProps         = require('./user_property.js');
 
+//  deps
 const fs                = require('graceful-fs');
 const paths             = require('path');
 const async             = require('async');
@@ -427,8 +429,8 @@ function getThemeArt(options, cb) {
     //      random
     //
     const config = Config();
-    if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
-        options.themeId = options.client.user.properties.theme_id;
+    if(!options.themeId && _.has(options, [ 'client', 'user', 'properties', UserProps.ThemeId ])) {
+        options.themeId = options.client.user.properties[UserProps.ThemeId];
     } else {
         options.themeId = config.theme.default;
     }

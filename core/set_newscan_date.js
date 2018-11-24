@@ -14,7 +14,7 @@ const {
     updateMessageAreaLastReadId,
     getMessageIdNewerThanTimestampByArea
 }                                   = require('./message_area.js');
-const stringFormat                  = require('./string_format.js');
+const UserProps                     = require('./user_property.js');
 
 //  deps
 const async                 = require('async');
@@ -183,8 +183,8 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         });
 
         //  Find current conf/area & move it directly under "All"
-        const currConfTag   = this.client.user.properties.message_conf_tag;
-        const currAreaTag   = this.client.user.properties.message_area_tag;
+        const currConfTag   = this.client.user.properties[UserProps.MessageConfTag];
+        const currAreaTag   = this.client.user.properties[UserProps.MessageAreaTag];
         if(currConfTag && currAreaTag) {
             const confAreaIndex = selections.findIndex( confArea => {
                 return confArea.conf.confTag === currConfTag && confArea.area.areaTag === currAreaTag;

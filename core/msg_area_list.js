@@ -5,6 +5,7 @@
 const { MenuModule }        = require('./menu_module.js');
 const messageArea           = require('./message_area.js');
 const { Errors }            = require('./enig_error.js');
+const UserProps             = require('./user_property.js');
 
 //  deps
 const async             = require('async');
@@ -110,7 +111,7 @@ exports.getModule = class MessageAreaListModule extends MenuModule {
     initList() {
         let index = 1;
         this.messageAreas = messageArea.getSortedAvailMessageAreasByConfTag(
-            this.client.user.properties.message_conf_tag,
+            this.client.user.properties[UserProps.MessageConfTag],
             { client : this.client }
         ).map(area => {
             return {

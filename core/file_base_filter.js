@@ -66,7 +66,7 @@ module.exports = class FileBaseFilters {
     }
 
     load() {
-        let filtersProperty = this.client.user.properties.file_base_filters;
+        let filtersProperty = this.client.user.properties[UserProps.FileBaseFilters];
         let defaulted;
         if(!filtersProperty) {
             filtersProperty = JSON.stringify(FileBaseFilters.getBuiltInSystemFilters());
@@ -131,11 +131,11 @@ module.exports = class FileBaseFilters {
     }
 
     static getActiveFilter(client) {
-        return new FileBaseFilters(client).get(client.user.properties.file_base_filter_active_uuid);
+        return new FileBaseFilters(client).get(client.user.properties[UserProps.FileBaseFilterActiveUuid]);
     }
 
     static getFileBaseLastViewedFileIdByUser(user) {
-        return parseInt((user.properties.user_file_base_last_viewed || 0));
+        return parseInt((user.properties[UserProps.FileBaseLastViewedId] || 0));
     }
 
     static setFileBaseLastViewedFileIdForUser(user, fileId, allowOlder, cb) {

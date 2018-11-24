@@ -4,6 +4,7 @@
 //  ENiGMA½
 const Config        = require('./config.js').get;
 const StatLog       = require('./stat_log.js');
+const UserProps     = require('./user_property.js');
 
 //  deps
 const fs            = require('graceful-fs');
@@ -168,7 +169,7 @@ module.exports = class DropFile {
             '115200',
             Config().general.boardName,
             this.client.user.userId.toString(),
-            this.client.user.properties.real_name || this.client.user.username,
+            this.client.user.properties[UserProps.RealName] || this.client.user.username,
             this.client.user.username,
             this.client.user.getLegacySecurityLevel().toString(),
             '546',  //  :TODO: Minutes left!
@@ -189,21 +190,22 @@ module.exports = class DropFile {
         const opUserName    = /[^\s]*/.exec(StatLog.getSystemStat('sysop_username'))[0];
         const userName      = /[^\s]*/.exec(this.client.user.username)[0];
         const secLevel      = this.client.user.getLegacySecurityLevel().toString();
+        const location      = this.client.user.properties[UserProps.Location];
 
         return iconv.encode( [
-            Config().general.boardName,                         //  "The name of the system."
-            opUserName,                                         //  "The sysop's name up to the first space."
-            opUserName,                                         //  "The sysop's name following the first space."
-            'COM1',                                             //  "The serial port the modem is connected to, or 0 if logged in on console."
-            '57600',                                            //  "The current port (DTE) rate."
-            '0',                                                //  "The number "0""
-            userName,                                           //  "The current user's name, up to the first space."
-            userName,                                           //  "The current user's name, following the first space."
-            this.client.user.properties.location || '',         //  "Where the user lives, or a blank line if unknown."
-            '1',                                                //  "The number "0" if TTY, or "1" if ANSI."
-            secLevel,                                           //  "The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
-            '546',                                              //  "The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
-            '-1'                                                //  "The number "-1" if using an external serial driver or "0" if using internal serial routines."
+            Config().general.boardName, //  "The name of the system."
+            opUserName,                 //  "The sysop's name up to the first space."
+            opUserName,                 //  "The sysop's name following the first space."
+            'COM1',                     //  "The serial port the modem is connected to, or 0 if logged in on console."
+            '57600',                    //  "The current port (DTE) rate."
+            '0',                        //  "The number "0""
+            userName,                   //  "The current user's name, up to the first space."
+            userName,                   //  "The current user's name, following the first space."
+            location || '',             //  "Where the user lives, or a blank line if unknown."
+            '1',                        //  "The number "0" if TTY, or "1" if ANSI."
+            secLevel,                   //  "The number 5 for problem users, 30 for regular users, 80 for Aides, and 100 for Sysops."
+            '546',                      //  "The number of minutes left in the current user's account, limited to 546 to keep from overflowing other software."
+            '-1'                        //  "The number "-1" if using an external serial driver or "0" if using internal serial routines."
         ].join('\r\n') + '\r\n', 'cp437');
     }
 

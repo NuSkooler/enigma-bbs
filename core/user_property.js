@@ -11,7 +11,7 @@ module.exports = {
     PassPbkdf2Salt              : 'pw_pbkdf2_salt',
     PassPbkdf2Dk                : 'pw_pbkdf2_dk',
 
-    AccountStatus               : 'account_status',
+    AccountStatus               : 'account_status',             //  See User.AccountStatus enum
 
     RealName                    : 'real_name',
     Sex                         : 'sex',
@@ -24,10 +24,14 @@ module.exports = {
     TermWidth                   : 'term_width',
     ThemeId                     : 'theme_id',
     AccountCreated              : 'account_created',
+    LastLoginTs                 : 'last_login_timestamp',
+    LoginCount                  : 'login_count',
+
+    DownloadQueue               : 'dl_queue',                   // download_queue.js
 
     FailedLoginAttempts         : 'failed_login_attempts',
     AccountLockedTs             : 'account_locked_timestamp',
-    AccountLockedPrevStatus     : 'account_locked_prev_status', //  previous account status
+    AccountLockedPrevStatus     : 'account_locked_prev_status', //  previous account status before lock out
 
     EmailPwResetToken           : 'email_password_reset_token',
     EmailPwResetTokenTs         : 'email_password_reset_token_ts',

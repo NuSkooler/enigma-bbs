@@ -24,6 +24,7 @@ const {
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
+const UserProps                 = require('./user_property.js');
 
 //  deps
 const async                     = require('async');
@@ -738,7 +739,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                                 const fromView = self.viewControllers.header.getView(MciViewIds.header.from);
                                 const area = getMessageAreaByTag(self.messageAreaTag);
                                 if(area && area.realNames) {
-                                    fromView.setText(self.client.user.properties.real_name || self.client.user.username);
+                                    fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
                                 } else {
                                     fromView.setText(self.client.user.username);
                                 }

@@ -55,7 +55,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                 //
                 //  If nothing changed, we know it's OK
                 //
-                if(self.client.user.properties.email_address.toLowerCase() === data.toLowerCase()) {
+                if(self.client.user.properties[UserProps.EmailAddress].toLowerCase() === data.toLowerCase()) {
                     return cb(null);
                 }
 
@@ -182,22 +182,22 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         }), 'name');
 
                         currentThemeIdIndex = Math.max(0, _.findIndex(self.availThemeInfo, function cmp(ti) {
-                            return ti.themeId === self.client.user.properties.theme_id;
+                            return ti.themeId === self.client.user.properties[UserProps.ThemeId];
                         }));
 
                         callback(null);
                     },
                     function populateViews(callback) {
-                        var user = self.client.user;
+                        const user = self.client.user;
 
-                        self.setViewText('menu', MciCodeIds.RealName, user.properties.real_name);
-                        self.setViewText('menu', MciCodeIds.BirthDate, moment(user.properties.birthdate).format('YYYYMMDD'));
-                        self.setViewText('menu', MciCodeIds.Sex, user.properties.sex);
-                        self.setViewText('menu', MciCodeIds.Loc, user.properties.location);
-                        self.setViewText('menu', MciCodeIds.Affils, user.properties.affiliation);
-                        self.setViewText('menu', MciCodeIds.Email, user.properties.email_address);
-                        self.setViewText('menu', MciCodeIds.Web, user.properties.web_address);
-                        self.setViewText('menu', MciCodeIds.TermHeight, user.properties.term_height.toString());
+                        self.setViewText('menu', MciCodeIds.RealName, user.properties[UserProps.RealName]);
+                        self.setViewText('menu', MciCodeIds.BirthDate, moment(user.properties[UserProps.Birthdate]).format('YYYYMMDD'));
+                        self.setViewText('menu', MciCodeIds.Sex, user.properties[UserProps.Sex]);
+                        self.setViewText('menu', MciCodeIds.Loc, user.properties[UserProps.Location]);
+                        self.setViewText('menu', MciCodeIds.Affils, user.properties[UserProps.Affiliations]);
+                        self.setViewText('menu', MciCodeIds.Email, user.properties[UserProps.EmailAddress]);
+                        self.setViewText('menu', MciCodeIds.Web, user.properties[UserProps.WebAddress]);
+                        self.setViewText('menu', MciCodeIds.TermHeight, user.properties[UserProps.TermHeight].toString());
 
 
                         var themeView = self.getView(MciCodeIds.Theme);

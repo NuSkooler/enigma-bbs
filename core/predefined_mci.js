@@ -2,17 +2,18 @@
 'use strict';
 
 //  ENiGMA½
-const Config                            = require('./config.js').get;
-const Log                               = require('./logger.js').log;
+const Config                    = require('./config.js').get;
+const Log                       = require('./logger.js').log;
 const {
     getMessageAreaByTag,
     getMessageConferenceByTag
-}                                       = require('./message_area.js');
-const clientConnections                 = require('./client_connections.js');
-const StatLog                           = require('./stat_log.js');
-const FileBaseFilters                   = require('./file_base_filter.js');
-const { formatByteSize }                = require('./string_util.js');
-const ANSI                              = require('./ansi_term.js');
+}                               = require('./message_area.js');
+const clientConnections         = require('./client_connections.js');
+const StatLog                   = require('./stat_log.js');
+const FileBaseFilters           = require('./file_base_filter.js');
+const { formatByteSize }        = require('./string_util.js');
+const ANSI                      = require('./ansi_term.js');
+const UserProps                 = require('./user_property.js');
 
 //  deps
 const packageJson           = require('../package.json');
@@ -83,7 +84,9 @@ const PREDEFINED_MCI_GENERATORS = {
     UR  : function realName(client) { return userStatAsString(client, 'real_name', ''); },
     LO  : function location(client) { return userStatAsString(client, 'location', ''); },
     UA  : function age(client) { return client.user.getAge().toString(); },
-    BD  : function birthdate(client) { return moment(client.user.properties.birthdate).format(client.currentTheme.helpers.getDateFormat()); },  //  iNiQUiTY
+    BD  : function birthdate(client) {  //  iNiQUiTY
+        return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
+    },
     US  : function sex(client) { return userStatAsString(client, 'sex', ''); },
     UE  : function emailAddres(client) { return userStatAsString(client, 'email_address', ''); },
     UW  : function webAddress(client) { return userStatAsString(client, 'web_address', ''); },
@@ -114,7 +117,9 @@ const PREDEFINED_MCI_GENERATORS = {
         return getUserRatio(client, 'ul_total_bytes', 'dl_total_bytes');
     },
 
-    MS  : function accountCreatedclient(client) { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
+    MS  : function accountCreatedclient(client) {
+        return moment(client.user.properties[UserProps.AccountCreated]).format(client.currentTheme.helpers.getDateFormat());
+    },
     PS  : function userPostCount(client) { return userStatAsString(client, 'post_count', 0); },
     PC  : function userPostCallRatio(client) { return getUserRatio(client, 'post_count', 'login_count'); },
 
@@ -123,19 +128,19 @@ const PREDEFINED_MCI_GENERATORS = {
     },
 
     MA  : function messageAreaName(client) {
-        const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+        const area = getMessageAreaByTag(client.user.properties[UserProps.MessageAreaTag]);
         return area ? area.name : '';
     },
     MC  : function messageConfName(client) {
-        const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+        const conf = getMessageConferenceByTag(client.user.properties[UserProps.MessageConfTag]);
         return conf ? conf.name : '';
     },
     ML  : function messageAreaDescription(client) {
-        const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+        const area = getMessageAreaByTag(client.user.properties[UserProps.MessageAreaTag]);
         return area ? area.desc : '';
     },
     CM  : function messageConfDescription(client) {
-        const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+        const conf = getMessageConferenceByTag(client.user.properties[UserProps.MessageConfTag]);
         return conf ? conf.desc : '';
     },
 
@@ -169,8 +174,9 @@ const PREDEFINED_MCI_GENERATORS = {
         //  Clean up CPU strings a bit for better display
         //
         return os.cpus()[0].model
-            .replace(/\(R\)|\(TM\)|processor|CPU/g, '')
-            .replace(/\s+(?= )/g, '');
+            .replace(/\(R\)|\(TM\)|processor|CPU/ig, '')
+            .replace(/\s+(?= )/g, '')
+            .trim();
     },
 
     //  :TODO: MCI for core count, e.g. os.cpus().length

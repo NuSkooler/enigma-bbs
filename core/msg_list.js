@@ -8,6 +8,7 @@ const messageArea                   = require('./message_area.js');
 const MessageAreaConfTempSwitcher   = require('./mod_mixins.js').MessageAreaConfTempSwitcher;
 const Errors                        = require('./enig_error.js').Errors;
 const Message                       = require('./message.js');
+const UserProps                     = require('./user_property.js');
 
 //  deps
 const async             = require('async');
@@ -167,7 +168,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
             if(this.config.messageAreaTag) {
                 this.tempMessageConfAndAreaSwitch(this.config.messageAreaTag);
             } else {
-                this.config.messageAreaTag = this.client.user.properties.message_area_tag;
+                this.config.messageAreaTag = this.client.user.properties[UserProps.MessageAreaTag];
             }
         }
     }
