@@ -85,6 +85,8 @@ module.exports = class DropFile {
         const prop      = this.client.user.properties;
         const now       = moment();
         const secLevel  = this.client.user.getLegacySecurityLevel().toString();
+        const fullName  = prop[UserProps.RealName] || this.client.user.username;
+        const bd        = moment(prop[UserProp.Birthdate).format('MM/DD/YY');
 
         //  :TODO: fix time remaining
         //  :TODO: fix default protocol -- user prop: transfer_protocol
@@ -98,13 +100,13 @@ module.exports = class DropFile {
             'Y',                                                //  "Printer Toggle - Y=On  N=Off             (Default to Y)"
             'Y',                                                //  "Page Bell      - Y=On  N=Off             (Default to Y)"
             'Y',                                                //  "Caller Alarm   - Y=On  N=Off             (Default to Y)"
-            prop.real_name || this.client.user.username,        //  "User Full Name"
-            prop.location || 'Anywhere',                        //  "Calling From"
+            fullName,                                           //  "User Full Name"
+            prop[UserProps.Location]|| 'Anywhere',              //  "Calling From"
             '123-456-7890',                                     //  "Home Phone"
             '123-456-7890',                                     //  "Work/Data Phone"
             'NOPE',                                             //  "Password" (Note: this is never given out or even stored plaintext)
             secLevel,                                           //  "Security Level"
-            prop.login_count.toString(),                        //  "Total Times On"
+            prop[UserProps.LoginCount].toString(),              //  "Total Times On"
             now.format('MM/DD/YY'),                             //  "Last Date Called"
             '15360',                                            //  "Seconds Remaining THIS call (for those that particular)"
             '256',                                              //  "Minutes Remaining THIS call"
@@ -121,7 +123,7 @@ module.exports = class DropFile {
             '0',                                                //  "Total Downloads"
             '0',                                                //  "Daily Download "K" Total"
             '999999',                                           //  "Daily Download Max. "K" Limit"
-            moment(prop.birthdate).format('MM/DD/YY'),          //  "Caller's Birthdate"
+            bd,                                                 //  "Caller's Birthdate"
             'X:\\MAIN\\',                                       //  "Path to the MAIN directory (where User File is)"
             'X:\\GEN\\',                                        //  "Path to the GEN directory"
             StatLog.getSystemStat('sysop_username'),            //  "Sysop's Name (name BBS refers to Sysop as)"
@@ -142,7 +144,7 @@ module.exports = class DropFile {
             '0',                                                //  "Files d/led so far today"          
             '0',                                                //  "Total "K" Bytes Uploaded"
             '0',                                                //  "Total "K" Bytes Downloaded"
-            prop.user_comment || 'None',                        //  "User Comment"
+            prop[UserProps.UserComment] || 'None',              //  "User Comment"
             '0',                                                //  "Total Doors Opened"
             '0',                                                //  "Total Messages Left"
 

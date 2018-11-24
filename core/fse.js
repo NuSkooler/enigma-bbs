@@ -480,7 +480,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         }
 
         Events.emit(Events.getSystemEvents().UserPostMessage, { user : this.client.user, areaTag : this.message.areaTag });
-        return StatLog.incrementUserStat(this.client.user, 'post_count', 1, cb);
+        return StatLog.incrementUserStat(this.client.user, UserProps.MessagePostCount, 1, cb);
     }
 
     redrawFooter(options, cb) {

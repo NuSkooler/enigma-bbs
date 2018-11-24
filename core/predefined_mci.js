@@ -81,18 +81,18 @@ const PREDEFINED_MCI_GENERATORS = {
     UN  : function userName(client) { return client.user.username; },
     UI  : function userId(client) { return client.user.userId.toString(); },
     UG  : function groups(client) { return _.values(client.user.groups).join(', '); },
-    UR  : function realName(client) { return userStatAsString(client, 'real_name', ''); },
-    LO  : function location(client) { return userStatAsString(client, 'location', ''); },
+    UR  : function realName(client) { return userStatAsString(client, UserProps.RealName, ''); },
+    LO  : function location(client) { return userStatAsString(client, UserProps.Location, ''); },
     UA  : function age(client) { return client.user.getAge().toString(); },
     BD  : function birthdate(client) {  //  iNiQUiTY
         return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
     },
-    US  : function sex(client) { return userStatAsString(client, 'sex', ''); },
-    UE  : function emailAddres(client) { return userStatAsString(client, 'email_address', ''); },
-    UW  : function webAddress(client) { return userStatAsString(client, 'web_address', ''); },
-    UF  : function affils(client) { return userStatAsString(client, 'affiliation', ''); },
-    UT  : function themeId(client) { return userStatAsString(client, 'theme_id', ''); },
-    UC  : function loginCount(client) { return userStatAsString(client, 'login_count', 0); },
+    US  : function sex(client) { return userStatAsString(client, UserProps.Sex, ''); },
+    UE  : function emailAddres(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
+    UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
+    UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
+    UT  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
+    UC  : function loginCount(client) { return userStatAsString(client, UserProps.LoginCount, 0); },
     ND  : function connectedNode(client) { return client.node.toString(); },
     IP  : function clientIpAddress(client) { return client.remoteAddress.replace(/^::ffff:/, ''); },    //  convert any :ffff: IPv4's to 32bit version
     ST  : function serverName(client) { return client.session.serverName; },
@@ -100,28 +100,28 @@ const PREDEFINED_MCI_GENERATORS = {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
         return activeFilter ? activeFilter.name : '(Unknown)';
     },
-    DN  : function userNumDownloads(client) { return userStatAsString(client, 'dl_total_count', 0); },      //  Obv/2
+    DN  : function userNumDownloads(client) { return userStatAsString(client, UserProps.FileDlTotalCount, 0); },      //  Obv/2
     DK  : function userByteDownload(client) {   //  Obv/2 uses DK=downloaded Kbytes
-        const byteSize = StatLog.getUserStatNum(client.user, 'dl_total_bytes');
+        const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
-    UP  : function userNumUploads(client) { return userStatAsString(client, 'ul_total_count', 0); },            //  Obv/2
+    UP  : function userNumUploads(client) { return userStatAsString(client, UserProps.FileUlTotalCount, 0); },            //  Obv/2
     UK  : function userByteUpload(client) { //  Obv/2 uses UK=uploaded Kbytes
-        const byteSize = StatLog.getUserStatNum(client.user, 'ul_total_bytes');
+        const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
     NR  : function userUpDownRatio(client) {    //  Obv/2
-        return getUserRatio(client, 'ul_total_count', 'dl_total_count');
+        return getUserRatio(client, UserProps.FileUlTotalCount, UserProps.FileDlTotalCount);
     },
     KR  : function userUpDownByteRatio(client) {    //  Obv/2 uses KR=upload/download Kbyte ratio
-        return getUserRatio(client, 'ul_total_bytes', 'dl_total_bytes');
+        return getUserRatio(client, UserProps.FileUlTotalBytes, UserProps.FileDlTotalBytes);
     },
 
     MS  : function accountCreatedclient(client) {
         return moment(client.user.properties[UserProps.AccountCreated]).format(client.currentTheme.helpers.getDateFormat());
     },
-    PS  : function userPostCount(client) { return userStatAsString(client, 'post_count', 0); },
-    PC  : function userPostCallRatio(client) { return getUserRatio(client, 'post_count', 'login_count'); },
+    PS  : function userPostCount(client) { return userStatAsString(client, UserProps.MessagePostCount, 0); },
+    PC  : function userPostCallRatio(client) { return getUserRatio(client, UserProps.MessagePostCount, UserProps.LoginCount); },
 
     MD  : function currentMenuDescription(client) {
         return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';

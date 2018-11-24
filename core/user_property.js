@@ -26,6 +26,7 @@ module.exports = {
     AccountCreated              : 'account_created',
     LastLoginTs                 : 'last_login_timestamp',
     LoginCount                  : 'login_count',
+    UserComment                 : 'user_comment',               //  NYI
 
     DownloadQueue               : 'dl_queue',                   // download_queue.js
 
@@ -40,8 +41,13 @@ module.exports = {
     FileBaseFilters             : 'file_base_filters',
     FileBaseFilterActiveUuid    : 'file_base_filter_active_uuid',
     FileBaseLastViewedId        : 'user_file_base_last_viewed',
+    FileDlTotalCount            : 'dl_total_count',
+    FileUlTotalCount            : 'ul_total_count',
+    FileDlTotalBytes            : 'dl_total_bytes',
+    FileUlTotalBytes            : 'ul_total_bytes',
 
     MessageConfTag              : 'message_conf_tag',
     MessageAreaTag              : 'message_area_tag',
+    MessagePostCount            : 'post_count',
 };
 
