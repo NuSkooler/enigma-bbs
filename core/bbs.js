@@ -223,28 +223,29 @@ function initialize(cb) {
                 //
                 const User = require('./user.js');
 
+                const propLoadOpts = {
+                    names   : [
+                        UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
+                        UserProps.Location, UserProps.Affiliations,
+                    ],
+                };
+
                 async.waterfall(
                     [
                         function getOpUserName(next) {
                             return User.getUserName(1, next);
                         },
                         function getOpProps(opUserName, next) {
-                            const propLoadOpts = {
-                                names   : [
-                                    UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
-                                    UserProps.Location, UserProps.Affiliations,
-                                ],
-                            };
                             User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
-                                return next(err, opUserName, opProps, propLoadOpts);
+                                return next(err, opUserName, opProps);
                             });
-                        }
+                        },
                     ],
-                    (err, opUserName, opProps, propLoadOpts) => {
+                    (err, opUserName, opProps) => {
                         const StatLog = require('./stat_log.js');
 
                         if(err) {
-                            propLoadOpts.concat('username').forEach(v => {
+                            propLoadOpts.names.concat('username').forEach(v => {
                                 StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
                             });
                         } else {
