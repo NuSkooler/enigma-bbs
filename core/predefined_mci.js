@@ -2,17 +2,18 @@
 'use strict';
 
 //  ENiGMA½
-const Config                            = require('./config.js').get;
-const Log                               = require('./logger.js').log;
+const Config                    = require('./config.js').get;
+const Log                       = require('./logger.js').log;
 const {
     getMessageAreaByTag,
     getMessageConferenceByTag
-}                                       = require('./message_area.js');
-const clientConnections                 = require('./client_connections.js');
-const StatLog                           = require('./stat_log.js');
-const FileBaseFilters                   = require('./file_base_filter.js');
-const { formatByteSize }                = require('./string_util.js');
-const ANSI                              = require('./ansi_term.js');
+}                               = require('./message_area.js');
+const clientConnections         = require('./client_connections.js');
+const StatLog                   = require('./stat_log.js');
+const FileBaseFilters           = require('./file_base_filter.js');
+const { formatByteSize }        = require('./string_util.js');
+const ANSI                      = require('./ansi_term.js');
+const UserProps                 = require('./user_property.js');
 
 //  deps
 const packageJson           = require('../package.json');
@@ -80,62 +81,66 @@ const PREDEFINED_MCI_GENERATORS = {
     UN  : function userName(client) { return client.user.username; },
     UI  : function userId(client) { return client.user.userId.toString(); },
     UG  : function groups(client) { return _.values(client.user.groups).join(', '); },
-    UR  : function realName(client) { return userStatAsString(client, 'real_name', ''); },
-    LO  : function location(client) { return userStatAsString(client, 'location', ''); },
+    UR  : function realName(client) { return userStatAsString(client, UserProps.RealName, ''); },
+    LO  : function location(client) { return userStatAsString(client, UserProps.Location, ''); },
     UA  : function age(client) { return client.user.getAge().toString(); },
-    BD  : function birthdate(client) { return moment(client.user.properties.birthdate).format(client.currentTheme.helpers.getDateFormat()); },  //  iNiQUiTY
-    US  : function sex(client) { return userStatAsString(client, 'sex', ''); },
-    UE  : function emailAddres(client) { return userStatAsString(client, 'email_address', ''); },
-    UW  : function webAddress(client) { return userStatAsString(client, 'web_address', ''); },
-    UF  : function affils(client) { return userStatAsString(client, 'affiliation', ''); },
-    UT  : function themeId(client) { return userStatAsString(client, 'theme_id', ''); },
-    UC  : function loginCount(client) { return userStatAsString(client, 'login_count', 0); },
+    BD  : function birthdate(client) {  //  iNiQUiTY
+        return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
+    },
+    US  : function sex(client) { return userStatAsString(client, UserProps.Sex, ''); },
+    UE  : function emailAddres(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
+    UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
+    UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
+    UT  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
+    UC  : function loginCount(client) { return userStatAsString(client, UserProps.LoginCount, 0); },
     ND  : function connectedNode(client) { return client.node.toString(); },
     IP  : function clientIpAddress(client) { return client.remoteAddress.replace(/^::ffff:/, ''); },    //  convert any :ffff: IPv4's to 32bit version
     ST  : function serverName(client) { return client.session.serverName; },
     FN  : function activeFileBaseFilterName(client) {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
-        return activeFilter ? activeFilter.name : '';
+        return activeFilter ? activeFilter.name : '(Unknown)';
     },
-    DN  : function userNumDownloads(client) { return userStatAsString(client, 'dl_total_count', 0); },      //  Obv/2
+    DN  : function userNumDownloads(client) { return userStatAsString(client, UserProps.FileDlTotalCount, 0); },      //  Obv/2
     DK  : function userByteDownload(client) {   //  Obv/2 uses DK=downloaded Kbytes
-        const byteSize = StatLog.getUserStatNum(client.user, 'dl_total_bytes');
+        const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
-    UP  : function userNumUploads(client) { return userStatAsString(client, 'ul_total_count', 0); },            //  Obv/2
+    UP  : function userNumUploads(client) { return userStatAsString(client, UserProps.FileUlTotalCount, 0); },            //  Obv/2
     UK  : function userByteUpload(client) { //  Obv/2 uses UK=uploaded Kbytes
-        const byteSize = StatLog.getUserStatNum(client.user, 'ul_total_bytes');
+        const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
     NR  : function userUpDownRatio(client) {    //  Obv/2
-        return getUserRatio(client, 'ul_total_count', 'dl_total_count');
+        return getUserRatio(client, UserProps.FileUlTotalCount, UserProps.FileDlTotalCount);
     },
     KR  : function userUpDownByteRatio(client) {    //  Obv/2 uses KR=upload/download Kbyte ratio
-        return getUserRatio(client, 'ul_total_bytes', 'dl_total_bytes');
+        return getUserRatio(client, UserProps.FileUlTotalBytes, UserProps.FileDlTotalBytes);
     },
 
-    MS  : function accountCreatedclient(client) { return moment(client.user.properties.account_created).format(client.currentTheme.helpers.getDateFormat()); },
-    PS  : function userPostCount(client) { return userStatAsString(client, 'post_count', 0); },
-    PC  : function userPostCallRatio(client) { return getUserRatio(client, 'post_count', 'login_count'); },
+    MS  : function accountCreatedclient(client) {
+        return moment(client.user.properties[UserProps.AccountCreated]).format(client.currentTheme.helpers.getDateFormat());
+    },
+    PS  : function userPostCount(client) { return userStatAsString(client, UserProps.MessagePostCount, 0); },
+    PC  : function userPostCallRatio(client) { return getUserRatio(client, UserProps.MessagePostCount, UserProps.LoginCount); },
 
     MD  : function currentMenuDescription(client) {
         return _.has(client, 'currentMenuModule.menuConfig.desc') ? client.currentMenuModule.menuConfig.desc : '';
     },
 
     MA  : function messageAreaName(client) {
-        const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+        const area = getMessageAreaByTag(client.user.properties[UserProps.MessageAreaTag]);
         return area ? area.name : '';
     },
     MC  : function messageConfName(client) {
-        const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+        const conf = getMessageConferenceByTag(client.user.properties[UserProps.MessageConfTag]);
         return conf ? conf.name : '';
     },
     ML  : function messageAreaDescription(client) {
-        const area = getMessageAreaByTag(client.user.properties.message_area_tag);
+        const area = getMessageAreaByTag(client.user.properties[UserProps.MessageAreaTag]);
         return area ? area.desc : '';
     },
     CM  : function messageConfDescription(client) {
-        const conf = getMessageConferenceByTag(client.user.properties.message_conf_tag);
+        const conf = getMessageConferenceByTag(client.user.properties[UserProps.MessageConfTag]);
         return conf ? conf.desc : '';
     },
 
@@ -169,8 +174,9 @@ const PREDEFINED_MCI_GENERATORS = {
         //  Clean up CPU strings a bit for better display
         //
         return os.cpus()[0].model
-            .replace(/\(R\)|\(TM\)|processor|CPU/g, '')
-            .replace(/\s+(?= )/g, '');
+            .replace(/\(R\)|\(TM\)|processor|CPU/ig, '')
+            .replace(/\s+(?= )/g, '')
+            .trim();
     },
 
     //  :TODO: MCI for core count, e.g. os.cpus().length

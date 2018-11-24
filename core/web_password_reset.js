@@ -10,6 +10,7 @@ const User                  = require('./user.js');
 const userDb                = require('./database.js').dbs.user;
 const getISOTimestampString = require('./database.js').getISOTimestampString;
 const Log                   = require('./logger.js').log;
+const UserProps             = require('./user_property.js');
 
 //  deps
 const async                 = require('async');
@@ -17,6 +18,7 @@ const crypto                = require('crypto');
 const fs                    = require('graceful-fs');
 const url                   = require('url');
 const querystring           = require('querystring');
+const _                     = require('lodash');
 
 const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT =
     `%USERNAME%:
@@ -57,7 +59,7 @@ class WebPasswordReset {
                         }
 
                         User.getUser(userId, (err, user) => {
-                            if(err || !user.properties.email_address) {
+                            if(err || !user.properties[UserProps.EmailAddress]) {
                                 return callback(Errors.DoesNotExist('No email address associated with this user'));
                             }
 
@@ -77,8 +79,8 @@ class WebPasswordReset {
                         token = token.toString('hex');
 
                         const newProperties = {
-                            email_password_reset_token      : token,
-                            email_password_reset_token_ts   : getISOTimestampString(),
+                            [ UserProps.EmailPwResetToken ]     : token,
+                            [ UserProps.EmailPwResetTokenTs ]   : getISOTimestampString(),
                         };
 
                         //  we simply place the reset token in the user's properties
@@ -103,13 +105,13 @@ class WebPasswordReset {
                 function buildAndSendEmail(user, textTemplate, htmlTemplate, callback) {
                     const sendMail = require('./email.js').sendMail;
 
-                    const resetUrl = webServer.instance.buildUrl(`/reset_password?token=${user.properties.email_password_reset_token}`);
+                    const resetUrl = webServer.instance.buildUrl(`/reset_password?token=${user.properties[UserProps.EmailPwResetToken]}`);
 
                     function replaceTokens(s) {
                         return s
                             .replace(/%BOARDNAME%/g,    Config().general.boardName)
                             .replace(/%USERNAME%/g,     user.username)
-                            .replace(/%TOKEN%/g,        user.properties.email_password_reset_token)
+                            .replace(/%TOKEN%/g,        user.properties[UserProps.EmailPwResetToken])
                             .replace(/%RESET_URL%/g,    resetUrl)
                         ;
                     }
@@ -120,7 +122,7 @@ class WebPasswordReset {
                     }
 
                     const message = {
-                        to      : `${user.properties.display_name||user.username} <${user.properties.email_address}>`,
+                        to      : `${user.properties[UserProps.RealName]||user.username} <${user.properties[UserProps.EmailAddress]}>`,
                         //  from will be filled in
                         subject : 'Forgot Password',
                         text    : textTemplate,
@@ -283,8 +285,15 @@ class WebPasswordReset {
                     }
 
                     //  delete assoc properties - no need to wait for completion
-                    user.removeProperty('email_password_reset_token');
-                    user.removeProperty('email_password_reset_token_ts');
+                    user.removeProperties([ UserProps.EmailPwResetToken, UserProps.EmailPwResetTokenTs ]);
+
+                    if(true === _.get(config, 'users.unlockAtEmailPwReset')) {
+                        Log.info(
+                            { username : user.username, userId : user.userId },
+                            'Remove any lock on account due to password reset policy'
+                        );
+                        user.unlockAccount( () => { /* dummy */ } );
+                    }
 
                     resp.writeHead(200);
                     return resp.end('Password changed successfully');

@@ -17,6 +17,7 @@ const {
 }                           = require('../../message_area.js');
 const { sortAreasOrConfs }  = require('../../conf_area_util.js');
 const AnsiPrep              = require('../../ansi_prep.js');
+const { wordWrapText }      = require('../../word_wrap.js');
 
 //  deps
 const net                   = require('net');
@@ -27,9 +28,10 @@ const moment                = require('moment');
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'Gopher',
-    desc        : 'Gopher Server',
+    desc        : 'A RFC-1436-ish Gopher Server',
     author      : 'NuSkooler',
     packageName : 'codes.l33t.enigma.gopher.server',
+    notes       : 'https://tools.ietf.org/html/rfc1436',
 };
 
 const Message               = require('../../message.js');
@@ -158,7 +160,7 @@ exports.getModule = class GopherModule extends ServerModule {
     defaultGenerator(selectorMatch, cb) {
         this.log.debug( { selector : selectorMatch[0] }, 'Serving default content');
 
-        let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'startup_banner.asc');
+        let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'gopher_banner.asc');
         bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
         fs.readFile(bannerFile, 'utf8', (err, banner) => {
             if(err) {
@@ -182,21 +184,43 @@ exports.getModule = class GopherModule extends ServerModule {
     }
 
     prepareMessageBody(body, cb) {
+        //
+        //  From RFC-1436:
+        //  "User display strings are intended to be displayed on a line on a
+        //   typical screen for a user's viewing pleasure.  While many screens can
+        //   accommodate 80 character lines, some space is needed to display a tag
+        //   of some sort to tell the user what sort of item this is.  Because of
+        //   this, the user display string should be kept under 70 characters in
+        //   length.  Clients may truncate to a length convenient to them."
+        //
+        //  Messages on BBSes however, have generally been <= 79 characters. If we
+        //  start wrapping earlier, things will generally be OK except:
+        //  * When we're doing with FTN-style quoted lines
+        //  * When dealing with ANSI/ASCII art
+        //
+        //  Anyway, the spec says "should" and not MUST or even SHOULD! ...so, to
+        //  to follow the KISS principle: Wrap at 79.
+        //
+        const WordWrapColumn = 79;
         if(isAnsi(body)) {
             AnsiPrep(
                 body,
                 {
-                    cols            : 79,               //  Gopher std. wants 70, but we'll have to deal with it.
-                    forceLineTerm   : true,             //  ensure each line is term'd
-                    asciiMode       : true,             //  export to ASCII
-                    fillLines       : false,            //  don't fill up to |cols|
+                    cols            : WordWrapColumn,   //  See notes above
+                    forceLineTerm   : true,             //  Ensure each line is term'd
+                    asciiMode       : true,             //  Export to ASCII
+                    fillLines       : false,            //  Don't fill up to |cols|
                 },
                 (err, prepped) => {
                     return cb(prepped || body);
                 }
             );
         } else {
-            return cb(cleanControlCodes(body, { all : true } ));
+            const prepped = splitTextAtTerms(cleanControlCodes(body, { all : true } ) )
+                .map(l => (wordWrapText(l, { width : WordWrapColumn } ).wrapped || []).join('\n'))
+                .join('\n');
+
+            return cb(prepped);
         }
     }
 
@@ -225,7 +249,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
             return message.load( { uuid : msgUuid }, err => {
                 if(err) {
-                    this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existant message UUID!');
+                    this.log.debug( { uuid : msgUuid }, 'Attempted access to non-existent message UUID!');
                     return this.notFoundGenerator(selectorMatch, cb);
                 }
 
@@ -268,10 +292,17 @@ ${msgBody}
                 return this.notFoundGenerator(selectorMatch, cb);
             }
 
-            return getMessageListForArea(null, areaTag, (err, msgList) => {
+            const filter = {
+                resultType  : 'messageList',
+                sort        : 'messageId',
+                order       : 'descending',  //  we want newest messages first for Gopher
+            };
+
+            return getMessageListForArea(null, areaTag, filter, (err, msgList) => {
                 const response = [
                     this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                     this.makeItem(ItemTypes.InfoMessage, `Messages in ${area.name}`),
+                    this.makeItem(ItemTypes.InfoMessage, '(newest first)'),
                     this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                     ...msgList.map(msg => this.makeItem(
                         ItemTypes.TextFile,

@@ -8,6 +8,7 @@ const Message                   = require('./message.js');
 const Log                       = require('./logger.js').log;
 const msgNetRecord              = require('./msg_network.js').recordMessage;
 const sortAreasOrConfs          = require('./conf_area_util.js').sortAreasOrConfs;
+const UserProps                 = require('./user_property.js');
 
 //  deps
 const async         = require('async');
@@ -222,8 +223,8 @@ function changeMessageConference(client, confTag, cb) {
             },
             function changeConferenceAndArea(conf, areaInfo, callback) {
                 const newProps = {
-                    message_conf_tag    : confTag,
-                    message_area_tag    : areaInfo.areaTag,
+                    [ UserProps.MessageConfTag ]    : confTag,
+                    [ UserProps.MessageAreaTag ]    : areaInfo.areaTag,
                 };
                 client.user.persistProperties(newProps, err => {
                     callback(err, conf, areaInfo);
@@ -262,11 +263,11 @@ function changeMessageAreaWithOptions(client, areaTag, options, cb) {
             },
             function changeArea(area, callback) {
                 if(true === options.persist) {
-                    client.user.persistProperty('message_area_tag', areaTag, function persisted(err) {
+                    client.user.persistProperty(UserProps.MessageAreaTag, areaTag, function persisted(err) {
                         return callback(err, area);
                     });
                 } else {
-                    client.user.properties['message_area_tag'] = areaTag;
+                    client.user.properties[UserProps.MessageAreaTag] = areaTag;
                     return callback(null, area);
                 }
             }
@@ -303,8 +304,8 @@ function tempChangeMessageConfAndArea(client, areaTag) {
         return false;
     }
 
-    client.user.properties.message_conf_tag = confTag;
-    client.user.properties.message_area_tag = areaTag;
+    client.user.properties[UserProps.MessageConfTag] = confTag;
+    client.user.properties[UserProps.MessageAreaTag] = areaTag;
 
     return true;
 }
@@ -353,13 +354,19 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
     });
 }
 
-function getMessageListForArea(client, areaTag, cb) {
-    const filter = {
-        areaTag,
-        resultType  : 'messageList',
-        sort        : 'messageId',
-        order       : 'ascending',
-    };
+function getMessageListForArea(client, areaTag, filter, cb)
+{
+    if(!cb && _.isFunction(filter)) {
+        cb = filter;
+        filter = {
+            areaTag,
+            resultType  : 'messageList',
+            sort        : 'messageId',
+            order       : 'ascending'
+        };
+    } else {
+        Object.assign(filter, { areaTag } );
+    }
 
     if(Message.isPrivateAreaTag(areaTag)) {
         filter.privateTagUserId = client.user.userId;

@@ -2,13 +2,14 @@
 'use strict';
 
 //  ENiGMA½
-const logger            = require('./logger.js');
-const Events            = require('./events.js');
+const logger        = require('./logger.js');
+const Events        = require('./events.js');
+const UserProps     = require('./user_property.js');
 
 //  deps
-const _                 = require('lodash');
-const moment            = require('moment');
-const hashids           = require('hashids');
+const _             = require('lodash');
+const moment        = require('moment');
+const hashids       = require('hashids');
 
 exports.getActiveConnections    = getActiveConnections;
 exports.getActiveConnectionList = getActiveConnectionList;
@@ -47,11 +48,11 @@ function getActiveConnectionList(authUsersOnly) {
         //
         if(ac.user.isAuthenticated()) {
             entry.userName  = ac.user.username;
-            entry.realName  = ac.user.properties.real_name;
-            entry.location  = ac.user.properties.location;
-            entry.affils    = entry.affiliation = ac.user.properties.affiliation;
+            entry.realName  = ac.user.properties[UserProps.RealName];
+            entry.location  = ac.user.properties[UserProps.Location];
+            entry.affils    = entry.affiliation = ac.user.properties[UserProps.Affiliations];
 
-            const diff      = now.diff(moment(ac.user.properties.last_login_timestamp), 'minutes');
+            const diff      = now.diff(moment(ac.user.properties[UserProps.LastLoginTs]), 'minutes');
             entry.timeOn    = moment.duration(diff, 'minutes');
         }
         return entry;
@@ -62,7 +63,7 @@ function addNewClient(client, clientSock) {
     const id            = client.session.id     = clientConnections.push(client) - 1;
     const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
 
-    //  create a uniqe identifier one-time ID for this session
+    //  create a unique identifier one-time ID for this session
     client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
 
     //  Create a client specific logger

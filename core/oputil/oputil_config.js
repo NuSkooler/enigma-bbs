@@ -38,7 +38,7 @@ function getAnswers(questions, cb) {
 const ConfigIncludeKeys = [
     'theme',
     'users.preAuthIdleLogoutSeconds', 'users.idleLogoutSeconds',
-    'users.newUserNames',
+    'users.newUserNames', 'users.failedLogin', 'users.unlockAtEmailPwReset',
     'paths.logs',
     'loginServers',
     'contentServers',

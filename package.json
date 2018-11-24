@@ -31,7 +31,7 @@
     "glob": "^7.1.2",
     "graceful-fs": "^4.1.15",
     "hashids": "^1.1.1",
-    "hjson": "^3.1.1",
+    "hjson": "^3.1.2",
     "iconv-lite": "^0.4.23",
     "inquirer": "^6.0.0",
     "later": "1.2.0",
@@ -47,12 +47,12 @@
     "sqlite3": "^4.0.4",
     "sqlite3-trans": "^1.2.0",
     "ssh2": "^0.6.1",
-    "temptmp": "^1.0.0",
+    "temptmp": "^1.1.0",
     "uuid": "^3.2.1",
     "uuid-parse": "^1.0.0",
-    "ws": "^6.1.0",
+    "ws": "^6.1.2",
     "xxhash": "^0.2.4",
-    "yazl": "^2.4.2"
+    "yazl": "^2.5.0"
   },
   "devDependencies": {},
   "engines": {

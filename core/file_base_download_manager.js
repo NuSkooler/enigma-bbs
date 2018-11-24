@@ -150,11 +150,7 @@ exports.getModule = class FileBaseDownloadQueueManager extends MenuModule {
             return cb(Errors.DoesNotExist('Queue view does not exist'));
         }
 
-        const queueListFormat       = this.menuConfig.config.queueListFormat || '{fileName} {byteSize}';
-        const focusQueueListFormat  = this.menuConfig.config.focusQueueListFormat || queueListFormat;
-
-        queueView.setItems(this.dlQueue.items.map( queueItem => stringFormat(queueListFormat, queueItem) ) );
-        queueView.setFocusItems(this.dlQueue.items.map( queueItem => stringFormat(focusQueueListFormat, queueItem) ) );
+        queueView.setItems(this.dlQueue.items);
 
         queueView.on('index update', idx => {
             const fileEntry = this.dlQueue.items[idx];

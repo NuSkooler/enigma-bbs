@@ -7,6 +7,7 @@ const StatLog           = require('./stat_log.js');
 const User              = require('./user.js');
 const sysDb             = require('./database.js').dbs.system;
 const { Errors }        = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const moment            = require('moment');
@@ -165,7 +166,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
 
     loadUserForHistoryItems(loginHistory, cb) {
         const getPropOpts = {
-            names : [  'real_name', 'location', 'affiliation' ]
+            names : [ UserProps.RealName, UserProps.Location, UserProps.Affiliations ]
         };
 
         const actionIndicatorNames = _.map(this.actionIndicators, (v, k) => k);
@@ -185,9 +186,9 @@ exports.getModule = class LastCallersModule extends MenuModule {
                 item.userName = item.text = userName;
 
                 User.loadProperties(item.userId, getPropOpts, (err, props) => {
-                    item.location       = (props && props.location) || '';
-                    item.affiliation    = item.affils = (props && props.affiliation) || '';
-                    item.realName       = (props && props.real_name) || '';
+                    item.location       = (props && props[UserProps.Location]) || '';
+                    item.affiliation    = item.affils = (props && props[UserProps.Affiliations]) || '';
+                    item.realName       = (props && props[UserProps.RealName]) || '';
 
                     if(!indicatorSumsSql) {
                         return next(null, item);

@@ -110,7 +110,8 @@ function renegadeToAnsi(s, client) {
             result += s.substr(lastIndex, m.index - lastIndex) + attr;
         } else if(m[4] || m[1]) {
             //  |AA MCI code or |Cx## movement where ## is in m[1]
-            const val = getPredefinedMCIValue(client, m[4] || m[1], m[2]) || (m[0]);  //  value itself or literal
+            let val = getPredefinedMCIValue(client, m[4] || m[1], m[2]);
+            val = _.isString(val) ? val : m[0];  //  value itself or literal
             result += s.substr(lastIndex, m.index - lastIndex) + val;
         } else if(m[5]) {
             //  || -- literal '|', that is.

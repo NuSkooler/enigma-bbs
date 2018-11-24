@@ -72,13 +72,14 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
 
 Some additional special case codes also exist:
+
 | Code   | Description  |
 |--------|--------------|
 | `CF##` | Moves the cursor position forward _##_ characters |
 | `CB##` | Moves the cursor position back _##_ characters |
 | `CU##` | Moves the cursor position up _##_ characters |
 | `CD##` | Moves the cursor position down _##_ characters |
-| `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen.
+| `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen. |
 
 
 ## Views
@@ -104,7 +105,7 @@ see additional information.
 
 
 ## Properties & Theming
-Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`.
+Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`. See [Themes](themes.md) for more information on this subject.
 
 ### Common Properties
 

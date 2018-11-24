@@ -5,6 +5,7 @@
 const { MenuModule }    = require('./menu_module.js');
 const { getUserList }   = require('./user.js');
 const { Errors }        = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const moment            = require('moment');
@@ -44,7 +45,7 @@ exports.getModule = class UserListModule extends MenuModule {
                         }
 
                         const fetchOpts = {
-                            properties      : [ 'real_name', 'location', 'affiliation', 'last_login_timestamp' ],
+                            properties      : [ UserProps.RealName, UserProps.Location, UserProps.Affiliations, UserProps.LastLoginTs ],
                             propsCamelCase  : true, //  e.g. real_name -> realName
                         };
                         getUserList(fetchOpts, (err, userList) => {

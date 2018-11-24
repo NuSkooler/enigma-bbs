@@ -10,6 +10,7 @@ const conf          = require('./config.js');
 const logger        = require('./logger.js');
 const database      = require('./database.js');
 const resolvePath   = require('./misc_util.js').resolvePath;
+const UserProps     = require('./user_property.js');
 
 //  deps
 const async         = require('async');
@@ -229,18 +230,21 @@ function initialize(cb) {
                         },
                         function getOpProps(opUserName, next) {
                             const propLoadOpts = {
-                                names   : [ 'real_name', 'sex', 'email_address', 'location', 'affiliation' ],
+                                names   : [
+                                    UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
+                                    UserProps.Location, UserProps.Affiliations,
+                                ],
                             };
                             User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
-                                return next(err, opUserName, opProps);
+                                return next(err, opUserName, opProps, propLoadOpts);
                             });
                         }
                     ],
-                    (err, opUserName, opProps) => {
+                    (err, opUserName, opProps, propLoadOpts) => {
                         const StatLog = require('./stat_log.js');
 
                         if(err) {
-                            [ 'username', 'real_name', 'sex', 'email_address', 'location', 'affiliation' ].forEach(v => {
+                            propLoadOpts.concat('username').forEach(v => {
                                 StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
                             });
                         } else {

@@ -2,8 +2,10 @@
 'use strict';
 
 const messageArea   = require('../core/message_area.js');
-const { get }       = require('lodash');
+const UserProps     = require('./user_property.js');
 
+//  deps
+const { get }       = require('lodash');
 
 exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
 
@@ -15,8 +17,8 @@ exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
 
         if(recordPrevious) {
             this.prevMessageConfAndArea = {
-                confTag : this.client.user.properties.message_conf_tag,
-                areaTag : this.client.user.properties.message_area_tag,
+                confTag : this.client.user.properties[UserProps.MessageConfTag],
+                areaTag : this.client.user.properties[UserProps.MessageAreaTag],
             };
         }
 
@@ -27,8 +29,8 @@ exports.MessageAreaConfTempSwitcher = Sup => class extends Sup {
 
     tempMessageConfAndAreaRestore() {
         if(this.prevMessageConfAndArea) {
-            this.client.user.properties.message_conf_tag = this.prevMessageConfAndArea.confTag;
-            this.client.user.properties.message_area_tag = this.prevMessageConfAndArea.areaTag;
+            this.client.user.properties[UserProps.MessageConfTag] = this.prevMessageConfAndArea.confTag;
+            this.client.user.properties[UserProps.MessageAreaTag] = this.prevMessageConfAndArea.areaTag;
         }
     }
 };

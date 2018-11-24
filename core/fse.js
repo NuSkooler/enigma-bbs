@@ -24,6 +24,7 @@ const {
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
+const UserProps                 = require('./user_property.js');
 
 //  deps
 const async                     = require('async');
@@ -479,7 +480,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         }
 
         Events.emit(Events.getSystemEvents().UserPostMessage, { user : this.client.user, areaTag : this.message.areaTag });
-        return StatLog.incrementUserStat(this.client.user, 'post_count', 1, cb);
+        return StatLog.incrementUserStat(this.client.user, UserProps.MessagePostCount, 1, cb);
     }
 
     redrawFooter(options, cb) {
@@ -542,7 +543,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         theme.displayThemedAsset(
                             art[n],
                             self.client,
-                            { font : self.menuConfig.font, acsCondMember : 'art' },
+                            { font : self.menuConfig.font },
                             function displayed(err) {
                                 next(err);
                             }
@@ -622,7 +623,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         theme.displayThemedAsset(
                             art[n],
                             self.client,
-                            { font : self.menuConfig.font, acsCondMember : 'art' },
+                            { font : self.menuConfig.font },
                             function displayed(err, artData) {
                                 if(artData) {
                                     mciData[n] = artData;
@@ -738,7 +739,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                                 const fromView = self.viewControllers.header.getView(MciViewIds.header.from);
                                 const area = getMessageAreaByTag(self.messageAreaTag);
                                 if(area && area.realNames) {
-                                    fromView.setText(self.client.user.properties.real_name || self.client.user.username);
+                                    fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
                                 } else {
                                     fromView.setText(self.client.user.username);
                                 }

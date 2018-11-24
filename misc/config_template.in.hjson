@@ -66,7 +66,8 @@
         //  See https://github.com/trentm/node-bunyan#streams
         //
         //  Remember you can pipe logs through Bunyan to pretty-print:
-        //  tail -F ./logs/enigma-bbs.log | bunyan
+        //  Linux      : tail -F ./logs/enigma-bbs.log | bunyan
+        //  PowerShell : Get-Content .\enigma-bbs.log -Tail 15 | bunyan.cmd
         //
         //  (npm install -g bunyan to get the binary)
         //
@@ -210,6 +211,9 @@
             port: XXXXX
             enabled: false
 
+            //  bannerFile path in misc/ by default. Full paths allowed.
+            bannerFile: XXXXX
+
             //
             //  The Gopher Content Server can export message base
             //  conferences and areas via the "messageConferences" key.
@@ -330,7 +334,7 @@
         //  ]
         //
         //
-        //  Set default group(s) new users should automatically be assigned to
+        //  Set default group(s) new users should automatically be assigned to:
         //  defaultGroups : [
         //      "lamerz"
         //  ]
@@ -348,6 +352,23 @@
         //  Usernames reserved for applying to your system
         newUserNames: []
 
+        //  Handling of failed logins
+        failedLogin : {
+            //  disconnect after N failed attempts. 0=disabled.
+            disconnect          : XXXXX
+
+            //  Lock the user out after N failed attempts. 0=disabled.
+            lockAccount         : XXXXX
+
+            //
+            //  If locked out, how long until the user can login again?
+            //  Set to 0 to disable auto-unlock
+            //
+            autoUnlockMinutes   : XXXXX
+        },
+
+        //  Allow email driven password resets to unlock accounts?
+        unlockAtEmailPwReset    : XXXXX
     }
 
     //  Archive files and related
@@ -376,6 +397,25 @@
         //  installed and/or define new or additional protocols. Please
         //  see the documentation for more information!
         //
+    }
+
+    //
+    //  Use the Event Scheduler to set up arbitrary scheduled events
+    //  using Later style syntax and/or @watch files.
+    //  See docs/event-scheduler.md for more information.
+    //
+    eventScheduler: {
+        events: {
+            //  Example:
+            //
+            //  sampleEvent: {
+            //    schedule: every 2 hours
+            //    action: @execute:/path/to/some/script.sh
+            //    args: [
+            //        "--foo", "--bar"
+            //    ]
+            //  }
+        }
     }
 
     statLog: {

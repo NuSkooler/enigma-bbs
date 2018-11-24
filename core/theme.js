@@ -13,7 +13,9 @@ const Errors            = require('./enig_error.js').Errors;
 const ErrorReasons      = require('./enig_error.js').ErrorReasons;
 const Events            = require('./events.js');
 const AnsiPrep          = require('./ansi_prep.js');
+const UserProps         = require('./user_property.js');
 
+//  deps
 const fs                = require('graceful-fs');
 const paths             = require('path');
 const async             = require('async');
@@ -38,7 +40,7 @@ function refreshThemeHelpers(theme) {
         getPasswordChar : function() {
             let pwChar = _.get(
                 theme,
-                'customization.defaults.general.passwordChar',
+                'customization.defaults.passwordChar',
                 Config().theme.passwordChar
             );
 
@@ -427,8 +429,8 @@ function getThemeArt(options, cb) {
     //      random
     //
     const config = Config();
-    if(!options.themeId && _.has(options, 'client.user.properties.theme_id')) {
-        options.themeId = options.client.user.properties.theme_id;
+    if(!options.themeId && _.has(options, [ 'client', 'user', 'properties', UserProps.ThemeId ])) {
+        options.themeId = options.client.user.properties[UserProps.ThemeId];
     } else {
         options.themeId = config.theme.default;
     }
@@ -682,8 +684,9 @@ function displayThemedAsset(assetSpec, client, options, cb) {
         options = {};
     }
 
-    if(Array.isArray(assetSpec) && _.isString(options.acsCondMember)) {
-        assetSpec = client.acs.getConditionalValue(assetSpec, options.acsCondMember);
+    if(Array.isArray(assetSpec)) {
+        const acsCondMember = options.acsCondMember || 'art';
+        assetSpec = client.acs.getConditionalValue(assetSpec, acsCondMember);
     }
 
     const artAsset = asset.getArtAsset(assetSpec);

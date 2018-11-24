@@ -8,34 +8,44 @@ const StatLog           = require('./stat_log.js');
 const logger            = require('./logger.js');
 const Events            = require('./events.js');
 const Config            = require('./config.js').get;
+const {
+    Errors,
+    ErrorReasons
+}                       = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async             = require('async');
+const _                 = require('lodash');
 
 exports.userLogin       = userLogin;
 
 function userLogin(client, username, password, cb) {
-    client.user.authenticate(username, password, function authenticated(err) {
+    client.user.authenticate(username, password, err => {
+        const config = Config();
+
         if(err) {
+            client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
+            const disconnect = config.users.failedLogin.disconnect;
+            if(disconnect > 0 && client.user.sessionFailedLoginAttempts >= disconnect) {
+                err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
+            }
+
             client.log.info( { username : username, error : err.message }, 'Failed login attempt');
-
-            //  :TODO: if username exists, record failed login attempt to properties
-            //  :TODO: check Config max failed logon attempts/etc. - set err.maxAttempts = true
-
             return cb(err);
         }
-        const user  = client.user;
+
+        const user = client.user;
+
+        //  Good login; reset any failed attempts
+        delete user.sessionFailedLoginAttempts;
 
         //
         //  Ensure this user is not already logged in.
-        //  Loop through active connections -- which includes the current --
-        //  and check for matching user ID. If the count is > 1, disallow.
         //
-        let existingClientConnection;
-        clientConnections.forEach(function connEntry(cc) {
-            if(cc.user !== user && cc.user.userId === user.userId) {
-                existingClientConnection = cc;
-            }
+        const existingClientConnection = clientConnections.find(cc => {
+            return user !== cc.user &&          //  not current connection
+                user.userId === cc.user.userId; //  ...but same user
         });
 
         if(existingClientConnection) {
@@ -48,12 +58,10 @@ function userLogin(client, username, password, cb) {
                 'Already logged in'
             );
 
-            const existingConnError = new Error('Already logged in as supplied user');
-            existingConnError.existingConn = true;
-
-            //  :TODO: We should use EnigError & pass existing connection as second param
-
-            return cb(existingConnError);
+            return cb(Errors.BadLogin(
+                `User ${user.username} already logged in.`,
+                ErrorReasons.AlreadyLoggedIn
+            ));
         }
 
         //  update client logger with addition of username
@@ -67,24 +75,24 @@ function userLogin(client, username, password, cb) {
         client.log.info('Successful login');
 
         //  User's unique session identifier is the same as the connection itself
-        user.sessionId = client.session.uniqueId;   //  convienence
+        user.sessionId = client.session.uniqueId;   //  convenience
 
         Events.emit(Events.getSystemEvents().UserLogin, { user } );
 
         async.parallel(
             [
                 function setTheme(callback) {
-                    setClientTheme(client, user.properties.theme_id);
+                    setClientTheme(client, user.properties[UserProps.ThemeId]);
                     return callback(null);
                 },
                 function updateSystemLoginCount(callback) {
-                    return StatLog.incrementSystemStat('login_count', 1, callback);
+                    return StatLog.incrementSystemStat('login_count', 1, callback); //  :TODO: create system_property.js
                 },
                 function recordLastLogin(callback) {
-                    return StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
+                    return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
                 },
                 function updateUserLoginCount(callback) {
-                    return StatLog.incrementUserStat(user, 'login_count', 1, callback);
+                    return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
                 },
                 function recordLoginHistory(callback) {
                     const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;

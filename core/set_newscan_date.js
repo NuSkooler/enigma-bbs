@@ -14,7 +14,7 @@ const {
     updateMessageAreaLastReadId,
     getMessageIdNewerThanTimestampByArea
 }                                   = require('./message_area.js');
-const stringFormat                  = require('./string_format.js');
+const UserProps                     = require('./user_property.js');
 
 //  deps
 const async                 = require('async');
@@ -153,11 +153,13 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                 selections.push({
                     conf    : {
                         confTag : conf.confTag,
+                        text    : conf.conf.name,   //  standard
                         name    : conf.conf.name,
                         desc    : conf.conf.desc,
                     },
                     area    : {
                         areaTag : area.areaTag,
+                        text    : area.area.name,   //  standard
                         name    : area.area.name,
                         desc    : area.area.desc,
                     }
@@ -168,19 +170,21 @@ exports.getModule = class SetNewScanDate extends MenuModule {
         selections.unshift({
             conf : {
                 confTag : '',
+                text    : 'All conferences',
                 name    : 'All conferences',
                 desc    : 'All conferences',
             },
             area    : {
                 areaTag : '',
+                text    : 'All areas',
                 name    : 'All areas',
                 desc    : 'All areas',
             }
         });
 
         //  Find current conf/area & move it directly under "All"
-        const currConfTag   = this.client.user.properties.message_conf_tag;
-        const currAreaTag   = this.client.user.properties.message_area_tag;
+        const currConfTag   = this.client.user.properties[UserProps.MessageConfTag];
+        const currAreaTag   = this.client.user.properties[UserProps.MessageAreaTag];
         if(currConfTag && currAreaTag) {
             const confAreaIndex = selections.findIndex( confArea => {
                 return confArea.conf.confTag === currConfTag && confArea.area.areaTag === currAreaTag;
@@ -236,14 +240,9 @@ exports.getModule = class SetNewScanDate extends MenuModule {
                         scanDateView.setText(today.format(scanDateFormat));
 
                         if('message' === self.target) {
-                            const messageSelectionsFormat       = self.menuConfig.config.messageSelectionsFormat || '{conf.name} - {area.name}';
-                            const messageSelectionFocusFormat   = self.menuConfig.config.messageSelectionFocusFormat || messageSelectionsFormat;
-
                             const targetSelectionView = vc.getView(MciViewIds.main.targetSelection);
 
-                            targetSelectionView.setItems(self.targetSelections.map(targetSelection => stringFormat(messageSelectionFocusFormat, targetSelection)));
-                            targetSelectionView.setFocusItems(self.targetSelections.map(targetSelection => stringFormat(messageSelectionFocusFormat, targetSelection)));
-
+                            targetSelectionView.setItems(self.targetSelections);
                             targetSelectionView.setFocusItemIndex(0);
                         }
 

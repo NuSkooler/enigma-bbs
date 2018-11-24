@@ -3,6 +3,7 @@
 
 const FullScreenEditorModule    = require('./fse.js').FullScreenEditorModule;
 const persistMessage            = require('./message_area.js').persistMessage;
+const UserProps                 = require('./user_property.js');
 
 const _                         = require('lodash');
 const async                     = require('async');
@@ -58,8 +59,10 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
     }
 
     enter() {
-        if(_.isString(this.client.user.properties.message_area_tag) && !_.isString(this.messageAreaTag)) {
-            this.messageAreaTag = this.client.user.properties.message_area_tag;
+        if(_.isString(this.client.user.properties[UserProps.MessageAreaTag]) &&
+            !_.isString(this.messageAreaTag))
+        {
+            this.messageAreaTag = this.client.user.properties[UserProps.MessageAreaTag];
         }
 
         super.enter();

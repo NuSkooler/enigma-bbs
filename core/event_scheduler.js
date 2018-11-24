@@ -5,6 +5,7 @@
 const PluginModule          = require('./plugin_module.js').PluginModule;
 const Config                = require('./config.js').get;
 const Log                   = require('./logger.js').log;
+const { Errors }            = require('./enig_error.js');
 
 const _                     = require('lodash');
 const later                 = require('later');
@@ -116,7 +117,7 @@ class ScheduledEvent {
                 methodModule[this.action.what](this.action.args, err => {
                     if(err) {
                         Log.debug(
-                            { error : err.toString(), eventName : this.name, action : this.action },
+                            { error : err.message, eventName : this.name, action : this.action },
                             'Error performing scheduled event action');
                     }
 
@@ -124,7 +125,7 @@ class ScheduledEvent {
                 });
             } catch(e) {
                 Log.warn(
-                    { error : e.toString(), eventName : this.name, action : this.action },
+                    { error : e.message, eventName : this.name, action : this.action },
                     'Failed to perform scheduled event action');
 
                 return cb(e);
@@ -138,7 +139,22 @@ class ScheduledEvent {
                 env     : process.env,
             };
 
-            const proc = pty.spawn(this.action.what, this.action.args, opts);
+            let proc;
+            try {
+                proc = pty.spawn(this.action.what, this.action.args, opts);
+            } catch(e) {
+                Log.warn(
+                    {
+                        error       : 'Failed to spawn @execute process',
+                        reason      : e.message,
+                        eventName   : this.name,
+                        action      : this.action,
+                        what        : this.action.what,
+                        args        : this.action.args
+                    }
+                );
+                return cb(e);
+            }
 
             proc.once('exit', exitCode => {
                 if(exitCode) {

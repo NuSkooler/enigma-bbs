@@ -1,20 +1,11 @@
 ---
 layout: page
-title: menu.hjson
+title: Menus
 ---
-:warning: ***IMPORTANT!*** Before making any customisations, create your own copy of `/config/menu.hjson`, and specify it in the `general` section of `config.hjson`:
+## Menus
+The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/yourboardname-menu.hjson` or similar. This file determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
 
-````hjson
-general: {
-    menuFile: yourboardname.hjson
-}
-````
-This document and others will refer to `menu.hjson`. This should be seen as an alias to `yourboardname.hjson`
-
-## The Basics
-Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format.
-
-Entries in `menu.hjson` are objects or _sections_ defining a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
+Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 
 * Classical Main, Messages, and File menus
 * Art file display
@@ -23,21 +14,47 @@ Entries in `menu.hjson` are objects or _sections_ defining a menu. A menu in thi
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 
 ## Common Menu Entry Members
-* `desc`: A friendly description that can be found in places such as "Who's Online" or the `%MD` MCI code.
-* `art`: An art file specification.
-* `next`: Specifies the next menu to go to next. Can be explicit or an array of possibilites dependent on ACS. See **Flow Control** in the **ACS Checks** section below.
-* `prompt`: Specifies a prompt, by name, to use along with this menu.
-* `form`: Defines one or more forms available on this menu.
-* `submit`: Defines a submit handler when using `prompt`.
-* `config`: May contain any of the following standard configuration members in addition to per-module defined types (see appropriate module for more information):
-    * `cls`: If `true` the screen will be cleared before showing this menu.
-    * `pause`: If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens.
-    * `nextTimeout`: Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu.
-    * `baudRate`: Sets the SyncTERM style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.  See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
-    * `font`: Sets the SyncTERM style font. May be one of the following: `cp437`, `cp1251`, `koi8_r`,  `iso8859_2`, `iso8859_4`, `cp866`, `iso8859_9`, `haik8`, `iso8859_8`, `koi8_u`, `iso8859_15`, `iso8859_4`, `koi8_r_b`, `iso8859_4`, `iso8859_5`, `ARMSCII_8`, `iso8859_15`, `cp850`, `cp850`, `cp885`, `cp1251`, `iso8859_7`, `koi8-r_c`, `iso8859_4`, `iso8859_1`, `cp866`, `cp437`, `cp866`, `cp885`, `cp866_u`, `iso8859_1`, `cp1131`, `c64_upper`, `c64_lower`, `c128_upper`, `c128_lower`, `atari`, `pot_noodle`, `mo_soul`, `microknight_plus`, `topaz_plus`, `microknight`, `topaz`. See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+Below is a table of **common** menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: `module: bbs_list`) may differ. See documentation for the module in question for particulars.
+
+| Item   | Description  |
+|--------|--------------|
+| `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
+| `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
+| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
+| `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in `prompt.hjson`. |
+| `submit` | Defines a submit handler when using `prompt`.
+| `form` | An object defining one or more *forms* available on this menu. |
+| `module` | Sets the module name to use for this menu. |
+| `config` | An object containing additional configuration. See **Config Block** below. |
+
+### Config Block
+The `config` block for a menu entry can contain common members as well as a per-module (when `module` is used) settings.
+
+| Item | Description |
+|------|-------------|
+| `cls` | If `true` the screen will be cleared before showing this menu. |
+| `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
+| `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
+| `baudRate` | See baud rate information in [General Art Information](/docs/art/general.md). |
+| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](/docs/art/general.md). |
+| `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
+
+#### Menu Flags
+The `menuFlags` field of a `config` block can change default behavior of a particular menu.
+
+| Flag | Description |
+|------|-------------|
+| `noHistory` | Prevents the menu from remaining in the menu stack / history. When this flag is set, when the **next** menu falls back, this menu will be skipped and the previous menu again displayed instead. Example: menuA -> menuB(noHistory) -> menuC: Exiting menuC returns the user to menuA. |
+| `popParent` | When *this* menu is exited, fall back beyond the parent as well. Often used in combination with `noHistory`. |
+| `forwardArgs` | If set, when the next menu is entered, forward any `extraArgs` arguments to *this* menu on to it. |
+
 
 ## Forms
-TODO
+ENiGMA½ uses a concept of *forms* in menus. A form is a collection of associated *views*. Consider a New User Application using the `nua` module: The default implementation utilizes a single form with multiple EditTextView views, a submit button, etc. Forms are identified by number starting with `0`. A given menu may have mutiple forms (often associated with different states or screens within the menu).
+
+Menus may also support more than one layout type by using a *MCI key*. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (`VM` key) while another uses a horizontal (`HM` key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in `menu.hjson`.
+
+For more information on views and associated MCI codes, see [MCI Codes](/docs/art/mci.md).
 
 ## Submit Handlers
 TODO
@@ -49,67 +66,69 @@ Let's look a couple basic menu entries:
 telnetConnected: {
     art: CONNECT
     next: matrix
-    options: { nextTimeout: 1500 }
+    config: { nextTimeout: 1500 }
 }
 ```
 
-The above entry `telnetConnected` is set as the Telnet server's first menu entry (set by `firstMenu` in the Telnet server's config).
-
-An art pattern of `CONNECT` is set telling the system to look for `CONNECT<n>.*` where `<n>` represents a optional integer in art files to cause randomness, e.g. `CONNECT1.ANS`, `CONNECT2.ANS`, and so on. If desired, you can also be explicit by supplying a full filename with an extention such as `CONNECT.ANS`.
-
-The entry `next` sets up the next menu, by name, in the stack (`matrix`) that we'll go to after `telnetConnected`.
-
-Finally, an `options` object may contain various common options for menus. In this case, `nextTimeout` tells the system to proceed to the `next` entry automatically after 1500ms.
+The above entry `telnetConnected` is set as the Telnet server's first menu entry (set by `firstMenu` in the Telnet server's config). The entry sets up a few things:
+* A `art` spec of `CONNECT`. (See [General Art Information](/docs/art/general.md)).
+* A `next` entry up the next menu, by name, in the stack (`matrix`) that we'll go to after `telnetConnected`.
+* An `config` block containing a single `nextTimeout` field telling the system to proceed to the `next` (`matrix`) entry automatically after 1500ms.
 
 Now let's look at `matrix`, the `next` entry from `telnetConnected`:
 
 ```hjson
 matrix: {
-    art: matrix
+    art: MATRIX
     desc: Login Matrix
     form: {
-    0: {
-        VM: {
-        mci: {
-            VM1:  {
-            submit: true
-            focus:  true            
-            items: [ "login", "apply", "log off" ]
-            argName: matrixSubmit
+        0: {
+            //
+            //  Here we have a MCI key of "VM". In this case we could
+            //  omit this level since no other keys are present.
+            //
+            VM: {
+                mci: {
+                    VM1:  {
+                        submit: true
+                        focus:  true
+                        items: [ "login", "apply", "log off" ]
+                        argName: matrixSubmit
+                    }
+                }
+                submit: {
+                    *: [
+                        {
+                            value: { matrixSubmit: 0 }
+                            action: @menu:login
+                        }
+                        {
+                            value: { matrixSubmit: 1 },
+                            action: @menu:newUserApplication
+                        }
+                        {
+                            value: { matrixSubmit: 2 },
+                            action: @menu:logoff
+                        }
+                    ]
+                }
             }
+
+            //
+            //  If we wanted, we could declare a "HM" MCI key block here.
+            //  This would allow a horizontal matrix style when the matrix art
+            //  loaded contained a %HM code.
+            //
         }
-        submit: {
-            *: [
-                {
-                    value: { matrixSubmit: 0 }
-                    action: @menu:login
-                }
-                {
-                    value: { matrixSubmit: 1 },
-                    action: @menu:newUserApplication
-                }
-                {
-                    value: { matrixSubmit: 2 },
-                    action: @menu:logoff
-                }
-            ]
-        }
-        }
-    }
     }
 }
 ```
 
-In the above entry, you'll notice `form`. This defines a form(s) object. In this case, a single form 
-by ID of `0`. The system is then told to use a block only when the resulting art provides a `VM` 
-(*VerticalMenuView*) MCI entry. `VM1` is then setup to `submit` and start focused via `focus: true` 
-as well as have some menu entries ("login", "apply", ...) defined. We provide an `argName` for this 
-action as `matrixSubmit`.
+In the above entry, you'll notice `form`. This defines a form(s) object. In this case, a single form by ID of `0`. The system is then told to use a block only when the resulting art provides a `VM` (*VerticalMenuView*) MCI entry. Some other bits about the form:
 
-The `submit` object tells the system to attempt to apply provided match entries from any view ID (`*`).
- Upon submit, the first match will be executed. For example, if the user selects "login", the first entry 
- with a value of `{ matrixSubmit: 0 }` will match causing `action` of `@menu:login` to be executed (go 
- to `login` menu).
+* `VM1` is then setup to `submit` and start focused via `focus: true` as well as have some menu entries ("login", "apply", ...) defined. We provide an `argName` of `matrixSubmit` for this element view.
+* The `submit` object tells the system to attempt to apply provided match entries from any view ID (`*`).
+* Upon submit, the first match will be executed. For example, if the user selects "login", the first entry with a value of `{ matrixSubmit: 0 }` will match (due to 0 being the first index in the list and `matrixSubmit` being the arg name in question) causing `action` of `@menu:login` to be executed (go to `login` menu).
 
 ## ACS Checks
 Menu modules can check user ACS in order to restrict areas and perform flow control. See [ACS](acs.md) for available ACS syntax.
@@ -138,6 +157,25 @@ login: {
         }
         {
             next: fullLoginSequenceLoginArt
+        }
+    ]
+}
+```
+
+### Art Asset Selection
+Another area in which you can apply ACS in a menu is art asset specs.
+
+```hjson
+someMenu: {
+    desc: Neato Dorito
+    art: [
+        {
+            acs: GM[couriers]
+            art: COURIERINFO
+        }
+        {
+            //  show ie: EVERYONEELSE.ANS to everyone else
+            art: EVERYONEELSE
         }
     ]
 }

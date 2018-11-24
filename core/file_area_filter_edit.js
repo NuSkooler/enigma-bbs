@@ -7,6 +7,7 @@ const ViewController                = require('./view_controller.js').ViewContro
 const getSortedAvailableFileAreas   = require('./file_base_area.js').getSortedAvailableFileAreas;
 const FileBaseFilters               = require('./file_base_filter.js');
 const stringFormat                  = require('./string_format.js');
+const UserProps                     = require('./user_property.js');
 
 //  deps
 const async             = require('async');
@@ -111,7 +112,7 @@ exports.getModule = class FileAreaFilterEdit extends MenuModule {
                     //
                     //  If the item was also the active filter, we need to make a new one active
                     //
-                    if(filterUuid === this.client.user.properties.file_base_filter_active_uuid) {
+                    if(filterUuid === this.client.user.properties[UserProps.FileBaseFilterActiveUuid]) {
                         const newActive = this.filtersArray[this.currentFilterIndex];
                         if(newActive) {
                             filters.setActive(newActive.uuid);

@@ -8,24 +8,12 @@ const argv						= require('./oputil_common.js').argv;
 const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const Errors					= require('../enig_error.js').Errors;
+const UserProps                 = require('../user_property.js');
 
 const async						= require('async');
 const _							= require('lodash');
 
 exports.handleUserCommand		= handleUserCommand;
-
-function getUser(userName, cb) {
-    const User = require('../../core/user.js');
-    User.getUserIdAndName(userName, (err, userId) => {
-        if(err) {
-            process.exitCode = ExitCodes.BAD_ARGS;
-            return cb(err);
-        }
-        const u = new User();
-        u.userId = userId;
-        return cb(null, u);
-    });
-}
 
 function initAndGetUser(userName, cb) {
     async.waterfall(
@@ -34,12 +22,12 @@ function initAndGetUser(userName, cb) {
                 initConfigAndDatabases(callback);
             },
             function getUserObject(callback) {
-                getUser(userName, (err, user) => {
+                const User = require('../../core/user.js');
+                User.getUserIdAndName(userName, (err, userId) => {
                     if(err) {
-                        process.exitCode = ExitCodes.BAD_ARGS;
                         return callback(err);
                     }
-                    return callback(null, user);
+                    return User.getUser(userId, callback);
                 });
             }
         ],
@@ -55,15 +43,38 @@ function setAccountStatus(user, status) {
     }
 
     const AccountStatus = require('../../core/user.js').AccountStatus;
+
+    status = {
+        activate    : AccountStatus.active,
+        deactivate  : AccountStatus.inactive,
+        disable     : AccountStatus.disabled,
+        lock        : AccountStatus.locked,
+    }[status];
+
     const statusDesc = _.invert(AccountStatus)[status];
-    user.persistProperty('account_status', status, err => {
-        if(err) {
-            process.exitCode = ExitCodes.ERROR;
-            console.error(err.message);
-        } else {
-            console.info(`User status set to ${statusDesc}`);
+
+    async.series(
+        [
+            (callback) => {
+                return user.persistProperty(UserProps.AccountStatus, status, callback);
+            },
+            (callback) => {
+                if(AccountStatus.active !== status) {
+                    return callback(null);
+                }
+
+                return user.unlockAccount(callback);
+            }
+        ],
+        err => {
+            if(err) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error(err.message);
+            } else {
+                console.info(`User status set to ${statusDesc}`);
+            }
         }
-    });
+    );
 }
 
 function setUserPassword(user) {
@@ -147,21 +158,6 @@ function modUserGroups(user) {
     }
 }
 
-function activateUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.active);
-}
-
-function deactivateUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.inactive);
-}
-
-function disableUser(user) {
-    const AccountStatus = require('../../core/user.js').AccountStatus;
-    return setAccountStatus(user, AccountStatus.disabled);
-}
-
 function handleUserCommand() {
     function errUsage()  {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -195,11 +191,12 @@ function handleUserCommand() {
             del			: removeUser,
             delete		: removeUser,
 
-            activate	: activateUser,
-            deactivate	: deactivateUser,
-            disable		: disableUser,
+            activate	: setAccountStatus,
+            deactivate	: setAccountStatus,
+            disable		: setAccountStatus,
+            lock        : setAccountStatus,
 
             group		: modUserGroups,
-        }[action] || errUsage)(user);
+        }[action] || errUsage)(user, action);
     });
 }

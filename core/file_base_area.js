@@ -14,6 +14,7 @@ const resolveMimeType   = require('./mime_util.js').resolveMimeType;
 const stringFormat      = require('./string_format.js');
 const wordWrapText      = require('./word_wrap.js').wordWrapText;
 const StatLog           = require('./stat_log.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const _             = require('lodash');
@@ -136,11 +137,11 @@ function changeFileAreaWithOptions(client, areaTag, options, cb) {
             },
             function changeArea(area, callback) {
                 if(true === options.persist) {
-                    client.user.persistProperty('file_area_tag', areaTag, err => {
+                    client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
                         return callback(err, area);
                     });
                 } else {
-                    client.user.properties['file_area_tag'] = areaTag;
+                    client.user.properties[UserProps.FileAreaTag] = areaTag;
                     return callback(null, area);
                 }
             }
@@ -705,7 +706,7 @@ function scanFile(filePath, options, iterator, cb) {
                 //  up to many seconds in time for larger files.
                 //
                 const chunkSize = 1024 * 64;
-                const buffer = new Buffer(chunkSize);
+                const buffer = Buffer.allocUnsafe(chunkSize);
 
                 fs.open(filePath, 'r', (err, fd) => {
                     if(err) {

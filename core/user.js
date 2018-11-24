@@ -1,11 +1,18 @@
 /* jslint node: true */
 'use strict';
 
+//  ENiGMA½
 const userDb        = require('./database.js').dbs.user;
 const Config        = require('./config.js').get;
 const userGroup     = require('./user_group.js');
-const Errors        = require('./enig_error.js').Errors;
+const {
+    Errors,
+    ErrorReasons
+}                   = require('./enig_error.js');
 const Events        = require('./events.js');
+const UserProps     = require('./user_property.js');
+const Log           = require('./logger.js').log;
+const StatLog       = require('./stat_log.js');
 
 //  deps
 const crypto        = require('crypto');
@@ -39,16 +46,29 @@ module.exports = class User {
 
     static get StandardPropertyGroups() {
         return {
-            password    : [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
+            password    : [ UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk ],
         };
     }
 
     static get AccountStatus() {
         return {
-            disabled    : 0,
-            inactive    : 1,
-            active      : 2,
+            disabled    : 0,    //  +op disabled
+            inactive    : 1,    //  inactive, aka requires +op approval/activation
+            active      : 2,    //  standard, active
+            locked      : 3,    //  locked out (too many bad login attempts, etc.)
         };
+    }
+
+    static isSamePasswordSlowCompare(passBuf1, passBuf2) {
+        if(passBuf1.length !== passBuf2.length) {
+            return false;
+        }
+
+        let c = 0;
+        for(let i = 0; i < passBuf1.length; i++) {
+            c |= passBuf1[i] ^ passBuf2[i];
+        }
+        return 0 === c;
     }
 
     isAuthenticated() {
@@ -60,16 +80,21 @@ module.exports = class User {
             return false;
         }
 
-        return this.hasValidPassword();
+        return this.hasValidPasswordProperties();
     }
 
-    hasValidPassword() {
-        if(!this.properties || !this.properties.pw_pbkdf2_salt || !this.properties.pw_pbkdf2_dk) {
+    hasValidPasswordProperties() {
+        const salt  = this.getProperty(UserProps.PassPbkdf2Salt);
+        const dk    = this.getProperty(UserProps.PassPbkdf2Dk);
+
+        if(!salt || !dk ||
+            (salt.length !== User.PBKDF2.saltLen * 2) ||
+            (dk.length !== User.PBKDF2.keyLen * 2))
+        {
             return false;
         }
 
-        return ((this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2) &&
-            (this.properties.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2));
+        return true;
     }
 
     isRoot() {
@@ -101,31 +126,85 @@ module.exports = class User {
         return 10;  //  :TODO: Is this what we want?
     }
 
+    processFailedLogin(userId, cb) {
+        async.waterfall(
+            [
+                (callback) => {
+                    return User.getUser(userId, callback);
+                },
+                (tempUser, callback) => {
+                    return StatLog.incrementUserStat(
+                        tempUser,
+                        UserProps.FailedLoginAttempts,
+                        1,
+                        (err, failedAttempts) => {
+                            return callback(null, tempUser, failedAttempts);
+                        }
+                    );
+                },
+                (tempUser, failedAttempts, callback) => {
+                    const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
+                    if(lockAccount > 0 && failedAttempts >= lockAccount) {
+                        const props = {
+                            [ UserProps.AccountStatus ]     : User.AccountStatus.locked,
+                            [ UserProps.AccountLockedTs ]   : StatLog.now,
+                        };
+                        if(!_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)) {
+                            props[UserProps.AccountLockedPrevStatus] = tempUser.getProperty(UserProps.AccountStatus);
+                        }
+                        Log.info( { userId, failedAttempts }, '(Re)setting account to locked due to failed logins');
+                        return tempUser.persistProperties(props, callback);
+                    }
+
+                    return cb(null);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    unlockAccount(cb) {
+        const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
+        if(!prevStatus) {
+            return cb(null);    //  nothing to do
+        }
+
+        this.persistProperty(UserProps.AccountStatus, prevStatus, err => {
+            if(err) {
+                return cb(err);
+            }
+
+            return this.removeProperties( [ UserProps.AccountLockedPrevStatus, UserProps.AccountLockedTs ], cb);
+        });
+    }
+
     authenticate(username, password, cb) {
         const self = this;
-        const cachedInfo = {};
+        const tempAuthInfo = {};
 
         async.waterfall(
             [
                 function fetchUserId(callback) {
                     //  get user ID
                     User.getUserIdAndName(username, (err, uid, un) => {
-                        cachedInfo.userId   = uid;
-                        cachedInfo.username = un;
+                        tempAuthInfo.userId   = uid;
+                        tempAuthInfo.username = un;
 
                         return callback(err);
                     });
                 },
                 function getRequiredAuthProperties(callback) {
                     //  fetch properties required for authentication
-                    User.loadProperties(cachedInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
+                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
                         return callback(err, props);
                     });
                 },
                 function getDkWithSalt(props, callback) {
                     //  get DK from stored salt and password provided
-                    User.generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, (err, dk) => {
-                        return callback(err, dk, props.pw_pbkdf2_dk);
+                    User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+                        return callback(err, dk, props[UserProps.PassPbkdf2Dk]);
                     });
                 },
                 function validateAuth(passDk, propsDk, callback) {
@@ -135,30 +214,57 @@ module.exports = class User {
                     const passDkBuf     = Buffer.from(passDk,   'hex');
                     const propsDkBuf    = Buffer.from(propsDk,  'hex');
 
-                    if(passDkBuf.length !== propsDkBuf.length) {
-                        return callback(Errors.AccessDenied('Invalid password'));
-                    }
-
-                    let c = 0;
-                    for(let i = 0; i < passDkBuf.length; i++) {
-                        c |= passDkBuf[i] ^ propsDkBuf[i];
-                    }
-
-                    return callback(0 === c ? null : Errors.AccessDenied('Invalid password'));
+                    return callback(User.isSamePasswordSlowCompare(passDkBuf, propsDkBuf) ?
+                        null :
+                        Errors.AccessDenied('Invalid password')
+                    );
                 },
                 function initProps(callback) {
-                    User.loadProperties(cachedInfo.userId, (err, allProps) => {
+                    User.loadProperties(tempAuthInfo.userId, (err, allProps) => {
                         if(!err) {
-                            cachedInfo.properties = allProps;
+                            tempAuthInfo.properties = allProps;
                         }
 
                         return callback(err);
                     });
                 },
+                function checkAccountStatus(callback) {
+                    const accountStatus = parseInt(tempAuthInfo.properties[UserProps.AccountStatus], 10);
+                    if(User.AccountStatus.disabled === accountStatus) {
+                        return callback(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+                    }
+                    if(User.AccountStatus.inactive === accountStatus) {
+                        return callback(Errors.AccessDenied('Account inactive', ErrorReasons.Inactive));
+                    }
+
+                    if(User.AccountStatus.locked === accountStatus) {
+                        const autoUnlockMinutes = _.get(Config(), 'users.failedLogin.autoUnlockMinutes');
+                        const lockedTs          = moment(tempAuthInfo.properties[UserProps.AccountLockedTs]);
+                        if(autoUnlockMinutes && lockedTs.isValid()) {
+                            const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
+                            if(minutesSinceLocked >= autoUnlockMinutes) {
+                                //  allow the login - we will clear any lock there
+                                Log.info(
+                                    { username, userId : tempAuthInfo.userId, lockedAt : lockedTs.format() },
+                                    'Locked account will now be unlocked due to auto-unlock minutes policy'
+                                );
+                                return callback(null);
+                            }
+                        }
+                        return callback(Errors.AccessDenied('Account is locked', ErrorReasons.Locked));
+                    }
+
+                    //  anything else besides active is still not allowed
+                    if(User.AccountStatus.active !== accountStatus) {
+                        return callback(Errors.AccessDenied('Account is not active'));
+                    }
+
+                    return callback(null);
+                },
                 function initGroups(callback) {
-                    userGroup.getGroupsForUser(cachedInfo.userId, (err, groups) => {
+                    userGroup.getGroupsForUser(tempAuthInfo.userId, (err, groups) => {
                         if(!err) {
-                            cachedInfo.groups = groups;
+                            tempAuthInfo.groups = groups;
                         }
 
                         return callback(err);
@@ -166,15 +272,44 @@ module.exports = class User {
                 }
             ],
             err => {
-                if(!err) {
-                    self.userId         = cachedInfo.userId;
-                    self.username       = cachedInfo.username;
-                    self.properties     = cachedInfo.properties;
-                    self.groups         = cachedInfo.groups;
+                if(err) {
+                    //
+                    //  If we failed login due to something besides an inactive or disabled account,
+                    //  we need to update failure status and possibly lock the account.
+                    //
+                    //  If locked already, update the lock timestamp -- ie, extend the lockout period.
+                    //
+                    if(![ErrorReasons.Disabled, ErrorReasons.Inactive].includes(err.reasonCode) && tempAuthInfo.userId) {
+                        self.processFailedLogin(tempAuthInfo.userId, persistErr => {
+                            if(persistErr) {
+                                Log.warn( { error : persistErr.message }, 'Failed to persist failed login information');
+                            }
+                            return cb(err); //  pass along original error
+                        });
+                    } else {
+                        return cb(err);
+                    }
+                } else {
+                    //  everything checks out - load up info
+                    self.userId         = tempAuthInfo.userId;
+                    self.username       = tempAuthInfo.username;
+                    self.properties     = tempAuthInfo.properties;
+                    self.groups         = tempAuthInfo.groups;
                     self.authenticated  = true;
-                }
 
-                return cb(err);
+                    self.removeProperty(UserProps.FailedLoginAttempts);
+
+                    //
+                    //  We need to *revert* any locked status back to
+                    //  the user's previous status & clean up props.
+                    //
+                    self.unlockAccount(unlockErr => {
+                        if(unlockErr) {
+                            Log.warn( { error : unlockErr.message }, 'Failed to unlock account');
+                        }
+                        return cb(null);
+                    });
+                }
             }
         );
     }
@@ -190,7 +325,7 @@ module.exports = class User {
         const self = this;
 
         //  :TODO: set various defaults, e.g. default activation status, etc.
-        self.properties.account_status = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
+        self.properties[UserProps.AccountStatus] = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
         async.waterfall(
             [
@@ -211,7 +346,7 @@ module.exports = class User {
 
                             //  Do not require activation for userId 1 (root/admin)
                             if(User.RootUserID === self.userId) {
-                                self.properties.account_status = User.AccountStatus.active;
+                                self.properties[UserProps.AccountStatus] = User.AccountStatus.active;
                             }
 
                             return callback(null, trans);
@@ -224,8 +359,8 @@ module.exports = class User {
                             return callback(err);
                         }
 
-                        self.properties.pw_pbkdf2_salt  = info.salt;
-                        self.properties.pw_pbkdf2_dk    = info.dk;
+                        self.properties[UserProps.PassPbkdf2Salt]   = info.salt;
+                        self.properties[UserProps.PassPbkdf2Dk]     = info.dk;
                         return callback(null, trans);
                     });
                 },
@@ -289,20 +424,32 @@ module.exports = class User {
         );
     }
 
+    static persistPropertyByUserId(userId, propName, propValue, cb) {
+        userDb.run(
+            `REPLACE INTO user_property (user_id, prop_name, prop_value)
+            VALUES (?, ?, ?);`,
+            [ userId, propName, propValue ],
+            err => {
+                if(cb) {
+                    return cb(err, propValue);
+                }
+            }
+        );
+    }
+
+    getProperty(propName) {
+        return this.properties[propName];
+    }
+
+    getPropertyAsNumber(propName) {
+        return parseInt(this.getProperty(propName), 10);
+    }
+
     persistProperty(propName, propValue, cb) {
         //  update live props
         this.properties[propName] = propValue;
 
-        userDb.run(
-            `REPLACE INTO user_property (user_id, prop_name, prop_value)
-            VALUES (?, ?, ?);`,
-            [ this.userId, propName, propValue ],
-            err => {
-                if(cb) {
-                    return cb(err);
-                }
-            }
-        );
+        return User.persistPropertyByUserId(this.userId, propName, propValue, cb);
     }
 
     removeProperty(propName, cb) {
@@ -319,6 +466,15 @@ module.exports = class User {
                 }
             }
         );
+    }
+
+    removeProperties(propNames, cb) {
+        async.each(propNames, (name, next) => {
+            return this.removeProperty(name, next);
+        },
+        err => {
+            return cb(err);
+        });
     }
 
     persistProperties(properties, transOrDb, cb) {
@@ -360,8 +516,8 @@ module.exports = class User {
             }
 
             const newProperties = {
-                pw_pbkdf2_salt  : info.salt,
-                pw_pbkdf2_dk    : info.dk,
+                [ UserProps.PassPbkdf2Salt ]    : info.salt,
+                [ UserProps.PassPbkdf2Dk ]      : info.dk,
             };
 
             this.persistProperties(newProperties, err => {
@@ -371,8 +527,9 @@ module.exports = class User {
     }
 
     getAge() {
-        if(_.has(this.properties, 'birthdate')) {
-            return moment().diff(this.properties.birthdate, 'years');
+        const birthdate = this.getProperty(UserProps.Birthdate);
+        if(birthdate) {
+            return moment().diff(birthdate, 'years');
         }
     }
 
@@ -439,7 +596,7 @@ module.exports = class User {
             WHERE id = (
                 SELECT user_id
                 FROM user_property
-                WHERE prop_name='real_name' AND prop_value LIKE ?
+                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
             );`,
             [ realName ],
             (err, row) => {

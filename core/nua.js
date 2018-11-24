@@ -8,9 +8,14 @@ const theme         = require('./theme.js');
 const login         = require('./system_menu_method.js').login;
 const Config        = require('./config.js').get;
 const messageArea   = require('./message_area.js');
+const {
+    getISOTimestampString
+}                   = require('./database.js');
+const UserProps     = require('./user_property.js');
 
 //  deps
 const _             = require('lodash');
+const moment        = require('moment');
 
 exports.moduleInfo = {
     name    : 'NUA',
@@ -80,20 +85,20 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 areaTag = areaTag || '';
 
                 newUser.properties = {
-                    real_name           : formData.value.realName,
-                    birthdate           : new Date(Date.parse(formData.value.birthdate)).toISOString(),     //  :TODO: Use moment & explicit ISO string format
-                    sex                 : formData.value.sex,
-                    location            : formData.value.location,
-                    affiliation         : formData.value.affils,
-                    email_address       : formData.value.email,
-                    web_address         : formData.value.web,
-                    account_created     : new Date().toISOString(), //  :TODO: Use moment & explicit ISO string format
+                    [ UserProps.RealName ]          : formData.value.realName,
+                    [ UserProps.Birthdate ]         : getISOTimestampString(formData.value.birthdate),
+                    [ UserProps.Sex ]               : formData.value.sex,
+                    [ UserProps.Location ]          : formData.value.location,
+                    [ UserProps.Affiliations ]      : formData.value.affils,
+                    [ UserProps.EmailAddress ]      : formData.value.email,
+                    [ UserProps.WebAddress ]        : formData.value.web,
+                    [ UserProps.AccountCreated ]    : getISOTimestampString(),
 
-                    message_conf_tag    : confTag,
-                    message_area_tag    : areaTag,
+                    [ UserProps.MessageConfTag ]    : confTag,
+                    [ UserProps.MessageAreaTag ]    : areaTag,
 
-                    term_height         : self.client.term.termHeight,
-                    term_width          : self.client.term.termWidth,
+                    [ UserProps.TermHeight ]        : self.client.term.termHeight,
+                    [ UserProps.TermWidth ]         : self.client.term.termWidth,
 
                     //  :TODO: Other defaults
                     //  :TODO: should probably have a place to create defaults/etc.
@@ -101,9 +106,9 @@ exports.getModule = class NewUserAppModule extends MenuModule {
 
                 const defaultTheme = _.get(config, 'theme.default');
                 if('*' === defaultTheme) {
-                    newUser.properties.theme_id = theme.getRandomTheme();
+                    newUser.properties[UserProps.ThemeId] = theme.getRandomTheme();
                 } else {
-                    newUser.properties.theme_id = defaultTheme;
+                    newUser.properties[UserProps.ThemeId] = defaultTheme;
                 }
 
                 //  :TODO: User.create() should validate email uniqueness!
@@ -133,7 +138,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                             };
                         }
 
-                        if(User.AccountStatus.inactive === self.client.user.properties.account_status) {
+                        if(User.AccountStatus.inactive === self.client.user.properties[UserProps.AccountStatus]) {
                             return self.gotoMenu(extraArgs.inactive, cb);
                         } else {
                             //

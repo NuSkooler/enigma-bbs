@@ -2,10 +2,12 @@
 'use strict';
 
 const sysDb     = require('./database.js').dbs.system;
+const {
+    getISOTimestampString
+}               = require('./database.js');
 
 //  deps
 const _         = require('lodash');
-const moment    = require('moment');
 
 /*
     System Event Log & Stats
@@ -68,6 +70,7 @@ class StatLog {
         };
     }
 
+    //  :TODO: fix spelling :)
     setNonPeristentSystemStat(statName, statValue) {
         this.systemStats[statName] = statValue;
     }
@@ -148,7 +151,9 @@ class StatLog {
     }
 
     //  the time "now" in the ISO format we use and love :)
-    get now() { return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); }
+    get now() {
+        return getISOTimestampString();
+    }
 
     appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
         sysDb.run(

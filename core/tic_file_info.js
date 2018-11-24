@@ -187,10 +187,10 @@ module.exports = class TicFileInfo {
         //  send the file to be distributed and the accompanying TIC file.
         //  Some File processors (Allfix) only insert a line with this
         //  keyword when the file and the associated TIC file are to be
-        //  file routed through a third sysem instead of being processed
+        //  file routed through a third system instead of being processed
         //  by a file processor on that system. Others always insert it.
         //  Note that the To keyword may cause problems when the TIC file
-        //  is proecessed by software that does not recognise it and
+        //  is processed by software that does not recognize it and
         //  passes the line "as is" to other systems.
         //
         //  Example:  To 292/854

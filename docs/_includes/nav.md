@@ -14,15 +14,17 @@
     - [Creating Config Files]({{ site.baseurl }}{% link configuration/creating-config.md %})
     - [SysOp Setup]({{ site.baseurl }}{% link configuration/sysop-setup.md %})
     - [Editing hjson]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
-    - [config.hjson]({{ site.baseurl }}{% link configuration/config-hjson.md %})
-    - [menu.hjson]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
-    - [prompt.hjson]({{ site.baseurl }}{% link configuration/prompt-hjson.md %})
+    - [System Configuration]({{ site.baseurl }}{% link configuration/config-hjson.md %})
+    - [HJSON General]({{ site.baseurl }}{% link configuration/hjson.md %})
+    - [Menus]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
+    - [Prompts]({{ site.baseurl }}{% link configuration/prompt-hjson.md %})
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
     - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})
     - [Email]({{ site.baseurl }}{% link configuration/email.md %})
     - [Colour Codes]({{ site.baseurl }}{% link configuration/colour-codes.md %})
     - [Access Condition System (ACS)]({{ site.baseurl }}{% link configuration/acs.md %})
+    - [Event Scheduler]({{ site.baseurl }}{% link configuration/event-scheduler.md %})
     - Scheduled jobs
 
   - File Base
@@ -73,11 +75,13 @@
     - [Rumorz]({{ site.baseurl }}{% link modding/rumorz.md %})
     - [File Transfer Protocol Select]({{ site.baseurl }}{% link modding/file-transfer-protocol-select.md %})
     - [Onelinerz]({{ site.baseurl }}{% link modding/onelinerz.md %})
+    - [Show Art]({{ site.baseurl }}{% link modding/show-art.md %})
+    - [Download Manager]({{ site.baseurl }}{% link modding/file-base-download-manager.md %})
+    - [Web Download Manager]({{ site.baseurl }}{% link modding/file-base-web-download-manager.md %})
+    - [Set Newscan Date]({{ site.baseurl }}{% link modding/set-newscan-date.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
- 
-  - [Oputil]({{ site.baseurl }}{% link oputil/index.md %})
 
   - Troubleshooting
     - [Monitoring Logs]({{ site.baseurl }}{% link troubleshooting/monitoring-logs.md %})

@@ -2,8 +2,8 @@
 layout: page
 title: ACS
 ---
-
-If no `acs` block is supplied in a file area definition, the following defaults apply to an area:
+## File Base ACS
+[ACS Codes](/docs/configuration/acs.md) may be used to control acess to File Base areas by specifying an `acs` string in a file area's definition. If no `acs` is supplied in a file area definition, the following defaults apply to an area:
 * `read` (list, download, etc.): `GM[users]`
 * `write` (upload): `GM[sysops]`
 

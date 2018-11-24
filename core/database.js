@@ -67,7 +67,13 @@ function loadDatabaseForMod(modInfo, cb) {
 
 function getISOTimestampString(ts) {
     ts = ts || moment();
-    return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+    if(!moment.isMoment(ts)) {
+        if(_.isString(ts)) {
+            ts = ts.replace(/\//g, '-');
+        }
+        ts = moment(ts);
+    }
+    return ts.utc().format('YYYY-MM-DDTHH:mm:ss.SSS[Z]');
 }
 
 function sanatizeString(s) {

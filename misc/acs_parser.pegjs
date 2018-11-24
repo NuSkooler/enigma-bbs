@@ -3,6 +3,8 @@
 	const client	= options.client;
 	const user		= options.client.user;
 
+	const UserProps	= require('./user_property.js');
+
 	const moment	= require('moment');
 
 	function checkAccess(acsCode, value) {
@@ -19,7 +21,7 @@
 						value = [ value ];
 					}
 
-					const userAccountStatus = parseInt(user.properties.account_status, 10);
+					const userAccountStatus = user.getPropertyAsNumber(UserProps.AccountStatus);
 					return value.map(n => parseInt(n, 10)).includes(userAccountStatus);
 				},
 				EC	: function isEncoding() {
@@ -44,15 +46,15 @@
 					return value.map(n => parseInt(n, 10)).includes(client.node);
 				},
 				NP	: function numberOfPosts() {
-					const postCount = parseInt(user.properties.post_count, 10) || 0;
+					const postCount = user.getPropertyAsNumber(UserProps.PostCount) || 0;
 					return !isNaN(value) && postCount >= value;
 				},
 				NC	: function numberOfCalls() {
-					const loginCount = parseInt(user.properties.login_count, 10);
+					const loginCount = user.getPropertyAsNumber(UserProps.LoginCount);
 					return !isNaN(value) && loginCount >= value;
 				},
 				AA	: function accountAge() {
-					const accountCreated = moment(user.properties.account_created);
+					const accountCreated = moment(user.getProperty(UserProps.AccountCreated));
 					const now = moment();
 					const daysOld = accountCreated.diff(moment(), 'days');
 					return !isNaN(value) &&
@@ -61,36 +63,36 @@
 						daysOld >= value;
 				},
 				BU	: function bytesUploaded() {
-					const bytesUp = parseInt(user.properties.ul_total_bytes, 10) || 0;
+					const bytesUp = user.getPropertyAsNumber(UserProps.FileUlTotalBytes) || 0;
 					return !isNaN(value) && bytesUp >= value;
 				},
 				UP	: function uploads() {
-					const uls = parseInt(user.properties.ul_total_count, 10) || 0;
+					const uls = user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
 					return !isNaN(value) && uls >= value;
 				},
 				BD	: function bytesDownloaded() {
-					const bytesDown = parseInt(user.properties.dl_total_bytes, 10) || 0;
+					const bytesDown = user.getPropertyAsNumber(UserProps.FileDlTotalBytes) || 0;
 					return !isNaN(value) && bytesDown >= value;
 				},
 				DL	: function downloads() {
-					const dls = parseInt(user.properties.dl_total_count, 10) || 0;
+					const dls = user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
 					return !isNaN(value) && dls >= value;
 				},
 				NR	: function uploadDownloadRatioGreaterThan() {
-					const ulCount = parseInt(user.properties.ul_total_count, 10) || 0;
-					const dlCount = parseInt(user.properties.dl_total_count, 10) || 0;
+					const ulCount = user.getPropertyAsNumber(UserProps.FileUlTotalCount) || 0;
+					const dlCount = user.getPropertyAsNumber(UserProps.FileDlTotalCount) || 0;
 					const ratio = ~~((ulCount / dlCount) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
 				KR	: function uploadDownloadByteRatioGreaterThan() {
-					const ulBytes = parseInt(user.properties.ul_total_bytes, 10) || 0;
-					const dlBytes = parseInt(user.properties.dl_total_bytes, 10) || 0;
+					const ulBytes = user.getPropertyAsNumber(UserProps.FileUlTotalBytes) || 0;
+					const dlBytes = user.getPropertyAsNumber(UserProps.FileDlTotalBytes) || 0;
 					const ratio = ~~((ulBytes / dlBytes) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
 				PC	: function postCallRatio() {					
-					const postCount		= parseInt(user.properties.post_count, 10) || 0;
-					const loginCount	= parseInt(user.properties.login_count, 10);
+					const postCount		= user.getPropertyAsNumber(UserProps.PostCount) || 0;
+					const loginCount	= user.getPropertyAsNumber(UserProps.LoginCount) || 0;
 					const ratio = ~~((postCount / loginCount) * 100);
 					return !isNaN(value) && ratio >= value;
 				},
