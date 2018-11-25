@@ -216,7 +216,7 @@ function initialize(cb) {
             },
             function loadSysOpInformation(callback) {
                 //
-                //  Copy over some +op information from the user DB -> system propertys.
+                //  Copy over some +op information from the user DB -> system properties.
                 //  * Makes this accessible for MCI codes, easy non-blocking access, etc.
                 //  * We do this every time as the op is free to change this information just
                 //    like any other user

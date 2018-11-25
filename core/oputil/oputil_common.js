@@ -7,6 +7,11 @@ const db				= require('../../core/database.js');
 
 const _					= require('lodash');
 const async				= require('async');
+const inq			    = require('inquirer');
+const fs                = require('fs');
+const hjson             = require('hjson');
+
+const packageJson       = require('../../package.json');
 
 exports.printUsageAndSetExitCode		= printUsageAndSetExitCode;
 exports.getDefaultConfigPath			= getDefaultConfigPath;
@@ -14,6 +19,17 @@ exports.getConfigPath					= getConfigPath;
 exports.initConfigAndDatabases			= initConfigAndDatabases;
 exports.getAreaAndStorage				= getAreaAndStorage;
 exports.looksLikePattern				= looksLikePattern;
+exports.getAnswers                      = getAnswers;
+exports.writeConfig                     = writeConfig;
+
+const HJSONStringifyCommonOpts = exports.HJSONStringifyCommonOpts = {
+    emitRootBraces  : true,
+    bracesSameLine  : true,
+    space           : 4,
+    keepWsc         : true,
+    quotes          : 'min',
+    eol             : '\n',
+};
 
 const exitCodes = exports.ExitCodes = {
     SUCCESS		: 0,
@@ -100,4 +116,23 @@ function looksLikePattern(tag) {
     }
 
     return /[*?[\]!()+|^]/.test(tag);
+}
+
+function getAnswers(questions, cb) {
+    inq.prompt(questions).then( answers => {
+        return cb(answers);
+    });
+}
+
+function writeConfig(config, path) {
+    config = hjson.stringify(config, HJSONStringifyCommonOpts)
+        .replace(/%ENIG_VERSION%/g,     packageJson.version)
+        .replace(/%HJSON_VERSION%/g,    hjson.version);
+
+    try {
+        fs.writeFileSync(path, config, 'utf8');
+        return true;
+    } catch(e) {
+        return false;
+    }
 }

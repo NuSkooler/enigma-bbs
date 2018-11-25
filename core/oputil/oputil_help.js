@@ -39,14 +39,7 @@ actions:
 
 actions:
   new                      generate a new/initial configuration
-  import-areas PATH        import areas using fidonet *.NA or AREAS.BBS file from PATH
   cat                      cat current configuration to stdout
-
-import-areas args:
-  --conf CONF_TAG          specify conference tag in which to import areas
-  --network NETWORK        specify network name/key to associate FTN areas
-  --uplinks UL1,UL2,...    specify one or more comma separated uplinks
-  --type TYPE              specifies area import type. valid options are "bbs" and "na"
 
 cat args:
   --no-color               disable color
@@ -99,12 +92,19 @@ general information:
   FILE_ID                      a file identifier. see file.sqlite3
 `,
     MessageBase :
-  `usage: oputil.js mb <action> [<args>]
+`usage: oputil.js mb <action> [<args>]
 
-  actions:
+actions:
   areafix CMD1 CMD2 ... ADDR  sends an AreaFix NetMail to ADDR with the supplied command(s)
                               one or more commands may be supplied. commands that are multi
                               part such as "%COMPRESS ZIP" should be quoted.
+  import-areas PATH           import areas using fidonet *.NA or AREAS.BBS file from PATH
+
+import-areas args:
+  --conf CONF_TAG             conference tag in which to import areas
+  --network NETWORK           network name/key to associate FTN areas
+  --uplinks UL1,UL2,...       one or more comma separated uplinks
+  --type TYPE                 area import type. valid options are "bbs" and "na"
 `
 };
 
