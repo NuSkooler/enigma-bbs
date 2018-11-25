@@ -2,29 +2,28 @@
 layout: page
 title: Configuring a Message Area
 ---
+## Message Conferences
 **Message Conferences** and **Areas** allow for grouping of message base topics.
 
-## Message Conferences
-Message Conferences are the top level container for 1:n Message Areas via the `messageConferences` section 
-in `config.hjson`. Common message conferences may include a local conference and one or more conferences 
-each dedicated to a particular message network such as FsxNet, AgoraNet, etc.
+## Conferences
+Message Conferences are the top level container for *1:n* Message *Areas* via the `messageConferences` block in `config.hjson`. A common setup may include a local conference and one or more conferences each dedicated to a particular message network such as fsxNet, ArakNet, etc.
 
-Each conference is represented by a entry under `messageConferences`. **The areas key is the conferences tag**.
+Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
 
 | Config Item | Required | Description                                                                     |
 |-------------|----------|---------------------------------------------------------------------------------|
-| `name`      | :+1:     | Friendly conference name                                                        |
-| `desc`      | :+1:     | Friendly conference description                                                 |
-| `sort`      | :-1:     | If supplied, provides a key used for sorting                                    |
+| `name`      | :+1:     | Friendly conference name |
+| `desc`      | :+1:     | Friendly conference description. |
+| `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1:     | Specify `true` to make this the default conference (e.g. assigned to new users) |
-| `areas`     | :+1:     | Container of 1:n areas described below                                          |
+| `areas`     | :+1:     | Container of 1:n areas described below |
 
 ### Example
 
 ```hjson
 {
   messageConferences: {
-    local: {
+    local: { // conference tag
       name: Local
       desc: Local discussion
       sort: 1
@@ -35,16 +34,14 @@ Each conference is represented by a entry under `messageConferences`. **The area
 ```
 
 ## Message Areas
-Message Areas are topic specific containers for messages that live within a particular conference. #
-**The area's key is its area tag**. For example, "General Discussion" may live under a Local conference 
-while an AgoraNet conference may contain "BBS Discussion".
+Message Areas are topic specific containers for messages that live within a particular conference. The top level key for an area sets it's *area tag*. For example, "General Discussion" may live under a Local conference while an fsxNet conference may contain "BBS Discussion".
 
 | Config Item | Required | Description                                                                     |
 |-------------|----------|---------------------------------------------------------------------------------|
-| `name`      | :+1:     | Friendly area name                                                              |
-| `desc`      | :+1:     | Friendly area discription                                                       |
-| `sort`      | :-1:     | If supplied, provides a key used for sorting                                    |
-| `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users)       |
+| `name`      | :+1:     | Friendly area name. |
+| `desc`      | :+1:     | Friendly area description. |
+| `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
 
 ### Example
 
@@ -63,3 +60,6 @@ messageConferences: {
   }
 }
 ```
+
+## Importing
+FidoNet style `.na` files as well as legacy `AREAS.BBS` files in common formats can be imported using `oputil.js mb import-areas`. See [The oputil CLI](/docs/admin/oputil.md) for more information and usage.
