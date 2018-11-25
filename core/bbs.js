@@ -216,12 +216,19 @@ function initialize(cb) {
             },
             function loadSysOpInformation(callback) {
                 //
-                //  Copy over some +op information from the user DB -> system propertys.
+                //  Copy over some +op information from the user DB -> system properties.
                 //  * Makes this accessible for MCI codes, easy non-blocking access, etc.
                 //  * We do this every time as the op is free to change this information just
                 //    like any other user
                 //
                 const User = require('./user.js');
+
+                const propLoadOpts = {
+                    names   : [
+                        UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
+                        UserProps.Location, UserProps.Affiliations,
+                    ],
+                };
 
                 async.waterfall(
                     [
@@ -229,22 +236,16 @@ function initialize(cb) {
                             return User.getUserName(1, next);
                         },
                         function getOpProps(opUserName, next) {
-                            const propLoadOpts = {
-                                names   : [
-                                    UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
-                                    UserProps.Location, UserProps.Affiliations,
-                                ],
-                            };
                             User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
-                                return next(err, opUserName, opProps, propLoadOpts);
+                                return next(err, opUserName, opProps);
                             });
-                        }
+                        },
                     ],
-                    (err, opUserName, opProps, propLoadOpts) => {
+                    (err, opUserName, opProps) => {
                         const StatLog = require('./stat_log.js');
 
                         if(err) {
-                            propLoadOpts.concat('username').forEach(v => {
+                            propLoadOpts.names.concat('username').forEach(v => {
                                 StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
                             });
                         } else {

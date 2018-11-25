@@ -70,23 +70,18 @@ The `config` command allows sysops to perform various system configuration and m
 usage: optutil.js config <action> [<args>]
 
 actions:
-  new                      generate a new/initial configuration
-  import-areas PATH        import areas using fidonet *.NA or AREAS.BBS file from PATH
+  new                      generate a new/initial configuration  
+  cat                      cat current configuration to stdout
 
-import-areas args:
-  --conf CONF_TAG          specify conference tag in which to import areas
-  --network NETWORK        specify network name/key to associate FTN areas
-  --uplinks UL1,UL2,...    specify one or more comma separated uplinks
-  --type TYPE              specifies area import type. valid options are "bbs" and "na"
+cat args:
+  --no-color               disable color
+  --no-comments            strip any comments
 ```
-
 
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
 | `new`     | Generates a new/initial configuration | `./oputil.js config new` (follow the prompts) |
-| `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
-
-When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
+| `cat` | Pretty prints current `config.hjson` configuration to stdout. | `./oputil.js config cat` |
 
 ## File Base Management
 The `fb` command provides a powerful file base management interface.
@@ -189,3 +184,28 @@ file_crc32: fc6655d
 file_md5: 3455f74bbbf9539e69bd38f45e039a4e
 file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 ```
+
+## Message Base Management
+The `mb` command provides various Message Base related tools:
+
+```
+usage: oputil.js mb <action> [<args>]
+
+actions:
+  areafix CMD1 CMD2 ... ADDR  sends an AreaFix NetMail to ADDR with the supplied command(s)
+                              one or more commands may be supplied. commands that are multi
+                              part such as "%COMPRESS ZIP" should be quoted.
+  import-areas PATH           import areas using fidonet *.NA or AREAS.BBS file from PATH
+
+import-areas args:
+  --conf CONF_TAG             conference tag in which to import areas
+  --network NETWORK           network name/key to associate FTN areas
+  --uplinks UL1,UL2,...       one or more comma separated uplinks
+  --type TYPE                 area import type. valid options are "bbs" and "na"
+```
+
+| Action    | Description       | Examples                              |
+|-----------|-------------------|---------------------------------------|
+| `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
+
+When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".
