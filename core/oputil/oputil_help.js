@@ -8,7 +8,7 @@ exports.getHelpFor				= getHelpFor;
 
 const usageHelp = exports.USAGE_HELP = {
 	General :
-`usage: optutil.js [--version] [--help]
+`usage: oputil.js [--version] [--help]
                   <command> [<args>]
 
 global args:
@@ -21,7 +21,7 @@ commands:
   fb                        file base management
 `,
 	User : 
-`usage: optutil.js user --user USERNAME <args>
+`usage: oputil.js user --user USERNAME <args>
 
 valid args:
   --user USERNAME       specify username for further actions
@@ -32,7 +32,7 @@ valid args:
 `,
 
 	Config : 
-`usage: optutil.js config <action> [<args>]
+`usage: oputil.js config <action> [<args>]
 
 actions:
   new                      generate a new/initial configuration
