@@ -35,7 +35,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `UE` | Current user's email address |
 | `UW` | Current user's web address |
 | `UF` | Current user's affiliations |
-| `UT` | Current user's *theme ID* (e.g. "luciano_blocktronics") |
+| `UT` | Current user's theme name |
+| `UD` | Current user's *theme ID* (e.g. "luciano_blocktronics") |
 | `UC` | Current user's login/call count |
 | `ND` | Current user's connected node number |
 | `IP` | Current user's IP address |

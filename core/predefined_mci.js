@@ -91,7 +91,10 @@ const PREDEFINED_MCI_GENERATORS = {
     UE  : function emailAddres(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
     UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
     UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
-    UT  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
+    UT  : function themeName(client) {
+        return _.get(client, 'currentTheme.info.name', userStatAsString(client, UserProps.ThemeId, ''));
+    },
+    UD  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
     UC  : function loginCount(client) { return userStatAsString(client, UserProps.LoginCount, 0); },
     ND  : function connectedNode(client) { return client.node.toString(); },
     IP  : function clientIpAddress(client) { return client.remoteAddress.replace(/^::ffff:/, ''); },    //  convert any :ffff: IPv4's to 32bit version
