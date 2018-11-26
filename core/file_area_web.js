@@ -15,6 +15,8 @@ const Log                   = require('./logger.js').log;
 const getConnectionByUserId = require('./client_connections.js').getConnectionByUserId;
 const webServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
 const Events                = require('./events.js');
+const UserProps             = require('./user_property.js');
+const SysProps              = require('./system_menu_method.js');
 
 //  deps
 const hashids       = require('hashids');
@@ -470,10 +472,11 @@ class FileAreaWebAccess {
                     });
                 },
                 function updateStats(user, callback) {
-                    StatLog.incrementUserStat(user, 'dl_total_count', 1);
-                    StatLog.incrementUserStat(user, 'dl_total_bytes', dlBytes);
-                    StatLog.incrementSystemStat('dl_total_count', 1);
-                    StatLog.incrementSystemStat('dl_total_bytes', dlBytes);
+                    StatLog.incrementUserStat(user, UserProps.FileDlTotalCount, 1);
+                    StatLog.incrementUserStat(user, UserProps.FileDlTotalBytes, dlBytes);
+
+                    StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
+                    StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, dlBytes);
 
                     return callback(null, user);
                 },

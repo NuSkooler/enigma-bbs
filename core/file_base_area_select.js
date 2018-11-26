@@ -5,6 +5,7 @@
 const MenuModule                        = require('./menu_module.js').MenuModule;
 const { getSortedAvailableFileAreas }   = require('./file_base_area.js');
 const StatLog                           = require('./stat_log.js');
+const SysProps                          = require('./system_property.js');
 
 //  deps
 const async                             = require('async');
@@ -52,7 +53,7 @@ exports.getModule = class FileAreaSelectModule extends MenuModule {
             async.waterfall(
                 [
                     function mergeAreaStats(callback) {
-                        const areaStats = StatLog.getSystemStat('file_base_area_stats') || { areas : {} };
+                        const areaStats = StatLog.getSystemStat(SysProps.FileBaseAreaStats) || { areas : {} };
 
                         //  we could use 'sort' alone, but area/conf sorting has some special properties; user can still override
                         const availAreas = getSortedAvailableFileAreas(self.client);

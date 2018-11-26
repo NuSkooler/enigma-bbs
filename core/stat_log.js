@@ -70,8 +70,7 @@ class StatLog {
         };
     }
 
-    //  :TODO: fix spelling :)
-    setNonPeristentSystemStat(statName, statValue) {
+    setNonPersistentSystemStat(statName, statValue) {
         this.systemStats[statName] = statValue;
     }
 

@@ -189,14 +189,6 @@ const DB_INIT_TABLE = {
             );`
         );
 
-        dbs.user.run(
-            `CREATE TABLE IF NOT EXISTS user_login_history (    
-                user_id     INTEGER NOT NULL,
-                user_name   VARCHAR NOT NULL,
-                timestamp   DATETIME NOT NULL
-            );`
-        );
-
         return cb(null);
     },
 

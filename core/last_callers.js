@@ -8,6 +8,7 @@ const User              = require('./user.js');
 const sysDb             = require('./database.js').dbs.system;
 const { Errors }        = require('./enig_error.js');
 const UserProps         = require('./user_property.js');
+const SysLogKeys        = require('./system_log.js');
 
 //  deps
 const moment            = require('moment');
@@ -91,7 +92,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
         }
 
         StatLog.getSystemLogEntries(
-            'user_login_history',
+            SysLogKeys.UserLoginHistory,
             StatLog.Order.TimestampDesc,
             200,    //  max items to fetch - we need more than max displayed for filtering/etc.
             (err, loginHistory) => {

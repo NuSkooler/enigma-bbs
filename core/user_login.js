@@ -13,6 +13,8 @@ const {
     ErrorReasons
 }                       = require('./enig_error.js');
 const UserProps         = require('./user_property.js');
+const SysProps          = require('./system_property.js');
+const SystemLogKeys     = require('./system_log.js');
 
 //  deps
 const async             = require('async');
@@ -86,7 +88,7 @@ function userLogin(client, username, password, cb) {
                     return callback(null);
                 },
                 function updateSystemLoginCount(callback) {
-                    return StatLog.incrementSystemStat('login_count', 1, callback); //  :TODO: create system_property.js
+                    return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
                 },
                 function recordLastLogin(callback) {
                     return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
@@ -102,7 +104,7 @@ function userLogin(client, username, password, cb) {
                     });
 
                     return StatLog.appendSystemLogEntry(
-                        'user_login_history',
+                        SystemLogKeys.UserLoginHistory,
                         historyItem,
                         loginHistoryMax,
                         StatLog.KeepType.Max,

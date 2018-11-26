@@ -969,7 +969,7 @@ function getDefaultConfig() {
 
         statLog : {
             systemEvents : {
-                loginHistoryMax: -1 //  forever
+                loginHistoryMax: 5000, //  set to -1 for forever
             }
         }
     };

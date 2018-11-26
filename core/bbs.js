@@ -11,6 +11,7 @@ const logger        = require('./logger.js');
 const database      = require('./database.js');
 const resolvePath   = require('./misc_util.js').resolvePath;
 const UserProps     = require('./user_property.js');
+const SysProps      = require('./system_property.js');
 
 //  deps
 const async         = require('async');
@@ -246,13 +247,13 @@ function initialize(cb) {
 
                         if(err) {
                             propLoadOpts.names.concat('username').forEach(v => {
-                                StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
+                                StatLog.setNonPersistentSystemStat(`sysop_${v}`, 'N/A');
                             });
                         } else {
                             opProps.username = opUserName;
 
                             _.each(opProps, (v, k) => {
-                                StatLog.setNonPeristentSystemStat(`sysop_${k}`, v);
+                                StatLog.setNonPersistentSystemStat(`sysop_${k}`, v);
                             });
                         }
 
@@ -265,7 +266,7 @@ function initialize(cb) {
                 getAreaStats( (err, stats) => {
                     if(!err) {
                         const StatLog = require('./stat_log.js');
-                        StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
+                        StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
                     }
 
                     return callback(null);
