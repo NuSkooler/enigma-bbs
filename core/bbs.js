@@ -12,6 +12,7 @@ const database      = require('./database.js');
 const resolvePath   = require('./misc_util.js').resolvePath;
 const UserProps     = require('./user_property.js');
 const SysProps      = require('./system_property.js');
+const SysLogKeys    = require('./system_log.js');
 
 //  deps
 const async         = require('async');
@@ -20,6 +21,7 @@ const _             = require('lodash');
 const mkdirs        = require('fs-extra').mkdirs;
 const fs            = require('graceful-fs');
 const paths         = require('path');
+const moment        = require('moment');
 
 //  our main entry point
 exports.main    = main;
@@ -269,6 +271,21 @@ function initialize(cb) {
                         StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
                     }
 
+                    return callback(null);
+                });
+            },
+            function initCallsToday(callback) {
+                const StatLog = require('./stat_log.js');
+                const filter = {
+                    logName     : SysLogKeys.UserLoginHistory,
+                    resultType  : 'count',
+                    date        : moment(),
+                };
+
+                StatLog.findSystemLogEntries(filter, (err, callsToday) => {
+                    if(!err) {
+                        StatLog.setNonPersistentSystemStat(SysProps.LoginsToday, callsToday);
+                    }
                     return callback(null);
                 });
             },

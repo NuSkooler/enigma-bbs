@@ -88,6 +88,7 @@ function userLogin(client, username, password, cb) {
                     return callback(null);
                 },
                 function updateSystemLoginCount(callback) {
+                    StatLog.incrementNonPersistentSystemStat(SysProps.LoginsToday, 1);
                     return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
                 },
                 function recordLastLogin(callback) {

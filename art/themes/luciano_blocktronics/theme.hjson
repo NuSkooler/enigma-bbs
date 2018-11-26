@@ -135,6 +135,7 @@
 					AN7: { width: 6 }
 					ND8: { width: 6 }
 					TC9: { width: 6 }
+					TT11: { width: 6 }
 				}
 			}
 

@@ -15,6 +15,7 @@ const { formatByteSize }        = require('./string_util.js');
 const ANSI                      = require('./ansi_term.js');
 const UserProps                 = require('./user_property.js');
 const SysProps                  = require('./system_property.js');
+const SysLogKeys                = require('./system_log.js');
 
 //  deps
 const packageJson           = require('../package.json');
@@ -30,7 +31,7 @@ function init(cb) {
 }
 
 function setNextRandomRumor(cb) {
-    StatLog.getSystemLogEntries('system_rumorz', StatLog.Order.Random, 1, (err, entry) => {
+    StatLog.getSystemLogEntries(SysLogKeys.UserAddedRumorz, StatLog.Order.Random, 1, (err, entry) => {
         if(entry) {
             entry = entry[0];
         }
@@ -191,6 +192,9 @@ const PREDEFINED_MCI_GENERATORS = {
     AN  : function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
     TC  : function totalCalls() { return StatLog.getSystemStat(SysProps.LoginCount).toLocaleString(); },
+    TT  : function totalCallsToday() {
+        return StatLog.getSystemStat(SysProps.LoginsToday).toLocaleString();
+    },
 
     RR  : function randomRumor() {
         //  start the process of picking another random one
@@ -227,7 +231,6 @@ const PREDEFINED_MCI_GENERATORS = {
     //  :TODO: PT - Messages posted *today* (Obv/2)
     //      -> Include FTN/etc.
     //  :TODO: NT - New users today (Obv/2)
-    //  :TODO: CT - Calls *today* (Obv/2)
     //  :TODO: FT - Files uploaded/added *today* (Obv/2)
     //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
     //  :TODO: TP - total message/posts on the system (Obv/2)

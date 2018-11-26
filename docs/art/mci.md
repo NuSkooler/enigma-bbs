@@ -65,7 +65,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `SC` | System CPU model |
 | `NV` | System underlying Node.js version |
 | `AN` | Current active node count |
-| `TC` | Total login/calls to system |
+| `TC` | Total login/calls to the system *ever* |
+| `TT` | Total login/calls to the system *today* |
 | `RR` | Displays a random rumor |
 | `SD` | Total downloads, system wide |
 | `SO` | Total downloaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
