@@ -73,7 +73,7 @@ function getISOTimestampString(ts) {
         }
         ts = moment(ts);
     }
-    return ts.format('YYYY-MM-DDTHH:mm:ss.SSS[Z]');
+    return ts.format('YYYY-MM-DDTHH:mm:ss.SSS');
 }
 
 function sanatizeString(s) {
