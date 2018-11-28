@@ -14,6 +14,8 @@ module.exports = {
     FileBaseAreaStats   : 'file_base_area_stats',   //  object - see file_base_area.js::getAreaStats
     FileUlTotalCount    : 'ul_total_count',
     FileUlTotalBytes    : 'ul_total_bytes',
+    FileDlTotalCount    : 'dl_total_count',
+    FileDlTotalBytes    : 'dl_total_bytes',
 
     MessageTotalCount   : 'message_post_total_count',   //  total non-private messages on the system; non-persistent
     MessagesToday       : 'message_post_today',         //  non-private messages posted/imported today; non-persistent
