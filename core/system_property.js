@@ -15,6 +15,9 @@ module.exports = {
     FileUlTotalCount    : 'ul_total_count',
     FileUlTotalBytes    : 'ul_total_bytes',
 
+    MessageTotalCount   : 'message_post_total_count',   //  total non-private messages on the system; non-persistent
+    MessagesToday       : 'message_post_today',         //  non-private messages posted/imported today; non-persistent
+
     //  begin +op non-persistent...
     SysOpUsername       : 'sysop_username',
     SysOpRealName       : 'sysop_real_name',

@@ -57,7 +57,25 @@ const WellKnownAreaTags                 = exports.WellKnownAreaTags = {
 };
 
 function startup(cb) {
-    return cleanUpTempSessionItems(cb);
+    async.series(
+        [
+            (callback) => {
+                return cleanUpTempSessionItems(callback);
+            },
+            (callback) => {
+                getAreaStats( (err, stats) => {
+                    if(!err) {
+                        StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
+                    }
+
+                    return callback(null);
+                });
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function isInternalArea(areaTag) {

@@ -155,12 +155,13 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  Date/Time
     //
-    //  :TODO: change to CD for 'Current Date'
     DT  : function date(client) { return moment().format(client.currentTheme.helpers.getDateFormat()); },
     CT  : function time(client) { return moment().format(client.currentTheme.helpers.getTimeFormat()) ;},
 
     //
     //  OS/System Info
+    //
+    //  https://github.com/nodejs/node-v0.x-archive/issues/25769
     //
     OS  : function operatingSystem() {
         return {
@@ -169,6 +170,9 @@ const PREDEFINED_MCI_GENERATORS = {
             win32   : 'Windows',
             sunos   : 'SunOS',
             freebsd : 'FreeBSD',
+            android : 'Android',
+            openbsd : 'OpenBSD',
+            aix     : 'IBM AIX',
         }[os.platform()] || os.type();
     },
 
@@ -227,14 +231,16 @@ const PREDEFINED_MCI_GENERATORS = {
         const totalBytes    = parseInt(_.get(areaStats, 'totalBytes', 0));
         return formatByteSize(totalBytes, true);    //  true=withAbbr
     },
+    PT  : function messagesPostedToday() {  //  Obv/2
+        return sysStatAsString(SysProps.MessagesToday, 0);
+    },
+    TP  : function totalMessagesOnSystem() {    //  Obv/2
+        return sysStatAsString(SysProps.MessageTotalCount, 0);
+    },
 
-    //  :TODO: PT - Messages posted *today* (Obv/2)
-    //      -> Include FTN/etc.
     //  :TODO: NT - New users today (Obv/2)
     //  :TODO: FT - Files uploaded/added *today* (Obv/2)
     //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
-    //  :TODO: TP - total message/posts on the system (Obv/2)
-    //      -> Include FTN/etc.
     //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
 

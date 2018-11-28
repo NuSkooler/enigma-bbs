@@ -253,7 +253,7 @@ class StatLog {
 
         if(filter.date) {
             filter.date = moment(filter.date);
-            sql += ` AND DATE(timestamp) = DATE("${filter.date.format('YYYY-MM-DD')}")`;
+            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`;
         }
 
         if('count' !== filter.resultType) {

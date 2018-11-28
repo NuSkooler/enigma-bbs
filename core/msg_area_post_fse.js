@@ -38,7 +38,7 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
                         return persistMessage(msg, callback);
                     },
                     function updateStats(callback) {
-                        self.updateUserStats(callback);
+                        self.updateUserAndSystemStats(callback);
                     }
                 ],
                 function complete(err) {

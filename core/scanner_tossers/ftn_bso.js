@@ -21,6 +21,8 @@ const copyFileWithCollisionHandling     = require('../file_util.js').copyFileWit
 const getAreaStorageDirectoryByTag      = require('../file_base_area.js').getAreaStorageDirectoryByTag;
 const isValidStorageTag                 = require('../file_base_area.js').isValidStorageTag;
 const User                              = require('../user.js');
+const StatLog                           = require('../stat_log.js');
+const SysProps                          = require('../system_property.js');
 
 //  deps
 const moment                = require('moment');
@@ -1261,12 +1263,12 @@ function FTNMessageScanTossModule() {
                             }
                         }
 
-                        //  we do this after such that error cases can be preseved above
+                        //  we do this after such that error cases can be preserved above
                         if(lookupName !== message.toUserName) {
                             message.toUserName = localUserName;
                         }
 
-                        //  set the meta information - used elsehwere for retrieval
+                        //  set the meta information - used elsewhere for retrieval
                         message.meta.System[Message.SystemMetaNames.LocalToUserID] = localToUserId;
                         return callback(null);
                     });
@@ -1277,6 +1279,10 @@ function FTNMessageScanTossModule() {
 
                     //  save to disc
                     message.persist(err => {
+                        if(!message.isPrivate()) {
+                            StatLog.incrementNonPersistentSystemStat(SysProps.MessageTotalCount, 1);
+                            StatLog.incrementNonPersistentSystemStat(SysProps.MessagesToday, 1);
+                        }
                         return callback(err);
                     });
                 }

@@ -9,12 +9,17 @@ const Log                       = require('./logger.js').log;
 const msgNetRecord              = require('./msg_network.js').recordMessage;
 const sortAreasOrConfs          = require('./conf_area_util.js').sortAreasOrConfs;
 const UserProps                 = require('./user_property.js');
+const StatLog                   = require('./stat_log.js');
+const SysProps                  = require('./system_property.js');
 
 //  deps
 const async         = require('async');
 const _             = require('lodash');
 const assert        = require('assert');
+const moment        = require('moment');
 
+exports.startup                             = startup;
+exports.shutdown                            = shutdown;
 exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences    = getSortedAvailMessageConferences;
 exports.getAvailableMessageAreasByConfTag   = getAvailableMessageAreasByConfTag;
@@ -34,6 +39,37 @@ exports.getMessageAreaLastReadId            = getMessageAreaLastReadId;
 exports.updateMessageAreaLastReadId         = updateMessageAreaLastReadId;
 exports.persistMessage                      = persistMessage;
 exports.trimMessageAreasScheduledEvent      = trimMessageAreasScheduledEvent;
+
+function startup(cb) {
+    //  by default, private messages are NOT included
+    async.series(
+        [
+            (callback) => {
+                Message.findMessages( { resultType : 'count' }, (err, count) => {
+                    if(count) {
+                        StatLog.setNonPersistentSystemStat(SysProps.MessageTotalCount, count);
+                    }
+                    return callback(err);
+                });
+            },
+            (callback) => {
+                Message.findMessages( { resultType : 'count', date : moment() }, (err, count) => {
+                    if(count) {
+                        StatLog.setNonPersistentSystemStat(SysProps.MessagesToday, count);
+                    }
+                    return callback(err);
+                });
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
+}
+
+function shutdown(cb) {
+    return cb(null);
+}
 
 function getAvailableMessageConferences(client, options) {
     options = options || { includeSystemInternal : false };

@@ -263,17 +263,6 @@ function initialize(cb) {
                     }
                 );
             },
-            function initFileAreaStats(callback) {
-                const getAreaStats = require('./file_base_area.js').getAreaStats;
-                getAreaStats( (err, stats) => {
-                    if(!err) {
-                        const StatLog = require('./stat_log.js');
-                        StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
-                    }
-
-                    return callback(null);
-                });
-            },
             function initCallsToday(callback) {
                 const StatLog = require('./stat_log.js');
                 const filter = {
@@ -288,6 +277,9 @@ function initialize(cb) {
                     }
                     return callback(null);
                 });
+            },
+            function initMessageStats(callback) {
+                return require('./message_area.js').startup(callback);
             },
             function initMCI(callback) {
                 return require('./predefined_mci.js').init(callback);
