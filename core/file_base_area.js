@@ -15,6 +15,7 @@ const stringFormat      = require('./string_format.js');
 const wordWrapText      = require('./word_wrap.js').wordWrapText;
 const StatLog           = require('./stat_log.js');
 const UserProps         = require('./user_property.js');
+const SysProps          = require('./system_property.js');
 
 //  deps
 const _             = require('lodash');
@@ -56,7 +57,25 @@ const WellKnownAreaTags                 = exports.WellKnownAreaTags = {
 };
 
 function startup(cb) {
-    return cleanUpTempSessionItems(cb);
+    async.series(
+        [
+            (callback) => {
+                return cleanUpTempSessionItems(callback);
+            },
+            (callback) => {
+                getAreaStats( (err, stats) => {
+                    if(!err) {
+                        StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
+                    }
+
+                    return callback(null);
+                });
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function isInternalArea(areaTag) {
@@ -1012,7 +1031,7 @@ function getAreaStats(cb) {
 function updateAreaStatsScheduledEvent(args, cb) {
     getAreaStats( (err, stats) => {
         if(!err) {
-            StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
+            StatLog.setNonPersistentSystemStat(SysProps.FileBaseAreaStats, stats);
         }
 
         return cb(err);

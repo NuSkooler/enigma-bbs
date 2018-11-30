@@ -11,6 +11,8 @@ const logger        = require('./logger.js');
 const database      = require('./database.js');
 const resolvePath   = require('./misc_util.js').resolvePath;
 const UserProps     = require('./user_property.js');
+const SysProps      = require('./system_property.js');
+const SysLogKeys    = require('./system_log.js');
 
 //  deps
 const async         = require('async');
@@ -19,6 +21,7 @@ const _             = require('lodash');
 const mkdirs        = require('fs-extra').mkdirs;
 const fs            = require('graceful-fs');
 const paths         = require('path');
+const moment        = require('moment');
 
 //  our main entry point
 exports.main    = main;
@@ -246,13 +249,13 @@ function initialize(cb) {
 
                         if(err) {
                             propLoadOpts.names.concat('username').forEach(v => {
-                                StatLog.setNonPeristentSystemStat(`sysop_${v}`, 'N/A');
+                                StatLog.setNonPersistentSystemStat(`sysop_${v}`, 'N/A');
                             });
                         } else {
                             opProps.username = opUserName;
 
                             _.each(opProps, (v, k) => {
-                                StatLog.setNonPeristentSystemStat(`sysop_${k}`, v);
+                                StatLog.setNonPersistentSystemStat(`sysop_${k}`, v);
                             });
                         }
 
@@ -260,16 +263,23 @@ function initialize(cb) {
                     }
                 );
             },
-            function initFileAreaStats(callback) {
-                const getAreaStats = require('./file_base_area.js').getAreaStats;
-                getAreaStats( (err, stats) => {
-                    if(!err) {
-                        const StatLog = require('./stat_log.js');
-                        StatLog.setNonPeristentSystemStat('file_base_area_stats', stats);
-                    }
+            function initCallsToday(callback) {
+                const StatLog = require('./stat_log.js');
+                const filter = {
+                    logName     : SysLogKeys.UserLoginHistory,
+                    resultType  : 'count',
+                    date        : moment(),
+                };
 
+                StatLog.findSystemLogEntries(filter, (err, callsToday) => {
+                    if(!err) {
+                        StatLog.setNonPersistentSystemStat(SysProps.LoginsToday, callsToday);
+                    }
                     return callback(null);
                 });
+            },
+            function initMessageStats(callback) {
+                return require('./message_area.js').startup(callback);
             },
             function initMCI(callback) {
                 return require('./predefined_mci.js').init(callback);

@@ -239,7 +239,10 @@ module.exports = class Message {
         filter.toUserName
         filter.fromUserName
         filter.replyToMesageId
-        filter.newerThanTimestamp
+
+        filter.newerThanTimestamp - may not be used with |date|
+        filter.date - moment object - may not be used with |newerThanTimestamp|
+
         filter.newerThanMessageId
         filter.areaTag - note if you want by conf, send in all areas for a conf
         *filter.metaTuples - {category, name, value}
@@ -356,7 +359,10 @@ module.exports = class Message {
         });
 
         if(_.isString(filter.newerThanTimestamp) && filter.newerThanTimestamp.length > 0) {
+            //  :TODO: should be using "localtime" here?
             appendWhereClause(`DATETIME(m.modified_timestamp) > DATETIME("${filter.newerThanTimestamp}", "+1 seconds")`);
+        } else if(moment.isMoment(filter.date)) {
+            appendWhereClause(`DATE(m.modified_timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`);
         }
 
         if(_.isNumber(filter.newerThanMessageId)) {

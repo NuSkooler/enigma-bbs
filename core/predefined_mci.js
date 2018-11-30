@@ -14,6 +14,8 @@ const FileBaseFilters           = require('./file_base_filter.js');
 const { formatByteSize }        = require('./string_util.js');
 const ANSI                      = require('./ansi_term.js');
 const UserProps                 = require('./user_property.js');
+const SysProps                  = require('./system_property.js');
+const SysLogKeys                = require('./system_log.js');
 
 //  deps
 const packageJson           = require('../package.json');
@@ -29,12 +31,12 @@ function init(cb) {
 }
 
 function setNextRandomRumor(cb) {
-    StatLog.getSystemLogEntries('system_rumorz', StatLog.Order.Random, 1, (err, entry) => {
+    StatLog.getSystemLogEntries(SysLogKeys.UserAddedRumorz, StatLog.Order.Random, 1, (err, entry) => {
         if(entry) {
             entry = entry[0];
         }
         const randRumor = entry && entry.log_value ? entry.log_value : '';
-        StatLog.setNonPeristentSystemStat('random_rumor', randRumor);
+        StatLog.setNonPersistentSystemStat(SysProps.NextRandomRumor, randRumor);
         if(cb) {
             return cb(null);
         }
@@ -67,12 +69,12 @@ const PREDEFINED_MCI_GENERATORS = {
     VN  : function version() { return packageJson.version; },
 
     //  +op info
-    SN  : function opUserName() { return StatLog.getSystemStat('sysop_username'); },
-    SR  : function opRealName() { return StatLog.getSystemStat('sysop_real_name'); },
-    SL  : function opLocation() { return StatLog.getSystemStat('sysop_location'); },
-    SA  : function opAffils() { return StatLog.getSystemStat('sysop_affiliation'); },
-    SS  : function opSex() { return StatLog.getSystemStat('sysop_sex'); },
-    SE  : function opEmail() { return StatLog.getSystemStat('sysop_email_address'); },
+    SN  : function opUserName() { return StatLog.getSystemStat(SysProps.SysOpUsername); },
+    SR  : function opRealName() { return StatLog.getSystemStat(SysProps.SysOpRealName); },
+    SL  : function opLocation() { return StatLog.getSystemStat(SysProps.SysOpLocation); },
+    SA  : function opAffils() { return StatLog.getSystemStat(SysProps.SysOpAffiliations); },
+    SS  : function opSex() { return StatLog.getSystemStat(SysProps.SysOpSex); },
+    SE  : function opEmail() { return StatLog.getSystemStat(SysProps.SysOpEmailAddress); },
     //  :TODO: op age, web, ?????
 
     //
@@ -153,12 +155,13 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  Date/Time
     //
-    //  :TODO: change to CD for 'Current Date'
     DT  : function date(client) { return moment().format(client.currentTheme.helpers.getDateFormat()); },
     CT  : function time(client) { return moment().format(client.currentTheme.helpers.getTimeFormat()) ;},
 
     //
     //  OS/System Info
+    //
+    //  https://github.com/nodejs/node-v0.x-archive/issues/25769
     //
     OS  : function operatingSystem() {
         return {
@@ -167,6 +170,9 @@ const PREDEFINED_MCI_GENERATORS = {
             win32   : 'Windows',
             sunos   : 'SunOS',
             freebsd : 'FreeBSD',
+            android : 'Android',
+            openbsd : 'OpenBSD',
+            aix     : 'IBM AIX',
         }[os.platform()] || os.type();
     },
 
@@ -189,7 +195,10 @@ const PREDEFINED_MCI_GENERATORS = {
 
     AN  : function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
-    TC  : function totalCalls() { return StatLog.getSystemStat('login_count').toLocaleString(); },
+    TC  : function totalCalls() { return StatLog.getSystemStat(SysProps.LoginCount).toLocaleString(); },
+    TT  : function totalCallsToday() {
+        return StatLog.getSystemStat(SysProps.LoginsToday).toLocaleString();
+    },
 
     RR  : function randomRumor() {
         //  start the process of picking another random one
@@ -203,34 +212,35 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  :TODO: DD - Today's # of downloads (iNiQUiTY)
     //
-    SD  : function systemNumDownloads() { return sysStatAsString('dl_total_count', 0); },
+    SD  : function systemNumDownloads() { return sysStatAsString(SysProps.FileDlTotalCount, 0); },
     SO  : function systemByteDownload() {
-        const byteSize = StatLog.getSystemStatNum('dl_total_bytes');
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
-    SU  : function systemNumUploads() { return sysStatAsString('ul_total_count', 0); },
+    SU  : function systemNumUploads() { return sysStatAsString(SysProps.FileUlTotalCount, 0); },
     SP  : function systemByteUpload() {
-        const byteSize = StatLog.getSystemStatNum('ul_total_bytes');
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
     TF  : function totalFilesOnSystem() {
-        const areaStats = StatLog.getSystemStat('file_base_area_stats');
+        const areaStats = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
         return _.get(areaStats, 'totalFiles', 0).toLocaleString();
     },
     TB  : function totalBytesOnSystem() {
-        const areaStats     = StatLog.getSystemStat('file_base_area_stats');
+        const areaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
         const totalBytes    = parseInt(_.get(areaStats, 'totalBytes', 0));
         return formatByteSize(totalBytes, true);    //  true=withAbbr
     },
+    PT  : function messagesPostedToday() {  //  Obv/2
+        return sysStatAsString(SysProps.MessagesToday, 0);
+    },
+    TP  : function totalMessagesOnSystem() {    //  Obv/2
+        return sysStatAsString(SysProps.MessageTotalCount, 0);
+    },
 
-    //  :TODO: PT - Messages posted *today* (Obv/2)
-    //      -> Include FTN/etc.
     //  :TODO: NT - New users today (Obv/2)
-    //  :TODO: CT - Calls *today* (Obv/2)
     //  :TODO: FT - Files uploaded/added *today* (Obv/2)
     //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
-    //  :TODO: TP - total message/posts on the system (Obv/2)
-    //      -> Include FTN/etc.
     //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
 

@@ -473,7 +473,9 @@ module.exports = class User {
             return this.removeProperty(name, next);
         },
         err => {
-            return cb(err);
+            if(cb) {
+                return cb(err);
+            }
         });
     }
 

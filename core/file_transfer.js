@@ -11,6 +11,8 @@ const StatLog           = require('./stat_log.js');
 const FileEntry         = require('./file_entry.js');
 const Log               = require('./logger.js').log;
 const Events            = require('./events.js');
+const UserProps         = require('./user_property.js');
+const SysProps          = require('./system_property.js');
 
 //  deps
 const async         = require('async');
@@ -479,10 +481,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
             });
         }, () => {
             //  All stats/meta currently updated via fire & forget - if this is ever a issue, we can wait for callbacks
-            StatLog.incrementUserStat(this.client.user, 'dl_total_count', downloadCount);
-            StatLog.incrementUserStat(this.client.user, 'dl_total_bytes', downloadBytes);
-            StatLog.incrementSystemStat('dl_total_count', downloadCount);
-            StatLog.incrementSystemStat('dl_total_bytes', downloadBytes);
+            StatLog.incrementUserStat(this.client.user, UserProps.FileDlTotalCount, downloadCount);
+            StatLog.incrementUserStat(this.client.user, UserProps.FileDlTotalBytes, downloadBytes);
+
+            StatLog.incrementSystemStat(SysProps.FileDlTotalCount, downloadCount);
+            StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, downloadBytes);
 
             fileIds.forEach(fileId => {
                 FileEntry.incrementAndPersistMetaValue(fileId, 'dl_count', 1);
@@ -509,10 +512,11 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 return next(null);
             });
         }, () => {
-            StatLog.incrementUserStat(this.client.user, 'ul_total_count', uploadCount);
-            StatLog.incrementUserStat(this.client.user, 'ul_total_bytes', uploadBytes);
-            StatLog.incrementSystemStat('ul_total_count', uploadCount);
-            StatLog.incrementSystemStat('ul_total_bytes', uploadBytes);
+            StatLog.incrementUserStat(this.client.user, UserProps.FileUlTotalCount, uploadCount);
+            StatLog.incrementUserStat(this.client.user, UserProps.FileUlTotalBytes, uploadBytes);
+
+            StatLog.incrementSystemStat(SysProps.FileUlTotalCount, uploadCount);
+            StatLog.incrementSystemStat(SysProps.FileUlTotalBytes, uploadBytes);
 
             return cb(null);
         });

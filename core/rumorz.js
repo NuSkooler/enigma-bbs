@@ -8,6 +8,7 @@ const theme                 = require('./theme.js');
 const resetScreen           = require('./ansi_term.js').resetScreen;
 const StatLog               = require('./stat_log.js');
 const renderStringLength    = require('./string_util.js').renderStringLength;
+const SystemLogKeys         = require('./system_log.js');
 
 //  deps
 const async                 = require('async');
@@ -19,8 +20,6 @@ exports.moduleInfo = {
     author      : 'NuSkooler',
     packageName : 'codes.l33t.enigma.rumorz',
 };
-
-const STATLOG_KEY_RUMORZ    = 'system_rumorz';
 
 const FormIds = {
     View    : 0,
@@ -52,10 +51,16 @@ exports.getModule = class RumorzModule extends MenuModule {
                 if(_.isString(formData.value.rumor) && renderStringLength(formData.value.rumor) > 0) {
                     const rumor = formData.value.rumor.trim();  //  remove any trailing ws
 
-                    StatLog.appendSystemLogEntry(STATLOG_KEY_RUMORZ, rumor, StatLog.KeepDays.Forever, StatLog.KeepType.Forever, () => {
-                        this.clearAddForm();
-                        return this.displayViewScreen(true, cb);    //  true=cls
-                    });
+                    StatLog.appendSystemLogEntry(
+                        SystemLogKeys.UserAddedRumorz,
+                        rumor,
+                        StatLog.KeepDays.Forever,
+                        StatLog.KeepType.Forever,
+                        () => {
+                            this.clearAddForm();
+                            return this.displayViewScreen(true, cb);    //  true=cls
+                        }
+                    );
                 } else {
                     //  empty message - treat as if cancel was hit
                     return this.displayViewScreen(true, cb);    //  true=cls
@@ -149,7 +154,7 @@ exports.getModule = class RumorzModule extends MenuModule {
                 function fetchEntries(callback) {
                     const entriesView = self.viewControllers.view.getView(MciCodeIds.ViewForm.Entries);
 
-                    StatLog.getSystemLogEntries(STATLOG_KEY_RUMORZ, StatLog.Order.Timestamp, (err, entries) => {
+                    StatLog.getSystemLogEntries(SystemLogKeys.UserAddedRumorz, StatLog.Order.Timestamp, (err, entries) => {
                         return callback(err, entriesView, entries);
                     });
                 },
@@ -158,7 +163,7 @@ exports.getModule = class RumorzModule extends MenuModule {
                         return {
                             text    : e.log_value,  //  standard
                             rumor   : e.log_value,
-                        }
+                        };
                     }));
 
                     entriesView.redraw();

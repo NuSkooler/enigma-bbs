@@ -73,7 +73,7 @@ function getISOTimestampString(ts) {
         }
         ts = moment(ts);
     }
-    return ts.utc().format('YYYY-MM-DDTHH:mm:ss.SSS[Z]');
+    return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 }
 
 function sanatizeString(s) {
@@ -186,14 +186,6 @@ const DB_INIT_TABLE = {
                 group_name  VARCHAR NOT NULL, 
                 user_id     INTEGER NOT NULL,
                 UNIQUE(group_name, user_id)
-            );`
-        );
-
-        dbs.user.run(
-            `CREATE TABLE IF NOT EXISTS user_login_history (    
-                user_id     INTEGER NOT NULL,
-                user_name   VARCHAR NOT NULL,
-                timestamp   DATETIME NOT NULL
             );`
         );
 

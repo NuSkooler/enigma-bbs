@@ -25,6 +25,7 @@ const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
 const UserProps                 = require('./user_property.js');
+const SysProps                  = require('./system_property.js');
 
 //  deps
 const async                     = require('async');
@@ -470,7 +471,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         );
     }
 
-    updateUserStats(cb) {
+    updateUserAndSystemStats(cb) {
         if(Message.isPrivateAreaTag(this.message.areaTag)) {
             Events.emit(Events.getSystemEvents().UserSendMail, { user : this.client.user });
             if(cb) {
@@ -480,6 +481,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         }
 
         Events.emit(Events.getSystemEvents().UserPostMessage, { user : this.client.user, areaTag : this.message.areaTag });
+
+        StatLog.incrementNonPersistentSystemStat(SysProps.MessageTotalCount, 1);
+        StatLog.incrementNonPersistentSystemStat(SysProps.MessagesToday, 1);
         return StatLog.incrementUserStat(this.client.user, UserProps.MessagePostCount, 1, cb);
     }
 
