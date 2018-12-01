@@ -86,7 +86,7 @@ module.exports = class DropFile {
         const now       = moment();
         const secLevel  = this.client.user.getLegacySecurityLevel().toString();
         const fullName  = prop[UserProps.RealName] || this.client.user.username;
-        const bd        = moment(prop[UserProp.Birthdate).format('MM/DD/YY');
+        const bd        = moment(prop[UserProps.Birthdate]).format('MM/DD/YY');
 
         //  :TODO: fix time remaining
         //  :TODO: fix default protocol -- user prop: transfer_protocol
