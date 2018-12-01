@@ -363,6 +363,27 @@
 				}
 			}
 
+			nodeMessage: {
+				config: {
+					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"
+				}
+				0: {
+					mci: {
+						SM1: {
+							width: 25
+							itemFormat: "|00|03node |07{text} |08(|07{userName}|08)"
+							focusItemFormat: "|00|11node |15{text} |07(|15{userName}|07)"
+						}
+						ET2: {
+							width: 65
+						}
+						TL3: {
+							width: 65
+						}
+					}
+				}
+			}
+
 
 			messageAreaViewPost: {
 				0: {

@@ -32,13 +32,14 @@
     ----/snip/----------------------
 */
 //  ENiGMA½
-const term      = require('./client_term.js');
-const ansi      = require('./ansi_term.js');
-const User      = require('./user.js');
-const Config    = require('./config.js').get;
-const MenuStack = require('./menu_stack.js');
-const ACS       = require('./acs.js');
-const Events    = require('./events.js');
+const term                  = require('./client_term.js');
+const ansi                  = require('./ansi_term.js');
+const User                  = require('./user.js');
+const Config                = require('./config.js').get;
+const MenuStack             = require('./menu_stack.js');
+const ACS                   = require('./acs.js');
+const Events                = require('./events.js');
+const UserInterruptQueue    = require('./user_interrupt_queue.js');
 
 //  deps
 const stream    = require('stream');
@@ -84,6 +85,7 @@ function Client(/*input, output*/) {
     this.menuStack          = new MenuStack(this);
     this.acs                = new ACS(this);
     this.mciCache           = {};
+    this.interruptQueue     = new UserInterruptQueue(this);
 
     this.clearMciCache = function() {
         this.mciCache = {};

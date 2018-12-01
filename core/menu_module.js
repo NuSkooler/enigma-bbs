@@ -25,15 +25,19 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.menuName           = options.menuName;
         this.menuConfig         = options.menuConfig;
         this.client             = options.client;
-        //this.menuConfig.options = options.menuConfig.options || {};
         this.menuMethods        = {};   //  methods called from @method's
         this.menuConfig.config  = this.menuConfig.config || {};
-
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
-
-        //this.cls = _.isBoolean(this.menuConfig.options.cls) ? this.menuConfig.options.cls : Config().menus.cls;
-
         this.viewControllers    = {};
+        this.interrupt          = (_.get(this.menuConfig.config, 'interrupt', MenuModule.InterruptTypes.Queued)).toLowerCase();
+    }
+
+    static get InterruptTypes() {
+        return {
+            Never       : 'never',
+            Queued      : 'queued',
+            Realtime    : 'realtime',
+        };
     }
 
     enter() {
@@ -56,8 +60,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         async.series(
             [
+                function beforeArtInterrupt(callback) {
+                    return self.displayQueuedInterruptions(callback);
+                },
                 function beforeDisplayArt(callback) {
-                    self.beforeArt(callback);
+                    return self.beforeArt(callback);
                 },
                 function displayMenuArt(callback) {
                     if(!hasArt()) {
@@ -165,6 +172,47 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  nothing in base
     }
 
+    displayQueuedInterruptions(cb) {
+        if(MenuModule.InterruptTypes.Never === this.interrupt) {
+            return cb(null);
+        }
+
+        let opts = { cls : true };  //  clear screen for first message
+
+        async.whilst(
+            () => this.client.interruptQueue.hasItems(),
+            next => {
+                this.client.interruptQueue.displayNext(opts, err => {
+                    opts = {};
+                    return next(err);
+                });
+            },
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    attemptInterruptNow(interruptItem, cb) {
+        if(MenuModule.InterruptTypes.Realtime !== this.interrupt) {
+            return cb(null, false); //  don't eat up the item; queue for later
+        }
+
+        //
+        //  Default impl: clear screen -> standard display -> reload menu
+        //
+        this.client.interruptQueue.displayWithItem(
+            Object.assign({}, interruptItem, { cls : true }),
+            err => {
+                if(err) {
+                    return cb(err, false);
+                }
+                this.reload(err => {
+                    return cb(err, err ? false : true);
+                });
+            });
+    }
+
     getSaveState() {
         //  nothing in base
     }
@@ -183,11 +231,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return this.prevMenu(cb);   //  no next, go to prev
         }
 
-        return this.client.menuStack.next(cb);
+        this.displayQueuedInterruptions( () => {
+            return this.client.menuStack.next(cb);
+        });
     }
 
     prevMenu(cb) {
-        return this.client.menuStack.prev(cb);
+        this.displayQueuedInterruptions( () => {
+            return this.client.menuStack.prev(cb);
+        });
     }
 
     gotoMenu(name, options, cb) {
@@ -239,15 +291,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     autoNextMenu(cb) {
-        const self = this;
-
-        function gotoNextMenu() {
-            if(self.haveNext()) {
-                return menuUtil.handleNext(self.client, self.menuConfig.next, {}, cb);
+        const gotoNextMenu = () => {
+            if(this.haveNext()) {
+                this.displayQueuedInterruptions( () => {
+                    return menuUtil.handleNext(this.client, this.menuConfig.next, {}, cb);
+                });
             } else {
-                return self.prevMenu(cb);
+                return this.prevMenu(cb);
             }
-        }
+        };
 
         if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {
             if(this.hasNextTimeout()) {
@@ -498,5 +550,21 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 v.setText(getPredefinedMCIValue(this.client, v.mciCode));
             });
         }
+    }
+
+    validateMCIByViewIds(formName, viewIds, cb) {
+        if(!Array.isArray(viewIds)) {
+            viewIds = [ viewIds ];
+        }
+        const form = _.get(this, [ 'viewControllers', formName ] );
+        if(!form) {
+            return cb(Errors.DoesNotExist(`Form does not exist: ${formName}`));
+        }
+        for(let i = 0; i < viewIds.length; ++i) {
+            if(!form.hasView(viewIds[i])) {
+                return cb(Errors.MissingMci(`Missing MCI ${viewIds[i]}`));
+            }
+        }
+        return cb(null);
     }
 };

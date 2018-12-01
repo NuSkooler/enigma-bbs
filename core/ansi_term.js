@@ -56,7 +56,7 @@ exports.getSyncTERMFontFromAlias    = getSyncTERMFontFromAlias;
 exports.setSyncTermFontWithAlias    = setSyncTermFontWithAlias;
 exports.setCursorStyle              = setCursorStyle;
 exports.setEmulatedBaudRate         = setEmulatedBaudRate;
-exports.vtxHyperlink        = vtxHyperlink;
+exports.vtxHyperlink                = vtxHyperlink;
 
 //
 //  See also
