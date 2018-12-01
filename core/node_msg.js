@@ -2,16 +2,16 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }        = require('./menu_module.js');
-const { Errors }            = require('./enig_error.js');
+const { MenuModule }            = require('./menu_module.js');
 const {
     getActiveConnectionList,
     getConnectionByNodeId,
-}                           = require('./client_connections.js');
-const UserInterruptQueue    = require('./user_interrupt_queue.js');
-const { getThemeArt }       = require('./theme.js');
-const { pipeToAnsi }        = require('./color_codes.js');
-const stringFormat          = require('./string_format.js');
+}                               = require('./client_connections.js');
+const UserInterruptQueue        = require('./user_interrupt_queue.js');
+const { getThemeArt }           = require('./theme.js');
+const { pipeToAnsi }            = require('./color_codes.js');
+const stringFormat              = require('./string_format.js');
+const { renderStringLength }    = require('./string_util.js');
 
 //  deps
 const series                = require('async/series');
@@ -47,23 +47,27 @@ exports.getModule = class NodeMessageModule extends MenuModule {
         this.menuMethods = {
             sendMessage : (formData, extraArgs, cb) => {
                 const nodeId    = this.nodeList[formData.value.node].node;  //  index from from -> node!
-                const message   = formData.value.message;
+                const message   = _.get(formData.value, 'message', '').trim();
+
+                if(0 === renderStringLength(message)) {
+                    return this.prevMenu(cb);
+                }
 
                 this.createInterruptItem(message, (err, interruptItem) => {
                     if(-1 === nodeId) {
                         //  ALL nodes
-                        UserInterruptQueue.queueGlobalOtherActive(interruptItem, this.client);
+                        UserInterruptQueue.queue(interruptItem, { omit : this.client });
                     } else {
                         const conn = getConnectionByNodeId(nodeId);
                         if(conn) {
-                            UserInterruptQueue.queueGlobal(interruptItem, [ conn ]);
+                            UserInterruptQueue.queue(interruptItem, { clients : conn } );
                         }
                     }
 
                     return this.prevMenu(cb);
                 });
             },
-        }
+        };
     }
 
     mciReady(mciData, cb) {
@@ -123,12 +127,14 @@ exports.getModule = class NodeMessageModule extends MenuModule {
     }
 
     createInterruptItem(message, cb) {
+        const dateTimeFormat = this.config.dateTimeFormat || this.client.currentTheme.helpers.getDateTimeFormat();
+
         const textFormatObj = {
             fromUserName    : this.client.user.username,
             fromRealName    : this.client.user.properties.real_name,
             fromNodeId      : this.client.node,
             message         : message,
-            timestamp       : moment(),
+            timestamp       : moment().format(dateTimeFormat),
         };
 
         const messageFormat =
@@ -208,4 +214,4 @@ exports.getModule = class NodeMessageModule extends MenuModule {
         }
         this.updateCustomViewTextsWithFilter('sendMessage', MciViewIds.sendMessage.customRangeStart, node);
     }
-}
+};

@@ -991,8 +991,13 @@
 			prompt: menuCommand
 			config: {
 				font: cp437
+				interrupt: realtime
 			}
 			submit: [
+				{
+					value: { command: "MSG" }
+					action: @menu:nodeMessage
+				}
 				{
 					value: { command: "G" }
 					action: @menu:fullLogoffSequence
@@ -1062,6 +1067,46 @@
 					action: @menu:mainMenu
 				}
 			]
+		}
+
+		nodeMessage: {
+			desc: Node Messaging
+			module: node_msg
+			art: NODEMSG
+			config: {
+				cls: true
+				art: {
+					header: NODEMSGHDR
+					footer: NODEMSGFTR
+				}
+			}
+			form: {
+				0: {
+					mci: {
+						SM1: {
+							argName: node
+						}
+						ET2: {
+							argName: message
+							submit: true
+						}
+					}
+					actionKeys: [
+						{
+							keys: [ "escape" ]
+							action: @systemMethod:prevMenu
+						}
+					]
+					submit: {
+						*: [
+							{
+								value: { message: null }
+								action: @method:sendMessage
+							}
+						]
+					}
+				}
+			}
 		}
 
 		mainMenuLastCallers: {
@@ -1609,6 +1654,9 @@
 			desc: Doors Menu
 			art: DOORMNU
 			prompt: menuCommand
+			config: {
+				interrupt: realtime
+			}
 			submit: [
 				{
 					value: { command: "G" }
@@ -1738,6 +1786,9 @@
 			art: MSGMNU
 			desc: Message Area
 			prompt: messageMenuCommand
+			config: {
+				interrupt: realtime
+			}
 			submit: [
 				{
 					value: { command: "P" }
@@ -2464,6 +2515,9 @@
 			art: MAILMNU
 			desc: Mail Menu
 			prompt: menuCommand
+			config: {
+				interrupt: realtime
+			}
 			submit: [
 				{
 					value: { command: "C" }
@@ -2666,6 +2720,9 @@
 			desc: File Base
 			art: FMENU
 			prompt: fileMenuCommand
+			config: {
+				interrupt: realtime
+			}
 			submit: [
 				{
 					value: { menuOption: "L" }

@@ -19,16 +19,24 @@ module.exports = class UserInterruptQueue
         this.queue          = [];
     }
 
-    static queueGlobal(interruptItem, connections) {
-        connections.forEach(conn => {
-            conn.interruptQueue.queueItem(interruptItem);
+    static queue(interruptItem, opts) {
+        opts = opts || {};
+        if(!opts.clients) {
+            let omitNodes = [];
+            if(Array.isArray(opts.omit)) {
+                omitNodes = opts.omit;
+            } else if(opts.omit) {
+                omitNodes = [ opts.omit ];
+            }
+            omitNodes = omitNodes.map(n => _.isNumber(n) ? n : n.node);
+            opts.clients = getActiveConnections(true).filter(ac => !omitNodes.includes(ac.node));
+        }
+        if(!Array.isArray(opts.clients)) {
+            opts.clients = [ opts.clients ];
+        }
+        opts.clients.forEach(c => {
+            c.interruptQueue.queueItem(interruptItem);
         });
-    }
-
-    //  common shortcut: queue global, all active clients minus |client|
-    static queueGlobalOtherActive(interruptItem, client) {
-        const otherConnections = getActiveConnections(true).filter(ac => ac.node !== client.node);
-        return UserInterruptQueue.queueGlobal(interruptItem, otherConnections );
     }
 
     queueItem(interruptItem) {
@@ -52,12 +60,17 @@ module.exports = class UserInterruptQueue
         return this.queue.length > 0;
     }
 
-    displayNext(cb) {
+    displayNext(options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
         const interruptItem = this.queue.pop();
         if(!interruptItem) {
             return cb(null);
         }
 
+        Object.assign(interruptItem, options);
         return interruptItem ? this.displayWithItem(interruptItem, cb) : cb(null);
     }
 

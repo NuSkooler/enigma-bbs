@@ -29,9 +29,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.menuConfig.config  = this.menuConfig.config || {};
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
         this.viewControllers    = {};
+        this.interrupt          = (_.get(this.menuConfig.config, 'interrupt', MenuModule.InterruptTypes.Queued)).toLowerCase();
+    }
 
-        //  *initial* Interruptible state for this menu
-        this.disableInterruption();
+    static get InterruptTypes() {
+        return {
+            Never       : 'never',
+            Queued      : 'queued',
+            Realtime    : 'realtime',
+        };
     }
 
     enter() {
@@ -55,7 +61,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         async.series(
             [
                 function beforeArtInterrupt(callback) {
-                    return self.toggleInterruptionAndDisplayQueued(callback);
+                    return self.displayQueuedInterruptions(callback);
                 },
                 function beforeDisplayArt(callback) {
                     return self.beforeArt(callback);
@@ -166,60 +172,45 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  nothing in base
     }
 
-    neverInterruptable() {
-        return this.menuConfig.config.Interruptible === 'never';
-    }
-
-    enableInterruption() {
-        if(!this.neverInterruptable()) {
-            this.Interruptible = true;
-        }
-    }
-
-    disableInterruption() {
-        if(!this.neverInterruptable()) {
-            this.Interruptible = false;
-        }
-    }
-
-    toggleInterruptionAndDisplayQueued(cb) {
-        this.enableInterruption();
-        this.displayQueuedInterruptions( () => {
-            this.disableInterruption();
-            return cb(null);
-        });
-    }
-
     displayQueuedInterruptions(cb) {
-        if(true !== this.Interruptible) {
+        if(MenuModule.InterruptTypes.Never === this.interrupt) {
             return cb(null);
         }
+
+        let opts = { cls : true };  //  clear screen for first message
 
         async.whilst(
             () => this.client.interruptQueue.hasItems(),
-            next => this.client.interruptQueue.displayNext(next),
+            next => {
+                this.client.interruptQueue.displayNext(opts, err => {
+                    opts = {};
+                    return next(err);
+                });
+            },
             err => {
                 return cb(err);
             }
-        )
+        );
     }
 
     attemptInterruptNow(interruptItem, cb) {
-        if(true !== this.Interruptible) {
+        if(MenuModule.InterruptTypes.Realtime !== this.interrupt) {
             return cb(null, false); //  don't eat up the item; queue for later
         }
 
         //
         //  Default impl: clear screen -> standard display -> reload menu
         //
-        this.client.interruptQueue.displayWithItem(Object.assign({}, interruptItem, { cls : true }), err => {
-            if(err) {
-                return cb(err, false);
-            }
-            this.reload(err => {
-                return cb(err, err ? false : true);
+        this.client.interruptQueue.displayWithItem(
+            Object.assign({}, interruptItem, { cls : true }),
+            err => {
+                if(err) {
+                    return cb(err, false);
+                }
+                this.reload(err => {
+                    return cb(err, err ? false : true);
+                });
             });
-        });
     }
 
     getSaveState() {
@@ -308,7 +299,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
             } else {
                 return this.prevMenu(cb);
             }
-        }
+        };
 
         if(_.has(this.menuConfig, 'runtime.autoNext') && true === this.menuConfig.runtime.autoNext) {
             if(this.hasNextTimeout()) {
@@ -318,8 +309,6 @@ exports.MenuModule = class MenuModule extends PluginModule {
             } else {
                 return gotoNextMenu();
             }
-        } else {
-            this.enableInterruption();
         }
     }
 
