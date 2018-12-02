@@ -149,7 +149,7 @@ function initializeModules(cb) {
                         return nextModule(null);
                     }
                 } catch(e) {
-                    Log.warn( { error : e }, 'Exception during "moduleInitialize"');
+                    Log.warn( { error : e.message, fullModulePath }, 'Exception during "moduleInitialize"');
                     return nextModule(null);
                 }
             },

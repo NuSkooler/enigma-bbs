@@ -12,6 +12,7 @@ const { getThemeArt }           = require('./theme.js');
 const { pipeToAnsi }            = require('./color_codes.js');
 const stringFormat              = require('./string_format.js');
 const { renderStringLength }    = require('./string_util.js');
+const Events                    = require('./events.js');
 
 //  deps
 const series                = require('async/series');
@@ -37,7 +38,7 @@ const MciViewIds = {
 
         customRangeStart    : 10,
     }
-}
+};
 
 exports.getModule = class NodeMessageModule extends MenuModule {
     constructor(options) {
@@ -63,6 +64,8 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                             UserInterruptQueue.queue(interruptItem, { clients : conn } );
                         }
                     }
+
+                    Events.emit(Events.getSystemEvents().UserSendNodeMsg, { user : this.client.user } );
 
                     return this.prevMenu(cb);
                 });

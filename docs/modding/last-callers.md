@@ -20,6 +20,7 @@ Available `config` block entries:
     * `userPostMsg`
     * `userSendMail`
     * `userRunDoor`
+    * `userSendNodeMsg`
 * `actionIndicatorDefault`: Default indicator when an action is not set. Defaults to "-".
 
 Remember that entries such as `actionIndicators` and `actionIndicatorDefault` may contain pipe color codes!
@@ -32,6 +33,6 @@ The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
 * `ts`: Timestamp in `dateTimeFormat` format.
 * `location`: User's location.
 * `affiliation` or `affils`: Users affiliations.
-* `actions`: A string built by concatenating action indicators for a users logged in session. For example, given a indincator of `userDownload` mapped to "D", the string may be "-D----". The format was made popular on Amiga style boards.
+* `actions`: A string built by concatenating action indicators for a users logged in session. For example, given a indicator of `userDownload` mapped to "D", the string may be "-D----". The format was made popular on Amiga style boards.
 
 

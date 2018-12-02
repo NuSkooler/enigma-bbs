@@ -20,4 +20,5 @@ module.exports = {
     UserPostMessage     : 'codes.l33t.enigma.system.user_post_msg',     //  { areaTag }
     UserSendMail        : 'codes.l33t.enigma.system.user_send_mail',
     UserRunDoor         : 'codes.l33t.enigma.system.user_run_door',
+    UserSendNodeMsg     : 'codes.l33t.enigma.system.user_send_node_msg',
 };

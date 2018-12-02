@@ -355,7 +355,7 @@ class StatLog {
             systemEvents.NewUser,
             systemEvents.UserUpload, systemEvents.UserDownload,
             systemEvents.UserPostMessage, systemEvents.UserSendMail,
-            systemEvents.UserRunDoor,
+            systemEvents.UserRunDoor, systemEvents.UserSendNodeMsg,
         ];
 
         Events.addListenerMultipleEvents(interestedEvents, (eventName, event) => {
