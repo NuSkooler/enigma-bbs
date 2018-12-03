@@ -567,4 +567,55 @@ exports.MenuModule = class MenuModule extends PluginModule {
         }
         return cb(null);
     }
+
+    validateConfigFields(fields, cb) {
+        //
+        //  fields is expected to be { key : type || validator(key, config) }
+        //  where |type| is 'string', 'array', object', 'number'
+        //
+        if(!_.isObject(fields)) {
+            return cb(Errors.Invalid('Invalid validator!'));
+        }
+
+        const config = this.config || this.menuConfig.config;
+        let firstBadKey;
+        let badReason;
+        const good = _.every(fields, (type, key) => {
+            if(_.isFunction(type)) {
+                if(!type(key, config)) {
+                    firstBadKey = key;
+                    badReason   = 'Validate failure';
+                    return false;
+                }
+                return true;
+            }
+
+            const c = config[key];
+            let typeOk;
+            if(_.isUndefined(c)) {
+                typeOk = false;
+                badReason = `Missing "${key}", expected ${type}`;
+            } else {
+                switch(type) {
+                    case 'string'   : typeOk = _.isString(c); break;
+                    case 'object'   : typeOk = _.isObject(c); break;
+                    case 'array'    : typeOk = Array.isArray(c); break;
+                    case 'number'   : typeOk = !isNaN(parseInt(c)); break;
+                    default :
+                        typeOk = false;
+                        badReason = `Don't know how to validate ${type}`;
+                        break;
+                }
+            }
+            if(!typeOk) {
+                firstBadKey = key;
+                if(!badReason) {
+                    badReason = `Expected ${type}`;
+                }
+            }
+            return typeOk;
+        });
+
+        return cb(good ? null : Errors.Invalid(`Invalid or missing config option "${firstBadKey}" (${badReason})`));
+    }
 };
