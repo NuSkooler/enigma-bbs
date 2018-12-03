@@ -1677,7 +1677,7 @@
 					action: @menu:doorAbracadabraExample
 				}
 				{
-					value: { command: "TWBBLINK" }
+					value: { command: "TWBBSLINK" }
 					action: @menu:doorTradeWars2002BBSLinkExample
 				}
 				{
