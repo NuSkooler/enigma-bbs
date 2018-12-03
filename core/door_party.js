@@ -2,12 +2,12 @@
 'use strict';
 
 //  enigma-bbs
-const MenuModule    = require('../core/menu_module.js').MenuModule;
-const resetScreen   = require('../core/ansi_term.js').resetScreen;
+const { MenuModule }    = require('./menu_module.js');
+const { resetScreen }   = require('./ansi_term.js');
+const { Errors }        = require('./enig_error.js');
 
 //  deps
 const async         = require('async');
-const _             = require('lodash');
 const SSHClient     = require('ssh2').Client;
 
 exports.moduleInfo = {
@@ -34,16 +34,17 @@ exports.getModule = class DoorPartyModule extends MenuModule {
         async.series(
             [
                 function validateConfig(callback) {
-                    if(!_.isString(self.config.username)) {
-                        return callback(new Error('Config requires "username"!'));
-                    }
-                    if(!_.isString(self.config.password)) {
-                        return callback(new Error('Config requires "password"!'));
-                    }
-                    if(!_.isString(self.config.bbsTag)) {
-                        return callback(new Error('Config requires "bbsTag"!'));
-                    }
-                    return callback(null);
+                    return self.validateConfigFields(
+                        {
+                            host        : 'string',
+                            username    : 'string',
+                            password    : 'string',
+                            bbsTag      : 'string',
+                            sshPort     : 'number',
+                            rloginPort  : 'number',
+                        },
+                        callback
+                    );
                 },
                 function establishSecureConnection(callback) {
                     self.client.term.write(resetScreen());
@@ -71,7 +72,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                         //  establish tunnel for rlogin
                         sshClient.forwardOut('127.0.0.1', self.config.sshPort, self.config.host, self.config.rloginPort, (err, stream) => {
                             if(err) {
-                                return callback(new Error('Failed to establish tunnel'));
+                                return callback(Errors.General('Failed to establish tunnel'));
                             }
 
                             //

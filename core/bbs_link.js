@@ -1,11 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule    = require('./menu_module.js').MenuModule;
-const resetScreen   = require('./ansi_term.js').resetScreen;
+const { MenuModule }    = require('./menu_module.js');
+const { resetScreen }   = require('./ansi_term.js');
+const { Errors }        = require('./enig_error.js');
 
+//  deps
 const async         = require('async');
-const _             = require('lodash');
 const http          = require('http');
 const net           = require('net');
 const crypto        = require('crypto');
@@ -60,15 +61,17 @@ exports.getModule = class BBSLinkModule extends MenuModule {
         async.series(
             [
                 function validateConfig(callback) {
-                    if(_.isString(self.config.sysCode) &&
-                        _.isString(self.config.authCode) &&
-                        _.isString(self.config.schemeCode) &&
-                        _.isString(self.config.door))
-                    {
-                        callback(null);
-                    } else {
-                        callback(new Error('Configuration is missing option(s)'));
-                    }
+                    return self.validateConfigFields(
+                        {
+                            host        : 'string',
+                            sysCode     : 'string',
+                            authCode    : 'string',
+                            schemeCode  : 'string',
+                            door        : 'string',
+                            port        : 'number',
+                        },
+                        callback
+                    );
                 },
                 function acquireToken(callback) {
                     //
@@ -112,10 +115,9 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         var status = body.trim();
 
                         if('complete' === status) {
-                            callback(null);
-                        } else {
-                            callback(new Error('Bad authentication status: ' + status));
+                            return callback(null);
                         }
+                        return callback(Errors.AccessDenied(`Bad authentication status: ${status}`));
                     });
                 },
                 function createTelnetBridge(callback) {
@@ -158,7 +160,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
 
                     bridgeConnection.on('end', function connectionEnd() {
                         restorePipe();
-                        callback(clientTerminated ? new Error('Client connection terminated') : null);
+                        return callback(clientTerminated ? Errors.General('Client connection terminated') : null);
                     });
 
                     bridgeConnection.on('error', function error(err) {

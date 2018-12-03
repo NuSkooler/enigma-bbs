@@ -2,8 +2,9 @@
 'use strict';
 
 //  ENiGMA½
-const ansi      = require('./ansi_term.js');
-const Events    = require('./events.js');
+const ansi          = require('./ansi_term.js');
+const Events        = require('./events.js');
+const { Errors }    = require('./enig_error.js');
 
 //  deps
 const async     = require('async');
@@ -15,7 +16,7 @@ function ansiDiscoverHomePosition(client, cb) {
     //  We want to find the home position. ANSI-BBS and most terminals
     //  utilize 1,1 as home. However, some terminals such as ConnectBot
     //  think of home as 0,0. If this is the case, we need to offset
-    //  our positioning to accomodate for such.
+    //  our positioning to accommodate for such.
     //
     const done = function(err) {
         client.removeListener('cursor position report', cprListener);
@@ -32,7 +33,7 @@ function ansiDiscoverHomePosition(client, cb) {
         //
         if(h > 1 || w > 1) {
             client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
-            return done(new Error('Home position CPR expected to be 0,0, or 1,1'));
+            return done(Errors.UnexpectedState('Home position CPR expected to be 0,0, or 1,1'));
         }
 
         if(0 === h & 0 === w) {
@@ -49,7 +50,7 @@ function ansiDiscoverHomePosition(client, cb) {
     client.once('cursor position report', cprListener);
 
     const giveUpTimer = setTimeout( () => {
-        return done(new Error('Giving up on home position CPR'));
+        return done(Errors.General('Giving up on home position CPR'));
     }, 3000);   //  3s
 
     client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
@@ -78,14 +79,14 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
         const w = pos[1];
 
         //
-        //  Netrunner for example gives us 1x1 here. Not really useful. Ignore
+        //  NetRunner for example gives us 1x1 here. Not really useful. Ignore
         //  values that seem obviously bad.
         //
         if(h < 10 || w < 10) {
             client.log.warn(
                 { height : h, width : w },
                 'Ignoring ANSI CPR screen size query response due to very small values');
-            return done(new Error('Term size <= 10 considered invalid'));
+            return done(Errors.Invalid('Term size <= 10 considered invalid'));
         }
 
         client.term.termHeight  = h;
@@ -107,7 +108,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 
     //  give up after 2s
     const giveUpTimer = setTimeout( () => {
-        return done(new Error('No term size established by CPR within timeout'));
+        return done(Errors.General('No term size established by CPR within timeout'));
     }, 2000);
 
     //  Start the process: Query for CPR
@@ -116,8 +117,6 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 
 function prepareTerminal(term) {
     term.rawWrite(ansi.normal());
-    //term.rawWrite(ansi.disableVT100LineWrapping());
-    //  :TODO: set xterm stuff -- see x84/others
 }
 
 function displayBanner(term) {

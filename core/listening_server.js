@@ -3,6 +3,7 @@
 
 //  ENiGMA½
 const logger            = require('./logger.js');
+const { ErrorReasons }  = require('./enig_error.js');
 
 //  deps
 const async             = require('async');
@@ -30,9 +31,8 @@ function startListening(cb) {
 
     async.each( [ 'login', 'content' ], (category, next) => {
         moduleUtil.loadModulesForCategory(`${category}Servers`, (err, module) => {
-            //  :TODO: use enig error here!
             if(err) {
-                if('EENIGMODDISABLED' === err.code) {
+                if(ErrorReasons.Disabled === err.reasonCode) {
                     logger.log.debug(err.message);
                 } else {
                     logger.log.info( { err : err }, 'Failed loading module');

@@ -1,7 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-let _       = require('lodash');
+const { Errors } = require('./enig_error.js');
+
+const _       = require('lodash');
 
 //  FNV-1a based on work here: https://github.com/wiedi/node-fnv
 module.exports = class FNV1a {
@@ -23,7 +25,7 @@ module.exports = class FNV1a {
         }
 
         if(!Buffer.isBuffer(data)) {
-            throw new Error('data must be String or Buffer!');
+            throw Errors.Invalid('data must be String or Buffer!');
         }
 
         for(let b of data) {

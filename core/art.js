@@ -2,11 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const Config    = require('./config.js').get;
-const miscUtil  = require('./misc_util.js');
-const ansi      = require('./ansi_term.js');
-const aep       = require('./ansi_escape_parser.js');
-const sauce     = require('./sauce.js');
+const Config        = require('./config.js').get;
+const miscUtil      = require('./misc_util.js');
+const ansi          = require('./ansi_term.js');
+const aep           = require('./ansi_escape_parser.js');
+const sauce         = require('./sauce.js');
+const { Errors }    = require('./enig_error.js');
 
 //  deps
 const fs        = require('graceful-fs');
@@ -209,7 +210,7 @@ function getArt(name, options, cb) {
             return getArtFromPath(readPath, options, cb);
         }
 
-        return cb(new Error(`No matching art for supplied criteria: ${name}`));
+        return cb(Errors.DoesNotExist(`No matching art for supplied criteria: ${name}`));
     });
 }
 
@@ -236,7 +237,7 @@ function display(client, art, options, cb) {
     }
 
     if(!art || !art.length) {
-        return cb(new Error('Empty art'));
+        return cb(Errors.Invalid('No art supplied!'));
     }
 
     options.mciReplaceChar  = options.mciReplaceChar || ' ';

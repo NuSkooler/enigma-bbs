@@ -162,7 +162,7 @@ class ScheduledEvent {
                         { eventName : this.name, action : this.action, exitCode : exitCode },
                         'Bad exit code while performing scheduled event action');
                 }
-                return cb(exitCode ? new Error(`Bad exit code while performing scheduled event action: ${exitCode}`) : null);
+                return cb(exitCode ? Errors.ExternalProcess(`Bad exit code while performing scheduled event action: ${exitCode}`) : null);
             });
         }
     }

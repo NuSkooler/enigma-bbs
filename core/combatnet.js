@@ -2,12 +2,12 @@
 'use strict';
 
 //  enigma-bbs
-const MenuModule    = require('../core/menu_module.js').MenuModule;
-const resetScreen   = require('../core/ansi_term.js').resetScreen;
+const { MenuModule }    = require('../core/menu_module.js');
+const { resetScreen }   = require('../core/ansi_term.js');
+const { Errors }        = require('./enig_error.js');
 
 //  deps
 const async         = require('async');
-const _             = require('lodash');
 const RLogin        = require('rlogin');
 
 exports.moduleInfo = {
@@ -32,13 +32,15 @@ exports.getModule = class CombatNetModule extends MenuModule {
         async.series(
             [
                 function validateConfig(callback) {
-                    if(!_.isString(self.config.password)) {
-                        return callback(new Error('Config requires "password"!'));
-                    }
-                    if(!_.isString(self.config.bbsTag)) {
-                        return callback(new Error('Config requires "bbsTag"!'));
-                    }
-                    return callback(null);
+                    return self.validateConfigFields(
+                        {
+                            host        : 'string',
+                            password    : 'string',
+                            bbsTag      : 'string',
+                            rloginPort  : 'number',
+                        },
+                        callback
+                    );
                 },
                 function establishRloginConnection(callback) {
                     self.client.term.write(resetScreen());
@@ -51,12 +53,13 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     };
 
                     const rlogin = new RLogin(
-                        {   'clientUsername' : self.config.password,
-                            'serverUsername' : `${self.config.bbsTag}${self.client.user.username}`,
-                            'host' : self.config.host,
-                            'port' : self.config.rloginPort,
-                            'terminalType' : self.client.term.termClient,
-                            'terminalSpeed' : 57600
+                        {
+                            clientUsername  : self.config.password,
+                            serverUsername  : `${self.config.bbsTag}${self.client.user.username}`,
+                            host            : self.config.host,
+                            port            : self.config.rloginPort,
+                            terminalType    : self.client.term.termClient,
+                            terminalSpeed   : 57600
                         }
                     );
 
@@ -88,7 +91,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                                 self.client.term.output.on('data', sendToRloginBuffer);
 
                             } else {
-                                return callback(new Error('Failed to establish establish CombatNet connection'));
+                                return callback(Errors.General('Failed to establish establish CombatNet connection'));
                             }
                         }
                     );

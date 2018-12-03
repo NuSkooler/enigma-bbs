@@ -7,6 +7,7 @@ const Door              = require('./door.js');
 const theme             = require('./theme.js');
 const ansi              = require('./ansi_term.js');
 const Events            = require('./events.js');
+const { Errors }        = require('./enig_error.js');
 
 const async             = require('async');
 const assert            = require('assert');
@@ -98,7 +99,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                         if(_.isString(self.config.tooManyArt)) {
                             theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
                                 self.pausePrompt( () => {
-                                    callback(new Error('Too many active instances'));
+                                    return callback(Errors.AccessDenied('Too many active instances'));
                                 });
                             });
                         } else {
@@ -106,7 +107,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
                             //  :TODO: Use MenuModule.pausePrompt()
                             self.pausePrompt( () => {
-                                callback(new Error('Too many active instances'));
+                                return callback(Errors.AccessDenied('Too many active instances'));
                             });
                         }
                     } else {

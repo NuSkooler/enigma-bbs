@@ -4,6 +4,10 @@
 //  ENiGMA½
 const Config    = require('./config.js').get;
 const Log       = require('./logger.js').log;
+const {
+    Errors,
+    ErrorReasons
+}               = require('./enig_error.js');
 
 //  deps
 const fs        = require('graceful-fs');
@@ -28,9 +32,7 @@ function loadModuleEx(options, cb) {
     const modConfig = _.isObject(Config[options.category]) ? Config[options.category][options.name] : null;
 
     if(_.isObject(modConfig) && false === modConfig.enabled) {
-        const err   = new Error(`Module "${options.name}" is disabled`);
-        err.code    = 'EENIGMODDISABLED';
-        return cb(err);
+        return cb(Errors.AccessDenied(`Module "${options.name}" is disabled`, ErrorReasons.Disabled));
     }
 
     //
@@ -56,11 +58,11 @@ function loadModuleEx(options, cb) {
     }
 
     if(!_.isObject(mod.moduleInfo)) {
-        return cb(new Error('Module is missing "moduleInfo" section'));
+        return cb(Errors.Invalid(`No exported "moduleInfo" block for module ${modPath}!`));
     }
 
     if(!_.isFunction(mod.getModule)) {
-        return cb(new Error('Invalid or missing "getModule" method for module!'));
+        return cb(Errors.Invalid(`No exported "getModule" method for module ${modPath}!`));
     }
 
     return cb(null, mod);
@@ -70,7 +72,7 @@ function loadModule(name, category, cb) {
     const path = Config().paths[category];
 
     if(!_.isString(path)) {
-        return cb(new Error(`Not sure where to look for "${name}" of category "${category}"`));
+        return cb(Errors.DoesNotExist(`Not sure where to look for module "${name}" of category "${category}"`));
     }
 
     loadModuleEx( { name : name, path : path, category : category }, function loaded(err, mod) {
