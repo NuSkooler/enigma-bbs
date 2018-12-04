@@ -49,7 +49,7 @@ areas: {
 The above example defines an area called "Retro PC" which is referenced via the *area tag* of `retro_pc`. Two storage tags are used: `retro_pc_dos`, and `retro_pc_bbs`. These storage tags can be seen in the Storage Tags example above.
 
 ## Example Configuration
-This combines the two concepts described above. When viewing the file areas from ENiGMA½ a user will only see the "Retro PC" area, but the files in the area are stored in the two locations defined in the `storageTags` section. We also show a uploads area. Uploads are allowed do to the [ACS](acs.md) block. See [Uploads](uploads.md) for more information.
+This combines the two concepts described above. When viewing the file areas from ENiGMA½ a user will only see the "Retro PC" area, but the files in the area are stored in the two locations defined in the `storageTags` section. We also show a uploads area. Uploads are allowed due to the [ACS](acs.md) block. See [Uploads](uploads.md) for more information.
 
 ```hjson
 fileBase: {
