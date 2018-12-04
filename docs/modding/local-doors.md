@@ -178,7 +178,7 @@ As of this writing `DOOR32.SYS` style socket descriptor sharing is **not** suppo
 ## Additional Resources
 
 ### DOSBox
-* Custom DOSBox builds http://home.arcor.de/h-a-l-9000/
+* [DOSBox-X](https://github.com/joncampbell123/dosbox-x)
 
 ### Door Downloads & Support Sites
 #### General
