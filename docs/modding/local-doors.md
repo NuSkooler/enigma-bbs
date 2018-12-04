@@ -2,10 +2,13 @@
 layout: page
 title: Local Doors
 ---
-## The abracadabra Module
-The `abracadabra` module provides a generic and flexible solution for many door types. Through this module you can execute native processes & scripts directly, and process I/O through stdio or a temporary TCP server.
+## Local Doors
+ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The `abracadabra` module!
 
-## Configuration
+## The abracadabra Module
+The `abracadabra` module provides a generic and flexible solution for many door types. Through this module you can execute native processes & scripts directly, and perform I/O through standard I/O (stdio) or a temporary TCP server.
+
+### Configuration
 The `abracadabra` `config` block can contain the following members:
 * `name`: Used as a key for tracking number of clients using a particular door.
 * `dropFileType`: Specifies the type of drop file to generate (See **Argument Variables** below).
@@ -14,24 +17,24 @@ The `abracadabra` `config` block can contain the following members:
 * `cwd`: Set the Current Working Directory for `cmd`. Defaults to the directory of `cmd`.
 * `nodeMax`: Max number of nodes that can access this door at once. Uses `name` as a mapping key
 * `tooManyArt`: Art file spec to display if too many instances are already in use
-* `io`: Where to process I/O. Can be `stdio` or `socket`
+* `io`: Where to process I/O. Can be `stdio` or `socket`. When using `stdio`, I/O is input/output from stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected to. The server listens on localhost on `{srvPort}` (see below under Argument Variables).
 * `encoding`: Specify the door's encoding. Defaults to `cp437`. Linux binaries for example, often produce `utf8`.
 
-### Drop File Types
+#### Drop File Types
 Drop file types specified by `dropFileType`:
 * `DOOR`: [DOOR.SYS](http://goldfndr.home.mindspring.com/dropfile/doorsys.htm)
-* `DOOR32`: [DOOR32.SYS](http://wiki.bbses.info/index.php/DOOR32.SYS)
+* `DOOR32`: [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt)
 * `DORINFO`: [DORINFOx.DEF](http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm)
 
-### Argument Variables
-The following variables may be used in `{args}` entries:
+#### Argument Variables
+The following variables may be used in `args` entries:
 * `{node}`: Current node number.
 * `{dropFile}`: Drop _filename_ only.
 * `{dropFilePath}`: Full path to generated drop file.
 * `{userId}`: Current user ID.
-* `{userName}`: _Sanatized_ username. Safe for filenames, etc.
+* `{userName}`: _Sanitized_ username. Safe for filenames, etc.
 * `{userNameRaw}`: _Raw_ username. May not be safe for filenames!
-* `{srvPort}`: Tempoary server port when `io` is set to `socket`.
+* `{srvPort}`: Temporary server port when `io` is set to `socket`.
 * `{cwd}`: Current Working Directory.
 
 Example:
@@ -41,7 +44,7 @@ args: [
 ]
 ```
 
-## DOSEMU with abracadabra
+### DOSEMU with abracadabra
 [DOSEMU](http://www.dosemu.org/) can provide a good solution for running legacy DOS doors when running on Linux systems. For this, we will create a virtual serial port (COM1) that communicates via stdio.
 
 As an example, here are the steps for setting up Pimp Wars:
@@ -97,12 +100,12 @@ doorPimpWars: {
 
 ```
 
-## QEMU with abracadabra
+### QEMU with abracadabra
 [QEMU](http://wiki.qemu.org/Main_Page) provides a robust, cross platform solution for launching doors under many platforms (likely anwywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: **Multiple instances of a particular door/OS image should not be run at once!** Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
 
 Basically we'll be creating a bootstrap shell script that generates a temporary node specific `go.bat` to launch our door. This will be called from `autoexec.bat` within our QEMU FreeDOS partition.
 
-### Step 1: Create a FreeDOS image
+#### Step 1: Create a FreeDOS image
 [FreeDOS](http://www.freedos.org/) is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the [QEMU/FreeDOS](https://en.wikibooks.org/wiki/QEMU/FreeDOS) guide for creating an `freedos_c.img`. This will contain FreeDOS itself and installed BBS doors.
 
 After this is complete, copy LORD to C:\DOORS\LORD within FreeDOS. An easy way to tranfer files from host to DOS is to use QEMU's vfat as a drive. For example:
@@ -115,7 +118,7 @@ With the above you can now copy files from D: to C: within FreeDOS and add the f
 CALL E:\GO.BAT
 ```
 
-### Step 2: Create a bootstrap script
+#### Step 2: Create a bootstrap script
 Our bootstrap script will prepare `GO.BAT` and launch FreeDOS. Below is an example:
 
 
@@ -147,7 +150,7 @@ Note the `qemu-system-i386` line. We're telling QEMU to launch and use localtime
 
 For doors that do not *require* a FOSSIL driver, it is recommended to not load or use one unless you are having issues.
 
-#### Step 3: Create a menu entry
+##### Step 3: Create a menu entry
 Finally we can create a `menu.hjson` entry using the `abracadabra` module:
 ```hjson
 doorLORD: {
@@ -169,7 +172,10 @@ doorLORD: {
 }
 ```
 
-## Resources
+## Shared Socket Descriptors
+As of this writing `DOOR32.SYS` style socket descriptor sharing is **not** supported. Workarounds include using the Telnet Bridge (`telnet_bridge` module) to hook up to local Telnet-accessible door servers such as [NET2BBS](http://pcmicro.com/netfoss/guide/net2bbs.html).
+
+## Additional Resources
 
 ### DOSBox
 * Custom DOSBox builds http://home.arcor.de/h-a-l-9000/
