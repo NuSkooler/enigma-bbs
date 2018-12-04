@@ -64,6 +64,7 @@ actions:
 
   rm SRC [SRC...]              remove entry(s) from the system matching SRC
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+  import-areas FILEGATE.ZXX    import file base areas using FileGate RAID type format
 
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
@@ -80,6 +81,9 @@ info args:
 
 remove args:
   --phys-file                  also remove underlying physical file
+
+import-areas args:
+  --create-dirs                create backing storage directories
 `,
     FileOpsInfo :
 `

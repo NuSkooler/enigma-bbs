@@ -9,7 +9,10 @@ const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDataba
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const {
     getAreaAndStorage,
-    looksLikePattern
+    looksLikePattern,
+    getConfigPath,
+    getAnswers,
+    writeConfig
 }								= require('./oputil_common.js');
 const Errors					= require('../enig_error.js').Errors;
 
@@ -20,6 +23,9 @@ const _							= require('lodash');
 const moment					= require('moment');
 const inq						= require('inquirer');
 const glob						= require('glob');
+const sanatizeFilename          = require('sanitize-filename');
+const hjson                     = require('hjson');
+const { mkdirs }                = require('fs-extra');
 
 exports.handleFileBaseCommand			= handleFileBaseCommand;
 
@@ -692,6 +698,185 @@ function removeFiles() {
     );
 }
 
+function getFileBaseImportType(path) {
+    if(argv.type) {
+        return argv.type.toLowerCase();
+    }
+
+    return paths.extname(path).substr(1).toLowerCase(); //  zxx, ...
+}
+
+function importFileAreas() {
+    //
+    //  FILEGATE.ZXX "RAID" format currently the only supported format.
+    //
+    //  See http://www.filegate.net/info/filegate.zxx
+    //
+    const importPath = argv._[argv._.length - 1];
+    if(argv._.length < 3 || !importPath || 0 === importPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('FileBase'), ExitCodes.ERROR);
+    }
+
+    const importType = getFileBaseImportType(importPath);
+    if('zxx' !== importType) {
+        return console.error(`"${importType}" is not a recognized import file type`);
+    }
+
+    const createDirs = argv['create-dirs'];
+    //  :TODO: --base-dir (override config base/relative dir; use full paths)
+
+    async.waterfall(
+        [
+            (callback) => {
+                fs.readFile(importPath, 'utf8', (err, importData) => {
+                    if(err) {
+                        return callback(err);
+                    }
+
+                    const importInfo = {
+                        storageTags : {},
+                        areas : {},
+                        count : 0,
+                    };
+
+                    const re = /Area\s+([^\s]+)\s+[0-9]\s+(?:!|\*&)\s+([^\r\n]+)/gm;
+                    let m;
+                    while((m = re.exec(importData))) {
+                        const dir           = m[1].trim();
+                        const name          = m[2].trim();
+                        const safeName      = sanatizeFilename(name);
+
+                        const stPrefix      = _.snakeCase(sanatizeFilename(safeName));
+                        const storageTag    = `${stPrefix}__${_.snakeCase(sanatizeFilename(dir))}`;
+                        const areaTag       = _.snakeCase(safeName);
+
+                        if(!dir || !name || !storageTag || !areaTag) {
+                            console.info(`Skipping entry: ${m[0]}`);
+                            continue;
+                        }
+
+                        importInfo.storageTags[storageTag] = dir;
+                        importInfo.areas[areaTag] = {
+                            name        : name,
+                            desc        : name,
+                            storageTags : [ storageTag ],
+                        };
+                        ++importInfo.count;
+                    }
+
+                    if(0 === importInfo.count) {
+                        return callback(new Error('Nothing to import'));
+                    }
+
+                    return callback(null, importInfo);
+                });
+            },
+            (importInfo, callback) => {
+                return initConfigAndDatabases(err => {
+                    return callback(err, importInfo);
+                });
+            },
+            (importInfo, callback) => {
+                console.info(`Read to import the following ${importInfo.count} areas:`);
+                console.info('');
+                _.each(importInfo.areas, (area, areaTag) => {
+                    console.info(`${area.name} (${areaTag}):`);
+                    const dir = importInfo.storageTags[area.storageTags[0]];
+                    console.info(`  storage: ${area.storageTags[0]} => ${dir}`);
+                });
+
+                getAnswers([
+                    {
+                        name	: 'proceed',
+                        message	: 'Proceed?',
+                        type	: 'confirm',
+                    }
+                ],
+                answers => {
+                    if(answers.proceed) {
+                        return callback(null, importInfo);
+                    }
+                    return callback(Errors.General('User canceled'));
+                });
+            },
+            (importInfo, callback) => {
+                fs.readFile(getConfigPath(), 'utf8', (err, configData) => {
+                    if(err) {
+                        return callback(err);
+                    }
+                    let config;
+                    try {
+                        config = hjson.rt.parse(configData);
+                    } catch(e) {
+                        return callback(e);
+                    }
+                    return callback(null, importInfo, config);
+                });
+            },
+            (importInfo, config, callback) => {
+                const newStorageTagDirs = [];
+                _.each(importInfo.areas, (area, areaTag) => {
+                    const existingArea = _.get(config, [ 'fileBase', 'areas', areaTag ]);
+                    if(existingArea) {
+                        return console.info(`Skipping ${area.name}. Area tag "${areaTag}" already exists.`);
+                    }
+
+                    const storageTag = area.storageTags[0];
+                    const existingStorageTag = _.get(config, [ 'fileBase', 'storageTags', storageTag ]);
+                    if(existingStorageTag) {
+                        return console.info(`Skipping ${area.name} (${areaTag}). Storage tag "${storageTag}" already exists`);
+                    }
+
+                    const dir = importInfo.storageTags[storageTag];
+                    newStorageTagDirs.push(dir);
+
+                    config.fileBase.storageTags[storageTag] = dir;
+                    config.fileBase.areas[areaTag] = area;
+                });
+
+                return callback(null, newStorageTagDirs, config);
+            },
+            (newStorageTagDirs, config, callback) => {
+                if(!createDirs) {
+                    return callback(null, config);
+                }
+
+                //
+                //  Create all directories
+                //
+                const prefixDir = config.fileBase.areaStoragePrefix;
+                async.eachSeries(newStorageTagDirs, (dir, nextDir) => {
+                    const isAbs = paths.isAbsolute(dir);
+                    if(!isAbs) {
+                        dir = paths.join(prefixDir, dir);
+                    }
+                    mkdirs(dir, err => {
+                        if(!err) {
+                            console.log(`Created ${dir}`);
+                        }
+                        return nextDir(err);
+                    });
+                },
+                err => {
+                    return callback(err, config);
+                });
+            },
+            (config, callback) => {
+                const written = writeConfig(config, getConfigPath());
+                return callback(written ? null : new Error('Failed to write config!'));
+            }
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+
+            console.info('Import complete.');
+            console.info(`You may wish to validate changes made to ${getConfigPath()}`);
+        }
+    );
+}
+
 function handleFileBaseCommand() {
 
     function errUsage()  {
@@ -708,15 +893,17 @@ function handleFileBaseCommand() {
     const action = argv._[1];
 
     return ({
-        info	: displayFileAreaInfo,
-        scan	: scanFileAreas,
+        info	        : displayFileAreaInfo,
+        scan	        : scanFileAreas,
 
-        mv		: moveFiles,
-        move	: moveFiles,
+        mv		        : moveFiles,
+        move	        : moveFiles,
 
-        rm		: removeFiles,
-        remove	: removeFiles,
-        del		: removeFiles,
-        delete	: removeFiles,
+        rm		        : removeFiles,
+        remove	        : removeFiles,
+        del		        : removeFiles,
+        delete	        : removeFiles,
+
+        'import-areas'  : importFileAreas,
     }[action] || errUsage)();
 }

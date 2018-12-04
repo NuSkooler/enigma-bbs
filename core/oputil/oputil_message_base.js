@@ -377,7 +377,7 @@ function importAreas() {
                 console.error(err.reason ? err.reason : err.message);
             } else {
                 const addFieldUpd = 'bbs' === importType ? '"name" and "desc"' : '"desc"';
-                console.info('Configuration generated.');
+                console.info('Import complete.');
                 console.info(`You may wish to validate changes made to ${getConfigPath()}`);
                 console.info(`as well as update ${addFieldUpd} fields, sorting, etc.`);
                 console.info('');
