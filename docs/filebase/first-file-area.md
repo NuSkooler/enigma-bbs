@@ -32,7 +32,7 @@ File base *Areas* are configured using the `fileBase::areas` configuration block
 |--------|---------------|------------------|
 | `name` | :+1: | Friendly area name. |
 | `desc` | :-1: | Friendly area description. |
-| `storageTags` : | :+1: | An array of storage tags for physical storage backing of the files in this area. If uploads are enabled for this area, **first ** storage tag location is utilized!** |
+| `storageTags` | :+1: | An array of storage tags for physical storage backing of the files in this area. If uploads are enabled for this area, **first ** storage tag location is utilized!** |
 | `sort` | :-1: | If present, provides the sort key for ordering. `name` is used otherwise. |
 
 Example areas section:
