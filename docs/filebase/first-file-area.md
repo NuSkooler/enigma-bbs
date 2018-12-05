@@ -25,6 +25,8 @@ storageTags: {
 
 :information_source: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
 
+:information_source: Remember that paths are case sensitive on most non-Windows systems!
+
 ### Areas
 File base *Areas* are configured using the `fileBase::areas` configuration block in `config.hjson`. Valid members for an area are as follows:
 
