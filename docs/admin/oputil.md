@@ -92,7 +92,7 @@ usage: oputil.js fb <action> [<args>]
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
                                may also contain optional GLOB as last parameter,
-                               for examle: scan some_area *.zip
+                               for example: scan some_area *.zip
 
   info CRITERIA                display information about areas and/or files
                                where CRITERIA is one of the following:
@@ -105,6 +105,7 @@ actions:
 
   rm SRC [SRC...]              remove entry(s) from the system matching SRC
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+  import-areas FILEGATE.ZXX    import file base areas using FileGate RAID type format
 
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
@@ -122,6 +123,9 @@ info args:
 remove args:
   --phys-file                  also remove underlying physical file
 
+import-areas args:
+  --create-dirs                create backing storage directories
+
 general information:
   AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
                                example: retro@bbs
@@ -136,12 +140,12 @@ The `scan` action can (re)scan a file area for new entries as well as update (`-
 
 ##### Examples
 Performing a quick scan of a specific area's storage location ("retro_warez", "retro_warez_games) matching only *.zip extensions:
-```
+```bash
 $ ./oputil.js fb scan --quick retro_warez@retro_warez_games *.zip`
 ```
 
 Update all entries in the "artscene" area supplying the file tags "artscene", and "textmode".
-```
+```bash
 $ ./oputil.js fb scan --update --quick --tags artscene,textmode artscene`
 ```
 
@@ -155,8 +159,8 @@ The `info` action can retrieve information about an area or file entry(s).
 
 ##### Examples
 Information about a particular area:
-```
-$ ./oputil.js fb info retro_pc
+```bash
+./oputil.js fb info retro_pc
 areaTag: retro_pc
 name: Retro PC
 desc: Oldschool / retro PC
@@ -167,8 +171,8 @@ storageTag: retro_pc_tdc_1993 => /file_base/dos/tdc/1993
 ```
 
 Perhaps we want to fetch some information about a file in which we know piece of the filename:
-```
-$ ./oputil.js fb info "impulse*"
+```bash
+./oputil.js fb info "impulse*"
 file_id: 143
 sha_256: 547299301254ccd73eba4c0ec9cd6ab8c5929fbb655e72c4cc842f11332792d4
 area_tag: impulse_project
@@ -184,6 +188,16 @@ file_crc32: fc6655d
 file_md5: 3455f74bbbf9539e69bd38f45e039a4e
 file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 ```
+
+### Importing FileGate RAID Style Areas
+Given a FileGate "RAID" style `FILEGATE.ZXX` file, one can import areas.
+
+#### Example
+```bash
+./oputil.js fb import-areas FILEGATE.ZXX --create-dirs
+```
+
+The above command will process FILEGATE.ZXX creating areas and backing directories. Directories created are relative to the `fileBase.areaStoragePrefix` `config.hjson` setting.
 
 ## Message Base Management
 The `mb` command provides various Message Base related tools:
