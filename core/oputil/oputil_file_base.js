@@ -711,6 +711,8 @@ function importFileAreas() {
     //  FILEGATE.ZXX "RAID" format currently the only supported format.
     //
     //  See http://www.filegate.net/info/filegate.zxx
+    //  ...same format as FILEBONE.NA:
+    //  http://wiki.mysticbbs.com/doku.php?id=mutil_import_filebone_na
     //
     const importPath = argv._[argv._.length - 1];
     if(argv._.length < 3 || !importPath || 0 === importPath.length) {
@@ -718,7 +720,7 @@ function importFileAreas() {
     }
 
     const importType = getFileBaseImportType(importPath);
-    if('zxx' !== importType) {
+    if(!['zxx', 'na'].includes(importType)) {
         return console.error(`"${importType}" is not a recognized import file type`);
     }
 

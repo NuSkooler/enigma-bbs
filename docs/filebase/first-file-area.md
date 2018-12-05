@@ -82,3 +82,5 @@ fileBase: {
 }
 ```
 
+## Importing Areas
+Areas can also be imported using [oputil](/docs/admin/oputil.md) using proper FileGate "RAID" aka `FILEBONE.NA` style files. After importing areas, you may wish to tweak configuration such as better `desc` fields, ACS, or sorting.

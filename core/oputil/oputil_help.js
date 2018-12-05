@@ -83,6 +83,7 @@ remove args:
   --phys-file                  also remove underlying physical file
 
 import-areas args:
+  --type TYPE                  sets import areas type. valid options are "zxx" or "na"
   --create-dirs                create backing storage directories
 `,
     FileOpsInfo :
