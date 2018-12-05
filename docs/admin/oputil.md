@@ -191,11 +191,18 @@ file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
 ```
 
 ### Importing FileGate RAID Style Areas
-Given a FileGate "RAID" style `FILEGATE.ZXX` file, one can import areas.
+Given a FileGate "RAID" style `FILEGATE.ZXX` file, one can import areas. This format also often comes in FTN-style info packs in the form of a `.NA` file i.e.: `FILEBONE.NA`.
 
 #### Example
 ```bash
 ./oputil.js fb import-areas FILEGATE.ZXX --create-dirs
+```
+
+-or-
+
+```bash
+# fsxNet info packs contain a FSX_FILE.NA file
+./oputil.js fb import-areas FSX_FILE.NA --create-dirs --type NA
 ```
 
 The above command will process FILEGATE.ZXX creating areas and backing directories. Directories created are relative to the `fileBase.areaStoragePrefix` `config.hjson` setting.
