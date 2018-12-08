@@ -16,6 +16,7 @@ const { mkdirs }    = require('fs-extra');
 
 //
 //  Resources
+//  * https://github.com/NuSkooler/ansi-bbs/tree/master/docs/dropfile_formats
 //  * http://goldfndr.home.mindspring.com/dropfile/
 //  * https://en.wikipedia.org/wiki/Talk%3ADropfile
 //  * http://thoughtproject.com/libraries/bbs/Sysop/Doors/DropFiles/index.htm
@@ -36,7 +37,7 @@ module.exports = class DropFile {
     get fileName() {
         return {
             DOOR            : 'DOOR.SYS',                   //  GAP BBS, many others
-            DOOR32          : 'DOOR32.SYS',                 //  EleBBS / Mystic, Syncronet, Maximus, Telegard, AdeptXBBS, ...
+            DOOR32          : 'door32.sys',                 //  Mystic, EleBBS, Syncronet, Maximus, Telegard, AdeptXBBS (lowercase name as per spec)
             CALLINFO        : 'CALLINFO.BBS',               //  Citadel?
             DORINFO         : this.getDoorInfoFileName(),   //  RBBS, RemoteAccess, QBBS, ...
             CHAIN           : 'CHAIN.TXT',                  //  WWIV
@@ -155,6 +156,7 @@ module.exports = class DropFile {
         //
         //  Resources:
         //  * http://wiki.bbses.info/index.php/DOOR32.SYS
+        //  * https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
         //
         //  :TODO: local/serial/telnet need to be configurable -- which also changes socket handle!
         const Door32CommTypes = {

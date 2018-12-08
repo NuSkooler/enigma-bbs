@@ -71,13 +71,23 @@ module.exports = class Door {
 
         const args = exeInfo.args.map( arg => stringFormat(arg, formatObj) );
 
-        const door = pty.spawn(exeInfo.cmd, args, {
-            cols        : this.client.term.termWidth,
-            rows        : this.client.term.termHeight,
-            cwd         : cwd,
-            env         : exeInfo.env,
-            encoding    : null, //  we want to handle all encoding ourself
-        });
+        this.client.log.debug(
+            { cmd : exeInfo.cmd, args, io : this.io },
+            'Executing door'
+        );
+
+        let door;
+        try {
+            door = pty.spawn(exeInfo.cmd, args, {
+                cols        : this.client.term.termWidth,
+                rows        : this.client.term.termHeight,
+                cwd         : cwd,
+                env         : exeInfo.env,
+                encoding    : null, //  we want to handle all encoding ourself
+            });
+        } catch(e) {
+            return cb(e);
+        }
 
         if('stdio' === this.io) {
             this.client.log.debug('Using stdio for door I/O');

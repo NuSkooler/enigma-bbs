@@ -9,9 +9,11 @@ const ansi              = require('./ansi_term.js');
 const Events            = require('./events.js');
 const { Errors }        = require('./enig_error.js');
 
+//  deps
 const async             = require('async');
 const assert            = require('assert');
 const _                 = require('lodash');
+const paths             = require('path');
 
 const activeDoorNodeInstances = {};
 
@@ -153,7 +155,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
         const exeInfo = {
             cmd             : this.config.cmd,
-            cwd             : this.config.cwd,  //  null/undefined = parent_of(cmd)
+            cwd             : this.config.cwd || paths.dirname(this.config.cmd),
             args            : this.config.args,
             io              : this.config.io || 'stdio',
             encoding        : this.config.encoding || 'cp437',
