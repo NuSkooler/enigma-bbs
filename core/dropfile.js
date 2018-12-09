@@ -5,6 +5,7 @@
 const Config        = require('./config.js').get;
 const StatLog       = require('./stat_log.js');
 const UserProps     = require('./user_property.js');
+const SysProps      = require('./system_property.js');
 
 //  deps
 const fs            = require('graceful-fs');
@@ -86,8 +87,13 @@ module.exports = class DropFile {
         const prop      = this.client.user.properties;
         const now       = moment();
         const secLevel  = this.client.user.getLegacySecurityLevel().toString();
-        const fullName  = prop[UserProps.RealName] || this.client.user.username;
+        const fullName  = this.client.user.getSanitizedName('real');
         const bd        = moment(prop[UserProps.Birthdate]).format('MM/DD/YY');
+
+        const upK   = Math.floor((parseInt(prop[UserProps.FileUlTotalBytes]) || 0) / 1024);
+        const downK = Math.floor((parseInt(prop[UserProps.FileDlTotalBytes]) || 0) / 1024);
+
+        const timeOfCall = moment(prop[UserProps.LastLoginTs] || moment()).format('hh:mm');
 
         //  :TODO: fix time remaining
         //  :TODO: fix default protocol -- user prop: transfer_protocol
@@ -127,8 +133,8 @@ module.exports = class DropFile {
             bd,                                                 //  "Caller's Birthdate"
             'X:\\MAIN\\',                                       //  "Path to the MAIN directory (where User File is)"
             'X:\\GEN\\',                                        //  "Path to the GEN directory"
-            StatLog.getSystemStat('sysop_username'),            //  "Sysop's Name (name BBS refers to Sysop as)"
-            this.client.user.username,                          //  "Alias name"
+            StatLog.getSystemStat(SysProps.SysOpUsername),      //  "Sysop's Name (name BBS refers to Sysop as)"
+            this.client.user.getSanitizedName(),                //  "Alias name"
             '00:05',                                            //  "Event time                        (hh:mm)" (note: wat?)
             'Y',                                                //  "If its an error correcting connection (Y/N)"
             'Y',                                                //  "ANSI supported & caller using NG mode (Y/N)"
@@ -137,18 +143,15 @@ module.exports = class DropFile {
             //  :TODO: fix minutes here also:
             '256',                                              //  "Time Credits In Minutes (positive/negative)"
             '07/07/90',                                         //  "Last New Files Scan Date          (mm/dd/yy)"
-            //  :TODO: fix last vs now times:
-            now.format('hh:mm'),                                //  "Time of This Call"
-            now.format('hh:mm'),                                //  "Time of Last Call                 (hh:mm)"
+            timeOfCall,                                         //  "Time of This Call"
+            timeOfCall,                                         //  "Time of Last Call                 (hh:mm)"
             '9999',                                             //  "Maximum daily files available"
-            //  :TODO: fix these stats:
-            '0',                                                //  "Files d/led so far today"          
-            '0',                                                //  "Total "K" Bytes Uploaded"
-            '0',                                                //  "Total "K" Bytes Downloaded"
+            '0',                                                //  "Files d/led so far today"
+            upK.toString(),                                     //  "Total "K" Bytes Uploaded"
+            downK.toString(),                                   //  "Total "K" Bytes Downloaded"
             prop[UserProps.UserComment] || 'None',              //  "User Comment"
             '0',                                                //  "Total Doors Opened"
             '0',                                                //  "Total Messages Left"
-
         ].join('\r\n') + '\r\n', 'cp437');
     }
 
@@ -173,8 +176,8 @@ module.exports = class DropFile {
             '115200',
             Config().general.boardName,
             this.client.user.userId.toString(),
-            this.client.user.properties[UserProps.RealName] || this.client.user.username,
-            this.client.user.username,
+            this.client.user.getSanitizedName('real'),
+            this.client.user.getSanitizedName(),
             this.client.user.getLegacySecurityLevel().toString(),
             '546',  //  :TODO: Minutes left!
             '1',    //  ANSI
@@ -191,8 +194,8 @@ module.exports = class DropFile {
         //
         //  Note that usernames are just used for first/last names here
         //
-        const opUserName    = /[^\s]*/.exec(StatLog.getSystemStat('sysop_username'))[0];
-        const userName      = /[^\s]*/.exec(this.client.user.username)[0];
+        const opUserName    = /[^\s]*/.exec(StatLog.getSystemStat(SysProps.SysOpUsername))[0];
+        const userName      = /[^\s]*/.exec(this.client.user.getSanitizedName())[0];
         const secLevel      = this.client.user.getLegacySecurityLevel().toString();
         const location      = this.client.user.properties[UserProps.Location];
 

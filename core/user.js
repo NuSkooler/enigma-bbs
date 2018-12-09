@@ -15,11 +15,12 @@ const Log           = require('./logger.js').log;
 const StatLog       = require('./stat_log.js');
 
 //  deps
-const crypto        = require('crypto');
-const assert        = require('assert');
-const async         = require('async');
-const _             = require('lodash');
-const moment        = require('moment');
+const crypto            = require('crypto');
+const assert            = require('assert');
+const async             = require('async');
+const _                 = require('lodash');
+const moment            = require('moment');
+const sanatizeFilename  = require('sanitize-filename');
 
 exports.isRootUserId = function(id) { return 1 === id; };
 
@@ -112,6 +113,11 @@ module.exports = class User {
 
         const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn)));
         return isMember;
+    }
+
+    getSanitizedName(type='username') {
+        const name = 'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+        return sanatizeFilename(name) || `user${this.userId.toString()}`;
     }
 
     getLegacySecurityLevel() {
