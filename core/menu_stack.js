@@ -3,7 +3,10 @@
 
 //  ENiGMA½
 const loadMenu  = require('./menu_util.js').loadMenu;
-const Errors    = require('./enig_error.js').Errors;
+const {
+    Errors,
+    ErrorReasons
+}               = require('./enig_error.js');
 
 //  deps
 const _         = require('lodash');
@@ -43,26 +46,23 @@ module.exports = class MenuStack {
 
     get currentModule() {
         const top = this.top();
-        if(top) {
-            return top.instance;
-        }
+        assert(top, 'Empty menu stack!');
+        return top.instance;
     }
 
     next(cb) {
         const currentModuleInfo = this.top();
-        assert(currentModuleInfo, 'Empty menu stack!');
-
-        const menuConfig    = currentModuleInfo.instance.menuConfig;
-        const nextMenu      = this.client.acs.getConditionalValue(menuConfig.next, 'next');
+        const menuConfig        = currentModuleInfo.instance.menuConfig;
+        const nextMenu          = this.client.acs.getConditionalValue(menuConfig.next, 'next');
         if(!nextMenu) {
             return cb(Array.isArray(menuConfig.next) ?
-                Errors.MenuStack('No matching condition for "next"', 'NOCONDMATCH') :
-                Errors.MenuStack('Invalid or missing "next" member in menu config', 'BADNEXT')
+                Errors.MenuStack('No matching condition for "next"', ErrorReasons.NoConditionMatch) :
+                Errors.MenuStack('Invalid or missing "next" member in menu config', ErrorReasons.InvalidNextMenu)
             );
         }
 
         if(nextMenu === currentModuleInfo.name) {
-            return cb(Errors.MenuStack('Menu config "next" specifies current menu', 'ALREADYTHERE'));
+            return cb(Errors.MenuStack('Menu config "next" specifies current menu', ErrorReasons.AlreadyThere));
         }
 
         this.goto(nextMenu, { }, cb);
@@ -86,7 +86,7 @@ module.exports = class MenuStack {
             return this.goto(previousModuleInfo.name, opts, cb);
         }
 
-        return cb(Errors.MenuStack('No previous menu available', 'NOPREV'));
+        return cb(Errors.MenuStack('No previous menu available', ErrorReasons.NoPreviousMenu));
     }
 
     goto(name, options, cb) {
@@ -102,7 +102,7 @@ module.exports = class MenuStack {
 
         if(currentModuleInfo && name === currentModuleInfo.name) {
             if(cb) {
-                cb(Errors.MenuStack('Already at supplied menu', 'ALREADYTHERE'));
+                cb(Errors.MenuStack('Already at supplied menu', ErrorReasons.AlreadyThere));
             }
             return;
         }
