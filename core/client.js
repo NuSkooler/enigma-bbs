@@ -54,6 +54,7 @@ exports.Client  = Client;
 //  Resources & Standards:
 //  * http://www.ansi-bbs.org/ansi-bbs-core-server.html
 //
+/* eslint-disable no-control-regex */
 const RE_DSR_RESPONSE_ANYWHERE      = /(?:\u001b\[)([0-9;]+)(R)/;
 const RE_DEV_ATTR_RESPONSE_ANYWHERE = /(?:\u001b\[)[=?]([0-9a-zA-Z;]+)(c)/;
 const RE_META_KEYCODE_ANYWHERE      = /(?:\u001b)([a-zA-Z0-9])/;
@@ -63,6 +64,7 @@ const RE_FUNCTION_KEYCODE_ANYWHERE  = new RegExp('(?:\u001b+)(O|N|\\[|\\[\\[)(?:
     '(?:M([@ #!a`])(.)(.))',        // mouse stuff
     '(?:1;)?(\\d+)?([a-zA-Z@])'
 ].join('|') + ')');
+/* eslint-enable no-control-regex */
 
 const RE_FUNCTION_KEYCODE           = new RegExp('^' + RE_FUNCTION_KEYCODE_ANYWHERE.source);
 const RE_ESC_CODE_ANYWHERE          = new RegExp( [
@@ -70,7 +72,7 @@ const RE_ESC_CODE_ANYWHERE          = new RegExp( [
     RE_META_KEYCODE_ANYWHERE.source,
     RE_DSR_RESPONSE_ANYWHERE.source,
     RE_DEV_ATTR_RESPONSE_ANYWHERE.source,
-    /\u001b./.source
+    /\u001b./.source    //  eslint-disable-line no-control-regex
 ].join('|'));
 
 
@@ -158,15 +160,17 @@ function Client(/*input, output*/) {
         return termClient;
     };
 
+    /* eslint-disable no-control-regex */
     this.isMouseInput = function(data) {
-        return /\x1b\[M/.test(data) ||                          //  eslint-disable-line no-control-regex
-            /\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) ||   //  eslint-disable-line no-control-regex
+        return /\x1b\[M/.test(data) ||
+            /\u001b\[M([\x00\u0020-\uffff]{3})/.test(data) ||
             /\u001b\[(\d+;\d+;\d+)M/.test(data) ||
             /\u001b\[<(\d+;\d+;\d+)([mM])/.test(data) ||
             /\u001b\[<(\d+;\d+;\d+;\d+)&w/.test(data) ||
             /\u001b\[24([0135])~\[(\d+),(\d+)\]\r/.test(data) ||
             /\u001b\[(O|I)/.test(data);
     };
+    /* eslint-enable no-control-regex */
 
     this.getKeyComponentsFromCode = function(code) {
         return {

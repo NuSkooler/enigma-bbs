@@ -8,7 +8,6 @@ const DownloadQueue         = require('./download_queue.js');
 const theme                 = require('./theme.js');
 const ansi                  = require('./ansi_term.js');
 const Errors                = require('./enig_error.js').Errors;
-const stringFormat          = require('./string_format.js');
 const FileAreaWeb           = require('./file_area_web.js');
 const ErrNotEnabled         = require('./enig_error.js').ErrorReasons.NotEnabled;
 const Config                = require('./config.js').get;

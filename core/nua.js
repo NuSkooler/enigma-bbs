@@ -15,7 +15,6 @@ const UserProps     = require('./user_property.js');
 
 //  deps
 const _             = require('lodash');
-const moment        = require('moment');
 
 exports.moduleInfo = {
     name    : 'NUA',

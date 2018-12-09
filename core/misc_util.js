@@ -1,10 +1,9 @@
 /* jslint node: true */
 'use strict';
 
+//  deps
 const paths         = require('path');
-
 const os            = require('os');
-const moment        = require('moment');
 
 const packageJson   = require('../package.json');
 
