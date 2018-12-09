@@ -62,7 +62,7 @@ function SpinnerMenuView(options) {
         text = `${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`;
         this.client.term.write(`${ansi.goto(this.position.row, this.position.col)}${text}`);
         this.setRenderCacheItem(index, text, this.hasFocus);
-   }
+    };
 }
 
 util.inherits(SpinnerMenuView, MenuView);

@@ -433,7 +433,7 @@ ViewController.prototype.getView = function(id) {
 
 ViewController.prototype.hasView = function(id) {
     return this.getView(id) ? true : false;
-}
+};
 
 ViewController.prototype.getViewsByMciCode = function(mciCode) {
     if(!Array.isArray(mciCode)) {
