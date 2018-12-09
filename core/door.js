@@ -64,7 +64,7 @@ module.exports = class Door {
             node            : exeInfo.node.toString(),
             srvPort         : this.sockServer ? this.sockServer.address().port.toString() : '-1',
             userId          : this.client.user.userId.toString(),
-            userName        : sanatizeFilename(this.client.user.username),
+            userName        : sanatizeFilename(this.client.user.username) || `user${this.client.user.userId.toString()}`,
             userNameRaw     : this.client.user.username,
             cwd             : cwd,
         };
