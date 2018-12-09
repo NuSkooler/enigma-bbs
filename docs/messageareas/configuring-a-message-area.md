@@ -10,13 +10,18 @@ Message Conferences are the top level container for *1:n* Message *Areas* via th
 
 Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
 
-| Config Item | Required | Description                                                                     |
-|-------------|----------|---------------------------------------------------------------------------------|
-| `name`      | :+1:     | Friendly conference name |
-| `desc`      | :+1:     | Friendly conference description. |
-| `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
-| `default`   | :-1:     | Specify `true` to make this the default conference (e.g. assigned to new users) |
-| `areas`     | :+1:     | Container of 1:n areas described below |
+| Config Item | Required | Description |
+|-------------|----------|-------------|
+| `name`      | :+1: | Friendly conference name |
+| `desc`      | :+1: | Friendly conference description. |
+| `sort`      | :-1: | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
+| `default`   | :-1: | Specify `true` to make this the default conference (e.g. assigned to new users) |
+| `areas`     | :+1: | Container of 1:n areas described below |
+| `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
+
+### ACS
+An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
+* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
 
 ### Example
 
@@ -28,6 +33,9 @@ Each conference is represented by a entry under `messageConferences`. Each entri
       desc: Local discussion
       sort: 1
       default: true
+      acs: {
+        read: GM[users] // default
+      }
     }
   }
 }
@@ -42,6 +50,11 @@ Message Areas are topic specific containers for messages that live within a part
 | `desc`      | :+1:     | Friendly area description. |
 | `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
+| `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
+
+### ACS
+An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
+* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
 
 ### Example
 
@@ -54,7 +67,10 @@ messageConferences: {
         name: ENiGMA 1/2 Development   
         desc: ENiGMA 1/2 discussion!   
         sort: 1                        
-        default: true                   
+        default: true
+        acs: {
+          read: GM[users] // default
+        }
       }
     }
   }
