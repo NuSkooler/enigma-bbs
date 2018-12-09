@@ -401,7 +401,7 @@ module.exports = class FileEntry {
     //  Checkums may have changed and are not validated here.
     static findByFullPath(fullPath, cb) {
         //  first, basic by-filename lookup.
-        FileEntry.findByFileNameWildcard(paths.basename(fuillPath), (err, entries) => {
+        FileEntry.findByFileNameWildcard(paths.basename(fullPath), (err, entries) => {
             if(err) {
                 return cb(err);
             }
