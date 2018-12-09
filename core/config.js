@@ -261,7 +261,7 @@ function getDefaultConfig() {
             logs                : paths.join(__dirname, './../logs/'),  //  :TODO: set up based on system, e.g. /var/logs/enigmabbs or such
             db                  : paths.join(__dirname, './../db/'),
             modsDb              : paths.join(__dirname, './../db/mods/'),
-            dropFiles           : paths.join(__dirname, './../dropfiles/'), //  + "/node<x>/
+            dropFiles           : paths.join(__dirname, './../drop/'), //  + "/node<x>/
             misc                : paths.join(__dirname, './../misc/'),
         },
 
