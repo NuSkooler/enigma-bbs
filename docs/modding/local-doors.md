@@ -41,7 +41,7 @@ The following variables may be used in `args` entries:
 | `{dropFile}` | Dropfile _filename_ only. | `DOOR.SYS` |
 | `{dropFilePath}` | Full path to generated dropfile. The system places dropfiles in the path set by `paths.dropFiles` in `config.hjson`. | `C:\enigma-bbs\drop\node1\DOOR.SYS` |
 | `{userId}` | Current user ID. | `420` |
-| `{userName}` | _Sanitized_ username. Safe for filenames, etc. | `izard` |
+| `{userName}` | [Sanitized](https://www.npmjs.com/package/sanitize-filename) username. Safe for filenames, etc. If the full username is sanitized away, this will resolve to something like "user_1234". | `izard` |
 | `{userNameRaw}` | _Raw_ username. May not be safe for filenames! | `\/\/izard` |
 | `{srvPort}` | Temporary server port when `io` is set to `socket`. | `1234` |
 | `{cwd}` | Current Working Directory. | `/home/enigma-bbs/doors/foo/` |
