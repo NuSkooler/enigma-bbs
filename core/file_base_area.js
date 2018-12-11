@@ -239,7 +239,7 @@ function getExistingFileEntriesBySha256(sha256, cb) {
     );
 }
 
-//  :TODO: This is bascially sliceAtEOF() from art.js .... DRY!
+//  :TODO: This is basically sliceAtEOF() from art.js .... DRY!
 function sliceAtSauceMarker(data) {
     let eof         = data.length;
     const stopPos   = Math.max(data.length - (256), 0); //  256 = 2 * sizeof(SAUCE)
