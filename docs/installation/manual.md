@@ -20,11 +20,12 @@ are OK) for Windows users. Note that you **should only need the Visual C++ compo
  
 ## Node.js
 ### With NVM
-Node Version Manager (NVM) is an excellent way to install and manage Node.js versions on most UNIX-like environments. [Get the latest version here](https://github.com/creationix/nvm). The install should look something like this:
+Node Version Manager (NVM) is an excellent way to install and manage Node.js versions on most UNIX-like environments. [Get the latest version here](https://github.com/creationix/nvm). The nvm install may look _something_ like this:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash
 ```
+:information_source: Do not cut+paste the above command! Visit the [NVM](https://github.com/creationix/nvm) page and run the latest version!
 
 Next, install Node.js with NVM:
 ```bash
