@@ -203,7 +203,11 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                         ws.isConnectionAlive = false;   //  pong will reset this
 
                         Log.trace('Ping to remote WebSocket client');
-                        return ws.ping('', false);  //  false=don't mask
+                        try {
+                            ws.ping('', false);  //  false=don't mask
+                        } catch(e) {    //  don't barf on closing state
+                            /* nothing */
+                        }
                     });
                 }
             });
