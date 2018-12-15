@@ -397,7 +397,7 @@ function getDefaultConfig() {
                 enabled         : false,
                 port            : 8070,
                 publicHostname  : 'another-fine-enigma-bbs.org',
-                publicPort      : 8080, //  adjust if behind NAT/etc.
+                publicPort      : 8070, //  adjust if behind NAT/etc.
                 bannerFile      : 'gopher_banner.asc',
 
                 //
