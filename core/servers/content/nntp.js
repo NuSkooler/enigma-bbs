@@ -764,6 +764,6 @@ exports.getModule = class NNTPServerModule extends ServerModule {
     }
 
     listenURI(port, service = 'nntp') {
-        return `${service}://localhost:${port}`;
+        return `${service}://0.0.0.0:${port}`;
     }
 };
