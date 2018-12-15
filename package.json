@@ -52,7 +52,9 @@
     "uuid-parse": "^1.0.0",
     "ws": "^6.1.2",
     "xxhash": "^0.2.4",
-    "yazl": "^2.5.0"
+    "yazl": "^2.5.0",
+    "nntp-server": "^1.0.3",
+    "lru-cache" : "^5.1.1"
   },
   "devDependencies": {},
   "engines": {

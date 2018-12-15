@@ -404,6 +404,33 @@ function getDefaultConfig() {
                 //  Set messageConferences{} to maps of confTag -> [ areaTag1, areaTag2, ... ]
                 //  to export message confs/areas
                 //
+            },
+
+            nntp : {
+                //  internal caching of groups, message lists, etc.
+                cache : {
+                    maxItems    : 200,
+                    maxAge      : 1000 * 30,    //  30s
+                },
+
+                //
+                //  Set publicMessageConferences{} to a map of confTag -> [ areaTag1, areaTag2, ... ]
+                //  in order to export *public* conf/areas that are available to anonymous
+                //  NNTP users. Other conf/areas: Standard ACS rules apply.
+                //
+                publicMessageConferences: {},
+
+                nntp : {
+                    enabled     : false,
+                    port        : 8119,
+                },
+
+                nntps : {
+                    enabled     : false,
+                    port        : 8563,
+                    certPem     : paths.join(__dirname, './../config/nntps_cert.pem'),
+                    keyPem      : paths.join(__dirname, './../config/nntps_key.pem'),
+                }
             }
         },
 

@@ -222,6 +222,39 @@
             //  messageConferences: {
             //      some_conf: [ "area_tag1", "area_tag2" ]
             //  }
+            //
+        }
+
+        //  You may also wish to enable NNTP services
+        nntp: {
+            //
+            //  Set publicMessageConferences{} to configure
+            //  publicly exposed conferences & areas.
+            //
+            //  Example:
+            //  publicMessageConferences: {
+            //      some_conf: [ "area_tag1", "area_tag2" ]
+            //  }
+            //
+            publicMessageConferences: {}
+
+            // non-secure
+            nntp: {
+                enabled: false
+                port: XXXXX
+            }
+
+            //  secure (TLS)
+            nntps: {
+                enabled: false
+                port: XXXXX
+
+                //
+                //  You will need a SSL/TLS certificate and key
+                //
+                certPem: XXXXX
+                keyPem: XXXXX
+            }
         }
     }
 
