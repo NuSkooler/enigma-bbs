@@ -63,6 +63,110 @@ Example:
   }
 }
 ```
+An example of the complete messageNetworks section for fsxNet:
+
+ messageNetworks: {
+	    ftn: {
+	    	networks: {
+		      fsxnet: {
+              defaultXone: 21
+			        localAddress: "21:1/121"
+  		    }
+	    	}
+    		areas: {
+		      FSX_BBS: {
+    		  	network: fsxnet
+		    	  tag: FSX_BBS
+  			    uplinks: "21:1/100"
+	  	    }
+		      FSX_BOT: {
+    	  		network: fsxnet
+		      	tag: FSX_BOT
+			      uplinks: "21:1/100"
+  		    }
+	  	    FSX_GEN: {
+		  	    network: fsxnet
+			      tag: FSX_GEN
+  			    uplinks: "21:1/100"
+	  	    }
+		      FSX_CRY: {
+			      network: fsxnet
+    		  	tag: FSX_CRY
+		    	  uplinks: "21:1/100"
+  		    }
+	  	    FSX_DAT: {
+      			network: fsxnet
+		      	tag: FSX_DAT
+			      uplinks: "21:1/100"
+		      }
+  		    FSX_MAG: {
+      			network: fsxnet
+		      	tag: FSX_MAG
+    	  		uplinks: "21:1/100"
+		      }
+  		    FSX_MYS: {
+      			network: fsxnet
+		      	tag: FSX_MYS
+			      uplinks: "21:1/100"
+		      }
+     		}
+     }
+  }
+  
+Complete example of the local message area setup for fsxNet message bases:
+
+	fsxnet: {
+	    name: fsxNet
+	    desc: "'F'un, 'S'imple, and e'X'perimental Network"
+	    sort: 1
+	    default: true
+	    areas: {
+		FSX_BBS: {
+		    name: "BBS Software Development & Support"
+		    desc: "BBS Software Development & Support"
+		    sort: 1
+		    default: true
+		}
+		FSX_BOT: {
+		    name: "Automated roBOT Posts"
+		    desc: "Automated roBOT Posts"
+		    sort: 1
+		    default: true
+		}
+		FSX_GEN: {
+		    name: "Chat, Testing + More.."
+		    desc: "Chat, Testing + More.."
+		    sort: 1
+		    default: true
+		}
+		FSX_CRY: {
+		    name: "Cryptographics"
+		    desc: "Cryptographics"
+		    sort: 1
+		    default: true
+		}
+		FSX_DAT: {
+		    name: "Data Transfer Messages"
+		    desc: "Data Transfer Messages"
+		    sort: 1
+		    default: true
+		}
+		FSX_MAG: {
+		    name: "Magicka BBS Support/Dev"
+		    desc: "Magicka BBS Support/Dev"
+		    sort: 1
+		    default: true
+		}
+		FSX_MYS: {
+		    name: "Mystic BBS Support/Dev"
+		    desc: "Mystic BBS Support/Dev"
+		    sort: 1
+		    default: true
+		}
+	    }
+       }
+
+
 
 ### FTN/BSO Scanner Tosser
 Please see the [FTN/BSO Scanner/Tosser](bso-import-export.md) documentation for information on this area.
