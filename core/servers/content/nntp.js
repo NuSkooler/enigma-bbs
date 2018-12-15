@@ -276,7 +276,7 @@ class NNTPServer extends NNTPServerBase {
 
     _getArticle(session, messageId) {
         return new Promise( resolve => {
-            this.log.trace( { messageId }, 'Get article request');
+            this.log.trace( { messageId }, 'Get article');
 
             const messageUuid = this.getMessageUUIDFromMessageID(session, messageId);
             if(!messageUuid) {
@@ -291,14 +291,18 @@ class NNTPServer extends NNTPServerBase {
                         return message.load( { uuid : messageUuid }, callback);
                     },
                     (callback) => {
-                        //  :TODO: Must validate access! See Gopher, etc. !!!!!
-                        //  :TODO: we can only do this if a <message-id> style was sent in, not a direct ID ??????
+                        if(!_.has(session, 'groupInfo.areaTag')) {
+                            //  :TODO: if this is needed, how to validate properly?
+                            this.log.warn( { messageUuid, messageId }, 'Get article request without group selection');
+                            return resolve(null);
+                        }
+
                         if(session.groupInfo.areaTag !== message.areaTag) {
                             return resolve(null);
                         }
 
                         if(!this.hasConfAndAreaReadAccess(session, session.groupInfo.confTag, session.groupInfo.areaTag)) {
-                            this.log.info(`Access denied to message ${messageUuid}`);
+                            this.log.info( { messageUuid, messageId}, 'Access denied for message');
                             return resolve(null);
                         }
 
@@ -519,6 +523,7 @@ class NNTPServer extends NNTPServerBase {
                     friendlyDesc    : area.desc,
                     nntp : {
                         name        : groupName,
+                        description : area.desc,
                         min_index   : 0,
                         max_index   : 0,
                         total       : 0,
@@ -566,14 +571,15 @@ class NNTPServer extends NNTPServerBase {
     _buildHeaderField(session, message, field) {
         const body = message.preparedBody || message.message;
         const value = {
-            ':bytes'        : Buffer.byteLength(body).toString(),
-            ':lines'        : splitTextAtTerms(body).length.toString(),
-        }[field] || _.find(message.nntpHeaders, (v, k) => {
-            return k.toLowerCase() === field;
-        });
+            ':bytes'    : Buffer.byteLength(body).toString(),
+            ':lines'    : splitTextAtTerms(body).length.toString(),
+        }[field]
+            || _.find(message.nntpHeaders, (v, k) => {
+                return k.toLowerCase() === field;
+            });
 
         if(!value) {
-            this.log.debug(`No value for requested header field "${field}"`);
+            this.log.trace(`No value for requested header field "${field}"`);
         }
 
         return value;
