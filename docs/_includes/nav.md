@@ -13,7 +13,7 @@
   - Configuration
     - [Creating Config Files]({{ site.baseurl }}{% link configuration/creating-config.md %})
     - [SysOp Setup]({{ site.baseurl }}{% link configuration/sysop-setup.md %})
-    - [Editing hjson]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
+    - [Editing HJSON]({{ site.baseurl }}{% link configuration/editing-hjson.md %})
     - [System Configuration]({{ site.baseurl }}{% link configuration/config-hjson.md %})
     - [HJSON General]({{ site.baseurl }}{% link configuration/hjson.md %})
     - [Menus]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
