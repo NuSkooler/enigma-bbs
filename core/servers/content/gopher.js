@@ -2,22 +2,23 @@
 'use strict';
 
 //  ENiGMA½
-const Log                   = require('../../logger.js').log;
-const { ServerModule }      = require('../../server_module.js');
-const Config                = require('../../config.js').get;
+const Log                       = require('../../logger.js').log;
+const { ServerModule }          = require('../../server_module.js');
+const Config                    = require('../../config.js').get;
 const {
     splitTextAtTerms,
     isAnsi,
     cleanControlCodes
-}                           = require('../../string_util.js');
+}                               = require('../../string_util.js');
 const {
     getMessageConferenceByTag,
     getMessageAreaByTag,
     getMessageListForArea,
-}                           = require('../../message_area.js');
-const { sortAreasOrConfs }  = require('../../conf_area_util.js');
-const AnsiPrep              = require('../../ansi_prep.js');
-const { wordWrapText }      = require('../../word_wrap.js');
+}                               = require('../../message_area.js');
+const { sortAreasOrConfs }      = require('../../conf_area_util.js');
+const AnsiPrep                  = require('../../ansi_prep.js');
+const { wordWrapText }          = require('../../word_wrap.js');
+const { stripMciColorCodes }    = require('../../color_codes.js');
 
 //  deps
 const net                   = require('net');
@@ -216,9 +217,13 @@ exports.getModule = class GopherModule extends ServerModule {
                 }
             );
         } else {
-            const prepped = splitTextAtTerms(cleanControlCodes(body, { all : true } ) )
-                .map(l => (wordWrapText(l, { width : WordWrapColumn } ).wrapped || []).join('\n'))
-                .join('\n');
+            const cleaned = stripMciColorCodes(
+                cleanControlCodes(body, { all : true } )
+            );
+            const prepped =
+                splitTextAtTerms(cleaned)
+                    .map(l => (wordWrapText(l, { width : WordWrapColumn } ).wrapped || []).join('\n'))
+                    .join('\n');
 
             return cb(prepped);
         }
