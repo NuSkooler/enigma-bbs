@@ -313,9 +313,11 @@ class NNTPServer extends NNTPServerBase {
                 ],
                 err => {
                     if(err) {
-                        this.log.error( { error : err.message, messageId }, 'Failed to load article');
+                        this.log.error( { error : err.message, messageUuid }, 'Failed to load article');
                         return resolve(null);
                     }
+
+                    this.log.info( { messageUuid, messageId, areaTag : message.areaTag }, 'Serving article');
                     return resolve(message);
                 }
             );
