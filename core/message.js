@@ -238,7 +238,7 @@ module.exports = class Message {
         filter.ids - use with resultType='uuid'
         filter.toUserName
         filter.fromUserName
-        filter.replyToMesageId
+        filter.replyToMessageId
 
         filter.newerThanTimestamp - may not be used with |date|
         filter.date - moment object - may not be used with |newerThanTimestamp|
@@ -253,7 +253,7 @@ module.exports = class Message {
         filter.order = ascending | (descending)
 
         filter.limit
-        filter.resultType = (id) | uuid | count
+        filter.resultType = (id) | uuid | count | messageList
         filter.extraFields = []
 
         filter.privateTagUserId = <userId> - if set, only private messages belonging to <userId> are processed
@@ -529,22 +529,22 @@ module.exports = class Message {
         });
     }
 
-    //  :TODO: this should only take a UUID...
-    load(options, cb) {
-        assert(_.isString(options.uuid));
+    load(loadWith, cb) {
+        assert(_.isString(loadWith.uuid) || _.isNumber(loadWith.messageId));
 
         const self = this;
 
         async.series(
             [
                 function loadMessage(callback) {
+                    const whereField = loadWith.uuid ? 'message_uuid' : 'message_id';
                     msgDb.get(
                         `SELECT message_id, area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject,
                         message, modified_timestamp, view_count
                         FROM message
-                        WHERE message_uuid=?
+                        WHERE ${whereField} = ?
                         LIMIT 1;`,
-                        [ options.uuid ],
+                        [ loadWith.uuid || loadWith.messageId ],
                         (err, msgRow) => {
                             if(err) {
                                 return callback(err);

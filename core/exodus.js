@@ -17,7 +17,7 @@ const crypto        = require('crypto');
 const moment        = require('moment');
 const https         = require('https');
 const querystring   = require('querystring');
-const fs            = require('fs');
+const fs            = require('fs-extra');
 const SSHClient     = require('ssh2').Client;
 
 /*
