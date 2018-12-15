@@ -341,7 +341,7 @@ ${msgBody}
                 this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                 this.makeItem(ItemTypes.InfoMessage, `Message areas in ${conf.name}`),
                 this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
-                ...areas.map(area => this.makeItem(ItemTypes.SubMenu, area.name, `/msgarea/${confTag}/${area.areaTag}`))
+                ...areas.map(area => this.makeItem(ItemTypes.SubMenu, `${area.name} ${area.desc ? '- ' + area.desc : ''}`, `/msgarea/${confTag}/${area.areaTag}`))
             ].join('');
 
             return cb(response);
@@ -362,7 +362,7 @@ ${msgBody}
                 this.makeItem(ItemTypes.InfoMessage, 'Available Message Conferences'),
                 this.makeItem(ItemTypes.InfoMessage, '-'.repeat(70)),
                 this.makeItem(ItemTypes.InfoMessage, ''),
-                ...confs.map(conf => this.makeItem(ItemTypes.SubMenu, conf.name, `/msgarea/${conf.confTag}`))
+                ...confs.map(conf => this.makeItem(ItemTypes.SubMenu, `${conf.name} ${conf.desc ? '- ' + conf.desc : ''}`, `/msgarea/${conf.confTag}`))
             ].join('');
 
             return cb(response);
