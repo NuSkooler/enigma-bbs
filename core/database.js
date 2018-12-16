@@ -20,7 +20,7 @@ exports.getTransactionDatabase      = getTransactionDatabase;
 exports.getModDatabasePath          = getModDatabasePath;
 exports.loadDatabaseForMod          = loadDatabaseForMod;
 exports.getISOTimestampString       = getISOTimestampString;
-exports.sanatizeString              = sanatizeString;
+exports.sanitizeString              = sanitizeString;
 exports.initializeDatabases         = initializeDatabases;
 
 exports.dbs                         = dbs;
@@ -76,7 +76,7 @@ function getISOTimestampString(ts) {
     return ts.format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 }
 
-function sanatizeString(s) {
+function sanitizeString(s) {
     return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {   //  eslint-disable-line no-control-regex
         switch (c) {
             case '\0'   : return '\\0';

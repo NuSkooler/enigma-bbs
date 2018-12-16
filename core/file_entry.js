@@ -5,7 +5,7 @@ const fileDb                = require('./database.js').dbs.file;
 const Errors                = require('./enig_error.js').Errors;
 const {
     getISOTimestampString,
-    sanatizeString
+    sanitizeString
 }                           = require('./database.js');
 const Config                = require('./config.js').get;
 
@@ -565,14 +565,14 @@ module.exports = class FileEntry {
                 `f.file_id IN (
                     SELECT rowid
                     FROM file_fts
-                    WHERE file_fts MATCH ":${sanatizeString(filter.terms)}"
+                    WHERE file_fts MATCH ":${sanitizeString(filter.terms)}"
                 )`
             );
         }
 
         if(filter.tags && filter.tags.length > 0) {
             //  build list of quoted tags; filter.tags comes in as a space and/or comma separated values
-            const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${sanatizeString(tag)}"` ).join(',');
+            const tags = filter.tags.replace(/,/g, ' ').replace(/\s{2,}/g, ' ').split(' ').map( tag => `"${sanitizeString(tag)}"` ).join(',');
 
             appendWhereClause(
                 `f.file_id IN (

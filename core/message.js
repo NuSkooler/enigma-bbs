@@ -8,7 +8,7 @@ const createNamedUUID       = require('./uuid_util.js').createNamedUUID;
 const Errors                = require('./enig_error.js').Errors;
 const ANSI                  = require('./ansi_term.js');
 const {
-    sanatizeString,
+    sanitizeString,
     getISOTimestampString } = require('./database.js');
 
 const {
@@ -354,7 +354,7 @@ module.exports = class Message {
 
         [ 'toUserName', 'fromUserName' ].forEach(field => {
             if(_.isString(filter[field]) && filter[field].length > 0) {
-                appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanatizeString(filter[field])}"`);
+                appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanitizeString(filter[field])}"`);
             }
         });
 
@@ -375,7 +375,7 @@ module.exports = class Message {
                 `m.message_id IN (
                     SELECT rowid
                     FROM message_fts
-                    WHERE message_fts MATCH ":${sanatizeString(filter.terms)}"
+                    WHERE message_fts MATCH ":${sanitizeString(filter.terms)}"
                 )`
             );
         }

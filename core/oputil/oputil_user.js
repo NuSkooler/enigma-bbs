@@ -2,10 +2,13 @@
 /* eslint-disable no-console */
 'use strict';
 
-const printUsageAndSetExitCode	= require('./oputil_common.js').printUsageAndSetExitCode;
-const ExitCodes					= require('./oputil_common.js').ExitCodes;
-const argv						= require('./oputil_common.js').argv;
-const initConfigAndDatabases	= require('./oputil_common.js').initConfigAndDatabases;
+const {
+    printUsageAndSetExitCode,
+    getAnswers,
+    ExitCodes,
+    argv,
+    initConfigAndDatabases
+}                               = require('./oputil_common.js');
 const getHelpFor				= require('./oputil_help.js').getHelpFor;
 const Errors					= require('../enig_error.js').Errors;
 const UserProps                 = require('../user_property.js');
@@ -111,8 +114,109 @@ function setUserPassword(user) {
     );
 }
 
-function removeUser() {
-    console.error('NOT YET IMPLEMENTED');
+function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
+    const db = require('../../core/database.js').dbs[dbName];
+    db.run(
+        `DELETE FROM ${tableName}
+        WHERE ${col} = ?;`,
+        [ userId ],
+        err => {
+            return cb(err);
+        }
+    );
+}
+
+function removeUser(user) {
+    async.series(
+        [
+            (callback) => {
+                if(false === argv.prompt) {
+                    return callback(null);
+                }
+
+                console.info('About to permanently delete the following user:');
+                console.info(`Username : ${user.username}`);
+                console.info(`Real name: ${user.properties[UserProps.RealName] || 'N/A'}`);
+                console.info(`User ID  : ${user.userId}`);
+                console.info('WARNING: This cannot be undone!');
+                getAnswers([
+                    {
+                        name    : 'proceed',
+                        message : `Proceed in deleting ${user.username}?`,
+                        type    : 'confirm',
+                    }
+                ],
+                answers => {
+                    if(answers.proceed) {
+                        return callback(null);
+                    }
+                    return callback(Errors.General('User canceled'));
+                });
+            },
+            (callback) => {
+                //  op has confirmed they are wanting ready to proceed (or passed --no-prompt)
+                const DeleteFrom = {
+                    message : [ 'user_message_area_last_read' ],
+                    system  : [ 'user_event_log', ],
+                    user    : [ 'user_group_member', 'user' ],
+                };
+
+                async.eachSeries(Object.keys(DeleteFrom), (dbName, nextDbName) => {
+                    const tables = DeleteFrom[dbName];
+                    async.eachSeries(tables, (tableName, nextTableName) => {
+                        const col = ('user' === dbName && 'user' === tableName) ? 'id' : 'user_id';
+                        removeUserRecordsFromDbAndTable(dbName, tableName, user.userId, col, err => {
+                            return nextTableName(err);
+                        });
+                    },
+                    err => {
+                        return nextDbName(err);
+                    });
+                },
+                err => {
+                    return callback(err);
+                });
+            },
+            (callback) => {
+                //
+                //  Clean up *private* messages *to* this user
+                //
+                const Message   = require('../../core/message.js');
+                const MsgDb     = require('../../core/database.js').dbs.message;
+
+                const filter = {
+                    resultType          : 'id',
+                    privateTagUserId    : user.userId,
+                };
+                Message.findMessages(filter, (err, ids) => {
+                    if(err) {
+                        return callback(err);
+                    }
+
+                    async.eachSeries(ids, (messageId, nextMessageId) => {
+                        MsgDb.run(
+                            `DELETE FROM message
+                            WHERE message_id = ?;`,
+                            [ messageId ],
+                            err => {
+                                return nextMessageId(err);
+                            }
+                        );
+                    },
+                    err => {
+                        return callback(err);
+                    });
+                });
+            }
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+
+            console.info('User has been deleted.');
+        }
+    );
 }
 
 function modUserGroups(user) {
