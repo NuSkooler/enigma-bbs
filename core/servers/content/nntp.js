@@ -29,7 +29,6 @@ const asyncReduce           = require('async/reduce');
 const asyncMap              = require('async/map');
 const asyncSeries           = require('async/series');
 const LRU                   = require('lru-cache');
-const iconv                 = require('iconv-lite');
 
 //
 //  Network News Transfer Protocol (NNTP)
@@ -589,8 +588,9 @@ class NNTPServer extends NNTPServerBase {
         return super._getOverviewFmt(session);
     }
 
-    _getNewNews(session, time, wildmat) {
-        throw new Error('method `nntp._getNewNews` is not implemented');
+    _getNewNews(/*session, time, wildmat*/) {
+        //  Currently seems pointless to implement. No semi-modern clients seem to use it anyway.
+        throw new Errors.Invalid('NEWNEWS is not enabled on this server');
     }
 
     getMessageDate(message) {
@@ -633,11 +633,11 @@ class NNTPServer extends NNTPServerBase {
             AnsiPrep(
                 message.message,
                 {
-                    termWidth       : 1000,     //  unrealistically long; don't want to wrap, really.
-                    cols            : 1000,     //  ...see above.
                     rows            : 'auto',
-                    asciiMode       : true,     //  Export to ASCII
-                    fillLines       : false,    //  Don't fill up columns
+                    cols            : 79,
+                    forceLineTerm   : true,
+                    asciiMode       : true,
+                    fillLines       : false,
                 },
                 (err, prepped) => {
                     message.preparedBody = prepped || message.message;
