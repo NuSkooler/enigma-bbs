@@ -8,7 +8,7 @@ exports.getHelpFor				= getHelpFor;
 
 const usageHelp = exports.USAGE_HELP = {
     General :
-`usage: optutil.js [--version] [--help]
+`usage: oputil.js [--version] [--help]
                   <command> [<args>]
 
 global args:
@@ -22,7 +22,7 @@ commands:
   mb                        message base management
 `,
     User :
-`usage: optutil.js user <action> [<args>]
+`usage: oputil.js user <action> [<args>]
 
 actions:
   info USERNAME                display information about a user
@@ -38,7 +38,7 @@ actions:
 `,
 
     Config :
-`usage: optutil.js config <action> [<args>]
+`usage: oputil.js config <action> [<args>]
 
 actions:
   new                      generate a new/initial configuration

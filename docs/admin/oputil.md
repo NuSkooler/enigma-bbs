@@ -8,7 +8,7 @@ ENiGMA½ comes with `oputil.js` henceforth known as `oputil`, a command line int
 Let's look the main help output as per this writing:
 
 ```
-usage: optutil.js [--version] [--help]
+usage: oputil.js [--version] [--help]
                   <command> [<args>]
 
 global args:
@@ -41,7 +41,7 @@ Type `./oputil.js <command> --help` for additional help on a particular command.
 The `user` command covers various user operations.
 
 ```
-usage: optutil.js user <action> [<args>]
+usage: oputil.js user <action> [<args>]
 
 actions:
   info USERNAME                display information about a user
@@ -71,7 +71,7 @@ actions:
 The `config` command allows sysops to perform various system configuration and maintenance tasks.
 
 ```
-usage: optutil.js config <action> [<args>]
+usage: oputil.js config <action> [<args>]
 
 actions:
   new                      generate a new/initial configuration  
