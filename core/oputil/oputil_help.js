@@ -25,13 +25,16 @@ commands:
 `usage: optutil.js user <action> [<args>]
 
 actions:
-  pw USERNAME PASSWORD         set password to PASSWORD for USERNAME
-  rm USERNAME                  permanently removes USERNAME user from system
-  activate USERNAME            sets USERNAME's status to active
-  deactivate USERNAME          sets USERNAME's status to inactive
-  disable USERNAME             sets USERNAME's status to disabled
-  lock USERNAME                sets USERNAME's status to locked
-  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
+  info USERNAME                display information about a user
+  pw USERNAME PASSWORD         set a user's password
+                               aliases: password, passwd
+  rm USERNAME                  permanently removes user from system
+                               aliases: remove, delete, del
+  activate USERNAME            set status to active
+  deactivate USERNAME          set status to inactive
+  disable USERNAME             set status to disabled
+  lock USERNAME                set status to locked
+  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from a group
 `,
 
     Config :

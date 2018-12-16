@@ -15,6 +15,7 @@ const UserProps                 = require('../user_property.js');
 
 const async						= require('async');
 const _							= require('lodash');
+const moment                    = require('moment');
 
 exports.handleUserCommand		= handleUserCommand;
 
@@ -129,6 +130,13 @@ function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
 function removeUser(user) {
     async.series(
         [
+            (callback) => {
+                if(user.isRoot()) {
+                    return callback(Errors.Invalid('Cannot delete root/SysOp user!'));
+                }
+
+                return callback(null);
+            },
             (callback) => {
                 if(false === argv.prompt) {
                     return callback(null);
@@ -262,6 +270,44 @@ function modUserGroups(user) {
     }
 }
 
+function showUserInfo(user) {
+
+    const User = require('../../core/user.js');
+
+    const statusDesc = () => {
+        const status = user.properties[UserProps.AccountStatus];
+        return _.invert(User.AccountStatus)[status] || 'unknown';
+    };
+
+    const created = () => {
+        const ac = user.properties[UserProps.AccountCreated];
+        return ac ? moment(ac).format() : 'N/A';
+    };
+
+    const lastLogin = () => {
+        const ll = user.properties[UserProps.LastLoginTs];
+        return ll ? moment(ll).format() : 'N/A';
+    };
+
+    const propOrNA = p => {
+        return user.properties[p] || 'N/A';
+    };
+
+    console.info(`User information:
+Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
+Real name    : ${propOrNA(UserProps.RealName)}
+ID           : ${user.userId}
+Status       : ${statusDesc()}
+Groups       : ${user.groups.join(', ')}
+Created      : ${created()}
+Last login   : ${lastLogin()}
+Login count  : ${propOrNA(UserProps.LoginCount)}
+Email        : ${propOrNA(UserProps.EmailAddress)}
+Location     : ${propOrNA(UserProps.Location)}
+Affiliations : ${propOrNA(UserProps.Affiliations)}
+`);
+}
+
 function handleUserCommand() {
     function errUsage()  {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -272,7 +318,7 @@ function handleUserCommand() {
     }
 
     const action		= argv._[1];
-    const usernameIdx	= [ 'pass', 'passwd', 'password', 'group' ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+    const usernameIdx	= [ 'pw', 'pass', 'passwd', 'password', 'group' ].includes(action) ? argv._.length - 2 : argv._.length - 1;
     const userName		= argv._[usernameIdx];
 
     if(!userName) {
@@ -286,7 +332,7 @@ function handleUserCommand() {
         }
 
         return ({
-            pass		: setUserPassword,
+            pw          : setUserPassword,
             passwd		: setUserPassword,
             password	: setUserPassword,
 
@@ -301,6 +347,8 @@ function handleUserCommand() {
             lock        : setAccountStatus,
 
             group		: modUserGroups,
+
+            info        : showUserInfo,
         }[action] || errUsage)(user, action);
     });
 }
