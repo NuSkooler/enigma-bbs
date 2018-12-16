@@ -44,18 +44,22 @@ The `user` command covers various user operations.
 usage: optutil.js user <action> [<args>]
 
 actions:
-  pw USERNAME PASSWORD         set password to PASSWORD for USERNAME
-  rm USERNAME                  permanently removes USERNAME user from system
-  activate USERNAME            sets USERNAME's status to active
-  deactivate USERNAME          sets USERNAME's status to inactive
-  disable USERNAME             sets USERNAME's status to disabled
-  lock USERNAME                sets USERNAME's status to locked
-  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from GROUP
+  info USERNAME                display information about a user
+  pw USERNAME PASSWORD         set a user's password
+                               aliases: password, passwd
+  rm USERNAME                  permanently removes user from system
+                               aliases: remove, delete, del
+  activate USERNAME            set status to active
+  deactivate USERNAME          set status to inactive
+  disable USERNAME             set status to disabled
+  lock USERNAME                set status to locked
+  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from a group
 ```
 
 | Action    | Description       | Examples                              | Aliases   |
 |-----------|-------------------|---------------------------------------|-----------|
-| `pw`        | Set password      | `./oputil.js user pw joeuser s3cr37`  | `pass`, `passwd`, `password` |
+| `info` | Display user information| `./oputil.js user info joeuser` | N/A |
+| `pw`        | Set password      | `./oputil.js user pw joeuser s3cr37`  | `passwd`, `password` |
 | `rm`        | Removes user      | `./oputil.js user del joeuser`        | `remove`, `del`, `delete` |
 | `activate` | Activates user    | `./oputil.js user activate joeuser`   | N/A   |
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
