@@ -1,6 +1,8 @@
 /* jslint node: true */
 'use strict';
 
+const { Errors }    = require('./enig_error.js');
+
 //  deps
 const fs            = require('graceful-fs');
 const iconv         = require('iconv-lite');
@@ -64,7 +66,10 @@ module.exports = class DescriptIonFile {
                 return nextLine(null);
             },
             () => {
-                return cb(null, descIonFile);
+                return cb(
+                    descIonFile.entries.size > 0 ? null : Errors.Invalid('Invalid or unrecognized DESCRIPT.ION format'),
+                    descIonFile
+                );
             });
         });
     }

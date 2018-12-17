@@ -48,7 +48,7 @@ function finalizeEntryAndPersist(isUpdate, fileEntry, descHandler, cb) {
     async.series(
         [
             function getDescFromHandlerIfNeeded(callback) {
-                if((fileEntry.desc && fileEntry.desc.length > 0 ) && !argv['desc-file']) {
+                if((fileEntry.desc && fileEntry.descSrc != 'fileName' && fileEntry.desc.length > 0 ) && !argv['desc-file']) {
                     return callback(null);	//	we have a desc already and are NOT overriding with desc file
                 }
 
@@ -101,15 +101,44 @@ function finalizeEntryAndPersist(isUpdate, fileEntry, descHandler, cb) {
     );
 }
 
-const SCAN_EXCLUDE_FILENAMES = [ 'DESCRIPT.ION', 'FILES.BBS' ];
+const SCAN_EXCLUDE_FILENAMES = [
+    'DESCRIPT.ION',
+    'FILES.BBS',
+    'ALLFILES.TXT',
+];
 
 function loadDescHandler(path, cb) {
-    const DescIon = require('../../core/descript_ion_file.js');
+    const handlerClassFromFileName = {
+        'descript.ion'  : require('../../core/descript_ion_file.js'),
+        'files.bbs'     : require('../../core/files_bbs_file.js'),
+    }[paths.basename(path).toLowerCase()];
 
-    //	:TODO: support FILES.BBS also
+    if(!handlerClassFromFileName) {
+        return cb(Errors.DoesNotExist(`No handlers registered for ${paths.basename(path)}`));
+    }
 
-    DescIon.createFromFile(path, (err, descHandler) => {
+    handlerClassFromFileName.createFromFile(path, (err, descHandler) => {
         return cb(err, descHandler);
+    });
+}
+
+//
+//  Try to find a suitable description handler by
+//  checking for common filenames.
+//
+function findSuitableDescHandler(basePath, cb) {
+    const commonFiles = [ 'FILES.BBS', 'DESCRIPT.ION' ];
+
+    async.eachSeries(commonFiles, (fileName, nextFileName) => {
+        loadDescHandler(paths.join(basePath, fileName), (err, handler) => {
+            if(!err && handler) {
+                return cb(null, handler);
+            }
+            return nextFileName(null);
+        });
+    },
+    () => {
+        return cb(Errors.DoesNotExist('No suitable description handler available'));
     });
 }
 
@@ -145,7 +174,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                         return callback(null, options.descFileHandler);	//	we're going to use the global handler
                     }
 
-                    loadDescHandler(paths.join(storageLoc.dir, 'DESCRIPT.ION'), (err, descHandler) => {
+                    findSuitableDescHandler(storageLoc.dir, (err, descHandler) => {
                         return callback(null, descHandler);
                     });
                 },
