@@ -42,29 +42,29 @@ exports.getModule = class LastCallersModule extends MenuModule {
 
             async.waterfall(
                 [
-                    (next) => {
+                    (callback) => {
                         this.prepViewController('callers', 0, mciData.menu, err => {
-                            return next(err);
+                            return callback(err);
                         });
                     },
-                    (next) => {
+                    (callback) => {
                         this.fetchHistory( (err, loginHistory) => {
-                            return next(err, loginHistory);
+                            return callback(err, loginHistory);
                         });
                     },
-                    (loginHistory, next) => {
+                    (loginHistory, callback) => {
                         this.loadUserForHistoryItems(loginHistory, (err, updatedHistory) => {
-                            return next(err, updatedHistory);
+                            return callback(err, updatedHistory);
                         });
                     },
-                    (loginHistory, next) => {
+                    (loginHistory, callback) => {
                         const callersView = this.viewControllers.callers.getView(MciViewIds.callerList);
                         if(!callersView) {
                             return cb(Errors.MissingMci(`Missing caller list MCI ${MciViewIds.callerList}`));
                         }
                         callersView.setItems(loginHistory);
                         callersView.redraw();
-                        return next(null);
+                        return callback(null);
                     }
                 ],
                 err => {
@@ -178,10 +178,10 @@ exports.getModule = class LastCallersModule extends MenuModule {
             });
         }
 
-        async.map(loginHistory, (item, next) => {
+        async.map(loginHistory, (item, nextHistoryItem) => {
             User.getUserName(item.userId, (err, userName) => {
                 if(err) {
-                    return cb(null, null);
+                    return nextHistoryItem(null, null);
                 }
 
                 item.userName = item.text = userName;
@@ -192,7 +192,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
                     item.realName       = (props && props[UserProps.RealName]) || '';
 
                     if(!indicatorSumsSql) {
-                        return next(null, item);
+                        return nextHistoryItem(null, item);
                     }
 
                     sysDb.get(
@@ -210,7 +210,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
                                     item.actions += indicator;
                                 });
                             }
-                            return next(null, item);
+                            return nextHistoryItem(null, item);
                         }
                     );
                 });
