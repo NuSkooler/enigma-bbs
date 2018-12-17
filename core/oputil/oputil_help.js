@@ -72,10 +72,9 @@ actions:
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
 
-  --desc-file [PATH]           prefer file descriptions from DESCRIPT.ION file over
-                               other sources such as FILE_ID.DIZ.
-                               if PATH is specified, use DESCRIPT.ION at PATH instead
-                               of looking in specific storage locations
+  --desc-file [PATH]           prefer file descriptions from supplied path over other
+                               other sources such as FILE_ID.DIZ. Path must point to
+                               a valid FILES.BBS or DESCRIPT.ION file.
   --update                     attempt to update information for existing entries
   --quick                      perform quick scan
 
