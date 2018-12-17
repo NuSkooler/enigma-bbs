@@ -578,7 +578,13 @@ class NNTPServer extends NNTPServerBase {
             });
 
         if(!value) {
-            this.log.trace(`No value for requested header field "${field}"`);
+            //
+            //  Clients will check some headers just to see if they exist.
+            //  Don't spam logs with these. For others, it's good to know.
+            //
+            if(!['references', 'xref'].includes(field)) {
+                this.log.trace(`No value for requested header field "${field}"`);
+            }
         }
 
         return value;
@@ -588,8 +594,9 @@ class NNTPServer extends NNTPServerBase {
         return super._getOverviewFmt(session);
     }
 
-    _getNewNews(/*session, time, wildmat*/) {
+    _getNewNews(session, time, wildmat) {
         //  Currently seems pointless to implement. No semi-modern clients seem to use it anyway.
+        this.log.debug( { time, wildmat }, 'Request made using unsupported NEWNEWS command');
         throw new Errors.Invalid('NEWNEWS is not enabled on this server');
     }
 
