@@ -2,38 +2,41 @@
 layout: page
 title: SSH Server
 ---
-## Generate a SSH Private Key
+## SSH Login Server
+The ENiGMA½ SSH *login server* allows secure user logins over SSH (ssh://).
 
-To utilize the SSH server, an SSH Private Key will need generated. From the ENiGMA installation directory:
+## Configuration
+Entries available under `config.loginServers.ssh`:
 
-```bash
-openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
-```
+| Item | Required | Description |
+|------|----------|-------------|
+| `privateKeyPem` | :-1: | Path to private key file. If not set, defaults to `./config/ssh_private_key.pem` |
+| `privateKeyPass` | :+1: | Password to private key file.
+| `firstMenu` | :-1: | First menu an SSH connected user is presented with. Defaults to `sshConnected`. |
+| `firstMenuNewUser` | :-1: | Menu presented to user when logging in with one of the usernames found within `users.newUserNames` in your `config.hjson`. Examples include `new` and `apply`. |
+| `enabled` | :+1: | Set to `true` to enable the SSH server. |
+| `port` | :-1: | Override the default port of `8443`. | 
+| `algorithms` | :-1: | Configuration block for SSH algorithms. Includes keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config.js`.
+| `traceConnections` | :-1: | Set to `true` to enable full trace-level information on SSH connections.
 
-You then need to enable the SSH server in your `config.hjson`:
+### Example Configuration
 
 ```hjson
 {
-	loginServers: {
-		ssh: {
+    loginServers: {
+        ssh: {
             enabled: true
-		    port: 8889
-		    privateKeyPem: /path/to/ssh_private_key.pem
-            privateKeyPass: YOUR_PK_PASS
+            port: 8889
+            privateKeyPem: /path/to/ssh_private_key.pem
+            privateKeyPass: sup3rs3kr3tpa55
         }                                                             
     }
 }
 ```
 
-### SSH Server Options
+## Generate a SSH Private Key
+To utilize the SSH server, an SSH Private Key will need generated. OpenSSL can be used for this task:
 
-| Option              | Description
-|---------------------|--------------------------------------------------------------------------------------|
-| `privateKeyPem`	  | Path to private key file.
-| `privateKeyPass`    | Password to private key file.
-| `firstMenu`		  | First menu an SSH connected user is presented with.
-| `firstMenuNewUser`  | Menu presented to user when logging in with `users::newUserNames` in your config.hjson (defaults to `new` and `apply`).
-| `enabled`           | Enable/disable SSH server.
-| `port`              | Configure a custom port for the SSH server.
-| `algorithms`        | Configuration block for SSH algoritms. Includes arrays with keys of `kex`, `cipher`, `hmac`, and `compress`. See the algorithms section in the [ssh2-streams](https://github.com/mscdex/ssh2-streams#ssh2stream-methods) documentation for details. For defaults set by ENiGMA½, see `core/config.js`.
-| `traceConnections`  | Set to `true` to enable full trace-level information on SSH connections.
+```bash
+openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
+```

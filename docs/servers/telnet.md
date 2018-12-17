@@ -2,24 +2,28 @@
 layout: page
 title: Telnet Server
 ---
+## Telnet Login Server
+The Telnet *login server* provides a standard **non-secure** Telnet login experience.
 
-Telnet is enabled by default on port `8888` in `config.hjson`:
+## Configuration
+The following configuration can be made in `config.hjson` under the `loginServers.telnet` block:
 
+| Item | Required | Description |
+|------|----------|-------------|
+| `enabled` | :-1: Defaults to `true`. Set to `false` to disable Telnet |
+| `port` | :-1: | Override the default port of `8888`. |
+| `firstMenu` | :-1: | First menu a telnet connected user is presented with. Defaults to `telnetConnected`. |
+
+### Example Configuration
 ```hjson
 {
-    loginServers: {
-      telnet: {
-        enabled: true
-        port: 8888
-      }                                                                                                        
-    }
+  loginServers: {
+    telnet: {
+      enabled: true
+      port: 8888
+    }          
+  }
 }
 ```
 
-### Telnet Server Options
 
-| Option              | Description
-|---------------------|--------------------------------------------------------------------------------------|
-| `firstMenu`		  | First menu a telnet connected user is presented with
-| `enabled`           | Enable/disable telnet server
-| `port`              | Configure a custom port for the telnet server

@@ -56,6 +56,8 @@
       - Build your own
     - Content Servers
       - [Web]({{ site.baseurl }}{% link servers/web-server.md %})
+      - [Gopher]({{ site.baseurl }}{% link servers/gopher.md %})
+      - [NNTP]({{ site.baseurl }}{% link servers/nntp.md %})
               
   - Modding
     - [Local Doors]({{ site.baseurl }}{% link modding/local-doors.md %})

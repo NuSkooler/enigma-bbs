@@ -2,6 +2,9 @@
 layout: page
 title: Web Socket / Web Interface Server
 ---
+## WebSocket Login Server
+The WebSocket Login Server provides **secure** (wss://) as well as non-secure (ws://) WebSocket login access. This is often combined with a browser based WebSocket client such as VTX or fTelnet.
+
 # VTX Web Client
 ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at 
 [Xibalba](https://l33t.codes/vtx/xibalba.html) and [fORCE9](https://bbs.force9.org/vtx/force9.html).
