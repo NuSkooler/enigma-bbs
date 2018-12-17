@@ -47,17 +47,27 @@ module.exports = class FilesBBSFile {
             //  - https://github.com/NuSkooler/ansi-bbs/tree/master/ancient_formats/files_bbs
             //
             const detectDecoder = () => {
+                //  helpers
+                const regExpTestUpTo = (n, re) => {
+                    return lines
+                        .slice(0, n)
+                        .some(l => re.test(l));
+                };
+
                 //
                 //  Try to figure out which decoder to use
                 //
                 const decoders = [
                     {
                         //  I've been told this is what Syncrhonet uses
-                        tester  : /^([^ ]{1,12})\s{1,11}([0-3][0-9]\/[0-3][0-9]\/[1789][0-9]) ([^\r\n]+)$/,
+                        lineRegExp : /^([^ ]{1,12})\s{1,11}([0-3][0-9]\/[0-3][0-9]\/[1789][0-9]) ([^\r\n]+)$/,
+                        detect : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
                         extract : function() {
                             for(let i = 0; i < lines.length; ++i) {
                                 let line = lines[i];
-                                const hdr = line.match(this.tester);
+                                const hdr = line.match(this.lineRegExp);
                                 if(!hdr) {
                                     continue;
                                 }
@@ -81,16 +91,55 @@ module.exports = class FilesBBSFile {
 
                     {
                         //
-                        //  Aminet Amiga CDROM, March 1994.  Walnut Creek CDROM.
-                        //  CP/M CDROM, Sep. 1994.  Walnut Creek CDROM.
-                        //  ...and many others. Basically: <8.3 filename> <description>
+                        //  Examples:
+                        //  - Night Owl CD #7, 1992
+                        //
+                        lineRegExp  : /^([^\s]{1,12})\s{2,14}\[0\]\s\s([^\r\n]+)$/,
+                        detect : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
+                        extract : function() {
+                            for(let i = 0; i < lines.length; ++i) {
+                                let line = lines[i];
+                                const hdr = line.match(this.lineRegExp);
+                                if(!hdr) {
+                                    continue;
+                                }
+                                const long = [ hdr[2].trim() ];
+                                for(let j = i + 1; j < lines.length; ++j) {
+                                    line = lines[j];
+                                    if(!line.startsWith('                               | ')) {
+                                        break;
+                                    }
+                                    long.push(line.substr(33));
+                                    ++i;
+                                }
+                                const desc      = long.join('\r\n');
+                                const fileName  = hdr[1];
+
+                                filesBbs.entries.set(fileName, { desc } );
+                            }
+                        }
+                    },
+
+                    {
+                        //
+                        //  Examples:
+                        //  - Aminet Amiga CDROM, March 1994.  Walnut Creek CDROM.
+                        //  - CP/M CDROM, Sep. 1994.  Walnut Creek CDROM.
+                        //  - ...and many others.
+                        //
+                        //  Basically: <8.3 filename> <description>
                         //
                         //  May contain headers, but we'll just skip 'em.
                         //
-                        tester  : /^([^ ]{1,12})\s{1,11}([^\r\n]+)$/,
+                        lineRegExp : /^([^ ]{1,12})\s{1,11}([^\r\n]+)$/,
+                        detect : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
                         extract : function() {
                             lines.forEach(line => {
-                                const hdr = line.match(this.tester);
+                                const hdr = line.match(this.lineRegExp);
                                 if(!hdr) {
                                     return; //  forEach
                                 }
@@ -106,8 +155,14 @@ module.exports = class FilesBBSFile {
                     },
 
                     {
-                        //  Found on AMINET CD's & similar
-                        tester  : /^(.{1,22}) ([0-9]+)K ([^\r\n]+)$/,
+                        //
+                        //  Examples:
+                        //  - AMINET CD's & similar
+                        //
+                        lineRegExp : /^(.{1,22}) ([0-9]+)K ([^\r\n]+)$/,
+                        detect : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
                         extract : function() {
                             lines.forEach(line => {
                                 const hdr = line.match(this.tester);
@@ -131,12 +186,7 @@ module.exports = class FilesBBSFile {
                     },
                 ];
 
-                const decoder = decoders.find(d => {
-                    return lines
-                        .slice(0, 10)   //  10 lines in should be enough to detect - skipping headers/etc.
-                        .some(l => d.tester.test(l));
-                });
-
+                const decoder = decoders.find(d => d.detect());
                 return decoder;
             };
 

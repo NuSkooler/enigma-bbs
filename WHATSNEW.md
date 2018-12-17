@@ -24,6 +24,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Handling of failed login attempts is now fully in. Disconnect clients, lock out accounts, ability to auto or unlock at (email-driven) password reset, etc. See `users.failedLogin` in `config.hjson`.
 * NNTP support! See [NNTP docs](/docs/servers/nntp.md) for more information.
 * `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](/docs/admin/oputil.md).
+* Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 
 
 ## 0.0.8-alpha
