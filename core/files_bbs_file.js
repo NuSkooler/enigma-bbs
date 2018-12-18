@@ -108,10 +108,47 @@ module.exports = class FilesBBSFile {
                                 const long = [ hdr[2].trim() ];
                                 for(let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
+                                    // -------------------------------------------------v 32
                                     if(!line.startsWith('                               | ')) {
                                         break;
                                     }
                                     long.push(line.substr(33));
+                                    ++i;
+                                }
+                                const desc      = long.join('\r\n');
+                                const fileName  = hdr[1];
+
+                                filesBbs.entries.set(fileName, { desc } );
+                            }
+                        }
+                    },
+
+                    {
+                        //
+                        //  Simple first line with partial description,
+                        //  secondary description lines tabbed out.
+                        //
+                        //  Examples
+                        //  - GUS archive @ dk.toastednet.org
+                        //
+                        lineRegExp : /^([^\s]{1,12})\s+\[00\]\s([^\r\n]+)$/,
+                        detect  : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
+                        extract : function() {
+                            for(let i = 0; i < lines.length; ++i) {
+                                let line = lines[i];
+                                const hdr = line.match(this.lineRegExp);
+                                if(!hdr) {
+                                    continue;
+                                }
+                                const long = [ hdr[2].trimRight() ];
+                                for(let j = i + 1; j < lines.length; ++j) {
+                                    line = lines[j];
+                                    if(!line.startsWith('\t\t  ')) {
+                                        break;
+                                    }
+                                    long.push(line.substr(4));
                                     ++i;
                                 }
                                 const desc      = long.join('\r\n');
