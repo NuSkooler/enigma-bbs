@@ -245,20 +245,24 @@ function controlCodesToAnsi(s, client) {
                 }
 
                 result += s.substr(lastIndex, m.index - lastIndex) + v;
-
                 break;
 
             case '\x19'     :
             case '\0x11'    :
                 //  CNET "Y-Style" & "Q-Style"
                 v = m[9] || m[11];
-                if('n1' === v) {
-                    result += '\n';
-                } else if('f1' === v) {
-                    result += ANSI.clearScreen();
+                if(v) {
+                    if('n1' === v) {
+                        v = '\n';
+                    } else if('f1' === v) {
+                        v = ANSI.clearScreen();
+                    } else {
+                        v = ansiSgrFromCnetStyleColorCode(v);
+                    }
                 } else {
-                    result += ansiSgrFromCnetStyleColorCode(v);
+                    v = m[0];
                 }
+                result += s.substr(lastIndex, m.index - lastIndex) + v;
                 break;
         }
 
