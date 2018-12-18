@@ -20,6 +20,9 @@ const {
     splitTextAtTerms,
 }                           = require('../../string_util.js');
 const AnsiPrep              = require('../../ansi_prep.js');
+const {
+    stripMciColorCodes
+}                           = require('../../color_codes.js');
 
 //  deps
 const NNTPServerBase        = require('nntp-server');
@@ -652,7 +655,7 @@ class NNTPServer extends NNTPServerBase {
                 }
             );
         } else {
-            message.preparedBody = cleanControlCodes(message.message, { all : true });
+            message.preparedBody = stripMciColorCodes(cleanControlCodes(message.message, { all : true }));
             return cb(null);
         }
     }
