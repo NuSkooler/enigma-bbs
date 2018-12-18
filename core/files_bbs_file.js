@@ -84,6 +84,9 @@ module.exports = class FilesBBSFile {
                                 const fileName  = hdr[1];
                                 const timestamp = moment(hdr[2], 'MM/DD/YY');
 
+                                if(!timestamp.isValid()) {
+                                    continue;
+                                }
                                 filesBbs.entries.set(fileName, { timestamp, desc } );
                             }
                         }
@@ -161,6 +164,54 @@ module.exports = class FilesBBSFile {
 
                     {
                         //
+                        //  <8.3FileName> <size> <MM-DD-YY> <desc first line>
+                        //                                  <desc...>
+                        //  Examples:
+                        //  - Expanding Your BBS CD by David Wolfe, 1995
+                        //
+                        lineRegExp : /^([^ ]{1,12})\s{1,20}([0-9]+)\s\s([0-3][0-9]-[0-3][0-9]-[1789][0-9])\s\s([^\r\n]+)$/,
+                        detect  : function() {
+                            return regExpTestUpTo(10, this.lineRegExp);
+                        },
+                        extract : function() {
+                            for(let i = 0; i < lines.length; ++i) {
+                                let line = lines[i];
+                                const hdr = line.match(this.lineRegExp);
+                                if(!hdr) {
+                                    continue;
+                                }
+
+                                const firstDescLine = hdr[4].trimRight();
+                                //  ugly kludge:
+                                if('No ID File Found For This Archive File.' === firstDescLine) {
+                                    continue;
+                                }
+                                const long = [ firstDescLine ];
+                                for(let j = i + 1; j < lines.length; ++j) {
+                                    line = lines[j];
+                                    if(!line.startsWith(' '.repeat(34))) {
+                                        break;
+                                    }
+                                    long.push(line.substr(34).trimRight());
+                                    ++i;
+                                }
+
+                                const desc      = long.join('\r\n');
+                                const fileName  = hdr[1];
+                                const size      = parseInt(hdr[2]);
+                                const timestamp = moment(hdr[3], 'MM-DD-YY');
+
+                                if(isNaN(size) || !timestamp.isValid()) {
+                                    continue;
+                                }
+
+                                filesBbs.entries.set(fileName, { desc, size, timestamp });
+                            }
+                        }
+                    },
+
+                    {
+                        //
                         //  Examples:
                         //  - Aminet Amiga CDROM, March 1994.  Walnut Creek CDROM.
                         //  - CP/M CDROM, Sep. 1994.  Walnut Creek CDROM.
@@ -211,9 +262,10 @@ module.exports = class FilesBBSFile {
                                 let size        = parseInt(hdr[2]);
                                 const desc      = hdr[3].trim();
 
-                                if(!isNaN(size)) {
-                                    size *= 1024;   //  K->bytes.
+                                if(isNaN(size)) {
+                                    return; //  forEach
                                 }
+                                size *= 1024;   //  K->bytes.
 
                                 if(desc) {  //  omit empty entries
                                     filesBbs.entries.set(fileName, { size, desc } );
