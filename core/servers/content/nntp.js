@@ -16,7 +16,7 @@ const Message               = require('../../message.js');
 const FTNAddress            = require('../../ftn_address.js');
 const {
     isAnsi,
-    cleanControlCodes,
+    stripAnsiControlCodes,
     splitTextAtTerms,
 }                           = require('../../string_util.js');
 const AnsiPrep              = require('../../ansi_prep.js');
@@ -655,7 +655,7 @@ class NNTPServer extends NNTPServerBase {
                 }
             );
         } else {
-            message.preparedBody = stripMciColorCodes(cleanControlCodes(message.message, { all : true }));
+            message.preparedBody = stripMciColorCodes(stripAnsiControlCodes(message.message, { all : true }));
             return cb(null);
         }
     }

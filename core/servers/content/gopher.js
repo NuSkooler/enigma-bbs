@@ -8,7 +8,7 @@ const Config                    = require('../../config.js').get;
 const {
     splitTextAtTerms,
     isAnsi,
-    cleanControlCodes
+    stripAnsiControlCodes
 }                               = require('../../string_util.js');
 const {
     getMessageConferenceByTag,
@@ -218,7 +218,7 @@ exports.getModule = class GopherModule extends ServerModule {
             );
         } else {
             const cleaned = stripMciColorCodes(
-                cleanControlCodes(body, { all : true } )
+                stripAnsiControlCodes(body, { all : true } )
             );
             const prepped =
                 splitTextAtTerms(cleaned)

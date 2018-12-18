@@ -23,7 +23,7 @@ exports.formatByteSizeAbbr          = formatByteSizeAbbr;
 exports.formatByteSize              = formatByteSize;
 exports.formatCountAbbr             = formatCountAbbr;
 exports.formatCount                 = formatCount;
-exports.cleanControlCodes           = cleanControlCodes;
+exports.stripAnsiControlCodes       = stripAnsiControlCodes;
 exports.isAnsi                      = isAnsi;
 exports.isAnsiLine                  = isAnsiLine;
 exports.isFormattedLine             = isFormattedLine;
@@ -218,8 +218,6 @@ function stringToNullTermBuffer(s, options = { encoding : 'utf8', maxBufLen : -1
 }
 
 const PIPE_REGEXP           = /(\|[A-Z\d]{2})/g;
-//const ANSI_REGEXP         = /[\u001b\u009b][[()#;?]*([0-9]{1,4}(?:;[0-9]{0,4})*)?([0-9A-ORZcf-npqrsuy=><])/g;
-//const ANSI_OR_PIPE_REGEXP = new RegExp(PIPE_REGEXP.source + '|' + ANSI_REGEXP.source, 'g');
 const ANSI_OR_PIPE_REGEXP   = new RegExp(PIPE_REGEXP.source + '|' + ANSI.getFullMatchRegExp().source, 'g');
 
 //
@@ -357,7 +355,7 @@ const ANSI_OPCODES_ALLOWED_CLEAN    = [
     'm',        //  color
 ];
 
-function cleanControlCodes(input, options) {
+function stripAnsiControlCodes(input, options) {
     let m;
     let pos;
     let cleaned = '';

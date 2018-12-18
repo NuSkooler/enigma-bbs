@@ -18,7 +18,7 @@ const {
     MessageAreaConfTempSwitcher
 }                               = require('./mod_mixins.js');
 const {
-    isAnsi, cleanControlCodes,
+    isAnsi, stripAnsiControlCodes,
     insert
 }                               = require('./string_util.js');
 const Config                    = require('./config.js').get;
@@ -400,7 +400,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             }
                         );
                     } else {
-                        bodyMessageView.setText(cleanControlCodes(msg));
+                        bodyMessageView.setText(stripAnsiControlCodes(msg));
                     }
                 }
             }
@@ -733,7 +733,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                                 var bodyMessageView = self.viewControllers.body.getView(MciViewIds.body.message);
                                 if(bodyMessageView && _.has(self, 'message.message')) {
                                     //self.setBodyMessageViewText();
-                                    bodyMessageView.setText(cleanControlCodes(self.message.message));
+                                    bodyMessageView.setText(stripAnsiControlCodes(self.message.message));
                                 }
                             }
                             break;
