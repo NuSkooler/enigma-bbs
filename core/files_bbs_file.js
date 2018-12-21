@@ -8,6 +8,12 @@ const fs            = require('graceful-fs');
 const iconv         = require('iconv-lite');
 const moment        = require('moment');
 
+//  Descriptions found in the wild that mean "no description" /facepalm.
+const IgnoredDescriptions = [
+    'No description available',
+    'No ID File Found For This Archive File.',
+];
+
 module.exports = class FilesBBSFile {
     constructor() {
         this.entries = new Map();
@@ -33,6 +39,10 @@ module.exports = class FilesBBSFile {
             //  :TODO: encoding should be default to CP437, but allowed to change - ie for Amiga/etc.
             const lines = iconv.decode(descData, 'cp437').split(/\r?\n/g);
             const filesBbs = new FilesBBSFile();
+
+            const isBadDescription = (desc) => {
+                return IgnoredDescriptions.find(d => desc.startsWith(d)) ? true : false;
+            };
 
             //
             //  Contrary to popular belief, there is not a FILES.BBS standard. Instead,
@@ -84,7 +94,7 @@ module.exports = class FilesBBSFile {
                                 const fileName  = hdr[1];
                                 const timestamp = moment(hdr[2], 'MM/DD/YY');
 
-                                if(!timestamp.isValid()) {
+                                if(isBadDescription(desc) || !timestamp.isValid()) {
                                     continue;
                                 }
                                 filesBbs.entries.set(fileName, { timestamp, desc } );
@@ -120,6 +130,10 @@ module.exports = class FilesBBSFile {
                                 }
                                 const desc      = long.join('\r\n');
                                 const fileName  = hdr[1];
+
+                                if(isBadDescription(desc)) {
+                                    continue;
+                                }
 
                                 filesBbs.entries.set(fileName, { desc } );
                             }
@@ -157,6 +171,10 @@ module.exports = class FilesBBSFile {
                                 const desc      = long.join('\r\n');
                                 const fileName  = hdr[1];
 
+                                if(isBadDescription(desc)) {
+                                    continue;
+                                }
+
                                 filesBbs.entries.set(fileName, { desc } );
                             }
                         }
@@ -182,10 +200,6 @@ module.exports = class FilesBBSFile {
                                 }
 
                                 const firstDescLine = hdr[4].trimRight();
-                                //  ugly kludge:
-                                if('No ID File Found For This Archive File.' === firstDescLine) {
-                                    continue;
-                                }
                                 const long = [ firstDescLine ];
                                 for(let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
@@ -201,7 +215,7 @@ module.exports = class FilesBBSFile {
                                 const size      = parseInt(hdr[2]);
                                 const timestamp = moment(hdr[3], 'MM-DD-YY');
 
-                                if(isNaN(size) || !timestamp.isValid()) {
+                                if(isBadDescription(desc) || isNaN(size) || !timestamp.isValid()) {
                                     continue;
                                 }
 
@@ -235,7 +249,7 @@ module.exports = class FilesBBSFile {
                                 const fileName  = hdr[1].trim();
                                 const desc      = hdr[2].trim();
 
-                                if(desc) {
+                                if(desc && !isBadDescription(desc)) {
                                     filesBbs.entries.set(fileName, { desc } );
                                 }
                             });

@@ -41,7 +41,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Correly parse oddball `INTL`, `TOPT`, `FMPT`, `Via`, etc. FTN kludge lines
 * NetMail support! You can now send and receive NetMail. To send a NetMail address a external user using `Name <address>` format from your personal email menu. For example, `Foo Bar <123:123/123>`. The system also detects other formats such asa `Name @ address` (`Foo Bar@123:123/123`)
 * `oputil.js`: Added `mb areafix` command to quickly send AreaFix messages from the command line. You can manually send them from personal mail as well.
-* `oputil.js fb rm|remove|del|delete` functionality to remove file base entries
+* `oputil.js fb rm|remove|del|delete` functionality to remove file base entries.
+* `oputil.js fb desc` for setting/updating a file entry description.
 * Users can now (re)set File and Message base pointers
 * Add `--update` option to `oputil.js fb scan`
 * Fix @watch path support for event scheduler including FTN, e.g. when looking for a `toss!.now` file produced by Binkd.

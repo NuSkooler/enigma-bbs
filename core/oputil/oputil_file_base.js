@@ -413,11 +413,11 @@ function dumpFileInfo(shaOrFileId, cb) {
     );
 }
 
-function displayFileAreaInfo() {
+function displayFileOrAreaInfo() {
     //	AREA_TAG[@STORAGE_TAG]
-    //	SHA256|PARTIAL
+    //	SHA256|PARTIAL|FILE_ID|FILENAME_WILDCARD
     //	if sha: dump file info
-    //	if area/stoarge dump area(s) +
+    //	if area/storage dump area(s) +
 
     async.series(
         [
@@ -908,6 +908,75 @@ function importFileAreas() {
     );
 }
 
+function setFileDescription() {
+    //
+    //  ./oputil.js fb set-desc CRITERIA # will prompt
+    //  ./oputil.js fb set-desc CRITERIA "The new description"
+    //
+    let fileCriteria;
+    let desc;
+    if(argv._.length > 3) {
+        fileCriteria    = argv._[argv._.length - 2];
+        desc            = argv._[argv._.length - 1];
+    } else {
+        fileCriteria = argv._[argv._.length - 1];
+    }
+
+    async.waterfall(
+        [
+            (callback) => {
+                return initConfigAndDatabases(callback);
+            },
+            (callback) => {
+                getFileEntries(fileCriteria, (err, entries) => {
+                    if(err) {
+                        return callback(err);
+                    }
+
+                    if(entries.length > 1) {
+                        return callback(Errors.General('Criteria not specific enough.'));
+                    }
+
+                    return callback(null, entries[0]);
+                });
+            },
+            (fileEntry, callback) => {
+                if(desc) {
+                    return callback(null, fileEntry, desc);
+                }
+
+                getAnswers([
+                    {
+                        name    : 'userDesc',
+                        message : 'Description:',
+                        type    : 'editor',
+                    }
+                ],
+                answers => {
+                    if(!answers.userDesc) {
+                        return callback(Errors.General('User canceled'));
+                    }
+                    return callback(null, fileEntry, answers.userDesc);
+                });
+            },
+            (fileEntry, newDesc, callback) => {
+                fileEntry.desc = newDesc;
+                fileEntry.persist(true, err => {    //  true=isUpdate
+                    return callback(err);
+                });
+            }
+        ],
+        err => {
+            if(err) {
+                process.exitCode = ExitCodes.ERROR;
+                console.error(err.message);
+            } else {
+                console.info('Description updated.');
+            }
+        }
+    );
+}
+
 function handleFileBaseCommand() {
 
     function errUsage()  {
@@ -924,7 +993,7 @@ function handleFileBaseCommand() {
     const action = argv._[1];
 
     return ({
-        info	        : displayFileAreaInfo,
+        info	        : displayFileOrAreaInfo,
         scan	        : scanFileAreas,
 
         mv		        : moveFiles,
@@ -936,5 +1005,8 @@ function handleFileBaseCommand() {
         delete	        : removeFiles,
 
         'import-areas'  : importFileAreas,
+
+        desc            : setFileDescription,
+        description     : setFileDescription,
     }[action] || errUsage)();
 }

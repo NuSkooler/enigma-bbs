@@ -57,9 +57,7 @@ actions:
                                for example: scan some_area *.zip
 
   info CRITERIA                display information about areas and/or files
-                               where CRITERIA is one of the following:
-                               AREA_TAG|SHA|FILE_ID|FILENAME_WC
-                               SHA may be a full or partial SHA-256
+                               matching CRITERIA.
 
   mv SRC [SRC...] DST          move entry(s) from SRC to DST
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
@@ -67,6 +65,9 @@ actions:
 
   rm SRC [SRC...]              remove entry(s) from the system matching SRC
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+  desc CRITERIA                sets a new file description for file base entry
+                               matching CRITERIA. Launches an external editor using
+                               $VISUAL, $EDITOR, or vim/notepad.
   import-areas FILEGATE.ZXX    import file base areas using FileGate RAID type format
 
 scan args:
@@ -93,6 +94,9 @@ import-areas args:
 general information:
   AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
                                example: retro@bbs
+
+  CRITERIA                     file base entry criteria. in general, can be AREA_TAG, SHA,
+                               FILE_ID, or FILENAME_WC.
   
   FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
   SHA                          full or partial SHA-256
