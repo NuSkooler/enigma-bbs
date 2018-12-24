@@ -49,8 +49,16 @@ function SSHClient(clientConn) {
 
         self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
+        const safeContextReject = (param) => {
+            try {
+                return ctx.reject(param);
+            } catch(e) {
+                return;
+            }
+        };
+
         function terminateConnection() {
-            ctx.reject();
+            safeContextReject();
             return clientConn.end();
         }
 
@@ -106,19 +114,19 @@ function SSHClient(clientConn) {
                         return handleSpecialError(err, username);
                     }
 
-                    return ctx.reject(SSHClient.ValidAuthMethods);
+                    return safeContextReject(SSHClient.ValidAuthMethods);
                 }
 
                 ctx.accept();
             });
         } else {
             if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
-                return ctx.reject(SSHClient.ValidAuthMethods);
+                return safeContextReject(SSHClient.ValidAuthMethods);
             }
 
             if(0 === username.length) {
                 //  :TODO: can we display something here?
-                return ctx.reject();
+                return safeContextReject();
             }
 
             const interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
