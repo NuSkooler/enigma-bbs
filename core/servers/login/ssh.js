@@ -114,6 +114,10 @@ function SSHClient(clientConn) {
                         return handleSpecialError(err, username);
                     }
 
+                    if(Errors.BadLogin().code === err.code) {
+                        return terminateConnection();
+                    }
+
                     return safeContextReject(SSHClient.ValidAuthMethods);
                 }
 

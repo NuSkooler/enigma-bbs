@@ -23,9 +23,14 @@ const _                 = require('lodash');
 exports.userLogin       = userLogin;
 
 function userLogin(client, username, password, cb) {
-    client.user.authenticate(username, password, err => {
-        const config = Config();
+    const config = Config();
 
+    if(config.users.badUserNames.includes(username.toLowerCase())) {
+        client.log.info( { username : username }, 'Attempt to login with banned username');
+        return cb(Errors.BadLogin(ErrorReasons.NotAllowed));
+    }
+
+    client.user.authenticate(username, password, err => {
         if(err) {
             client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
             const disconnect = config.users.failedLogin.disconnect;

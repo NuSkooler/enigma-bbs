@@ -50,4 +50,5 @@ exports.ErrorReasons = {
     Disabled            : 'DISABLED',
     Inactive            : 'INACTIVE',
     Locked              : 'LOCKED',
+    NotAllowed          : 'NOTALLOWED',
 };
