@@ -27,7 +27,11 @@ function userLogin(client, username, password, cb) {
 
     if(config.users.badUserNames.includes(username.toLowerCase())) {
         client.log.info( { username : username }, 'Attempt to login with banned username');
-        return cb(Errors.BadLogin(ErrorReasons.NotAllowed));
+
+        //  slow down a bit to thwart brute force attacks
+        return setTimeout( () => {
+            return cb(Errors.BadLogin('Disallowed username', ErrorReasons.NotAllowed));
+        }, 2000);
     }
 
     client.user.authenticate(username, password, err => {

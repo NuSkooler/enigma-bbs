@@ -34,6 +34,11 @@ function login(callingMenu, formData, extraArgs, cb) {
                 return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
             }
 
+            //  banned username results in disconnect
+            if(ErrorReasons.NotAllowed === err.reasonCode) {
+                return logoff(callingMenu, {}, {}, cb);
+            }
+
             const ReasonsMenus = [
                 ErrorReasons.TooMany, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked
             ];

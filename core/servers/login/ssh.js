@@ -57,39 +57,46 @@ function SSHClient(clientConn) {
             }
         };
 
-        function terminateConnection() {
+        const terminateConnection = () => {
             safeContextReject();
             return clientConn.end();
-        }
+        };
 
-        function promptAndTerm(msg) {
+        //  slow version to thwart brute force attacks
+        const slowTerminateConnection = () => {
+            setTimeout( () => {
+                return terminateConnection();
+            }, 2000);
+        };
+
+        const promptAndTerm = (msg, method = 'standard') => {
             if('keyboard-interactive' === ctx.method) {
                 ctx.prompt(msg);
             }
-            return terminateConnection();
-        }
+            return 'slow' === method ? slowTerminateConnection() : terminateConnection();
+        };
 
-        function accountAlreadyLoggedIn(username) {
+        const accountAlreadyLoggedIn = (username) => {
             return promptAndTerm(`${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`);
-        }
+        };
 
-        function accountDisabled(username) {
+        const accountDisabled = (username) => {
             return promptAndTerm(`${username} is disabled.\n(Press any key to continue)`);
-        }
+        };
 
-        function accountInactive(username) {
+        const accountInactive = (username) => {
             return promptAndTerm(`${username} is waiting for +op activation.\n(Press any key to continue)`);
-        }
+        };
 
-        function accountLocked(username) {
-            return promptAndTerm(`${username} is locked.\n(Press any key to continue)`);
-        }
+        const accountLocked = (username) => {
+            return promptAndTerm(`${username} is locked.\n(Press any key to continue)`, 'slow');
+        };
 
-        function isSpecialHandleError(err) {
+        const isSpecialHandleError = (err) => {
             return [ ErrorReasons.AlreadyLoggedIn, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked ].includes(err.reasonCode);
-        }
+        };
 
-        function handleSpecialError(err, username) {
+        const handleSpecialError = (err, username) => {
             switch(err.reasonCode) {
                 case ErrorReasons.AlreadyLoggedIn   : return accountAlreadyLoggedIn(username);
                 case ErrorReasons.Inactive          : return accountInactive(username);
@@ -97,7 +104,7 @@ function SSHClient(clientConn) {
                 case ErrorReasons.Locked            : return accountLocked(username);
                 default                             : return terminateConnection();
             }
-        }
+        };
 
         //
         //  If the system is open and |isNewUser| is true, the login
@@ -115,7 +122,7 @@ function SSHClient(clientConn) {
                     }
 
                     if(Errors.BadLogin().code === err.code) {
-                        return terminateConnection();
+                        return slowTerminateConnection();
                     }
 
                     return safeContextReject(SSHClient.ValidAuthMethods);
@@ -143,7 +150,7 @@ function SSHClient(clientConn) {
                         }
 
                         if(Errors.BadLogin().code === err.code) {
-                            return terminateConnection();
+                            return slowTerminateConnection();
                         }
 
                         const artOpts = {
