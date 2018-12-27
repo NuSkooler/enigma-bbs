@@ -2,11 +2,10 @@
 'use strict';
 
 //  ENiGMA½
-const logger            = require('./logger.js');
-const { ErrorReasons }  = require('./enig_error.js');
+const logger    = require('./logger.js');
 
 //  deps
-const async             = require('async');
+const async     = require('async');
 
 const listeningServers = {};    //  packageName -> info
 
@@ -34,15 +33,22 @@ function startListening(cb) {
             const moduleInst = new module.getModule();
             try {
                 moduleInst.createServer(err => {
-                    if(!moduleInst.listen()) {
-                        throw new Error('Failed listening');
+                    if(err) {
+                        return nextModule(err);
                     }
 
-                    listeningServers[module.moduleInfo.packageName] = {
-                        instance    : moduleInst,
-                        info        : module.moduleInfo,
-                    };
-                    return nextModule(err);
+                    moduleInst.listen( err => {
+                        if(err) {
+                            return nextModule(err);
+                        }
+
+                        listeningServers[module.moduleInfo.packageName] = {
+                            instance    : moduleInst,
+                            info        : module.moduleInfo,
+                        };
+
+                        return nextModule(null);
+                    });
                 });
             } catch(e) {
                 logger.log.error(e, 'Exception caught creating server!');

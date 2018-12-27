@@ -6,6 +6,7 @@ const Config            = require('../../config.js').get;
 const TelnetClient      = require('./telnet.js').TelnetClient;
 const Log               = require('../../logger.js').log;
 const LoginServerModule = require('../../login_server_module.js');
+const { Errors }        = require('../../enig_error.js');
 
 //  deps
 const _                 = require('lodash');
@@ -14,6 +15,7 @@ const http              = require('http');
 const https             = require('https');
 const fs                = require('graceful-fs');
 const Writable          = require('stream');
+const forEachSeries     = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'WebSocket',
@@ -165,31 +167,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
         return cb(null);
     }
 
-    listen() {
-        WSS_SERVER_TYPES.forEach(serverType => {
-            const server = this[serverType];
-            if(!server) {
-                return;
-            }
-
-            const serverName    = `${ModuleInfo.name} (${serverType})`;
-            const port          = parseInt(_.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] ));
-
-            if(isNaN(port)) {
-                Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );
-                return;
-            }
-
-            server.httpServer.listen(port);
-
-            server.wsServer.on('connection', (ws, req) => {
-                const webSocketClient = new WebSocketClient(ws, req, serverType);
-                this.handleNewClient(webSocketClient, webSocketClient.socketBridge, ModuleInfo);
-            });
-
-            Log.info( { server : serverName, port : port }, 'Listening for connections' );
-        });
-
+    listen(cb) {
         //
         //  Send pings every 30s
         //
@@ -215,7 +193,38 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
             });
         }, 30000);
 
-        return true;
+        forEachSeries(WSS_SERVER_TYPES, (serverType, nextServerType) => {
+            const server = this[serverType];
+            if(!server) {
+                return nextServerType(null);
+            }
+
+            const serverName    = `${ModuleInfo.name} (${serverType})`;
+            const confPort      = _.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] );
+            const port          = parseInt(confPort);
+
+            if(isNaN(port)) {
+                Log.error( { server : serverName, port : confPort }, 'Cannot load server (invalid port)' );
+                return nextServerType(Errors.Invalid(`Invalid port: ${confPort}`));
+            }
+
+            server.httpServer.listen(port, err => {
+                if(err) {
+                    return nextServerType(err);
+                }
+
+                server.wsServer.on('connection', (ws, req) => {
+                    const webSocketClient = new WebSocketClient(ws, req, serverType);
+                    this.handleNewClient(webSocketClient, webSocketClient.socketBridge, ModuleInfo);
+                });
+
+                Log.info( { server : serverName, port : port }, 'Listening for connections' );
+                return nextServerType(null);
+            });
+        },
+        err => {
+            cb(err);
+        });
     }
 
     webSocketConnection(conn) {

@@ -8,6 +8,7 @@ const LoginServerModule             = require('../../login_server_module.js');
 const Config                        = require('../../config.js').get;
 const EnigAssert                    = require('../../enigma_assert.js');
 const { stringFromNullTermBuffer }  = require('../../string_util.js');
+const { Errors }                    = require('../../enig_error.js');
 
 //  deps
 const net           = require('net');
@@ -880,16 +881,19 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
         return cb(null);
     }
 
-    listen() {
+    listen(cb) {
         const config = Config();
         const port = parseInt(config.loginServers.telnet.port);
         if(isNaN(port)) {
             Log.error( { server : ModuleInfo.name, port : config.loginServers.telnet.port }, 'Cannot load server (invalid port)' );
-            return false;
+            return cb(Errors.Invalid(`Invalid port: ${config.loginServers.telnet.port}`));
         }
 
-        this.server.listen(port);
-        Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
-        return true;
+        this.server.listen(port, err => {
+            if(!err) {
+                Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+            }
+            return cb(err);
+        });
     }
 };

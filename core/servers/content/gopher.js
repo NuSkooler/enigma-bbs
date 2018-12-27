@@ -5,6 +5,7 @@
 const Log                       = require('../../logger.js').log;
 const { ServerModule }          = require('../../server_module.js');
 const Config                    = require('../../config.js').get;
+const { Errors }                = require('../../enig_error.js');
 const {
     splitTextAtTerms,
     isAnsi,
@@ -100,19 +101,19 @@ exports.getModule = class GopherModule extends ServerModule {
         return cb(null);
     }
 
-    listen() {
+    listen(cb) {
         if(!this.enabled) {
-            return true;    //  nothing to do, but not an error
+            return cb(null);
         }
 
         const config = Config();
         const port = parseInt(config.contentServers.gopher.port);
         if(isNaN(port)) {
             this.log.warn( { port : config.contentServers.gopher.port, server : ModuleInfo.name }, 'Invalid port' );
-            return false;
+            return cb(Errors.Invalid(`Invalid port: ${config.contentServers.gopher.port}`));
         }
 
-        return this.server.listen(port);
+        return this.server.listen(port, cb);
     }
 
     get enabled() {

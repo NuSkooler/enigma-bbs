@@ -322,20 +322,23 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
         return cb(null);
     }
 
-    listen() {
+    listen(cb) {
         const config = Config();
         if(true != config.loginServers.ssh.enabled) {
-            return true;    //  no server, but not an error
+            return cb(null);
         }
 
         const port = parseInt(config.loginServers.ssh.port);
         if(isNaN(port)) {
             Log.error( { server : ModuleInfo.name, port : config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
-            return false;
+            return cb(Errors.Invalid(`Invalid port: ${config.loginServers.ssh.port}`));
         }
 
-        this.server.listen(port);
-        Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
-        return true;
+        this.server.listen(port, err => {
+            if(!err) {
+                Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+            }
+            return cb(err);
+        });
     }
 };

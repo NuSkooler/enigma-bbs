@@ -918,21 +918,26 @@ exports.getModule = class NNTPServerModule extends ServerModule {
         });
     }
 
-    listen() {
+    listen(cb) {
         const config = Config();
-        [ 'nntp', 'nntps' ].forEach( service => {
+        forEachSeries([ 'nntp', 'nntps' ], (service, nextService) => {
             const server = this[`${service}Server`];
             if(server) {
                 const port = config.contentServers.nntp[service].port;
                 server.listen(this.listenURI(port, service))
                     .catch(e => {
                         Log.warn( { error : e.message, port }, `${service.toUpperCase()} failed to listen`);
+                        return nextService(null);   //  try next anyway
+                    }).then( () => {
+                        return nextService(null);
                     });
+            } else {
+                return nextService(null);
             }
+        },
+        err => {
+            return cb(err);
         });
-
-        //  :TODO: listen() needs to be async. I always should have been...
-        return true;
     }
 
     listenURI(port, service = 'nntp') {

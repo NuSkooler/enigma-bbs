@@ -5,6 +5,7 @@
 const Log           = require('../../logger.js').log;
 const ServerModule  = require('../../server_module.js').ServerModule;
 const Config        = require('../../config.js').get;
+const { Errors }    = require('../../enig_error.js');
 
 //  deps
 const http          = require('http');
@@ -13,6 +14,7 @@ const _             = require('lodash');
 const fs            = require('graceful-fs');
 const paths         = require('path');
 const mimeTypes     = require('mime-types');
+const forEachSeries = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'Web',
@@ -125,23 +127,27 @@ exports.getModule = class WebServerModule extends ServerModule {
         return cb(null);
     }
 
-    listen() {
-        let ok = true;
-
+    listen(cb) {
         const config = Config();
-        [ 'http', 'https' ].forEach(service => {
+        forEachSeries([ 'http', 'https' ], (service, nextService) => {
             const name = `${service}Server`;
             if(this[name]) {
                 const port = parseInt(config.contentServers.web[service].port);
                 if(isNaN(port)) {
-                    ok = false;
-                    return Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
+                    Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
+                    return nextService(Errors.Invalid(`Invalid port: ${config.contentServers.web[service].port}`));
                 }
-                return this[name].listen(port);
-            }
-        });
 
-        return ok;
+                this[name].listen(port, err => {
+                    return nextService(err);
+                });
+            } else {
+                return nextService(null);
+            }
+        },
+        err => {
+            return cb(err);
+        });
     }
 
     addRoute(route) {
