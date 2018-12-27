@@ -26,7 +26,7 @@ function userLogin(client, username, password, cb) {
     const config = Config();
 
     if(config.users.badUserNames.includes(username.toLowerCase())) {
-        client.log.info( { username : username }, 'Attempt to login with banned username');
+        client.log.info( { username, ip : client.remoteAddress }, 'Attempt to login with banned username');
 
         //  slow down a bit to thwart brute force attacks
         return setTimeout( () => {
@@ -42,7 +42,7 @@ function userLogin(client, username, password, cb) {
                 err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
             }
 
-            client.log.info( { username : username, error : err.message }, 'Failed login attempt');
+            client.log.info( { username, ip : client.remoteAddress, reason : err.message }, 'Failed login attempt');
             return cb(err);
         }
 
