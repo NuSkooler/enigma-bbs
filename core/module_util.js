@@ -93,8 +93,15 @@ function loadModulesForCategory(category, iterator, complete) {
 
         async.each(jsModules, (file, next) => {
             loadModule(paths.basename(file, '.js'), category, (err, mod) => {
-                iterator(err, mod);
-                return next();
+                if(err) {
+                    if(ErrorReasons.Disabled === err.reasonCode) {
+                        Log.debug(err.message);
+                    } else {
+                        Log.info( { err : err }, 'Failed loading module');
+                    }
+                    return next(null);  //  continue no matter what
+                }
+                return iterator(mod, next);
             });
         }, err => {
             if(complete) {

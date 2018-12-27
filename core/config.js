@@ -170,7 +170,7 @@ function getDefaultConfig() {
         general : {
             boardName       : 'Another Fine ENiGMA½ BBS',
 
-            //  :TODO: closedSystem and loginAttemps prob belong under users{}?
+            //  :TODO: closedSystem prob belongs under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
 
             menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
@@ -947,11 +947,16 @@ function getDefaultConfig() {
 
                     //  action:
                     //  - @method:path/to/module.js:theMethodName
-                    //    (path is relative to engima base dir)
+                    //    (path is relative to ENiGMA base dir)
                     //
                     //  - @execute:/path/to/something/executable.sh
                     //
                     action      : '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+                },
+
+                nntpMaintenance : {
+                    schedule    : 'every 12 hours', //  should generally be < trimMessageAreas interval
+                    action      : '@method:core/servers/content/nntp.js:performMaintenanceTask',
                 },
 
                 updateFileAreaStats : {

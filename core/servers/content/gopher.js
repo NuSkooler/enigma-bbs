@@ -71,9 +71,9 @@ exports.getModule = class GopherModule extends ServerModule {
         this.log = Log.child( { server : 'Gopher' } );
     }
 
-    createServer() {
+    createServer(cb) {
         if(!this.enabled) {
-            return;
+            return cb(null);
         }
 
         const config = Config();
@@ -96,6 +96,8 @@ exports.getModule = class GopherModule extends ServerModule {
                 }
             });
         });
+
+        return cb(null);
     }
 
     listen() {

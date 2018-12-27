@@ -852,7 +852,7 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
         super();
     }
 
-    createServer() {
+    createServer(cb) {
         this.server = net.createServer( sock => {
             const client = new TelnetClient(sock, sock);
 
@@ -876,6 +876,8 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
         this.server.on('error', err => {
             Log.info( { error : err.message }, 'Telnet server error');
         });
+
+        return cb(null);
     }
 
     listen() {

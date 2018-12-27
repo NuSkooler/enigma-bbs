@@ -123,7 +123,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
         super();
     }
 
-    createServer() {
+    createServer(cb) {
         //
         //  We will actually create up to two servers:
         //  * insecure websocket (ws://)
@@ -131,7 +131,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
         //
         const config = _.get(Config(), 'loginServers.webSocket');
         if(!_.isObject(config)) {
-            return;
+            return cb(null);
         }
 
         const wsPort    = _.get(config, 'ws.port');
@@ -161,6 +161,8 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                 wsServer    : new WebSocketServer( { server : httpServer } ),
             };
         }
+
+        return cb(null);
     }
 
     listen() {

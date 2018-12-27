@@ -288,10 +288,10 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
         super();
     }
 
-    createServer() {
+    createServer(cb) {
         const config = Config();
         if(true != config.loginServers.ssh.enabled) {
-            return;
+            return cb(null);
         }
 
         const serverConf = {
@@ -318,6 +318,8 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             Log.info(info, 'New SSH connection');
             this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
         });
+
+        return cb(null);
     }
 
     listen() {

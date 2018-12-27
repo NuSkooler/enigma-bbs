@@ -30,30 +30,23 @@ function startListening(cb) {
     const moduleUtil = require('./module_util.js'); //  late load so we get Config
 
     async.each( [ 'login', 'content' ], (category, next) => {
-        moduleUtil.loadModulesForCategory(`${category}Servers`, (err, module) => {
-            if(err) {
-                if(ErrorReasons.Disabled === err.reasonCode) {
-                    logger.log.debug(err.message);
-                } else {
-                    logger.log.info( { err : err }, 'Failed loading module');
-                }
-                return;
-            }
-
+        moduleUtil.loadModulesForCategory(`${category}Servers`, (module, nextModule) => {
             const moduleInst = new module.getModule();
             try {
-                moduleInst.createServer();
-                if(!moduleInst.listen()) {
-                    throw new Error('Failed listening');
-                }
+                moduleInst.createServer(err => {
+                    if(!moduleInst.listen()) {
+                        throw new Error('Failed listening');
+                    }
 
-                listeningServers[module.moduleInfo.packageName] = {
-                    instance    : moduleInst,
-                    info        : module.moduleInfo,
-                };
-
+                    listeningServers[module.moduleInfo.packageName] = {
+                        instance    : moduleInst,
+                        info        : module.moduleInfo,
+                    };
+                    return nextModule(err);
+                });
             } catch(e) {
                 logger.log.error(e, 'Exception caught creating server!');
+                return nextModule(e);
             }
         }, err => {
             return next(err);

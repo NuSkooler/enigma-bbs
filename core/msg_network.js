@@ -2,10 +2,10 @@
 'use strict';
 
 //  ENiGMA½
-let loadModulesForCategory  = require('./module_util.js').loadModulesForCategory;
+const loadModulesForCategory  = require('./module_util.js').loadModulesForCategory;
 
 //  standard/deps
-let async               = require('async');
+const async               = require('async');
 
 exports.startup         = startup;
 exports.shutdown        = shutdown;
@@ -17,16 +17,15 @@ function startup(cb) {
     async.series(
         [
             function loadModules(callback) {
-                loadModulesForCategory('scannerTossers', (err, module) => {
-                    if(!err) {
-                        const modInst = new module.getModule();
+                loadModulesForCategory('scannerTossers', (module, nextModule) => {
+                    const modInst = new module.getModule();
 
-                        modInst.startup(err => {
-                            if(!err) {
-                                msgNetworkModules.push(modInst);
-                            }
-                        });
-                    }
+                    modInst.startup(err => {
+                        if(!err) {
+                            msgNetworkModules.push(modInst);
+                        }
+                    });
+                    return nextModule(null);
                 }, err => {
                     callback(err);
                 });

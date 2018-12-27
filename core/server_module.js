@@ -1,15 +1,18 @@
 /* jslint node: true */
 'use strict';
 
-var PluginModule        = require('./plugin_module.js').PluginModule;
+const PluginModule = require('./plugin_module.js').PluginModule;
 
-exports.ServerModule    = ServerModule;
+exports.ServerModule = class ServerModule extends PluginModule {
+    constructor(options) {
+        super(options);
+    }
 
-function ServerModule() {
-    PluginModule.call(this);
-}
+    createServer(cb) {
+        return cb(null);
+    }
 
-require('util').inherits(ServerModule, PluginModule);
-
-ServerModule.prototype.createServer = function() {
+    listen(cb) {
+        return cb(null);
+    }
 };

@@ -104,7 +104,7 @@ exports.getModule = class WebServerModule extends ServerModule {
         return this.enableHttp || this.enableHttps;
     }
 
-    createServer() {
+    createServer(cb) {
         if(this.enableHttp) {
             this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
         }
@@ -121,6 +121,8 @@ exports.getModule = class WebServerModule extends ServerModule {
 
             this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );
         }
+
+        return cb(null);
     }
 
     listen() {
