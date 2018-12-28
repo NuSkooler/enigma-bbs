@@ -85,7 +85,7 @@ function Client(/*input, output*/) {
     this.currentTheme       = { info : { name : 'N/A', description : 'None' } };
     this.lastKeyPressMs     = Date.now();
     this.menuStack          = new MenuStack(this);
-    this.acs                = new ACS(this);
+    this.acs                = new ACS( { client : this, user : this.user } );
     this.mciCache           = {};
     this.interruptQueue     = new UserInterruptQueue(this);
 

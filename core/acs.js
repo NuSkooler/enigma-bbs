@@ -10,15 +10,15 @@ const assert    = require('assert');
 const _         = require('lodash');
 
 class ACS {
-    constructor(client) {
-        this.client = client;
+    constructor(subject) {
+        this.subject = subject;
     }
 
     check(acs, scope, defaultAcs) {
         acs = acs ? acs[scope] : defaultAcs;
         acs = acs || defaultAcs;
         try {
-            return checkAcs(acs, { client : this.client } );
+            return checkAcs(acs, { subject : this.subject } );
         } catch(e) {
             Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
             return false;
@@ -57,7 +57,7 @@ class ACS {
             return true;    //  no ACS check req.
         }
         try {
-            return checkAcs(acs, { client : this.client } );
+            return checkAcs(acs, { subject : this.subject } );
         } catch(e) {
             Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
             return false;
@@ -75,7 +75,7 @@ class ACS {
         const matchCond = condArray.find( cond => {
             if(_.has(cond, 'acs')) {
                 try {
-                    return checkAcs(cond.acs, { client : this.client } );
+                    return checkAcs(cond.acs, { subject : this.subject } );
                 } catch(e) {
                     Log.warn( { exception : e, acs : cond }, 'Exception caught checking ACS');
                     return false;
