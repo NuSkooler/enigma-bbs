@@ -413,16 +413,23 @@ exports.getModule = class FileAreaList extends MenuModule {
                             //
                             const desc = controlCodesToAnsi(self.currentFileEntry.desc);
                             if(desc.length != self.currentFileEntry.desc.length || isAnsi(desc)) {
-                                descView.setAnsi(
-                                    desc,
-                                    {
-                                        prepped         : false,
-                                        forceLineTerm   : true
-                                    },
-                                    () => {
-                                        return callback(null);
-                                    }
-                                );
+                                const opts = {
+                                    prepped         : false,
+                                    forceLineTerm   : true
+                                };
+
+                                //
+                                //  if SAUCE states a term width, honor it else we may see
+                                //  display corruption
+                                //
+                                const sauceTermWidth = _.get(self.currentFileEntry.meta, 'desc_sauce.Character.characterWidth');
+                                if(_.isNumber(sauceTermWidth)) {
+                                    opts.termWidth = sauceTermWidth;
+                                }
+
+                                descView.setAnsi(desc, opts, () => {
+                                    return callback(null);
+                                });
                             } else {
                                 descView.setText(self.currentFileEntry.desc);
                                 return callback(null);

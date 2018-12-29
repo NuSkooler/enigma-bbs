@@ -16,6 +16,7 @@ const wordWrapText      = require('./word_wrap.js').wordWrapText;
 const StatLog           = require('./stat_log.js');
 const UserProps         = require('./user_property.js');
 const SysProps          = require('./system_property.js');
+const SAUCE             = require('./sauce.js');
 
 //  deps
 const _             = require('lodash');
@@ -386,13 +387,24 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                 return next(null);
                             }
 
-                            //
-                            //  Assume FILE_ID.DIZ, NFO files, etc. are CP437.
-                            //
-                            //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
-                            fileEntry[descType]         = iconv.decode(sliceAtSauceMarker(data, 0x1a), 'cp437');
-                            fileEntry[`${descType}Src`] = 'descFile';
-                            return next(null);
+                            SAUCE.readSAUCE(data, (err, sauce) => {
+                                if(sauce) {
+                                    //  if we have SAUCE, this information will be kept as well,
+                                    //  but separate/pre-parsed.
+                                    const metaKey = `desc${'descLong' === descType ? '_long' : ''}_sauce`;
+                                    fileEntry.meta[metaKey] = JSON.stringify(sauce);
+                                }
+
+                                //
+                                //  Assume FILE_ID.DIZ, NFO files, etc. are CP437; we need
+                                //  to decode to a native format for storage
+                                //
+                                //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
+                                const decodedData           = iconv.decode(data, 'cp437');
+                                fileEntry[descType]         = sliceAtSauceMarker(decodedData, 0x1a);
+                                fileEntry[`${descType}Src`] = 'descFile';
+                                return next(null);
+                            });
                         });
                     });
                 }, () => {

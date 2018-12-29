@@ -567,8 +567,8 @@ function MultiLineEditTextView(options) {
         ansiPrep(
             ansi,
             {
-                termWidth           : this.client.term.termWidth,
-                termHeight          : this.client.term.termHeight,
+                termWidth           : options.termWidth || this.client.term.termWidth,
+                termHeight          : options.termHeight || this.client.term.termHeight,
                 cols                : this.dimens.width,
                 rows                : 'auto',
                 startCol            : this.position.col,

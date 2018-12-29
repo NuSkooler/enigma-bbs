@@ -39,6 +39,8 @@ const FILE_WELL_KNOWN_META = {
     tic_desc            : null, //  TIC "Desc"
     tic_ldesc           : null, //  TIC "Ldesc" joined by '\n'
     session_temp_dl     : (v) => parseInt(v) ? true : false,
+    desc_sauce          : (s) => JSON.parse(s) || {},
+    desc_long_sauce     : (s) => JSON.parse(s) || {},
 };
 
 module.exports = class FileEntry {

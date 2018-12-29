@@ -163,7 +163,7 @@ function parseCharacterSAUCE(sauce) {
     result.fileType = SAUCE_CHARACTER_FILE_TYPES[sauce.fileType] || 'Unknown';
 
     if(sauce.fileType === 0 || sauce.fileType === 1 || sauce.fileType === 2) {
-        //  convience: create ansiFlags
+        //  convenience: create ansiFlags
         sauce.ansiFlags = sauce.flags;
 
         let i = 0;
@@ -175,6 +175,16 @@ function parseCharacterSAUCE(sauce) {
         if(fontName.length > 0) {
             result.fontName = fontName;
         }
+
+        const setDimen = (v, field) => {
+            const i = parseInt(v, 10);
+            if(!isNaN(i)) {
+                result[field] = i;
+            }
+        };
+
+        setDimen(sauce.tinfo1, 'characterWidth');
+        setDimen(sauce.tinfo2, 'characterHeight');
     }
 
     return result;

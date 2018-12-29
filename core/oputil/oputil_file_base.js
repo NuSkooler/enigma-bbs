@@ -259,8 +259,10 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
                                                             if( tagsEq &&
 																fileEntry.desc === existingEntry.desc &&
-																fileEntry.descLong == existingEntry.descLong &&
-																fileEntry.meta.est_release_year == existingEntry.meta.est_release_year)
+																fileEntry.descLong === existingEntry.descLong &&
+                                                                fileEntry.meta.est_release_year === existingEntry.meta.est_release_year &&
+                                                                fileEntry.meta.desc_sauce === existingEntry.meta.desc_sauce
+                                                            )
                                                             {
                                                                 console.info('Dupe');
                                                                 return nextFile(null);
@@ -274,6 +276,10 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
 
                                                             if(fileEntry.meta.est_release_year) {
                                                                 existingEntry.meta.est_release_year	= fileEntry.meta.est_release_year;
+                                                            }
+
+                                                            if(fileEntry.meta.desc_sauce) {
+                                                                existingEntry.meta.desc_sauce = fileEntry.meta.desc_sauce;
                                                             }
 
                                                             updateTags(existingEntry);
