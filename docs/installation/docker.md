@@ -11,7 +11,7 @@ Download and run the ENiGMA½ BBS image:
 
     docker run -d \
       -p 8888:8888 \
-      davestephens\enigma-bbs
+      davestephens/enigma-bbs:latest
 
 As no config has been supplied the container will use a basic one so that it starts successfully. Note that as no persistence 
 directory has been supplied, once the container stops any changes made will be lost!
