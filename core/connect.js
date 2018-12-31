@@ -80,12 +80,13 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
 
         //
         //  NetRunner for example gives us 1x1 here. Not really useful. Ignore
-        //  values that seem obviously bad.
+        //  values that seem obviously bad. Included in the set is the explicit
+        //  999x999 values we asked to move to.
         //
-        if(h < 10 || w < 10) {
+        if(h < 10 || h === 999 || w < 10 || w === 999) {
             client.log.warn(
                 { height : h, width : w },
-                'Ignoring ANSI CPR screen size query response due to very small values');
+                'Ignoring ANSI CPR screen size query response due to non-sane values');
             return done(Errors.Invalid('Term size <= 10 considered invalid'));
         }
 
@@ -111,12 +112,20 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
         return done(Errors.General('No term size established by CPR within timeout'));
     }, 2000);
 
-    //  Start the process: Query for CPR
-    client.term.rawWrite(ansi.queryScreenSize());
+    //  Start the process:
+    //  1 - Ask to goto 999,999 -- a very much "bottom right" (generally 80x25 for example
+    //      is the real size)
+    //  2 - Query for screen size with bansi.txt style specialized Device Status Report (DSR)
+    //      request. We expect a CPR of:
+    //      a - Terms that support bansi.txt style: Screen size
+    //      b - Terms that do not support bansi.txt style: Since we moved to the bottom right
+    //          we should still be able to determine a screen size.
+    //
+    client.term.rawWrite(`${ansi.goto(999, 999)}${ansi.queryScreenSize()}`);
 }
 
 function prepareTerminal(term) {
-    term.rawWrite(ansi.normal());
+    term.rawWrite(`${ansi.normal()}${ansi.clearScreen()}`);
 }
 
 function displayBanner(term) {
