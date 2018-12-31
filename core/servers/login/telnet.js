@@ -16,8 +16,6 @@ const buffers       = require('buffers');
 const { Parser }    = require('binary-parser');
 const util          = require('util');
 
-//var debug = require('debug')('telnet');
-
 const ModuleInfo = exports.moduleInfo = {
     name        : 'Telnet',
     desc        : 'Telnet Server',
@@ -36,24 +34,7 @@ exports.TelnetClient    = TelnetClient;
 
 /*
     TODO:
-    * Document COMMANDS -- add any missing
-    * Document OPTIONS -- add any missing
-    * Internally handle OPTIONS:
-        * Some should be emitted generically
-        * Some should be handled internally -- denied, handled, etc.
-        *
-
-    * Allow term (ttype) to be set by environ sub negotiation
-
-    * Process terms in loop.... research needed
-
-    * Handle will/won't
-    * Handle do's, ..
-    * Some won't should close connection
-
-    * Options/Commands we don't understand shouldn't crash the server!!
-
-
+    * Various (much lesser used) Telnet command coverage
 */
 
 const COMMANDS = {
@@ -299,10 +280,7 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 };
 
 //  Build an array of delimiters for parsing NEW_ENVIRONMENT[_DEP]
-const NEW_ENVIRONMENT_DELIMITERS = [];
-Object.keys(NEW_ENVIRONMENT_COMMANDS).forEach(function onKey(k) {
-    NEW_ENVIRONMENT_DELIMITERS.push(NEW_ENVIRONMENT_COMMANDS[k]);
-});
+//const NEW_ENVIRONMENT_DELIMITERS = _.values(NEW_ENVIRONMENT_COMMANDS);
 
 //  Handle the deprecated RFC 1408 & the updated RFC 1572:
 OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT_DEP]   =
@@ -727,10 +705,9 @@ TelnetClient.prototype.handleSbCommand = function(evt) {
     }
 };
 
-const IGNORED_COMMANDS = [];
-[ COMMANDS.EL, COMMANDS.GA, COMMANDS.NOP, COMMANDS.DM, COMMANDS.BRK ].forEach(function onCommandCode(cc) {
-    IGNORED_COMMANDS.push(cc);
-});
+const IGNORED_COMMANDS = [
+    COMMANDS.EL, COMMANDS.GA, COMMANDS.NOP, COMMANDS.DM, COMMANDS.BRK
+];
 
 
 TelnetClient.prototype.handleMiscCommand = function(evt) {
@@ -750,7 +727,7 @@ TelnetClient.prototype.handleMiscCommand = function(evt) {
 
         this.log.debug('Are You There (AYT) - Replied "\\b"');
     } else if(IGNORED_COMMANDS.indexOf(evt.commandCode)) {
-        this.log.debug({ evt : evt }, 'Ignoring command');
+        this.log.trace({ command : evt.command, commandCode : evt.commandCode }, 'Ignoring command');
     } else {
         this.log.warn({ evt : evt }, 'Unknown command');
     }
