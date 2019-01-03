@@ -143,6 +143,7 @@ class NNTPServer extends NNTPServerBase {
             const user = new User();
             user.authenticate(username, password, err => {
                 if(err) {
+                    //  :TODO: Log IP address
                     this.log.debug( { username, reason : err.message }, 'Authentication failure');
                     return resolve(false);
                 }
