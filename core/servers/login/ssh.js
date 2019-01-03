@@ -238,6 +238,14 @@ function SSHClient(clientConn) {
                 }
             });
 
+            session.on('env', (accept, reject, info) => {
+                self.log.debug(info, 'SSH env event');
+
+                if(_.isFunction(accept)) {
+                    accept();
+                }
+            });
+
             session.on('shell', accept => {
                 self.log.debug('SSH shell event');
 
