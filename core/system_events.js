@@ -21,4 +21,5 @@ module.exports = {
     UserSendMail        : 'codes.l33t.enigma.system.user_send_mail',
     UserRunDoor         : 'codes.l33t.enigma.system.user_run_door',
     UserSendNodeMsg     : 'codes.l33t.enigma.system.user_send_node_msg',
+    UserStatUpdate      : 'codes.l33t.enigma.system.user_stat_set',     //  { ..., statName, statValue }
 };

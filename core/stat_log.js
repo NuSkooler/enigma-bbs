@@ -120,11 +120,14 @@ class StatLog {
 
     //
     //  User specific stats
-    //  These are simply convience methods to the user's properties
+    //  These are simply convenience methods to the user's properties
     //
     setUserStat(user, statName, statValue, cb) {
         //  note: cb is optional in PersistUserProperty
-        return user.persistProperty(statName, statValue, cb);
+        user.persistProperty(statName, statValue, cb);
+
+        const Events = require('./events.js');  //  we need to late load currently
+        return Events.emit(Events.getSystemEvents().UserStatUpdate, { user, statName, statValue } );
     }
 
     getUserStat(user, statName) {

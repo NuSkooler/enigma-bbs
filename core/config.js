@@ -1003,6 +1003,41 @@ function getDefaultConfig() {
             systemEvents : {
                 loginHistoryMax: -1, //  set to -1 for forever
             }
+        },
+
+        userAchievements : {
+            enabled : true,
+
+            artHeader : 'achievement_header',
+            artFooter : 'achievement_footer',
+
+            achievements : {
+                user_login_count : {
+                    type        : 'userStat',
+                    statName    : 'login_count',
+                    retroactive : true,
+                    match : {
+                        10 : {
+                            title       : 'Return Caller',
+                            globalText  : '{userName} has logged in {statValue} times!',
+                            text        : 'You\'ve logged in {statValue} times!',
+                            points      : 5,
+                        },
+                        25 : {
+                            title       : 'Seems To Like It!',
+                            globalText  : '{userName} has logged in {statValue} times!',
+                            text        : 'You\'ve logged in {statValue} times!',
+                            points      : 10,
+                        },
+                        100 : {
+                            title       : '{boardName} Addict',
+                            globalText  : '{userName} the BBS {boardName} addict has logged in {statValue} times!',
+                            text        : 'You\'re a {boardName} addict! You\'ve logged in {statValue} times!',
+                            points      : 10,
+                        }
+                    }
+                }
+            }
         }
     };
 }
