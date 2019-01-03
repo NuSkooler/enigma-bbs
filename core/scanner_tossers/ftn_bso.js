@@ -1677,7 +1677,7 @@ function FTNMessageScanTossModule() {
                         localAreaTags   : self.getLocalAreaTagsForTic(),
                     };
 
-                    return ticFileInfo.validate(config, (err, localInfo) => {
+                    ticFileInfo.validate(config, (err, localInfo) => {
                         if(err) {
                             Log.trace( { reason : err.message }, 'Validation failure');
                             return callback(err);
@@ -1893,7 +1893,7 @@ function FTNMessageScanTossModule() {
             ],
             (err, localInfo) => {
                 if(err) {
-                    Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.filePath }, 'Failed import/update TIC record' );
+                    Log.error( { error : err.message, reason : err.reason, tic : ticFileInfo.filePath }, 'Failed to import/update TIC' );
                 } else {
                     Log.info(
                         { tic : ticFileInfo.path, file : ticFileInfo.filePath, area : localInfo.areaTag },
@@ -2109,6 +2109,8 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
                 async.eachSeries(ticFilesInfo, (ticFileInfo, nextTicInfo) => {
                     self.processSingleTicFile(ticFileInfo, err => {
                         if(err) {
+                            //  :TODO: If ENOENT -OR- failed due to CRC mismatch: create a pending state & try again later; the "attached" file may not yet be ready.
+
                             //  archive rejected TIC stuff (.TIC + attach)
                             async.each( [ ticFileInfo.path, ticFileInfo.filePath ], (path, nextPath) => {
                                 if(!path) { //  possibly rejected due to "File" not existing/etc.
