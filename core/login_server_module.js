@@ -37,8 +37,8 @@ module.exports = class LoginServerModule extends ServerModule {
 
     handleNewClient(client, clientSock, modInfo) {
         //
-        //  Start tracking the client. We'll assign it an ID which is
-        //  just the index in our connections array.
+        //  Start tracking the client. A session ID aka client ID
+        //  will be established in addNewClient() below.
         //
         if(_.isUndefined(client.session)) {
             client.session = {};
