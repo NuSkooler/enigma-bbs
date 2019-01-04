@@ -30,6 +30,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
         this.viewControllers    = {};
         this.interrupt          = (_.get(this.menuConfig.config, 'interrupt', MenuModule.InterruptTypes.Queued)).toLowerCase();
+
+        if(MenuModule.InterruptTypes.Realtime === this.interrupt) {
+            this.realTimeInterrupt  = 'blocked';
+        }
     }
 
     static get InterruptTypes() {
@@ -137,6 +141,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 },
                 function finishAndNext(callback) {
                     self.finishedLoading();
+                    self.realTimeInterrupt = 'allowed';
                     return self.autoNextMenu(callback);
                 }
             ],
@@ -194,7 +199,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     attemptInterruptNow(interruptItem, cb) {
-        if(MenuModule.InterruptTypes.Realtime !== this.interrupt) {
+        if(this.realTimeInterrupt !== 'allowed' || MenuModule.InterruptTypes.Realtime !== this.interrupt) {
             return cb(null, false); //  don't eat up the item; queue for later
         }
 
