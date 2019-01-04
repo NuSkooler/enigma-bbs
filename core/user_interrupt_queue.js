@@ -81,18 +81,28 @@ module.exports = class UserInterruptQueue
             this.client.term.rawWrite('\r\n\r\n');
         }
 
+        const maybePauseAndFinish = () => {
+            if(interruptItem.pause) {
+                this.client.currentMenuModule.pausePrompt( () => {
+                    return cb(null);
+                });
+            } else {
+                return cb(null);
+            }
+        };
+
         if(interruptItem.contents) {
             Art.display(this.client, interruptItem.contents, err => {
                 if(err) {
                     return cb(err);
                 }
                 //this.client.term.rawWrite('\r\n\r\n');  //  :TODO: Prob optional based on contents vs text
-                this.client.currentMenuModule.pausePrompt( () => {
-                    return cb(null);
-                });
+                maybePauseAndFinish();
             });
         } else {
-            return this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), cb);
+            this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), true, () => {
+                maybePauseAndFinish();
+            });
         }
     }
 };
