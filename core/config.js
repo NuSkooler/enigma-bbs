@@ -1008,8 +1008,12 @@ function getDefaultConfig() {
         userAchievements : {
             enabled : true,
 
-            artHeader : 'achievement_header',
-            artFooter : 'achievement_footer',
+            art : {
+                header : 'achievement_header',
+                footer : 'achievement_footer',
+            },
+
+            //  :TODO: achievements should be a path/filename -> achievements.hjson & allow override/theming
 
             achievements : {
                 user_login_count : {
@@ -1019,20 +1023,20 @@ function getDefaultConfig() {
                     match : {
                         10 : {
                             title       : 'Return Caller',
-                            globalText  : '{userName} has logged in {statValue} times!',
-                            text        : 'You\'ve logged in {statValue} times!',
+                            globalText  : '{userName} has logged in {value} times!',
+                            text        : 'You\'ve logged in {value} times!',
                             points      : 5,
                         },
                         25 : {
                             title       : 'Seems To Like It!',
-                            globalText  : '{userName} has logged in {statValue} times!',
-                            text        : 'You\'ve logged in {statValue} times!',
+                            globalText  : '{userName} has logged in {value} times!',
+                            text        : 'You\'ve logged in {value} times!',
                             points      : 10,
                         },
                         100 : {
                             title       : '{boardName} Addict',
-                            globalText  : '{userName} the BBS {boardName} addict has logged in {statValue} times!',
-                            text        : 'You\'re a {boardName} addict! You\'ve logged in {statValue} times!',
+                            globalText  : '{userName} the BBS {boardName} addict has logged in {value} times!',
+                            text        : 'You\'re a {boardName} addict! You\'ve logged in {value} times!',
                             points      : 10,
                         }
                     }
