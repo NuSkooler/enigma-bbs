@@ -980,5 +980,28 @@
 				}
 			}
 		}
+
+		achievements: {
+			defaults: {
+				titleSGR: "|11"
+				textSGR: "|00|03"
+				globalTextSGR: "|03"
+				boardName: "|10"
+				userName: "|11"
+				achievedValue: "|15"
+			}
+
+			overrides: {
+				user_login_count: {
+					match: {
+						2: {
+							//
+							//	You may override title, text, and globalText here
+							//
+						}
+					}
+				}
+			}
+		}
 	}
 }

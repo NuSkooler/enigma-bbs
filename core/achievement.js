@@ -115,18 +115,18 @@ class Achievements {
     init(cb) {
         let achievementConfigPath = _.get(Config(), 'general.achievementFile');
         if(!achievementConfigPath) {
-            //  :TODO: Log me
+            Log.info('Achievements are not configured');
             return cb(null);
         }
         achievementConfigPath = getConfigPath(achievementConfigPath);   //  qualify
 
-        //  :TODO: Log enabled        
-
         const configLoaded = (achievementConfig) => {
             if(true !== achievementConfig.enabled) {
+                Log.info('Achievements are not enabled');
                 this.stopMonitoringUserStatUpdateEvents();
                 delete this.achievementConfig;
             } else {
+                Log.info('Achievements are enabled');
                 this.achievementConfig = achievementConfig;
                 this.monitorUserStatUpdateEvents();
             }
@@ -318,35 +318,45 @@ class Achievements {
         }
     }
 
+    getFormattedTextFor(info, textType) {
+        const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
+        const defSgr        = themeDefaults[`${textType}SGR`] || '|07';
+
+        const wrap = (fieldName, value) => {
+            return `${themeDefaults[fieldName] || defSgr}${value}${defSgr}`;
+        };
+
+        const formatObj = {
+            userName        : wrap('userName', info.user.username),
+            userRealName    : wrap('userRealName', info.user.properties[UserProps.RealName]),
+            userLocation    : wrap('userLocation', info.user.properties[UserProps.Location]),
+            userAffils      : wrap('userAffils', info.user.properties[UserProps.Affiliations]),
+            nodeId          : wrap('nodeId', info.client.node),
+            title           : wrap('title', info.details.title),
+            text            : wrap('text', info.global ? info.details.globalText : info.details.text),
+            points          : wrap('points', info.details.points),
+            achievedValue   : wrap('achievedValue', info.achievedValue),
+            matchField      : wrap('matchField', info.matchField),
+            matchValue      : wrap('matchValue', info.matchValue),
+            timestamp       : wrap('timestamp', moment(info.timestamp).format(info.dateTimeFormat)),
+            boardName       : wrap('boardName', Config().general.boardName),
+        };
+
+        return stringFormat(`${defSgr}${info.details[textType]}`, formatObj);
+    }
+
     createAchievementInterruptItems(info, cb) {
-        const dateTimeFormat =
+        info.dateTimeFormat =
             info.details.dateTimeFormat ||
             info.achievement.dateTimeFormat ||
             info.client.currentTheme.helpers.getDateTimeFormat();
 
-        const config = Config();
-
-        const formatObj = {
-            userName        : info.user.username,
-            userRealName    : info.user.properties[UserProps.RealName],
-            userLocation    : info.user.properties[UserProps.Location],
-            userAffils      : info.user.properties[UserProps.Affiliations],
-            nodeId          : info.client.node,
-            title           : info.details.title,
-            text            : info.global ? info.details.globalText : info.details.text,
-            points          : info.details.points,
-            matchField      : info.matchField,
-            matchValue      : info.matchValue,
-            timestamp       : moment(info.timestamp).format(dateTimeFormat),
-            boardName       : config.general.boardName,
-        };
-
-        const title = stringFormat(info.details.title, formatObj);
-        const text  = stringFormat(info.details.text, formatObj);
+        const title = this.getFormattedTextFor(info, 'title');
+        const text  = this.getFormattedTextFor(info, 'text');
 
         let globalText;
         if(info.details.globalText) {
-            globalText = stringFormat(info.details.globalText, formatObj);
+            globalText = this.getFormattedTextFor(info, 'globalText');
         }
 
         const getArt = (name, callback) => {
@@ -416,4 +426,3 @@ exports.moduleInitialize = (initInfo, cb) => {
     achievements = new Achievements(initInfo.events);
     return achievements.init(cb);
 };
-
