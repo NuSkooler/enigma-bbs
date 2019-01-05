@@ -1009,8 +1009,10 @@ function getDefaultConfig() {
             enabled : true,
 
             art : {
-                header : 'achievement_header',
-                footer : 'achievement_footer',
+                localHeader     : 'achievement_local_header',
+                localFooter     : 'achievement_local_footer',
+                globalHeader    : 'achievement_global_header',
+                globalFooter    : 'achievement_global_footer',
             },
 
             //  :TODO: achievements should be a path/filename -> achievements.hjson & allow override/theming
@@ -1023,20 +1025,20 @@ function getDefaultConfig() {
                     match : {
                         10 : {
                             title       : 'Return Caller',
-                            globalText  : '{userName} has logged in {value} times!',
-                            text        : 'You\'ve logged in {value} times!',
+                            globalText  : '{userName} has logged in {matchValue} times!',
+                            text        : 'You\'ve logged in {matchValue} times!',
                             points      : 5,
                         },
                         25 : {
                             title       : 'Seems To Like It!',
-                            globalText  : '{userName} has logged in {value} times!',
-                            text        : 'You\'ve logged in {value} times!',
+                            globalText  : '{userName} has logged in {matchValue} times!',
+                            text        : 'You\'ve logged in {matchValue} times!',
                             points      : 10,
                         },
                         100 : {
                             title       : '{boardName} Addict',
-                            globalText  : '{userName} the BBS {boardName} addict has logged in {value} times!',
-                            text        : 'You\'re a {boardName} addict! You\'ve logged in {value} times!',
+                            globalText  : '{userName} the BBS {boardName} addict has logged in {matchValue} times!',
+                            text        : 'You\'re a {boardName} addict! You\'ve logged in {matchValue} times!',
                             points      : 10,
                         }
                     }

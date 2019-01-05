@@ -90,7 +90,7 @@ const PREDEFINED_MCI_GENERATORS = {
         return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
     },
     US  : function sex(client) { return userStatAsString(client, UserProps.Sex, ''); },
-    UE  : function emailAddres(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
+    UE  : function emailAddress(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
     UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
     UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
     UT  : function themeName(client) {
@@ -122,7 +122,7 @@ const PREDEFINED_MCI_GENERATORS = {
         return getUserRatio(client, UserProps.FileUlTotalBytes, UserProps.FileDlTotalBytes);
     },
 
-    MS  : function accountCreatedclient(client) {
+    MS  : function accountCreated(client) {
         return moment(client.user.properties[UserProps.AccountCreated]).format(client.currentTheme.helpers.getDateFormat());
     },
     PS  : function userPostCount(client) { return userStatAsString(client, UserProps.MessagePostCount, 0); },
@@ -152,6 +152,9 @@ const PREDEFINED_MCI_GENERATORS = {
     SH  : function termHeight(client) { return client.term.termHeight.toString(); },
     SW  : function termWidth(client) { return client.term.termWidth.toString(); },
 
+    AC  : function achievementCount(client) { return userStatAsString(client, UserProps.AchievementTotalCount, 0); },
+    AP  : function achievementPoints(client) { return userStatAsString(client, UserProps.AchievementTotalPoints, 0); },
+
     //
     //  Date/Time
     //
@@ -166,7 +169,7 @@ const PREDEFINED_MCI_GENERATORS = {
     OS  : function operatingSystem() {
         return {
             linux   : 'Linux',
-            darwin  : 'Mac OS X',
+            darwin  : 'OS X',
             win32   : 'Windows',
             sunos   : 'SunOS',
             freebsd : 'FreeBSD',

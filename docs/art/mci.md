@@ -16,8 +16,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.3-alpha" |
-| `VN` | Version *number*, eg.. "0.0.3-alpha" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.9-alpha" |
+| `VN` | Version *number*, eg.. "0.0.9-alpha" |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |
@@ -30,7 +30,7 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `UR` | Current user's real name |
 | `LO` | Current user's location |
 | `UA` | Current user's age |
-| `BD` | Current user's birthdate (using theme date format) |
+| `BD` | Current user's birthday (using theme date format) |
 | `US` | Current user's sex |
 | `UE` | Current user's email address |
 | `UW` | Current user's web address |
@@ -58,6 +58,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `CM` | Current user's active message conference description |
 | `SH` | Current user's term height |
 | `SW` | Current user's term width |
+| `AC` | Current user's total achievements |
+| `AP` | Current user's total achievement points |
 | `DT` | Current date (using theme date format) |
 | `CT` | Current time (using theme time format) |
 | `OS` | System OS (Linux, Windows, etc.) |
@@ -149,7 +151,7 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 | `mixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
 | `l33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
 
-### Entry Fromatting
+### Entry Formatting
 Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
 
 ### Additional Text Styles

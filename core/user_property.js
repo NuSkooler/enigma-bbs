@@ -49,5 +49,8 @@ module.exports = {
     MessageConfTag              : 'message_conf_tag',
     MessageAreaTag              : 'message_area_tag',
     MessagePostCount            : 'post_count',
+
+    AchievementTotalCount       : 'achievement_total_count',
+    AchievementTotalPoints      : 'achievement_total_points',
 };
 

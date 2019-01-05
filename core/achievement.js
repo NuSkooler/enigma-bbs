@@ -5,20 +5,101 @@
 const Events                = require('./events.js');
 const Config                = require('./config.js').get;
 const UserDb                = require('./database.js').dbs.user;
+const {
+    getISOTimestampString
+}                           = require('./database.js');
 const UserInterruptQueue    = require('./user_interrupt_queue.js');
 const {
     getConnectionByUserId
 }                           = require('./client_connections.js');
 const UserProps             = require('./user_property.js');
-const { Errors }            = require('./enig_error.js');
+const {
+    Errors,
+    ErrorReasons
+}                           = require('./enig_error.js');
 const { getThemeArt }       = require('./theme.js');
 const { pipeToAnsi }        = require('./color_codes.js');
 const stringFormat          = require('./string_format.js');
+const StatLog               = require('./stat_log.js');
+const Log                   = require('./logger.js').log;
 
 //  deps
 const _             = require('lodash');
 const async         = require('async');
 const moment        = require('moment');
+
+class Achievement {
+    constructor(data) {
+        this.data = data;
+    }
+
+    static factory(data) {
+        let achievement;
+        switch(data.type) {
+            case Achievement.Types.UserStat : achievement = new UserStatAchievement(data); break;
+            default : return;
+        }
+
+        if(achievement.isValid()) {
+            return achievement;
+        }
+    }
+
+    static get Types() {
+        return {
+            UserStat    : 'userStat',
+        };
+    }
+
+    isValid() {
+        switch(this.data.type) {
+            case Achievement.Types.UserStat :
+                if(!_.isString(this.data.statName)) {
+                    return false;
+                }
+                if(!_.isObject(this.data.match)) {
+                    return false;
+                }
+                break;
+
+            default : return false;
+        }
+        return true;
+    }
+
+    getMatchDetails(/*matchAgainst*/) {
+    }
+
+    isValidMatchDetails(details) {
+        if(!_.isString(details.title) || !_.isString(details.text) || !_.isNumber(details.points)) {
+            return false;
+        }
+        return (_.isString(details.globalText) || !details.globalText);
+    }
+}
+
+class UserStatAchievement extends Achievement {
+    constructor(data) {
+        super(data);
+    }
+
+    isValid() {
+        if(!super.isValid()) {
+            return false;
+        }
+        return !Object.keys(this.data.match).some(k => !parseInt(k));
+    }
+
+    getMatchDetails(matchValue) {
+        let matchField = Object.keys(this.data.match || {}).sort( (a, b) => b - a).find(v => matchValue >= v);
+        if(matchField) {
+            const match = this.data.match[matchField];
+            if(this.isValidMatchDetails(match)) {
+                return [ match, parseInt(matchField), matchValue ];
+            }
+        }
+    }
+}
 
 class Achievements {
     constructor(events) {
@@ -26,37 +107,90 @@ class Achievements {
     }
 
     init(cb) {
+        //  :TODO: if enabled/etc., load achievements.hjson -> if theme achievements.hjson{}, merge @ display time?
+        //  merge for local vs global (per theme) clients
+        //  ...only merge/override text
         this.monitorUserStatUpdateEvents();
         return cb(null);
     }
 
-    loadAchievementHitCount(user, achievementTag, field, value, cb) {
+    loadAchievementHitCount(user, achievementTag, field, cb) {
         UserDb.get(
             `SELECT COUNT() AS count
             FROM user_achievement
-            WHERE user_id = ? AND achievement_tag = ? AND match_field = ? AND match_value >= ?;`,
-            [ user.userId, achievementTag, field, value ],
+            WHERE user_id = ? AND achievement_tag = ? AND match_field = ?;`,
+            [ user.userId, achievementTag, field],
             (err, row) => {
                 return cb(err, row && row.count || 0);
             }
         );
     }
 
+    record(info, cb) {
+        StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
+        StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalPoints, info.details.points);
+
+        UserDb.run(
+            `INSERT INTO user_achievement (user_id, achievement_tag, timestamp, match_field, match_value)
+            VALUES (?, ?, ?, ?, ?);`,
+            [ info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField, info.matchValue ],
+            err => {
+                if(err) {
+                    return cb(err);
+                }
+
+                Events.emit(
+                    Events.getSystemEvents().UserAchievementEarned,
+                    {
+                        user            : info.client.user,
+                        achievementTag  : info.achievementTag,
+                        points          : info.details.points,
+                    }
+                );
+
+                return cb(null);
+            }
+        );
+    }
+
+    display(info, cb) {
+        this.createAchievementInterruptItems(info, (err, interruptItems) => {
+            if(err) {
+                return cb(err);
+            }
+
+            if(interruptItems.local) {
+                UserInterruptQueue.queue(interruptItems.local, { clients : info.client } );
+            }
+
+            if(interruptItems.global) {
+                UserInterruptQueue.queue(interruptItems.global, { omit : info.client } );
+            }
+
+            return cb(null);
+        });
+    }
+
     monitorUserStatUpdateEvents() {
         this.events.on(Events.getSystemEvents().UserStatUpdate, userStatEvent => {
+            if([ UserProps.AchievementTotalCount, UserProps.AchievementTotalPoints ].includes(userStatEvent.statName)) {
+                return;
+            }
+
             const statValue = parseInt(userStatEvent.statValue, 10);
             if(isNaN(statValue)) {
                 return;
             }
 
             const config = Config();
+            //  :TODO: Make this code generic - find + return factory created object
             const achievementTag = _.findKey(
                 _.get(config, 'userAchievements.achievements', {}),
                 achievement => {
                     if(false === achievement.enabled) {
                         return false;
                     }
-                    return 'userStat' === achievement.type &&
+                    return Achievement.Types.UserStat === achievement.type &&
                         achievement.statName === userStatEvent.statName;
                 }
             );
@@ -65,54 +199,60 @@ class Achievements {
                 return;
             }
 
-            const achievement = config.userAchievements.achievements[achievementTag];
-            let matchValue = Object.keys(achievement.match || {}).sort( (a, b) => b - a).find(v => statValue >= v);
-            if(matchValue) {
-                const details = achievement.match[matchValue];
-                matchValue = parseInt(matchValue);
-
-                async.series(
-                    [
-                        (callback) => {
-                            this.loadAchievementHitCount(userStatEvent.user, achievementTag, null, matchValue, (err, count) => {
-                                if(err) {
-                                    return callback(err);
-                                }
-                                return callback(count > 0 ? Errors.General('Achievement already acquired') : null);
-                            });
-                        },
-                        (callback) => {
-                            const client = getConnectionByUserId(userStatEvent.user.userId);
-                            if(!client) {
-                                return callback(Errors.UnexpectedState('Failed to get client for user ID'));
-                            }
-
-                            const info = {
-                                achievement,
-                                details,
-                                client,
-                                value       : matchValue,
-                                user        : userStatEvent.user,
-                                timestamp   : moment(),
-                            };
-
-                            this.createAchievementInterruptItems(info, (err, interruptItems) => {
-                                if(err) {
-                                    return callback(err);
-                                }
-
-                                if(interruptItems.local) {
-                                    UserInterruptQueue.queue(interruptItems.local, { clients : client } );
-                                }
-
-                                if(interruptItems.global) {
-                                    UserInterruptQueue.queue(interruptItems.global, { omit : client } );
-                                }
-                            });
-                        }
-                    ]
-                );
+            const achievement = Achievement.factory(config.userAchievements.achievements[achievementTag]);
+            if(!achievement) {
+                return;
             }
+
+            const [ details, matchField, matchValue ] = achievement.getMatchDetails(statValue);
+            if(!details || _.isUndefined(matchField) || _.isUndefined(matchValue)) {
+                return;
+            }
+
+            async.waterfall(
+                [
+                    (callback) => {
+                        this.loadAchievementHitCount(userStatEvent.user, achievementTag, matchField, (err, count) => {
+                            if(err) {
+                                return callback(err);
+                            }
+                            return callback(count > 0 ? Errors.General('Achievement already acquired', ErrorReasons.TooMany) : null);
+                        });
+                    },
+                    (callback) => {
+                        const client = getConnectionByUserId(userStatEvent.user.userId);
+                        if(!client) {
+                            return callback(Errors.UnexpectedState('Failed to get client for user ID'));
+                        }
+
+                        const info = {
+                            achievementTag,
+                            achievement,
+                            details,
+                            client,
+                            matchField,
+                            matchValue,
+                            user        : userStatEvent.user,
+                            timestamp   : moment(),
+                        };
+
+                        return callback(null, info);
+                    },
+                    (info, callback) => {
+                        this.record(info, err => {
+                            return callback(err, info);
+                        });
+                    },
+                    (info, callback) => {
+                        return this.display(info, callback);
+                    }
+                ],
+                err => {
+                    if(err && ErrorReasons.TooMany !== err.reasonCode) {
+                        Log.warn( { error : err.message, userStatEvent }, 'Error handling achievement for user stat event');
+                    }
+                }
+            );
         });
     }
 
@@ -133,7 +273,8 @@ class Achievements {
             title           : info.details.title,
             text            : info.global ? info.details.globalText : info.details.text,
             points          : info.details.points,
-            value           : info.value,
+            matchField      : info.matchField,
+            matchValue      : info.matchValue,
             timestamp       : moment(info.timestamp).format(dateTimeFormat),
             boardName       : config.general.boardName,
         };
@@ -175,12 +316,12 @@ class Achievements {
             async.waterfall(
                 [
                     (callback) => {
-                        getArt('header', headerArt => {
+                        getArt(`${itemType}Header`, headerArt => {
                             return callback(null, headerArt);
                         });
                     },
                     (headerArt, callback) => {
-                        getArt('footer', footerArt => {
+                        getArt(`${itemType}Footer`, footerArt => {
                             return callback(null, headerArt, footerArt);
                         });
                     },
@@ -191,7 +332,7 @@ class Achievements {
                             pause   : true,
                         };
                         if(headerArt || footerArt) {
-                            interruptItems[itemType].contents = `${headerArt || ''}\r\n${pipeToAnsi(itemText)}\r\n${footerArt || ''}`;
+                            interruptItems[itemType].contents = `${headerArt || ''}\r\n${pipeToAnsi(title)}\r\n${pipeToAnsi(itemText)}\r\n${footerArt || ''}`;
                         }
                         return callback(null);
                     }
