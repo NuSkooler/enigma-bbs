@@ -175,6 +175,7 @@ function getDefaultConfig() {
 
             menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
             promptFile      : 'prompt.hjson',   //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
+            achievementFile : 'achievements.hjson',
         },
 
         users : {
@@ -1004,46 +1005,5 @@ function getDefaultConfig() {
                 loginHistoryMax: -1, //  set to -1 for forever
             }
         },
-
-        userAchievements : {
-            enabled : true,
-
-            art : {
-                localHeader     : 'achievement_local_header',
-                localFooter     : 'achievement_local_footer',
-                globalHeader    : 'achievement_global_header',
-                globalFooter    : 'achievement_global_footer',
-            },
-
-            //  :TODO: achievements should be a path/filename -> achievements.hjson & allow override/theming
-
-            achievements : {
-                user_login_count : {
-                    type        : 'userStat',
-                    statName    : 'login_count',
-                    retroactive : true,
-                    match : {
-                        10 : {
-                            title       : 'Return Caller',
-                            globalText  : '{userName} has logged in {matchValue} times!',
-                            text        : 'You\'ve logged in {matchValue} times!',
-                            points      : 5,
-                        },
-                        25 : {
-                            title       : 'Seems To Like It!',
-                            globalText  : '{userName} has logged in {matchValue} times!',
-                            text        : 'You\'ve logged in {matchValue} times!',
-                            points      : 10,
-                        },
-                        100 : {
-                            title       : '{boardName} Addict',
-                            globalText  : '{userName} the BBS {boardName} addict has logged in {matchValue} times!',
-                            text        : 'You\'re a {boardName} addict! You\'ve logged in {matchValue} times!',
-                            points      : 10,
-                        }
-                    }
-                }
-            }
-        }
     };
 }

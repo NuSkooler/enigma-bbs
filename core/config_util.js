@@ -10,6 +10,7 @@ const paths             = require('path');
 const async             = require('async');
 
 exports.init            = init;
+exports.getConfigPath   = getConfigPath;
 exports.getFullConfig   = getFullConfig;
 
 function getConfigPath(filePath) {

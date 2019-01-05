@@ -4,6 +4,10 @@
 //  ENiGMA½
 const Events                = require('./events.js');
 const Config                = require('./config.js').get;
+const {
+    getConfigPath,
+    getFullConfig,
+}                           = require('./config_util.js');
 const UserDb                = require('./database.js').dbs.user;
 const {
     getISOTimestampString
@@ -22,11 +26,13 @@ const { pipeToAnsi }        = require('./color_codes.js');
 const stringFormat          = require('./string_format.js');
 const StatLog               = require('./stat_log.js');
 const Log                   = require('./logger.js').log;
+const ConfigCache           = require('./config_cache.js');
 
 //  deps
 const _             = require('lodash');
 const async         = require('async');
 const moment        = require('moment');
+const paths         = require('path');
 
 class Achievement {
     constructor(data) {
@@ -107,11 +113,56 @@ class Achievements {
     }
 
     init(cb) {
+        let achievementConfigPath = _.get(Config(), 'general.achievementFile');
+        if(!achievementConfigPath) {
+            //  :TODO: Log me
+            return cb(null);
+        }
+        achievementConfigPath = getConfigPath(achievementConfigPath);   //  qualify
+
+        //  :TODO: Log enabled        
+
+        const configLoaded = (achievementConfig) => {
+            if(true !== achievementConfig.enabled) {
+                this.stopMonitoringUserStatUpdateEvents();
+                delete this.achievementConfig;
+            } else {
+                this.achievementConfig = achievementConfig;
+                this.monitorUserStatUpdateEvents();
+            }
+        };
+
+        const changed = ( { fileName, fileRoot } ) => {
+            const reCachedPath = paths.join(fileRoot, fileName);
+            if(reCachedPath === achievementConfigPath) {
+                getFullConfig(achievementConfigPath, (err, achievementConfig) => {
+                    if(err) {
+                        return Log.error( { error : err.message }, 'Failed to reload achievement config from cache');
+                    }
+                    configLoaded(achievementConfig);
+                });
+            }
+        };
+
+        ConfigCache.getConfigWithOptions(
+            {
+                filePath        : achievementConfigPath,
+                forceReCache    : true,
+                callback        : changed,
+            },
+            (err, achievementConfig) => {
+                if(err) {
+                    return cb(err);
+                }
+
+                configLoaded(achievementConfig);
+                return cb(null);
+            }
+        );
+
         //  :TODO: if enabled/etc., load achievements.hjson -> if theme achievements.hjson{}, merge @ display time?
         //  merge for local vs global (per theme) clients
-        //  ...only merge/override text
-        this.monitorUserStatUpdateEvents();
-        return cb(null);
+        //  ...only merge/override text        
     }
 
     loadAchievementHitCount(user, achievementTag, field, cb) {
@@ -139,7 +190,7 @@ class Achievements {
                     return cb(err);
                 }
 
-                Events.emit(
+                this.events.emit(
                     Events.getSystemEvents().UserAchievementEarned,
                     {
                         user            : info.client.user,
@@ -172,7 +223,11 @@ class Achievements {
     }
 
     monitorUserStatUpdateEvents() {
-        this.events.on(Events.getSystemEvents().UserStatUpdate, userStatEvent => {
+        if(this.userStatEventListener) {
+            return; //  already listening
+        }
+
+        this.userStatEventListener = this.events.on(Events.getSystemEvents().UserStatUpdate, userStatEvent => {
             if([ UserProps.AchievementTotalCount, UserProps.AchievementTotalPoints ].includes(userStatEvent.statName)) {
                 return;
             }
@@ -182,10 +237,9 @@ class Achievements {
                 return;
             }
 
-            const config = Config();
             //  :TODO: Make this code generic - find + return factory created object
             const achievementTag = _.findKey(
-                _.get(config, 'userAchievements.achievements', {}),
+                _.get(this.achievementConfig, 'achievements', {}),
                 achievement => {
                     if(false === achievement.enabled) {
                         return false;
@@ -199,7 +253,7 @@ class Achievements {
                 return;
             }
 
-            const achievement = Achievement.factory(config.userAchievements.achievements[achievementTag]);
+            const achievement = Achievement.factory(this.achievementConfig.achievements[achievementTag]);
             if(!achievement) {
                 return;
             }
@@ -230,10 +284,11 @@ class Achievements {
                             achievement,
                             details,
                             client,
-                            matchField,
-                            matchValue,
-                            user        : userStatEvent.user,
-                            timestamp   : moment(),
+                            matchField,                     //  match - may be in odd format
+                            matchValue,                     //  actual value
+                            achievedValue   : matchField,   //  achievement value met
+                            user            : userStatEvent.user,
+                            timestamp       : moment(),
                         };
 
                         return callback(null, info);
@@ -254,6 +309,13 @@ class Achievements {
                 }
             );
         });
+    }
+
+    stopMonitoringUserStatUpdateEvents() {
+        if(this.userStatEventListener) {
+            this.events.removeListener(Events.getSystemEvents().UserStatUpdate, this.userStatEventListener);
+            delete this.userStatEventListener;
+        }
     }
 
     createAchievementInterruptItems(info, cb) {
@@ -291,7 +353,7 @@ class Achievements {
             const spec =
                 _.get(info.details, `art.${name}`) ||
                 _.get(info.achievement, `art.${name}`) ||
-                _.get(config, `userAchievements.art.${name}`);
+                _.get(this.achievementConfig, `art.${name}`);
             if(!spec) {
                 return callback(null);
             }
@@ -351,12 +413,6 @@ class Achievements {
 let achievements;
 
 exports.moduleInitialize = (initInfo, cb) => {
-
-    if(false === _.get(Config(), 'userAchievements.enabled')) {
-        //  :TODO: Log disabled
-        return cb(null);
-    }
-
     achievements = new Achievements(initInfo.events);
     return achievements.init(cb);
 };

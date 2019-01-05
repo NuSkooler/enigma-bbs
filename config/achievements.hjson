@@ -1,0 +1,53 @@
+{
+    enabled : true,
+
+    art : {
+        localHeader     : 'achievement_local_header',
+        localFooter     : 'achievement_local_footer',
+        globalHeader    : 'achievement_global_header',
+        globalFooter    : 'achievement_global_footer',
+    },
+
+    //  :TODO: achievements should be a path/filename -> achievements.hjson & allow override/theming
+
+    achievements : {
+        user_login_count : {
+            type        : 'userStat',
+            statName    : 'login_count',
+            retroactive : true,
+
+            match : {
+                2 : {
+                    title       : 'Return Caller',
+                    globalText  : '{userName} has returned to {boardName}!',
+                    text        : 'You\'ve returned to {boardName}!',
+                    points      : 5,
+                },
+                10 : {
+                    title       : '{achievedValue} Logins',
+                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
+                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
+                    points      : 5,
+                },
+                25 : {
+                    title       : '{achievedValue} Logins',
+                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
+                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
+                    points      : 10,
+                },
+                100 : {
+                    title       : '{boardName} Regular',
+                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
+                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
+                    points      : 10,
+                },
+                500 :  {
+                    title       : '{boardName} Addict',
+                    globalText  : '{userName} the BBS {boardName} addict has logged in {achievedValue} times!',
+                    text        : 'You\'re a {boardName} addict! You\'ve logged in {achievedValue} times!',
+                    points      : 25,
+                }
+            }
+        }
+    }
+}
