@@ -314,29 +314,37 @@ class Achievements {
         }
     }
 
-    getFormattedTextFor(info, textType) {
+    getFormatObject(info) {
+        return {
+            userName        : info.user.username,
+            userRealName    : info.user.properties[UserProps.RealName],
+            userLocation    : info.user.properties[UserProps.Location],
+            userAffils      : info.user.properties[UserProps.Affiliations],
+            nodeId          : info.client.node,
+            title           : info.details.title,
+            text            : info.global ? info.details.globalText : info.details.text,
+            points          : info.details.points,
+            achievedValue   : info.achievedValue,
+            matchField      : info.matchField,
+            matchValue      : info.matchValue,
+            timestamp       : moment(info.timestamp).format(info.dateTimeFormat),
+            boardName       : Config().general.boardName,
+        };
+    }
+
+    getFormattedTextFor(info, textType, defaultSgr = '|07') {
         const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
-        const defSgr        = themeDefaults[`${textType}SGR`] || '|07';
+        const defSgr        = themeDefaults[`${textType}SGR`] || defaultSgr;
 
         const wrap = (fieldName, value) => {
             return `${themeDefaults[fieldName] || defSgr}${value}${defSgr}`;
         };
 
-        const formatObj = {
-            userName        : wrap('userName', info.user.username),
-            userRealName    : wrap('userRealName', info.user.properties[UserProps.RealName]),
-            userLocation    : wrap('userLocation', info.user.properties[UserProps.Location]),
-            userAffils      : wrap('userAffils', info.user.properties[UserProps.Affiliations]),
-            nodeId          : wrap('nodeId', info.client.node),
-            title           : wrap('title', info.details.title),
-            text            : wrap('text', info.global ? info.details.globalText : info.details.text),
-            points          : wrap('points', info.details.points),
-            achievedValue   : wrap('achievedValue', info.achievedValue),
-            matchField      : wrap('matchField', info.matchField),
-            matchValue      : wrap('matchValue', info.matchValue),
-            timestamp       : wrap('timestamp', moment(info.timestamp).format(info.dateTimeFormat)),
-            boardName       : wrap('boardName', Config().general.boardName),
-        };
+        let formatObj = this.getFormatObject(info);
+        formatObj = _.reduce(formatObj, (out, v, k) => {
+            out[k] = wrap(k, v);
+            return out;
+        }, {});
 
         return stringFormat(`${defSgr}${info.details[textType]}`, formatObj);
     }
@@ -400,8 +408,21 @@ class Achievements {
                             pause   : true,
                         };
                         if(headerArt || footerArt) {
+                            const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
+                            const defaultContentsFormat = '{title}\r\n${message}';
+                            const contentsFormat = 'global' === itemType ?
+                                themeDefaults.globalFormat || defaultContentsFormat :
+                                themeDefaults.format || defaultContentsFormat;
+
+                            const formatObj = Object.assign(this.getFormatObject(info), {
+                                title   : this.getFormattedTextFor(info, 'title', ''),  //  ''=defaultSgr
+                                message : itemText,
+                            });
+
+                            const contents = pipeToAnsi(stringFormat(contentsFormat, formatObj));
+
                             interruptItems[itemType].contents =
-                                `${headerArt || ''}\r\n${pipeToAnsi(title)}\r\n${pipeToAnsi(itemText)}\r\n${footerArt || ''}`;
+                                `${headerArt || ''}\r\n${contents}\r\n${footerArt || ''}`;
                         }
                         return callback(null);
                     }

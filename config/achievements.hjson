@@ -64,25 +64,25 @@
                     points: 5
                 }
                 10: {
-                    title: "{boardName} Curious"
+                    title: "Curious Caller"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
                     points: 5
                 }
                 25: {
-                    title: "{boardName} Inquisitive"
+                    title: "Inquisitive Caller"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
                     points: 10
                 }
                 100: {
-                    title: "{boardName} Regular"
+                    title: "Regular Customer"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
                     points: 10
                 }
                 500:  {
-                    title: "{boardName} Addict"
+                    title: "System Addict"
                     globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
                     text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
                     points: 25
