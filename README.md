@@ -23,6 +23,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * [Gazelle](https://github.com/WhatCD/Gazelle) inspired File Bases including fast fully indexed full text search (FTS), #tags, and HTTP(S) temporary download URLs using a built in [web server](docs/servers/web-server.md). Legacy X/Y/Z modem also supported!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
+ * A built in achievement system. BBSing gamified!
  
 ## Documentation
 [Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](/docs/) folder as well for the latest and greatest documentation.
@@ -84,7 +85,7 @@ Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/install
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
 
-Copyright (c) 2015-2018, Bryan D. Ashby
+Copyright (c) 2015-2019, Bryan D. Ashby
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
