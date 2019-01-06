@@ -1,5 +1,5 @@
     /*
-        ./\/\.' ENiGMA½ Achievement Configuration -/--/-------- - --   - 
+        ./\/\." ENiGMA½ Achievement Configuration -/--/-------- - --   -
 
         _____________________   _____  ____________________    __________\_   /
         \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
@@ -14,11 +14,11 @@
         General Information
         ------------------------------- -   -
         This configuration is in HJSON (http://hjson.org/) format. Strict to-spec
-        JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+        JSON is also perfectly valid. Use "hjson" from npm to convert to/from JSON.
 
         See http://hjson.org/ for more information and syntax.
 
-        Various editors and IDEs such as Sublime Text 3, Visual Studio Code, and so
+        Various editors and IDEs such as Sublime Text 3 Visual Studio Code and so
         on have syntax highlighting for the HJSON format which are highly recommended.
 
         ------------------------------- -- -    -
@@ -30,8 +30,11 @@
         - Perhaps adding additional *levels* of triggers & points
         - Applying customizations via the achievements section in theme.hjson
 
-        Don't forget to RTFM ...er, uh... see the documentation for more information, and
-        don't be shy to ask for help:
+        Some tips:
+        - For 'userStat' types, see user_property.js
+
+        Don"t forget to RTFM ...er uh... see the documentation for more information and
+        don"t be shy to ask for help:
 
         BBS     : Xibalba @ xibalba.l33t.codes
         FTN     : BBS Discussion on fsxNet or ArakNet
@@ -39,51 +42,159 @@
         Email   : bryan@l33t.codes
 */
 {
-    enabled : true,
+    enabled : true
 
     art : {
-        localHeader     : 'achievement_local_header',
-        localFooter     : 'achievement_local_footer',
-        globalHeader    : 'achievement_global_header',
-        globalFooter    : 'achievement_global_footer',
-    },
+        localHeader: achievement_local_header
+        localFooter: achievement_local_footer
+        globalHeader: achievement_global_header
+        globalFooter: achievement_global_footer
+    }
 
-    achievements : {
-        user_login_count : {
-            type        : 'userStat',
-            statName    : 'login_count',
-            retroactive : true,
+    achievements: {
+        user_login_count: {
+            type: userStat
+            statName: login_count
+            retroactive: true
+            match: {
+                2: {
+                    title: "Return Caller"
+                    globalText: "{userName} has returned to {boardName}!"
+                    text: "You\"ve returned to {boardName}!"
+                    points: 5
+                }
+                10: {
+                    title: "{boardName} Curious"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 5
+                }
+                25: {
+                    title: "{boardName} Inquisitive"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 10
+                }
+                100: {
+                    title: "{boardName} Regular"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 10
+                }
+                500:  {
+                    title: "{boardName} Addict"
+                    globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
+                    text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
+                    points: 25
+                }
+            }
+        }
 
-            match : {
-                2 : {
-                    title       : 'Return Caller',
-                    globalText  : '{userName} has returned to {boardName}!',
-                    text        : 'You\'ve returned to {boardName}!',
-                    points      : 5,
-                },
-                10 : {
-                    title       : '{achievedValue} Logins',
-                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
-                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
-                    points      : 5,
-                },
-                25 : {
-                    title       : '{achievedValue} Logins',
-                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
-                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
-                    points      : 10,
-                },
-                100 : {
-                    title       : '{boardName} Regular',
-                    globalText  : '{userName} has logged into {boardName} {achievedValue} times!',
-                    text        : 'You\'ve logged into {boardName} {achievedValue} times!',
-                    points      : 10,
-                },
-                500 :  {
-                    title       : '{boardName} Addict',
-                    globalText  : '{userName} the BBS {boardName} addict has logged in {achievedValue} times!',
-                    text        : 'You\'re a {boardName} addict! You\'ve logged in {achievedValue} times!',
-                    points      : 25,
+        user_post_count: {
+            type: userStat
+            statName: post_count
+            retroactive: true
+            match: {
+                5: {
+                    title: "Poster"
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 5
+                }
+                20: {
+                    title: "Poster... again!",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 10
+                }
+                100: {
+                    title: "Frequent Poster",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 15
+                }
+                500: {
+                    title: "Scribe"
+                    globalText: "{userName} the scribe has posted {achievedValue} messages!"
+                    text: "Such a scribe! You've posted {achievedValue} messages!"
+                    points: 25
+                }
+            }
+        }
+
+        user_upload_count: {
+            type: userStat
+            statName: ul_total_count
+            retroactive: true
+            match: {
+                1: {
+                    title: "Uploader"
+                    globalText: "{userName} has uploaded a file!"
+                    text: "You've uploaded somthing!"
+                    points: 5
+                }
+                10: {
+                    title: "Moar Uploads!"
+                    globalText: "{userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 10
+                }
+                50: {
+                    title: "Contributor"
+                    globalText: "{userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 20
+
+                }
+                100: {
+                    title: "Courier"
+                    globalText: "Courier {userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 25
+                }
+                200: {
+                    title: "Must Be a Drop Site"
+                    globalText: "{userName} has uploaded a whomping {achievedValue} files!"
+                    text: "You've uploaded a whomping {achievedValue} files!"
+                    points: 50
+                }
+            }
+        }
+
+        user_download_count: {
+            type: userStat
+            statName: dl_total_count
+            retroactive: true
+            match: {
+                1: {
+                    title: "Downloader"
+                    globalText: "{userName} has downloaded a file!"
+                    text: "You've downloaded somthing!"
+                    points: 5
+                }
+                10: {
+                    title: "Moar Downloads!"
+                    globalText: "{userName} has downloaded {achievedValue} files!"
+                    text: "You've downloaded {achievedValue} files!"
+                    points: 10
+                }
+                50: {
+                    title: "Leecher"
+                    globalText: "{userName} has leeched {achievedValue} files!"
+                    text: "You've leeched... er... downloaded {achievedValue} files!"
+                    points: 15
+                }
+                100: {
+                    title: "Hoarder"
+                    globalText: "{userName} has downloaded {achievedValue} files!"
+                    text: "Hoarding files? You've downloaded {achievedValue} files!"
+                    points: 20
+                }
+                200: {
+                    title: "Digital Archivist"
+                    globalText: "{userName} the digital archivist has {achievedValue} files!"
+                    text: "Building an archive? You've downloaded {achievedValue} files!"
+                    points: 25
                 }
             }
         }

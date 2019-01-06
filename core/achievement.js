@@ -159,10 +159,6 @@ class Achievements {
                 return cb(null);
             }
         );
-
-        //  :TODO: if enabled/etc., load achievements.hjson -> if theme achievements.hjson{}, merge @ display time?
-        //  merge for local vs global (per theme) clients
-        //  ...only merge/override text        
     }
 
     loadAchievementHitCount(user, achievementTag, field, cb) {
@@ -404,7 +400,8 @@ class Achievements {
                             pause   : true,
                         };
                         if(headerArt || footerArt) {
-                            interruptItems[itemType].contents = `${headerArt || ''}\r\n${pipeToAnsi(title)}\r\n${pipeToAnsi(itemText)}\r\n${footerArt || ''}`;
+                            interruptItems[itemType].contents =
+                                `${headerArt || ''}\r\n${pipeToAnsi(title)}\r\n${pipeToAnsi(itemText)}\r\n${footerArt || ''}`;
                         }
                         return callback(null);
                     }
