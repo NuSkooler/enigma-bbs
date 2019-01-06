@@ -37,6 +37,9 @@ const paths         = require('path');
 class Achievement {
     constructor(data) {
         this.data = data;
+
+        //  achievements are retroactive by default
+        this.data.retroactive = _.get(this.data, 'retroactive', true);
     }
 
     static factory(data) {
@@ -87,6 +90,9 @@ class Achievement {
 class UserStatAchievement extends Achievement {
     constructor(data) {
         super(data);
+
+        //  sort match keys for quick match lookup
+        this.matchKeys = Object.keys(this.data.match || {}).map(k => parseInt(k)).sort( (a, b) => b - a);
     }
 
     isValid() {
@@ -97,7 +103,7 @@ class UserStatAchievement extends Achievement {
     }
 
     getMatchDetails(matchValue) {
-        let matchField = Object.keys(this.data.match || {}).sort( (a, b) => b - a).find(v => matchValue >= v);
+        let matchField = this.matchKeys.find(v => matchValue >= v);
         if(matchField) {
             const match = this.data.match[matchField];
             if(this.isValidMatchDetails(match)) {
@@ -218,6 +224,22 @@ class Achievements {
         });
     }
 
+    recordAndDisplayAchievement(info, cb) {
+        async.series(
+            [
+                (callback) => {
+                    return this.record(info, callback);
+                },
+                (callback) => {
+                    return this.display(info, callback);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
     monitorUserStatUpdateEvents() {
         if(this.userStatEventListener) {
             return; //  already listening
@@ -287,15 +309,31 @@ class Achievements {
                             timestamp       : moment(),
                         };
 
-                        return callback(null, info);
-                    },
-                    (info, callback) => {
-                        this.record(info, err => {
-                            return callback(err, info);
+                        const achievementsInfo = [ info ];
+                        if(true === achievement.data.retroactive) {
+                            //  For userStat, any lesser match keys(values) are also met. Example:
+                            //  matchKeys: [ 500, 200, 100, 20, 10, 2 ]
+                            //                    ^---- we met here
+                            //                         ^------------^ retroactive range
+                            //
+                            const index = achievement.matchKeys.findIndex(v => v < matchField);
+                            if(index > -1) {
+                                achievementsInfo.push(...achievement.matchKeys.slice(index).map(k => {
+                                    const [ d, f, v ] = achievement.getMatchDetails(k);
+                                    return Object.assign({}, info, { details : d, matchField : f, achievedValue : f, matchValue : v } );
+                                }));
+                            }
+                        }
+
+                        //  reverse achievementsInfo so we display smallest > largest
+                        achievementsInfo.reverse();
+
+                        async.each(achievementsInfo, (achInfo, nextAchInfo) => {
+                            return this.recordAndDisplayAchievement(achInfo, nextAchInfo);
+                        },
+                        err => {
+                            return callback(err);
                         });
-                    },
-                    (info, callback) => {
-                        return this.display(info, callback);
                     }
                 ],
                 err => {

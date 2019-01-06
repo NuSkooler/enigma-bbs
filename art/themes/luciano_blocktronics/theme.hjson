@@ -984,7 +984,7 @@
 		achievements: {
 			defaults: {
 				format: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}"
-				globalFformat: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}"
+				globalformat: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}"
 				titleSGR: "|10"
 				pointsSGR: "|12"
 				textSGR: "|00|03"
