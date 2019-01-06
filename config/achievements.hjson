@@ -1,3 +1,43 @@
+    /*
+        ./\/\.' ENiGMA½ Achievement Configuration -/--/-------- - --   - 
+
+        _____________________   _____  ____________________    __________\_   /
+        \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+        //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+        /____       _____|      __________       ___|__|      ____|     \   /  _____  \
+        ---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+                                                                         /__   _\
+        <*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+
+        *-----------------------------------------------------------------------------*
+
+        General Information
+        ------------------------------- -   -
+        This configuration is in HJSON (http://hjson.org/) format. Strict to-spec
+        JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+
+        See http://hjson.org/ for more information and syntax.
+
+        Various editors and IDEs such as Sublime Text 3, Visual Studio Code, and so
+        on have syntax highlighting for the HJSON format which are highly recommended.
+
+        ------------------------------- -- -    -
+        Achievement Configuration
+        ------------------------------- -   -
+        Achievements are currently fairly limited in what can trigger them. This is
+        being expanded upon and more will be available in the near future. For now
+        you should mostly be interested in:
+        - Perhaps adding additional *levels* of triggers & points
+        - Applying customizations via the achievements section in theme.hjson
+
+        Don't forget to RTFM ...er, uh... see the documentation for more information, and
+        don't be shy to ask for help:
+
+        BBS     : Xibalba @ xibalba.l33t.codes
+        FTN     : BBS Discussion on fsxNet or ArakNet
+        IRC     : #enigma-bbs / FreeNode
+        Email   : bryan@l33t.codes
+*/
 {
     enabled : true,
 
@@ -7,8 +47,6 @@
         globalHeader    : 'achievement_global_header',
         globalFooter    : 'achievement_global_footer',
     },
-
-    //  :TODO: achievements should be a path/filename -> achievements.hjson & allow override/theming
 
     achievements : {
         user_login_count : {
