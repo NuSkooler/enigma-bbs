@@ -8,12 +8,15 @@ const theme             = require('./theme.js');
 const ansi              = require('./ansi_term.js');
 const Events            = require('./events.js');
 const { Errors }        = require('./enig_error.js');
+const StatLog           = require('./stat_log.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async             = require('async');
 const assert            = require('assert');
 const _                 = require('lodash');
 const paths             = require('path');
+const moment            = require('moment');
 
 const activeDoorNodeInstances = {};
 
@@ -149,6 +152,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     }
 
     runDoor() {
+        StatLog.incrementUserStat(this.client.user, UserProps.DoorRunTotalCount, 1);
         Events.emit(Events.getSystemEvents().UserRunDoor, { user : this.client.user } );
 
         this.client.term.write(ansi.resetScreen());
@@ -164,7 +168,15 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             node            : this.client.node,
         };
 
+        const startTime = moment();
+
         this.doorInstance.run(exeInfo, () => {
+            const endTime = moment();
+            const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
+            if(runTimeMinutes > 0) {
+                StatLog.incrementUserStat(this.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+            }
+
             //
             //  Try to clean up various settings such as scroll regions that may
             //  have been set within the door

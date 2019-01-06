@@ -155,6 +155,12 @@ const PREDEFINED_MCI_GENERATORS = {
     AC  : function achievementCount(client) { return userStatAsString(client, UserProps.AchievementTotalCount, 0); },
     AP  : function achievementPoints(client) { return userStatAsString(client, UserProps.AchievementTotalPoints, 0); },
 
+    DR  : function doorRuns(client) { return userStatAsString(client, UserProps.DoorRunTotalCount, 0); },
+    DM  : function doorFriendlyRunTime(client) {
+        const minutes = client.user.properties[UserProps.DoorRunTotalMinutes] || 0;
+        return moment.duration(minutes, 'minutes').humanize();
+    },
+
     //
     //  Date/Time
     //

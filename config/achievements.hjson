@@ -198,5 +198,75 @@
                 }
             }
         }
+
+        user_door_runs: {
+            type: userStat
+            statName: door_run_total_count
+            retroactive: true
+            match: {
+                1: {
+                    title: "Nostalgia Toe Dip",
+                    globalText: "{userName} ran a door!"
+                    text: "You ran a door!"
+                    points: 5
+                },
+                10: {
+                    title: "This is Kinda Fun"
+                    globalText: "{userName} ran {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors!"
+                    points: 10
+                }
+                50: {
+                    title: "Gamer"
+                    globalText: "{userName} ran {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors!"
+                    points: 15
+                }
+                100: {
+                    title: "Textmode is All You Need"
+                    globalText: "{userName} must really like textmode and has run {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors! You must really like textmode!"
+                    points: 25
+                }
+                200: {
+                    title: "Dropfile Enthusiast"
+                    globalText: "{userName} the dropfile enthusiast ran {achievedValue} doors!"
+                    text: "You're a dropfile enthusiast! You've run {achievedValue} doors!"
+                    points: 50
+                }
+            }
+        }
+
+        user_door_total_minutes: {
+            type: userStat
+            statName: door_run_total_minutes
+            retroactive: true
+            match: {
+                1: {
+                    title: "Nevermind!"
+                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}. Guess it's not their thing!"
+                    text: "You ran a door for only {achievedValue!durationSeconds}. Not your thing?"
+                    points: 5
+                }
+                10: {
+                    title: "It's OK I Guess"
+                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}!"
+                    text: "You ran a door for {achievedValue!durationSeconds}!"
+                    points: 10
+                }
+                30: {
+                    title: "Good Game"
+                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}!"
+                    text: "You ran a door for {achievedValue!durationSeconds}!"
+                    points: 20
+                }
+                60: {
+                    title: "Textmode Dragon Slayer"
+                    globalText: "{userName} has spent {achievedValue!durationSeconds} in a door!"
+                    text: "You've spent {achievedValue!durationSeconds} in a door!"
+                    points: 25
+                }
+            }
+        }
     }
 }

@@ -50,6 +50,9 @@ module.exports = {
     MessageAreaTag              : 'message_area_tag',
     MessagePostCount            : 'post_count',
 
+    DoorRunTotalCount           : 'door_run_total_count',
+    DoorRunTotalMinutes         : 'door_run_total_minutes',
+
     AchievementTotalCount       : 'achievement_total_count',
     AchievementTotalPoints      : 'achievement_total_points',
 };
