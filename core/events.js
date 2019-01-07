@@ -5,6 +5,9 @@ const events            = require('events');
 const Log               = require('./logger.js').log;
 const SystemEvents      = require('./system_events.js');
 
+//  deps
+const _                 = require('lodash');
+
 module.exports = new class Events extends events.EventEmitter {
     constructor() {
         super();
@@ -35,12 +38,30 @@ module.exports = new class Events extends events.EventEmitter {
         return super.once(event, listener);
     }
 
-    addListenerMultipleEvents(events, listener) {
-        Log.trace( { events }, 'Registring event listeners');
+    //
+    //  Listen to multiple events for a single listener.
+    //  Called with: listener(event, eventName)
+    //
+    //  The returned object must be used with removeMultipleEventListener()
+    //
+    addMultipleEventListener(events, listener) {
+        Log.trace( { events }, 'Registering event listeners');
+
+        const listeners = [];
+
         events.forEach(eventName => {
-            this.on(eventName, event => {
-                listener(eventName, event);
-            });
+            const listenWrapper = _.partial(listener, _, eventName);
+            this.on(eventName, listenWrapper);
+            listeners.push( { eventName, listenWrapper } );
+        });
+
+        return listeners;
+    }
+
+    removeMultipleEventListener(listeners) {
+        Log.trace( { events }, 'Removing listeners');
+        listeners.forEach(listener => {
+            this.removeListener(listener.eventName, listener.listenWrapper);
         });
     }
 

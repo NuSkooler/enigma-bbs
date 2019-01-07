@@ -45,7 +45,11 @@ class Achievement {
     static factory(data) {
         let achievement;
         switch(data.type) {
-            case Achievement.Types.UserStat : achievement = new UserStatAchievement(data); break;
+            case Achievement.Types.UserStatSet :
+            case Achievement.Types.UserStatInc :
+                achievement = new UserStatAchievement(data);
+                break;
+
             default : return;
         }
 
@@ -56,13 +60,15 @@ class Achievement {
 
     static get Types() {
         return {
-            UserStat    : 'userStat',
+            UserStatSet : 'userStatSet',
+            UserStatInc : 'userStatInc',
         };
     }
 
     isValid() {
         switch(this.data.type) {
-            case Achievement.Types.UserStat :
+            case Achievement.Types.UserStatSet :
+            case Achievement.Types.UserStatInc :
                 if(!_.isString(this.data.statName)) {
                     return false;
                 }
@@ -129,12 +135,12 @@ class Achievements {
         const configLoaded = (achievementConfig) => {
             if(true !== achievementConfig.enabled) {
                 Log.info('Achievements are not enabled');
-                this.stopMonitoringUserStatUpdateEvents();
+                this.stopMonitoringUserStatEvents();
                 delete this.achievementConfig;
             } else {
                 Log.info('Achievements are enabled');
                 this.achievementConfig = achievementConfig;
-                this.monitorUserStatUpdateEvents();
+                this.monitorUserStatEvents();
             }
         };
 
@@ -240,18 +246,22 @@ class Achievements {
         );
     }
 
-    monitorUserStatUpdateEvents() {
-        if(this.userStatEventListener) {
+    monitorUserStatEvents() {
+        if(this.userStatEventListeners) {
             return; //  already listening
         }
 
-        this.userStatEventListener = this.events.on(Events.getSystemEvents().UserStatUpdate, userStatEvent => {
+        const listenEvents = [
+            Events.getSystemEvents().UserStatSet,
+            Events.getSystemEvents().UserStatIncrement
+        ];
+
+        this.userStatEventListeners = this.events.addMultipleEventListener(listenEvents, userStatEvent => {
             if([ UserProps.AchievementTotalCount, UserProps.AchievementTotalPoints ].includes(userStatEvent.statName)) {
                 return;
             }
 
-            const statValue = parseInt(userStatEvent.statValue, 10);
-            if(isNaN(statValue)) {
+            if(!_.isNumber(userStatEvent.statValue) && !_.isNumber(userStatEvent.statIncrementBy)) {
                 return;
             }
 
@@ -262,7 +272,7 @@ class Achievements {
                     if(false === achievement.enabled) {
                         return false;
                     }
-                    return Achievement.Types.UserStat === achievement.type &&
+                    return [ Achievement.Types.UserStatSet, Achievement.Types.UserStatInc ].includes(achievement.type) &&
                         achievement.statName === userStatEvent.statName;
                 }
             );
@@ -273,6 +283,14 @@ class Achievements {
 
             const achievement = Achievement.factory(this.achievementConfig.achievements[achievementTag]);
             if(!achievement) {
+                return;
+            }
+
+            const statValue = parseInt(
+                Achievement.Types.UserStatSet === achievement.data.type ? userStatEvent.statValue : userStatEvent.statIncrementBy,
+                10
+            );
+            if(isNaN(statValue)) {
                 return;
             }
 
@@ -345,10 +363,10 @@ class Achievements {
         });
     }
 
-    stopMonitoringUserStatUpdateEvents() {
-        if(this.userStatEventListener) {
-            this.events.removeListener(Events.getSystemEvents().UserStatUpdate, this.userStatEventListener);
-            delete this.userStatEventListener;
+    stopMonitoringUserStatEvents() {
+        if(this.userStatEventListeners) {
+            this.events.removeMultipleEventListener(this.userStatEventListeners);
+            delete this.userStatEventListeners;
         }
     }
 

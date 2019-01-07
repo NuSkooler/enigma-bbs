@@ -31,7 +31,7 @@
         - Applying customizations via the achievements section in theme.hjson
 
         Some tips:
-        - For 'userStat' types, see user_property.js
+        - For 'userStatSet' types, see user_property.js
 
         Don"t forget to RTFM ...er uh... see the documentation for more information and
         don"t be shy to ask for help:
@@ -53,7 +53,7 @@
 
     achievements: {
         user_login_count: {
-            type: userStat
+            type: userStatSet
             statName: login_count
             match: {
                 2: {
@@ -90,7 +90,7 @@
         }
 
         user_post_count: {
-            type: userStat
+            type: userStatSet
             statName: post_count
             match: {
                 5: {
@@ -121,7 +121,7 @@
         }
 
         user_upload_count: {
-            type: userStat
+            type: userStatSet
             statName: ul_total_count
             match: {
                 1: {
@@ -159,7 +159,7 @@
         }
 
         user_download_count: {
-            type: userStat
+            type: userStatSet
             statName: dl_total_count
             match: {
                 1: {
@@ -196,7 +196,7 @@
         }
 
         user_door_runs: {
-            type: userStat
+            type: userStatSet
             statName: door_run_total_count
             match: {
                 1: {
@@ -233,7 +233,7 @@
         }
 
         user_door_total_minutes: {
-            type: userStat
+            type: userStatInc
             statName: door_run_total_minutes
             match: {
                 1: {

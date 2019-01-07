@@ -122,12 +122,18 @@ class StatLog {
     //  User specific stats
     //  These are simply convenience methods to the user's properties
     //
-    setUserStat(user, statName, statValue, cb) {
+    setUserStatWithOptions(user, statName, statValue, options, cb) {
         //  note: cb is optional in PersistUserProperty
         user.persistProperty(statName, statValue, cb);
 
-        const Events = require('./events.js');  //  we need to late load currently
-        return Events.emit(Events.getSystemEvents().UserStatUpdate, { user, statName, statValue } );
+        if(!options.noEvent) {
+            const Events = require('./events.js');  //  we need to late load currently
+            Events.emit(Events.getSystemEvents().UserStatSet, { user, statName, statValue } );
+        }
+    }
+
+    setUserStat(user, statName, statValue, cb) {
+        return this.setUserStatWithOptions(user, statName, statValue, {}, cb);
     }
 
     getUserStat(user, statName) {
@@ -143,16 +149,27 @@ class StatLog {
 
         let newValue = parseInt(user.properties[statName]);
         if(newValue) {
-            if(!_.isNumber(newValue)) {
+            if(!_.isNumber(newValue) && cb) {
                 return cb(new Error(`Value for ${statName} is not a number!`));
             }
-
             newValue += incrementBy;
         } else {
             newValue = incrementBy;
         }
 
-        return this.setUserStat(user, statName, newValue, cb);
+        this.setUserStatWithOptions(user, statName, newValue, { noEvent : true }, err => {
+            if(!err) {
+                const Events = require('./events.js');  //  we need to late load currently
+                Events.emit(
+                    Events.getSystemEvents().UserStatIncrement,
+                    { user, statName, statIncrementBy: incrementBy, statValue : newValue }
+                );
+            }
+
+            if(cb) {
+                return cb(err);
+            }
+        });
     }
 
     //  the time "now" in the ISO format we use and love :)
@@ -362,7 +379,7 @@ class StatLog {
             systemEvents.UserAchievementEarned,
         ];
 
-        Events.addListenerMultipleEvents(interestedEvents, (eventName, event) => {
+        Events.addMultipleEventListener(interestedEvents, (event, eventName) => {
             this.appendUserLogEntry(
                 event.user,
                 'system_event',
