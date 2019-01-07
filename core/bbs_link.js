@@ -4,12 +4,16 @@
 const { MenuModule }    = require('./menu_module.js');
 const { resetScreen }   = require('./ansi_term.js');
 const { Errors }        = require('./enig_error.js');
+const Events            = require('./events.js');
+const StatLog           = require('./stat_log.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async         = require('async');
 const http          = require('http');
 const net           = require('net');
 const crypto        = require('crypto');
+const moment        = require('moment');
 
 const packageJson   = require('../package.json');
 
@@ -98,7 +102,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     //
                     //  Authenticate the token we acquired previously
                     //
-                    var headers = {
+                    const headers = {
                         'X-User'    : self.client.user.userId.toString(),
                         'X-System'  : self.config.sysCode,
                         'X-Auth'    : crypto.createHash('md5').update(self.config.authCode + token).digest('hex'),
@@ -125,17 +129,23 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     //  Authentication with BBSLink successful. Now, we need to create a telnet
                     //  bridge from us to them
                     //
-                    var connectOpts = {
+                    const connectOpts = {
                         port    : self.config.port,
                         host    : self.config.host,
                     };
 
-                    var clientTerminated;
+                    let clientTerminated;
 
                     self.client.term.write(resetScreen());
                     self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
 
-                    var bridgeConnection = net.createConnection(connectOpts, function connected() {
+                    const startTime = moment();
+
+                    const bridgeConnection = net.createConnection(connectOpts, function connected() {
+                        //  bump stats, fire events, etc.
+                        StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalCount, 1);
+                        Events.emit(Events.getSystemEvents().UserRunDoor, { user : self.client.user } );
+
                         self.client.log.info(connectOpts, 'BBSLink bridge connection established');
 
                         self.client.term.output.pipe(bridgeConnection);
@@ -147,9 +157,15 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         });
                     });
 
-                    var restorePipe = function() {
+                    const restorePipe = function() {
                         self.client.term.output.unpipe(bridgeConnection);
                         self.client.term.output.resume();
+
+                        const endTime = moment();
+                        const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
+                        if(runTimeMinutes > 0) {
+                            StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+                        }
                     };
 
                     bridgeConnection.on('data', function incomingData(data) {
