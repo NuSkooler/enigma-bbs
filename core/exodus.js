@@ -2,12 +2,17 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const resetScreen           = require('./ansi_term.js').resetScreen;
-const Config                = require('./config.js').get;
-const Errors                = require('./enig_error.js').Errors;
-const Log                   = require('./logger.js').log;
-const getEnigmaUserAgent    = require('./misc_util.js').getEnigmaUserAgent;
+const { MenuModule }    = require('./menu_module.js');
+const { resetScreen }   = require('./ansi_term.js');
+const Config            = require('./config.js').get;
+const { Errors }        = require('./enig_error.js');
+const Log               = require('./logger.js').log;
+const {
+    getEnigmaUserAgent
+}                       = require('./misc_util.js');
+const Events            = require('./events.js');
+const StatLog           = require('./stat_log.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async         = require('async');
@@ -151,11 +156,18 @@ exports.getModule = class ExodusModule extends MenuModule {
 
                     let pipeRestored = false;
                     let pipedStream;
+                    const startTime = moment();
 
                     function restorePipe() {
                         if(pipedStream && !pipeRestored && !clientTerminated) {
                             self.client.term.output.unpipe(pipedStream);
                             self.client.term.output.resume();
+
+                            const endTime = moment();
+                            const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
+                            if(runTimeMinutes > 0) {
+                                StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+                            }
                         }
                     }
 
@@ -186,6 +198,9 @@ exports.getModule = class ExodusModule extends MenuModule {
                         });
 
                         sshClient.shell(window, options, (err, stream) => {
+                            StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalCount, 1);
+                            Events.emit(Events.getSystemEvents().UserRunDoor, { user : self.client.user } );
+
                             pipedStream = stream;   //  :TODO: ewwwwwwwww hack
                             self.client.term.output.pipe(stream);
 
