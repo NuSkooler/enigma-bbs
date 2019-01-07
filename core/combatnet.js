@@ -5,10 +5,14 @@
 const { MenuModule }    = require('../core/menu_module.js');
 const { resetScreen }   = require('../core/ansi_term.js');
 const { Errors }        = require('./enig_error.js');
+const Events            = require('./events.js');
+const StatLog           = require('./stat_log.js');
+const UserProps         = require('./user_property.js');
 
 //  deps
 const async         = require('async');
 const RLogin        = require('rlogin');
+const moment        = require('moment');
 
 exports.moduleInfo = {
     name    : 'CombatNet',
@@ -46,9 +50,17 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     self.client.term.write(resetScreen());
                     self.client.term.write('Connecting to CombatNet, please wait...\n');
 
+                    const startTime = moment();
+
                     const restorePipeToNormal = function() {
                         if(self.client.term.output) {
                             self.client.term.output.removeListener('data', sendToRloginBuffer);
+
+                            const endTime = moment();
+                            const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
+                            if(runTimeMinutes > 0) {
+                                StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+                            }
                         }
                     };
 
@@ -90,6 +102,8 @@ exports.getModule = class CombatNetModule extends MenuModule {
                                 self.client.log.info('Connected to CombatNet');
                                 self.client.term.output.on('data', sendToRloginBuffer);
 
+                                StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalCount, 1);
+                                Events.emit(Events.getSystemEvents().UserRunDoor, { user : self.client.user } );
                             } else {
                                 return callback(Errors.General('Failed to establish establish CombatNet connection'));
                             }
