@@ -3440,6 +3440,7 @@
             desc: Uploading
             module: upload
             config: {
+                interrupt: never
                 art: {
                     options: ULOPTS
                     fileDetails: ULDETAIL

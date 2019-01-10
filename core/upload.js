@@ -73,6 +73,8 @@ exports.getModule = class UploadModule extends MenuModule {
     constructor(options) {
         super(options);
 
+        this.interrupt = MenuModule.InterruptTypes.Never;
+
         if(_.has(options, 'lastMenuResult.recvFilePaths')) {
             this.recvFilePaths = options.lastMenuResult.recvFilePaths;
         }
