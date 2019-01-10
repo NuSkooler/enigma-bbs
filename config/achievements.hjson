@@ -42,6 +42,7 @@
         Email   : bryan@l33t.codes
 */
 {
+    //  Set to false to disable the achievement system
     enabled : true
 
     art : {
@@ -158,6 +159,43 @@
             }
         }
 
+        user_upload_bytes: {
+            type: userStatSet
+            statName: ul_total_bytes
+            match: {
+                524288: {
+                    title: "Kickstart"
+                    globalText: "{userName} has uploaded 512KB, enough for a Kickstart!"
+                    text: "You've uploaded 512KB, enough for a Kickstart!"
+                    points: 10
+                }
+                1474560: {
+                    title: "America Online 2.5?"
+                    globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL 2.5."
+                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL 2.5."
+                    points: 15
+                }
+                6291456: {
+                    title: "A Quake of a Upload"
+                    globalText: "{userName} has uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
+                    text: "You've uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
+                    points: 25
+                }
+                1073741824: {
+                    title: "Gigabyte!"
+                    globalText: "{userName} has uploaded a Gigabyte worth of data!"
+                    text: "You've uploaded a Gigabyte worth of data!"
+                    points: 50
+                }
+                3407872000: {
+                    title: "Encarta"
+                    globalText: "{userName} has uploaded 5 x CD-ROM disks worth of data. That's the size of Encarta!"
+                    text: "You've uploaded 5 x CD-ROM disks worth of data. That's the size of Encarta!"
+                    points: 100
+                }
+            }
+        }
+
         user_download_count: {
             type: userStatSet
             statName: dl_total_count
@@ -195,6 +233,37 @@
             }
         }
 
+        user_download_bytes: {
+            type: userStatSet
+            statName: dl_total_bytes
+            match: {
+                655360: {
+                    title: "Ought to be Enough"
+                    globalText: "{userName} has downloaded 640K. Ought to be enough for anyone!"
+                    text: "You've downloaded 640K. Ought to be enough for anyone!"
+                    points: 5
+                }
+                1474560: {
+                    title: "Fits on a Floppy"
+                    globalText: "{userName} has downloaded 1.44MB worth of data!"
+                    text: "You've downloaded 1.44MB of data!"
+                    points: 10
+                }
+                104857600: {
+                    title: "Click of Death"
+                    globalText: "{userName} has downloaded 100MB... perhaps to a Zip Disk?"
+                    text: "You've downloaded 100MB of data... perhaps to a Zip Disk?"
+                    points: 15
+                }
+                681574400: {
+                    title: "A CD-ROM Worth"
+                    globalText: "{userName} has downloaded a CD-ROM's worth of data!"
+                    text: "You've downloaded a CD-ROM's worth of data!"
+                    points: 20
+                }
+            }
+        }
+
         user_door_runs: {
             type: userStatSet
             statName: door_run_total_count
@@ -227,7 +296,7 @@
                     title: "Dropfile Enthusiast"
                     globalText: "{userName} the dropfile enthusiast ran {achievedValue} doors!"
                     text: "You're a dropfile enthusiast! You've run {achievedValue} doors!"
-                    points: 50
+                    points: 100
                 }
             }
         }
