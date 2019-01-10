@@ -137,7 +137,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                     self.client.log.warn( { error : err.message }, 'DoorParty error');
                 }
 
-                //  if the client is stil here, go to previous
+                //  if the client is still here, go to previous
                 if(!clientTerminated) {
                     self.prevMenu();
                 }
