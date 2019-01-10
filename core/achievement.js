@@ -86,7 +86,7 @@ class Achievement {
     }
 
     isValidMatchDetails(details) {
-        if(!_.isString(details.title) || !_.isString(details.text) || !_.isNumber(details.points)) {
+        if(!details || !_.isString(details.title) || !_.isString(details.text) || !_.isNumber(details.points)) {
             return false;
         }
         return (_.isString(details.globalText) || !details.globalText);
@@ -109,13 +109,16 @@ class UserStatAchievement extends Achievement {
     }
 
     getMatchDetails(matchValue) {
+        let ret = [];
         let matchField = this.matchKeys.find(v => matchValue >= v);
         if(matchField) {
             const match = this.data.match[matchField];
-            if(this.isValidMatchDetails(match)) {
-                return [ match, parseInt(matchField), matchValue ];
+            matchField = parseInt(matchField);
+            if(this.isValidMatchDetails(match) && !isNaN(matchField)) {
+                ret = [ match, matchField, matchValue ];
             }
         }
+        return ret;
     }
 }
 
@@ -180,7 +183,7 @@ class Achievements {
             WHERE user_id = ? AND achievement_tag = ? AND match_field = ?;`,
             [ user.userId, achievementTag, field],
             (err, row) => {
-                return cb(err, row && row.count || 0);
+                return cb(err, row ? row.count : 0);
             }
         );
     }
@@ -286,20 +289,20 @@ class Achievements {
                 return;
             }
 
-            const statValue = parseInt(
-                Achievement.Types.UserStatSet === achievement.data.type ? userStatEvent.statValue : userStatEvent.statIncrementBy,
-                10
+            const statValue = parseInt(Achievement.Types.UserStatSet === achievement.data.type ?
+                userStatEvent.statValue :
+                userStatEvent.statIncrementBy
             );
             if(isNaN(statValue)) {
                 return;
             }
 
             const [ details, matchField, matchValue ] = achievement.getMatchDetails(statValue);
-            if(!details || _.isUndefined(matchField) || _.isUndefined(matchValue)) {
+            if(!details) {
                 return;
             }
 
-            async.waterfall(
+            async.series(
                 [
                     (callback) => {
                         this.loadAchievementHitCount(userStatEvent.user, achievementTag, matchField, (err, count) => {
@@ -335,19 +338,32 @@ class Achievements {
                             //                         ^------------^ retroactive range
                             //
                             const index = achievement.matchKeys.findIndex(v => v < matchField);
-                            if(index > -1) {
-                                achievementsInfo.push(...achievement.matchKeys.slice(index).map(k => {
-                                    const [ d, f, v ] = achievement.getMatchDetails(k);
-                                    return Object.assign({}, info, { details : d, matchField : f, achievedValue : f, matchValue : v } );
-                                }));
+                            if(index > -1 && Array.isArray(achievement.matchKeys)) {
+                                achievement.matchKeys.slice(index).forEach(k => {
+                                    const [ det, fld, val ] = achievement.getMatchDetails(k);
+                                    if(det) {
+                                        achievementsInfo.push(Object.assign(
+                                            {},
+                                            info,
+                                            {
+                                                details         : det,
+                                                matchField      : fld,
+                                                achievedValue   : fld,
+                                                matchValue      : val,
+                                            }
+                                        ));
+                                    }
+                                });
                             }
                         }
 
                         //  reverse achievementsInfo so we display smallest > largest
                         achievementsInfo.reverse();
 
-                        async.each(achievementsInfo, (achInfo, nextAchInfo) => {
-                            return this.recordAndDisplayAchievement(achInfo, nextAchInfo);
+                        async.eachSeries(achievementsInfo, (achInfo, nextAchInfo) => {
+                            return this.recordAndDisplayAchievement(achInfo, err => {
+                                return nextAchInfo(err);
+                            });
                         },
                         err => {
                             return callback(err);
