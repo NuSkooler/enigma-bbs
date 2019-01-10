@@ -76,7 +76,7 @@ module.exports = class UserInterruptQueue
 
     displayWithItem(interruptItem, cb) {
         if(interruptItem.cls) {
-            this.client.term.rawWrite(ANSI.clearScreen());
+            this.client.term.rawWrite(ANSI.resetScreen());
         } else {
             this.client.term.rawWrite('\r\n\r\n');
         }
