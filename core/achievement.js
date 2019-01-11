@@ -485,7 +485,7 @@ class Achievements {
                         };
                         if(headerArt || footerArt) {
                             const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
-                            const defaultContentsFormat = '{title}\r\n${message}';
+                            const defaultContentsFormat = '{title}\r\n{message}';
                             const contentsFormat = 'global' === itemType ?
                                 themeDefaults.globalFormat || defaultContentsFormat :
                                 themeDefaults.format || defaultContentsFormat;
