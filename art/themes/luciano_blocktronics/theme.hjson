@@ -989,9 +989,9 @@
 				pointsSGR: "|12"
 				textSGR: "|00|03"
 				globalTextSGR: "|03"
-				boardName: "|10"
-				userName: "|11"
-				achievedValue: "|15"
+				boardNameSGR: "|10"
+				userNameSGR: "|11"
+				achievedValueSGR: "|15"
 			}
 
 			overrides: {

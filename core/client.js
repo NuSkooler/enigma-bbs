@@ -40,6 +40,7 @@ const MenuStack             = require('./menu_stack.js');
 const ACS                   = require('./acs.js');
 const Events                = require('./events.js');
 const UserInterruptQueue    = require('./user_interrupt_queue.js');
+const UserProps             = require('./user_property.js');
 
 //  deps
 const stream    = require('stream');
@@ -442,13 +443,36 @@ Client.prototype.startIdleMonitor = function() {
 
     //
     //  Every 1m, check for idle.
+    //  We also update minutes spent online the system here,
+    //  if we have a authenticated user.
     //
     this.idleCheck = setInterval( () => {
         const nowMs = Date.now();
 
-        const idleLogoutSeconds = this.user.isAuthenticated() ?
-            Config().users.idleLogoutSeconds :
-            Config().users.preAuthIdleLogoutSeconds;
+        let idleLogoutSeconds;
+        if(this.user.isAuthenticated()) {
+            idleLogoutSeconds = Config().users.idleLogoutSeconds;
+
+            //
+            //  We don't really want to be firing off an event every 1m for
+            //  every user, but want at least some updates for various things
+            //  such as achievements. Send off every 5m.
+            //
+            const minOnline = this.user.incrementProperty(UserProps.MinutesOnlineTotalCount, 1);
+            if(0 === (minOnline % 5)) {
+                Events.emit(
+                    Events.getSystemEvents().UserStatIncrement,
+                    {
+                        user            : this.user,
+                        statName        : UserProps.MinutesOnlineTotalCount,
+                        statIncrementBy : 1,
+                        statValue       : minOnline
+                    }
+                );
+            }
+        } else {
+            idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
+        }
 
         if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
             this.emit('idle timeout');
@@ -471,6 +495,14 @@ Client.prototype.end = function () {
 
     if(currentModule) {
         currentModule.leave();
+    }
+
+    //  persist time online for authenticated users
+    if(this.user.isAuthenticated()) {
+        this.user.persistProperty(
+            UserProps.MinutesOnlineTotalCount,
+            this.user.getProperty(UserProps.MinutesOnlineTotalCount)
+        );
     }
 
     this.stopIdleMonitor();

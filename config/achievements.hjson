@@ -307,27 +307,58 @@
             match: {
                 1: {
                     title: "Nevermind!"
-                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}. Guess it's not their thing!"
-                    text: "You ran a door for only {achievedValue!durationSeconds}. Not your thing?"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}. Guess it's not their thing!"
+                    text: "You ran a door for only {achievedValue!durationMinutes}. Not your thing?"
                     points: 5
                 }
                 10: {
                     title: "It's OK I Guess"
-                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}!"
-                    text: "You ran a door for {achievedValue!durationSeconds}!"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}!"
+                    text: "You ran a door for {achievedValue!durationMinutes}!"
                     points: 10
                 }
                 30: {
                     title: "Good Game"
-                    globalText: "{userName} ran a door for {achievedValue!durationSeconds}!"
-                    text: "You ran a door for {achievedValue!durationSeconds}!"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}!"
+                    text: "You ran a door for {achievedValue!durationMinutes}!"
                     points: 20
                 }
                 60: {
                     title: "Textmode Dragon Slayer"
-                    globalText: "{userName} has spent {achievedValue!durationSeconds} in a door!"
-                    text: "You've spent {achievedValue!durationSeconds} in a door!"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
                     points: 25
+                }
+            }
+        }
+
+        user_total_system_online_minutes: {
+            type: userStatSet
+            statName: minutes_online_total_count
+            match: {
+                30: {
+                    title: "Just Poking Around"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 5
+                }
+                60: {
+                    title: "Mildly Interesting"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 15
+                }
+                120: {
+                    title: "Nothing Better to Do"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 25
+                }
+                1440: {
+                    title: "Idle Bot"
+                    globalText: "{userName} is probably a bot. They've spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You're a bot, aren't you? You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 50
                 }
             }
         }

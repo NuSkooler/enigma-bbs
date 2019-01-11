@@ -55,5 +55,7 @@ module.exports = {
 
     AchievementTotalCount       : 'achievement_total_count',
     AchievementTotalPoints      : 'achievement_total_points',
+
+    MinutesOnlineTotalCount     : 'minutes_online_total_count',
 };
 

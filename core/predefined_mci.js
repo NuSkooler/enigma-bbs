@@ -160,6 +160,10 @@ const PREDEFINED_MCI_GENERATORS = {
         const minutes = client.user.properties[UserProps.DoorRunTotalMinutes] || 0;
         return moment.duration(minutes, 'minutes').humanize();
     },
+    TO  : function friendlyTotalTimeOnSystem(client) {
+        const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
+        return moment.duration(minutes, 'minutes').humanize();
+    },
 
     //
     //  Date/Time

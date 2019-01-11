@@ -406,19 +406,23 @@ class Achievements {
 
     getFormattedTextFor(info, textType, defaultSgr = '|07') {
         const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
-        const defSgr        = themeDefaults[`${textType}SGR`] || defaultSgr;
+        const textTypeSgr   = themeDefaults[`${textType}SGR`] || defaultSgr;
 
-        const wrap = (fieldName, value) => {
-            return `${themeDefaults[fieldName] || defSgr}${value}${defSgr}`;
+        const formatObj = this.getFormatObject(info);
+
+        const wrap = (input) => {
+            const re = new RegExp(`{(${Object.keys(formatObj).join('|')})([^}]*)}`, 'g');
+            return input.replace(re, (m, formatVar, formatOpts) => {
+                const varSgr = themeDefaults[`${formatVar}SGR`] || textTypeSgr;
+                let r = `${varSgr}{${formatVar}`;
+                if(formatOpts) {
+                    r += formatOpts;
+                }
+                return `${r}}${textTypeSgr}`;
+            });
         };
 
-        let formatObj = this.getFormatObject(info);
-        formatObj = _.reduce(formatObj, (out, v, k) => {
-            out[k] = wrap(k, v);
-            return out;
-        }, {});
-
-        return stringFormat(`${defSgr}${info.details[textType]}`, formatObj);
+        return stringFormat(`${textTypeSgr}${wrap(info.details[textType])}`, formatObj);
     }
 
     createAchievementInterruptItems(info, cb) {
