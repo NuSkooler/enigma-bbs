@@ -56,6 +56,74 @@ function ansiDiscoverHomePosition(client, cb) {
     client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
 }
 
+function ansiAttemptDetectUTF8(client, cb) {
+    //
+    //  Trick to attempt and detect UTF-8. While there is a lot more than
+    //  just UTF-8 and CP437, many those are the main concerns, when it comes
+    //  terminals that for example tell us they are "xterm" but still want CP437.
+    //
+    //  Try to detect UTF-8 by discovering the cursor position, writing some
+    //  multi-byte UTF-8, and checking the position again. If the term is really
+    //  UTF-8, we should get a proper position, otherwise we'll be further out.
+    //
+    //  We currently only do this if the term hasn't already been ID'd as a
+    //  "*nix" terminal -- that is, xterm, etc.
+    //
+    if(!client.term.isNixTerm()) {
+        return cb(null);
+    }
+
+    let posStage = 1;
+    let initialPosition;
+    let giveUpTimer;
+
+    const giveUp = () => {
+        client.removeListener('cursor position report', cprListener);
+        clearTimeout(giveUpTimer);
+        return cb(null);
+    };
+
+    const ASCIIPortion = ' Character encoding detection ';
+
+    const cprListener = (pos) => {
+        switch(posStage) {
+            case 1 :
+                posStage = 2;
+
+                initialPosition = pos;
+                clearTimeout(giveUpTimer);
+
+                giveUpTimer = setTimeout( () => {
+                    return giveUp();
+                }, 2000);
+
+                client.once('cursor position report', cprListener);
+                client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);    //  Unicode skulls on each side
+                client.term.rawWrite(ansi.queryPos());
+                break;
+
+            case 2 :
+                {
+                    clearTimeout(giveUpTimer);
+                    const len = pos[1] - initialPosition[1];
+                    if(!isNaN(len) && len >= ASCIIPortion.length + 6) {  //  CP437 displays 3 chars each Unicode skull
+                        client.log.info('Terminal identified as UTF-8 but does not appear to be. Overriding to "ansi".');
+                        client.setTermType('ansi');
+                    }
+                }
+                return cb(null);
+
+        }
+    };
+
+    giveUpTimer = setTimeout( () => {
+        return giveUp();
+    }, 2000);
+
+    client.once('cursor position report', cprListener);
+    client.term.rawWrite(ansi.goHome() + ansi.queryPos());
+}
+
 function ansiQueryTermSizeIfNeeded(client, cb) {
     if(client.term.termHeight > 0 || client.term.termWidth > 0) {
         return cb(null);
@@ -164,7 +232,7 @@ function connectEntry(client, nextMenu) {
                             //  We still don't have something good for term height/width.
                             //  Default to DOS size 80x25.
                             //
-                            //  :TODO: Netrunner is currenting hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing???
+                            //  :TODO: Netrunner is currently hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing???
                             client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
 
                             term.termHeight = 25;
@@ -175,6 +243,9 @@ function connectEntry(client, nextMenu) {
                     return callback(null);
                 });
             },
+            function checkUtf8IfNeeded(callback) {
+                return ansiAttemptDetectUTF8(client, callback);
+            }
         ],
         () => {
             prepareTerminal(term);
