@@ -167,7 +167,7 @@ function SSHClient(clientConn) {
                                     config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
                                     '(No new user names enabled!)';
 
-                                interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
+                                interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password:`;
                             }
                             return ctx.prompt(interactivePrompt, retryPrompt);
                         });
