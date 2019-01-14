@@ -180,7 +180,7 @@ class Achievements {
         UserDb.get(
             `SELECT COUNT() AS count
             FROM user_achievement
-            WHERE user_id = ? AND achievement_tag = ? AND match_field = ?;`,
+            WHERE user_id = ? AND achievement_tag = ? AND match = ?;`,
             [ user.userId, achievementTag, field],
             (err, row) => {
                 return cb(err, row ? row.count : 0);
@@ -193,9 +193,9 @@ class Achievements {
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalPoints, info.details.points);
 
         UserDb.run(
-            `INSERT INTO user_achievement (user_id, achievement_tag, timestamp, match_field, match_value)
-            VALUES (?, ?, ?, ?, ?);`,
-            [ info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField, info.matchValue ],
+            `INSERT INTO user_achievement (user_id, achievement_tag, timestamp, match)
+            VALUES (?, ?, ?, ?);`,
+            [ info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField ],
             err => {
                 if(err) {
                     return cb(err);

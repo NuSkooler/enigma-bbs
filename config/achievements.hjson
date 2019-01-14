@@ -70,7 +70,7 @@
                     points: 5
                 }
                 25: {
-                    title: "Inquisitive Caller"
+                    title: "Inquisitive"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
                     points: 10
