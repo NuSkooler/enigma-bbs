@@ -44,6 +44,13 @@ exports.getModule = class TopXModule extends MenuModule {
                         const userPropValues    = _.values(UserProps);
                         const userLogValues     = _.values(UserLogNames);
 
+                        const hasMci = (c, t) => {
+                            if(!Array.isArray(t)) {
+                                t = [ t ];
+                            }
+                            return t.some(t => _.isObject(mciData, [ 'menu', `${t}${c}` ]));
+                        };
+
                         return this.validateConfigFields(
                             {
                                 mciMap  : (key, config) => {
@@ -75,7 +82,7 @@ exports.getModule = class TopXModule extends MenuModule {
                                                     return false;
                                                 }
                                                 //  VM# must exist for this mci
-                                                if(!_.isObject(mciData, [ 'menu', `VM${mci}` ])) {
+                                                if(!hasMci(mci, ['VM'])) {
                                                     return false;
                                                 }
                                                 break;
@@ -121,17 +128,18 @@ exports.getModule = class TopXModule extends MenuModule {
             case 'userEventLog' : return this.populateTopXUserEventLog(listView, mciCode, cb);
 
             //  we should not hit here; validation happens up front
-            default         : return cb(Errors.UnexpectedState(`Unexpected type: ${type}`));
+            default             : return cb(Errors.UnexpectedState(`Unexpected type: ${type}`));
         }
     }
 
     rowsToItems(rows, cb) {
-        async.map(rows, (row, nextRow) => {
+        let position = 1;
+        async.mapSeries(rows, (row, nextRow) => {
             this.loadUserInfo(row.user_id, (err, userInfo) => {
                 if(err) {
                     return nextRow(err);
                 }
-                return nextRow(null, Object.assign(userInfo, { value : row.value }));
+                return nextRow(null, Object.assign(userInfo, { position : position++, value : row.value }));
             });
         },
         (err, items) => {
@@ -142,12 +150,15 @@ exports.getModule = class TopXModule extends MenuModule {
     populateTopXUserEventLog(listView, mciCode, cb) {
         const count = listView.dimens.height || 1;
         const daysBack = this.config.mciMap[mciCode].daysBack;
-        const whereDate = daysBack ? `AND DATETIME(timestamp) >= DATETIME('now', '-${daysBack} days')` : '';
+        const shouldSum = _.get(this.config.mciMap[mciCode], 'sum', true);
+
+        const valueSql  = shouldSum ? 'SUM(CAST(log_value AS INTEGER))' : 'COUNT()';
+        const dateSql   = daysBack ? `AND DATETIME(timestamp) >= DATETIME('now', '-${daysBack} days')` : '';
 
         SysDb.all(
-            `SELECT user_id, SUM(CASE WHEN typeof(log_value) IS 'text' THEN 1 ELSE CAST(log_value AS INTEGER) END) AS value
+            `SELECT user_id, ${valueSql} AS value
             FROM user_event_log
-            WHERE log_name = ? ${whereDate}
+            WHERE log_name = ? ${dateSql}
             GROUP BY user_id
             ORDER BY value DESC
             LIMIT ${count};`,
@@ -163,6 +174,7 @@ exports.getModule = class TopXModule extends MenuModule {
                     }
                     listView.setItems(items);
                     listView.redraw();
+                    return cb(null);
                 });
             }
         );
@@ -188,6 +200,7 @@ exports.getModule = class TopXModule extends MenuModule {
                     }
                     listView.setItems(items);
                     listView.redraw();
+                    return cb(null);
                 });
             }
         );
