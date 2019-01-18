@@ -364,30 +364,8 @@ class StatLog {
     }
 
     initUserEvents(cb) {
-        //
-        //  We map some user events directly to user stat log entries such that they
-        //  are persisted for a time.
-        //
-        const Events = require('./events.js');
-        const systemEvents = Events.getSystemEvents();
-
-        const interestedEvents = [
-            systemEvents.NewUser,
-            systemEvents.UserUpload, systemEvents.UserDownload,
-            systemEvents.UserPostMessage, systemEvents.UserSendMail,
-            systemEvents.UserRunDoor, systemEvents.UserSendNodeMsg,
-            systemEvents.UserAchievementEarned,
-        ];
-
-        Events.addMultipleEventListener(interestedEvents, (event, eventName) => {
-            this.appendUserLogEntry(
-                event.user,
-                'system_event',
-                eventName.replace(/^codes\.l33t\.enigma\.system\./, ''),    //  strip package name prefix
-                90
-            );
-        });
-
+        const systemEventUserLogInit = require('./sys_event_user_log.js');
+        systemEventUserLogInit(this);
         return cb(null);
     }
 }
