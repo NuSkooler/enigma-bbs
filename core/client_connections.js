@@ -120,7 +120,8 @@ function removeClient(client) {
         );
 
         if(client.user && client.user.isValid()) {
-            Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user } );
+            const minutesOnline = moment().diff(moment(client.user.properties[UserProps.LastLoginTs]), 'minutes');
+            Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user, minutesOnline } );
         }
 
         Events.emit(
