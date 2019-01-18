@@ -34,14 +34,18 @@ module.exports = function systemEventUserLogInit(statLog) {
                 append(e, LogNames.Logoff, e.minutesOnline);
             },
             [ systemEvents.UserUpload ] : (e) => {
-                append(e, LogNames.UlFiles, e.files.length);
-                const totalBytes = e.files.reduce( (bytes, fileEntry) => bytes + fileEntry.meta.byte_size, 0);
-                append(e, LogNames.UlFileBytes, totalBytes);
+                if(e.files.length) {    //  we can get here for dupe uploads
+                    append(e, LogNames.UlFiles, e.files.length);
+                    const totalBytes = e.files.reduce( (bytes, fileEntry) => bytes + fileEntry.meta.byte_size, 0);
+                    append(e, LogNames.UlFileBytes, totalBytes);
+                }
             },
             [ systemEvents.UserDownload ] : (e) => {
-                append(e, LogNames.DlFiles, e.files.length);
-                const totalBytes = e.files.reduce( (bytes, fileEntry) => bytes + fileEntry.meta.byte_size, 0);
-                append(e, LogNames.DlFileBytes, totalBytes);
+                if(e.files.length) {
+                    append(e, LogNames.DlFiles, e.files.length);
+                    const totalBytes = e.files.reduce( (bytes, fileEntry) => bytes + fileEntry.byteSize, 0);
+                    append(e, LogNames.DlFileBytes, totalBytes);
+                }
             },
             [ systemEvents.UserPostMessage ] : (e) => {
                 append(e, LogNames.PostMessage, e.areaTag);
