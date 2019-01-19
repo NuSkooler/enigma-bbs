@@ -82,6 +82,7 @@
     - [Web Download Manager]({{ site.baseurl }}{% link modding/file-base-web-download-manager.md %})
     - [Set Newscan Date]({{ site.baseurl }}{% link modding/set-newscan-date.md %})
     - [Node to Node Messaging]({{ site.baseurl }}{% link modding/node-msg.md %})
+    - [Top X]({{ site.baseurl }}{% link modding/top-x.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
