@@ -4,16 +4,16 @@
 const { MenuModule }    = require('./menu_module.js');
 const { resetScreen }   = require('./ansi_term.js');
 const { Errors }        = require('./enig_error.js');
-const Events            = require('./events.js');
-const StatLog           = require('./stat_log.js');
-const UserProps         = require('./user_property.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
 const http          = require('http');
 const net           = require('net');
 const crypto        = require('crypto');
-const moment        = require('moment');
 
 const packageJson   = require('../package.json');
 
@@ -139,13 +139,9 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     self.client.term.write(resetScreen());
                     self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
 
-                    const startTime = moment();
+                    const doorTracking = trackDoorRunBegin(self.client, `bbslink_${self.config.door}`);
 
                     const bridgeConnection = net.createConnection(connectOpts, function connected() {
-                        //  bump stats, fire events, etc.
-                        StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalCount, 1);
-                        Events.emit(Events.getSystemEvents().UserRunDoor, { user : self.client.user } );
-
                         self.client.log.info(connectOpts, 'BBSLink bridge connection established');
 
                         self.client.term.output.pipe(bridgeConnection);
@@ -153,7 +149,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         self.client.once('end', function clientEnd() {
                             self.client.log.info('Connection ended. Terminating BBSLink connection');
                             clientTerminated = true;
-                            bridgeConnection.end();
+                            bridgeConnection.end();                            
                         });
                     });
 
@@ -161,11 +157,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         self.client.term.output.unpipe(bridgeConnection);
                         self.client.term.output.resume();
 
-                        const endTime = moment();
-                        const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
-                        if(runTimeMinutes > 0) {
-                            StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
-                        }
+                        trackDoorRunEnd(doorTracking);
                     };
 
                     bridgeConnection.on('data', function incomingData(data) {

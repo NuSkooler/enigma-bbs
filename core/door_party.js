@@ -5,14 +5,14 @@
 const { MenuModule }    = require('./menu_module.js');
 const { resetScreen }   = require('./ansi_term.js');
 const { Errors }        = require('./enig_error.js');
-const Events            = require('./events.js');
-const StatLog           = require('./stat_log.js');
-const UserProps         = require('./user_property.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
 const SSHClient     = require('ssh2').Client;
-const moment        = require('moment');
 
 exports.moduleInfo = {
     name    : 'DoorParty',
@@ -58,17 +58,15 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                     let pipeRestored = false;
                     let pipedStream;
-                    const startTime = moment();
+                    let doorTracking;
 
                     const restorePipe = function() {
                         if(pipedStream && !pipeRestored && !clientTerminated) {
                             self.client.term.output.unpipe(pipedStream);
                             self.client.term.output.resume();
 
-                            const endTime = moment();
-                            const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
-                            if(runTimeMinutes > 0) {
-                                StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+                            if(doorTracking) {
+                                trackDoorRunEnd(doorTracking);
                             }
                         }
                     };
@@ -87,6 +85,8 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                                 return callback(Errors.General('Failed to establish tunnel'));
                             }
 
+                            doorTracking = trackDoorRunBegin(self.client);
+
                             //
                             //  Send rlogin
                             //  DoorParty wants the "server username" portion to be in the format of [BBS_TAG]USERNAME, e.g.
@@ -94,9 +94,6 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                             //
                             const rlogin = `\x00${self.client.user.username}\x00[${self.config.bbsTag}]${self.client.user.username}\x00${self.client.term.termType}\x00`;
                             stream.write(rlogin);
-
-                            StatLog.incrementUserStat(self.client.user, UserProps.DoorRunTotalCount, 1);
-                            Events.emit(Events.getSystemEvents().UserRunDoor, { user : self.client.user } );
 
                             pipedStream = stream;   //  :TODO: this is hacky...
                             self.client.term.output.pipe(stream);
@@ -115,6 +112,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                     sshClient.on('error', err => {
                         self.client.log.info(`DoorParty SSH client error: ${err.message}`);
+                        trackDoorRunEnd(doorTracking);
                     });
 
                     sshClient.on('close', () => {
