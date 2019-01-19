@@ -54,8 +54,8 @@ module.exports = function systemEventUserLogInit(statLog) {
                 append(e, LogNames.SendMail, 1);
             },
             [ systemEvents.UserRunDoor ] : (e) => {
-                //  :TODO: store door tag, else '-' ?
-                append(e, LogNames.RunDoor, 1);
+                append(e, LogNames.RunDoor, e.doorTag);
+                append(e, LogNames.RunDoorMinutes, e.runTimeMinutes);
             },
             [ systemEvents.UserSendNodeMsg ] : (e) => {
                 append(e, LogNames.SendNodeMsg, e.global ? 'global' : 'direct');

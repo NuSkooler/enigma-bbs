@@ -6,17 +6,17 @@ const DropFile          = require('./dropfile.js');
 const Door              = require('./door.js');
 const theme             = require('./theme.js');
 const ansi              = require('./ansi_term.js');
-const Events            = require('./events.js');
 const { Errors }        = require('./enig_error.js');
-const StatLog           = require('./stat_log.js');
-const UserProps         = require('./user_property.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async             = require('async');
 const assert            = require('assert');
 const _                 = require('lodash');
 const paths             = require('path');
-const moment            = require('moment');
 
 const activeDoorNodeInstances = {};
 
@@ -152,9 +152,6 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     }
 
     runDoor() {
-        StatLog.incrementUserStat(this.client.user, UserProps.DoorRunTotalCount, 1);
-        Events.emit(Events.getSystemEvents().UserRunDoor, { user : this.client.user } );
-
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {
@@ -168,14 +165,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             node            : this.client.node,
         };
 
-        const startTime = moment();
+        const doorTracking = trackDoorRunBegin(this.client, this.config.name);
 
         this.doorInstance.run(exeInfo, () => {
-            const endTime = moment();
-            const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
-            if(runTimeMinutes > 0) {
-                StatLog.incrementUserStat(this.client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
-            }
+            trackDoorRunEnd(doorTracking);
 
             //
             //  Try to clean up various settings such as scroll regions that may

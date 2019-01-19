@@ -19,7 +19,7 @@ module.exports = {
     UserDownload            : 'codes.l33t.enigma.system.user_download',             //  { ..., files[ fileEntry, ...] }
     UserPostMessage         : 'codes.l33t.enigma.system.user_post_msg',             //  { ..., areaTag }
     UserSendMail            : 'codes.l33t.enigma.system.user_send_mail',            //  { ... }
-    UserRunDoor             : 'codes.l33t.enigma.system.user_run_door',             //  { ... }
+    UserRunDoor             : 'codes.l33t.enigma.system.user_run_door',             //  { ..., runTimeMinutes, doorTag|unknown }
     UserSendNodeMsg         : 'codes.l33t.enigma.system.user_send_node_msg',        //  { ..., global }
     UserStatSet             : 'codes.l33t.enigma.system.user_stat_set',             //  { ..., statName, statValue }
     UserStatIncrement       : 'codes.l33t.enigma.system.user_stat_increment',       //  { ..., statName, statIncrementBy, statValue }

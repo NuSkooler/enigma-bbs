@@ -10,32 +10,29 @@ const moment        = require('moment');
 exports.trackDoorRunBegin   = trackDoorRunBegin;
 exports.trackDoorRunEnd     = trackDoorRunEnd;
 
-
 function trackDoorRunBegin(client, doorTag) {
     const startTime = moment();
-
-    //  door must be running for >= 45s for us to officially record it
-    const timeout   = setTimeout( () => {
-        StatLog.incrementUserStat(client.user, UserProps.DoorRunTotalCount, 1);
-
-        const eventInfo = { user : client.user };
-        if(doorTag) {
-            eventInfo.doorTag = doorTag;
-        }
-        Events.emit(Events.getSystemEvents().UserRunDoor, eventInfo);
-    }, 45 * 1000);
-
-    return { startTime, timeout, client, doorTag };
+    return { startTime, client, doorTag };
 }
 
 function trackDoorRunEnd(trackInfo) {
-    const { startTime, timeout, client } = trackInfo;
+    const { startTime, client, doorTag } = trackInfo;
 
-    clearTimeout(timeout);
+    const diff = moment.duration(moment().diff(startTime));
+    if(diff.asSeconds() >= 45) {
+        StatLog.incrementUserStat(client.user, UserProps.DoorRunTotalCount, 1);
+    }
 
-    const endTime = moment();
-    const runTimeMinutes = Math.floor(moment.duration(endTime.diff(startTime)).asMinutes());
+    const runTimeMinutes = Math.floor(diff.asMinutes());
     if(runTimeMinutes > 0) {
         StatLog.incrementUserStat(client.user, UserProps.DoorRunTotalMinutes, runTimeMinutes);
+
+        const eventInfo = {
+            runTimeMinutes,
+            user    : client.user,
+            doorTag : doorTag || 'unknown',
+        };
+
+        Events.emit(Events.getSystemEvents().UserRunDoor, eventInfo);
     }
 }
