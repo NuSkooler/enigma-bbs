@@ -193,7 +193,7 @@ class Achievements {
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalPoints, info.details.points);
 
         UserDb.run(
-            `INSERT INTO user_achievement (user_id, achievement_tag, timestamp, match)
+            `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match)
             VALUES (?, ?, ?, ?);`,
             [ info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField ],
             err => {
