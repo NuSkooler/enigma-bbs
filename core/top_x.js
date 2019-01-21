@@ -9,7 +9,6 @@ const { Errors }        = require('./enig_error.js');
 const UserDb            = require('./database.js').dbs.user;
 const SysDb             = require('./database.js').dbs.system;
 const User              = require('./user.js');
-const stringFormat          = require('./string_format.js');
 
 //  deps
 const _                 = require('lodash');
@@ -68,7 +67,7 @@ exports.getModule = class TopXModule extends MenuModule {
                                         const type = o.type;
                                         switch(type) {
                                             case 'userProp' :
-                                                if(!userPropValues.includes(o.propName)) {
+                                                if(!userPropValues.includes(o.value)) {
                                                     return false;
                                                 }
                                                 //  VM# must exist for this mci
@@ -78,7 +77,7 @@ exports.getModule = class TopXModule extends MenuModule {
                                                 break;
 
                                             case 'userEventLog' :
-                                                if(!userLogValues.includes(o.logName)) {
+                                                if(!userLogValues.includes(o.value)) {
                                                     return false;
                                                 }
                                                 //  VM# must exist for this mci
@@ -122,7 +121,7 @@ exports.getModule = class TopXModule extends MenuModule {
             return cb(Errors.UnexpectedState(`Failed to get view for MCI ${mciCode}`));
         }
 
-        const type = this.config.mciMap[mciCode].type;        
+        const type = this.config.mciMap[mciCode].type;
         switch(type) {
             case 'userProp'     : return this.populateTopXUserProp(listView, mciCode, cb);
             case 'userEventLog' : return this.populateTopXUserEventLog(listView, mciCode, cb);
@@ -148,9 +147,10 @@ exports.getModule = class TopXModule extends MenuModule {
     }
 
     populateTopXUserEventLog(listView, mciCode, cb) {
-        const count = listView.dimens.height || 1;
-        const daysBack = this.config.mciMap[mciCode].daysBack;
-        const shouldSum = _.get(this.config.mciMap[mciCode], 'sum', true);
+        const mciMap    = this.config.mciMap[mciCode];
+        const count     = listView.dimens.height || 1;
+        const daysBack  = mciMap.daysBack;
+        const shouldSum = _.get(mciMap, 'sum', true);
 
         const valueSql  = shouldSum ? 'SUM(CAST(log_value AS INTEGER))' : 'COUNT()';
         const dateSql   = daysBack ? `AND DATETIME(timestamp) >= DATETIME('now', '-${daysBack} days')` : '';
@@ -162,7 +162,7 @@ exports.getModule = class TopXModule extends MenuModule {
             GROUP BY user_id
             ORDER BY value DESC
             LIMIT ${count};`,
-            [ this.config.mciMap[mciCode].logName ],
+            [ mciMap.value ],
             (err, rows) => {
                 if(err) {
                     return cb(err);
@@ -188,7 +188,7 @@ exports.getModule = class TopXModule extends MenuModule {
             WHERE prop_name = ?
             ORDER BY value DESC
             LIMIT ${count};`,
-            [ this.config.mciMap[mciCode].propName ],
+            [ this.config.mciMap[mciCode].value ],
             (err, rows) => {
                 if(err) {
                     return cb(err);

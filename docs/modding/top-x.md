@@ -3,7 +3,7 @@ layout: page
 title: TopX
 ---
 ## The TopX Module
-The built in `top_x` module allows for displaying oldschool top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered.
+The built in `top_x` module allows for displaying oLDSKOOL (?!) top user stats for the week, month, etc. Ops can configure what stat(s) are displayed and how far back in days the stats are considered.
 
 ## Configuration
 ### Config Block
@@ -21,14 +21,14 @@ The `mciMap` `config` block configures MCI code mapping to data sources. Current
 ##### User Event Log (userEventLog)
 When `type` is set to `userEventLog`, entries from the User Event Log can be counted (ie: individual instances of a particular log item) or summed in the case of log items that have numeric values. The default is to sum.
 
-Some current User Event Log `logName` examples include `ul_files`, `dl_file_bytes`, or `achievement_earned`. See [user_log_name.js](/core/user_log_name.js) for additional information.
+Some current User Event Log `value` examples include `ul_files`, `dl_file_bytes`, or `achievement_earned`. See [user_log_name.js](/core/user_log_name.js) for additional information.
 
 Example `userEventLog` entry:
 ```hjson
 mciMap: {
     1: { //  e.g.: %VM1
         type: userEventLog
-        logName: achievement_pts_earned // top achievement points earned
+        value: achievement_pts_earned // top achievement points earned
         sum: true // this is the default
         daysBack: 7 // omit daysBack for all-of-time
     }
@@ -36,14 +36,14 @@ mciMap: {
 ```
 
 #### User Properties (userProp)
-When `type` is set to `userProp`, data is collected from individual user's properties. For example a `propName` of `minutes_online_total_count`. See [user_property.js](/core/user_property.js) for more information.
+When `type` is set to `userProp`, data is collected from individual user's properties. For example a `value` of `minutes_online_total_count`. See [user_property.js](/core/user_property.js) for more information.
 
 Example `userProp` entry:
 ```hjson
 mciMap: {
     2: { // e.g.: %VM2
         type: userProp
-        propName: minutes_online_total_count // top users by minutes spent on the board
+        value: minutes_online_total_count // top users by minutes spent on the board
     }
 }
 ```
