@@ -22,7 +22,10 @@ const {
     ErrorReasons
 }                           = require('./enig_error.js');
 const { getThemeArt }       = require('./theme.js');
-const { pipeToAnsi }        = require('./color_codes.js');
+const {
+    pipeToAnsi,
+    stripMciColorCodes
+}                           = require('./color_codes.js');
 const stringFormat          = require('./string_format.js');
 const StatLog               = require('./stat_log.js');
 const Log                   = require('./logger.js').log;
@@ -127,6 +130,56 @@ class Achievements {
         this.events = events;
     }
 
+    getAchievementsEarnedByUser(userId, cb) {
+        if(!this.isEnabled()) {
+            return cb(Errors.General('Achievements not enabled', ErrorReasons.Disabled));
+        }
+
+        UserDb.all(
+            `SELECT achievement_tag, timestamp, match, title, text, points
+            FROM user_achievement
+            WHERE user_id = ?
+            ORDER BY DATETIME(timestamp);`,
+            [ userId ],
+            (err, rows) => {
+                if(err) {
+                    return cb(err);
+                }
+
+                const earned = rows.map(row => {
+                    const achievement = Achievement.factory(this.achievementConfig.achievements[row.achievement_tag]);
+                    if(!achievement) {
+                        return;
+                    }
+
+                    const earnedInfo = {
+                        achievementTag  : row.achievement_tag,
+                        type            : achievement.data.type,
+                        retroactive     : achievement.data.retroactive,
+                        title           : row.title,
+                        text            : row.text,
+                        points          : row.points,
+                    };
+
+                    switch(earnedInfo.type) {
+                        case [ Achievement.Types.UserStatSet ] :
+                        case [ Achievement.Types.UserStatInc ] :
+                            earnedInfo.statName = achievement.data.statName;
+                            break;
+                    }
+
+                    return earnedInfo;
+                }).filter(a => a);  //  remove any empty records (ie: no achievement.hjson entry exists anymore).
+
+                return cb(null, earned);
+            }
+        );
+    }
+
+    isEnabled() {
+        return !_.isUndefined(this.achievementConfig);
+    }
+
     init(cb) {
         let achievementConfigPath = _.get(Config(), 'general.achievementFile');
         if(!achievementConfigPath) {
@@ -188,14 +241,19 @@ class Achievements {
         );
     }
 
-    record(info, cb) {
+    record(info, localInterruptItem, cb) {
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalPoints, info.details.points);
 
+        const recordData = [
+            info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField,
+            stripMciColorCodes(localInterruptItem.title), stripMciColorCodes(localInterruptItem.achievText), info.details.points,
+        ];
+
         UserDb.run(
-            `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match)
-            VALUES (?, ?, ?, ?);`,
-            [ info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField ],
+            `INSERT OR IGNORE INTO user_achievement (user_id, achievement_tag, timestamp, match, title, text, points)
+            VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            recordData,
             err => {
                 if(err) {
                     return cb(err);
@@ -215,32 +273,31 @@ class Achievements {
         );
     }
 
-    display(info, cb) {
-        this.createAchievementInterruptItems(info, (err, interruptItems) => {
-            if(err) {
-                return cb(err);
-            }
+    display(info, interruptItems, cb) {
+        if(interruptItems.local) {
+            UserInterruptQueue.queue(interruptItems.local, { clients : info.client } );
+        }
 
-            if(interruptItems.local) {
-                UserInterruptQueue.queue(interruptItems.local, { clients : info.client } );
-            }
+        if(interruptItems.global) {
+            UserInterruptQueue.queue(interruptItems.global, { omit : info.client } );
+        }
 
-            if(interruptItems.global) {
-                UserInterruptQueue.queue(interruptItems.global, { omit : info.client } );
-            }
-
-            return cb(null);
-        });
+        return cb(null);
     }
 
     recordAndDisplayAchievement(info, cb) {
-        async.series(
+        async.waterfall(
             [
                 (callback) => {
-                    return this.record(info, callback);
+                    return this.createAchievementInterruptItems(info, callback);
                 },
-                (callback) => {
-                    return this.display(info, callback);
+                (interruptItems, callback) => {
+                    this.record(info, interruptItems.local, err => {
+                        return callback(err, interruptItems);
+                    });
+                },
+                (interruptItems, callback) => {
+                    return this.display(info, interruptItems, callback);
                 }
             ],
             err => {
@@ -394,7 +451,7 @@ class Achievements {
             userAffils      : info.user.properties[UserProps.Affiliations],
             nodeId          : info.client.node,
             title           : info.details.title,
-            text            : info.global ? info.details.globalText : info.details.text,
+            //text            : info.global ? info.details.globalText : info.details.text,
             points          : info.details.points,
             achievedValue   : info.achievedValue,
             matchField      : info.matchField,
@@ -480,8 +537,10 @@ class Achievements {
                     (headerArt, footerArt, callback) => {
                         const itemText = 'global' === itemType ? globalText : text;
                         interruptItems[itemType] = {
-                            text    : `${title}\r\n${itemText}`,
-                            pause   : true,
+                            title,
+                            achievText  : itemText,
+                            text        : `${title}\r\n${itemText}`,
+                            pause       : true,
                         };
                         if(headerArt || footerArt) {
                             const themeDefaults = _.get(info.client.currentTheme, 'achievements.defaults', {});
@@ -518,5 +577,12 @@ let achievements;
 
 exports.moduleInitialize = (initInfo, cb) => {
     achievements = new Achievements(initInfo.events);
-    return achievements.init(cb);
+    achievements.init( err => {
+        if(err) {
+            return cb(err);
+        }
+
+        exports.achievements = achievements;
+        return cb(null);
+    });
 };

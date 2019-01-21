@@ -195,6 +195,9 @@ const DB_INIT_TABLE = {
                 achievement_tag     VARCHAR NOT NULL,
                 timestamp           DATETIME NOT NULL,
                 match               VARCHAR NOT NULL,
+                title               VARCHAR NOT NULL,
+                text                VARCHAR NOT NULL,
+                points              INTEGER NOT NULL,
                 UNIQUE(user_id, achievement_tag, match),
                 FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
             );`
