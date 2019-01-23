@@ -37,6 +37,8 @@ const async         = require('async');
 const moment        = require('moment');
 const paths         = require('path');
 
+exports.getAchievementsEarnedByUser  = getAchievementsEarnedByUser;
+
 class Achievement {
     constructor(data) {
         this.data = data;
@@ -130,50 +132,8 @@ class Achievements {
         this.events = events;
     }
 
-    getAchievementsEarnedByUser(userId, cb) {
-        if(!this.isEnabled()) {
-            return cb(Errors.General('Achievements not enabled', ErrorReasons.Disabled));
-        }
-
-        UserDb.all(
-            `SELECT achievement_tag, timestamp, match, title, text, points
-            FROM user_achievement
-            WHERE user_id = ?
-            ORDER BY DATETIME(timestamp);`,
-            [ userId ],
-            (err, rows) => {
-                if(err) {
-                    return cb(err);
-                }
-
-                const earned = rows.map(row => {
-                    const achievement = Achievement.factory(this.achievementConfig.achievements[row.achievement_tag]);
-                    if(!achievement) {
-                        return;
-                    }
-
-                    const earnedInfo = {
-                        achievementTag  : row.achievement_tag,
-                        type            : achievement.data.type,
-                        retroactive     : achievement.data.retroactive,
-                        title           : row.title,
-                        text            : row.text,
-                        points          : row.points,
-                    };
-
-                    switch(earnedInfo.type) {
-                        case [ Achievement.Types.UserStatSet ] :
-                        case [ Achievement.Types.UserStatInc ] :
-                            earnedInfo.statName = achievement.data.statName;
-                            break;
-                    }
-
-                    return earnedInfo;
-                }).filter(a => a);  //  remove any empty records (ie: no achievement.hjson entry exists anymore).
-
-                return cb(null, earned);
-            }
-        );
+    getAchievementByTag(tag) {
+        return this.achievementConfig.achievements[tag];
     }
 
     isEnabled() {
@@ -341,7 +301,7 @@ class Achievements {
                 return;
             }
 
-            const achievement = Achievement.factory(this.achievementConfig.achievements[achievementTag]);
+            const achievement = Achievement.factory(this.getAchievementByTag(achievementTag));
             if(!achievement) {
                 return;
             }
@@ -573,16 +533,63 @@ class Achievements {
     }
 }
 
-let achievements;
+let achievementsInstance;
+
+function getAchievementsEarnedByUser(userId, cb) {
+    if(!achievementsInstance) {
+        return cb(Errors.UnexpectedState('Achievements not initialized'));
+    }
+
+    UserDb.all(
+        `SELECT achievement_tag, timestamp, match, title, text, points
+        FROM user_achievement
+        WHERE user_id = ?
+        ORDER BY DATETIME(timestamp);`,
+        [ userId ],
+        (err, rows) => {
+            if(err) {
+                return cb(err);
+            }
+
+            const earned = rows.map(row => {
+
+                const achievement = Achievement.factory(achievementsInstance.getAchievementByTag(row.achievement_tag));
+                if(!achievement) {
+                    return;
+                }
+
+                const earnedInfo = {
+                    achievementTag  : row.achievement_tag,
+                    type            : achievement.data.type,
+                    retroactive     : achievement.data.retroactive,
+                    title           : row.title,
+                    text            : row.text,
+                    points          : row.points,
+                    timestamp       : moment(row.timestamp),
+                };
+
+                switch(earnedInfo.type) {
+                    case [ Achievement.Types.UserStatSet ] :
+                    case [ Achievement.Types.UserStatInc ] :
+                        earnedInfo.statName = achievement.data.statName;
+                        break;
+                }
+
+                return earnedInfo;
+            }).filter(a => a);  //  remove any empty records (ie: no achievement.hjson entry exists anymore).
+
+            return cb(null, earned);
+        }
+    );
+}
 
 exports.moduleInitialize = (initInfo, cb) => {
-    achievements = new Achievements(initInfo.events);
-    achievements.init( err => {
+    achievementsInstance = new Achievements(initInfo.events);
+    achievementsInstance.init( err => {
         if(err) {
             return cb(err);
         }
 
-        exports.achievements = achievements;
         return cb(null);
     });
 };
