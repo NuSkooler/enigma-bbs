@@ -329,7 +329,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  A quick rundown:
         //  *   We may have mciData.menu, mciData.prompt, or both.
         //  *   Prompt form is favored over menu form if both are present.
-        //  *   Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+        //  *   Standard/predefined MCI entries must load both (e.g. %BN is expected to resolve)
         //
         const self = this;
 
