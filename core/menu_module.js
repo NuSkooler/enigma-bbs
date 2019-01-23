@@ -203,17 +203,24 @@ exports.MenuModule = class MenuModule extends PluginModule {
             return cb(null, false); //  don't eat up the item; queue for later
         }
 
+        this.realTimeInterrupt = 'blocked';
+
         //
         //  Default impl: clear screen -> standard display -> reload menu
         //
+        const done = (err, removeFromQueue) => {
+            this.realTimeInterrupt = 'allowed';
+            return cb(err, removeFromQueue);
+        };
+
         this.client.interruptQueue.displayWithItem(
             Object.assign({}, interruptItem, { cls : true }),
             err => {
                 if(err) {
-                    return cb(err, false);
+                    return done(err, false);
                 }
                 this.reload(err => {
-                    return cb(err, err ? false : true);
+                    return done(err, err ? false : true);
                 });
             });
     }
