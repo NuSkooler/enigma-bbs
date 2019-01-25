@@ -52,6 +52,7 @@ class Achievement {
         switch(data.type) {
             case Achievement.Types.UserStatSet :
             case Achievement.Types.UserStatInc :
+            case Achievement.Types.UserStatIncNewVal :
                 achievement = new UserStatAchievement(data);
                 break;
 
@@ -65,8 +66,9 @@ class Achievement {
 
     static get Types() {
         return {
-            UserStatSet : 'userStatSet',
-            UserStatInc : 'userStatInc',
+            UserStatSet         : 'userStatSet',
+            UserStatInc         : 'userStatInc',
+            UserStatIncNewVal   : 'userStatIncNewVal',
         };
     }
 
@@ -74,6 +76,7 @@ class Achievement {
         switch(this.data.type) {
             case Achievement.Types.UserStatSet :
             case Achievement.Types.UserStatInc :
+            case Achievement.Types.UserStatIncNewVal :
                 if(!_.isString(this.data.statName)) {
                     return false;
                 }
@@ -286,14 +289,135 @@ class Achievements {
             }
 
             //  :TODO: Make this code generic - find + return factory created object
+            const achievementTags = Object.keys(_.pickBy(
+                _.get(this.achievementConfig, 'achievements', {}),
+                achievement => {
+                    if(false === achievement.enabled) {
+                        return false;
+                    }
+                    const acceptedTypes = [
+                        Achievement.Types.UserStatSet,
+                        Achievement.Types.UserStatInc,
+                        Achievement.Types.UserStatIncNewVal,
+                    ];
+                    return acceptedTypes.includes(achievement.type) && achievement.statName === userStatEvent.statName;
+                }
+            ));
+
+            if(0 === achievementTags.length) {
+                return;
+            }
+
+            async.eachSeries(achievementTags, (achievementTag, nextAchievementTag) => {
+                const achievement = Achievement.factory(this.getAchievementByTag(achievementTag));
+                if(!achievement) {
+                    return nextAchievementTag(null);
+                }
+
+                const statValue = parseInt(
+                    [ Achievement.Types.UserStatSet, Achievement.Types.UserStatIncNewVal ].includes(achievement.data.type) ?
+                        userStatEvent.statValue :
+                        userStatEvent.statIncrementBy
+                );
+                if(isNaN(statValue)) {
+                    return nextAchievementTag(null);
+                }
+
+                const [ details, matchField, matchValue ] = achievement.getMatchDetails(statValue);
+                if(!details) {
+                    return nextAchievementTag(null);
+                }
+
+                async.series(
+                    [
+                        (callback) => {
+                            this.loadAchievementHitCount(userStatEvent.user, achievementTag, matchField, (err, count) => {
+                                if(err) {
+                                    return callback(err);
+                                }
+                                return callback(count > 0 ? Errors.General('Achievement already acquired', ErrorReasons.TooMany) : null);
+                            });
+                        },
+                        (callback) => {
+                            const client = getConnectionByUserId(userStatEvent.user.userId);
+                            if(!client) {
+                                return callback(Errors.UnexpectedState('Failed to get client for user ID'));
+                            }
+
+                            const info = {
+                                achievementTag,
+                                achievement,
+                                details,
+                                client,
+                                matchField,                     //  match - may be in odd format
+                                matchValue,                     //  actual value
+                                achievedValue   : matchField,   //  achievement value met
+                                user            : userStatEvent.user,
+                                timestamp       : moment(),
+                            };
+
+                            const achievementsInfo = [ info ];
+                            if(true === achievement.data.retroactive) {
+                                //  For userStat, any lesser match keys(values) are also met. Example:
+                                //  matchKeys: [ 500, 200, 100, 20, 10, 2 ]
+                                //                    ^---- we met here
+                                //                         ^------------^ retroactive range
+                                //
+                                const index = achievement.matchKeys.findIndex(v => v < matchField);
+                                if(index > -1 && Array.isArray(achievement.matchKeys)) {
+                                    achievement.matchKeys.slice(index).forEach(k => {
+                                        const [ det, fld, val ] = achievement.getMatchDetails(k);
+                                        if(det) {
+                                            achievementsInfo.push(Object.assign(
+                                                {},
+                                                info,
+                                                {
+                                                    details         : det,
+                                                    matchField      : fld,
+                                                    achievedValue   : fld,
+                                                    matchValue      : val,
+                                                }
+                                            ));
+                                        }
+                                    });
+                                }
+                            }
+
+                            //  reverse achievementsInfo so we display smallest > largest
+                            achievementsInfo.reverse();
+
+                            async.eachSeries(achievementsInfo, (achInfo, nextAchInfo) => {
+                                return this.recordAndDisplayAchievement(achInfo, err => {
+                                    return nextAchInfo(err);
+                                });
+                            },
+                            err => {
+                                return callback(err);
+                            });
+                        }
+                    ],
+                    err => {
+                        if(err && ErrorReasons.TooMany !== err.reasonCode) {
+                            Log.warn( { error : err.message, userStatEvent }, 'Error handling achievement for user stat event');
+                        }
+                        return nextAchievementTag(null);    //  always try the next, regardless
+                    }
+                );
+            });
+
+            /*
             const achievementTag = _.findKey(
                 _.get(this.achievementConfig, 'achievements', {}),
                 achievement => {
                     if(false === achievement.enabled) {
                         return false;
                     }
-                    return [ Achievement.Types.UserStatSet, Achievement.Types.UserStatInc ].includes(achievement.type) &&
-                        achievement.statName === userStatEvent.statName;
+                    const acceptedTypes = [
+                        Achievement.Types.UserStatSet,
+                        Achievement.Types.UserStatInc,
+                        Achievement.Types.UserStatIncNewVal,
+                    ];
+                    return acceptedTypes.includes(achievement.type) && achievement.statName === userStatEvent.statName;
                 }
             );
 
@@ -306,9 +430,10 @@ class Achievements {
                 return;
             }
 
-            const statValue = parseInt(Achievement.Types.UserStatSet === achievement.data.type ?
-                userStatEvent.statValue :
-                userStatEvent.statIncrementBy
+            const statValue = parseInt(
+                [ Achievement.Types.UserStatSet, Achievement.Types.UserStatIncNewVal ].includes(achievement.data.type) ?
+                    userStatEvent.statValue :
+                    userStatEvent.statIncrementBy
             );
             if(isNaN(statValue)) {
                 return;
@@ -392,7 +517,7 @@ class Achievements {
                         Log.warn( { error : err.message, userStatEvent }, 'Error handling achievement for user stat event');
                     }
                 }
-            );
+            );*/
         });
     }
 
@@ -571,6 +696,7 @@ function getAchievementsEarnedByUser(userId, cb) {
                 switch(earnedInfo.type) {
                     case [ Achievement.Types.UserStatSet ] :
                     case [ Achievement.Types.UserStatInc ] :
+                    case [ Achievement.Types.UserStatIncNewVal ] :
                         earnedInfo.statName = achievement.data.statName;
                         break;
                 }
