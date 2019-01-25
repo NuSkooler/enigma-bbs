@@ -67,7 +67,7 @@
                     title: "Curious Caller"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 5
+                    points: 10
                 }
                 25: {
                     title: "Inquisitive"
@@ -75,17 +75,29 @@
                     text: "You've logged into {boardName} {achievedValue} times!"
                     points: 10
                 }
+                75: {
+                    title: "Still Interested!"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 15
+                }
                 100: {
                     title: "Regular Customer"
                     globalText: "{userName} has logged into {boardName} {achievedValue} times!"
                     text: "You've logged into {boardName} {achievedValue} times!"
-                    points: 10
+                    points: 25
+                }
+                250: {
+                    title: "Speed Dial",
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 50
                 }
                 500:  {
                     title: "System Addict"
                     globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
                     text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
-                    points: 25
+                    points: 50
                 }
             }
         }
@@ -94,29 +106,41 @@
             type: userStatSet
             statName: post_count
             match: {
-                5: {
+                2: {
                     title: "Poster"
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
                     points: 5
                 }
-                20: {
+                5: {
                     title: "Poster... again!",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 5
+                }
+                20: {
+                    title: "Just Want to Talk",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
                     points: 10
                 }
                 100: {
-                    title: "Frequent Poster",
+                    title: "Probably Just Spam",
                     globalText: "{userName} has posted {achievedValue} messages!"
                     text: "You've posted {achievedValue} messages!"
-                    points: 15
+                    points: 25
                 }
-                500: {
+                250: {
                     title: "Scribe"
                     globalText: "{userName} the scribe has posted {achievedValue} messages!"
                     text: "Such a scribe! You've posted {achievedValue} messages!"
-                    points: 25
+                    points: 50
+                }
+                500: {
+                    title: "Writing a Book"
+                    globalText: "{userName} is writing a book and has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 50
                 }
             }
         }
@@ -141,20 +165,20 @@
                     title: "Contributor"
                     globalText: "{userName} has uploaded {achievedValue} files!"
                     text: "You've uploaded {achievedValue} files!"
-                    points: 20
+                    points: 25
 
                 }
                 100: {
                     title: "Courier"
                     globalText: "Courier {userName} has uploaded {achievedValue} files!"
                     text: "You've uploaded {achievedValue} files!"
-                    points: 25
+                    points: 50
                 }
                 200: {
                     title: "Must Be a Drop Site"
                     globalText: "{userName} has uploaded a whomping {achievedValue} files!"
                     text: "You've uploaded a whomping {achievedValue} files!"
-                    points: 50
+                    points: 55
                 }
             }
         }
@@ -170,15 +194,21 @@
                     points: 10
                 }
                 1474560: {
-                    title: "America Online 2.5?"
-                    globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL 2.5."
-                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL 2.5."
-                    points: 15
+                    title: "AOL Disk Anyone?"
+                    globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    points: 10
                 }
                 6291456: {
                     title: "A Quake of a Upload"
                     globalText: "{userName} has uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
                     text: "You've uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
+                    points: 20
+                }
+                104857600: {
+                    title: "Zip 100"
+                    globalText: "{userName} has uploaded a Zip 100 disk's worth of data!"
+                    text: "You've uploaded a Zip 100 disk's worth of data!"
                     points: 25
                 }
                 1073741824: {
@@ -189,8 +219,8 @@
                 }
                 3407872000: {
                     title: "Encarta"
-                    globalText: "{userName} has uploaded 5 x CD-ROM disks worth of data. That's the size of Encarta!"
-                    text: "You've uploaded 5 x CD-ROM disks worth of data. That's the size of Encarta!"
+                    globalText: "{userName} has uploaded 5xCD discs worth of data. That's the size of Encarta!"
+                    text: "You've uploaded 5xCD discs worth of data. That's the size of Encarta!"
                     points: 100
                 }
             }
@@ -247,19 +277,30 @@
                     title: "Fits on a Floppy"
                     globalText: "{userName} has downloaded 1.44MB worth of data!"
                     text: "You've downloaded 1.44MB of data!"
-                    points: 10
+                    points: 5
                 }
                 104857600: {
                     title: "Click of Death"
                     globalText: "{userName} has downloaded 100MB... perhaps to a Zip Disk?"
                     text: "You've downloaded 100MB of data... perhaps to a Zip Disk?"
-                    points: 15
+                    points: 10
                 }
                 681574400: {
-                    title: "A CD-ROM Worth"
+                    title: "CD Rip"
                     globalText: "{userName} has downloaded a CD-ROM's worth of data!"
                     text: "You've downloaded a CD-ROM's worth of data!"
-                    points: 20
+                    points: 15
+                }
+                1073741824: {
+                    title: "Like One Hundred Floppys, Man"
+                    globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
+                    text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
+                    points: 25
+                }
+                5368709120: {
+                    title: "That's a Lot of Bits!"
+                    globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
+                    text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
                 }
             }
         }
@@ -284,24 +325,24 @@
                     title: "Gamer"
                     globalText: "{userName} ran {achievedValue} doors!"
                     text: "You've run {achievedValue} doors!"
-                    points: 15
+                    points: 20
                 }
                 100: {
-                    title: "Textmode is All You Need"
+                    title: "Trying Them All"
                     globalText: "{userName} must really like textmode and has run {achievedValue} doors!"
                     text: "You've run {achievedValue} doors! You must really like textmode!"
-                    points: 25
+                    points: 50
                 }
                 200: {
                     title: "Dropfile Enthusiast"
                     globalText: "{userName} the dropfile enthusiast ran {achievedValue} doors!"
                     text: "You're a dropfile enthusiast! You've run {achievedValue} doors!"
-                    points: 100
+                    points: 55
                 }
             }
         }
 
-        user_door_total_minutes: {
+        user_individual_door_run_minutes: {
             type: userStatInc
             statName: door_run_total_minutes
             match: {
@@ -324,10 +365,53 @@
                     points: 20
                 }
                 60: {
-                    title: "Textmode Dragon Slayer"
+                    title: "What? Limited Turns?!"
                     globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
                     text: "You've spent {achievedValue!durationMinutes} in a door!"
                     points: 25
+                }
+                120: {
+                    title: "It's the Only One I Know!"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
+                    points: 50
+                }
+                240: {
+                    title: "Possible Addict"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
+                    points: 55
+                }
+            }
+        }
+
+        user_door_run_total_minutes: {
+            type: userStatIncNewVal
+            statName: door_run_total_minutes
+            match: {
+                10: {
+                    title: "Enough for the Instructions"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 10
+                }
+                30: {
+                    title: "Probably Just L.O.R.D."
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 20
+                }
+                60: {
+                    title: "Retro or Bust"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 25
+                }
+                240: {
+                    title: "Textmode Dragon Slayer"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 50
                 }
             }
         }
@@ -358,7 +442,7 @@
                     title: "Idle Bot"
                     globalText: "{userName} is probably a bot. They've spent {achievedValue!durationMinutes} on {boardName}!"
                     text: "You're a bot, aren't you? You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
-                    points: 50
+                    points: 55
                 }
             }
         }
