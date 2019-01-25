@@ -3,7 +3,6 @@
 
 //  ENiGMA½
 const { MenuModule }    = require('./menu_module.js');
-const { Errors }        = require('./enig_error.js');
 const {
     getAchievementsEarnedByUser
 }                       = require('./achievement.js');
