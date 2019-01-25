@@ -147,29 +147,34 @@ class StatLog {
     incrementUserStat(user, statName, incrementBy, cb) {
         incrementBy = incrementBy || 1;
 
-        let newValue = parseInt(user.properties[statName]);
-        if(newValue) {
-            if(!_.isNumber(newValue) && cb) {
-                return cb(new Error(`Value for ${statName} is not a number!`));
-            }
-            newValue += incrementBy;
-        } else {
-            newValue = incrementBy;
-        }
+        const oldValue = user.getPropertyAsNumber(statName) || 0;
+        const newValue = oldValue + incrementBy;
 
-        this.setUserStatWithOptions(user, statName, newValue, { noEvent : true }, err => {
-            if(!err) {
-                const Events = require('./events.js');  //  we need to late load currently
-                Events.emit(
-                    Events.getSystemEvents().UserStatIncrement,
-                    { user, statName, statIncrementBy: incrementBy, statValue : newValue }
-                );
-            }
+        this.setUserStatWithOptions(
+            user,
+            statName,
+            newValue,
+            { noEvent : true },
+            err => {
+                if(!err) {
+                    const Events = require('./events.js');  //  we need to late load currently
+                    Events.emit(
+                        Events.getSystemEvents().UserStatIncrement,
+                        {
+                            user,
+                            statName,
+                            oldValue,
+                            statIncrementBy : incrementBy,
+                            statValue       : newValue
+                        }
+                    );
+                }
 
-            if(cb) {
-                return cb(err);
+                if(cb) {
+                    return cb(err);
+                }
             }
-        });
+        );
     }
 
     //  the time "now" in the ISO format we use and love :)
