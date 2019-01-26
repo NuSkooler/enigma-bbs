@@ -5,6 +5,10 @@
 const { MenuModule }    = require('./menu_module.js');
 const { resetScreen }   = require('./ansi_term.js');
 const { Errors }        = require('./enig_error.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
@@ -54,10 +58,16 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                     let pipeRestored = false;
                     let pipedStream;
+                    let doorTracking;
+
                     const restorePipe = function() {
                         if(pipedStream && !pipeRestored && !clientTerminated) {
                             self.client.term.output.unpipe(pipedStream);
                             self.client.term.output.resume();
+
+                            if(doorTracking) {
+                                trackDoorRunEnd(doorTracking);
+                            }
                         }
                     };
 
@@ -74,6 +84,8 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                             if(err) {
                                 return callback(Errors.General('Failed to establish tunnel'));
                             }
+
+                            doorTracking = trackDoorRunBegin(self.client);
 
                             //
                             //  Send rlogin
@@ -100,6 +112,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                     sshClient.on('error', err => {
                         self.client.log.info(`DoorParty SSH client error: ${err.message}`);
+                        trackDoorRunEnd(doorTracking);
                     });
 
                     sshClient.on('close', () => {
@@ -122,7 +135,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                     self.client.log.warn( { error : err.message }, 'DoorParty error');
                 }
 
-                //  if the client is stil here, go to previous
+                //  if the client is still here, go to previous
                 if(!clientTerminated) {
                     self.prevMenu();
                 }

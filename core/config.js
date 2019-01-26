@@ -175,6 +175,7 @@ function getDefaultConfig() {
 
             menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
             promptFile      : 'prompt.hjson',   //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
+            achievementFile : 'achievements.hjson',
         },
 
         users : {
@@ -1003,6 +1004,6 @@ function getDefaultConfig() {
             systemEvents : {
                 loginHistoryMax: -1, //  set to -1 for forever
             }
-        }
+        },
     };
 }

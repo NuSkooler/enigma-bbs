@@ -131,7 +131,7 @@ function renegadeToAnsi(s, client) {
 //
 //  Supported control code formats:
 //  * Renegade      : |##
-//  * PCBoard       : @X## where the first number/char is FG color, and second is BG
+//  * PCBoard       : @X## where the first number/char is BG color, and second is FG
 //  * WildCat!      : @##@ the same as PCBoard without the X prefix, but with a @ suffix
 //  * WWIV          : ^#
 //  * CNET Y-Style  : 0x19## where ## is a specific set of codes -- this is the older format
@@ -179,26 +179,6 @@ function controlCodesToAnsi(s, client) {
                     v = m[4];
                 }
 
-                fg = {
-                    0   : [ 'reset', 'black' ],
-                    1   : [ 'reset', 'blue' ],
-                    2   : [ 'reset', 'green' ],
-                    3   : [ 'reset', 'cyan' ],
-                    4   : [ 'reset', 'red' ],
-                    5   : [ 'reset', 'magenta' ],
-                    6   : [ 'reset', 'yellow' ],
-                    7   : [ 'reset', 'white' ],
-
-                    8   : [ 'blink', 'black' ],
-                    9   : [ 'blink', 'blue' ],
-                    A   : [ 'blink', 'green' ],
-                    B   : [ 'blink', 'cyan' ],
-                    C   : [ 'blink', 'red' ],
-                    D   : [ 'blink', 'magenta' ],
-                    E   : [ 'blink', 'yellow' ],
-                    F   : [ 'blink', 'white' ],
-                }[v.charAt(0)] || ['normal'];
-
                 bg = {
                     0   : [ 'blackBG' ],
                     1   : [ 'blueBG' ],
@@ -217,7 +197,27 @@ function controlCodesToAnsi(s, client) {
                     D   : [ 'bold', 'magentaBG' ],
                     E   : [ 'bold', 'yellowBG' ],
                     F   : [ 'bold', 'whiteBG' ],
-                }[v.charAt(1)] || [ 'normal' ];
+                }[v.charAt(0)] || [ 'normal' ];
+
+                fg = {
+                    0   : [ 'reset', 'black' ],
+                    1   : [ 'reset', 'blue' ],
+                    2   : [ 'reset', 'green' ],
+                    3   : [ 'reset', 'cyan' ],
+                    4   : [ 'reset', 'red' ],
+                    5   : [ 'reset', 'magenta' ],
+                    6   : [ 'reset', 'yellow' ],
+                    7   : [ 'reset', 'white' ],
+
+                    8   : [ 'blink', 'black' ],
+                    9   : [ 'blink', 'blue' ],
+                    A   : [ 'blink', 'green' ],
+                    B   : [ 'blink', 'cyan' ],
+                    C   : [ 'blink', 'red' ],
+                    D   : [ 'blink', 'magenta' ],
+                    E   : [ 'blink', 'yellow' ],
+                    F   : [ 'blink', 'white' ],
+                }[v.charAt(1)] || ['normal'];
 
                 v = ANSI.sgr(fg.concat(bg));
                 result += s.substr(lastIndex, m.index - lastIndex) + v;

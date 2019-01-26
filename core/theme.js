@@ -96,7 +96,7 @@ function loadTheme(themeId, cb) {
         }
 
         if(false === _.get(theme, 'info.enabled')) {
-            return cb(Errors.General('Theme is not enalbed', ErrorReasons.ErrNotEnabled));
+            return cb(Errors.General('Theme is not enabled', ErrorReasons.ErrNotEnabled));
         }
 
         refreshThemeHelpers(theme);
@@ -131,8 +131,9 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
     //
     //  Add in data we won't be altering directly from the theme
     //
-    mergedTheme.info    = theme.info;
-    mergedTheme.helpers = theme.helpers;
+    mergedTheme.info            = theme.info;
+    mergedTheme.helpers         = theme.helpers;
+    mergedTheme.achievements    = _.get(theme, 'customization.achievements');
 
     //
     //  merge customizer to disallow immutable MCI properties

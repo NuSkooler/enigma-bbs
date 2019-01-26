@@ -11,7 +11,9 @@ const {
 const clientConnections         = require('./client_connections.js');
 const StatLog                   = require('./stat_log.js');
 const FileBaseFilters           = require('./file_base_filter.js');
-const { formatByteSize }        = require('./string_util.js');
+const {
+    formatByteSize,
+}                               = require('./string_util.js');
 const ANSI                      = require('./ansi_term.js');
 const UserProps                 = require('./user_property.js');
 const SysProps                  = require('./system_property.js');
@@ -54,6 +56,15 @@ function userStatAsString(client, statName, defaultValue) {
     return (StatLog.getUserStat(client.user, statName) || defaultValue).toLocaleString();
 }
 
+function toNumberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+function userStatAsCountString(client, statName, defaultValue) {
+    const value = StatLog.getUserStatNum(client.user, statName) || defaultValue;
+    return toNumberWithCommas(value);
+}
+
 function sysStatAsString(statName, defaultValue) {
     return (StatLog.getSystemStat(statName) || defaultValue).toLocaleString();
 }
@@ -90,14 +101,14 @@ const PREDEFINED_MCI_GENERATORS = {
         return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
     },
     US  : function sex(client) { return userStatAsString(client, UserProps.Sex, ''); },
-    UE  : function emailAddres(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
+    UE  : function emailAddress(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
     UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
     UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
     UT  : function themeName(client) {
         return _.get(client, 'currentTheme.info.name', userStatAsString(client, UserProps.ThemeId, ''));
     },
     UD  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
-    UC  : function loginCount(client) { return userStatAsString(client, UserProps.LoginCount, 0); },
+    UC  : function loginCount(client) { return userStatAsCountString(client, UserProps.LoginCount, 0); },
     ND  : function connectedNode(client) { return client.node.toString(); },
     IP  : function clientIpAddress(client) { return client.remoteAddress.replace(/^::ffff:/, ''); },    //  convert any :ffff: IPv4's to 32bit version
     ST  : function serverName(client) { return client.session.serverName; },
@@ -105,12 +116,12 @@ const PREDEFINED_MCI_GENERATORS = {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
         return activeFilter ? activeFilter.name : '(Unknown)';
     },
-    DN  : function userNumDownloads(client) { return userStatAsString(client, UserProps.FileDlTotalCount, 0); },      //  Obv/2
+    DN  : function userNumDownloads(client) { return userStatAsCountString(client, UserProps.FileDlTotalCount, 0); },      //  Obv/2
     DK  : function userByteDownload(client) {   //  Obv/2 uses DK=downloaded Kbytes
         const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
-    UP  : function userNumUploads(client) { return userStatAsString(client, UserProps.FileUlTotalCount, 0); },            //  Obv/2
+    UP  : function userNumUploads(client) { return userStatAsCountString(client, UserProps.FileUlTotalCount, 0); },            //  Obv/2
     UK  : function userByteUpload(client) { //  Obv/2 uses UK=uploaded Kbytes
         const byteSize = StatLog.getUserStatNum(client.user, UserProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
@@ -122,10 +133,10 @@ const PREDEFINED_MCI_GENERATORS = {
         return getUserRatio(client, UserProps.FileUlTotalBytes, UserProps.FileDlTotalBytes);
     },
 
-    MS  : function accountCreatedclient(client) {
+    MS  : function accountCreated(client) {
         return moment(client.user.properties[UserProps.AccountCreated]).format(client.currentTheme.helpers.getDateFormat());
     },
-    PS  : function userPostCount(client) { return userStatAsString(client, UserProps.MessagePostCount, 0); },
+    PS  : function userPostCount(client) { return userStatAsCountString(client, UserProps.MessagePostCount, 0); },
     PC  : function userPostCallRatio(client) { return getUserRatio(client, UserProps.MessagePostCount, UserProps.LoginCount); },
 
     MD  : function currentMenuDescription(client) {
@@ -152,6 +163,19 @@ const PREDEFINED_MCI_GENERATORS = {
     SH  : function termHeight(client) { return client.term.termHeight.toString(); },
     SW  : function termWidth(client) { return client.term.termWidth.toString(); },
 
+    AC  : function achievementCount(client) { return userStatAsCountString(client, UserProps.AchievementTotalCount, 0); },
+    AP  : function achievementPoints(client) { return userStatAsCountString(client, UserProps.AchievementTotalPoints, 0); },
+
+    DR  : function doorRuns(client) { return userStatAsCountString(client, UserProps.DoorRunTotalCount, 0); },
+    DM  : function doorFriendlyRunTime(client) {
+        const minutes = client.user.properties[UserProps.DoorRunTotalMinutes] || 0;
+        return moment.duration(minutes, 'minutes').humanize();
+    },
+    TO  : function friendlyTotalTimeOnSystem(client) {
+        const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
+        return moment.duration(minutes, 'minutes').humanize();
+    },
+
     //
     //  Date/Time
     //
@@ -166,7 +190,7 @@ const PREDEFINED_MCI_GENERATORS = {
     OS  : function operatingSystem() {
         return {
             linux   : 'Linux',
-            darwin  : 'Mac OS X',
+            darwin  : 'OS X',
             win32   : 'Windows',
             sunos   : 'SunOS',
             freebsd : 'FreeBSD',

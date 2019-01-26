@@ -16,8 +16,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.3-alpha" |
-| `VN` | Version *number*, eg.. "0.0.3-alpha" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.9-alpha" |
+| `VN` | Version *number*, eg.. "0.0.9-alpha" |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |
@@ -30,7 +30,7 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `UR` | Current user's real name |
 | `LO` | Current user's location |
 | `UA` | Current user's age |
-| `BD` | Current user's birthdate (using theme date format) |
+| `BD` | Current user's birthday (using theme date format) |
 | `US` | Current user's sex |
 | `UE` | Current user's email address |
 | `UW` | Current user's web address |
@@ -58,6 +58,10 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `CM` | Current user's active message conference description |
 | `SH` | Current user's term height |
 | `SW` | Current user's term width |
+| `AC` | Current user's total achievements |
+| `AP` | Current user's total achievement points |
+| `DR` | Current user's number of door runs |
+| `DM` | Current user's total amount of time spent in doors |
 | `DT` | Current date (using theme date format) |
 | `CT` | Current time (using theme time format) |
 | `OS` | System OS (Linux, Windows, etc.) |
@@ -149,10 +153,25 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 | `mixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
 | `l33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
 
-### Entry Fromatting
+### Entry Formatting
 Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
 
 ### Additional Text Styles
+Some of the text styles mentioned above are also available in the mini format language:
+
+| Style | Description |
+|-------|-------------|
+| `normal` | Leaves text as-is. This is the default. |
+| `toUpperCase` or `styleUpper` | ENIGMA BULLETIN BOARD SOFTWARE |
+| `toLowerCase` or `styleLower` | enigma bulletin board software |
+| `styleTitle` | Enigma Bulletin Board Software |
+| `styleFirstLower` | eNIGMA bULLETIN bOARD sOFTWARE |
+| `styleSmallVowels` | eNiGMa BuLLeTiN BoaRD SoFTWaRe |
+| `styleBigVowels` | EniGMa bUllEtIn bOArd sOftwArE |
+| `styleSmallI` | ENiGMA BULLETiN BOARD SOFTWARE |
+| `styleMixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
+| `styleL33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
+
 Additional text styles are available for numbers:
 
 | Style             | Description   |
@@ -163,6 +182,9 @@ Additional text styles are available for numbers:
 | `countWithAbbr`   | Count with abbreviation such as `100 K`, `4.3 B`, etc.  |
 | `countWithoutAbbr`    | Just the count |
 | `countAbbr`       | Just the abbreviation such as `M` for millions.   |
+| `durationHours` | Converts the provided *hours* value to something friendly such as `4 hours`, or `4 days`. |
+| `durationMinutes` | Converts the provided *minutes* to something friendly such as `10 minutes` or `2 hours` |
+| `durationSeconds` | Converts the provided *seconds* to something friendly such as `23 seconds` or `2 minutes` |
 
 
 #### Examples

@@ -76,10 +76,20 @@ module.exports = class UserInterruptQueue
 
     displayWithItem(interruptItem, cb) {
         if(interruptItem.cls) {
-            this.client.term.rawWrite(ANSI.clearScreen());
+            this.client.term.rawWrite(ANSI.resetScreen());
         } else {
             this.client.term.rawWrite('\r\n\r\n');
         }
+
+        const maybePauseAndFinish = () => {
+            if(interruptItem.pause) {
+                this.client.currentMenuModule.pausePrompt( () => {
+                    return cb(null);
+                });
+            } else {
+                return cb(null);
+            }
+        };
 
         if(interruptItem.contents) {
             Art.display(this.client, interruptItem.contents, err => {
@@ -87,12 +97,12 @@ module.exports = class UserInterruptQueue
                     return cb(err);
                 }
                 //this.client.term.rawWrite('\r\n\r\n');  //  :TODO: Prob optional based on contents vs text
-                this.client.currentMenuModule.pausePrompt( () => {
-                    return cb(null);
-                });
+                maybePauseAndFinish();
             });
         } else {
-            return this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), cb);
+            this.client.term.write(pipeToAnsi(`${interruptItem.text}\r\n\r\n`, this.client), true, () => {
+                maybePauseAndFinish();
+            });
         }
     }
 };

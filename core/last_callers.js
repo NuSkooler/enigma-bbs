@@ -174,7 +174,7 @@ exports.getModule = class LastCallersModule extends MenuModule {
         let indicatorSumsSql;
         if(actionIndicatorNames.length > 0) {
             indicatorSumsSql = actionIndicatorNames.map(i => {
-                return `SUM(CASE WHEN log_value='${_.snakeCase(i)}' THEN 1 ELSE 0 END) AS ${i}`;
+                return `SUM(CASE WHEN log_name='${_.snakeCase(i)}' THEN 1 ELSE 0 END) AS ${i}`;
             });
         }
 

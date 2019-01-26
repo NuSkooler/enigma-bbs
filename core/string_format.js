@@ -14,6 +14,7 @@ const {
 
 //  deps
 const _             = require('lodash');
+const moment        = require('moment');
 
 /*
     String formatting HEAVILY inspired by David Chambers string-format library
@@ -281,6 +282,10 @@ const transformers = {
     countWithAbbr       : (n) => formatCount(n, true, 0),
     countWithoutAbbr    : (n) => formatCount(n, false, 0),
     countAbbr           : (n) => formatCountAbbr(n),
+
+    durationHours       : (h) => moment.duration(h, 'hours').humanize(),
+    durationMinutes     : (m) => moment.duration(m, 'minutes').humanize(),
+    durationSeconds     : (s) => moment.duration(s, 'seconds').humanize(),
 };
 
 function transformValue(transformerName, value) {
