@@ -111,6 +111,28 @@
 				}
 			}
 
+			mainMenuUserAchievementsEarned: {
+				config: {
+					dateTimeFormat: MMM Do h:mma
+					achievementsInfoFormat10: "|00|07\"|11{title}|07\""
+					achievementsInfoFormat11: "|00|03{text}"
+				}
+				mci: {
+					VM1: {
+						height: 11
+						width: 76
+						itemFormat: "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts"
+						focusItemFormat: "|00|19|15{ts} - {title:<47.46} {points:,} pts"
+					}
+					TL10: {
+						width: 76
+					}
+					TL11: {
+						width: 76
+					}
+				}
+			}
+
 			mainMenuUserStats: {
 				mci: {
 					UN1: { width: 15 }
