@@ -87,8 +87,8 @@ exports.getModule = class UserAchievementsEarned extends MenuModule {
             realName    : this.client.user.getProperty(UserProps.RealName),
             location    : this.client.user.getProperty(UserProps.Location),
             affils      : this.client.user.getProperty(UserProps.Affiliations),
-            totalCount  : this.client.user.getProperty(UserProps.AchievementTotalCount),
-            totalPoints : this.client.user.getProperty(UserProps.AchievementTotalPoints),
+            totalCount  : this.client.user.getPropertyAsNumber(UserProps.AchievementTotalCount),
+            totalPoints : this.client.user.getPropertyAsNumber(UserProps.AchievementTotalPoints),
         };
     }
 
