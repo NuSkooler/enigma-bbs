@@ -1063,10 +1063,35 @@
                     action: @menu:bbsList
                 }
                 {
+                    value: { command: "UA" }
+                    action: @menu:mainMenuUserAchievementsEarned
+                }
+                {
                     value: 1
                     action: @menu:mainMenu
                 }
             ]
+        }
+
+        mainMenuUserAchievementsEarned: {
+            desc: Achievements
+            module: user_achievements_earned
+            art: USERACHIEV
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
         }
 
         nodeMessage: {
