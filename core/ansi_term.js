@@ -23,6 +23,8 @@
 //  General
 //      * http://en.wikipedia.org/wiki/ANSI_escape_code
 //      * http://www.inwap.com/pdp10/ansicode.txt
+//      * Excellent information with many standards covered (for hterm):
+//        https://chromium.googlesource.com/apps/libapps/+/master/hterm/doc/ControlSequences.md
 //
 //  Other Implementations
 //      * https://github.com/chjj/term.js/blob/master/src/term.js

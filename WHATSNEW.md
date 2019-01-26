@@ -26,6 +26,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](/docs/admin/oputil.md).
 * Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 * Usernames found in the `config.users.badUserNames` are now not only disallowed from applying, but disconnected at any login attempt.
+* Total minutes online is now tracked for users. Of course, it only starts after you get the update :)
 
 
 ## 0.0.8-alpha

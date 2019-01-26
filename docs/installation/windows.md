@@ -1,14 +1,14 @@
 ---
 layout: page
-title: Windows Full Install
+title: Installation Under Windows
 ---
+## Installation Under Windows
 
-ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.  
-
+ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
 ### Basic Instructions
 
-1. Download and Install [Node.JS](https://nodejs.org/en/download/). 
+1. Download and Install [Node.JS](https://nodejs.org/).
 
 	1. Upgrade NPM : At this time node comes with NPM 5.6 preinstalled. To upgrade to a newer version now or in the future on windows follow this method. `*Run PowerShell as Administrator`
 

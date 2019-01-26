@@ -6,8 +6,11 @@ const DropFile          = require('./dropfile.js');
 const Door              = require('./door.js');
 const theme             = require('./theme.js');
 const ansi              = require('./ansi_term.js');
-const Events            = require('./events.js');
 const { Errors }        = require('./enig_error.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async             = require('async');
@@ -149,8 +152,6 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     }
 
     runDoor() {
-        Events.emit(Events.getSystemEvents().UserRunDoor, { user : this.client.user } );
-
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {
@@ -164,7 +165,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             node            : this.client.node,
         };
 
+        const doorTracking = trackDoorRunBegin(this.client, this.config.name);
+
         this.doorInstance.run(exeInfo, () => {
+            trackDoorRunEnd(doorTracking);
+
             //
             //  Try to clean up various settings such as scroll regions that may
             //  have been set within the door

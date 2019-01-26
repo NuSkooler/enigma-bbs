@@ -4,6 +4,10 @@
 const { MenuModule }    = require('./menu_module.js');
 const { resetScreen }   = require('./ansi_term.js');
 const { Errors }        = require('./enig_error.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
@@ -98,7 +102,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     //
                     //  Authenticate the token we acquired previously
                     //
-                    var headers = {
+                    const headers = {
                         'X-User'    : self.client.user.userId.toString(),
                         'X-System'  : self.config.sysCode,
                         'X-Auth'    : crypto.createHash('md5').update(self.config.authCode + token).digest('hex'),
@@ -125,17 +129,19 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     //  Authentication with BBSLink successful. Now, we need to create a telnet
                     //  bridge from us to them
                     //
-                    var connectOpts = {
+                    const connectOpts = {
                         port    : self.config.port,
                         host    : self.config.host,
                     };
 
-                    var clientTerminated;
+                    let clientTerminated;
 
                     self.client.term.write(resetScreen());
                     self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
 
-                    var bridgeConnection = net.createConnection(connectOpts, function connected() {
+                    const doorTracking = trackDoorRunBegin(self.client, `bbslink_${self.config.door}`);
+
+                    const bridgeConnection = net.createConnection(connectOpts, function connected() {
                         self.client.log.info(connectOpts, 'BBSLink bridge connection established');
 
                         self.client.term.output.pipe(bridgeConnection);
@@ -143,13 +149,15 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         self.client.once('end', function clientEnd() {
                             self.client.log.info('Connection ended. Terminating BBSLink connection');
                             clientTerminated = true;
-                            bridgeConnection.end();
+                            bridgeConnection.end();                            
                         });
                     });
 
-                    var restorePipe = function() {
+                    const restorePipe = function() {
                         self.client.term.output.unpipe(bridgeConnection);
                         self.client.term.output.resume();
+
+                        trackDoorRunEnd(doorTracking);
                     };
 
                     bridgeConnection.on('data', function incomingData(data) {

@@ -120,11 +120,20 @@ class StatLog {
 
     //
     //  User specific stats
-    //  These are simply convience methods to the user's properties
+    //  These are simply convenience methods to the user's properties
     //
-    setUserStat(user, statName, statValue, cb) {
+    setUserStatWithOptions(user, statName, statValue, options, cb) {
         //  note: cb is optional in PersistUserProperty
-        return user.persistProperty(statName, statValue, cb);
+        user.persistProperty(statName, statValue, cb);
+
+        if(!options.noEvent) {
+            const Events = require('./events.js');  //  we need to late load currently
+            Events.emit(Events.getSystemEvents().UserStatSet, { user, statName, statValue } );
+        }
+    }
+
+    setUserStat(user, statName, statValue, cb) {
+        return this.setUserStatWithOptions(user, statName, statValue, {}, cb);
     }
 
     getUserStat(user, statName) {
@@ -138,18 +147,34 @@ class StatLog {
     incrementUserStat(user, statName, incrementBy, cb) {
         incrementBy = incrementBy || 1;
 
-        let newValue = parseInt(user.properties[statName]);
-        if(newValue) {
-            if(!_.isNumber(newValue)) {
-                return cb(new Error(`Value for ${statName} is not a number!`));
+        const oldValue = user.getPropertyAsNumber(statName) || 0;
+        const newValue = oldValue + incrementBy;
+
+        this.setUserStatWithOptions(
+            user,
+            statName,
+            newValue,
+            { noEvent : true },
+            err => {
+                if(!err) {
+                    const Events = require('./events.js');  //  we need to late load currently
+                    Events.emit(
+                        Events.getSystemEvents().UserStatIncrement,
+                        {
+                            user,
+                            statName,
+                            oldValue,
+                            statIncrementBy : incrementBy,
+                            statValue       : newValue
+                        }
+                    );
+                }
+
+                if(cb) {
+                    return cb(err);
+                }
             }
-
-            newValue += incrementBy;
-        } else {
-            newValue = incrementBy;
-        }
-
-        return this.setUserStat(user, statName, newValue, cb);
+        );
     }
 
     //  the time "now" in the ISO format we use and love :)
@@ -344,29 +369,8 @@ class StatLog {
     }
 
     initUserEvents(cb) {
-        //
-        //  We map some user events directly to user stat log entries such that they
-        //  are persisted for a time.
-        //
-        const Events = require('./events.js');
-        const systemEvents = Events.getSystemEvents();
-
-        const interestedEvents = [
-            systemEvents.NewUser,
-            systemEvents.UserUpload, systemEvents.UserDownload,
-            systemEvents.UserPostMessage, systemEvents.UserSendMail,
-            systemEvents.UserRunDoor, systemEvents.UserSendNodeMsg,
-        ];
-
-        Events.addListenerMultipleEvents(interestedEvents, (eventName, event) => {
-            this.appendUserLogEntry(
-                event.user,
-                'system_event',
-                eventName.replace(/^codes\.l33t\.enigma\.system\./, ''),    //  strip package name prefix
-                90
-            );
-        });
-
+        const systemEventUserLogInit = require('./sys_event_user_log.js');
+        systemEventUserLogInit(this);
         return cb(null);
     }
 }

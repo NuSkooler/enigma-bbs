@@ -49,5 +49,13 @@ module.exports = {
     MessageConfTag              : 'message_conf_tag',
     MessageAreaTag              : 'message_area_tag',
     MessagePostCount            : 'post_count',
+
+    DoorRunTotalCount           : 'door_run_total_count',
+    DoorRunTotalMinutes         : 'door_run_total_minutes',
+
+    AchievementTotalCount       : 'achievement_total_count',
+    AchievementTotalPoints      : 'achievement_total_points',
+
+    MinutesOnlineTotalCount     : 'minutes_online_total_count',
 };
 

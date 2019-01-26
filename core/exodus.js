@@ -2,12 +2,18 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const resetScreen           = require('./ansi_term.js').resetScreen;
-const Config                = require('./config.js').get;
-const Errors                = require('./enig_error.js').Errors;
-const Log                   = require('./logger.js').log;
-const getEnigmaUserAgent    = require('./misc_util.js').getEnigmaUserAgent;
+const { MenuModule }    = require('./menu_module.js');
+const { resetScreen }   = require('./ansi_term.js');
+const Config            = require('./config.js').get;
+const { Errors }        = require('./enig_error.js');
+const Log               = require('./logger.js').log;
+const {
+    getEnigmaUserAgent
+}                       = require('./misc_util.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
@@ -151,11 +157,16 @@ exports.getModule = class ExodusModule extends MenuModule {
 
                     let pipeRestored = false;
                     let pipedStream;
+                    let doorTracking;
 
                     function restorePipe() {
                         if(pipedStream && !pipeRestored && !clientTerminated) {
                             self.client.term.output.unpipe(pipedStream);
                             self.client.term.output.resume();
+
+                            if(doorTracking) {
+                                trackDoorRunEnd(doorTracking);
+                            }
                         }
                     }
 
@@ -186,6 +197,8 @@ exports.getModule = class ExodusModule extends MenuModule {
                         });
 
                         sshClient.shell(window, options, (err, stream) => {
+                            doorTracking = trackDoorRunBegin(self.client, `exodus_${self.config.door}`);
+
                             pipedStream = stream;   //  :TODO: ewwwwwwwww hack
                             self.client.term.output.pipe(stream);
 

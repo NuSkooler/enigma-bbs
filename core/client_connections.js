@@ -60,11 +60,24 @@ function getActiveConnectionList(authUsersOnly) {
 }
 
 function addNewClient(client, clientSock) {
-    const id            = client.session.id     = clientConnections.push(client) - 1;
-    const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
+    //
+    //  Assign ID/client ID to next lowest & available #
+    //
+    let id = 0;
+    for(let i = 0; i < clientConnections.length; ++i) {
+        if(clientConnections[i].id > id) {
+            break;
+        }
+        id++;
+    }
 
+    client.session.id = id;
+    const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
     //  create a unique identifier one-time ID for this session
     client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
+
+    clientConnections.push(client);
+    clientConnections.sort( (c1, c2) => c1.session.id - c2.session.id);
 
     //  Create a client specific logger
     //  Note that this will be updated @ login with additional information
@@ -107,7 +120,8 @@ function removeClient(client) {
         );
 
         if(client.user && client.user.isValid()) {
-            Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user } );
+            const minutesOnline = moment().diff(moment(client.user.properties[UserProps.LastLoginTs]), 'minutes');
+            Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user, minutesOnline } );
         }
 
         Events.emit(

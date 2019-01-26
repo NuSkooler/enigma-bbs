@@ -160,7 +160,7 @@
 				TW	: function termWidth() {
 					return !isNaN(value) && _.get(client, 'term.termWidth', 0) >= value;
 				},
-				ID	: function isUserId(value) {
+				ID	: function isUserId() {
 					if(!user) {
 						return false;
 					}
@@ -180,6 +180,20 @@
 					const midnight = now.clone().startOf('day')
 					const minutesPastMidnight = now.diff(midnight, 'minutes');
 					return !isNaN(value) && minutesPastMidnight >= value;
+				},
+				AC	: function achievementCount() {
+					if(!user) {
+						return false;
+					}
+					const count = user.getPropertyAsNumber(UserProps.AchievementTotalCount) || 0;
+					return !isNan(value) && points >= value;
+				},
+				AP	: function achievementPoints() {
+					if(!user) {
+						return false;
+					}
+					const points = user.getPropertyAsNumber(UserProps.AchievementTotalPoints) || 0;
+					return !isNan(value) && points >= value;
 				}
 			}[acsCode](value);
 		} catch (e) {

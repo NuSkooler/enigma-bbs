@@ -5,6 +5,10 @@
 const { MenuModule }    = require('../core/menu_module.js');
 const { resetScreen }   = require('../core/ansi_term.js');
 const { Errors }        = require('./enig_error.js');
+const {
+    trackDoorRunBegin,
+    trackDoorRunEnd
+}                       = require('./door_util.js');
 
 //  deps
 const async         = require('async');
@@ -46,9 +50,15 @@ exports.getModule = class CombatNetModule extends MenuModule {
                     self.client.term.write(resetScreen());
                     self.client.term.write('Connecting to CombatNet, please wait...\n');
 
+                    let doorTracking;
+
                     const restorePipeToNormal = function() {
                         if(self.client.term.output) {
                             self.client.term.output.removeListener('data', sendToRloginBuffer);
+
+                            if(doorTracking) {
+                                trackDoorRunEnd(doorTracking);
+                            }
                         }
                     };
 
@@ -90,6 +100,7 @@ exports.getModule = class CombatNetModule extends MenuModule {
                                 self.client.log.info('Connected to CombatNet');
                                 self.client.term.output.on('data', sendToRloginBuffer);
 
+                                doorTracking = trackDoorRunBegin(self.client);
                             } else {
                                 return callback(Errors.General('Failed to establish establish CombatNet connection'));
                             }

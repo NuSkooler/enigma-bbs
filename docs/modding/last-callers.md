@@ -14,13 +14,15 @@ Available `config` block entries:
 * `sysop`: Sysop options:
     * `collapse`: Collapse or roll up entries that fall within the period specified. May be a string in the form of `30 minutes`, `3 weeks`, `1 hour`, etc.
     * `hide`: Hide all +op logins
-* `actionIndicators`: Maps user actions to indicators. For example: `userDownload` to "D". Available indicators:
-    * `userDownload`
-    * `userUpload`
-    * `userPostMsg`
-    * `userSendMail`
-    * `userRunDoor`
-    * `userSendNodeMsg`
+* `actionIndicators`: Maps user events/actions to indicators. For example: `userDownload` to "D". Available indicators:
+    * `newUser`: User is new.
+    * `dlFiles`: User downloaded file(s).
+    * `ulFiles`: User uploaded file(s).
+    * `postMsg`: User posted message(s) to the message base, EchoMail, etc.
+    * `sendMail`: User sent _private_ mail.
+    * `runDoor`: User ran door(s).
+    * `sendNodeMsg`: User sent a node message(s).
+    * `achievementEarned`: User earned an achievement(s).
 * `actionIndicatorDefault`: Default indicator when an action is not set. Defaults to "-".
 
 Remember that entries such as `actionIndicators` and `actionIndicatorDefault` may contain pipe color codes!

@@ -65,7 +65,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                         }
                     }
 
-                    Events.emit(Events.getSystemEvents().UserSendNodeMsg, { user : this.client.user } );
+                    Events.emit(Events.getSystemEvents().UserSendNodeMsg, { user : this.client.user, global : -1 === nodeId } );
 
                     return this.prevMenu(cb);
                 });

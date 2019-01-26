@@ -443,6 +443,22 @@ module.exports = class User {
         );
     }
 
+    setProperty(propName, propValue) {
+        this.properties[propName] = propValue;
+    }
+
+    incrementProperty(propName, incrementBy) {
+        incrementBy = incrementBy || 1;
+        let newValue = parseInt(this.getProperty(propName));
+        if(newValue) {
+            newValue += incrementBy;
+        } else {
+            newValue = incrementBy;
+        }
+        this.setProperty(propName, newValue);
+        return newValue;
+    }
+
     getProperty(propName) {
         return this.properties[propName];
     }

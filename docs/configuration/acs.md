@@ -34,7 +34,9 @@ The following are ACS codes available as of this writing:
 | NR<i>ratio</i> | User has upload/download count ratio >= _ratio_ |
 | KR<i>ratio</i> | User has a upload/download byte ratio >= _ratio_ |
 | PC<i>ratio</i> | User has a post/call ratio >= _ratio_ |
-| MM<i>minutes</i> | It is currently >= _minutes_ past midnight (system time)
+| MM<i>minutes</i> | It is currently >= _minutes_ past midnight (system time) |
+| AC<i>achievementCount</i> | User has >= _achievementCount_ achievements |
+| AP<i>achievementPoints</i> | User has >= _achievementPoints_ achievement points |
 
 \* Many more ACS codes are planned for the near future.
 

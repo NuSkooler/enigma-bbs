@@ -111,6 +111,28 @@
 				}
 			}
 
+			mainMenuUserAchievementsEarned: {
+				config: {
+					dateTimeFormat: MMM Do h:mma
+					achievementsInfoFormat10: "|00|07\"|11{title}|07\""
+					achievementsInfoFormat11: "|00|03{text}"
+				}
+				mci: {
+					VM1: {
+						height: 11
+						width: 76
+						itemFormat: "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts"
+						focusItemFormat: "|00|19|15{ts} - {title:<47.46} {points:,} pts"
+					}
+					TL10: {
+						width: 76
+					}
+					TL11: {
+						width: 76
+					}
+				}
+			}
+
 			mainMenuUserStats: {
 				mci: {
 					UN1: { width: 15 }
@@ -976,6 +998,32 @@
 				mci: {
 					TL1: {
 						text: "|00|15|MD|08 >> |03active filter|08: |10|FN"
+					}
+				}
+			}
+		}
+
+		achievements: {
+			defaults: {
+				format: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}"
+				globalFormat: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}"
+				titleSGR: "|10"
+				pointsSGR: "|12"
+				textSGR: "|00|03"
+				globalTextSGR: "|03"
+				boardNameSGR: "|10"
+				userNameSGR: "|11"
+				achievedValueSGR: "|15"
+			}
+
+			overrides: {
+				user_login_count: {
+					match: {
+						2: {
+							//
+							//	You may override title, text, and globalText here
+							//
+						}
 					}
 				}
 			}

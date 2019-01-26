@@ -189,6 +189,20 @@ const DB_INIT_TABLE = {
             );`
         );
 
+        dbs.user.run(
+            `CREATE TABLE IF NOT EXISTS user_achievement (
+                user_id             INTEGER NOT NULL,
+                achievement_tag     VARCHAR NOT NULL,
+                timestamp           DATETIME NOT NULL,
+                match               VARCHAR NOT NULL,
+                title               VARCHAR NOT NULL,
+                text                VARCHAR NOT NULL,
+                points              INTEGER NOT NULL,
+                UNIQUE(user_id, achievement_tag, match),
+                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+            );`
+        );
+
         return cb(null);
     },
 

@@ -30,6 +30,10 @@ exports.MenuModule = class MenuModule extends PluginModule {
         this.cls                = _.get(this.menuConfig.config, 'cls', Config().menus.cls);
         this.viewControllers    = {};
         this.interrupt          = (_.get(this.menuConfig.config, 'interrupt', MenuModule.InterruptTypes.Queued)).toLowerCase();
+
+        if(MenuModule.InterruptTypes.Realtime === this.interrupt) {
+            this.realTimeInterrupt  = 'blocked';
+        }
     }
 
     static get InterruptTypes() {
@@ -137,6 +141,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 },
                 function finishAndNext(callback) {
                     self.finishedLoading();
+                    self.realTimeInterrupt = 'allowed';
                     return self.autoNextMenu(callback);
                 }
             ],
@@ -194,21 +199,28 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     attemptInterruptNow(interruptItem, cb) {
-        if(MenuModule.InterruptTypes.Realtime !== this.interrupt) {
+        if(this.realTimeInterrupt !== 'allowed' || MenuModule.InterruptTypes.Realtime !== this.interrupt) {
             return cb(null, false); //  don't eat up the item; queue for later
         }
+
+        this.realTimeInterrupt = 'blocked';
 
         //
         //  Default impl: clear screen -> standard display -> reload menu
         //
+        const done = (err, removeFromQueue) => {
+            this.realTimeInterrupt = 'allowed';
+            return cb(err, removeFromQueue);
+        };
+
         this.client.interruptQueue.displayWithItem(
             Object.assign({}, interruptItem, { cls : true }),
             err => {
                 if(err) {
-                    return cb(err, false);
+                    return done(err, false);
                 }
                 this.reload(err => {
-                    return cb(err, err ? false : true);
+                    return done(err, err ? false : true);
                 });
             });
     }
@@ -317,7 +329,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         //  A quick rundown:
         //  *   We may have mciData.menu, mciData.prompt, or both.
         //  *   Prompt form is favored over menu form if both are present.
-        //  *   Standard/prefdefined MCI entries must load both (e.g. %BN is expected to resolve)
+        //  *   Standard/predefined MCI entries must load both (e.g. %BN is expected to resolve)
         //
         const self = this;
 
