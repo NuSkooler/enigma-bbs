@@ -48,6 +48,9 @@ class Achievement {
     }
 
     static factory(data) {
+        if(!data) {
+            return;
+        }
         let achievement;
         switch(data.type) {
             case Achievement.Types.UserStatSet :
