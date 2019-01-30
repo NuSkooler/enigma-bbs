@@ -321,6 +321,13 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             algorithms : config.loginServers.ssh.algorithms,
         };
 
+        //
+        //  This is a terrible hack, and we should not have to do it;
+        //  However, as of this writing, NetRunner and SyncTERM both
+        //  fail to respond to OpenSSH keep-alive pings (keepalive@openssh.com)
+        //
+        ssh2.Server.KEEPALIVE_INTERVAL = 0;
+
         this.server = ssh2.Server(serverConf);
         this.server.on('connection', (conn, info) => {
             Log.info(info, 'New SSH connection');
