@@ -47,13 +47,17 @@ module.exports = class UserInterruptQueue
         //  pause defaulted on
         interruptItem.pause = _.get(interruptItem, 'pause', true);
 
-        this.client.currentMenuModule.attemptInterruptNow(interruptItem, (err, ateIt) => {
-            if(err) {
-                //  :TODO: Log me
-            } else if(true !== ateIt) {
-                this.queue.push(interruptItem);
-            }
-        });
+        try {
+            this.client.currentMenuModule.attemptInterruptNow(interruptItem, (err, ateIt) => {
+                if(err) {
+                    //  :TODO: Log me
+                } else if(true !== ateIt) {
+                    this.queue.push(interruptItem);
+                }
+            });
+        } catch(e) {
+            this.queue.push(interruptItem);
+        }
     }
 
     hasItems() {
