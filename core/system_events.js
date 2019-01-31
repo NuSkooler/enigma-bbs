@@ -23,5 +23,5 @@ module.exports = {
     UserSendNodeMsg         : 'codes.l33t.enigma.system.user_send_node_msg',        //  { ..., global }
     UserStatSet             : 'codes.l33t.enigma.system.user_stat_set',             //  { ..., statName, statValue }
     UserStatIncrement       : 'codes.l33t.enigma.system.user_stat_increment',       //  { ..., statName, statIncrementBy, statValue }
-    UserAchievementEarned   : 'codes.l33t.enigma.system.user_achievement_earned',   //  { ..., achievementTag, points }
+    UserAchievementEarned   : 'codes.l33t.enigma.system.user_achievement_earned',   //  { ..., achievementTag, points, title, text }
 };

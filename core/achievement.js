@@ -211,9 +211,12 @@ class Achievements {
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalCount, 1);
         StatLog.incrementUserStat(info.client.user, UserProps.AchievementTotalPoints, info.details.points);
 
+        const cleanTitle    = stripMciColorCodes(localInterruptItem.title);
+        const cleanText     = stripMciColorCodes(localInterruptItem.achievText);
+
         const recordData = [
             info.client.user.userId, info.achievementTag, getISOTimestampString(info.timestamp), info.matchField,
-            stripMciColorCodes(localInterruptItem.title), stripMciColorCodes(localInterruptItem.achievText), info.details.points,
+            cleanTitle, cleanText, info.details.points,
         ];
 
         UserDb.run(
@@ -231,6 +234,8 @@ class Achievements {
                         user            : info.client.user,
                         achievementTag  : info.achievementTag,
                         points          : info.details.points,
+                        title           : cleanTitle,
+                        text            : cleanText,
                     }
                 );
 
