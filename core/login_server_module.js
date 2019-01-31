@@ -19,6 +19,10 @@ module.exports = class LoginServerModule extends ServerModule {
     //  :TODO: we need to max connections -- e.g. from config 'maxConnections'
 
     prepareClient(client, cb) {
+        if(client.user.isAuthenticated()) {
+            return cb(null);
+        }
+
         const theme = require('./theme.js');
 
         //
@@ -32,7 +36,7 @@ module.exports = class LoginServerModule extends ServerModule {
         }
 
         theme.setClientTheme(client, client.user.properties[UserProps.ThemeId]);
-        return cb(null);   //  note: currently useless to use cb here - but this may change...again...
+        return cb(null);
     }
 
     handleNewClient(client, clientSock, modInfo) {
