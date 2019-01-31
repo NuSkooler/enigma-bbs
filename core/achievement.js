@@ -331,7 +331,7 @@ class Achievements {
                     return nextAchievementTag(null);
                 }
 
-                async.series(
+                async.waterfall(
                     [
                         (callback) => {
                             this.loadAchievementHitCount(userStatEvent.user, achievementTag, matchField, (err, count) => {
@@ -360,32 +360,51 @@ class Achievements {
                             };
 
                             const achievementsInfo = [ info ];
-                            if(true === achievement.data.retroactive) {
-                                //  For userStat, any lesser match keys(values) are also met. Example:
-                                //  matchKeys: [ 500, 200, 100, 20, 10, 2 ]
-                                //                    ^---- we met here
-                                //                         ^------------^ retroactive range
-                                //
-                                const index = achievement.matchKeys.findIndex(v => v < matchField);
-                                if(index > -1 && Array.isArray(achievement.matchKeys)) {
-                                    achievement.matchKeys.slice(index).forEach(k => {
-                                        const [ det, fld, val ] = achievement.getMatchDetails(k);
-                                        if(det) {
-                                            achievementsInfo.push(Object.assign(
-                                                {},
-                                                info,
-                                                {
-                                                    details         : det,
-                                                    matchField      : fld,
-                                                    achievedValue   : fld,
-                                                    matchValue      : val,
-                                                }
-                                            ));
-                                        }
-                                    });
-                                }
+                            return callback(null, achievementsInfo, info);
+                        },
+                        (achievementsInfo, basicInfo, callback) => {
+                            if(true !== achievement.data.retroactive) {
+                                return callback(null, achievementsInfo);
                             }
 
+                            const index = achievement.matchKeys.findIndex(v => v < matchField);
+                            if(-1 === index || !Array.isArray(achievement.matchKeys)) {
+                                return callback(null, achievementsInfo);
+                            }
+
+                            //  For userStat, any lesser match keys(values) are also met. Example:
+                            //  matchKeys: [ 500, 200, 100, 20, 10, 2 ]
+                            //                    ^---- we met here
+                            //                         ^------------^ retroactive range
+                            //
+                            async.eachSeries(achievement.matchKeys.slice(index), (k, nextKey) => {                                
+                                const [ det, fld, val ] = achievement.getMatchDetails(k);
+                                if(!det) {
+                                    return nextKey(null);
+                                }
+
+                                this.loadAchievementHitCount(userStatEvent.user, achievementTag, fld, (err, count) => {
+                                    if(!err || count && 0 === count) {
+                                        achievementsInfo.push(Object.assign(
+                                            {},
+                                            basicInfo,
+                                            {
+                                                details         : det,
+                                                matchField      : fld,
+                                                achievedValue   : fld,
+                                                matchValue      : val,
+                                            }
+                                        ));
+                                    }
+
+                                    return nextKey(null);
+                                });
+                            },
+                            () => {
+                                return callback(null, achievementsInfo);
+                            });
+                        },
+                        (achievementsInfo, callback) => {
                             //  reverse achievementsInfo so we display smallest > largest
                             achievementsInfo.reverse();
 
@@ -407,120 +426,6 @@ class Achievements {
                     }
                 );
             });
-
-            /*
-            const achievementTag = _.findKey(
-                _.get(this.achievementConfig, 'achievements', {}),
-                achievement => {
-                    if(false === achievement.enabled) {
-                        return false;
-                    }
-                    const acceptedTypes = [
-                        Achievement.Types.UserStatSet,
-                        Achievement.Types.UserStatInc,
-                        Achievement.Types.UserStatIncNewVal,
-                    ];
-                    return acceptedTypes.includes(achievement.type) && achievement.statName === userStatEvent.statName;
-                }
-            );
-
-            if(!achievementTag) {
-                return;
-            }
-
-            const achievement = Achievement.factory(this.getAchievementByTag(achievementTag));
-            if(!achievement) {
-                return;
-            }
-
-            const statValue = parseInt(
-                [ Achievement.Types.UserStatSet, Achievement.Types.UserStatIncNewVal ].includes(achievement.data.type) ?
-                    userStatEvent.statValue :
-                    userStatEvent.statIncrementBy
-            );
-            if(isNaN(statValue)) {
-                return;
-            }
-
-            const [ details, matchField, matchValue ] = achievement.getMatchDetails(statValue);
-            if(!details) {
-                return;
-            }
-
-            async.series(
-                [
-                    (callback) => {
-                        this.loadAchievementHitCount(userStatEvent.user, achievementTag, matchField, (err, count) => {
-                            if(err) {
-                                return callback(err);
-                            }
-                            return callback(count > 0 ? Errors.General('Achievement already acquired', ErrorReasons.TooMany) : null);
-                        });
-                    },
-                    (callback) => {
-                        const client = getConnectionByUserId(userStatEvent.user.userId);
-                        if(!client) {
-                            return callback(Errors.UnexpectedState('Failed to get client for user ID'));
-                        }
-
-                        const info = {
-                            achievementTag,
-                            achievement,
-                            details,
-                            client,
-                            matchField,                     //  match - may be in odd format
-                            matchValue,                     //  actual value
-                            achievedValue   : matchField,   //  achievement value met
-                            user            : userStatEvent.user,
-                            timestamp       : moment(),
-                        };
-
-                        const achievementsInfo = [ info ];
-                        if(true === achievement.data.retroactive) {
-                            //  For userStat, any lesser match keys(values) are also met. Example:
-                            //  matchKeys: [ 500, 200, 100, 20, 10, 2 ]
-                            //                    ^---- we met here
-                            //                         ^------------^ retroactive range
-                            //
-                            const index = achievement.matchKeys.findIndex(v => v < matchField);
-                            if(index > -1 && Array.isArray(achievement.matchKeys)) {
-                                achievement.matchKeys.slice(index).forEach(k => {
-                                    const [ det, fld, val ] = achievement.getMatchDetails(k);
-                                    if(det) {
-                                        achievementsInfo.push(Object.assign(
-                                            {},
-                                            info,
-                                            {
-                                                details         : det,
-                                                matchField      : fld,
-                                                achievedValue   : fld,
-                                                matchValue      : val,
-                                            }
-                                        ));
-                                    }
-                                });
-                            }
-                        }
-
-                        //  reverse achievementsInfo so we display smallest > largest
-                        achievementsInfo.reverse();
-
-                        async.eachSeries(achievementsInfo, (achInfo, nextAchInfo) => {
-                            return this.recordAndDisplayAchievement(achInfo, err => {
-                                return nextAchInfo(err);
-                            });
-                        },
-                        err => {
-                            return callback(err);
-                        });
-                    }
-                ],
-                err => {
-                    if(err && ErrorReasons.TooMany !== err.reasonCode) {
-                        Log.warn( { error : err.message, userStatEvent }, 'Error handling achievement for user stat event');
-                    }
-                }
-            );*/
         });
     }
 
