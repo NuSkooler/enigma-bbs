@@ -550,6 +550,15 @@ function TelnetClient(input, output) {
             this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
         }
     };
+
+    this.disconnect = function() {
+        try {
+            return this.output.end.apply(this.output, arguments);
+        }
+        catch(e) {
+            //  nothing
+        }
+    };
 }
 
 util.inherits(TelnetClient, baseClient.Client);

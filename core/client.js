@@ -511,7 +511,12 @@ Client.prototype.end = function () {
         //
         //  We can end up calling 'end' before TTY/etc. is established, e.g. with SSH
         //
-        return this.output.end.apply(this.output, arguments);
+        if(_.isFunction(this.disconnect)) {
+            return this.disconnect();
+        } else {
+            //  legacy fallback
+            return this.output.end.apply(this.output, arguments);
+        }
     } catch(e) {
         //  ie TypeError
     }

@@ -278,13 +278,17 @@ function SSHClient(clientConn) {
         });
     });
 
-    clientConn.on('end', () => {
-        self.emit('end');   //  remove client connection/tracking
+    clientConn.once('end', () => {
+        return self.emit('end');   //  remove client connection/tracking
     });
 
     clientConn.on('error', err => {
         self.log.warn( { error : err.message, code : err.code }, 'SSH connection error');
     });
+
+    this.disconnect = function() {
+        return clientConn.end();
+    };
 }
 
 util.inherits(SSHClient, baseClient.Client);
