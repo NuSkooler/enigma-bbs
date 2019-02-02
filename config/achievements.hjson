@@ -187,6 +187,12 @@
             type: userStatSet
             statName: ul_total_bytes
             match: {
+                10240: {
+                    text: "UNIVAC Drum"
+                    globalText: "{userName} has uploaded 10k. Enough to fill a UNIVAC drum!"
+                    text: "You've uploaded 10k. Enough to fill a UNIVAC drum!"
+                    points: 5
+                }
                 524288: {
                     title: "Kickstart"
                     globalText: "{userName} has uploaded 512KB, enough for a Kickstart!"
@@ -221,7 +227,19 @@
                     title: "Encarta"
                     globalText: "{userName} has uploaded 5xCD discs worth of data. That's the size of Encarta!"
                     text: "You've uploaded 5xCD discs worth of data. That's the size of Encarta!"
+                    points: 50
+                }
+                7025459200: {
+                    title: "NFL_Madden_2007_USA_BLURAY_DIRFIX_PS3-PARADOX"
+                    globalText: "{userName} has uploaded 67x100 MiB worth of data, the size of the worlds first PS3 rip!"
+                    text: "You've uploaded 67x100 MiB worth of data, the size of the world first PS3 rip!"
                     points: 100
+                }
+                25018184499: {
+                    title: "WaYsTeD"
+                    globalText: "{userName} has uploaded 23.3 GiB of data, the size of the first PS4 rip: Watch.Dogs.PS4-WaYsTeD!"
+                    text: "You've uploaded 23.3 GiB of data, the size of the first PS4 rip: Watch.Dogs.PS4-WaYsTeD!"
+                    points: 150
                 }
             }
         }
