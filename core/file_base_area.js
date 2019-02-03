@@ -354,8 +354,8 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                         }
 
                         const descFiles = {
-                            desc        : shortDescFile ? paths.join(tempDir, shortDescFile.fileName) : null,
-                            descLong    : longDescFile ? paths.join(tempDir, longDescFile.fileName) : null,
+                            desc        : shortDescFile ? paths.join(tempDir, paths.basename(shortDescFile.fileName)) : null,
+                            descLong    : longDescFile ? paths.join(tempDir, paths.basename(longDescFile.fileName)) : null,
                         };
 
                         return callback(null, descFiles);

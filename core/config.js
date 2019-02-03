@@ -553,7 +553,7 @@ function getDefaultConfig() {
             },
             'application/x-rar-compressed' : {
                 desc            : 'RAR Archive',
-                sig             : '526172211a0700',
+                sig             : '526172211a07',
                 offset          : 0,
                 archiveHandler  : 'Rar',
             },
@@ -704,7 +704,7 @@ function getDefaultConfig() {
                     list            : {
                         cmd         : 'unrar',
                         args        : [ 'l', '{archivePath}' ],
-                        entryMatch  : '^\\s+[\\.A-Z]+\\s+([\\d]+)\\s{2}[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s{2}([^\\r\\n]+)$',
+                        entryMatch  : '^\\s+[\\.A-Z]+\\s+([\\d]+)\\s{2}[0-9]{2,4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s{2}([^\\r\\n]+)$',
                     },
                     extract         : {
                         cmd         : 'unrar',
@@ -880,12 +880,23 @@ function getDefaultConfig() {
                 //  FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
                 //  Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
                 desc        : [
-                    '^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'  //  eslint-disable-line no-useless-escape
+                    '^.*FILE_ID\.ANS$', '^.*FILE_ID\.DIZ$',     //  eslint-disable-line no-useless-escape
+                    '^.*DESC\.SDI$',                            //  eslint-disable-line no-useless-escape
+                    '^.*DESCRIPT\.ION$',                        //  eslint-disable-line no-useless-escape
+                    '^.*FILE\.DES$',                            //  eslint-disable-line no-useless-escape
+                    '^.*FILE\.SDI$',                            //  eslint-disable-line no-useless-escape
+                    '^.*DISK\.ID$'                              //  eslint-disable-line no-useless-escape
                 ],
 
                 //  common README filename - https://en.wikipedia.org/wiki/README
                 descLong        : [
-                    '^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$',//  eslint-disable-line no-useless-escape
+                    '^[^/\]*\.NFO$',        //  eslint-disable-line no-useless-escape
+                    '^.*README\.1ST$',      //  eslint-disable-line no-useless-escape
+                    '^.*README\.NOW$',      //  eslint-disable-line no-useless-escape
+                    '^.*README\.TXT$',      //  eslint-disable-line no-useless-escape
+                    '^.*READ\.ME$',         //  eslint-disable-line no-useless-escape
+                    '^.*README$',           //  eslint-disable-line no-useless-escape
+                    '^.*README\.md$',       //  eslint-disable-line no-useless-escape
                     '^RELEASE-INFO.ASC$'    //  eslint-disable-line no-useless-escape
                 ],
             },
