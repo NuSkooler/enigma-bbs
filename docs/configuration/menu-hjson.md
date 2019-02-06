@@ -1,8 +1,8 @@
 ---
 layout: page
-title: Menus
+title: Menu HSJON
 ---
-## Menus
+## Menu HJSON
 The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/yourboardname-menu.hjson` or similar. This file determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
 
 Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
@@ -24,8 +24,13 @@ Below is a table of **common** menu entry members. These members apply to most e
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in `prompt.hjson`. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
-| `module` | Sets the module name to use for this menu. |
+| `module` | Sets the module name to use for this menu. See **Menu Modules** below. |
 | `config` | An object containing additional configuration. See **Config Block** below. |
+
+### Menu Modules
+A given menu entry is backed by a *menu module*. That is, the code behind it. Menus are considered "standard" if the `module` member is not specified (and therefore backed by `core/standard_menu.js`).
+
+See [Menu Modules](/docs/modding/menu-modules.md) for more information.
 
 ### Config Block
 The `config` block for a menu entry can contain common members as well as a per-module (when `module` is used) settings.
@@ -57,7 +62,37 @@ Menus may also support more than one layout type by using a *MCI key*. A MCI key
 For more information on views and associated MCI codes, see [MCI Codes](/docs/art/mci.md).
 
 ## Submit Handlers
-TODO
+When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
+
+### Submit Actions
+Submit actions are declared using the `action` member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.
+
+| Action | Description |
+|--------|-------------|
+| `@menu:menuName` | Takes the user to the *menuName* menu |
+| `@systemMethod:methodName` | Executes the system/global method *methodName*. See **System Methods** below. |
+| `@method:methodName` | Executes *methodName* local to the calling module. That is, the module set by the `module` member of a menu entry. |
+| `@method:/path/to/some_module.js:methodName` | Executes *methodName* exported by the module at */path/to/some_module.js*. |
+
+#### Method Signature
+Methods executed using `@method`, or `@systemMethod` have the following signature:
+```
+(callingMenu, formData, extraArgs, callback)
+```
+
+#### System Methods
+Many built in global/system methods exist. Below are a few. See [system_menu_method](/core/system_menu_method.js) for more information.
+
+| Method | Description |
+|--------|-------------|
+| `login` | Performs a standard login. |
+| `logoff` | Performs a standard system logoff. |
+| `prevMenu` | Goes to the previous menu. |
+| `nextMenu` | Goes to the next menu (as set by `next`) |
+| `prevConf` | Sets the users message conference to the previous available. |
+| `nextConf` | Sets the users message conference to the next available. |
+| `prevArea` | Sets the users message area to the previous available. |
+| `nextArea` | Sets the users message area to the next available. |
 
 ## Example
 Let's look a couple basic menu entries:
