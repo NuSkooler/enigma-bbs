@@ -953,9 +953,9 @@ function getDefaultConfig() {
         eventScheduler : {
 
             events : {
-                resetDailyStats : {
-                    schedule    : 'at 12:00:01am',  //  note: Later.js places this right @ midnight
-                    action      : '@method:core/misc_scheduled_events.js:resetDailyStatsScheduledEvent',
+                dailyMaintenance : {
+                    schedule    : 'at 11:59pm',
+                    action      : '@method:core/misc_scheduled_events.js:dailyMaintenanceScheduledEvent',
                 },
                 trimMessageAreas : {
                     //  may optionally use [or ]@watch:/path/to/file

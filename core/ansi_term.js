@@ -17,6 +17,9 @@
 //      * http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/ansisys.txt
 //      * http://academic.evergreen.edu/projects/biophysics/technotes/program/ansi_esc.htm
 //
+//  Modern Windows (Win10+)
+//      * https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
+//
 //  VTX
 //      * https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
 //

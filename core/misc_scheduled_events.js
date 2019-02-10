@@ -4,9 +4,9 @@
 const StatLog   = require('./stat_log.js');
 const SysProps  = require('./system_property.js');
 
-exports.resetDailyStatsScheduledEvent = resetDailyStatsScheduledEvent;
+exports.dailyMaintenanceScheduledEvent = dailyMaintenanceScheduledEvent;
 
-function resetDailyStatsScheduledEvent(args, cb) {
+function dailyMaintenanceScheduledEvent(args, cb) {
     //
     //  Various stats need reset daily
     //
