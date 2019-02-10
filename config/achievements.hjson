@@ -363,6 +363,7 @@
         user_individual_door_run_minutes: {
             type: userStatInc
             statName: door_run_total_minutes
+            retroactive: false
             match: {
                 1: {
                     title: "Nevermind!"
