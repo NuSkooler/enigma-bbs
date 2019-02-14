@@ -218,13 +218,13 @@ function getDefaultConfig() {
 				//	Private key in PEM format
 				//
 				//	Generating your PK:
-				//	> openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
+				//	> openssl genrsa -aes256 -out ./config/ssh_private_key.pem 2048
 				//
 				//	Then, set servers.ssh.privateKeyPass to the password you use above
 				//	in your config.hjson
 				//
 				privateKeyPem		: paths.join(__dirname, './../config/ssh_private_key.pem'),
-				firstMenu			: 'sshConnected',
+				firstMenu		: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
 			webSocket : {
