@@ -218,13 +218,22 @@ function getDefaultConfig() {
 				//	Private key in PEM format
 				//
 				//	Generating your PK:
-				//	> openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
+				//      Choose a cipher (3DES, AES128, or AES256) and a bit strength (2048 or 4096)
+                                //      Ciphers:
+				//        3des: older, most compatible, least secure
+				//        aes128: newer, widely compatible, fairly secure
+				//        aes256: newest, least compatible, best security
+				//      Bit strength:
+				//        2048: most compatible, decent strength
+				//        4096: stronger, but some software is completely incompatible
+                                //      Sample command:
+				//	  openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
 				//
 				//	Then, set servers.ssh.privateKeyPass to the password you use above
 				//	in your config.hjson
 				//
 				privateKeyPem		: paths.join(__dirname, './../config/ssh_private_key.pem'),
-				firstMenu			: 'sshConnected',
+				firstMenu		: 'sshConnected',
 				firstMenuNewUser	: 'sshConnectedNewUser',
 			},
 			webSocket : {
