@@ -62,7 +62,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## Installation
 On *nix type systems:
 ```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/0.0.10-alpha/misc/install.sh | bash
 ```
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...

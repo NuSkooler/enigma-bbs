@@ -1,6 +1,8 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.10-alpha
+
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
 * Fixed `justify` properties: `left` and `right` values were formerly swapped (oops!)

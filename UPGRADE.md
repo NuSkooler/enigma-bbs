@@ -40,6 +40,9 @@ npm install
 Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
+# 0.0.9-alpha to 0.0.10-alpha
+
+
 # 0.0.8-alpha to 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. Follow your standard upgrade path to update to Node 10.x before using 0.0.9-alpha!
 * The property `justify` found on various views previously had `left` and `right` values swapped (oops!); you will need to adjust any custom `theme.hjson` that use one or the other and swap them as well.
