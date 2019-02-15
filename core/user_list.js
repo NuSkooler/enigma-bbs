@@ -1,112 +1,85 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule		= require('./menu_module.js').MenuModule;
-const User				= require('./user.js');
-const ViewController	= require('./view_controller.js').ViewController;
-const stringFormat		= require('./string_format.js');
+//  ENiGMA½
+const { MenuModule }    = require('./menu_module.js');
+const { getUserList }   = require('./user.js');
+const { Errors }        = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
 
-const moment			= require('moment');
-const async				= require('async');
-const _					= require('lodash');
-
-/*
-	Available listFormat/focusListFormat object members:
-	
-	userId			: User ID
-	userName		: User name/handle
-	lastLoginTs		: Last login timestamp
-	status			: Status: active | inactive
-	location		: Location
-	affiliation		: Affils
-	note			: User note
-*/
+//  deps
+const moment            = require('moment');
+const async             = require('async');
+const _                 = require('lodash');
 
 exports.moduleInfo = {
-	name		: 'User List',
-	desc		: 'Lists all system users',
-	author		: 'NuSkooler',
+    name        : 'User List',
+    desc        : 'Lists all system users',
+    author      : 'NuSkooler',
 };
 
 const MciViewIds = {
-	UserList	: 1,
+    userList    : 1,
 };
 
 exports.getModule = class UserListModule extends MenuModule {
-	constructor(options) {
-		super(options);
-	}
+    constructor(options) {
+        super(options);
+    }
 
-	mciReady(mciData, cb) {
-		super.mciReady(mciData, err => {
-			if(err) {
-				return cb(err);
-			}
+    mciReady(mciData, cb) {
+        super.mciReady(mciData, err => {
+            if(err) {
+                return cb(err);
+            }
 
-			const self		= this;
-			const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+            async.series(
+                [
+                    (next) => {
+                        return this.prepViewController('userList', 0, mciData.menu, next);
+                    },
+                    (next) => {
+                        const userListView = this.viewControllers.userList.getView(MciViewIds.userList);
+                        if(!userListView) {
+                            return cb(Errors.MissingMci(`Missing user list MCI ${MciViewIds.userList}`));
+                        }
 
-			let userList = [];
+                        const fetchOpts = {
+                            properties      : [ UserProps.RealName, UserProps.Location, UserProps.Affiliations, UserProps.LastLoginTs ],
+                            propsCamelCase  : true, //  e.g. real_name -> realName
+                        };
+                        getUserList(fetchOpts, (err, userList) => {
+                            if(err) {
+                                return next(err);
+                            }
 
-			const USER_LIST_OPTS = {
-				properties : [ 'location', 'affiliation', 'last_login_timestamp' ],
-			};
+                            const dateTimeFormat = _.get(
+                                this, 'menuConfig.config.dateTimeFormat', this.client.currentTheme.helpers.getDateTimeFormat('short'));
 
-			async.series(
-				[
-					function loadFromConfig(callback) {
-						var loadOpts = {
-							callingMenu		: self,
-							mciMap			: mciData.menu,
-						};
+                            userList = userList.map(entry => {
+                                return Object.assign(
+                                    entry,
+                                    {
+                                        text            : entry.userName,
+                                        affils          : entry.affiliation,
+                                        lastLoginTs     : moment(entry.lastLoginTimestamp).format(dateTimeFormat),
+                                    }
+                                );
+                            });
 
-						vc.loadFromMenuConfig(loadOpts, callback);
-					},
-					function fetchUserList(callback) {
-						//	:TODO: Currently fetching all users - probably always OK, but this could be paged
-						User.getUserList(USER_LIST_OPTS, function got(err, ul) {
-							userList = ul;
-							callback(err);
-						});
-					},
-					function populateList(callback) {
-						var userListView = vc.getView(MciViewIds.UserList);
-
-						var listFormat 		= self.menuConfig.config.listFormat || '{userName} - {affils}';
-						var focusListFormat	= self.menuConfig.config.focusListFormat || listFormat;	//	:TODO: default changed color!
-						var dateTimeFormat	= self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
-
-						function getUserFmtObj(ue) {
-							return {
-								userId		: ue.userId,
-								userName	: ue.userName,
-								affils		: ue.affiliation,
-								location	: ue.location,
-								//	:TODO: the rest!
-								note		: ue.note || '',
-								lastLoginTs	: moment(ue.last_login_timestamp).format(dateTimeFormat),
-							};
-						}
-
-						userListView.setItems(_.map(userList, function formatUserEntry(ue) {
-							return stringFormat(listFormat, getUserFmtObj(ue));
-						}));
-
-						userListView.setFocusItems(_.map(userList, function formatUserEntry(ue) {
-							return stringFormat(focusListFormat, getUserFmtObj(ue));
-						}));
-
-						userListView.redraw();
-						callback(null);
-					}
-				],		
-				function complete(err) {
-					if(err) {
-						self.client.log.error( { error : err.toString() }, 'Error loading user list');
-					}
-					cb(err);
-				}
-			);
-		});
-	}	
+                            userListView.setItems(userList);
+                            userListView.redraw();
+                            return next(null);
+                        });
+                    }
+                ],
+                err => {
+                    if(err) {
+                        this.client.log.error( { error : err.message }, 'Error loading user list');
+                    }
+                    return cb(err);
+                }
+            );
+        });
+    }
 };

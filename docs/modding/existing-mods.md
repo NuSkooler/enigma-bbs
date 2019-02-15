@@ -2,6 +2,8 @@
 layout: page
 title: Existing Mods
 ---
+Many "addon" modules exist and have been released. Below are a few:
+
 | Name                        | Author      | Description |
 |-----------------------------|-------------|-------------|
 | Married Bob Fetch Event     | NuSkooler   | An event for fetching the latest Married Bob ANSI's for display on you board. ACiDic release [ACD-MB4E.ZIP](https://l33t.codes/outgoing/ACD/ACD-MB4E.ZIP). Can also be [found on GitHub](https://github.com/NuSkooler/enigma-bbs-married_bob_evt) |

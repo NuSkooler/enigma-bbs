@@ -7,7 +7,7 @@ const getDefaultConfigPath			= require('./oputil_common.js').getDefaultConfigPat
 exports.getHelpFor				= getHelpFor;
 
 const usageHelp = exports.USAGE_HELP = {
-	General :
+    General :
 `usage: oputil.js [--version] [--help]
                   <command> [<args>]
 
@@ -19,39 +19,45 @@ commands:
   user                      user utilities
   config                    config file management
   fb                        file base management
+  mb                        message base management
 `,
-	User : 
-`usage: oputil.js user --user USERNAME <args>
+    User :
+`usage: oputil.js user <action> [<args>]
 
-valid args:
-  --user USERNAME       specify username for further actions
-  --password PASS       set new password 
-  --delete              delete user
-  --activate            activate user
-  --deactivate          deactivate user
+actions:
+  info USERNAME                display information about a user
+  pw USERNAME PASSWORD         set a user's password
+                               aliases: password, passwd
+  rm USERNAME                  permanently removes user from system
+                               aliases: remove, delete, del
+  activate USERNAME            set status to active
+  deactivate USERNAME          set status to inactive
+  disable USERNAME             set status to disabled
+  lock USERNAME                set status to locked
+  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from a group
 `,
 
-	Config : 
+    Config :
 `usage: oputil.js config <action> [<args>]
 
 actions:
   new                      generate a new/initial configuration
-  import-areas PATH        import areas using fidonet *.NA or AREAS.BBS file from PATH
+  cat                      cat current configuration to stdout
 
-import-areas args:
-  --conf CONF_TAG          specify conference tag in which to import areas
-  --network NETWORK        specify network name/key to associate FTN areas
-  --uplinks UL1,UL2,...    specify one or more comma separated uplinks
-  --type TYPE              specifies area import type. valid options are "bbs" and "na"
+cat args:
+  --no-color               disable color
+  --no-comments            strip any comments
 `,
-	FileBase :
+    FileBase :
 `usage: oputil.js fb <action> [<args>]
 
 actions:
   scan AREA_TAG[@STORAGE_TAG]  scan specified area
+                               may also contain optional GLOB as last parameter,
+                               for example: scan some_area *.zip
 
-  info AREA_TAG|SHA|FILE_ID    display information about areas and/or files
-                               SHA may be a full or partial SHA-256
+  info CRITERIA                display information about areas and/or files
+                               matching CRITERIA.
 
   mv SRC [SRC...] DST          move entry(s) from SRC to DST
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
@@ -59,42 +65,60 @@ actions:
 
   rm SRC [SRC...]              remove entry(s) from the system matching SRC
                                SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
+  desc CRITERIA                sets a new file description for file base entry
+                               matching CRITERIA. Launches an external editor using
+                               $VISUAL, $EDITOR, or vim/notepad.
+  import-areas FILEGATE.ZXX    import file base areas using FileGate RAID type format
 
 scan args:
   --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
 
-  --desc-file [PATH]           prefer file descriptions from DESCRIPT.ION file over
-                               other sources such as FILE_ID.DIZ.
-                               if PATH is specified, use DESCRIPT.ION at PATH instead
-                               of looking in specific storage locations
-  --update                     attempt to update information for existing entries                               
+  --desc-file [PATH]           prefer file descriptions from supplied path over other
+                               other sources such as FILE_ID.DIZ. Path must point to
+                               a valid FILES.BBS or DESCRIPT.ION file.
+  --update                     attempt to update information for existing entries
+  --quick                      perform quick scan
 
 info args:
   --show-desc                  display short description, if any
 
 remove args:
   --phys-file                  also remove underlying physical file
+
+import-areas args:
+  --type TYPE                  sets import areas type. valid options are "zxx" or "na"
+  --create-dirs                create backing storage directories
 `,
-  FileOpsInfo :
+    FileOpsInfo :
 `
 general information:
   AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
                                example: retro@bbs
+
+  CRITERIA                     file base entry criteria. in general, can be AREA_TAG, SHA,
+                               FILE_ID, or FILENAME_WC.
   
   FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
   SHA                          full or partial SHA-256
   FILE_ID                      a file identifier. see file.sqlite3
 `,
-  MessageBase :
-  `usage: oputil.js mb <action> [<args>]
+    MessageBase :
+`usage: oputil.js mb <action> [<args>]
 
-  actions:
+actions:
   areafix CMD1 CMD2 ... ADDR  sends an AreaFix NetMail to ADDR with the supplied command(s)
                               one or more commands may be supplied. commands that are multi
                               part such as "%COMPRESS ZIP" should be quoted.
+  import-areas PATH           import areas using fidonet *.NA or AREAS.BBS file from PATH
+
+import-areas args:
+  --conf CONF_TAG             conference tag in which to import areas
+  --network NETWORK           network name/key to associate FTN areas
+  --uplinks UL1,UL2,...       one or more comma separated uplinks
+  --type TYPE                 area import type. valid options are "bbs" and "na"
 `
 };
 
 function getHelpFor(command) {
-	return usageHelp[command];
+    return usageHelp[command];
 }

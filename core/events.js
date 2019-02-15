@@ -1,73 +1,76 @@
 /* jslint node: true */
 'use strict';
 
-const paths				= require('path');
-const events			= require('events');
-const Log				= require('./logger.js').log;
+const events            = require('events');
+const Log               = require('./logger.js').log;
+const SystemEvents      = require('./system_events.js');
 
-//	deps
-const _					= require('lodash');
-const async				= require('async');
-const glob				= require('glob');
+//  deps
+const _                 = require('lodash');
 
 module.exports = new class Events extends events.EventEmitter {
-	constructor() {
-		super();
-	}
+    constructor() {
+        super();
+        this.setMaxListeners(64);   //  :TODO: play with this...
+    }
 
-	addListener(event, listener) {
-		Log.trace( { event : event }, 'Registering event listener');
-		return super.addListener(event, listener);
-	}
+    getSystemEvents() {
+        return SystemEvents;
+    }
 
-	emit(event, ...args) {
-		Log.trace( { event : event }, 'Emitting event');
-		return super.emit(event, args);
-	}
+    addListener(event, listener) {
+        Log.trace( { event : event }, 'Registering event listener');
+        return super.addListener(event, listener);
+    }
 
-	on(event, listener) {
-		Log.trace( { event : event }, 'Registering event listener');
-		return super.on(event, listener);
-	}
+    emit(event, ...args) {
+        Log.trace( { event : event }, 'Emitting event');
+        return super.emit(event, ...args);
+    }
 
-	once(event, listener) {
-		Log.trace( { event : event }, 'Registering single use event listener');
-		return super.once(event, listener);
-	}
+    on(event, listener) {
+        Log.trace( { event : event }, 'Registering event listener');
+        return super.on(event, listener);
+    }
 
-	removeListener(event, listener) {
-		Log.trace( { event : event }, 'Removing listener');
-		return super.removeListener(event, listener);
-	}
+    once(event, listener) {
+        Log.trace( { event : event }, 'Registering single use event listener');
+        return super.once(event, listener);
+    }
 
-	startup(cb) {
-		async.each(require('./module_util.js').getModulePaths(), (modulePath, nextPath) => {
-			glob('*{.js,/*.js}', { cwd : modulePath }, (err, files) => {
-				if(err) {
-					return nextPath(err);
-				}
+    //
+    //  Listen to multiple events for a single listener.
+    //  Called with: listener(event, eventName)
+    //
+    //  The returned object must be used with removeMultipleEventListener()
+    //
+    addMultipleEventListener(events, listener) {
+        Log.trace( { events }, 'Registering event listeners');
 
-				async.each(files, (moduleName, nextModule) => {
-					modulePath = paths.join(modulePath, moduleName);
+        const listeners = [];
 
-					try {
-						const mod = require(modulePath);
-						
-						if(_.isFunction(mod.registerEvents)) {
-							//	:TODO: ... or just systemInit() / systemShutdown() & mods could call Events.on() / Events.removeListener() ?
-							mod.registerEvents(this);
-						}
-					} catch(e) {
+        events.forEach(eventName => {
+            const listenWrapper = _.partial(listener, _, eventName);
+            this.on(eventName, listenWrapper);
+            listeners.push( { eventName, listenWrapper } );
+        });
 
-					}
+        return listeners;
+    }
 
-					return nextModule(null);
-				}, err => {
-					return nextPath(err);
-				});
-			});
-		}, err => {
-			return cb(err);
-		});
-	}
+    removeMultipleEventListener(listeners) {
+        Log.trace( { events }, 'Removing listeners');
+        listeners.forEach(listener => {
+            this.removeListener(listener.eventName, listener.listenWrapper);
+        });
+    }
+
+    removeListener(event, listener) {
+        Log.trace( { event : event }, 'Removing listener');
+        return super.removeListener(event, listener);
+    }
+
+    startup(cb) {
+        return cb(null);
+    }
 };

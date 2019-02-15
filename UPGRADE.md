@@ -1,16 +1,17 @@
 # Introduction
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
-
 # Before Upgrading
-* Always back up your system! 
+* Always back up your system!
+* Seriously, always back up your system!
 * At least back up the `db` directory and your `menu.hjson` (or renamed equivalent)
 
-
 # General Notes
-Upgrades often come with changes to the default `menu.hjson`. It is wise to 
-use a *different* file name for your BBS's version of this file and point to
-it via `config.hjson`. For example:
+## Configuration File Updates
+In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the defualt `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+
+### menu.hjson
+Upgrades often come with changes to the default `menu_template.in.hjson`. It is wise to use a *different* file name for your BBS's version of this file and point to it via `config.hjson`. For example:
 
 ```hjson
 general: {
@@ -20,6 +21,9 @@ general: {
 
 After updating code, use a program such as DiffMerge to merge in updates to
 `my_bbs.hjson` from the shipping `menu.hjson`.
+
+### theme.hjson
+Any custom themes you have created may now be missing features as well. Take a look at the default `luciano_blocktronics/theme.hjson` file. You can use missing sections in your `theme.hjson` (which will generally correspond to sections you've also merged in to your `menu.hjson`).
 
 
 # Upgrading the Code
@@ -32,10 +36,36 @@ rm -rf npm_modules # do this any time you update Node.js itself
 npm install
 ```
 
-
 # Problems
 Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
+
+# 0.0.8-alpha to 0.0.9-alpha
+* Development is now against Node.js 10.x LTS. Follow your standard upgrade path to update to Node 10.x before using 0.0.9-alpha!
+* The property `justify` found on various views previously had `left` and `right` values swapped (oops!); you will need to adjust any custom `theme.hjson` that use one or the other and swap them as well.
+* Possible breaking changes in FSE: The MCI code `%TL13` for error indicator is now `%TL4`. This is part of a cleanup and standardization on "custom ranges". You may need to update your `theme.hjson` and related artwork.
+* Removed view width auto-size: Some views still can auto-size their height, but in general you should be explicit in your themes
+* More standardization using "custom ranges" and `itemFormat` / `focusItemFormat` semantics. Update your themes!
+* In addition to using `itemFormat`, the `onelinerz` module uses `userName` vs `username` (note the case) to match other modules
+* `loginServers.webSocket` configuration block has changed to be more consistent with other servers. Example:
+```
+webSocket: {
+    ws: {
+        enabled: true
+    }
+    wss: {
+        enabled: true
+        port: 1234
+    }
+    proxied: true	//	X-Forwarded-Proto: https support
+}
+```
+* The module export `registerEvents` has been deprecated. If you have a module that depends on this, use the new more generic `moduleInitialize` export instead.
+* The `system.db` `user_event_log` table has been updated to include a unique session ID. Previously this table was not used, but you will need to perform a slight maintenance task before it can be properly used. After updating to `0.0.9-alpha`, please run the following: `sqlite3 db/system.db DROP TABLE user_event_log;`. The new table format will be created and used at startup.
+* If you have art configured for message conference or area selection via the `art` configuration value, you will need to include a `show_art` menu reference. Defaulted to `changeMessageConfPreArt` for conferences and `changeMessageAreaPreArt` for areas & included in the example `menu.hjson`.
+* Config `defaults` section was theme related and as such, has been renamed to `theme`. `defaults.theme` is now `theme.default`, and `preLoginTheme` is now `theme.preLogin`. See `config.js` if this isn't clear as mud.
+* Similar to the last item, `defaults.general.passwordChar` in `theme.hjson` is now just `defaults.passwordChar`.
+
 
 # 0.0.7-alpha to 0.0.8-alpha
 ENiGMA 0.0.8-alpha comes with some structure changes:

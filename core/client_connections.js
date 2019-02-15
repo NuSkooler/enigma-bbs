@@ -1,106 +1,140 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const logger			= require('./logger.js');
-const Events            = require('./events.js');
+//  ENiGMA½
+const logger        = require('./logger.js');
+const Events        = require('./events.js');
+const UserProps     = require('./user_property.js');
 
-//	deps
-const _					= require('lodash');
-const moment			= require('moment');
+//  deps
+const _             = require('lodash');
+const moment        = require('moment');
+const hashids       = require('hashids');
 
-exports.getActiveConnections	= getActiveConnections;
-exports.getActiveNodeList		= getActiveNodeList;
-exports.addNewClient			= addNewClient;
-exports.removeClient			= removeClient;
-exports.getConnectionByUserId	= getConnectionByUserId;
+exports.getActiveConnections    = getActiveConnections;
+exports.getActiveConnectionList = getActiveConnectionList;
+exports.addNewClient            = addNewClient;
+exports.removeClient            = removeClient;
+exports.getConnectionByUserId   = getConnectionByUserId;
+exports.getConnectionByNodeId   = getConnectionByNodeId;
 
 const clientConnections = [];
-exports.clientConnections		= clientConnections;
+exports.clientConnections = clientConnections;
 
-function getActiveConnections() { return clientConnections; }
+function getActiveConnections(authUsersOnly = false) {
+    return clientConnections.filter(conn => {
+        return ((authUsersOnly && conn.user.isAuthenticated()) || !authUsersOnly);
+    });
+}
 
-function getActiveNodeList(authUsersOnly) {
+function getActiveConnectionList(authUsersOnly) {
 
-	if(!_.isBoolean(authUsersOnly)) {
-		authUsersOnly = true;
-	}
+    if(!_.isBoolean(authUsersOnly)) {
+        authUsersOnly = true;
+    }
 
-	const now = moment();
+    const now = moment();
 
-	const activeConnections = getActiveConnections().filter(ac => {
-		return ((authUsersOnly && ac.user.isAuthenticated()) || !authUsersOnly);
-	});
+    return _.map(getActiveConnections(authUsersOnly), ac => {
+        const entry = {
+            node            : ac.node,
+            authenticated   : ac.user.isAuthenticated(),
+            userId          : ac.user.userId,
+            action          : _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown'),
+        };
 
-	return _.map(activeConnections, ac => {
-		const entry = {
-			node			: ac.node,
-			authenticated	: ac.user.isAuthenticated(),
-			userId			: ac.user.userId,
-			action			: _.has(ac, 'currentMenuModule.menuConfig.desc') ? ac.currentMenuModule.menuConfig.desc : 'Unknown',
-		};
+        //
+        //  There may be a connection, but not a logged in user as of yet
+        //
+        if(ac.user.isAuthenticated()) {
+            entry.userName  = ac.user.username;
+            entry.realName  = ac.user.properties[UserProps.RealName];
+            entry.location  = ac.user.properties[UserProps.Location];
+            entry.affils    = entry.affiliation = ac.user.properties[UserProps.Affiliations];
 
-		//
-		//	There may be a connection, but not a logged in user as of yet
-		//
-		if(ac.user.isAuthenticated()) {
-			entry.userName	= ac.user.username;
-			entry.realName	= ac.user.properties.real_name;
-			entry.location	= ac.user.properties.location;
-			entry.affils	= ac.user.properties.affiliation;
-
-			const diff 		= now.diff(moment(ac.user.properties.last_login_timestamp), 'minutes');
-			entry.timeOn	= moment.duration(diff, 'minutes');
-		}
-		return entry;
-	});
+            const diff      = now.diff(moment(ac.user.properties[UserProps.LastLoginTs]), 'minutes');
+            entry.timeOn    = moment.duration(diff, 'minutes');
+        }
+        return entry;
+    });
 }
 
 function addNewClient(client, clientSock) {
-	const id			= client.session.id		= clientConnections.push(client) - 1;
-	const remoteAddress = client.remoteAddress	= clientSock.remoteAddress;
+    //
+    //  Assign ID/client ID to next lowest & available #
+    //
+    let id = 0;
+    for(let i = 0; i < clientConnections.length; ++i) {
+        if(clientConnections[i].id > id) {
+            break;
+        }
+        id++;
+    }
 
-	//	Create a client specific logger
-	//	Note that this will be updated @ login with additional information
-	client.log = logger.log.child( { clientId : id } );
+    client.session.id = id;
+    const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
+    //  create a unique identifier one-time ID for this session
+    client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
 
-	const connInfo = {
-		remoteAddress	: remoteAddress,
-		serverName		: client.session.serverName,
-		isSecure		: client.session.isSecure,
-	};
+    clientConnections.push(client);
+    clientConnections.sort( (c1, c2) => c1.session.id - c2.session.id);
 
-	if(client.log.debug()) {
-		connInfo.port		= clientSock.localPort;
-		connInfo.family		= clientSock.localFamily;
-	}
+    //  Create a client specific logger
+    //  Note that this will be updated @ login with additional information
+    client.log = logger.log.child( { clientId : id, sessionId : client.session.uniqueId } );
 
-	client.log.info(connInfo, 'Client connected');
+    const connInfo = {
+        remoteAddress   : remoteAddress,
+        serverName      : client.session.serverName,
+        isSecure        : client.session.isSecure,
+    };
 
-	Events.emit('codes.l33t.enigma.system.connected', { client : client, connectionCount : clientConnections.length } );
+    if(client.log.debug()) {
+        connInfo.port       = clientSock.localPort;
+        connInfo.family     = clientSock.localFamily;
+    }
 
-	return id;
+    client.log.info(connInfo, 'Client connected');
+
+    Events.emit(
+        Events.getSystemEvents().ClientConnected,
+        { client : client, connectionCount : clientConnections.length }
+    );
+
+    return id;
 }
 
 function removeClient(client) {
-	client.end();
+    client.end();
 
-	const i = clientConnections.indexOf(client);
-	if(i > -1) {
-		clientConnections.splice(i, 1);
+    const i = clientConnections.indexOf(client);
+    if(i > -1) {
+        clientConnections.splice(i, 1);
 
-		logger.log.info(
-			{
-				connectionCount	: clientConnections.length,
-				clientId		: client.session.id
-			},
-			'Client disconnected'
-			);
+        logger.log.info(
+            {
+                connectionCount : clientConnections.length,
+                clientId        : client.session.id
+            },
+            'Client disconnected'
+        );
 
-		Events.emit('codes.l33t.enigma.system.disconnected', { client : client, connectionCount : clientConnections.length } );
-	}
+        if(client.user && client.user.isValid()) {
+            const minutesOnline = moment().diff(moment(client.user.properties[UserProps.LastLoginTs]), 'minutes');
+            Events.emit(Events.getSystemEvents().UserLogoff, { user : client.user, minutesOnline } );
+        }
+
+        Events.emit(
+            Events.getSystemEvents().ClientDisconnected,
+            { client : client, connectionCount : clientConnections.length }
+        );
+    }
 }
 
 function getConnectionByUserId(userId) {
-	return getActiveConnections().find( ac => userId === ac.user.userId );
+    return getActiveConnections().find( ac => userId === ac.user.userId );
+}
+
+function getConnectionByNodeId(nodeId) {
+    return getActiveConnections().find( ac => nodeId == ac.node );
 }

@@ -1,87 +1,130 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const setClientTheme	= require('./theme.js').setClientTheme;
-const clientConnections	= require('./client_connections.js').clientConnections;
-const StatLog			= require('./stat_log.js');
-const logger			= require('./logger.js');
+//  ENiGMA½
+const setClientTheme    = require('./theme.js').setClientTheme;
+const clientConnections = require('./client_connections.js').clientConnections;
+const StatLog           = require('./stat_log.js');
+const logger            = require('./logger.js');
+const Events            = require('./events.js');
+const Config            = require('./config.js').get;
+const {
+    Errors,
+    ErrorReasons
+}                       = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
+const SysProps          = require('./system_property.js');
+const SystemLogKeys     = require('./system_log.js');
 
-//	deps
-const async				= require('async');
+//  deps
+const async             = require('async');
+const _                 = require('lodash');
 
-exports.userLogin		= userLogin;
+exports.userLogin       = userLogin;
 
 function userLogin(client, username, password, cb) {
-	client.user.authenticate(username, password, function authenticated(err) {
-		if(err) {
-			client.log.info( { username : username, error : err.message }, 'Failed login attempt');
+    const config = Config();
 
-			//	:TODO: if username exists, record failed login attempt to properties
-			//	:TODO: check Config max failed logon attempts/etc. - set err.maxAttempts = true
+    if(config.users.badUserNames.includes(username.toLowerCase())) {
+        client.log.info( { username, ip : client.remoteAddress }, 'Attempt to login with banned username');
 
-			return cb(err);
-		}
-		const user	= client.user;
+        //  slow down a bit to thwart brute force attacks
+        return setTimeout( () => {
+            return cb(Errors.BadLogin('Disallowed username', ErrorReasons.NotAllowed));
+        }, 2000);
+    }
 
-		//
-		//	Ensure this user is not already logged in.
-		//	Loop through active connections -- which includes the current --
-		//	and check for matching user ID. If the count is > 1, disallow.
-		//
-		let existingClientConnection;
-		clientConnections.forEach(function connEntry(cc) {
-			if(cc.user !== user && cc.user.userId === user.userId) {
-				existingClientConnection = cc;
-			}
-		});
+    client.user.authenticate(username, password, err => {
+        if(err) {
+            client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
+            const disconnect = config.users.failedLogin.disconnect;
+            if(disconnect > 0 && client.user.sessionFailedLoginAttempts >= disconnect) {
+                err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
+            }
 
-		if(existingClientConnection) {
-			client.log.info(
-				{
-					existingClientId	: existingClientConnection.session.id, 
-					username			: user.username, 
-					userId				: user.userId
-				},
-				'Already logged in'
-			);
+            client.log.info( { username, ip : client.remoteAddress, reason : err.message }, 'Failed login attempt');
+            return cb(err);
+        }
 
-			const existingConnError = new Error('Already logged in as supplied user');
-			existingConnError.existingConn = true;
+        const user = client.user;
 
-			//	:TODO: We should use EnigError & pass existing connection as second param
+        //  Good login; reset any failed attempts
+        delete user.sessionFailedLoginAttempts;
 
-			return cb(existingConnError);
-		}
+        //
+        //  Ensure this user is not already logged in.
+        //
+        const existingClientConnection = clientConnections.find(cc => {
+            return user !== cc.user &&          //  not current connection
+                user.userId === cc.user.userId; //  ...but same user
+        });
 
+        if(existingClientConnection) {
+            client.log.info(
+                {
+                    existingClientId    : existingClientConnection.session.id,
+                    username            : user.username,
+                    userId              : user.userId
+                },
+                'Already logged in'
+            );
 
-		//	update client logger with addition of username
-		client.log = logger.log.child( { clientId : client.log.fields.clientId, username : user.username });
-		client.log.info('Successful login');            
+            return cb(Errors.BadLogin(
+                `User ${user.username} already logged in.`,
+                ErrorReasons.AlreadyLoggedIn
+            ));
+        }
 
-		async.parallel(
-			[
-				function setTheme(callback) {
-					setClientTheme(client, user.properties.theme_id);
-					return callback(null);
-				},
-				function updateSystemLoginCount(callback) {
-					return StatLog.incrementSystemStat('login_count', 1, callback);
-				},
-				function recordLastLogin(callback) {
-					return StatLog.setUserStat(user, 'last_login_timestamp', StatLog.now, callback);
-				},
-				function updateUserLoginCount(callback) {
-					return StatLog.incrementUserStat(user, 'login_count', 1, callback);						
-				},
-				function recordLoginHistory(callback) {
-					const LOGIN_HISTORY_MAX	= 200;	//	history of up to last 200 callers
-					return StatLog.appendSystemLogEntry('user_login_history', user.userId, LOGIN_HISTORY_MAX, StatLog.KeepType.Max, callback);
-				}
-			],
-			err => {
-				return cb(err);
-			}
-		);
-	});
+        //  update client logger with addition of username
+        client.log = logger.log.child(
+            {
+                clientId    : client.log.fields.clientId,
+                sessionId   : client.log.fields.sessionId,
+                username    : user.username,
+            }
+        );
+        client.log.info('Successful login');
+
+        //  User's unique session identifier is the same as the connection itself
+        user.sessionId = client.session.uniqueId;   //  convenience
+
+        Events.emit(Events.getSystemEvents().UserLogin, { user } );
+
+        async.parallel(
+            [
+                function setTheme(callback) {
+                    setClientTheme(client, user.properties[UserProps.ThemeId]);
+                    return callback(null);
+                },
+                function updateSystemLoginCount(callback) {
+                    StatLog.incrementNonPersistentSystemStat(SysProps.LoginsToday, 1);
+                    return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
+                },
+                function recordLastLogin(callback) {
+                    return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
+                },
+                function updateUserLoginCount(callback) {
+                    return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
+                },
+                function recordLoginHistory(callback) {
+                    const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;
+                    const historyItem = JSON.stringify({
+                        userId      : user.userId,
+                        sessionId   : user.sessionId,
+                    });
+
+                    return StatLog.appendSystemLogEntry(
+                        SystemLogKeys.UserLoginHistory,
+                        historyItem,
+                        loginHistoryMax,
+                        StatLog.KeepType.Max,
+                        callback
+                    );
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    });
 }

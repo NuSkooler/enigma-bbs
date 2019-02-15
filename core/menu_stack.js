@@ -1,179 +1,211 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const loadMenu	= require('./menu_util.js').loadMenu;
-const Errors	= require('./enig_error.js').Errors;
+//  ENiGMA½
+const loadMenu  = require('./menu_util.js').loadMenu;
+const {
+    Errors,
+    ErrorReasons
+}               = require('./enig_error.js');
 
-//	deps
-const _			= require('lodash');
-const assert	= require('assert');
+//  deps
+const _         = require('lodash');
+const assert    = require('assert');
 
-//	:TODO: Stack is backwards.... top should be most recent! :)
+//  :TODO: Stack is backwards.... top should be most recent! :)
 
 module.exports = class MenuStack {
-	constructor(client) {
-		this.client	= client;
-		this.stack	= [];
-	}
+    constructor(client) {
+        this.client = client;
+        this.stack  = [];
+    }
 
-	push(moduleInfo) {
-		return this.stack.push(moduleInfo);
-	}
+    push(moduleInfo) {
+        return this.stack.push(moduleInfo);
+    }
 
-	pop() {
-		return this.stack.pop();
-	}
+    pop() {
+        return this.stack.pop();
+    }
 
-	peekPrev() {
-		if(this.stackSize > 1) {
-			return this.stack[this.stack.length - 2];
-		}
-	}
+    peekPrev() {
+        if(this.stackSize > 1) {
+            return this.stack[this.stack.length - 2];
+        }
+    }
 
-	top() {
-		if(this.stackSize > 0) {
-			return this.stack[this.stack.length - 1];
-		}
-	}
+    top() {
+        if(this.stackSize > 0) {
+            return this.stack[this.stack.length - 1];
+        }
+    }
 
-	get stackSize() {
-		return this.stack.length;
-	}
+    get stackSize() {
+        return this.stack.length;
+    }
 
-	get currentModule() {
-		const top = this.top();
-		if(top) {
-			return top.instance;
-		}
-	}
+    get currentModule() {
+        const top = this.top();
+        assert(top, 'Empty menu stack!');
+        return top.instance;
+    }
 
-	next(cb) {
-		const currentModuleInfo = this.top();
-		assert(currentModuleInfo, 'Empty menu stack!');
+    next(cb) {
+        const currentModuleInfo = this.top();
+        const menuConfig        = currentModuleInfo.instance.menuConfig;
+        const nextMenu          = this.client.acs.getConditionalValue(menuConfig.next, 'next');
+        if(!nextMenu) {
+            return cb(Array.isArray(menuConfig.next) ?
+                Errors.MenuStack('No matching condition for "next"', ErrorReasons.NoConditionMatch) :
+                Errors.MenuStack('Invalid or missing "next" member in menu config', ErrorReasons.InvalidNextMenu)
+            );
+        }
 
-		const menuConfig = currentModuleInfo.instance.menuConfig;
-		let nextMenu;
+        if(nextMenu === currentModuleInfo.name) {
+            return cb(Errors.MenuStack('Menu config "next" specifies current menu', ErrorReasons.AlreadyThere));
+        }
 
-		if(_.isArray(menuConfig.next)) {
-			nextMenu = this.client.acs.getConditionalValue(menuConfig.next, 'next');
-			if(!nextMenu) {
-				return cb(Errors.MenuStack('No matching condition for "next"', 'NOCONDMATCH'));
-			}
-		} else if(_.isString(menuConfig.next)) {
-			nextMenu = menuConfig.next;
-		} else {
-			return cb(Errors.MenuStack('Invalid or missing "next" member in menu config', 'BADNEXT'));
-		}
+        this.goto(nextMenu, { }, cb);
+    }
 
-		if(nextMenu === currentModuleInfo.name) {
-			return cb(Errors.MenuStack('Menu config "next" specifies current menu', 'ALREADYTHERE'));
-		}
+    prev(cb) {
+        const menuResult = this.top().instance.getMenuResult();
 
-		this.goto(nextMenu, { }, cb);
-	}
+        //  :TODO: leave() should really take a cb...
+        this.pop().instance.leave();    //  leave & remove current
 
-	prev(cb) {
-		const menuResult = this.top().instance.getMenuResult();
+        const previousModuleInfo = this.pop();  //  get previous
 
-		//	:TODO: leave() should really take a cb...
-		this.pop().instance.leave();	//	leave & remove current
-	
-		const previousModuleInfo = this.pop();	//	get previous
+        if(previousModuleInfo) {
+            const opts = {
+                extraArgs       : previousModuleInfo.extraArgs,
+                savedState      : previousModuleInfo.savedState,
+                lastMenuResult  : menuResult,
+            };
 
-		if(previousModuleInfo) {
-			const opts = {
-				extraArgs		: previousModuleInfo.extraArgs, 
-				savedState		: previousModuleInfo.savedState,
-				lastMenuResult	: menuResult,
-			};
+            return this.goto(previousModuleInfo.name, opts, cb);
+        }
 
-			return this.goto(previousModuleInfo.name, opts, cb);
-		}
-		
-		return cb(Errors.MenuStack('No previous menu available', 'NOPREV'));
-	}
+        return cb(Errors.MenuStack('No previous menu available', ErrorReasons.NoPreviousMenu));
+    }
 
-	goto(name, options, cb) {
-		const currentModuleInfo = this.top();
+    goto(name, options, cb) {
+        const currentModuleInfo = this.top();
 
-		if(!cb && _.isFunction(options)) {
-			cb = options;
-			options = {};
-		}
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
 
-		const self = this;
+        options = options || {};
+        const self = this;
 
-		if(currentModuleInfo && name === currentModuleInfo.name) {
-			if(cb) {
-				cb(Errors.MenuStack('Already at supplied menu', 'ALREADYTHERE'));				
-			}
-			return;
-		}
+        if(currentModuleInfo && name === currentModuleInfo.name) {
+            if(cb) {
+                cb(Errors.MenuStack('Already at supplied menu', ErrorReasons.AlreadyThere));
+            }
+            return;
+        }
 
-		const loadOpts = {
-			name		: name,
-			client		: self.client, 
-		};
+        const loadOpts = {
+            name        : name,
+            client      : self.client,
+        };
 
-		if(_.isObject(options)) {
-			loadOpts.extraArgs		= options.extraArgs;
-			loadOpts.lastMenuResult	= options.lastMenuResult;
-		}
+        if(currentModuleInfo && currentModuleInfo.menuFlags.includes('forwardArgs')) {
+            loadOpts.extraArgs = currentModuleInfo.extraArgs;
+        } else {
+            loadOpts.extraArgs = options.extraArgs || _.get(options, 'formData.value');
+        }
+        loadOpts.lastMenuResult = options.lastMenuResult;
 
-		loadMenu(loadOpts, (err, modInst) => {
-			if(err) {
-				//	:TODO: probably should just require a cb...
-				const errCb = cb || self.client.defaultHandlerMissingMod();
-				errCb(err);
-			} else {
-				self.client.log.debug( { menuName : name }, 'Goto menu module');
+        loadMenu(loadOpts, (err, modInst) => {
+            if(err) {
+                //  :TODO: probably should just require a cb...
+                const errCb = cb || self.client.defaultHandlerMissingMod();
+                errCb(err);
+            } else {
+                self.client.log.debug( { menuName : name }, 'Goto menu module');
 
-				const menuFlags = (options && Array.isArray(options.menuFlags)) ? options.menuFlags : modInst.menuConfig.options.menuFlags;
+                if(!this.client.acs.hasMenuModuleAccess(modInst)) {
+                    if(cb) {
+                        return cb(Errors.AccessDenied('No access to this menu'));
+                    }
+                    return;
+                }
 
-				if(currentModuleInfo) {
-					//	save stack state
-					currentModuleInfo.savedState = currentModuleInfo.instance.getSaveState();
+                //
+                //  Handle deprecated 'options' block by merging to config and warning user.
+                //  :TODO: Remove in 0.0.10+
+                //
+                if(modInst.menuConfig.options) {
+                    self.client.log.warn(
+                        { options : modInst.menuConfig.options },
+                        'Use of "options" is deprecated. Move relevant members to "config" block! Support will be fully removed in future versions'
+                    );
+                    Object.assign(modInst.menuConfig.config || {}, modInst.menuConfig.options);
+                    delete modInst.menuConfig.options;
+                }
 
-					currentModuleInfo.instance.leave();
+                //
+                //  If menuFlags were supplied in menu.hjson, they should win over
+                //  anything supplied in code.
+                //
+                let menuFlags;
+                if(0 === modInst.menuConfig.config.menuFlags.length) {
+                    menuFlags = Array.isArray(options.menuFlags) ? options.menuFlags : [];
+                } else {
+                    menuFlags = modInst.menuConfig.config.menuFlags;
 
-					if(currentModuleInfo.menuFlags.includes('noHistory')) {
-						this.pop();
-					}
+                    //  in code we can ask to merge in
+                    if(Array.isArray(options.menuFlags) && options.menuFlags.includes('mergeFlags')) {
+                        menuFlags = _.uniq(menuFlags.concat(options.menuFlags));
+                    }
+                }
 
-					if(menuFlags.includes('popParent')) {
-						this.pop().instance.leave();	//	leave & remove current
-					}
-				}
+                if(currentModuleInfo) {
+                    //  save stack state
+                    currentModuleInfo.savedState = currentModuleInfo.instance.getSaveState();
 
-				self.push({
-					name		: name,
-					instance	: modInst,
-					extraArgs	: loadOpts.extraArgs,
-					menuFlags	: menuFlags,
-				});
+                    currentModuleInfo.instance.leave();
 
-				//	restore previous state if requested
-				if(options && options.savedState) {
-					modInst.restoreSavedState(options.savedState);
-				}
+                    if(currentModuleInfo.menuFlags.includes('noHistory')) {
+                        this.pop();
+                    }
 
-				const stackEntries = self.stack.map(stackEntry => {
-					let name = stackEntry.name;
-					if(stackEntry.instance.menuConfig.options.menuFlags.length > 0) {
-						name += ` (${stackEntry.instance.menuConfig.options.menuFlags.join(', ')})`;
-					}
-					return name;
-				});
+                    if(menuFlags.includes('popParent')) {
+                        this.pop().instance.leave();    //  leave & remove current
+                    }
+                }
 
-				self.client.log.trace( { stack : stackEntries }, 'Updated menu stack' );
+                self.push({
+                    name        : name,
+                    instance    : modInst,
+                    extraArgs   : loadOpts.extraArgs,
+                    menuFlags   : menuFlags,
+                });
 
-				modInst.enter();
+                //  restore previous state if requested
+                if(options.savedState) {
+                    modInst.restoreSavedState(options.savedState);
+                }
 
-				if(cb) {
-					cb(null);
-				}
-			}
-		});
-	}
+                const stackEntries = self.stack.map(stackEntry => {
+                    let name = stackEntry.name;
+                    if(stackEntry.instance.menuConfig.config.menuFlags.length > 0) {
+                        name += ` (${stackEntry.instance.menuConfig.config.menuFlags.join(', ')})`;
+                    }
+                    return name;
+                });
+
+                self.client.log.trace( { stack : stackEntries }, 'Updated menu stack' );
+
+                modInst.enter();
+
+                if(cb) {
+                    cb(null);
+                }
+            }
+        });
+    }
 };

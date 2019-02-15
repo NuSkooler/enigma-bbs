@@ -2,6 +2,7 @@
 *.pem
 
 #	Various directories
+config/config.hjson
 logs/
 db/
 dropfiles/

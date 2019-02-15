@@ -1,106 +1,119 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config			= require('../../config.js').config;
-const TelnetClient		= require('./telnet.js').TelnetClient;
-const Log				= require('../../logger.js').log;
-const LoginServerModule	= require('../../login_server_module.js');
+//  ENiGMA½
+const Config            = require('../../config.js').get;
+const TelnetClient      = require('./telnet.js').TelnetClient;
+const Log               = require('../../logger.js').log;
+const LoginServerModule = require('../../login_server_module.js');
+const { Errors }        = require('../../enig_error.js');
 
-//	deps
-const _					= require('lodash');
-const WebSocketServer	= require('ws').Server;
-const http				= require('http');
-const https				= require('https');
-const fs				= require('graceful-fs');
-const Writable			= require('stream');
+//  deps
+const _                 = require('lodash');
+const WebSocketServer   = require('ws').Server;
+const http              = require('http');
+const https             = require('https');
+const fs                = require('graceful-fs');
+const Writable          = require('stream');
+const forEachSeries     = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
-	name		: 'WebSocket',
-	desc		: 'WebSocket Server',
-	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.websocket.server',
+    name        : 'WebSocket',
+    desc        : 'WebSocket Server',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.websocket.server',
 };
 
 function WebSocketClient(ws, req, serverType) {
 
-	Object.defineProperty(this, 'isSecure', {
-		get : () => ('secure' === serverType || true === this.proxied) ? true : false,
-	});
+    Object.defineProperty(this, 'isSecure', {
+        get : () => ('secure' === serverType || true === this.proxied) ? true : false,
+    });
 
-	const self = this;
+    const self = this;
 
-	//
-	//	This bridge makes accessible various calls that client sub classes
-	//	want to access on I/O socket
-	//
-	this.socketBridge = new class SocketBridge extends Writable {
-		constructor(ws) {
-			super();
-			this.ws = ws;
-		}
+    this.dataHandler = function(data) {
+        if(self.pipedDest) {
+            self.pipedDest.write(data);
+        } else {
+            self.socketBridge.emit('data', data);
+        }
+    };
 
-		end() {
-			return ws.close();
-		}
+    //
+    //  This bridge makes accessible various calls that client sub classes
+    //  want to access on I/O socket
+    //
+    this.socketBridge = new class SocketBridge extends Writable {
+        constructor(ws) {
+            super();
+            this.ws = ws;
+        }
 
-		write(data, cb) {
-			cb = cb || ( () => { /* eat it up */} );	//	handle data writes after close
+        end() {
+            return ws.close();
+        }
 
-			return this.ws.send(data, { binary : true }, cb);
-		}
+        write(data, cb) {
+            cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
 
-		//	we need to fake some streaming work
-		unpipe() {
-			Log.trace('WebSocket SocketBridge unpipe()');
-		}
+            return this.ws.send(data, { binary : true }, cb);
+        }
 
-		resume() {
-			Log.trace('WebSocket SocketBridge resume()');
-		}
+        pipe(dest) {
+            Log.trace('WebSocket SocketBridge pipe()');
+            self.pipedDest = dest;
+        }
 
-		get remoteAddress() {
-			//	Support X-Forwarded-For and X-Real-IP headers for proxied connections
-			return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
-		}
-	}(ws);
+        unpipe() {
+            Log.trace('WebSocket SocketBridge unpipe()');
+            self.pipedDest = null;
+        }
 
-	ws.on('message', data => {
-		this.socketBridge.emit('data', data);
-	});
+        resume() {
+            Log.trace('WebSocket SocketBridge resume()');
+        }
 
-	ws.on('close', () => {
-		//	we'll remove client connection which will in turn end() via our SocketBridge above
-		return this.emit('end');
-	});
+        get remoteAddress() {
+            //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
+            return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
+        }
+    }(ws);
 
-	//
-	//	Montior connection status with ping/pong
-	//
-	ws.on('pong', () => { 
-		Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
-		ws.isConnectionAlive = true;
-	});
+    ws.on('message', this.dataHandler);
 
-	TelnetClient.call(this, this.socketBridge, this.socketBridge);
+    ws.on('close', () => {
+        //  we'll remove client connection which will in turn end() via our SocketBridge above
+        return this.emit('end');
+    });
 
-	Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
+    //
+    //  Montior connection status with ping/pong
+    //
+    ws.on('pong', () => {
+        Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
+        ws.isConnectionAlive = true;
+    });
 
-	//
-	//	If the config allows it, look for 'x-forwarded-proto' as "https"
-	//	to override |isSecure|
-	//
-	if(true === _.get(Config, 'loginServers.webSocket.proxied') &&
-		'https' === req.headers['x-forwarded-proto'])
-	{
-		Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
-		this.proxied = true;
-	} else {
-		this.proxied = false;
-	}
+    TelnetClient.call(this, this.socketBridge, this.socketBridge);
 
-	//	start handshake process
-	this.banner();
+    Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
+
+    //
+    //  If the config allows it, look for 'x-forwarded-proto' as "https"
+    //  to override |isSecure|
+    //
+    if(true === _.get(Config(), 'loginServers.webSocket.proxied') &&
+        'https' === req.headers['x-forwarded-proto'])
+    {
+        Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
+        this.proxied = true;
+    } else {
+        this.proxied = false;
+    }
+
+    //  start handshake process
+    this.banner();
 }
 
 require('util').inherits(WebSocketClient, TelnetClient);
@@ -108,98 +121,114 @@ require('util').inherits(WebSocketClient, TelnetClient);
 const WSS_SERVER_TYPES = [ 'insecure', 'secure' ];
 
 exports.getModule = class WebSocketLoginServer extends LoginServerModule {
-	constructor() {
-		super();
-	}
+    constructor() {
+        super();
+    }
 
-	createServer() {
-		//
-		//	We will actually create up to two servers:
-		//	* insecure websocket (ws://)
-		//	* secure (tls) websocket (wss://)
-		//
-		const config = _.get(Config, 'loginServers.webSocket') || { enabled : false };
-		if(!config || true !== config.enabled || !(config.port || config.securePort)) {
-			return;
-		}
+    createServer(cb) {
+        //
+        //  We will actually create up to two servers:
+        //  * insecure websocket (ws://)
+        //  * secure (tls) websocket (wss://)
+        //
+        const config = _.get(Config(), 'loginServers.webSocket');
+        if(!_.isObject(config)) {
+            return cb(null);
+        }
 
-		if(config.port) {
-			const httpServer = http.createServer( (req, resp) => {
-				//	dummy handler
-				resp.writeHead(200);
-				return resp.end('ENiGMA½ BBS WebSocket Server!');
-			});
+        const wsPort    = _.get(config, 'ws.port');
+        const wssPort   = _.get(config, 'wss.port');
 
-			this.insecure = {
-				httpServer	: httpServer,
-				wsServer	: new WebSocketServer( { server : httpServer } ),
-			};
-		}
+        if(true === _.get(config, 'ws.enabled') && _.isNumber(wsPort)) {
+            const httpServer = http.createServer( (req, resp) => {
+                //  dummy handler
+                resp.writeHead(200);
+                return resp.end('ENiGMA½ BBS WebSocket Server!');
+            });
 
-		if(config.securePort) {
-			const httpServer = https.createServer({
-				key		: fs.readFileSync(Config.loginServers.webSocket.keyPem),
-				cert	: fs.readFileSync(Config.loginServers.webSocket.certPem),
-			});
+            this.insecure = {
+                httpServer  : httpServer,
+                wsServer    : new WebSocketServer( { server : httpServer } ),
+            };
+        }
 
-			this.secure = {
-				httpServer	: httpServer,
-				wsServer	: new WebSocketServer( { server : httpServer } ),
-			};
-		}
-	}
+        if(_.isObject(config, 'wss') && true === _.get(config, 'wss.enabled') && _.isNumber(wssPort)) {
+            const httpServer = https.createServer({
+                key     : fs.readFileSync(config.wss.keyPem),
+                cert    : fs.readFileSync(config.wss.certPem),
+            });
 
-	listen() {
-		WSS_SERVER_TYPES.forEach(serverType => {
-			const server = this[serverType];
-			if(!server) {
-				return;
-			}
+            this.secure = {
+                httpServer  : httpServer,
+                wsServer    : new WebSocketServer( { server : httpServer } ),
+            };
+        }
 
-			const serverName 	= `${ModuleInfo.name} (${serverType})`;
-			const port			= parseInt(_.get(Config, [ 'loginServers', 'webSocket', 'secure' === serverType ? 'securePort' : 'port' ] ));
+        return cb(null);
+    }
 
-			if(isNaN(port)) {
-				Log.error( { server : serverName, port : port }, 'Cannot load server (invalid port)' );
-				return;
-			}
+    listen(cb) {
+        //
+        //  Send pings every 30s
+        //
+        setInterval( () => {
+            WSS_SERVER_TYPES.forEach(serverType => {
+                if(this[serverType]) {
+                    this[serverType].wsServer.clients.forEach(ws => {
+                        if(false === ws.isConnectionAlive) {
+                            Log.debug('WebSocket connection seems inactive. Terminating.');
+                            return ws.terminate();
+                        }
 
-			server.httpServer.listen(port);
+                        ws.isConnectionAlive = false;   //  pong will reset this
 
-			server.wsServer.on('connection', (ws, req) => {
-				const webSocketClient = new WebSocketClient(ws, req, serverType);
-				this.handleNewClient(webSocketClient, webSocketClient.socketBridge, ModuleInfo);
-			});
+                        Log.trace('Ping to remote WebSocket client');
+                        try {
+                            ws.ping('', false);  //  false=don't mask
+                        } catch(e) {    //  don't barf on closing state
+                            /* nothing */
+                        }
+                    });
+                }
+            });
+        }, 30000);
 
-			Log.info( { server : serverName, port : port }, 'Listening for connections' );
-		});
+        forEachSeries(WSS_SERVER_TYPES, (serverType, nextServerType) => {
+            const server = this[serverType];
+            if(!server) {
+                return nextServerType(null);
+            }
 
-		//
-		//	Send pings every 30s
-		//
-		setInterval( () => {
-			WSS_SERVER_TYPES.forEach(serverType => {
-				if(this[serverType]) {
-					this[serverType].wsServer.clients.forEach(ws => {
-						if(false === ws.isConnectionAlive) {
-							Log.debug('WebSocket connection seems inactive. Terminating.');
-							return ws.terminate();
-						}
+            const serverName    = `${ModuleInfo.name} (${serverType})`;
+            const confPort      = _.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] );
+            const port          = parseInt(confPort);
 
-						ws.isConnectionAlive = false;	//	pong will reset this
-						
-						Log.trace('Ping to remote WebSocket client');
-						return ws.ping('', false, true);
-					});
-				}
-			});
-		}, 30000);	
+            if(isNaN(port)) {
+                Log.error( { server : serverName, port : confPort }, 'Cannot load server (invalid port)' );
+                return nextServerType(Errors.Invalid(`Invalid port: ${confPort}`));
+            }
 
-		return true;
-	}
+            server.httpServer.listen(port, err => {
+                if(err) {
+                    return nextServerType(err);
+                }
 
-	webSocketConnection(conn) {
-		const webSocketClient = new WebSocketClient(conn);
-		this.handleNewClient(webSocketClient, webSocketClient.socketShim, ModuleInfo);
-	}
+                server.wsServer.on('connection', (ws, req) => {
+                    const webSocketClient = new WebSocketClient(ws, req, serverType);
+                    this.handleNewClient(webSocketClient, webSocketClient.socketBridge, ModuleInfo);
+                });
+
+                Log.info( { server : serverName, port : port }, 'Listening for connections' );
+                return nextServerType(null);
+            });
+        },
+        err => {
+            cb(err);
+        });
+    }
+
+    webSocketConnection(conn) {
+        const webSocketClient = new WebSocketClient(conn);
+        this.handleNewClient(webSocketClient, webSocketClient.socketShim, ModuleInfo);
+    }
 };

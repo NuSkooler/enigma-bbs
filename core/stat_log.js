@@ -1,285 +1,378 @@
 /* jslint node: true */
 'use strict';
 
-const sysDb		= require('./database.js').dbs.system;
+const sysDb     = require('./database.js').dbs.system;
+const {
+    getISOTimestampString
+}               = require('./database.js');
+const Errors    = require('./enig_error.js');
 
-//	deps
-const _			= require('lodash');
-const moment	= require('moment');
+//  deps
+const _         = require('lodash');
+const moment    = require('moment');
 
 /*
-	System Event Log & Stats
-	------------------------
-	
-	System & user specific:
-	* Events for generating various statistics, logs such as last callers, etc.
-	* Stats such as counters
+    System Event Log & Stats
+    ------------------------
 
-	User specific stats are simply an alternate interface to user properties, while
-	system wide entries are handled on their own. Both are read accessible non-blocking
-	making them easily available for MCI codes for example. 
+    System & user specific:
+    * Events for generating various statistics, logs such as last callers, etc.
+    * Stats such as counters
+
+    User specific stats are simply an alternate interface to user properties, while
+    system wide entries are handled on their own. Both are read accessible non-blocking
+    making them easily available for MCI codes for example.
 */
 class StatLog {
-	constructor() {
-		this.systemStats = {};
-	}
+    constructor() {
+        this.systemStats = {};
+    }
 
-	init(cb) {
-		//
-		//	Load previous state/values of |this.systemStats|
-		//
-		const self = this;
+    init(cb) {
+        //
+        //  Load previous state/values of |this.systemStats|
+        //
+        const self = this;
 
-		sysDb.each(
-			`SELECT stat_name, stat_value
-			FROM system_stat;`,
-			(err, row) => {
-				if(row) {
-					self.systemStats[row.stat_name] = row.stat_value;
-				}
-			},
-			err => {
-				return cb(err);
-			}
-		);
-	}
+        sysDb.each(
+            `SELECT stat_name, stat_value
+            FROM system_stat;`,
+            (err, row) => {
+                if(row) {
+                    self.systemStats[row.stat_name] = row.stat_value;
+                }
+            },
+            err => {
+                return cb(err);
+            }
+        );
+    }
 
-	get KeepDays() {
-		return {
-			Forever : -1,
-		};
-	}
+    get KeepDays() {
+        return {
+            Forever : -1,
+        };
+    }
 
-	get KeepType() {
-		return {
-			Forever	: 'forever',
-			Days	: 'days',
-			Max		: 'max',
-			Count	: 'max',
-		};
-	}
+    get KeepType() {
+        return {
+            Forever : 'forever',
+            Days    : 'days',
+            Max     : 'max',
+            Count   : 'max',
+        };
+    }
 
-	get Order() {
-		return {
-			Timestamp		: 'timestamp_asc',
-			TimestampAsc	: 'timestamp_asc',
-			TimestampDesc	: 'timestamp_desc',
-			Random			: 'random',
-		};
-	} 
+    get Order() {
+        return {
+            Timestamp       : 'timestamp_asc',
+            TimestampAsc    : 'timestamp_asc',
+            TimestampDesc   : 'timestamp_desc',
+            Random          : 'random',
+        };
+    }
 
-	setNonPeristentSystemStat(statName, statValue) {
-		this.systemStats[statName] = statValue;
-	}
+    setNonPersistentSystemStat(statName, statValue) {
+        this.systemStats[statName] = statValue;
+    }
 
-	setSystemStat(statName, statValue, cb) {
-		//	live stats
-		this.systemStats[statName] = statValue;
+    incrementNonPersistentSystemStat(statName, incrementBy) {
+        incrementBy = incrementBy || 1;
 
-		//	persisted stats
-		sysDb.run(
-			`REPLACE INTO system_stat (stat_name, stat_value)
-			VALUES (?, ?);`,
-			[ statName, statValue ],
-			err => {
-				//	cb optional - callers may fire & forget
-				if(cb) {
-					return cb(err);
-				}
-			}
-		);
-	}
+        let newValue = parseInt(this.systemStats[statName]);
+        if(!isNaN(newValue)) {
+            newValue += incrementBy;
+        } else {
+            newValue = incrementBy;
+        }
+        this.setNonPersistentSystemStat(statName, newValue);
+        return newValue;
+    }
 
-	getSystemStat(statName) { return this.systemStats[statName]; }
+    setSystemStat(statName, statValue, cb) {
+        //  live stats
+        this.systemStats[statName] = statValue;
 
-	getSystemStatNum(statName) {
-		return parseInt(this.getSystemStat(statName)) || 0;
-	}
+        //  persisted stats
+        sysDb.run(
+            `REPLACE INTO system_stat (stat_name, stat_value)
+            VALUES (?, ?);`,
+            [ statName, statValue ],
+            err => {
+                //  cb optional - callers may fire & forget
+                if(cb) {
+                    return cb(err);
+                }
+            }
+        );
+    }
 
-	incrementSystemStat(statName, incrementBy, cb) {
-		incrementBy = incrementBy || 1;
+    getSystemStat(statName) { return this.systemStats[statName]; }
 
-		let newValue = parseInt(this.systemStats[statName]);
-		if(newValue) {
-			if(!_.isNumber(newValue)) {
-				return cb(new Error(`Value for ${statName} is not a number!`));
-			}
+    getSystemStatNum(statName) {
+        return parseInt(this.getSystemStat(statName)) || 0;
+    }
 
-			newValue += incrementBy;
-		} else {
-			newValue = incrementBy;
-		}
+    incrementSystemStat(statName, incrementBy, cb) {
+        const newValue = this.incrementNonPersistentSystemStat(statName, incrementBy);
+        return this.setSystemStat(statName, newValue, cb);
+    }
 
-		return this.setSystemStat(statName, newValue, cb);
-	}
+    //
+    //  User specific stats
+    //  These are simply convenience methods to the user's properties
+    //
+    setUserStatWithOptions(user, statName, statValue, options, cb) {
+        //  note: cb is optional in PersistUserProperty
+        user.persistProperty(statName, statValue, cb);
 
-	//
-	//	User specific stats
-	//	These are simply convience methods to the user's properties
-	//
-	setUserStat(user, statName, statValue, cb) {
-		//	note: cb is optional in PersistUserProperty
-		return user.persistProperty(statName, statValue, cb);
-	}
+        if(!options.noEvent) {
+            const Events = require('./events.js');  //  we need to late load currently
+            Events.emit(Events.getSystemEvents().UserStatSet, { user, statName, statValue } );
+        }
+    }
 
-	getUserStat(user, statName) {
-		return user.properties[statName];
-	}
+    setUserStat(user, statName, statValue, cb) {
+        return this.setUserStatWithOptions(user, statName, statValue, {}, cb);
+    }
 
-	getUserStatNum(user, statName) {
-		return parseInt(this.getUserStat(user, statName)) || 0;
-	}
+    getUserStat(user, statName) {
+        return user.properties[statName];
+    }
 
-	incrementUserStat(user, statName, incrementBy, cb) {
-		incrementBy = incrementBy || 1;
+    getUserStatNum(user, statName) {
+        return parseInt(this.getUserStat(user, statName)) || 0;
+    }
 
-		let newValue = parseInt(user.properties[statName]);
-		if(newValue) {
-			if(!_.isNumber(newValue)) {
-				return cb(new Error(`Value for ${statName} is not a number!`));
-			}
+    incrementUserStat(user, statName, incrementBy, cb) {
+        incrementBy = incrementBy || 1;
 
-			newValue += incrementBy;			
-		} else {
-			newValue = incrementBy;
-		}
+        const oldValue = user.getPropertyAsNumber(statName) || 0;
+        const newValue = oldValue + incrementBy;
 
-		return this.setUserStat(user, statName, newValue, cb);
-	}
+        this.setUserStatWithOptions(
+            user,
+            statName,
+            newValue,
+            { noEvent : true },
+            err => {
+                if(!err) {
+                    const Events = require('./events.js');  //  we need to late load currently
+                    Events.emit(
+                        Events.getSystemEvents().UserStatIncrement,
+                        {
+                            user,
+                            statName,
+                            oldValue,
+                            statIncrementBy : incrementBy,
+                            statValue       : newValue
+                        }
+                    );
+                }
 
-	//	the time "now" in the ISO format we use and love :)
-	get now() { return moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ'); }
+                if(cb) {
+                    return cb(err);
+                }
+            }
+        );
+    }
 
-	appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
-		sysDb.run(
-			`INSERT INTO system_event_log (timestamp, log_name, log_value)
-			VALUES (?, ?, ?);`,
-			[ this.now, logName, logValue ],
-			() => {
-				//
-				//	Handle keep
-				//
-				if(-1 === keep) {
-					if(cb) {
-						return cb(null);
-					}
-					return;
-				}
+    //  the time "now" in the ISO format we use and love :)
+    get now() {
+        return getISOTimestampString();
+    }
 
-				switch(keepType) {
-					//	keep # of days
-					case 'days' :
-						sysDb.run(
-							`DELETE FROM system_event_log
-							WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
-							[ logName ],
-							err => {
-								//	cb optional - callers may fire & forget
-								if(cb) {
-									return cb(err);
-								}
-							}
-						);
-						break;
+    appendSystemLogEntry(logName, logValue, keep, keepType, cb) {
+        sysDb.run(
+            `INSERT INTO system_event_log (timestamp, log_name, log_value)
+            VALUES (?, ?, ?);`,
+            [ this.now, logName, logValue ],
+            () => {
+                //
+                //  Handle keep
+                //
+                if(-1 === keep) {
+                    if(cb) {
+                        return cb(null);
+                    }
+                    return;
+                }
 
-					case 'count':
-					case 'max' :
-						//	keep max of N/count
-						sysDb.run(
-							`DELETE FROM system_event_log
-							WHERE id IN(
-								SELECT id 
-								FROM system_event_log
-								WHERE log_name = ?
-								ORDER BY id DESC
-								LIMIT -1 OFFSET ${keep}
-							);`,
-							[ logName ],
-							err => {
-								if(cb) {
-									return cb(err);
-								}
-							}
-						);
-						break; 
+                switch(keepType) {
+                    //  keep # of days
+                    case 'days' :
+                        sysDb.run(
+                            `DELETE FROM system_event_log
+                            WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
+                            [ logName ],
+                            err => {
+                                //  cb optional - callers may fire & forget
+                                if(cb) {
+                                    return cb(err);
+                                }
+                            }
+                        );
+                        break;
 
-					case 'forever' :
-					default :
-						//	nop
-						break;
-				}							
-			}
-		);
-	}
+                    case 'count':
+                    case 'max' :
+                        //  keep max of N/count
+                        sysDb.run(
+                            `DELETE FROM system_event_log
+                            WHERE id IN(
+                                SELECT id 
+                                FROM system_event_log
+                                WHERE log_name = ?
+                                ORDER BY id DESC
+                                LIMIT -1 OFFSET ${keep}
+                            );`,
+                            [ logName ],
+                            err => {
+                                if(cb) {
+                                    return cb(err);
+                                }
+                            }
+                        );
+                        break;
 
-	getSystemLogEntries(logName, order, limit, cb) {
-		let sql = 
-			`SELECT timestamp, log_value
-			FROM system_event_log
-			WHERE log_name = ?`;
+                    case 'forever' :
+                    default :
+                        //  nop
+                        break;
+                }
+            }
+        );
+    }
 
-		switch(order) {
-			case 'timestamp' :
-			case 'timestamp_asc' :
-				sql += ' ORDER BY timestamp ASC';
-				break;
+    /*
+        Find System Log entries by |filter|:
 
-			case 'timestamp_desc' :
-				sql += ' ORDER BY timestamp DESC';
-				break;
+        filter.logName (required)
+        filter.resultType = (obj) | count
+            where obj contains timestamp and log_value
+        filter.limit
+        filter.date - exact date to filter against
+        filter.order = (timestamp) | timestamp_asc | timestamp_desc | random
+    */
+    findSystemLogEntries(filter, cb) {
+        filter = filter || {};
+        if(!_.isString(filter.logName)) {
+            return cb(Errors.MissingParam('filter.logName is required'));
+        }
 
-			case 'random'	: 
-				sql += ' ORDER BY RANDOM()';
-		}
+        filter.resultType   = filter.resultType || 'obj';
+        filter.order        = filter.order || 'timestamp';
 
-		if(!cb && _.isFunction(limit)) {
-			cb		= limit;
-			limit	= 0;
-		} else {
-			limit = limit || 0;
-		}
+        let sql;
+        if('count' === filter.resultType) {
+            sql =
+                `SELECT COUNT() AS count
+                FROM system_event_log`;
+        } else {
+            sql =
+                `SELECT timestamp, log_value
+                FROM system_event_log`;
+        }
 
-		if(0 !== limit) {
-			sql += ` LIMIT ${limit}`;
-		}
+        sql += ' WHERE log_name = ?';
 
-		sql += ';';
+        if(filter.date) {
+            filter.date = moment(filter.date);
+            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`;
+        }
 
-		sysDb.all(sql, [ logName ], (err, rows) => {
-			return cb(err, rows);
-		});
-	}
+        if('count' !== filter.resultType) {
+            switch(filter.order) {
+                case 'timestamp' :
+                case 'timestamp_asc' :
+                    sql += ' ORDER BY timestamp ASC';
+                    break;
 
-	appendUserLogEntry(user, logName, logValue, keepDays, cb) {
-		sysDb.run(
-			`INSERT INTO user_event_log (timestamp, user_id, log_name, log_value)
-			VALUES (?, ?, ?, ?);`,
-			[ this.now, user.userId, logName, logValue ],
-			() => {
-				//
-				//	Handle keepDays
-				//
-				if(-1 === keepDays) {
-					if(cb) {
-						return cb(null);
-					}
-					return;
-				}
+                case 'timestamp_desc' :
+                    sql += ' ORDER BY timestamp DESC';
+                    break;
 
-				sysDb.run(
-					`DELETE FROM user_event_log
-					WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
-					[ user.userId, logName ],
-					err => {
-						//	cb optional - callers may fire & forget
-						if(cb) {
-							return cb(err);
-						}
-					}
-				);
-			}
-		);
-	}	
+                case 'random'   :
+                    sql += ' ORDER BY RANDOM()';
+                    break;
+            }
+        }
+
+        if(_.isNumber(filter.limit) && 0 !== filter.limit) {
+            sql += ` LIMIT ${filter.limit}`;
+        }
+
+        sql += ';';
+
+        if('count' === filter.resultType) {
+            sysDb.get(sql, [ filter.logName ], (err, row) => {
+                return cb(err, row ? row.count : 0);
+            });
+        } else {
+            sysDb.all(sql, [ filter.logName ], (err, rows) => {
+                return cb(err, rows);
+            });
+        }
+    }
+
+    getSystemLogEntries(logName, order, limit, cb) {
+        if(!cb && _.isFunction(limit)) {
+            cb      = limit;
+            limit   = 0;
+        } else {
+            limit = limit || 0;
+        }
+
+        const filter = {
+            logName,
+            order,
+            limit,
+        };
+        return this.findSystemLogEntries(filter, cb);
+    }
+
+    appendUserLogEntry(user, logName, logValue, keepDays, cb) {
+        sysDb.run(
+            `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
+            VALUES (?, ?, ?, ?, ?);`,
+            [ this.now, user.userId, user.sessionId, logName, logValue ],
+            err => {
+                if(err) {
+                    if(cb) {
+                        cb(err);
+                    }
+                    return;
+                }
+                //
+                //  Handle keepDays
+                //
+                if(-1 === keepDays) {
+                    if(cb) {
+                        return cb(null);
+                    }
+                    return;
+                }
+
+                sysDb.run(
+                    `DELETE FROM user_event_log
+                    WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
+                    [ user.userId, logName ],
+                    err => {
+                        //  cb optional - callers may fire & forget
+                        if(cb) {
+                            return cb(err);
+                        }
+                    }
+                );
+            }
+        );
+    }
+
+    initUserEvents(cb) {
+        const systemEventUserLogInit = require('./sys_event_user_log.js');
+        systemEventUserLogInit(this);
+        return cb(null);
+    }
 }
 
 module.exports = new StatLog();

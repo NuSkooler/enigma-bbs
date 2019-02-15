@@ -1,14 +1,14 @@
 ---
 layout: page
-title: Windows Full Install
+title: Installation Under Windows
 ---
+## Installation Under Windows
 
-ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.  
-
+ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit doors natively then you should use a 32bit Windows.
 
 ### Basic Instructions
 
-1. Download and Install [Node.JS](https://nodejs.org/en/download/). 
+1. Download and Install [Node.JS](https://nodejs.org/).
 
 	1. Upgrade NPM : At this time node comes with NPM 5.6 preinstalled. To upgrade to a newer version now or in the future on windows follow this method. `*Run PowerShell as Administrator`
 
@@ -36,10 +36,12 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 
 	*Add 7zip to your path so `7z` can be called from the console
 	1. Right click `This PC` and Select `Properties`
-	2. Go to the `Advanced` Tab and click on `Enviromental Varibles`
-	3. Select `Path` under `System Varibles` and click `Edit`
+	2. Go to the `Advanced` Tab and click on `Environment Variables`
+	3. Select `Path` under `System Variables` and click `Edit`
 	4. Click `New` and paste the path to 7zip
 	5. Close your console window and reopen. You can type `7z` to make sure it's working.
+
+(Please see [Archivers](/docs/archivers.md) for additional archive utilities!)
 
 3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
 

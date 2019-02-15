@@ -11,14 +11,13 @@ are set by placing duplicate codes back to back in art files.
 ## Predefined MCI Codes
 There are many predefined MCI codes that can be used anywhere on the system (placed in any art file). More are added all 
 the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) 
-for a full listing. Many codes attempt to pay homage to Oblivion/2, 
-iNiQUiTY, etc.
+for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.3-alpha" |
-| `VN` | Version *number*, eg.. "0.0.3-alpha" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.9-alpha" |
+| `VN` | Version *number*, eg.. "0.0.9-alpha" |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |
@@ -31,12 +30,13 @@ iNiQUiTY, etc.
 | `UR` | Current user's real name |
 | `LO` | Current user's location |
 | `UA` | Current user's age |
-| `BD` | Current user's birthdate (using theme date format) |
+| `BD` | Current user's birthday (using theme date format) |
 | `US` | Current user's sex |
 | `UE` | Current user's email address |
 | `UW` | Current user's web address |
 | `UF` | Current user's affiliations |
-| `UT` | Current user's *theme ID* (e.g. "luciano_blocktronics") |
+| `UT` | Current user's theme name |
+| `UD` | Current user's *theme ID* (e.g. "luciano_blocktronics") |
 | `UC` | Current user's login/call count |
 | `ND` | Current user's connected node number |
 | `IP` | Current user's IP address |
@@ -58,6 +58,10 @@ iNiQUiTY, etc.
 | `CM` | Current user's active message conference description |
 | `SH` | Current user's term height |
 | `SW` | Current user's term width |
+| `AC` | Current user's total achievements |
+| `AP` | Current user's total achievement points |
+| `DR` | Current user's number of door runs |
+| `DM` | Current user's total amount of time spent in doors |
 | `DT` | Current date (using theme date format) |
 | `CT` | Current time (using theme time format) |
 | `OS` | System OS (Linux, Windows, etc.) |
@@ -65,14 +69,25 @@ iNiQUiTY, etc.
 | `SC` | System CPU model |
 | `NV` | System underlying Node.js version |
 | `AN` | Current active node count |
-| `TC` | Total login/calls to system |
+| `TC` | Total login/calls to the system *ever* |
+| `TT` | Total login/calls to the system *today* |
 | `RR` | Displays a random rumor |
 | `SD` | Total downloads, system wide |
 | `SO` | Total downloaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
+| `TP` | Total messages posted/imported to the system *currently* |
+| `PT` | Total messages posted/imported to the system *today* |
 
-A special `XY` MCI code may also be utilized for placement identification when creating menus.
+Some additional special case codes also exist:
+
+| Code   | Description  |
+|--------|--------------|
+| `CF##` | Moves the cursor position forward _##_ characters |
+| `CB##` | Moves the cursor position back _##_ characters |
+| `CU##` | Moves the cursor position up _##_ characters |
+| `CD##` | Moves the cursor position down _##_ characters |
+| `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen. |
 
 
 ## Views
@@ -92,13 +107,13 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input | 
 | `KE` | Key Entry            | A *single* key input control |
 
-     
+
 Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to 
 see additional information.
 
 
 ## Properties & Theming
-Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`.
+Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`. See [Themes](themes.md) for more information on this subject.
 
 ### Common Properties
 
@@ -112,10 +127,14 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `focus` | If set to `true`, establishes initial focus |
 | `text` | (initial) text of a view |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
+| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
+| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
 
 These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default 
 `menu.hjson` and `theme.hjson` files!
 
+### Custom Properties
+Often a module will provide custom properties that receive format objects (See **Entry Formatting** below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
 
 ### Text Styles
 
@@ -133,3 +152,42 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 | `small i` | ENiGMA BULLETiN BOARD SOFTWARE |
 | `mixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
 | `l33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
+
+### Entry Formatting
+Various strings can be formatted using a syntax that allows width & precision specifiers, text styling, etc. Depending on the context, various elements can be referenced by `{name}`. Additional text styles can be supplied as well. The syntax is largely modeled after Python's [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language).
+
+### Additional Text Styles
+Some of the text styles mentioned above are also available in the mini format language:
+
+| Style | Description |
+|-------|-------------|
+| `normal` | Leaves text as-is. This is the default. |
+| `toUpperCase` or `styleUpper` | ENIGMA BULLETIN BOARD SOFTWARE |
+| `toLowerCase` or `styleLower` | enigma bulletin board software |
+| `styleTitle` | Enigma Bulletin Board Software |
+| `styleFirstLower` | eNIGMA bULLETIN bOARD sOFTWARE |
+| `styleSmallVowels` | eNiGMa BuLLeTiN BoaRD SoFTWaRe |
+| `styleBigVowels` | EniGMa bUllEtIn bOArd sOftwArE |
+| `styleSmallI` | ENiGMA BULLETiN BOARD SOFTWARE |
+| `styleMixed` | EnIGma BUlLEtIn BoaRd SOfTWarE (randomly assigned) |
+| `styleL33t` | 3n1gm4 bull371n b04rd 50f7w4r3 |
+
+Additional text styles are available for numbers:
+
+| Style             | Description   |
+|-------------------|---------------|
+| `sizeWithAbbr`    | File size (converted from bytes) with abbreviation such as `1 MB`, `2.2 GB`, `34 KB`, etc. |
+| `sizeWithoutAbbr` | Just the file size (converted from bytes) without the abbreviation. For example: 1024 becomes 1.  |
+| `sizeAbbr`        | Just the abbreviation given a file size (converted from bytes) such as `MB` or `GB`.  |
+| `countWithAbbr`   | Count with abbreviation such as `100 K`, `4.3 B`, etc.  |
+| `countWithoutAbbr`    | Just the count |
+| `countAbbr`       | Just the abbreviation such as `M` for millions.   |
+| `durationHours` | Converts the provided *hours* value to something friendly such as `4 hours`, or `4 days`. |
+| `durationMinutes` | Converts the provided *minutes* to something friendly such as `10 minutes` or `2 hours` |
+| `durationSeconds` | Converts the provided *seconds* to something friendly such as `23 seconds` or `2 minutes` |
+
+
+#### Examples
+Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as "<font color="red">eVIL cURRENT</font> <font color="grey">-</font> <font color="magenta">Razor 1911</font>".
+
+Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".

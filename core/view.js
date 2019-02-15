@@ -1,276 +1,275 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const events		= require('events');
-const util			= require('util');
-const ansi			= require('./ansi_term.js');
-const colorCodes	= require('./color_codes.js');
-const enigAssert	= require('./enigma_assert.js');
+//  ENiGMA½
+const events            = require('events');
+const util              = require('util');
+const ansi              = require('./ansi_term.js');
+const colorCodes        = require('./color_codes.js');
+const enigAssert        = require('./enigma_assert.js');
+const { renderSubstr }  = require('./string_util.js');
 
-//	deps
-const _				= require('lodash');
+//  deps
+const _             = require('lodash');
 
-exports.View							= View;
+exports.View                            = View;
 
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
-	accept		: [ 'return' ],
-	exit		: [ 'esc' ],
-	backspace	: [ 'backspace', 'del' ],
-	del			: [ 'del' ],
-	next		: [ 'tab' ],
-	up			: [ 'up arrow' ],
-	down		: [ 'down arrow' ],
-	end			: [ 'end' ],
-	home		: [ 'home' ],
-	left		: [ 'left arrow' ],
-	right		: [ 'right arrow' ],
-	clearLine	: [ 'ctrl + y' ],
+    accept      : [ 'return' ],
+    exit        : [ 'esc' ],
+    backspace   : [ 'backspace', 'del' ],
+    del         : [ 'del' ],
+    next        : [ 'tab' ],
+    up          : [ 'up arrow' ],
+    down        : [ 'down arrow' ],
+    end         : [ 'end' ],
+    home        : [ 'home' ],
+    left        : [ 'left arrow' ],
+    right       : [ 'right arrow' ],
+    clearLine   : [ 'ctrl + y' ],
 };
 
-exports.VIEW_SPECIAL_KEY_MAP_DEFAULT	= VIEW_SPECIAL_KEY_MAP_DEFAULT;
+exports.VIEW_SPECIAL_KEY_MAP_DEFAULT    = VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
 function View(options) {
-	events.EventEmitter.call(this);
+    events.EventEmitter.call(this);
 
-	enigAssert(_.isObject(options));
-	enigAssert(_.isObject(options.client));
+    enigAssert(_.isObject(options));
+    enigAssert(_.isObject(options.client));
 
-	var self			= this;
+    this.client             = options.client;
+    this.cursor             = options.cursor || 'show';
+    this.cursorStyle        = options.cursorStyle || 'default';
 
-	this.client			= options.client;
-	
-	this.cursor			= options.cursor || 'show';
-	this.cursorStyle	= options.cursorStyle || 'default';
+    this.acceptsFocus       = options.acceptsFocus || false;
+    this.acceptsInput       = options.acceptsInput || false;
+    this.autoAdjustHeight = _.get(options, 'dimens.height') ? false : _.get(options, 'autoAdjustHeight', true);
+    this.position           = { x : 0, y : 0 };
+    this.textStyle          = options.textStyle || 'normal';
+    this.focusTextStyle     = options.focusTextStyle || this.textStyle;
 
-	this.acceptsFocus	= options.acceptsFocus || false;
-	this.acceptsInput	= options.acceptsInput || false;
+    if(options.id) {
+        this.setId(options.id);
+    }
 
-	this.position 		= { x : 0, y : 0 };
-	this.dimens			= { height : 1, width : 0 };
+    if(options.position) {
+        this.setPosition(options.position);
+    }
 
-	this.textStyle		= options.textStyle || 'normal';
-	this.focusTextStyle	= options.focusTextStyle || this.textStyle;
+    if(options.dimens) {
+        this.setDimension(options.dimens);
+    } else {
+        this.dimens = {
+            width   : options.width || 0,
+            height  : 0
+        };
+    }
 
-	if(options.id) {
-		this.setId(options.id);
-	}
+    //  :TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
+    this.ansiSGR        = options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
+    this.ansiFocusSGR   = options.ansiFocusSGR || this.ansiSGR;
 
-	if(options.position) {
-		this.setPosition(options.position);
-	}
+    this.styleSGR1      = options.styleSGR1 || this.ansiSGR;
+    this.styleSGR2      = options.styleSGR2 || this.ansiFocusSGR;
 
-	if(_.isObject(options.autoScale)) {
-		this.autoScale = options.autoScale;
-	} else {
-		this.autoScale = { height : true, width : true };
-	}
+    if(this.acceptsInput) {
+        this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
 
-	if(options.dimens) {
-		this.setDimension(options.dimens);
-		this.autoScale = { height : false, width : false };
-	} else {
-		this.dimens = {
-			width	: options.width || 0,
-			height	: 0 
-		};
-	}
+        if(_.isObject(options.specialKeyMapOverride)) {
+            this.setSpecialKeyMapOverride(options.specialKeyMapOverride);
+        }
+    }
 
-	//	:TODO: Just use styleSGRx for these, e.g. styleSGR0, styleSGR1 = norm/focus
-	this.ansiSGR		= options.ansiSGR || ansi.getSGRFromGraphicRendition( { fg : 39, bg : 49 }, true);
-	this.ansiFocusSGR	= options.ansiFocusSGR || this.ansiSGR;
+    this.isKeyMapped = function(keySet, keyName) {
+        return _.has(this.specialKeyMap, keySet) && this.specialKeyMap[keySet].indexOf(keyName) > -1;
+    };
 
-	this.styleSGR1		= options.styleSGR1 || this.ansiSGR;
-	this.styleSGR2		= options.styleSGR2 || this.ansiFocusSGR;
+    this.getANSIColor = function(color) {
+        var sgr = [ color.flags, color.fg ];
+        if(color.bg !== color.flags) {
+            sgr.push(color.bg);
+        }
+        return ansi.sgr(sgr);
+    };
 
-	if(this.acceptsInput) {
-		this.specialKeyMap = options.specialKeyMap || VIEW_SPECIAL_KEY_MAP_DEFAULT;
-	}
+    this.hideCusor = function() {
+        this.client.term.rawWrite(ansi.hideCursor());
+    };
 
-	this.isKeyMapped = function(keySet, keyName) {
-		return _.has(this.specialKeyMap, keySet) && this.specialKeyMap[keySet].indexOf(keyName) > -1;
-	};
+    this.restoreCursor = function() {
+        //this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
+        this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
+    };
 
-	this.getANSIColor = function(color) {
-		var sgr = [ color.flags, color.fg ];
-		if(color.bg !== color.flags) {
-			sgr.push(color.bg);
-		}
-		return ansi.sgr(sgr);
-	};
-
-	this.hideCusor = function() {
-		self.client.term.rawWrite(ansi.hideCursor());
-	};
-
-	this.restoreCursor = function() {
-		//this.client.term.write(ansi.setCursorStyle(this.cursorStyle));
-		this.client.term.rawWrite('show' === this.cursor ? ansi.showCursor() : ansi.hideCursor());
-	};	
+    this.initDefaultWidth = function(width = 15) {
+        this.dimens.width = this.dimens.width || Math.min(width, this.client.term.termWidth - this.position.col);
+    };
 }
 
 util.inherits(View, events.EventEmitter);
 
 View.prototype.setId = function(id) {
-	this.id = id;
+    this.id = id;
 };
 
 View.prototype.getId = function() {
-	return this.id;
+    return this.id;
 };
 
 View.prototype.setPosition = function(pos) {
-	//
-	//	Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
-	//
-	if(util.isArray(pos)) {
-		this.position.row = pos[0];
-		this.position.col = pos[1];
-	} else if(_.isNumber(pos.row) && _.isNumber(pos.col)) {
-		this.position.row = pos.row;
-		this.position.col = pos.col;
-	} else if(2 === arguments.length) {
-		this.position.row = parseInt(arguments[0], 10);
-		this.position.col = parseInt(arguments[1], 10);
-	}
+    //
+    //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
+    //
+    if(util.isArray(pos)) {
+        this.position.row = pos[0];
+        this.position.col = pos[1];
+    } else if(_.isNumber(pos.row) && _.isNumber(pos.col)) {
+        this.position.row = pos.row;
+        this.position.col = pos.col;
+    } else if(2 === arguments.length) {
+        this.position.row = parseInt(arguments[0], 10);
+        this.position.col = parseInt(arguments[1], 10);
+    }
 
-	//	sanatize
-	this.position.row	= Math.max(this.position.row, 1);
-	this.position.col	= Math.max(this.position.col, 1);
-	this.position.row	= Math.min(this.position.row, this.client.term.termHeight);
-	this.position.col	= Math.min(this.position.col, this.client.term.termWidth);
+    //  sanatize
+    this.position.row   = Math.max(this.position.row, 1);
+    this.position.col   = Math.max(this.position.col, 1);
+    this.position.row   = Math.min(this.position.row, this.client.term.termHeight);
+    this.position.col   = Math.min(this.position.col, this.client.term.termWidth);
 };
 
 View.prototype.setDimension = function(dimens) {
-	enigAssert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
-
-	this.dimens		= dimens;
-	this.autoScale	= { height : false, width : false };
+    enigAssert(_.isObject(dimens) && _.isNumber(dimens.height) && _.isNumber(dimens.width));
+    this.dimens = dimens;
+    this.autoAdjustHeight = false;
 };
 
 View.prototype.setHeight = function(height) {
-	height	= parseInt(height) || 1;
-	height	= Math.min(height, this.client.term.termHeight); 
+    height  = parseInt(height) || 1;
+    height  = Math.min(height, this.client.term.termHeight);
 
-	this.dimens.height		= height;
-	this.autoScale.height	= false;
+    this.dimens.height = height;
+    this.autoAdjustHeight = false;
 };
 
 View.prototype.setWidth = function(width) {
-	width	= parseInt(width) || 1;
-	width	= Math.min(width, this.client.term.termWidth);
+    width   = parseInt(width) || 1;
+    width   = Math.min(width, this.client.term.termWidth);
 
-	this.dimens.width		= width;
-	this.autoScale.width	= false;
+    this.dimens.width = width;
 };
 
 View.prototype.getSGR = function() {
-	return this.ansiSGR;
+    return this.ansiSGR;
 };
 
 View.prototype.getStyleSGR = function(n) {
-	n = parseInt(n) || 0;
-	return this['styleSGR' + n];
+    n = parseInt(n) || 0;
+    return this['styleSGR' + n];
 };
 
 View.prototype.getFocusSGR = function() {
-	return this.ansiFocusSGR;
+    return this.ansiFocusSGR;
+};
+
+View.prototype.setSpecialKeyMapOverride = function(specialKeyMapOverride) {
+    this.specialKeyMap = Object.assign(this.specialKeyMap, specialKeyMapOverride);
 };
 
 View.prototype.setPropertyValue = function(propName, value) {
-	switch(propName) {
-		case 'height'	: this.setHeight(value); break;
-		case 'width'	: this.setWidth(value); break;
-		case 'focus'	: this.setFocus(value); break;
-		
-		case 'text'		: 
-			if('setText' in this) {				
-				this.setText(value);
-			}
-			break;
+    switch(propName) {
+        case 'height'   : this.setHeight(value); break;
+        case 'width'    : this.setWidth(value); break;
+        case 'focus'    : this.setFocus(value); break;
 
-		case 'textStyle'		: this.textStyle = value; break;
-		case 'focusTextStyle'	: this.focusTextStyle = value; break;
+        case 'text'     :
+            if('setText' in this) {
+                this.setText(value);
+            }
+            break;
 
-		case 'justify'	: this.justify = value; break;
+        case 'textStyle'        : this.textStyle = value; break;
+        case 'focusTextStyle'   : this.focusTextStyle = value; break;
 
-		case 'fillChar' :
-			if('fillChar' in this) {
-				if(_.isNumber(value)) {
-					this.fillChar = String.fromCharCode(value);
-				} else if(_.isString(value)) {
-					this.fillChar = value.substr(0, 1);
-				}
-			}
-			break;
+        case 'justify'  : this.justify = value; break;
 
-		case 'submit' :
-			if(_.isBoolean(value)) {
-				this.submit = value;
-			}/* else {
-				this.submit = _.isArray(value) && value.length > 0;
-			}
-			*/
-			break;
+        case 'fillChar' :
+            if('fillChar' in this) {
+                if(_.isNumber(value)) {
+                    this.fillChar = String.fromCharCode(value);
+                } else if(_.isString(value)) {
+                    this.fillChar = renderSubstr(value, 0, 1);
+                }
+            }
+            break;
 
-		case 'resizable' :
-			if(_.isBoolean(value)) {
-				this.resizable = value;
-			}
-			break;
+        case 'submit' :
+            if(_.isBoolean(value)) {
+                this.submit = value;
+            }/* else {
+                this.submit = _.isArray(value) && value.length > 0;
+            }
+            */
+            break;
 
-		case 'argName' : this.submitArgName = value; break;
+        case 'resizable' :
+            if(_.isBoolean(value)) {
+                this.resizable = value;
+            }
+            break;
 
-		case 'validate' :
-			if(_.isFunction(value)) {
-				this.validate = value;
-			}
-			break;
-	}
+        case 'argName' : this.submitArgName = value; break;
 
-	if(/styleSGR[0-9]{1,2}/.test(propName)) {
-		if(_.isObject(value)) {
-			this[propName] = ansi.getSGRFromGraphicRendition(value, true);
-		} else if(_.isString(value)) {
-			this[propName] = colorCodes.pipeToAnsi(value);
-		}
-	}
+        case 'validate' :
+            if(_.isFunction(value)) {
+                this.validate = value;
+            }
+            break;
+    }
+
+    if(/styleSGR[0-9]{1,2}/.test(propName)) {
+        if(_.isObject(value)) {
+            this[propName] = ansi.getSGRFromGraphicRendition(value, true);
+        } else if(_.isString(value)) {
+            this[propName] = colorCodes.pipeToAnsi(value);
+        }
+    }
 };
 
 View.prototype.redraw = function() {
-	this.client.term.write(ansi.goto(this.position.row, this.position.col));
+    this.client.term.write(ansi.goto(this.position.row, this.position.col));
 };
 
 View.prototype.setFocus = function(focused) {
-	enigAssert(this.acceptsFocus, 'View does not accept focus');
+    enigAssert(this.acceptsFocus, 'View does not accept focus');
 
-	this.hasFocus = focused;
-	this.restoreCursor();
+    this.hasFocus = focused;
+    this.restoreCursor();
 };
 
-View.prototype.onKeyPress = function(ch, key) {	
-	enigAssert(this.hasFocus,		'View does not have focus');
-	enigAssert(this.acceptsInput,	'View does not accept input');
+View.prototype.onKeyPress = function(ch, key) {
+    enigAssert(this.hasFocus,       'View does not have focus');
+    enigAssert(this.acceptsInput,   'View does not accept input');
 
-	if(!this.hasFocus || !this.acceptsInput) {
-		return;
-	}
+    if(!this.hasFocus || !this.acceptsInput) {
+        return;
+    }
 
-	if(key) {
-		enigAssert(this.specialKeyMap, 'No special key map defined');
+    if(key) {
+        enigAssert(this.specialKeyMap, 'No special key map defined');
 
-		if(this.isKeyMapped('accept', key.name)) {
-			this.emit('action', 'accept', key);
-		} else if(this.isKeyMapped('next', key.name)) {
-			this.emit('action', 'next', key);
-		}
-	}
+        if(this.isKeyMapped('accept', key.name)) {
+            this.emit('action', 'accept', key);
+        } else if(this.isKeyMapped('next', key.name)) {
+            this.emit('action', 'next', key);
+        }
+    }
 
-	if(ch) {
-		enigAssert(1 === ch.length);
-	}
+    if(ch) {
+        enigAssert(1 === ch.length);
+    }
 
-	this.emit('key press', ch, key);
+    this.emit('key press', ch, key);
 };
 
 View.prototype.getData = function() {

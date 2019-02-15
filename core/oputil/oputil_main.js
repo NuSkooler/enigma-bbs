@@ -14,23 +14,23 @@ const getHelpFor				= require('./oputil_help.js').getHelpFor;
 
 module.exports = function() {
 
-	process.exitCode = ExitCodes.SUCCESS;
+    process.exitCode = ExitCodes.SUCCESS;
 
-	if(true === argv.version) {
-		return console.info(require('../package.json').version);
-	}
+    if(true === argv.version) {
+        return console.info(require('../../package.json').version);
+    }
 
-	if(0 === argv._.length ||
+    if(0 === argv._.length ||
 		'help' === argv._[0])
-	{
-		return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.SUCCESS);
-	}
+    {
+        return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.SUCCESS);
+    }
 
-	switch(argv._[0]) {
-		case 'user'		: return handleUserCommand();		
-		case 'config'	: return handleConfigCommand();
-		case 'fb'		: return handleFileBaseCommand();
-		case 'mb'		: return handleMessageBaseCommand();
-		default			: return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.BAD_COMMAND);
-	}
+    switch(argv._[0]) {
+        case 'user'		: return handleUserCommand();
+        case 'config'	: return handleConfigCommand();
+        case 'fb'		: return handleFileBaseCommand();
+        case 'mb'		: return handleMessageBaseCommand();
+        default			: return printUsageAndSetExitCode(getHelpFor('General'), ExitCodes.BAD_COMMAND);
+    }
 };

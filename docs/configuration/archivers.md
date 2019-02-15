@@ -20,6 +20,11 @@ The following archivers are pre-configured in ENiGMA½ as of this writing. Remem
 * Key: `Lha`
 * Homepage/package: `lhasa` on most *nix environments. See also https://fragglet.github.io/lhasa/ and http://www2m.biglobe.ne.jp/~dolphin/lha/lha-unix.htm
 
+#### Lzx
+* Formats: <a href="https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX">Amiga LZX</a>
+* Key: `Lzx`
+* Homepage/package: `unlzx` under most *nix platforms ([Debian/Ubuntu](https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127), [RedHat](https://fedora.pkgs.org/28/rpm-sphere/unlzx-1.1-4.1.x86_64.rpm.html), [Source](http://xavprods.free.fr/lzx/))
+
 #### Arj
 * Formats: .arj
 * Key: `Arj`

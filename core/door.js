@@ -1,154 +1,137 @@
 /* jslint node: true */
 'use strict';
 
+const stringFormat      = require('./string_format.js');
+const { Errors }        = require('./enig_error.js');
 
-const stringFormat	= require('./string_format.js');
+//  deps
+const pty               = require('node-pty');
+const decode            = require('iconv-lite').decode;
+const createServer      = require('net').createServer;
+const paths             = require('path');
 
-const events		= require('events');
-const _				= require('lodash');
-const pty			= require('ptyw.js');
-const decode 		= require('iconv-lite').decode;
-const createServer	= require('net').createServer;
+module.exports = class Door {
+    constructor(client) {
+        this.client     = client;
+        this.restored   = false;
+    }
 
-exports.Door		= Door;
+    prepare(ioType, cb) {
+        this.io = ioType;
 
-function Door(client, exeInfo) {
-	events.EventEmitter.call(this);
+        //  we currently only have to do any real setup for 'socket'
+        if('socket' !== ioType) {
+            return cb(null);
+        }
 
-	const self 				= this;
-	this.client				= client;
-	this.exeInfo			= exeInfo;
-	this.exeInfo.encoding	= this.exeInfo.encoding || 'cp437';
-	this.exeInfo.encoding	= this.exeInfo.encoding.toLowerCase();
-	let restored			= false;	
+        this.sockServer = createServer(conn => {
+            conn.once('end', () => {
+                return this.restoreIo(conn);
+            });
 
-	//
-	//	Members of exeInfo:
-	//	cmd
-	//	args[]
-	//	env{}
-	//	cwd
-	//	io
-	//	encoding
-	//	dropFile
-	//	node
-	//	inhSocket
-	//
+            conn.once('error', err => {
+                this.client.log.info( { error : err.message }, 'Door socket server connection');
+                return this.restoreIo(conn);
+            });
 
-	this.doorDataHandler = function(data) {
-		if(self.client.term.outputEncoding === self.exeInfo.encoding) {
-			self.client.term.rawWrite(data);
-		} else {
-			self.client.term.write(decode(data, self.exeInfo.encoding));
-		}
-	};
+            this.sockServer.getConnections( (err, count) => {
+                //  We expect only one connection from our DOOR/emulator/etc.
+                if(!err && count <= 1) {
+                    this.client.term.output.pipe(conn);
+                    conn.on('data', this.doorDataHandler.bind(this));
+                }
+            });
+        });
 
-	this.restoreIo = function(piped) {
-		if(!restored && self.client.term.output) {
-			self.client.term.output.unpipe(piped);
-			self.client.term.output.resume();
-			restored = true;
-		}
-	};
+        this.sockServer.listen(0, () => {
+            return cb(null);
+        });
+    }
 
-	this.prepareSocketIoServer = function(cb) {
-		if('socket' === self.exeInfo.io) {			
-			const sockServer =  createServer(conn => {
+    run(exeInfo, cb) {
+        this.encoding = (exeInfo.encoding || 'cp437').toLowerCase();
 
-				sockServer.getConnections( (err, count) => {
+        if('socket' === this.io && !this.sockServer) {
+            return cb(Errors.UnexpectedState('Socket server is not running'));
+        }
 
-					//	We expect only one connection from our DOOR/emulator/etc.
-					if(!err && count <= 1) {
-						self.client.term.output.pipe(conn);
-						
-						conn.on('data', self.doorDataHandler);
+        const cwd = exeInfo.cwd || paths.dirname(exeInfo.cmd);
 
-						conn.once('end', () => {
-							return self.restoreIo(conn);									
-						});
+        const formatObj = {
+            dropFile        : exeInfo.dropFile,
+            dropFilePath    : exeInfo.dropFilePath,
+            node            : exeInfo.node.toString(),
+            srvPort         : this.sockServer ? this.sockServer.address().port.toString() : '-1',
+            userId          : this.client.user.userId.toString(),
+            userName        : this.client.user.getSanitizedName(),
+            userNameRaw     : this.client.user.username,
+            cwd             : cwd,
+        };
 
-						conn.once('error', err => {
-							self.client.log.info( { error : err.toString() }, 'Door socket server connection');
-							return self.restoreIo(conn);
-						});
-					}
-				});
-			});
+        const args = exeInfo.args.map( arg => stringFormat(arg, formatObj) );
 
-			sockServer.listen(0, () => {
-				return cb(null, sockServer);
-			});
-		} else {
-			return cb(null);
-		}
-	};
+        this.client.log.debug(
+            { cmd : exeInfo.cmd, args, io : this.io },
+            'Executing door'
+        );
 
-	this.doorExited = function() {
-		self.emit('finished');
-	};
-}
+        let door;
+        try {
+            door = pty.spawn(exeInfo.cmd, args, {
+                cols        : this.client.term.termWidth,
+                rows        : this.client.term.termHeight,
+                cwd         : cwd,
+                env         : exeInfo.env,
+                encoding    : null, //  we want to handle all encoding ourself
+            });
+        } catch(e) {
+            return cb(e);
+        }
 
-require('util').inherits(Door, events.EventEmitter);
+        if('stdio' === this.io) {
+            this.client.log.debug('Using stdio for door I/O');
 
-Door.prototype.run = function() {
-	const self = this;
+            this.client.term.output.pipe(door);
 
-	this.prepareSocketIoServer( (err, sockServer) => {
-		if(err) {
-			this.client.log.warn( { error : err.toString() }, 'Failed executing door');
-			return self.doorExited();
-		}
+            door.on('data', this.doorDataHandler.bind(this));
 
-		//	Expand arg strings, e.g. {dropFile} -> DOOR32.SYS
-		//	:TODO: Use .map() here
-		let args = _.clone(self.exeInfo.args);	//	we need a copy so the original is not modified
+            door.once('close', () => {
+                return this.restoreIo(door);
+            });
+        } else if('socket' === this.io) {
+            this.client.log.debug(
+                { srvPort : this.sockServer.address().port, srvSocket : this.sockServerSocket },
+                'Using temporary socket server for door I/O'
+            );
+        }
 
-		for(let i = 0; i < args.length; ++i) {
-			args[i] = stringFormat(self.exeInfo.args[i], {
-				dropFile		: self.exeInfo.dropFile,
-				node			: self.exeInfo.node.toString(),
-				srvPort			: sockServer ? sockServer.address().port.toString() : '-1',
-				userId			: self.client.user.userId.toString(),
-				username		: self.client.user.username,				
-			});
-		}
+        door.once('exit', exitCode => {
+            this.client.log.info( { exitCode : exitCode }, 'Door exited');
 
-		const door = pty.spawn(self.exeInfo.cmd, args, {
-			cols : self.client.term.termWidth,
-			rows : self.client.term.termHeight,
-			//	:TODO: cwd
-			env	: self.exeInfo.env,
-		});				
+            if(this.sockServer) {
+                this.sockServer.close();
+            }
 
-		if('stdio' === self.exeInfo.io) {
-			self.client.log.debug('Using stdio for door I/O');
+            //  we may not get a close
+            if('stdio' === this.io) {
+                this.restoreIo(door);
+            }
 
-			self.client.term.output.pipe(door);
+            door.removeAllListeners();
 
-			door.on('data', self.doorDataHandler);
+            return cb(null);
+        });
+    }
 
-			door.once('close', () => {
-				return self.restoreIo(door);
-			});
-		} else if('socket' === self.exeInfo.io) {
-			self.client.log.debug( { port : sockServer.address().port }, 'Using temporary socket server for door I/O');
-		}
+    doorDataHandler(data) {
+        this.client.term.write(decode(data, this.encoding));
+    }
 
-		door.once('exit', exitCode => {
-			self.client.log.info( { exitCode : exitCode }, 'Door exited');
-
-			if(sockServer) {
-				sockServer.close();
-			}
-
-			//	we may not get a close
-			if('stdio' === self.exeInfo.io) {
-				self.restoreIo(door);
-			}
-
-			door.removeAllListeners();
-
-			return self.doorExited();
-		});
-	});
+    restoreIo(piped) {
+        if(!this.restored && this.client.term.output) {
+            this.client.term.output.unpipe(piped);
+            this.client.term.output.resume();
+            this.restored = true;
+        }
+    }
 };

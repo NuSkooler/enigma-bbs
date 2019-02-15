@@ -1,64 +1,63 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const logger			= require('./logger.js');
+//  ENiGMA½
+const logger    = require('./logger.js');
 
-//	deps
-const async				= require('async');
+//  deps
+const async     = require('async');
 
-const listeningServers = {};	//	packageName -> info
+const listeningServers = {};    //  packageName -> info
 
-exports.startup			= startup;
-exports.shutdown		= shutdown;
-exports.getServer		= getServer;
+exports.startup         = startup;
+exports.shutdown        = shutdown;
+exports.getServer       = getServer;
 
 function startup(cb) {
-	return startListening(cb);
+    return startListening(cb);
 }
 
 function shutdown(cb) {
-	return cb(null);
+    return cb(null);
 }
 
 function getServer(packageName) {
-	return listeningServers[packageName];
+    return listeningServers[packageName];
 }
 
 function startListening(cb) {
-	const moduleUtil = require('./module_util.js');	//	late load so we get Config
+    const moduleUtil = require('./module_util.js'); //  late load so we get Config
 
-	async.each( [ 'login', 'content' ], (category, next) => {
-		moduleUtil.loadModulesForCategory(`${category}Servers`, (err, module) => {
-			//	:TODO: use enig error here!
-			if(err) {
-				if('EENIGMODDISABLED' === err.code) {
-					logger.log.debug(err.message);
-				} else {
-					logger.log.info( { err : err }, 'Failed loading module');
-				}
-				return;
-			}
+    async.each( [ 'login', 'content' ], (category, next) => {
+        moduleUtil.loadModulesForCategory(`${category}Servers`, (module, nextModule) => {
+            const moduleInst = new module.getModule();
+            try {
+                moduleInst.createServer(err => {
+                    if(err) {
+                        return nextModule(err);
+                    }
 
-			const moduleInst = new module.getModule();
-			try {
-				moduleInst.createServer();
-				if(!moduleInst.listen()) {
-					throw new Error('Failed listening');
-				}
+                    moduleInst.listen( err => {
+                        if(err) {
+                            return nextModule(err);
+                        }
 
-				listeningServers[module.moduleInfo.packageName] = {
-					instance	: moduleInst,
-					info		: module.moduleInfo,
-				};
+                        listeningServers[module.moduleInfo.packageName] = {
+                            instance    : moduleInst,
+                            info        : module.moduleInfo,
+                        };
 
-			} catch(e) {
-				logger.log.error(e, 'Exception caught creating server!');
-			}
-		}, err => {
-			return next(err);
-		});
-	}, err => {
-		return cb(err);
-	});
+                        return nextModule(null);
+                    });
+                });
+            } catch(e) {
+                logger.log.error(e, 'Exception caught creating server!');
+                return nextModule(e);
+            }
+        }, err => {
+            return next(err);
+        });
+    }, err => {
+        return cb(err);
+    });
 }

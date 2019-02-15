@@ -1,775 +1,1034 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
+//  ENiGMA½
+const Errors            = require('./enig_error.js').Errors;
 
-//	deps
-const fs				= require('graceful-fs');
-const paths				= require('path');
-const async				= require('async');
-const _					= require('lodash');
-const hjson				= require('hjson');
-const assert			= require('assert');
+//  deps
+const paths             = require('path');
+const async             = require('async');
+const _                 = require('lodash');
+const assert            = require('assert');
 
-exports.init			= init;
-exports.getDefaultPath	= getDefaultPath;
+exports.init                = init;
+exports.getDefaultPath      = getDefaultPath;
+exports.getDefaultConfig    = getDefaultConfig;
+
+let currentConfiguration = {};
 
 function hasMessageConferenceAndArea(config) {
-	assert(_.isObject(config.messageConferences));  //  we create one ourself!
+    assert(_.isObject(config.messageConferences));  //  we create one ourself!
 
-	const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
-		return 'system_internal' !== confTag;
-	});
+    const nonInternalConfs = Object.keys(config.messageConferences).filter(confTag => {
+        return 'system_internal' !== confTag;
+    });
 
-	if(0 === nonInternalConfs.length) {
-		return false;
-	}
+    if(0 === nonInternalConfs.length) {
+        return false;
+    }
 
-	//  :TODO: there is likely a better/cleaner way of doing this
+    //  :TODO: there is likely a better/cleaner way of doing this
 
-	let result = false;
-	_.forEach(nonInternalConfs, confTag => {
-		if(_.has(config.messageConferences[confTag], 'areas') &&
-			Object.keys(config.messageConferences[confTag].areas) > 0)
-		{
-			result = true;
-			return false;   //  stop iteration
-		}
-	});
+    let result = false;
+    _.forEach(nonInternalConfs, confTag => {
+        if(_.has(config.messageConferences[confTag], 'areas') &&
+            Object.keys(config.messageConferences[confTag].areas) > 0)
+        {
+            result = true;
+            return false;   //  stop iteration
+        }
+    });
 
-	return result;
+    return result;
+}
+
+const ArrayReplaceKeyPaths = [
+    'loginServers.ssh.algorithms.kex',
+    'loginServers.ssh.algorithms.cipher',
+    'loginServers.ssh.algorithms.hmac',
+    'loginServers.ssh.algorithms.compress',
+];
+
+const ArrayReplaceKeys = [
+    'args',
+    'sendArgs', 'recvArgs', 'recvArgsNonBatch',
+];
+
+function mergeValidateAndFinalize(config, cb) {
+    const defaultConfig = getDefaultConfig();
+
+    const arrayReplaceKeyPathsMutable = _.clone(ArrayReplaceKeyPaths);
+    const shouldReplaceArray = (arr, key) => {
+        if(ArrayReplaceKeys.includes(key)) {
+            return true;
+        }
+        for(let i = 0; i < arrayReplaceKeyPathsMutable.length; ++i) {
+            const o = _.get(defaultConfig, arrayReplaceKeyPathsMutable[i]);
+            if(_.isEqual(o, arr)) {
+                arrayReplaceKeyPathsMutable.splice(i, 1);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    async.waterfall(
+        [
+            function mergeWithDefaultConfig(callback) {
+                const mergedConfig = _.mergeWith(
+                    defaultConfig,
+                    config,
+                    (defConfig, userConfig, key) => {
+                        if(Array.isArray(defConfig) && Array.isArray(userConfig)) {
+                            //
+                            //  Arrays are special: Some we merge, while others
+                            //  we simply replace.
+                            //
+                            if(shouldReplaceArray(defConfig, key)) {
+                                return userConfig;
+                            } else {
+                                return _.uniq(defConfig.concat(userConfig));
+                            }
+                        }
+                    }
+                );
+
+                return callback(null, mergedConfig);
+            },
+            function validate(mergedConfig, callback) {
+                //
+                //  Various sections must now exist in config
+                //
+                //  :TODO: Logic is broken here:
+                if(hasMessageConferenceAndArea(mergedConfig)) {
+                    return callback(Errors.MissingConfig('Please create at least one message conference and area!'));
+                }
+                return callback(null, mergedConfig);
+            },
+            function setIt(mergedConfig, callback) {
+                //  :TODO: .config property is to be deprecated once conversions are done
+                exports.config = currentConfiguration = mergedConfig;
+
+                exports.get = () => currentConfiguration;
+                return callback(null);
+            }
+        ],
+        err => {
+            if(cb) {
+                return cb(err);
+            }
+        }
+    );
 }
 
 function init(configPath, options, cb) {
-	if(!cb && _.isFunction(options)) {
-		cb = options;
-		options = {};
-	}
+    if(!cb && _.isFunction(options)) {
+        cb = options;
+        options = {};
+    }
 
-	async.waterfall(
-		[
-			function loadUserConfig(callback) {
-				if(!_.isString(configPath)) {
-					return callback(null, { } );
-				}
+    const changed = ( { fileName, fileRoot } ) => {
+        const reCachedPath = paths.join(fileRoot, fileName);
+        ConfigCache.getConfig(reCachedPath, (err, config) => {
+            if(!err) {
+                mergeValidateAndFinalize(config, err => {
+                    if(!err) {
+                        const Events = require('./events.js');
+                        Events.emit(Events.getSystemEvents().ConfigChanged);
+                    }
+                });
+            } else {
+                console.stdout(`Configuration ${reCachedPath} is invalid: ${err.message}`); //  eslint-disable-line no-console
+            }
+        });
+    };
 
-				fs.readFile(configPath, { encoding : 'utf8' }, (err, configData) => {
-					if(err) {
-						return callback(err);
-					}
+    const ConfigCache = require('./config_cache.js');
+    const getConfigOptions = {
+        filePath    : configPath,
+        noWatch     : options.noWatch,
+    };
+    if(!options.noWatch) {
+        getConfigOptions.callback = changed;
+    }
+    ConfigCache.getConfigWithOptions(getConfigOptions, (err, config) => {
+        if(err) {
+            return cb(err);
+        }
 
-					let configJson;
-					try {
-						configJson = hjson.parse(configData, options);
-					} catch(e) {
-						return callback(e);
-					}
-
-					return callback(null, configJson);
-				});
-			},
-			function mergeWithDefaultConfig(configJson, callback) {
-
-				const mergedConfig = _.mergeWith(
-					getDefaultConfig(),
-					configJson, (conf1, conf2) => {
-						//	Arrays should always concat
-						if(_.isArray(conf1)) {
-							//	:TODO: look for collisions & override dupes
-							return conf1.concat(conf2);
-						}
-					}
-				);
-
-				return callback(null, mergedConfig);
-			},
-			function validate(mergedConfig, callback) {
-				//
-				//	Various sections must now exist in config
-				//
-				//	:TODO: Logic is broken here:
-				if(hasMessageConferenceAndArea(mergedConfig)) {
-					var msgAreasErr = new Error('Please create at least one message conference and area!');
-					msgAreasErr.code = 'EBADCONFIG';
-					return callback(msgAreasErr);
-				} else {
-					return callback(null, mergedConfig);
-				}
-			}
-		],
-		function complete(err, mergedConfig) {
-			exports.config = mergedConfig;
-
-			exports.config.get = function(path) {
-				return _.get(exports.config, path);
-			};
-
-			return cb(err);
-		}
-	);
+        return mergeValidateAndFinalize(config, cb);
+    });
 }
 
 function getDefaultPath() {
-	//	e.g. /enigma-bbs-install-path/config/
-	return './config/';
+    //  e.g. /enigma-bbs-install-path/config/
+    return './config/';
 }
 
 function getDefaultConfig() {
-	return {
-		general : {
-			boardName		: 'Another Fine ENiGMA½ BBS',
+    return {
+        general : {
+            boardName       : 'Another Fine ENiGMA½ BBS',
 
-			closedSystem	: false,					//	is the system closed to new users?
+            //  :TODO: closedSystem prob belongs under users{}?
+            closedSystem    : false,                    //  is the system closed to new users?
 
-			loginAttempts	: 3,
+            menuFile        : 'menu.hjson',     //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
+            promptFile      : 'prompt.hjson',   //  'oputil.js config new' will set this appropriately in config.hjson; may be full path
+            achievementFile : 'achievements.hjson',
+        },
 
-			menuFile		: 'menu.hjson',				//	Override to use something else, e.g. demo.hjson. Can be a full path (defaults to ./config)
-			promptFile		: 'prompt.hjson',			//	Override to use soemthing else, e.g. myprompt.hjson. Can be a full path (defaults to ./config)
-		},
+        users : {
+            usernameMin         : 2,
+            usernameMax         : 16,   //  Note that FidoNet wants 36 max
+            usernamePattern     : '^[A-Za-z0-9~!@#$%^&*()\\-\\_+ .]+$',
 
-		//	:TODO: see notes below about 'theme' section - move this!
-		preLoginTheme : 'luciano_blocktronics',
+            passwordMin         : 6,
+            passwordMax         : 128,
 
-		users : {
-			usernameMin			: 2,
-			usernameMax			: 16,	//	Note that FidoNet wants 36 max
-			usernamePattern		: '^[A-Za-z0-9~!@#$%^&*()\\-\\_+ ]+$',
+            //
+            //  The bad password list is a text file containing a password per line.
+            //  Entries in this list are not allowed to be used on the system as they
+            //  are known to be too common.
+            //
+            //  A great resource can be found at https://github.com/danielmiessler/SecLists
+            //
+            //  Current list source: https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/probable-v2-top12000.txt
+            //
+            badPassFile         : paths.join(__dirname, '../misc/bad_passwords.txt'),
 
-			passwordMin			: 6,
-			passwordMax			: 128,
-			badPassFile			: paths.join(__dirname, '../misc/10_million_password_list_top_10000.txt'),	//	https://github.com/danielmiessler/SecLists
+            realNameMax         : 32,
+            locationMax         : 32,
+            affilsMax           : 32,
+            emailMax            : 255,
+            webMax              : 255,
 
-			realNameMax			: 32,
-			locationMax			: 32,
-			affilsMax			: 32,
-			emailMax			: 255,
-			webMax				: 255,
+            requireActivation   : false,    //  require SysOp activation? false = auto-activate
 
-			requireActivation	: false,	//	require SysOp activation? false = auto-activate
+            groups              : [ 'users', 'sysops' ],        //  built in groups
+            defaultGroups       : [ 'users' ],                  //  default groups new users belong to
 
-			groups				: [ 'users', 'sysops' ],		//	built in groups
-			defaultGroups		: [ 'users' ],					//	default groups new users belong to
+            newUserNames        : [ 'new', 'apply' ],           //  Names reserved for applying
 
-			newUserNames		: [ 'new', 'apply' ],			//	Names reserved for applying
+            badUserNames        : [
+                'sysop', 'admin', 'administrator', 'root', 'all',
+                'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
+            ],
 
-			badUserNames		: [
-				'sysop', 'admin', 'administrator', 'root', 'all',
-				'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
-			],
-		},
+            preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
+            idleLogoutSeconds           : 60 * 6,   //  6m
 
-		//	:TODO: better name for "defaults"... which is redundant here!
-		/*
-		Concept
-		"theme" : {
-			"default" : "defaultThemeName", // or "*"
-			"preLogin" : "*",
-			"passwordChar" : "*",
-			...
-		}
-		*/
-		defaults : {
-			theme			: 'luciano_blocktronics',
-			passwordChar	: '*',		//	TODO: move to user ?
-			dateFormat	: {
-				short	: 'MM/DD/YYYY',
-			},
-			timeFormat : {
-				short	: 'h:mm a',
-			},
-			dateTimeFormat : {
-				short	: 'MM/DD/YYYY h:mm a',
-			}
-		},
+            failedLogin : {
+                disconnect          : 3,            //  0=disabled
+                lockAccount         : 9,            //  0=disabled; Mark user status as "locked" if >= N
+                autoUnlockMinutes   : 60 * 6,       //  0=disabled; Auto unlock after N minutes.
+            },
+            unlockAtEmailPwReset    : true,         //  if true, password reset via email will unlock locked accounts
+        },
 
-		menus : {
-			cls		: true,	//	Clear screen before each menu by default?
-		},
+        theme : {
+            default     : 'luciano_blocktronics',
+            preLogin    : 'luciano_blocktronics',
 
-		paths		: {
-			config				: paths.join(__dirname, './../config/'),
-			mods				: paths.join(__dirname, './../mods/'),
-			loginServers		: paths.join(__dirname, './servers/login/'),
-			contentServers		: paths.join(__dirname, './servers/content/'),
+            passwordChar    : '*',
+            dateFormat  : {
+                short   : 'MM/DD/YYYY',
+                long    : 'ddd, MMMM Do, YYYY',
+            },
+            timeFormat : {
+                short   : 'h:mm a',
+            },
+            dateTimeFormat : {
+                short   : 'MM/DD/YYYY h:mm a',
+                long    : 'ddd, MMMM Do, YYYY, h:mm a',
+            }
+        },
 
-			scannerTossers		: paths.join(__dirname, './scanner_tossers/'),
-			mailers				: paths.join(__dirname, './mailers/')		,
+        menus : {
+            cls     : true, //  Clear screen before each menu by default?
+        },
 
-			art					: paths.join(__dirname, './../art/general/'),
-			themes				: paths.join(__dirname, './../art/themes/'),
-			logs				: paths.join(__dirname, './../logs/'),	//	:TODO: set up based on system, e.g. /var/logs/enigmabbs or such
-			db					: paths.join(__dirname, './../db/'),
-			modsDb				: paths.join(__dirname, './../db/mods/'),
-			dropFiles			: paths.join(__dirname, './../dropfiles/'),	//	+ "/node<x>/
-			misc				: paths.join(__dirname, './../misc/'),
-		},
+        paths : {
+            config              : paths.join(__dirname, './../config/'),
+            mods                : paths.join(__dirname, './../mods/'),
+            loginServers        : paths.join(__dirname, './servers/login/'),
+            contentServers      : paths.join(__dirname, './servers/content/'),
 
-		loginServers : {
-			telnet : {
-				port			: 8888,
-				enabled			: true,
-				firstMenu		: 'telnetConnected',
-			},
-			ssh : {
-				port				: 8889,
-				enabled				: false,    //  default to false as PK/pass in config.hjson are required
+            scannerTossers      : paths.join(__dirname, './scanner_tossers/'),
+            mailers             : paths.join(__dirname, './mailers/')       ,
 
-				//
-				//	Private key in PEM format
-				//
-				//	Generating your PK:
-				//      Choose a cipher (3DES, AES128, or AES256) and a bit strength (2048 or 4096)
-                                //      Ciphers:
-				//        3des: older, most compatible, least secure
-				//        aes128: newer, widely compatible, fairly secure
-				//        aes256: newest, least compatible, best security
-				//      Bit strength:
-				//        2048: most compatible, decent strength
-				//        4096: stronger, but some software is completely incompatible
-                                //      Sample command:
-				//	  openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
-				//
-				//	Then, set servers.ssh.privateKeyPass to the password you use above
-				//	in your config.hjson
-				//
-				privateKeyPem		: paths.join(__dirname, './../config/ssh_private_key.pem'),
-				firstMenu		: 'sshConnected',
-				firstMenuNewUser	: 'sshConnectedNewUser',
-			},
-			webSocket : {
-				port		: 8810,	//	ws://
-				enabled		: false,
-				securePort	: 8811,	//	wss:// - must provide certPem and keyPem
-				certPem		: paths.join(__dirname, './../config/https_cert.pem'),
-				keyPem		: paths.join(__dirname, './../config/https_cert_key.pem'),
-			},
-		},
+            art                 : paths.join(__dirname, './../art/general/'),
+            themes              : paths.join(__dirname, './../art/themes/'),
+            logs                : paths.join(__dirname, './../logs/'),  //  :TODO: set up based on system, e.g. /var/logs/enigmabbs or such
+            db                  : paths.join(__dirname, './../db/'),
+            modsDb              : paths.join(__dirname, './../db/mods/'),
+            dropFiles           : paths.join(__dirname, './../drop/'), //  + "/node<x>/
+            misc                : paths.join(__dirname, './../misc/'),
+        },
 
-		contentServers : {
-			web : {
-				domain : 'another-fine-enigma-bbs.org',
+        loginServers : {
+            telnet : {
+                port            : 8888,
+                enabled         : true,
+                firstMenu       : 'telnetConnected',
+            },
+            ssh : {
+                port                : 8889,
+                enabled             : false,    //  default to false as PK/pass in config.hjson are required
+                //
+                //	Private Key (PK) in PEM format
+                //
+                //	Generating your PK:
+                //  1 - Choose a cipher (3DES, AES128, or AES256)
+                //      3des      : older, most compatible, least secure
+                //      aes128    : newer, widely compatible, fairly secure
+                //      aes256    : newest, least compatible, best security
+                //
+                //  2 -  Choose a bit strength (2048 or 4096)
+                //      2048    : most compatible, decent strength
+                //      4096    : stronger, but some software is completely incompatible
+                //
+                //  Sample command:
+                //	  openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+                //
+                //	Then, set servers.ssh.privateKeyPass to the password you use above
+                //	in your config.hjson
+                //
+                //
+                privateKeyPem       : paths.join(__dirname, './../config/ssh_private_key.pem'),
+                firstMenu           : 'sshConnected',
+                firstMenuNewUser    : 'sshConnectedNewUser',
 
-				staticRoot : paths.join(__dirname, './../www'),
+                //
+                //  SSH details that can affect security. Stronger ciphers are better for example,
+                //  but terminals such as SyncTERM require KEX diffie-hellman-group14-sha1,
+                //  cipher 3des-cbc, etc.
+                //
+                //  See https://github.com/mscdex/ssh2-streams for the full list of supported
+                //  algorithms.
+                //
+                algorithms : {
+                    kex : [
+                        'ecdh-sha2-nistp256',
+                        'ecdh-sha2-nistp384',
+                        'ecdh-sha2-nistp521',
+                        'diffie-hellman-group-exchange-sha256',
+                        'diffie-hellman-group14-sha1',
+                        'diffie-hellman-group-exchange-sha1',
+                        'diffie-hellman-group1-sha1',
+                    ],
+                    cipher : [
+                        'aes128-ctr',
+                        'aes192-ctr',
+                        'aes256-ctr',
+                        'aes128-gcm',
+                        'aes128-gcm@openssh.com',
+                        'aes256-gcm',
+                        'aes256-gcm@openssh.com',
+                        'aes256-cbc',
+                        'aes192-cbc',
+                        'aes128-cbc',
+                        'blowfish-cbc',
+                        '3des-cbc',
+                        'arcfour256',
+                        'arcfour128',
+                        'cast128-cbc',
+                        'arcfour',
+                    ],
+                    hmac : [
+                        'hmac-sha2-256',
+                        'hmac-sha2-512',
+                        'hmac-sha1',
+                        'hmac-md5',
+                        'hmac-sha2-256-96',
+                        'hmac-sha2-512-96',
+                        'hmac-ripemd160',
+                        'hmac-sha1-96',
+                        'hmac-md5-96',
+                    ],
+                    //  note that we disable compression by default due to issues with many clients. YMMV.
+                    compress : [ 'none' ]
+                },
+            },
+            webSocket : {
+                ws : {
+                    //  non-secure ws://
+                    enabled         : false,
+                    port            : 8810,
+                },
+                wss : {
+                    //  secure ws://
+                    //  must provide valid certPem and keyPem
+                    enabled         : false,
+                    port            : 8811,
+                    certPem         : paths.join(__dirname, './../config/https_cert.pem'),
+                    keyPem          : paths.join(__dirname, './../config/https_cert_key.pem'),
+                },
+            },
+        },
 
-				resetPassword : {
-					//
-					//	The following templates have these variables available to them:
-					//
-					//	* %BOARDNAME%		: Name of BBS
-					//	* %USERNAME%		: Username of whom to reset password
-					//	* %TOKEN%			: Reset token
-					//	* %RESET_URL%		: In case of email, the link to follow for reset. In case of landing page,
-					//						  URL to POST submit reset form.
+        contentServers : {
+            web : {
+                domain : 'another-fine-enigma-bbs.org',
 
-					//	templates for pw reset *email*
-					resetPassEmailText	: paths.join(__dirname, '../misc/reset_password_email.template.txt'),	//	plain text version
-					resetPassEmailHtml	: paths.join(__dirname, '../misc/reset_password_email.template.html'),	//	HTML version
+                staticRoot : paths.join(__dirname, './../www'),
 
-					//	tempalte for pw reset *landing page*
-					//
-					resetPageTemplate	: paths.join(__dirname, './../www/reset_password.template.html'),
-				},
+                resetPassword : {
+                    //
+                    //  The following templates have these variables available to them:
+                    //
+                    //  * %BOARDNAME%       : Name of BBS
+                    //  * %USERNAME%        : Username of whom to reset password
+                    //  * %TOKEN%           : Reset token
+                    //  * %RESET_URL%       : In case of email, the link to follow for reset. In case of landing page,
+                    //                        URL to POST submit reset form.
 
-				http : {
-					enabled : false,
-					port	: 8080,
-				},
-				https : {
-					enabled	: false,
-					port	: 8443,
-					certPem	: paths.join(__dirname, './../config/https_cert.pem'),
-					keyPem	: paths.join(__dirname, './../config/https_cert_key.pem'),
-				}
-			}
-		},
+                    //  templates for pw reset *email*
+                    resetPassEmailText  : paths.join(__dirname, '../misc/reset_password_email.template.txt'),   //  plain text version
+                    resetPassEmailHtml  : paths.join(__dirname, '../misc/reset_password_email.template.html'),  //  HTML version
 
-		infoExtractUtils : {
-			Exiftool2Desc :  {
-				cmd			: `${__dirname}/../util/exiftool2desc.js`,	//	ensure chmod +x
-			},
-			Exiftool : {
-				cmd			: 'exiftool',
-				args		: [
-					'-charset', 'utf8', '{filePath}',
-					//	exclude the following:
-					'--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize',
-					'--filemodifydate', '--fileaccessdate', '--fileinodechangedate', '--createdate', '--modifydate',
-					'--metadatadate', '--xmptoolkit'
-				]
-			}
-		},
+                    //  tempalte for pw reset *landing page*
+                    //
+                    resetPageTemplate   : paths.join(__dirname, './../www/reset_password.template.html'),
+                },
 
-		fileTypes : {
-			//
-			//	File types explicitly known to the system. Here we can configure
-			//	information extraction, archive treatment, etc.
-			//
-			//	MIME types can be found in mime-db: https://github.com/jshttp/mime-db
-			//
-			//	Resources for signature/magic bytes:
-			//	* http://www.garykessler.net/library/file_sigs.html
-			//
-			//
-			//	:TODO: text/x-ansi -> SAUCE extraction for .ans uploads
-			//	:TODO: textual : bool -- if text, we can view.
-			//	:TODO: asText : { cmd, args[] } -> viewable text
+                http : {
+                    enabled : false,
+                    port    : 8080,
+                },
+                https : {
+                    enabled : false,
+                    port    : 8443,
+                    certPem : paths.join(__dirname, './../config/https_cert.pem'),
+                    keyPem  : paths.join(__dirname, './../config/https_cert_key.pem'),
+                }
+            },
 
-			//
-			//	Audio
-			//
-			'audio/mpeg' : {
-				desc 			: 'MP3 Audio',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'application/pdf' : {
-				desc			: 'Adobe PDF',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			//
-			//	Video
-			//
-			'video/mp4' : {
-				desc			: 'MPEG Video',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'video/x-matroska ' : {
-				desc			: 'Matroska Video',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'video/x-msvideo' : {
-				desc			: 'Audio Video Interleave',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			//
-			//	Images
-			//
-			'image/jpeg'	: {
-				desc			: 'JPEG Image',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'image/png'	: {
-				desc			: 'Portable Network Graphic Image',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'image/gif' : {
-				desc			: 'Graphics Interchange Format Image',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			'image/webp' :  {
-				desc			: 'WebP Image',
-				shortDescUtil	: 'Exiftool2Desc',
-				longDescUtil	: 'Exiftool',
-			},
-			//
-			//	Archives
-			//
-			'application/zip' : {
-				desc			: 'ZIP Archive',
-				sig				: '504b0304',
-				offset			: 0,
-				archiveHandler	: '7Zip',
-			},
-			/*
-			'application/x-cbr' : {
-				desc			: 'Comic Book Archive',
-				sig				: '504b0304',
-			},
-			*/
-			'application/x-arj' : {
-				desc			: 'ARJ Archive',
-				sig				: '60ea',
-				offset			: 0,
-				archiveHandler	: 'Arj',
-			},
-			'application/x-rar-compressed' : {
-				desc			: 'RAR Archive',
-				sig				: '526172211a0700',
-				offset			: 0,
-				archiveHandler	: 'Rar',
-			},
-			'application/gzip' : {
-				desc			: 'Gzip Archive',
-				sig				: '1f8b',
-				offset			: 0,
-				archiveHandler	: 'TarGz',
-			},
-			//	:TODO: application/x-bzip
-			'application/x-bzip2' : {
-				desc			: 'BZip2 Archive',
-				sig				: '425a68',
-				offset			: 0,
-				archiveHandler	: '7Zip',
-			},
-			'application/x-lzh-compressed' : {
-				desc			: 'LHArc Archive',
-				sig				: '2d6c68',
-				offset			: 2,
-				archiveHandler	: 'Lha',
-			},
-			'application/x-7z-compressed' : {
-				desc			: '7-Zip Archive',
-				sig				: '377abcaf271c',
-				offset			: 0,
-				archiveHandler	: '7Zip',
-			}
+            gopher : {
+                enabled         : false,
+                port            : 8070,
+                publicHostname  : 'another-fine-enigma-bbs.org',
+                publicPort      : 8070, //  adjust if behind NAT/etc.
+                bannerFile      : 'gopher_banner.asc',
 
-			//	:TODO: update archives::formats to fall here
-			//	* archive handler -> archiveHandler (consider archive if archiveHandler present)
-			//	* sig, offset, ...
-			//	* mime-db -> exts lookup
-			//	*
-		},
+                //
+                //  Set messageConferences{} to maps of confTag -> [ areaTag1, areaTag2, ... ]
+                //  to export message confs/areas
+                //
+            },
 
-		archives : {
-			archivers : {
-				'7Zip' : {
-					compress		: {
-						cmd			: '7za',
-						args		: [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
-					},
-					decompress		: {
-						cmd			: '7za',
-						args		: [ 'e', '-o{extractPath}', '{archivePath}' ]	//	:TODO: should be 'x'?
-					},
-					list			: {
-						cmd			: '7za',
-						args		: [ 'l', '{archivePath}' ],
-						entryMatch	: '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
-					},
-					extract			: {
-						cmd			: '7za',
-						args		: [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
-					},
-				},
+            nntp : {
+                //  internal caching of groups, message lists, etc.
+                cache : {
+                    maxItems    : 200,
+                    maxAge      : 1000 * 30,    //  30s
+                },
 
-				Lha : {
-					//
-					//	'lha' command can be obtained from:
-					//	* apt-get: lhasa
-					//
-					//	(compress not currently supported)
-					//
-					decompress		: {
-						cmd			: 'lha',
-						args		: [ '-ew={extractPath}', '{archivePath}' ],
-					},
-					list			: {
-						cmd			: 'lha',
-						args		: [ '-l', '{archivePath}' ],
-						entryMatch	: '^[\\[a-z\\]]+(?:\\s+[0-9]+\\s+[0-9]+|\\s+)([0-9]+)\\s+[0-9]{2}\\.[0-9]\\%\\s+[A-Za-z]{3}\\s+[0-9]{1,2}\\s+[0-9]{4}\\s+([^\\r\\n]+)$',
-					},
-					extract			: {
-						cmd			: 'lha',
-						args		: [ '-ew={extractPath}', '{archivePath}', '{fileList}' ]
-					}
-				},
+                //
+                //  Set publicMessageConferences{} to a map of confTag -> [ areaTag1, areaTag2, ... ]
+                //  in order to export *public* conf/areas that are available to anonymous
+                //  NNTP users. Other conf/areas: Standard ACS rules apply.
+                //
+                publicMessageConferences: {},
 
-				Arj : {
-					//
-					//	'arj' command can be obtained from:
-					//	* apt-get: arj
-					//
-					decompress		: {
-						cmd			: 'arj',
-						args		: [ 'x', '{archivePath}', '{extractPath}' ],
-					},
-					list			: {
-						cmd				: 'arj',
-						args			: [ 'l', '{archivePath}' ],
-						entryMatch		: '^([^\\s]+)\\s+([0-9]+)\\s+[0-9]+\\s[0-9\\.]+\\s+[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\:[0-9]{2}\\s+(?:[^\\r\\n]+)$',
-						entryGroupOrder	: {	//	defaults to { byteSize : 1, fileName : 2 }
-							fileName	: 1,
-							byteSize	: 2,
-						}
-					},
-					extract			: {
-						cmd			: 'arj',
-						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
-					}
-				},
+                nntp : {
+                    enabled     : false,
+                    port        : 8119,
+                },
 
-				Rar : {
-					decompress		: {
-						cmd			: 'unrar',
-						args		: [ 'x', '{archivePath}', '{extractPath}' ],
-					},
-					list			: {
-						cmd			: 'unrar',
-						args		: [ 'l', '{archivePath}' ],
-						entryMatch	: '^\\s+[\\.A-Z]+\\s+([\\d]+)\\s{2}[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s{2}([^\\r\\n]+)$',
-					},
-					extract			: {
-						cmd			: 'unrar',
-						args		: [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
-					}
-				},
+                nntps : {
+                    enabled     : false,
+                    port        : 8563,
+                    certPem     : paths.join(__dirname, './../config/nntps_cert.pem'),
+                    keyPem      : paths.join(__dirname, './../config/nntps_key.pem'),
+                }
+            }
+        },
 
-				TarGz : {
-					decompress		: {
-						cmd			: 'tar',
-						args		: [ '-xf', '{archivePath}', '-C', '{extractPath}', '--strip-components=1' ],
-					},
-					list			: {
-						cmd			: 'tar',
-						args		: [ '-tvf', '{archivePath}' ],
-						entryMatch	: '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',
-					},
-					extract			: {
-						cmd			: 'tar',
-						args		: [ '-xvf', '{archivePath}', '-C', '{extractPath}', '{fileList}' ],
-					}
-				}
-			},
-		},
+        infoExtractUtils : {
+            Exiftool2Desc :  {
+                cmd         : `${__dirname}/../util/exiftool2desc.js`,  //  ensure chmod +x
+            },
+            Exiftool : {
+                cmd         : 'exiftool',
+                args        : [
+                    '-charset', 'utf8', '{filePath}',
+                    //  exclude the following:
+                    '--directory', '--filepermissions', '--exiftoolversion', '--filename', '--filesize',
+                    '--filemodifydate', '--fileaccessdate', '--fileinodechangedate', '--createdate', '--modifydate',
+                    '--metadatadate', '--xmptoolkit'
+                ]
+            },
+            XDMS2Desc : {
+                //  http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html
+                cmd     : 'xdms',
+                args    : [ 'd', '{filePath}' ]
+            },
+            XDMS2LongDesc : {
+                //  http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html
+                cmd     : 'xdms',
+                args    : [ 'f', '{filePath}' ]
+            },
+        },
 
-		fileTransferProtocols : {
-			//
-			//	See http://www.synchro.net/docs/sexyz.txt for information on SEXYZ
-			//
-			zmodem8kSexyz : {
-				name		: 'ZModem 8k (SEXYZ)',
-				type		: 'external',
-				sort		: 1,
-				external	: {
-					//	:TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
-					sendCmd				: 'sexyz',
-					sendArgs			: [ '-telnet', '-8', 'sz', '@{fileListPath}' ],
-					recvCmd				: 'sexyz',
-					recvArgs			: [ '-telnet', '-8', 'rz', '{uploadDir}' ],
-					recvArgsNonBatch	: [ '-telnet', '-8', 'rz', '{fileName}' ],
-				}
-			},
+        fileTypes : {
+            //
+            //  File types explicitly known to the system. Here we can configure
+            //  information extraction, archive treatment, etc.
+            //
+            //  MIME types can be found in mime-db: https://github.com/jshttp/mime-db
+            //
+            //  Resources for signature/magic bytes:
+            //  * http://www.garykessler.net/library/file_sigs.html
+            //
+            //
+            //  :TODO: text/x-ansi -> SAUCE extraction for .ans uploads
+            //  :TODO: textual : bool -- if text, we can view.
+            //  :TODO: asText : { cmd, args[] } -> viewable text
 
-			xmodemSexyz : {
-				name		: 'XModem (SEXYZ)',
-				type		: 'external',
-				sort		: 3,
-				external	: {
-					sendCmd				: 'sexyz',
-					sendArgs			: [ '-telnet', 'sX', '@{fileListPath}' ],
-					recvCmd				: 'sexyz',
-					recvArgsNonBatch	: [ '-telnet', 'rC', '{fileName}' ]
-				}
-			},
+            //
+            //  Audio
+            //
+            'audio/mpeg' : {
+                desc            : 'MP3 Audio',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'application/pdf' : {
+                desc            : 'Adobe PDF',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            //
+            //  Video
+            //
+            'video/mp4' : {
+                desc            : 'MPEG Video',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'video/x-matroska ' : {
+                desc            : 'Matroska Video',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'video/x-msvideo' : {
+                desc            : 'Audio Video Interleave',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            //
+            //  Images
+            //
+            'image/jpeg'    : {
+                desc            : 'JPEG Image',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'image/png' : {
+                desc            : 'Portable Network Graphic Image',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'image/gif' : {
+                desc            : 'Graphics Interchange Format Image',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            'image/webp' :  {
+                desc            : 'WebP Image',
+                shortDescUtil   : 'Exiftool2Desc',
+                longDescUtil    : 'Exiftool',
+            },
+            //
+            //  Archives
+            //
+            'application/zip' : {
+                desc            : 'ZIP Archive',
+                sig             : '504b0304',
+                offset          : 0,
+                archiveHandler  : '7Zip',
+            },
+            /*
+            'application/x-cbr' : {
+                desc            : 'Comic Book Archive',
+                sig             : '504b0304',
+            },
+            */
+            'application/x-arj' : {
+                desc            : 'ARJ Archive',
+                sig             : '60ea',
+                offset          : 0,
+                archiveHandler  : 'Arj',
+            },
+            'application/x-rar-compressed' : {
+                desc            : 'RAR Archive',
+                sig             : '526172211a07',
+                offset          : 0,
+                archiveHandler  : 'Rar',
+            },
+            'application/gzip' : {
+                desc            : 'Gzip Archive',
+                sig             : '1f8b',
+                offset          : 0,
+                archiveHandler  : 'TarGz',
+            },
+            //  :TODO: application/x-bzip
+            'application/x-bzip2' : {
+                desc            : 'BZip2 Archive',
+                sig             : '425a68',
+                offset          : 0,
+                archiveHandler  : '7Zip',
+            },
+            'application/x-lzh-compressed' : {
+                desc            : 'LHArc Archive',
+                sig             : '2d6c68',
+                offset          : 2,
+                archiveHandler  : 'Lha',
+            },
+            'application/x-lzx' : {
+                desc            : 'LZX Archive',
+                sig             : '4c5a5800',
+                offset          : 0,
+                archiveHandler  : 'Lzx',
+            },
+            'application/x-7z-compressed' : {
+                desc            : '7-Zip Archive',
+                sig             : '377abcaf271c',
+                offset          : 0,
+                archiveHandler  : '7Zip',
+            },
 
-			ymodemSexyz : {
-				name		: 'YModem (SEXYZ)',
-				type		: 'external',
-				sort		: 4,
-				external	: {
-					sendCmd				: 'sexyz',
-					sendArgs			: [ '-telnet', 'sY', '@{fileListPath}' ],
-					recvCmd				: 'sexyz',
-					recvArgs			: [ '-telnet', 'ry', '{uploadDir}' ],
-				}
-			},
+            //
+            //  Generics that need further mapping
+            //
+            'application/octet-stream' : [
+                {
+                    desc            : 'Amiga DISKMASHER',
+                    sig             : '444d5321',   //  DMS!
+                    ext             : '.dms',
+                    shortDescUtil   : 'XDMS2Desc',
+                    longDescUtil    : 'XDMS2LongDesc',
+                },
+                {
+                    desc            : 'SIO2PC Atari Disk Image',
+                    sig             : '9602',   //  16bit sum of "NICKATARI"
+                    ext             : '.atr',
+                    archiveHandler  : 'Atr',
+                }
+            ]
+        },
 
-			zmodem8kSz : {
-				name		: 'ZModem 8k',
-				type		: 'external',
-				sort		: 2,
-				external	: {
-					sendCmd		: 'sz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
-					sendArgs	: [
-						//	:TODO: try -q
-						'--zmodem', '--try-8k', '--binary', '--restricted', '{filePaths}'
-					],
-					recvCmd		: 'rz',	//	Avail on Debian/Ubuntu based systems as the package "lrzsz"
-					recvArgs	: [
-						'--zmodem', '--binary', '--restricted', '--keep-uppercase', 	//	dumps to CWD which is set to {uploadDir}
-					],
-					//	:TODO: can we not just use --escape ?
-					escapeTelnet	: true,	//	set to true to escape Telnet codes such as IAC
-				}
-			}
-		},
+        archives : {
+            archivers : {
+                '7Zip' : {
+                    compress        : {
+                        cmd         : '7za',
+                        args        : [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
+                    },
+                    decompress      : {
+                        cmd         : '7za',
+                        args        : [ 'e', '-o{extractPath}', '{archivePath}' ]   //  :TODO: should be 'x'?
+                    },
+                    list            : {
+                        cmd         : '7za',
+                        args        : [ 'l', '{archivePath}' ],
+                        entryMatch  : '^[0-9]{4}-[0-9]{2}-[0-9]{2}\\s[0-9]{2}:[0-9]{2}:[0-9]{2}\\s[A-Za-z\\.]{5}\\s+([0-9]+)\\s+[0-9]+\\s+([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : '7za',
+                        args        : [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+                    },
+                },
 
-		messageAreaDefaults : {
-			//
-			//	The following can be override per-area as well
-			//
-			maxMessages		: 1024,	//	0 = unlimited
-			maxAgeDays		: 0,	//	0 = unlimited
-		},
+                Lha : {
+                    //
+                    //  'lha' command can be obtained from:
+                    //  * apt-get: lhasa
+                    //
+                    //  (compress not currently supported)
+                    //
+                    decompress      : {
+                        cmd         : 'lha',
+                        args        : [ '-efw={extractPath}', '{archivePath}' ],
+                    },
+                    list            : {
+                        cmd         : 'lha',
+                        args        : [ '-l', '{archivePath}' ],
+                        entryMatch  : '^[\\[a-z\\]]+(?:\\s+[0-9]+\\s+[0-9]+|\\s+)([0-9]+)\\s+[0-9]{2}\\.[0-9]\\%\\s+[A-Za-z]{3}\\s+[0-9]{1,2}\\s+[0-9]{4}\\s+([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : 'lha',
+                        args        : [ '-efw={extractPath}', '{archivePath}', '{fileList}' ]
+                    }
+                },
 
-		messageConferences : {
-			system_internal : {
-				name 	: 'System Internal',
-				desc 	: 'Built in conference for private messages, bulletins, etc.',
+                Lzx : {
+                    //
+                    //  'unlzx' command can be obtained from:
+                    //  * Debian based: https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127 (amd64/x86_64)
+                    //  * RedHat: https://fedora.pkgs.org/28/rpm-sphere/unlzx-1.1-4.1.x86_64.rpm.html
+                    //  * Source: http://xavprods.free.fr/lzx/
+                    //
+                    decompress      : {
+                        cmd         : 'unlzx',
+                        //  unzlx doesn't have a output dir option, but we'll cwd to the temp output dir first
+                        args        : [ '-x', '{archivePath}' ],
+                    },
+                    list            : {
+                        cmd         : 'unlzx',
+                        args        : [ '-v', '{archivePath}' ],
+                        entryMatch  : '^\\s+([0-9]+)\\s+[^\\s]+\\s+[0-9]{2}:[0-9]{2}:[0-9]{2}\\s+[0-9]{1,2}-[a-z]{3}-[0-9]{4}\\s+[a-z\\-]+\\s+\\"([^"]+)\\"$',
+                    }
+                },
 
-				areas : {
-					private_mail : {
-						name					: 'Private Mail',
-						desc					: 'Private user to user mail/email',
-						maxExternalSentAgeDays	: 30,	//	max external "outbox" item age
-					},
+                Arj : {
+                    //
+                    //  'arj' command can be obtained from:
+                    //  * apt-get: arj
+                    //
+                    decompress      : {
+                        cmd         : 'arj',
+                        args        : [ 'x', '{archivePath}', '{extractPath}' ],
+                    },
+                    list            : {
+                        cmd             : 'arj',
+                        args            : [ 'l', '{archivePath}' ],
+                        entryMatch      : '^([^\\s]+)\\s+([0-9]+)\\s+[0-9]+\\s[0-9\\.]+\\s+[0-9]{2}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\:[0-9]{2}\\s+(?:[^\\r\\n]+)$',
+                        entryGroupOrder : { //  defaults to { byteSize : 1, fileName : 2 }
+                            fileName    : 1,
+                            byteSize    : 2,
+                        }
+                    },
+                    extract         : {
+                        cmd         : 'arj',
+                        args        : [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+                    }
+                },
 
-					local_bulletin : {
-						name	: 'System Bulletins',
-						desc	: 'Bulletin messages for all users',
-					}
-				}
-			}
-		},
+                Rar : {
+                    decompress      : {
+                        cmd         : 'unrar',
+                        args        : [ 'x', '{archivePath}', '{extractPath}' ],
+                    },
+                    list            : {
+                        cmd         : 'unrar',
+                        args        : [ 'l', '{archivePath}' ],
+                        entryMatch  : '^\\s+[\\.A-Z]+\\s+([\\d]+)\\s{2}[0-9]{2,4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s{2}([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : 'unrar',
+                        args        : [ 'e', '{archivePath}', '{extractPath}', '{fileList}' ],
+                    }
+                },
 
-		scannerTossers : {
-			ftn_bso : {
-				paths : {
-					outbound		: paths.join(__dirname, './../mail/ftn_out/'),
-					inbound			: paths.join(__dirname, './../mail/ftn_in/'),
-					secInbound		: paths.join(__dirname, './../mail/ftn_secin/'),
-					reject			: paths.join(__dirname, './../mail/reject/'),	//	bad pkt, bundles, TIC attachments that fail any check, etc.
-					//outboundNetMail	: paths.join(__dirname, './../mail/ftn_netmail_out/'),
-					//	set 'retain' to a valid path to keep good pkt files
-				},
+                TarGz : {
+                    decompress      : {
+                        cmd         : 'tar',
+                        args        : [ '-xf', '{archivePath}', '-C', '{extractPath}', '--strip-components=1' ],
+                    },
+                    list            : {
+                        cmd         : 'tar',
+                        args        : [ '-tvf', '{archivePath}' ],
+                        entryMatch  : '^[drwx\\-]{10}\\s[A-Za-z0-9\\/]+\\s+([0-9]+)\\s[0-9]{4}\\-[0-9]{2}\\-[0-9]{2}\\s[0-9]{2}\\:[0-9]{2}\\s([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : 'tar',
+                        args        : [ '-xvf', '{archivePath}', '-C', '{extractPath}', '{fileList}' ],
+                    }
+                },
 
-				//
-				//	Packet and (ArcMail) bundle target sizes are just that: targets.
-				//	Actual sizes may be slightly larger when we must place a full
-				//	PKT contents *somewhere*
-				//
-				packetTargetByteSize	: 512000,		//	512k, before placing messages in a new pkt
-				bundleTargetByteSize	: 2048000,		//	2M, before creating another archive
-				packetMsgEncoding		: 'utf8',		//	default packet encoding. Override per node if desired.
-				packetAnsiMsgEncoding	: 'cp437',		//	packet encoding for *ANSI ART* messages
+                Atr : {
+                    decompress      : {
+                        cmd         : 'atr',
+                        args        : [ '{archivePath}', 'x', '-a', '-o', '{extractPath}' ]
+                    },
+                    list            : {
+                        cmd         : 'atr',
+                        args        : [ '{archivePath}', 'ls', '-la1' ],
+                        entryMatch  : '^[rwxs-]{5}\\s+([0-9]+)\\s\\([0-9\\s]+\\)\\s([^\\r\\n\\s]*)(?:[^\\r\\n]+)?$',
+                    },
+                    extract         : {
+                        cmd         : 'atr',
+                        //  note: -l converts Atari 0x9b line feeds to 0x0a; not ideal if we're dealing with a binary of course.
+                        args        : [ '{archivePath}', 'x', '-a', '-l', '-o', '{extractPath}', '{fileList}' ]
+                    }
+                }
+            },
+        },
 
-				tic : {
-					secureInOnly	: true,				//	only bring in from secure inbound (|secInbound| path, password protected)
-					uploadBy		: 'ENiGMA TIC',		//	default upload by username (override @ network)
-					allowReplace	: false,			//	use "Replaces" TIC field
-					descPriority	: 'diz',			//	May be diz=.DIZ/etc., or tic=from TIC Ldesc
-				}
-			}
-		},
+        fileTransferProtocols : {
+            //
+            //  See http://www.synchro.net/docs/sexyz.txt for information on SEXYZ
+            //
+            zmodem8kSexyz : {
+                name        : 'ZModem 8k (SEXYZ)',
+                type        : 'external',
+                sort        : 1,
+                external    : {
+                    //  :TODO: Look into shipping sexyz binaries or at least hosting them somewhere for common systems
+                    //  Linux x86_64 binary: https://l33t.codes/outgoing/sexyz
+                    sendCmd             : 'sexyz',
+                    sendArgs            : [ '-telnet', '-8', 'sz', '@{fileListPath}' ],
+                    recvCmd             : 'sexyz',
+                    recvArgs            : [ '-telnet', '-8', 'rz', '{uploadDir}' ],
+                    recvArgsNonBatch    : [ '-telnet', '-8', 'rz', '{fileName}' ],
+                }
+            },
 
-		fileBase: {
-			//	areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|:
-			areaStoragePrefix	: paths.join(__dirname, './../file_base/'),
+            xmodemSexyz : {
+                name        : 'XModem (SEXYZ)',
+                type        : 'external',
+                sort        : 3,
+                external    : {
+                    sendCmd             : 'sexyz',
+                    sendArgs            : [ '-telnet', 'sX', '@{fileListPath}' ],
+                    recvCmd             : 'sexyz',
+                    recvArgsNonBatch    : [ '-telnet', 'rC', '{fileName}' ]
+                }
+            },
 
-			maxDescFileByteSize			: 471859,	//	~1/4 MB
-			maxDescLongFileByteSize		: 524288,	//	1/2 MB
+            ymodemSexyz : {
+                name        : 'YModem (SEXYZ)',
+                type        : 'external',
+                sort        : 4,
+                external    : {
+                    sendCmd             : 'sexyz',
+                    sendArgs            : [ '-telnet', 'sY', '@{fileListPath}' ],
+                    recvCmd             : 'sexyz',
+                    recvArgs            : [ '-telnet', 'ry', '{uploadDir}' ],
+                }
+            },
 
-			fileNamePatterns: {
-				//	These are NOT case sensitive
-				//	FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
-				//	Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
-				desc		: [
-					'^[^/\]*FILE_ID\.ANS$', '^[^/\]*FILE_ID\.DIZ$', '^[^/\]*DESC\.SDI$', '^[^/\]*DESCRIPT\.ION$', '^[^/\]*FILE\.DES$', '^[^/\]*FILE\.SDI$', '^[^/\]*DISK\.ID$'
-				],
+            zmodem8kSz : {
+                name        : 'ZModem 8k',
+                type        : 'external',
+                sort        : 2,
+                external    : {
+                    sendCmd     : 'sz', //  Avail on Debian/Ubuntu based systems as the package "lrzsz"
+                    sendArgs    : [
+                        //  :TODO: try -q
+                        '--zmodem', '--try-8k', '--binary', '--restricted', '{filePaths}'
+                    ],
+                    recvCmd     : 'rz', //  Avail on Debian/Ubuntu based systems as the package "lrzsz"
+                    recvArgs    : [
+                        '--zmodem', '--binary', '--restricted', '--keep-uppercase',     //  dumps to CWD which is set to {uploadDir}
+                    ],
+                    //  :TODO: can we not just use --escape ?
+                    escapeTelnet    : true, //  set to true to escape Telnet codes such as IAC
+                }
+            }
+        },
 
-				//	common README filename - https://en.wikipedia.org/wiki/README
-				descLong		: [
-					'^[^/\]*\.NFO$', '^[^/\]*README\.1ST$', '^[^/\]*README\.NOW$', '^[^/\]*README\.TXT$', '^[^/\]*READ\.ME$', '^[^/\]*README$', '^[^/\]*README\.md$'
-				],
-			},
+        messageAreaDefaults : {
+            //
+            //  The following can be override per-area as well
+            //
+            maxMessages     : 1024, //  0 = unlimited
+            maxAgeDays      : 0,    //  0 = unlimited
+        },
 
-			yearEstPatterns: [
-				//
-				//	Patterns should produce the year in the first submatch.
-				//	The extracted year may be YY or YYYY
-				//
-				'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',	//	yyyy-mm-dd, yyyy/mm/dd, ...
-				'\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1-2][0-9][0-9]{2}))\\b',	//	mm/dd/yyyy, mm.dd.yyyy, ...
-				'\\b((?:[1789][0-9]))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',			//	yy-mm-dd, yy-mm-dd, ...
-				'\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1789][0-9]))\\b',			//	mm-dd-yy, mm/dd/yy, ...
-				//'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]|[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',	//	yyyy-mm-dd, m/d/yyyy, mm-dd-yyyy, etc.
-				//"\\b('[1789][0-9])\\b",	//	eslint-disable-line quotes
-				'\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',
-				'\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',	//	November 29th, 1997
-				'\\(((?:19|20)[0-9]{2})\\)',	//	(19xx) or (20xx) -- with parens -- do this before 19xx 20xx such that this has priority
-				'\\b((?:19|20)[0-9]{2})\\b',	//	simple 19xx or 20xx with word boundaries
-				'\\b\'([17-9][0-9])\\b',		//	'95, '17, ...
-				//	:TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
-			],
+        messageConferences : {
+            system_internal : {
+                name    : 'System Internal',
+                desc    : 'Built in conference for private messages, bulletins, etc.',
 
-			web : {
-				path			: '/f/',
-				routePath		: '/f/[a-zA-Z0-9]+$',
-				expireMinutes	: 1440,	//	1 day
-			},
+                areas : {
+                    private_mail : {
+                        name                    : 'Private Mail',
+                        desc                    : 'Private user to user mail/email',
+                        maxExternalSentAgeDays  : 30,   //  max external "outbox" item age
+                    },
 
-			//
-			//	File area storage location tag/value pairs.
-			//	Non-absolute paths are relative to |areaStoragePrefix|.
-			//
-			storageTags : {
-				sys_msg_attach		: 'sys_msg_attach',
-				sys_temp_download	: 'sys_temp_download',
-			},
+                    local_bulletin : {
+                        name    : 'System Bulletins',
+                        desc    : 'Bulletin messages for all users',
+                    }
+                }
+            }
+        },
 
-			areas: {
-				system_message_attachment : {
-					name		: 'System Message Attachments',
-					desc		: 'File attachments to messages',
-					storageTags	: [ 'sys_msg_attach' ],
-				},
+        scannerTossers : {
+            ftn_bso : {
+                paths : {
+                    outbound        : paths.join(__dirname, './../mail/ftn_out/'),
+                    inbound         : paths.join(__dirname, './../mail/ftn_in/'),
+                    secInbound      : paths.join(__dirname, './../mail/ftn_secin/'),
+                    reject          : paths.join(__dirname, './../mail/reject/'),   //  bad pkt, bundles, TIC attachments that fail any check, etc.
+                    //outboundNetMail   : paths.join(__dirname, './../mail/ftn_netmail_out/'),
+                    //  set 'retain' to a valid path to keep good pkt files
+                },
 
-				system_temporary_download : {
-					name		: 'System Temporary Downloads',
-					desc		: 'Temporary downloadables',
-					storageTags	: [ 'sys_temp_download' ],
-				}
-			}
-		},
+                //
+                //  Packet and (ArcMail) bundle target sizes are just that: targets.
+                //  Actual sizes may be slightly larger when we must place a full
+                //  PKT contents *somewhere*
+                //
+                packetTargetByteSize    : 512000,       //  512k, before placing messages in a new pkt
+                bundleTargetByteSize    : 2048000,      //  2M, before creating another archive
+                packetMsgEncoding       : 'utf8',       //  default packet encoding. Override per node if desired.
+                packetAnsiMsgEncoding   : 'cp437',      //  packet encoding for *ANSI ART* messages
 
-		eventScheduler : {
+                tic : {
+                    secureInOnly    : true,             //  only bring in from secure inbound (|secInbound| path, password protected)
+                    uploadBy        : 'ENiGMA TIC',     //  default upload by username (override @ network)
+                    allowReplace    : false,            //  use "Replaces" TIC field
+                    descPriority    : 'diz',            //  May be diz=.DIZ/etc., or tic=from TIC Ldesc
+                }
+            }
+        },
 
-			events : {
-				trimMessageAreas : {
-					//	may optionally use [or ]@watch:/path/to/file
-					schedule	: 'every 24 hours',
+        fileBase: {
+            //  areas with an explicit |storageDir| will be stored relative to |areaStoragePrefix|:
+            areaStoragePrefix   : paths.join(__dirname, './../file_base/'),
 
-					//	action:
-					//	- @method:path/to/module.js:theMethodName
-					//	  (path is relative to engima base dir)
-					//
-					//	- @execute:/path/to/something/executable.sh
-					//
-					action		: '@method:core/message_area.js:trimMessageAreasScheduledEvent',
-				},
+            maxDescFileByteSize         : 471859,   //  ~1/4 MB
+            maxDescLongFileByteSize     : 524288,   //  1/2 MB
 
-				updateFileAreaStats : {
-					schedule	: 'every 1 hours',
-					action		: '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
-				},
+            fileNamePatterns: {
+                //  These are NOT case sensitive
+                //  FILE_ID.DIZ - https://en.wikipedia.org/wiki/FILE_ID.DIZ
+                //  Some groups include a FILE_ID.ANS. We try to use that over FILE_ID.DIZ if available.
+                desc        : [
+                    '^.*FILE_ID\.ANS$', '^.*FILE_ID\.DIZ$',     //  eslint-disable-line no-useless-escape
+                    '^.*DESC\.SDI$',                            //  eslint-disable-line no-useless-escape
+                    '^.*DESCRIPT\.ION$',                        //  eslint-disable-line no-useless-escape
+                    '^.*FILE\.DES$',                            //  eslint-disable-line no-useless-escape
+                    '^.*FILE\.SDI$',                            //  eslint-disable-line no-useless-escape
+                    '^.*DISK\.ID$'                              //  eslint-disable-line no-useless-escape
+                ],
 
-				forgotPasswordMaintenance : {
-					schedule	: 'every 24 hours',
-					action		: '@method:core/web_password_reset.js:performMaintenanceTask',
-					args		: [ '24 hours' ]	//	items older than this will be removed
-				}
-			}
-		},
+                //  common README filename - https://en.wikipedia.org/wiki/README
+                descLong        : [
+                    '^[^/\]*\.NFO$',        //  eslint-disable-line no-useless-escape
+                    '^.*README\.1ST$',      //  eslint-disable-line no-useless-escape
+                    '^.*README\.NOW$',      //  eslint-disable-line no-useless-escape
+                    '^.*README\.TXT$',      //  eslint-disable-line no-useless-escape
+                    '^.*READ\.ME$',         //  eslint-disable-line no-useless-escape
+                    '^.*README$',           //  eslint-disable-line no-useless-escape
+                    '^.*README\.md$',       //  eslint-disable-line no-useless-escape
+                    '^RELEASE-INFO.ASC$'    //  eslint-disable-line no-useless-escape
+                ],
+            },
 
-		misc : {
-			preAuthIdleLogoutSeconds	: 60 * 3,	//	2m
-			idleLogoutSeconds			: 60 * 6,	//	6m
-		},
+            yearEstPatterns: [
+                //
+                //  Patterns should produce the year in the first submatch.
+                //  The extracted year may be YY or YYYY
+                //
+                '\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',   //  yyyy-mm-dd, yyyy/mm/dd, ...
+                '\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1-2][0-9][0-9]{2}))\\b',   //  mm/dd/yyyy, mm.dd.yyyy, ...
+                '\\b((?:[1789][0-9]))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]\\b',          //  yy-mm-dd, yy-mm-dd, ...
+                '\\b[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[1789][0-9]))\\b',          //  mm-dd-yy, mm/dd/yy, ...
+                //'\\b((?:[1-2][0-9][0-9]{2}))[\\-\\/\\.][0-3]?[0-9][\\-\\/\\.][0-3]?[0-9]|[0-3]?[0-9][\\-\\/\\.][0-3]?[0-9][\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b', //  yyyy-mm-dd, m/d/yyyy, mm-dd-yyyy, etc.
+                //"\\b('[1789][0-9])\\b",   //  eslint-disable-line quotes
+                '\\b[0-3]?[0-9][\\-\\/\\.](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[\\-\\/\\.]((?:[0-9]{2})?[0-9]{2})\\b',
+                '\\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december),?\\s[0-9]+(?:st|nd|rd|th)?,?\\s((?:[0-9]{2})?[0-9]{2})\\b',   //  November 29th, 1997
+                '\\(((?:19|20)[0-9]{2})\\)',    //  (19xx) or (20xx) -- with parens -- do this before 19xx 20xx such that this has priority
+                '\\b((?:19|20)[0-9]{2})\\b',    //  simple 19xx or 20xx with word boundaries
+                '\\b\'([17-9][0-9])\\b',        //  '95, '17, ...
+                //  :TODO: DD/MMM/YY, DD/MMMM/YY, DD/MMM/YYYY, etc.
+            ],
 
-		logging : {
-			level	: 'debug',
+            web : {
+                path            : '/f/',
+                routePath       : '/f/[a-zA-Z0-9]+$',
+                expireMinutes   : 1440, //  1 day
+            },
 
-			rotatingFile	: {	//	set to 'disabled' or false to disable
-				type		: 'rotating-file',
-				fileName	: 'enigma-bbs.log',
-				period		: '1d',
-				count		: 3,
-				level		: 'debug',
-			}
+            //
+            //  File area storage location tag/value pairs.
+            //  Non-absolute paths are relative to |areaStoragePrefix|.
+            //
+            storageTags : {
+                sys_msg_attach      : 'sys_msg_attach',
+                sys_temp_download   : 'sys_temp_download',
+            },
 
-			//	:TODO: syslog - https://github.com/mcavage/node-bunyan-syslog
-		},
+            areas: {
+                system_message_attachment : {
+                    name        : 'System Message Attachments',
+                    desc        : 'File attachments to messages',
+                    storageTags : [ 'sys_msg_attach' ],
+                },
 
-		debug : {
-			assertsEnabled	: false,
-		}
-	};
+                system_temporary_download : {
+                    name        : 'System Temporary Downloads',
+                    desc        : 'Temporary downloadables',
+                    storageTags : [ 'sys_temp_download' ],
+                }
+            }
+        },
+
+        eventScheduler : {
+
+            events : {
+                dailyMaintenance : {
+                    schedule    : 'at 11:59pm',
+                    action      : '@method:core/misc_scheduled_events.js:dailyMaintenanceScheduledEvent',
+                },
+                trimMessageAreas : {
+                    //  may optionally use [or ]@watch:/path/to/file
+                    schedule    : 'every 24 hours',
+
+                    //  action:
+                    //  - @method:path/to/module.js:theMethodName
+                    //    (path is relative to ENiGMA base dir)
+                    //
+                    //  - @execute:/path/to/something/executable.sh
+                    //
+                    action      : '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+                },
+
+                nntpMaintenance : {
+                    schedule    : 'every 12 hours', //  should generally be < trimMessageAreas interval
+                    action      : '@method:core/servers/content/nntp.js:performMaintenanceTask',
+                },
+
+                updateFileAreaStats : {
+                    schedule    : 'every 1 hours',
+                    action      : '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
+                },
+
+                forgotPasswordMaintenance : {
+                    schedule    : 'every 24 hours',
+                    action      : '@method:core/web_password_reset.js:performMaintenanceTask',
+                    args        : [ '24 hours' ]    //  items older than this will be removed
+                },
+
+                //
+                //  Enable the following entry in your config.hjson to periodically create/update
+                //  DESCRIPT.ION files for your file base
+                //
+                /*
+                updateDescriptIonFiles : {
+                    schedule    : 'on the last day of the week',
+                    action      : '@method:core/file_base_list_export.js:updateFileBaseDescFilesScheduledEvent',
+                }
+                */
+            }
+        },
+
+        logging : {
+            rotatingFile    : { //  set to 'disabled' or false to disable
+                type        : 'rotating-file',
+                fileName    : 'enigma-bbs.log',
+                period      : '1d',
+                count       : 3,
+                level       : 'debug',
+            }
+
+            //  :TODO: syslog - https://github.com/mcavage/node-bunyan-syslog
+        },
+
+        debug : {
+            assertsEnabled  : false,
+        },
+
+        statLog : {
+            systemEvents : {
+                loginHistoryMax: -1, //  set to -1 for forever
+            }
+        },
+    };
 }

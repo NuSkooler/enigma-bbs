@@ -1,151 +1,223 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const MenuModule		= require('./menu_module.js').MenuModule;
-const ViewController	= require('./view_controller.js').ViewController;
-const StatLog			= require('./stat_log.js');
-const User				= require('./user.js');
-const stringFormat		= require('./string_format.js');
+//  ENiGMA½
+const { MenuModule }    = require('./menu_module.js');
+const StatLog           = require('./stat_log.js');
+const User              = require('./user.js');
+const sysDb             = require('./database.js').dbs.system;
+const { Errors }        = require('./enig_error.js');
+const UserProps         = require('./user_property.js');
+const SysLogKeys        = require('./system_log.js');
 
-//	deps
-const moment			= require('moment');
-const async				= require('async');
-const _					= require('lodash');
-
-/*
-	Available listFormat object members:
-	userId
-	userName
-	location
-	affiliation
-	ts
-	
-*/
+//  deps
+const moment            = require('moment');
+const async             = require('async');
+const _                 = require('lodash');
 
 exports.moduleInfo = {
-	name		: 'Last Callers',
-	desc		: 'Last callers to the system',
-	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.lastcallers'
+    name        : 'Last Callers',
+    desc        : 'Last callers to the system',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.lastcallers'
 };
 
-const MciCodeIds = {
-	CallerList		: 1,
+const MciViewIds = {
+    callerList      : 1,
 };
 
 exports.getModule = class LastCallersModule extends MenuModule {
-	constructor(options) {
-		super(options);
-	}
+    constructor(options) {
+        super(options);
 
-	mciReady(mciData, cb) {
-		super.mciReady(mciData, err => {
-			if(err) {
-				return cb(err);
-			}
+        this.actionIndicators        = _.get(options, 'menuConfig.config.actionIndicators', {});
+        this.actionIndicatorDefault  = _.get(options, 'menuConfig.config.actionIndicatorDefault', '-');
+    }
 
-			const self		= this;
-			const vc		= self.viewControllers.allViews = new ViewController( { client : self.client } );
+    mciReady(mciData, cb) {
+        super.mciReady(mciData, err => {
+            if(err) {
+                return cb(err);
+            }
 
-			let loginHistory;
-			let callersView;
+            async.waterfall(
+                [
+                    (callback) => {
+                        this.prepViewController('callers', 0, mciData.menu, err => {
+                            return callback(err);
+                        });
+                    },
+                    (callback) => {
+                        this.fetchHistory( (err, loginHistory) => {
+                            return callback(err, loginHistory);
+                        });
+                    },
+                    (loginHistory, callback) => {
+                        this.loadUserForHistoryItems(loginHistory, (err, updatedHistory) => {
+                            return callback(err, updatedHistory);
+                        });
+                    },
+                    (loginHistory, callback) => {
+                        const callersView = this.viewControllers.callers.getView(MciViewIds.callerList);
+                        if(!callersView) {
+                            return cb(Errors.MissingMci(`Missing caller list MCI ${MciViewIds.callerList}`));
+                        }
+                        callersView.setItems(loginHistory);
+                        callersView.redraw();
+                        return callback(null);
+                    }
+                ],
+                err => {
+                    if(err) {
+                        this.client.log.warn( { error : err.message }, 'Error loading last callers');
+                    }
+                    return cb(err);
+                }
+            );
+        });
+    }
 
-			async.series(
-				[
-					function loadFromConfig(callback) {
-						const loadOpts = {
-							callingMenu		: self,
-							mciMap			: mciData.menu,
-							noInput			: true,
-						};
+    getCollapse(conf) {
+        let collapse = _.get(this, conf);
+        collapse = collapse && collapse.match(/^([0-9]+)\s*(minutes?|seconds?|hours?|days?|months?)$/);
+        if(collapse) {
+            return moment.duration(parseInt(collapse[1]), collapse[2]);
+        }
+    }
 
-						vc.loadFromMenuConfig(loadOpts, callback);
-					},
-					function fetchHistory(callback) {
-						callersView = vc.getView(MciCodeIds.CallerList);
+    fetchHistory(cb) {
+        const callersView = this.viewControllers.callers.getView(MciViewIds.callerList);
+        if(!callersView || 0 === callersView.dimens.height) {
+            return cb(null);
+        }
 
-						//	fetch up 
-						StatLog.getSystemLogEntries('user_login_history', StatLog.Order.TimestampDesc, 200, (err, lh) => {
-							loginHistory = lh;
+        StatLog.getSystemLogEntries(
+            SysLogKeys.UserLoginHistory,
+            StatLog.Order.TimestampDesc,
+            200,    //  max items to fetch - we need more than max displayed for filtering/etc.
+            (err, loginHistory) => {
+                if(err) {
+                    return cb(err);
+                }
 
-							if(self.menuConfig.config.hideSysOpLogin) {
-								const noOpLoginHistory = loginHistory.filter(lh => {
-									return false === User.isRootUserId(parseInt(lh.log_value));	//	log_value=userId
-								});
+                const dateTimeFormat = _.get(
+                    this, 'menuConfig.config.dateTimeFormat', this.client.currentTheme.helpers.getDateFormat('short'));
 
-								//
-								//	If we have enough items to display, or hideSysOpLogin is set to 'always',
-								//	then set loginHistory to our filtered list. Else, we'll leave it be.
-								//
-								if(noOpLoginHistory.length >= callersView.dimens.height || 'always' === self.menuConfig.config.hideSysOpLogin) {
-									loginHistory = noOpLoginHistory;
-								}
-							}
-							
-							//
-							//	Finally, we need to trim up the list to the needed size
-							//
-							loginHistory = loginHistory.slice(0, callersView.dimens.height);
-							
-							return callback(err);
-						});
-					},
-					function getUserNamesAndProperties(callback) {
-						const getPropOpts = {
-							names		: [ 'location', 'affiliation' ]
-						};
+                loginHistory = loginHistory.map(item => {
+                    try {
+                        const historyItem = JSON.parse(item.log_value);
+                        if(_.isObject(historyItem)) {
+                            item.userId     = historyItem.userId;
+                            item.sessionId  = historyItem.sessionId;
+                        } else {
+                            item.userId     = historyItem;  //  older format
+                            item.sessionId  = '-none-';
+                        }
+                    } catch(e) {
+                        return null;    //  we'll filter this out
+                    }
 
-						const dateTimeFormat = self.menuConfig.config.dateTimeFormat || 'ddd MMM DD';
+                    item.timestamp = moment(item.timestamp);
 
-						async.each(
-							loginHistory, 
-							(item, next) => {
-								item.userId = parseInt(item.log_value);
-								item.ts		= moment(item.timestamp).format(dateTimeFormat);						
+                    return Object.assign(
+                        item,
+                        {
+                            ts : moment(item.timestamp).format(dateTimeFormat)
+                        }
+                    );
+                });
 
-								User.getUserName(item.userId, (err, userName) => {
-									if(err) {
-										item.deleted = true;
-										return next(null);
-									} else {
-										item.userName = userName || 'N/A';
+                const hideSysOp     = _.get(this, 'menuConfig.config.sysop.hide');
+                const sysOpCollapse = this.getCollapse('menuConfig.config.sysop.collapse');
 
-										User.loadProperties(item.userId, getPropOpts, (err, props) => {
-											if(!err && props) {
-												item.location 		= props.location || 'N/A';
-												item.affiliation	= item.affils = (props.affiliation || 'N/A');
-											} else {
-												item.location		= 'N/A';
-												item.affiliation	= item.affils = 'N/A';
-											}
-											return next(null);
-										});
-									}
-								});
-							},
-							err => {
-								loginHistory = loginHistory.filter(lh => true !== lh.deleted);
-								return callback(err);
-							}
-						);
-					},
-					function populateList(callback) {
-						const listFormat = self.menuConfig.config.listFormat || '{userName} - {location} - {affiliation} - {ts}';
+                const collapseList = (withUserId, minAge) => {
+                    let lastUserId;
+                    let lastTimestamp;
+                    loginHistory = loginHistory.filter(item => {
+                        const secApart = lastTimestamp ? moment.duration(lastTimestamp.diff(item.timestamp)).asSeconds() : 0;
+                        const collapse = (null === withUserId ? true : withUserId === item.userId) &&
+                            (lastUserId === item.userId) &&
+                            (secApart < minAge);
 
-						callersView.setItems(_.map(loginHistory, ce => stringFormat(listFormat, ce) ) );
+                        lastUserId = item.userId;
+                        lastTimestamp = item.timestamp;
 
-						callersView.redraw();
-						return callback(null);
-					}
-				],
-				(err) => {
-					if(err) {
-						self.client.log.error( { error : err.toString() }, 'Error loading last callers');
-					}
-					cb(err);
-				}
-			);
-		});
-	}
+                        return !collapse;
+                    });
+                };
+
+                if(hideSysOp) {
+                    loginHistory = loginHistory.filter(item => false === User.isRootUserId(item.userId));
+                } else if(sysOpCollapse) {
+                    collapseList(User.RootUserID, sysOpCollapse.asSeconds());
+                }
+
+                const userCollapse = this.getCollapse('menuConfig.config.user.collapse');
+                if(userCollapse) {
+                    collapseList(null, userCollapse.asSeconds());
+                }
+
+                return cb(
+                    null,
+                    loginHistory.slice(0, callersView.dimens.height)      //  trim the fat
+                );
+            }
+        );
+    }
+
+    loadUserForHistoryItems(loginHistory, cb) {
+        const getPropOpts = {
+            names : [ UserProps.RealName, UserProps.Location, UserProps.Affiliations ]
+        };
+
+        const actionIndicatorNames = _.map(this.actionIndicators, (v, k) => k);
+        let indicatorSumsSql;
+        if(actionIndicatorNames.length > 0) {
+            indicatorSumsSql = actionIndicatorNames.map(i => {
+                return `SUM(CASE WHEN log_name='${_.snakeCase(i)}' THEN 1 ELSE 0 END) AS ${i}`;
+            });
+        }
+
+        async.map(loginHistory, (item, nextHistoryItem) => {
+            User.getUserName(item.userId, (err, userName) => {
+                if(err) {
+                    return nextHistoryItem(null, null);
+                }
+
+                item.userName = item.text = userName;
+
+                User.loadProperties(item.userId, getPropOpts, (err, props) => {
+                    item.location       = (props && props[UserProps.Location]) || '';
+                    item.affiliation    = item.affils = (props && props[UserProps.Affiliations]) || '';
+                    item.realName       = (props && props[UserProps.RealName]) || '';
+
+                    if(!indicatorSumsSql) {
+                        return nextHistoryItem(null, item);
+                    }
+
+                    sysDb.get(
+                        `SELECT ${indicatorSumsSql.join(', ')}
+                        FROM user_event_log
+                        WHERE user_id=? AND session_id=?
+                        LIMIT 1;`,
+                        [ item.userId, item.sessionId ],
+                        (err, results) => {
+                            if(_.isObject(results)) {
+                                item.actions = '';
+                                Object.keys(results).forEach(n => {
+                                    const indicator = results[n] > 0 ? this.actionIndicators[n] || this.actionIndicatorDefault : this.actionIndicatorDefault;
+                                    item[n] = indicator;
+                                    item.actions += indicator;
+                                });
+                            }
+                            return nextHistoryItem(null, item);
+                        }
+                    );
+                });
+            });
+        },
+        (err, mapped) => {
+            return cb(err, mapped.filter(item => item));    //  remove deleted
+        });
+    }
 };

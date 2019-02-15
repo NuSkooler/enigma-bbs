@@ -9,9 +9,7 @@
 	customization: {
 
 		defaults: {
-			general: {
-				passwordChar: *
-			}
+			passwordChar: *
 
 			dateTimeFormat: {
 				short: MMM Do h:mm a
@@ -22,7 +20,8 @@
 			matrix: {
 				mci: {
 					VM1: {
-						focusTextStyle: first lower
+						itemFormat:			"|03{text}"
+						focusItemFormat:	"|11{text!styleFirstLower}"
 					}
 				}
 			}
@@ -87,11 +86,15 @@
 
 			fullLoginSequenceOnelinerz: {
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+					dateTimeFormat: ddd h:mma
 				}
 				0: {
 					mci: {
-						VM1: { height: 10 }
+						VM1: {
+							height: 10
+							width: 20
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
 						TM2: {
 							focusTextStyle: first lower
 						}						
@@ -108,61 +111,92 @@
 				}
 			}
 
+			mainMenuUserAchievementsEarned: {
+				config: {
+					dateTimeFormat: MMM Do h:mma
+					achievementsInfoFormat10: "|00|07\"|11{title}|07\""
+					achievementsInfoFormat11: "|00|03{text}"
+				}
+				mci: {
+					VM1: {
+						height: 11
+						width: 76
+						itemFormat: "|00|15{ts} |07- |03{title:<47.46} |15{points:,}|07 pts"
+						focusItemFormat: "|00|19|15{ts} - {title:<47.46} {points:,} pts"
+					}
+					TL10: {
+						width: 76
+					}
+					TL11: {
+						width: 76
+					}
+				}
+			}
+
 			mainMenuUserStats: {
 				mci: {
-					UN1: { width: 17 }
-					UR2: { width: 17 }
-					LO3: { width: 17 }
-					UF4: { width: 17 }
-					UG5: { width: 17 }
-					UT6: { width: 17 }
-					UC7: { width: 17 }
-					ST8: { width: 17 }
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
 				}
 			}
 
 			mainMenuSystemStats: {
 				mci: {
 					BN1: { width: 17 }
-					VL2: { width: 17 }
+					VN2: { width: 17 }
 					OS3: { width: 33 }
 					SC4: { width: 33 }
-					DT5: { width: 33 }
-					CT6: { width: 33 }
 					AN7: { width: 6 }
 					ND8: { width: 6 }
 					TC9: { width: 6 }
+					TT11: { width: 6 }
+					PT12: { width: 6 }
+					TP13: { width: 6 }
+					NV14: { width: 17 }
 				}
 			}
 
 
 			mainMenuLastCallers: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
 				}
 			}
 
 			mainMenuUserList: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{note:<19.19}|03{lastLoginTs}"
-					focusListFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{note:<19.19}{lastLoginTs}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 15 }
+					VM1: {
+						height: 15,
+						width: 50
+						itemFormat: "|00|11{userName:<17.17}|03{affils:<21.21}|11{location:<19.19}|03{lastLoginTs}"
+						focusItemFormat: "|00|19|15{userName:<17.17}{affils:<21.21}{location:<19.19}{lastLoginTs}"
+					}
 				}
 			}
 
 			mainMenuWhosOnline: {
-				config: {
-					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
-				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
 				}
 			}
 
@@ -182,13 +216,15 @@
 			}
 
 			mainMenuOnelinerz: {
-				//	:TODO: Need way to just duplicate entry here & in menu.hjson, e.g. use: someName + must supply next/etc. in menu
 				config: {
-					listFormat: "|00|11{username:<12}|08: |03{oneliner:<59.58}"
+					dateTimeFormat: ddd h:mma
 				}
 				0: {
 					mci: {
-						VM1: { height: 10 }
+						VM1: {
+							height: 10
+							itemFormat: "|00|11{userName:<12}|08: |03{oneliner:<59.59}"
+						}
 						TM2: {
 							focusTextStyle: first lower
 						}						
@@ -206,40 +242,48 @@
 			}
 
 			messageAreaMessageList: {
-				config: {
-					listFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |01|31{newIndicator}"
-					focusListFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
+				config: {					
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
 					}
 				}
 			}
 
 			messageAreaChangeCurrentConference: {
-				config: {
-					listFormat: "|00|15{index} |07- |03{name}"
-					focusListFormat: "|00|19|15{index} - {name}"
-				}
 				mci: {
 					VM1: {
 						width: 26
 						height: 19
+						itemFormat: "|00|15{index} |07- |03{name}"
+						focusItemFormat: "|00|19|15{index} - {name}"
 					}
 				}
 			}
 
 			messageAreaChangeCurrentArea: {
-				config: {
-					listFormat: "|00|15{index} |07- |03{name}"
-					focusListFormat: "|00|19|15{index} - {name}"
-				}
 				mci: {
 					VM1: {
 						width: 26
 						height: 19
+						itemFormat: "|00|15{index:.2} |07- |03{name}"
+						focusItemFormat: "|00|09|15{index:.2} - {name}"
+					}
+				}
+			}
+
+			messageAreaSetNewScanDate: {
+				mci: {
+					SM2: {
+						width: 54
+						itemFormat: "|00|07{conf.name} |08- |07{area.name}"
+						focusItemFormat: "|00|15{conf.name} |07- |15{area.name}"
 					}
 				}
 			}
@@ -261,25 +305,31 @@
 
 			mailMenuInbox: {
 				config: {
-					listFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |01|31{newIndicator}"
-					focusListFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
+						itemFormat: "|00|15{msgNum:>4}  |03{subject:<28.27} |11{fromUserName:<20.20} |03{ts} |15{newIndicator}"
+						focusItemFormat: "|00|19|15{msgNum:>4}  {subject:<28.27} {fromUserName:<20.20} {ts} {newIndicator}"
+					}
+					XY2: {
+						width: 30
 					}
 				}
 			}
 
 			mainMenuRumorz: {
-				config: {
-					listFormat:      "|00|11  {rumor}"
-					focusListFormat: "|00|15> |14{rumor}"
-				}
 				0: {
 					mci: {
-						VM1: { height: 14 }
+						VM1: {
+							height: 14,
+							width: 70
+							itemFormat:      "|00|11  {rumor}"
+							focusItemFormat: "|00|15> |14{rumor}"
+						}
 						TM2: {
 							focusTextStyle: upper
 							items: [ "yes", "no" ]
@@ -298,16 +348,14 @@
 			}
 
 			bbsList: {
-				config: {
-					listFormat: "|00|07{bbsName}"
-					focusListFormat: "|00|19|15{bbsName!styleFirstLower}"
-				}
 				0: {
 					mci: {
 						VM1: {
 							height: 11
 							width: 22
 							focusTextStyle: first upper
+							itemFormat: "|00|07{bbsName}"
+							focusItemFormat: "|00|19|15{bbsName!styleFirstLower}"
 						}
 						TL2: { width: 28 }
 						TL3: { width: 28 }
@@ -337,6 +385,70 @@
 				}
 			}
 
+			nodeMessage: {
+				config: {
+					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"
+				}
+				0: {
+					mci: {
+						SM1: {
+							width: 25
+							itemFormat: "|00|03node |07{text} |08(|07{userName}|08)"
+							focusItemFormat: "|00|11node |15{text} |07(|15{userName}|07)"
+						}
+						ET2: {
+							width: 65
+						}
+						TL3: {
+							width: 65
+						}
+					}
+				}
+			}
+
+			messageSearch: {
+				0: {
+					mci: {
+						ET1: {
+							width: 42
+						}
+						BT2: {
+							focusTextStyle: upper
+						}
+						SM3: {
+							width: 42
+						}
+						SM4: {
+							width: 42
+						}
+						ET5: {
+							width: 42
+						}
+						ET6: {
+							width: 42
+						}
+						BT7: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
+			messageAreaSearchMessageList: {
+				config: {
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+					//	Fri Sep 25th
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 71
+						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<27.26} |07{toUserName:<13.12} {fromUserName:<13.12} |03{ts:<12.12}"
+						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}"
+					}
+				}
+			}
 
 			messageAreaViewPost: {
 				0: {
@@ -410,20 +522,24 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					listFormat: "|00|11{userName:<17.17}|03{location:<20.20}|11{affils:<17.17}|03{ts:<15}"
 					dateTimeFormat: MMM Do h:mma
 				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|11{userName:<17.16} |03{location:<20.19} |11{affils:<18.17} |03{ts:<15}"
+					}
 				}
 			}
 
 			fullLoginSequenceWhosOnline: {
-				config: {
-					listFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
-				}
 				mci: {
-					VM1: { height: 10 }
+					VM1: {
+						height: 10,
+						width: 20
+						itemFormat: "|00|03{node:<6.6}|11{userName:<17.17}|03{affils:<19.19}|11{action:<20.20}|03{timeOn:<8}"
+					}
 				}
 			}
 
@@ -433,14 +549,14 @@
 
 			fullLoginSequenceUserStats: {
 				mci: {
-					UN1: { width: 17 }
-					UR2: { width: 17 }
-					LO3: { width: 17 }
-					UF4: { width: 17 }
-					UG5: { width: 17 }
-					UT6: { width: 17 }
-					UC7: { width: 17 }
-					ST8: { width: 17 }
+					UN1: { width: 15 }
+					UR2: { width: 15 }
+					LO3: { width: 15 }
+					UF4: { width: 15 }
+					UG5: { width: 15 }
+					UT6: { width: 15 }
+					UC7: { width: 15 }
+					ST8: { width: 15 }
 				}
 			}
 
@@ -467,14 +583,16 @@
 			}
 
 			newScanMessageList: {
-				config: {
-					listFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
-					focusListFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
+				config: {					
 					dateTimeFormat: ddd MMM Do
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
 				}
 				mci: {
 					VM1: {
 						height: 14
+						width: 70
+						itemFormat: "|00|15  {msgNum:<5.5}|03{subject:<28.27} |15{fromUserName:<20.20} {ts}"
+						focusItemFormat: "|00|19> |15{msgNum:<5.5}{subject:<28.27} {fromUserName:<20.20} {ts}"
 					}
 				}
 			}
@@ -493,7 +611,7 @@
 			fileBaseListEntries: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "|00|10{fileName:<.44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"				
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
@@ -524,9 +642,6 @@
 					detailsGeneralInfoFormat20: "{uploadByUsername}"
 					detailsGeneralInfoFormat21: "{uploadTimestamp}"
 					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
-
-					fileListEntryFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusFileListEntryFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 
 					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
 				}
@@ -586,6 +701,8 @@
 						VM1: {
 							height: 17
 							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 					}
 				}
@@ -594,7 +711,7 @@
 			newScanFileBaseList: {
 				config: {
 					hashTagsSep: "|08, |07"
-					browseInfoFormat10: "|00|10{fileName} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
+					browseInfoFormat10: "|00|10{fileName:<44} |08- |03{byteSize!sizeWithoutAbbr} |11{byteSize!sizeAbbr} |08- |03uploaded |11{uploadTimestamp}"
 					browseInfoFormat11: "|00|15{areaName}"				
 					browseInfoFormat12: "|00|07{hashTags}"
 					browseInfoFormat13: "|00|07{estReleaseYear}"
@@ -625,9 +742,6 @@
 					detailsGeneralInfoFormat20: "{uploadByUsername}"
 					detailsGeneralInfoFormat21: "{uploadTimestamp}"
 					detailsGeneralInfoFormat22: "{archiveTypeDesc}"
-
-					fileListEntryFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusFileListEntryFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 
 					notAnArchiveFormat: "|00|08( |07{fileName} is not an archive |08)"
 				}
@@ -687,23 +801,22 @@
 						VM1: {
 							height: 17
 							width: 79
+							itemFormat: "|00|03{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<67.66} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 					}
 				}
 			}
 
 			fileBaseBrowseByAreaSelect: {
-				config: {
-					protListFormat: "|00|03{name}"
-					protListFocusFormat: "|00|19|15{name}"
-				}
-
 				0: {
 					mci: {
 						VM1: {
 							height: 15
 							width: 30
 							focusTextStyle: first lower
+							itemFormat: "|00|03{name}"
+							focusItemFormat: "|00|19|15{name}"
 						}
 					}
 				}
@@ -722,18 +835,63 @@
 					}
 					SM4: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM5: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM6: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					BT7: {
 						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseExportListFilter: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					BT2: {
+						focusTextStyle: first lower
+					}
+					ET3: {
+						width: 42
+					}
+					SM4: {
+						width: 14
+						justify: left
+					}
+					SM5: {
+						width: 14
+						justify: left
+					}
+					SM6: {
+						width: 14
+						justify: left
+					}
+					BT7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseExportList: {
+				config: {
+					progBarChar: "|15▒"
+					mainInfoFormat10: "|07{currentFile} |08/ |07{totalFileCount} |08(|07{progress} %|08)"
+				}
+				mci: {
+					TL1: {
+						width: 60
+					}
+					TL2: {
+						width: 56
+						fillChar: "|06░"
 					}
 				}
 			}
@@ -748,15 +906,15 @@
 					}
 					SM3: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM4: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					SM5: {
 						width: 14
-						justify: right
+						justify: left
 					}
 					ET6: {
 						width: 26
@@ -768,16 +926,13 @@
 			}
 
 			fileBaseDownloadManager: {
-				config: {
-					queueListFormat: "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusQueueListFormat: "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
-				}
-
 				0: {
 					mci: {
 						VM1: {
 							height: 11
 							width: 69
+							itemFormat: "|00|03{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{fileName:<61.60} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 						HM2: {
 							width: 50
@@ -789,8 +944,6 @@
 
 			fileBaseWebDownloadManager: {
 				config: {
-					queueListFormat: "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
-					focusQueueListFormat: "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 					queueManagerInfoFormat10: "|03batch|08: |03{webBatchDlLink}"
 					queueManagerInfoFormat11: "|03exp  |08: |03{webBatchDlExpire}"
 				}
@@ -799,6 +952,8 @@
 					mci: {
 						VM1: {
 							height: 8
+							itemFormat: "|00|03{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} |11{byteSize!sizeAbbr}"
+							focusItemFormat: "|00|19|15{webDlLink:<36.35} {fileName:<26.25} {byteSize!sizeWithoutAbbr:>7.6} {byteSize!sizeAbbr}"
 						}
 						HM2: {
 							width: 50
@@ -826,7 +981,7 @@
 					mci: {
 						SM1: {
 							width: 14
-							justify: right
+							justify: left
 							focusTextStyle: first lower
 						}
 
@@ -895,17 +1050,14 @@
 			}
 
 			fileTransferProtocolSelection: {
-				config: {
-					protListFormat: "|00|03{name}"
-					protListFocusFormat: "|00|19|15{name}"
-				}
-
 				0: {
 					mci: {
 						VM1: {
 							height: 15
 							width: 30
 							focusTextStyle: first lower
+							itemFormat: "|00|03{name}"
+							focusItemFormat: "|00|19|15{name}"
 						}
 					}
 				}
@@ -934,6 +1086,32 @@
 				mci: {
 					TL1: {
 						text: "|00|15|MD|08 >> |03active filter|08: |10|FN"
+					}
+				}
+			}
+		}
+
+		achievements: {
+			defaults: {
+				format: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n   {message}"
+				globalFormat: "|08 > |10{title} |08(|11{points} |03points|08)\r\n\r\n  {message}"
+				titleSGR: "|10"
+				pointsSGR: "|12"
+				textSGR: "|00|03"
+				globalTextSGR: "|03"
+				boardNameSGR: "|10"
+				userNameSGR: "|11"
+				achievedValueSGR: "|15"
+			}
+
+			overrides: {
+				user_login_count: {
+					match: {
+						2: {
+							//
+							//	You may override title, text, and globalText here
+							//
+						}
 					}
 				}
 			}

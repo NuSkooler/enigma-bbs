@@ -1,85 +1,76 @@
 /* jslint node: true */
 'use strict';
 
-var Config				= require('./config.js').config;
-var Log					= require('./logger.js').log;
+//  deps
+const paths             = require('path');
+const fs                = require('graceful-fs');
+const hjson             = require('hjson');
+const sane              = require('sane');
 
-var paths				= require('path');
-var fs					= require('graceful-fs');
-var events				= require('events');
-var util				= require('util');
-var assert				= require('assert');
-var hjson				= require('hjson');
-var _					= require('lodash');
+module.exports = new class ConfigCache
+{
+    constructor() {
+        this.cache      = new Map();    //  path->parsed config
+    }
 
-function ConfigCache() {
-	events.EventEmitter.call(this);
+    getConfigWithOptions(options, cb) {
+        const cached = this.cache.has(options.filePath);
 
-	var self 	= this;
-	this.cache	= {};	//	filePath -> HJSON
-	//this.gaze	= new Gaze();
+        if(options.forceReCache || !cached) {
+            this.recacheConfigFromFile(options.filePath, (err, config) => {
+                if(!err && !cached) {
+                    if(!options.noWatch) {
+                        const watcher = sane(
+                            paths.dirname(options.filePath),
+                            {
+                                glob : `**/${paths.basename(options.filePath)}`
+                            }
+                        );
 
-	this.reCacheConfigFromFile = function(filePath, cb) {
-		fs.readFile(filePath, { encoding : 'utf-8' }, function fileRead(err, data) {
-			try {
-				self.cache[filePath] = hjson.parse(data);
-				cb(null, self.cache[filePath]);
-			} catch(e) {
-				Log.error( { filePath : filePath, error : e.toString() }, 'Failed recaching');
-				cb(e);
-			}
-		});
-	};
+                        watcher.on('change', (fileName, fileRoot) => {
+                            require('./logger.js').log.info( { fileName, fileRoot }, 'Configuration file changed; re-caching');
 
-/*
-	this.gaze.on('error', function gazeErr(err) {
+                            this.recacheConfigFromFile(paths.join(fileRoot, fileName), err => {
+                                if(!err) {
+                                    if(options.callback) {
+                                        options.callback( { fileName, fileRoot } );
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+                return cb(err, config, true);
+            });
+        } else {
+            return cb(null, this.cache.get(options.filePath), false);
+        }
+    }
 
-	});
+    getConfig(filePath, cb) {
+        return this.getConfigWithOptions( { filePath }, cb);
+    }
 
-	this.gaze.on('changed', function fileChanged(filePath) {
-		assert(filePath in self.cache);
+    recacheConfigFromFile(path, cb) {
+        fs.readFile(path, { encoding : 'utf-8' }, (err, data) => {
+            if(err) {
+                return cb(err);
+            }
 
-		Log.info( { path : filePath }, 'Configuration file changed; re-caching');
+            let parsed;
+            try {
+                parsed = hjson.parse(data);
+                this.cache.set(path, parsed);
+            } catch(e) {
+                try {
+                    require('./logger.js').log.error( { filePath : path, error : e.message }, 'Failed to re-cache' );
+                } catch(ignored) {
+                    //  nothing - we may be failing to parse the config in which we can't log here!
+                }
+                return cb(e);
+            }
 
-		self.reCacheConfigFromFile(filePath, function reCached(err) {
-			if(err) {
-				Log.error( { error : err.message, path : filePath } , 'Failed re-caching configuration');
-			} else {
-				self.emit('recached', filePath);
-			}
-		});
-	});
-	*/
-
-}
-
-util.inherits(ConfigCache, events.EventEmitter);
-
-ConfigCache.prototype.getConfigWithOptions = function(options, cb) {
-	assert(_.isString(options.filePath));
-
-//	var self		= this;
-	var isCached	= (options.filePath in this.cache);
-
-	if(options.forceReCache || !isCached) {
-		this.reCacheConfigFromFile(options.filePath, function fileCached(err, config) {
-			if(!err && !isCached) {
-				//self.gaze.add(options.filePath);
-			}
-			cb(err, config, true);
-		});
-	} else {
-		cb(null, this.cache[options.filePath], false);
-	}
+            return cb(null, parsed);
+        });
+    }
 };
-
-
-ConfigCache.prototype.getConfig = function(filePath, cb) {
-	this.getConfigWithOptions( { filePath : filePath }, cb);
-};
-
-ConfigCache.prototype.getModConfig = function(fileName, cb) {
-	this.getConfig(paths.join(Config.paths.mods, fileName), cb);
-};
-
-module.exports = exports = new ConfigCache();

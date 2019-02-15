@@ -13,7 +13,7 @@ _Note that if you've used the [Docker](docker) installation method, you've alrea
 If everything went OK: 
 
 ```bash
-ENiGMA½ Copyright (c) 2014-2018 Bryan Ashby
+ENiGMA½ Copyright (c) 2014-2019 Bryan Ashby
 _____________________   _____  ____________________    __________\_   /
 \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
 //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
@@ -42,3 +42,6 @@ If you don't have any telnet software, these are compatible with ENiGMA½:
 * [SyncTERM](http://syncterm.bbsdev.net/)
 * [EtherTerm](https://github.com/M-griffin/EtherTerm)
 * [NetRunner](http://mysticbbs.com/downloads.html)
+* [MagiTerm](https://magickabbs.com/index.php/magiterm/)
+* [VTX](https://github.com/codewar65/VTX_ClientServer) (Browser based)
+* [fTelnet](https://www.ftelnet.ca/) (Browser based)
