@@ -2798,8 +2798,7 @@
 
         fileBaseExportListFilter: {
             module: file_base_search
-            //  :TODO: fixme:
-            art: FSEARCH
+            art: FBLISTEXPSEARCH
             config: {
                 fileBaseListEntriesMenu: fileBaseExportList
             }

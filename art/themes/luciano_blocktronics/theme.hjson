@@ -851,6 +851,51 @@
 				}
 			}
 
+			fileBaseExportListFilter: {
+				mci: {
+					ET1: {
+						width: 42
+					}
+					BT2: {
+						focusTextStyle: first lower
+					}
+					ET3: {
+						width: 42
+					}
+					SM4: {
+						width: 14
+						justify: left
+					}
+					SM5: {
+						width: 14
+						justify: left
+					}
+					SM6: {
+						width: 14
+						justify: left
+					}
+					BT7: {
+						focusTextStyle: first lower
+					}
+				}
+			}
+
+			fileBaseExportList: {
+				config: {
+					progBarChar: "|15▒"
+					mainInfoFormat10: "|07{currentFile} |08/ |07{totalFileCount} |08(|07{progress} %|08)"
+				}
+				mci: {
+					TL1: {
+						width: 60
+					}
+					TL2: {
+						width: 56
+						fillChar: "|06░"
+					}
+				}
+			}
+
 			fileAreaFilterEditor: {
 				mci: {
 					ET1: {
