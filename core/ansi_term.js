@@ -20,6 +20,9 @@
 //  Modern Windows (Win10+)
 //      * https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
 //
+//  VT100
+//      * http://www.noah.org/python/pexpect/ANSI-X3.64.htm
+//
 //  VTX
 //      * https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
 //

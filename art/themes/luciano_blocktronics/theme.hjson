@@ -406,6 +406,49 @@
 				}
 			}
 
+			messageSearch: {
+				0: {
+					mci: {
+						ET1: {
+							width: 42
+						}
+						BT2: {
+							focusTextStyle: upper
+						}
+						SM3: {
+							width: 42
+						}
+						SM4: {
+							width: 42
+						}
+						ET5: {
+							width: 42
+						}
+						ET6: {
+							width: 42
+						}
+						BT7: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
+			messageAreaSearchMessageList: {
+				config: {
+					allViewsInfoFormat10: "|00|15{msgNumSelected:>4.4} |08/ |15{msgNumTotal:<4.4}"
+					//	Fri Sep 25th
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 14
+						width: 71
+						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<27.26} |07{toUserName:<13.12} {fromUserName:<13.12} |03{ts:<12.12}"
+						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<27.26} {toUserName:<13.12} {fromUserName:<13.12} {ts:<12.12}"
+					}
+				}
+			}
 
 			messageAreaViewPost: {
 				0: {
