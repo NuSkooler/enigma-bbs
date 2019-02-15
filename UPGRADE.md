@@ -1,16 +1,17 @@
 # Introduction
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
-
 # Before Upgrading
-* Always back up your system! 
+* Always back up your system!
+* Seriously, always back up your system!
 * At least back up the `db` directory and your `menu.hjson` (or renamed equivalent)
 
-
 # General Notes
-Upgrades often come with changes to the default `menu.hjson`. It is wise to 
-use a *different* file name for your BBS's version of this file and point to
-it via `config.hjson`. For example:
+## Configuration File Updates
+In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the defualt `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+
+### menu.hjson
+Upgrades often come with changes to the default `menu_template.in.hjson`. It is wise to use a *different* file name for your BBS's version of this file and point to it via `config.hjson`. For example:
 
 ```hjson
 general: {
@@ -20,6 +21,9 @@ general: {
 
 After updating code, use a program such as DiffMerge to merge in updates to
 `my_bbs.hjson` from the shipping `menu.hjson`.
+
+### theme.hjson
+Any custom themes you have created may now be missing features as well. Take a look at the default `luciano_blocktronics/theme.hjson` file. You can use missing sections in your `theme.hjson` (which will generally correspond to sections you've also merged in to your `menu.hjson`).
 
 
 # Upgrading the Code
@@ -31,7 +35,6 @@ git pull
 rm -rf npm_modules # do this any time you update Node.js itself
 npm install
 ```
-
 
 # Problems
 Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
