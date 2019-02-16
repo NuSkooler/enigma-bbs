@@ -14,7 +14,7 @@ GEM
       eventmachine (>= 0.12.9)
       http_parser.rb (~> 0.6.0)
     eventmachine (1.2.5)
-    ffi (1.9.18)
+    ffi (1.9.24)
     forwardable-extended (2.6.0)
     gemoji (3.0.0)
     hacker (0.0.1)
