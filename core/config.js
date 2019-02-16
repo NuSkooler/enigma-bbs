@@ -276,24 +276,26 @@ function getDefaultConfig() {
                 port                : 8889,
                 enabled             : false,    //  default to false as PK/pass in config.hjson are required
                 //
-                //	Private Key (PK) in PEM format
+                //  To enable SSH, perform the following steps:
                 //
-                //	Generating your PK:
-                //  1 - Choose a cipher (3DES, AES128, or AES256)
-                //      3des      : older, most compatible, least secure
-                //      aes128    : newer, widely compatible, fairly secure
-                //      aes256    : newest, least compatible, best security
+                //  1 - Generate a Private Key (PK):
+                //  Currently ENiGMA 1/2 requires a PKCS#1 PEM formatted PK.
+                //  To generate a secure PK, issue the following command:
                 //
-                //  2 -  Choose a bit strength (2048 or 4096)
-                //      2048    : most compatible, decent strength
-                //      4096    : stronger, but some software is completely incompatible
+                //  > openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+                //      -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa \
+                //      -out ./config/ssh_private_key.pem -aes128
                 //
-                //  Sample command:
-                //	  openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+                //  (The above is a more modern equivelant of the following):
+                //  > openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
                 //
-                //	Then, set servers.ssh.privateKeyPass to the password you use above
-                //	in your config.hjson
+                //  2 - Set 'privateKeyPass' to the password you used in step #1
                 //
+                //  3 - Finally, set 'enabled' to 'true'
+                //
+                //  Additional reading:
+                //  - https://blog.sleeplessbeastie.eu/2017/12/28/how-to-generate-private-key/
+                //  - https://gist.github.com/briansmith/2ee42439923d8e65a266994d0f70180b
                 //
                 privateKeyPem       : paths.join(__dirname, './../config/ssh_private_key.pem'),
                 firstMenu           : 'sshConnected',

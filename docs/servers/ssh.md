@@ -35,8 +35,17 @@ Entries available under `config.loginServers.ssh`:
 ```
 
 ## Generate a SSH Private Key
-To utilize the SSH server, an SSH Private Key will need generated. OpenSSL can be used for this task:
+To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSL can be used for this task:
 
+### Modern OpenSSL
 ```bash
-openssl genrsa -des3 -out ./config/ssh_private_key.pem 2048
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa -out ./config/ssh_private_key.pem -aes128
 ```
+
+### Legacy OpenSSL
+```bash
+openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+```
+
+Note that you may need `-3des` for every old implementations or SSH clients!
+
