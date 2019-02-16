@@ -236,16 +236,18 @@ module.exports = class Message {
 
         filter.uuids - use with resultType='id'
         filter.ids - use with resultType='uuid'
-        filter.toUserName
-        filter.fromUserName
+        filter.toUserName - string|Array(string)
+        filter.fromUserName - string|Array(string)
         filter.replyToMessageId
+
+        filter.operator = (AND)|OR
 
         filter.newerThanTimestamp - may not be used with |date|
         filter.date - moment object - may not be used with |newerThanTimestamp|
 
         filter.newerThanMessageId
         filter.areaTag - note if you want by conf, send in all areas for a conf
-        *filter.metaTuples - {category, name, value}
+        filter.metaTuples - [ {category, name, value} ]
 
         filter.terms - FTS search
 
@@ -267,6 +269,7 @@ module.exports = class Message {
 
         filter.resultType   = filter.resultType || 'id';
         filter.extraFields  = filter.extraFields || [];
+        filter.operator     = filter.operator || 'AND';
 
         if('messageList' === filter.resultType) {
             filter.extraFields = _.uniq(filter.extraFields.concat(
@@ -296,9 +299,9 @@ module.exports = class Message {
         let sqlOrderBy;
         let sqlWhere = '';
 
-        function appendWhereClause(clause) {
+        function appendWhereClause(clause, op) {
             if(sqlWhere) {
-                sqlWhere += ' AND ';
+                sqlWhere += ` ${op || filter.operator} `;
             } else {
                 sqlWhere += ' WHERE ';
             }
@@ -345,7 +348,7 @@ module.exports = class Message {
             }
 
             //  explicit exclude of Private
-            appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`);
+            appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`, 'AND');
         }
 
         if(_.isNumber(filter.replyToMessageId)) {
@@ -353,8 +356,18 @@ module.exports = class Message {
         }
 
         [ 'toUserName', 'fromUserName' ].forEach(field => {
-            if(_.isString(filter[field]) && filter[field].length > 0) {
-                appendWhereClause(`m.${_.snakeCase(field)} LIKE "${sanitizeString(filter[field])}"`);
+            let val = filter[field];
+            if(!val) {
+                return; //  next item
+            }
+            if(_.isString(val)) {
+                val = [ val ];
+            }
+            if(Array.isArray(val)) {
+                val = '(' + val.map(v => {
+                    return `m.${_.snakeCase(field)} LIKE "${sanitizeString(v)}"`;
+                }).join(' OR ') + ')';
+                appendWhereClause(val);
             }
         });
 
@@ -376,6 +389,21 @@ module.exports = class Message {
                     SELECT rowid
                     FROM message_fts
                     WHERE message_fts MATCH ":${sanitizeString(filter.terms)}"
+                )`
+            );
+        }
+
+        if(Array.isArray(filter.metaTuples)) {
+            let sub = [];
+            filter.metaTuples.forEach(mt => {
+                sub.push(`(meta_category = "${mt.category}" AND meta_name = "${mt.name}" AND meta_value = "${sanitizeString(mt.value)}")`);
+            });
+            sub = sub.join(` ${filter.operator} `);
+            appendWhereClause(
+                `m.message_id IN (
+                    SELECT message_id
+                    FROM message_meta
+                    WHERE ${sub}
                 )`
             );
         }
