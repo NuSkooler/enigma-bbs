@@ -450,6 +450,21 @@
 				}
 			}
 
+			messageAreaMyMessagesList: {
+				config: {
+					//	Fri Sep 25th
+					dateTimeFormat: ddd MMM Do
+				}
+				mci: {
+					VM1: {
+						height: 16
+						width: 71
+						itemFormat:      "|00|15  {msgNum:<4.4} |03{subject:<34.33} {fromUserName:<19.18} |03{ts:<12.12}"
+						focusItemFormat: "|00|19> |15{msgNum:<4.4} {subject:<34.33} {fromUserName:<19.18} {ts:<12.12}"
+					}
+				}
+			}
+
 			messageAreaViewPost: {
 				0: {
 					mci: {

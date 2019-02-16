@@ -1970,6 +1970,43 @@
             }
         }
 
+        messageAreaMyMessagesList: {
+            desc: Personal Messages
+            module: msg_list
+            art: MYMSGLST
+            config: {
+                menuViewPost: messageAreaViewPost
+            }
+            form: {
+                0: {
+                    mci:  {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: message
+                        }
+                        TL6: {
+                            //  theme me!
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { message: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
         messageSearchNoResults: {
             desc: Message Search
             art: MSRCNORES
