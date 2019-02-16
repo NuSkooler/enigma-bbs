@@ -30,6 +30,8 @@ actions:
                                aliases: password, passwd
   rm USERNAME                  permanently removes user from system
                                aliases: remove, delete, del
+  rename USERNAME NEWNAME      rename a user
+                               aliases: mv
   activate USERNAME            set status to active
   deactivate USERNAME          set status to inactive
   disable USERNAME             set status to disabled

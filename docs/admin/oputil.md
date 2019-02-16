@@ -49,6 +49,8 @@ actions:
                                aliases: password, passwd
   rm USERNAME                  permanently removes user from system
                                aliases: remove, delete, del
+  rename USERNAME NEWNAME      rename a user
+                               aliases: mv
   activate USERNAME            set status to active
   deactivate USERNAME          set status to inactive
   disable USERNAME             set status to disabled
@@ -61,6 +63,7 @@ actions:
 | `info` | Display user information| `./oputil.js user info joeuser` | N/A |
 | `pw`        | Set password      | `./oputil.js user pw joeuser s3cr37`  | `passwd`, `password` |
 | `rm`        | Removes user      | `./oputil.js user del joeuser`        | `remove`, `del`, `delete` |
+| `rename` | Renames a user | `./oputil.js user rename joeuser joe` | `mv` |
 | `activate` | Activates user    | `./oputil.js user activate joeuser`   | N/A   |
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |

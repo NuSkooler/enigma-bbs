@@ -227,6 +227,41 @@ function removeUser(user) {
     );
 }
 
+function renameUser(user) {
+    if(argv._.length < 3) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const newUserName = argv._[argv._.length - 1];
+
+    async.series(
+        [
+            (callback) => {
+                const { validateUserNameAvail } = require('../../core/system_view_validate.js');
+                return validateUserNameAvail(newUserName, callback);
+            },
+            (callback) => {
+                const userDb = require('../../core/database.js').dbs.user;
+                userDb.run(
+                    `UPDATE user
+                    SET user_name = ?
+                    WHERE id = ?;`,
+                    [ newUserName, user.userId, ],
+                    err => {
+                        return callback(err);
+                    }
+                );
+            }
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+            return console.info(`User "${user.username}" renamed to "${newUserName}"`);
+        }
+    );
+}
+
 function modUserGroups(user) {
     if(argv._.length < 3) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -317,9 +352,13 @@ function handleUserCommand() {
         return errUsage();
     }
 
-    const action		= argv._[1];
-    const usernameIdx	= [ 'pw', 'pass', 'passwd', 'password', 'group' ].includes(action) ? argv._.length - 2 : argv._.length - 1;
-    const userName		= argv._[usernameIdx];
+    const action = argv._[1];
+    const usernameIdx = [
+        'pw', 'pass', 'passwd', 'password',
+        'group',
+        'mv', 'rename'
+    ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+    const userName = argv._[usernameIdx];
 
     if(!userName) {
         return errUsage();
@@ -340,6 +379,9 @@ function handleUserCommand() {
             remove		: removeUser,
             del			: removeUser,
             delete		: removeUser,
+
+            mv          : renameUser,
+            rename      : renameUser,
 
             activate	: setAccountStatus,
             deactivate	: setAccountStatus,
