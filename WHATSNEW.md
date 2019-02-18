@@ -2,6 +2,9 @@
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
 ## 0.0.10-alpha
++ `oputil.js user rename USERNAME NEWNAME`
++ `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
+
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
