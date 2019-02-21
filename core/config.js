@@ -250,6 +250,7 @@ function getDefaultConfig() {
 
         paths : {
             config              : paths.join(__dirname, './../config/'),
+            security            : paths.join(__dirname, './../config/security'),    //  certs, keys, etc.
             mods                : paths.join(__dirname, './../mods/'),
             loginServers        : paths.join(__dirname, './servers/login/'),
             contentServers      : paths.join(__dirname, './servers/content/'),
@@ -259,7 +260,7 @@ function getDefaultConfig() {
 
             art                 : paths.join(__dirname, './../art/general/'),
             themes              : paths.join(__dirname, './../art/themes/'),
-            logs                : paths.join(__dirname, './../logs/'),  //  :TODO: set up based on system, e.g. /var/logs/enigmabbs or such
+            logs                : paths.join(__dirname, './../logs/'),
             db                  : paths.join(__dirname, './../db/'),
             modsDb              : paths.join(__dirname, './../db/mods/'),
             dropFiles           : paths.join(__dirname, './../drop/'), //  + "/node<x>/
@@ -284,10 +285,10 @@ function getDefaultConfig() {
                 //
                 //  > openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
                 //      -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa \
-                //      -out ./config/ssh_private_key.pem -aes128
+                //      -out ./config/security/ssh_private_key.pem -aes128
                 //
-                //  (The above is a more modern equivelant of the following):
-                //  > openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+                //  (The above is a more modern equivalent of the following):
+                //  > openssl genrsa -aes128 -out ./config/security/ssh_private_key.pem 2048
                 //
                 //  2 - Set 'privateKeyPass' to the password you used in step #1
                 //
@@ -297,7 +298,7 @@ function getDefaultConfig() {
                 //  - https://blog.sleeplessbeastie.eu/2017/12/28/how-to-generate-private-key/
                 //  - https://gist.github.com/briansmith/2ee42439923d8e65a266994d0f70180b
                 //
-                privateKeyPem       : paths.join(__dirname, './../config/ssh_private_key.pem'),
+                privateKeyPem       : paths.join(__dirname, './../config/security/ssh_private_key.pem'),
                 firstMenu           : 'sshConnected',
                 firstMenuNewUser    : 'sshConnectedNewUser',
 

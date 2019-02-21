@@ -21,6 +21,7 @@ const async             = require('async');
 const _                 = require('lodash');
 const moment            = require('moment');
 const sanatizeFilename  = require('sanitize-filename');
+const ssh2              = require('ssh2');
 
 exports.isRootUserId = function(id) { return 1 === id; };
 
@@ -47,7 +48,10 @@ module.exports = class User {
 
     static get StandardPropertyGroups() {
         return {
-            password    : [ UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk ],
+            auth : [
+                UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk,
+                UserProps.LoginPubKey, UserProps.LoginPubKeyFingerprintSHA256,
+            ],
         };
     }
 
@@ -174,9 +178,48 @@ module.exports = class User {
         });
     }
 
-    authenticate(username, password, cb) {
+    authenticate(username, password, options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+
         const self = this;
         const tempAuthInfo = {};
+
+        const validatePassword = (props, callback) => {
+            User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+                if(err) {
+                    return callback(err);
+                }
+
+                //
+                //  Use constant time comparison here for security feel-goods
+                //
+                const passDkBuf     = Buffer.from(dk, 'hex');
+                const propsDkBuf    = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
+
+                return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
+                    null :
+                    Errors.AccessDenied('Invalid password')
+                );
+            });
+        };
+
+        const validatePubKey = (props, callback) => {
+            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.LoginPubKey]);
+            if(!pubKeyActual) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            if(options.ctx.key.algo != pubKeyActual.type ||
+                !crypto.timingSafeEqual(options.ctx.key.data, pubKeyActual.getPublicSSH()))
+            {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            return callback(null);
+        };
 
         async.waterfall(
             [
@@ -191,27 +234,15 @@ module.exports = class User {
                 },
                 function getRequiredAuthProperties(callback) {
                     //  fetch properties required for authentication
-                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
+                    User.loadProperties( tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
                         return callback(err, props);
                     });
                 },
-                function getDkWithSalt(props, callback) {
-                    //  get DK from stored salt and password provided
-                    User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
-                        return callback(err, dk, props[UserProps.PassPbkdf2Dk]);
-                    });
-                },
-                function validateAuth(passDk, propsDk, callback) {
-                    //
-                    //  Use constant time comparison here for security feel-goods
-                    //
-                    const passDkBuf     = Buffer.from(passDk,   'hex');
-                    const propsDkBuf    = Buffer.from(propsDk,  'hex');
-
-                    return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
-                        null :
-                        Errors.AccessDenied('Invalid password')
-                    );
+                function validatePassOrPubKey(props, callback) {
+                    if('pubKey' === options.authType) {
+                        return validatePubKey(props, callback);
+                    }
+                    return validatePassword(props, callback);
                 },
                 function initProps(callback) {
                     User.loadProperties(tempAuthInfo.userId, (err, allProps) => {

@@ -22,7 +22,12 @@ const _                 = require('lodash');
 
 exports.userLogin       = userLogin;
 
-function userLogin(client, username, password, cb) {
+function userLogin(client, username, password, options, cb) {
+    if(!cb && _.isFunction(options)) {
+        cb = options;
+        options = {};
+    }
+
     const config = Config();
 
     if(config.users.badUserNames.includes(username.toLowerCase())) {
@@ -34,7 +39,7 @@ function userLogin(client, username, password, cb) {
         }, 2000);
     }
 
-    client.user.authenticate(username, password, err => {
+    client.user.authenticate(username, password, options, err => {
         if(err) {
             client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
             const disconnect = config.users.failedLogin.disconnect;

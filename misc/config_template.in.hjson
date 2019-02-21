@@ -118,10 +118,10 @@
             //
             //  > openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
             //      -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa \
-            //      -out ./config/ssh_private_key.pem -aes128
+            //      -out ./config/security/ssh_private_key.pem -aes128
             //
             //  (The above is a more modern equivelant of the following):
-            //  > openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+            //  > openssl genrsa -aes128 -out ./config/security/ssh_private_key.pem 2048
             //
             //  2 - Set 'privateKeyPass' to the password you used in step #1
             //

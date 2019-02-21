@@ -41,7 +41,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
 # 0.0.9-alpha to 0.0.10-alpha
-
+* Security related files such as private keys and certs are now looked for in `config/security` by default.
 
 # 0.0.8-alpha to 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. Follow your standard upgrade path to update to Node 10.x before using 0.0.9-alpha!
