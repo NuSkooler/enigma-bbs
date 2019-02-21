@@ -60,18 +60,6 @@ module.exports = class User {
         };
     }
 
-    static isSamePasswordSlowCompare(passBuf1, passBuf2) {
-        if(passBuf1.length !== passBuf2.length) {
-            return false;
-        }
-
-        let c = 0;
-        for(let i = 0; i < passBuf1.length; i++) {
-            c |= passBuf1[i] ^ passBuf2[i];
-        }
-        return 0 === c;
-    }
-
     isAuthenticated() {
         return true === this.authenticated;
     }
@@ -220,7 +208,7 @@ module.exports = class User {
                     const passDkBuf     = Buffer.from(passDk,   'hex');
                     const propsDkBuf    = Buffer.from(propsDk,  'hex');
 
-                    return callback(User.isSamePasswordSlowCompare(passDkBuf, propsDkBuf) ?
+                    return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
                         null :
                         Errors.AccessDenied('Invalid password')
                     );
