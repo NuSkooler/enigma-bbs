@@ -23,7 +23,6 @@ const fs            = require('graceful-fs');
 const util          = require('util');
 const _             = require('lodash');
 const assert        = require('assert');
-const crypto        = require('crypto');
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'SSH',
@@ -108,7 +107,7 @@ function SSHClient(clientConn) {
         };
 
         const authWithPasswordOrPubKey = (authType) => {
-            if('pubKey' !== authType || !self.user.isAuthenticated() || !ctx.signature) {
+            if(User.AuthFactor1Types.PubKey !== authType || !self.user.isAuthenticated() || !ctx.signature) {
                 //  step 1: login/auth using PubKey
                 userLogin(self, ctx.username, ctx.password, { authType, ctx }, (err) => {
                     if(err) {
@@ -188,11 +187,11 @@ function SSHClient(clientConn) {
 
         switch(ctx.method) {
             case 'password' :
-                return authWithPasswordOrPubKey('password');
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.Password);
                 //return authWithPassword();
 
             case 'publickey' :
-                return authWithPasswordOrPubKey('pubKey');
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.PubKey);
                 //return authWithPubKey();
 
             case 'keyboard-interactive' :

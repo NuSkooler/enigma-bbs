@@ -141,7 +141,7 @@ class NNTPServer extends NNTPServerBase {
 
         return new Promise( resolve => {
             const user = new User();
-            user.authenticate(username, password, err => {
+            user.authenticateFactor1({ type : User.AuthFactor1Types.Password, username, password }, err => {
                 if(err) {
                     //  :TODO: Log IP address
                     this.log.debug( { username, reason : err.message }, 'Authentication failure');

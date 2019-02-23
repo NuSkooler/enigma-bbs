@@ -178,17 +178,20 @@ module.exports = class User {
         });
     }
 
-    authenticate(username, password, options, cb) {
-        if(!cb && _.isFunction(options)) {
-            cb = options;
-            options = {};
-        }
+    static get AuthFactor1Types() {
+        return {
+            PubKey      : 'pubKey',
+            Password    : 'password',
+        };
+    }
 
+    authenticateFactor1(authInfo, cb) {
+        const username = authInfo.username;
         const self = this;
         const tempAuthInfo = {};
 
         const validatePassword = (props, callback) => {
-            User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+            User.generatePasswordDerivedKey(authInfo.password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
                 if(err) {
                     return callback(err);
                 }
@@ -212,8 +215,8 @@ module.exports = class User {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
 
-            if(options.ctx.key.algo != pubKeyActual.type ||
-                !crypto.timingSafeEqual(options.ctx.key.data, pubKeyActual.getPublicSSH()))
+            if(authInfo.pubKey.key.algo != pubKeyActual.type ||
+                !crypto.timingSafeEqual(authInfo.pubKey.key.data, pubKeyActual.getPublicSSH()))
             {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
@@ -234,12 +237,12 @@ module.exports = class User {
                 },
                 function getRequiredAuthProperties(callback) {
                     //  fetch properties required for authentication
-                    User.loadProperties( tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
+                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
                         return callback(err, props);
                     });
                 },
                 function validatePassOrPubKey(props, callback) {
-                    if('pubKey' === options.authType) {
+                    if(User.AuthFactor1Types.PubKey === authInfo.type) {
                         return validatePubKey(props, callback);
                     }
                     return validatePassword(props, callback);

@@ -15,6 +15,7 @@ const {
 const UserProps         = require('./user_property.js');
 const SysProps          = require('./system_property.js');
 const SystemLogKeys     = require('./system_log.js');
+const User              = require('./user.js');
 
 //  deps
 const async             = require('async');
@@ -39,7 +40,15 @@ function userLogin(client, username, password, options, cb) {
         }, 2000);
     }
 
-    client.user.authenticate(username, password, options, err => {
+    const authInfo = {
+        username,
+        password,
+    };
+
+    authInfo.type   = options.authType || User.AuthFactor1Types.Password;
+    authInfo.pubKey = options.ctx;
+
+    client.user.authenticateFactor1(authInfo, err => {
         if(err) {
             client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
             const disconnect = config.users.failedLogin.disconnect;
