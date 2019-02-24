@@ -76,6 +76,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `SO` | Total downloaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
+| `TF` | Total number of files on the system |
+| `TB` | Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.) |
 | `TP` | Total messages posted/imported to the system *currently* |
 | `PT` | Total messages posted/imported to the system *today* |
 
