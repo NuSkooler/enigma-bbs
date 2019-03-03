@@ -1,6 +1,6 @@
 ---
 layout: page
-title: HJSON General Information
+title: HJSON Config Files
 ---
 ## JSON for Humans!
 HJSON is the configuration file format used by ENiGMA½ for [System Configuration](config-hjson.md), [Menus](menu-hjson.md), [Prompts](prompt-hjson.md), etc. [HJSON](https://hjson.org/) is is [JSON](https://json.org/) for humans!
@@ -32,9 +32,9 @@ Note that `someSection` is the configuration *section* (or *block*) and `foo: ba
 HJSON is a text file format, and ENiGMA½ configuration files **should always be saved as UTF-8**.
 
 It is **highly** recommended to use a text editor that has HJSON support. A few (but not all!) examples include:
-* Sublime Text 3 via the `sublime-hjson` package.
-* Visual Studio code via the `vscode-hjson` plugin.
-* Notepad++ via the `npp-hjson` plugin.
+* [Sublime Text](https://www.sublimetext.com/) via the `sublime-hjson` package.
+* [Visual Studio Code](https://code.visualstudio.com/) via the `vscode-hjson` plugin.
+* [Notepad++](https://notepad-plus-plus.org) via the `npp-hjson` plugin.
 
 See https://hjson.org/users.html for more more editors & plugins.
 
