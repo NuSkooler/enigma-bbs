@@ -15,6 +15,6 @@ In general the steps are as follows:
 
 Visual diff tools such as [DiffMerge](https://www.sourcegear.com/diffmerge/downloads.php) (free, works on all major platforms) can be very helpful here.
 
-Remember to also keep an eye on [WHATSNEW](/WHATSNEW.md) and [UPGARDE](/UPGRADE.md)!
+Remember to also keep an eye on [WHATSNEW](/WHATSNEW.md) and [UPGRADE](/UPGRADE.md)!
 
 
