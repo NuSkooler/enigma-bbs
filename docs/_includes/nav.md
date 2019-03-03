@@ -25,7 +25,6 @@
     - [Colour Codes]({{ site.baseurl }}{% link configuration/colour-codes.md %})
     - [Access Condition System (ACS)]({{ site.baseurl }}{% link configuration/acs.md %})
     - [Event Scheduler]({{ site.baseurl }}{% link configuration/event-scheduler.md %})
-    - Scheduled jobs
 
   - File Base
     - [About]({{ site.baseurl }}{% link filebase/index.md %})

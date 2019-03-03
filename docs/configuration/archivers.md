@@ -13,27 +13,27 @@ The following archivers are pre-configured in ENiGMA½ as of this writing. Remem
 #### ZZip
 * Formats: .7z, .bzip2, .zip, .gzip/.gz, and more
 * Key: `7Zip`
-* Homepage/package: [7-zip.org](http://www.7-zip.org/). Generally obtained from a `p7zip` package in *nix environments. See http://p7zip.sourceforge.net/ for details.
+* Homepage/package: [7-zip.org](http://www.7-zip.org/). Generally obtained from a `p7zip` package in UNIX-like environments. See http://p7zip.sourceforge.net/ for details.
 
 #### Lha
 * Formats: <a href="https://en.wikipedia.org/wiki/LHA_(file_format)">LHA</a> files such as .lzh.
 * Key: `Lha`
-* Homepage/package: `lhasa` on most *nix environments. See also https://fragglet.github.io/lhasa/ and http://www2m.biglobe.ne.jp/~dolphin/lha/lha-unix.htm
+* Homepage/package: `lhasa` on most UNIX-like environments. See also https://fragglet.github.io/lhasa/ and http://www2m.biglobe.ne.jp/~dolphin/lha/lha-unix.htm
 
 #### Lzx
 * Formats: <a href="https://en.wikipedia.org/wiki/LZX_(algorithm)#Amiga_LZX">Amiga LZX</a>
 * Key: `Lzx`
-* Homepage/package: `unlzx` under most *nix platforms ([Debian/Ubuntu](https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127), [RedHat](https://fedora.pkgs.org/28/rpm-sphere/unlzx-1.1-4.1.x86_64.rpm.html), [Source](http://xavprods.free.fr/lzx/))
+* Homepage/package: `unlzx` under most UNIX-like platforms ([Debian/Ubuntu](https://launchpad.net/~rzr/+archive/ubuntu/ppa/+build/2486127), [RedHat](https://fedora.pkgs.org/28/rpm-sphere/unlzx-1.1-4.1.x86_64.rpm.html), [Source](http://xavprods.free.fr/lzx/))
 
 #### Arj
 * Formats: .arj
 * Key: `Arj`
-* Homepage/package: `arj` on most *nix environments.
+* Homepage/package: `arj` on most UNIX-like environments.
 
 #### Rar
 * Formats: .Rar
 * Key: `Rar`
-* Homepage/package: `unrar` on most *nix environments. See also https://blog.hostonnet.com/unrar
+* Homepage/package: `unrar` on most UNIX-like environments. See also https://blog.hostonnet.com/unrar
 
 ### Archiver Configuration
 Archiver entries in `config.hjson` are mostly self explanatory with the exception of `list` commands that require some additional information. The `args` member for an entry is an array of arguments to pass to `cmd`. Some variables are available to `args` that will be expanded by the system:
