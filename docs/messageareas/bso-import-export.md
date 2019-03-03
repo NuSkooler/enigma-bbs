@@ -2,6 +2,7 @@
 layout: page
 title: BSO Import / Export
 ---
+## BSO Import / Export
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
 :information_source: ENiGMA½'s `ftn_bso` module is not a mailer and **makes no attempts** to perfrom packet transport! An external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd) is required for this!
@@ -14,9 +15,21 @@ Let's look at some of the basic configuration:
 | `packetMsgEncoding` | :-1: | Override default `utf8` encoding.
 | `defaultNetwork`       | :-1:     | Explicitly set default network (by tag in `messageNetworks.ftn.networks`). If not set, the first found is used.   |
 | `nodes`   | :+1:     | Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: `21:1/*`). `archiveType` may be set to a FTN supported archive extention that the system supports (TODO); if unset, only .PKT files are produced. `encoding` may be set to override `packetMsgEncoding` on a per-node basis. If the node requires a packet password, set `packetPassword`  |
-| `paths` | :-1: | An optional configuration block that can set a `retain` path and/or a `reject` path. These will be used for archiving processed packets. You may additionally override the default `outbound`, `inbound`, and `secInbound` (secure inbound) *base* paths for packet processing. |
+| `paths` | :-1: | An optional configuration block that can set a additional paths or override defaults. See "Paths" below. |
 | `packetTargetByteSize`  | :-1: | Overrides the system *target* packet (.pkt) size of 512000 bytes (512k) |
-| `bundleTargetByteSize`  | :-1: | Overrides the system *target* ArcMail bundle size of 2048000 bytes (2M) | 
+| `bundleTargetByteSize`  | :-1: | Overrides the system *target* ArcMail bundle size of 2048000 bytes (2M) |
+
+### Paths
+Paths for packet files work out of the box and are relative to your install directory. If you want to configure `reject` or `retain` to keep rejected/imported packet files respectively, set those values. You may override defaults as well.
+
+| Key | Description |
+|-----|-------------|
+| `outbound` | *Base* path to write outbound (exported) packet files and bundles. |
+| `inbound` | *Base* path to write inbound (ie: those written by an external mailer) packet files an bundles. |
+| `secInbound` | *Base* path to write **secure** inbound packet files and bundles. |
+| `reject` | Path in which to write rejected packet files. |
+| `retain` | Path in which to write imported packet files. Useful for debugging or if you wish to archive the raw .pkt files. |
+
 
 ## Scheduling
 Schedules can be defined for importing and exporting via `import` and `export` under `schedule`. Each entry is allowed a "free form" text and/or special indicators for immediate export or watch file triggers.
