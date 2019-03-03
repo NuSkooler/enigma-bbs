@@ -22,13 +22,13 @@ Let's look at some of the basic configuration:
 ### Paths
 Paths for packet files work out of the box and are relative to your install directory. If you want to configure `reject` or `retain` to keep rejected/imported packet files respectively, set those values. You may override defaults as well.
 
-| Key | Description |
-|-----|-------------|
-| `outbound` | *Base* path to write outbound (exported) packet files and bundles. |
-| `inbound` | *Base* path to write inbound (ie: those written by an external mailer) packet files an bundles. |
-| `secInbound` | *Base* path to write **secure** inbound packet files and bundles. |
-| `reject` | Path in which to write rejected packet files. |
-| `retain` | Path in which to write imported packet files. Useful for debugging or if you wish to archive the raw .pkt files. |
+| Key | Description | Default |
+|-----|-------------|---------|
+| `outbound` | *Base* path to write outbound (exported) packet files and bundles. | `enigma-bbs/mail/ftn_out/` |
+| `inbound` | *Base* path to write inbound (ie: those written by an external mailer) packet files an bundles. | `enigma-bbs/mail/ftn_in/` |
+| `secInbound` | *Base* path to write **secure** inbound packet files and bundles. | `enigma-bbs/mail/ftn_secin/` |
+| `reject` | Path in which to write rejected packet files. | No default |
+| `retain` | Path in which to write imported packet files. Useful for debugging or if you wish to archive the raw .pkt files. | No default |
 
 
 ## Scheduling
