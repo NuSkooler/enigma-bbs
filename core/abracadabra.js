@@ -170,6 +170,12 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.doorInstance.run(exeInfo, () => {
             trackDoorRunEnd(doorTracking);
 
+            //  client may have disconnected while process was active -
+            //  we're done here if so.
+            if(!this.client.term.output) {
+                return;
+            }
+
             //
             //  Try to clean up various settings such as scroll regions that may
             //  have been set within the door
