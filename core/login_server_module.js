@@ -40,6 +40,10 @@ module.exports = class LoginServerModule extends ServerModule {
     }
 
     handleNewClient(client, clientSock, modInfo) {
+        clientSock.on('error', err => {
+            logger.log.warn({ modInfo, error : err.message }, 'Client socket error');
+        });
+
         //
         //  Start tracking the client. A session ID aka client ID
         //  will be established in addNewClient() below.
@@ -68,7 +72,7 @@ module.exports = class LoginServerModule extends ServerModule {
         });
 
         client.on('error', err => {
-            logger.log.info({ clientId : client.session.id }, 'Connection error: %s' % err.message);
+            logger.log.info({ clientId : client.session.id, error : err.message }, 'Connection error');
         });
 
         client.on('close', err => {
