@@ -113,7 +113,7 @@ exports.getModule = class GopherModule extends ServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.contentServers.gopher.port}`));
         }
 
-        return this.server.listen(port, cb);
+        return this.server.listen(port, config.contentServers.gopher.address, cb);
     }
 
     get enabled() {
