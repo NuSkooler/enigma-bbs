@@ -224,6 +224,10 @@ function getDefaultConfig() {
                 autoUnlockMinutes   : 60 * 6,       //  0=disabled; Auto unlock after N minutes.
             },
             unlockAtEmailPwReset    : true,         //  if true, password reset via email will unlock locked accounts
+
+            twoFactorAuth : {
+                method : 'googleAuth',
+            }
         },
 
         theme : {

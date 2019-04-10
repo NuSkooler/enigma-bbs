@@ -1478,6 +1478,13 @@ osenv@^0.1.4:
     os-homedir "^1.0.0"
     os-tmpdir "^1.0.0"
 
+otplib@^10.0.1:
+  version "10.0.1"
+  resolved "https://registry.yarnpkg.com/otplib/-/otplib-10.0.1.tgz#d37fcd13203298c0b94937d55c5a3527ed877875"
+  integrity sha512-FtbKelYtio2af5LDBWz3bWS6T03taHJAIv3evMrXuvoM50z5jbWoEMabPCk0A0JqiLGBzAIDJWfR9gSsvRYZHA==
+  dependencies:
+    thirty-two "1.0.2"
+
 p-finally@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/p-finally/-/p-finally-1.0.0.tgz#3fbcfb15b899a44123b34b6dcc18b724336a2cae"
@@ -2025,6 +2032,11 @@ temptmp@^1.1.0:
   integrity sha512-gHelQlePUzxRmodWL1uJ9LiwI+a7a3rkFGS9azTf4noPZgGOlx0dOPV9tZs5+QwGc4Nm8BfFxL9cfvV42GNxPQ==
   dependencies:
     del "^3.0.0"
+
+thirty-two@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/thirty-two/-/thirty-two-1.0.2.tgz#4ca2fffc02a51290d2744b9e3f557693ca6b627a"
+  integrity sha1-TKL//AKlEpDSdEueP1V2k8prYno=
 
 through2@^2.0.3:
   version "2.0.5"

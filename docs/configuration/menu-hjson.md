@@ -86,6 +86,7 @@ Many built in global/system methods exist. Below are a few. See [system_menu_met
 | Method | Description |
 |--------|-------------|
 | `login` | Performs a standard login. |
+| `login2FA_OTP` | Performs a 2-Factor Authentication (2FA) One-Time Password (OTP) check, if configured for the user. |
 | `logoff` | Performs a standard system logoff. |
 | `prevMenu` | Goes to the previous menu. |
 | `nextMenu` | Goes to the next menu (as set by `next`) |

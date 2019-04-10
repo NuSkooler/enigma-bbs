@@ -58,7 +58,10 @@ module.exports = {
 
     MinutesOnlineTotalCount         : 'minutes_online_total_count',
 
-    LoginPubKey                     : 'login_public_key',             //  OpenSSL format
-    //LoginPubKeyFingerprintSHA256    : 'login_public_key_fp_sha256',   //  hint: ssh-kegen -lf id_rsa.pub
+    SSHPubKey                       : 'ssh_public_key',             //  OpenSSH format (ssh-keygen, etc.)
+    AuthFactor1Types                : 'auth_factor1_types',         //  List of User.AuthFactor1Types value(s)
+    AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA
+    AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
+    AuthFactor2OTPScratchCodes      : 'auth_factor2_otp_scratch',   //  JSON array style codes ["code1", "code2", ...]
 };
 

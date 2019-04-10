@@ -27,15 +27,24 @@ exports.isRootUserId = function(id) { return 1 === id; };
 
 module.exports = class User {
     constructor() {
-        this.userId     = 0;
-        this.username   = '';
-        this.properties = {};   //  name:value
-        this.groups     = [];   //  group membership(s)
+        this.userId         = 0;
+        this.username       = '';
+        this.properties     = {};   //  name:value
+        this.groups         = [];   //  group membership(s)
+        this.authFactor     = User.AuthFactors.None;
     }
 
     //  static property accessors
     static get RootUserID() {
         return 1;
+    }
+
+    static get AuthFactors() {
+        return {
+            None    : 0,    //  Not yet authenticated in any way
+            Factor1 : 1,    //  username + password/pubkey/etc. checked out
+            Factor2 : 2,    //  validated with 2FA of some sort such as OTP
+        };
     }
 
     static get PBKDF2() {
@@ -50,7 +59,7 @@ module.exports = class User {
         return {
             auth : [
                 UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk,
-                UserProps.LoginPubKey, UserProps.LoginPubKeyFingerprintSHA256,
+                UserProps.AuthPubKey,
             ],
         };
     }
@@ -180,8 +189,9 @@ module.exports = class User {
 
     static get AuthFactor1Types() {
         return {
-            PubKey      : 'pubKey',
+            SSHPubKey   : 'sshPubKey',
             Password    : 'password',
+            TLSClient   : 'tlsClientAuth',
         };
     }
 
@@ -210,7 +220,7 @@ module.exports = class User {
         };
 
         const validatePubKey = (props, callback) => {
-            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.LoginPubKey]);
+            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.AuthPubKey]);
             if(!pubKeyActual) {
                 return callback(Errors.AccessDenied('Invalid public key'));
             }
@@ -242,7 +252,7 @@ module.exports = class User {
                     });
                 },
                 function validatePassOrPubKey(props, callback) {
-                    if(User.AuthFactor1Types.PubKey === authInfo.type) {
+                    if(User.AuthFactor1Types.SSHPubKey === authInfo.type) {
                         return validatePubKey(props, callback);
                     }
                     return validatePassword(props, callback);
@@ -323,7 +333,12 @@ module.exports = class User {
                     self.username       = tempAuthInfo.username;
                     self.properties     = tempAuthInfo.properties;
                     self.groups         = tempAuthInfo.groups;
-                    self.authenticated  = true;
+                    self.authFactor      = User.AuthFactors.Factor1;
+
+                    //
+                    //  If 2FA/OTP is required, this user is not quite authenticated yet.
+                    //
+                    self.authenticated = !(self.getProperty(UserProps.AuthFactor2OTP) ? true : false);
 
                     self.removeProperty(UserProps.FailedLoginAttempts);
 
@@ -604,7 +619,10 @@ module.exports = class User {
                 user.username       = userName;
                 user.properties     = properties;
                 user.groups         = groups;
-                user.authenticated  = false;    //  this is NOT an authenticated user!
+
+                //  explicitly NOT an authenticated user!
+                user.authenticated  = false;
+                user.authFactor     = User.AuthFactors.None;
 
                 return cb(err, user);
             }

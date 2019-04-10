@@ -4,6 +4,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 ## 0.0.10-alpha
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
++ SSH Public Key Authentication has been added. The system uses a OpenSSH style public key set on the `ssh_public_key` user property.
++ 
 
 
 ## 0.0.9-alpha

@@ -8,12 +8,14 @@ const { userLogin }     = require('./user_login.js');
 const messageArea       = require('./message_area.js');
 const { ErrorReasons }  = require('./enig_error.js');
 const UserProps         = require('./user_property.js');
+const { user2FA_OTP }   = require('./user_2fa_otp.js');
 
 //  deps
 const _                 = require('lodash');
 const iconv             = require('iconv-lite');
 
 exports.login                   = login;
+exports.login2FA_OTP            = login2FA_OTP;
 exports.logoff                  = logoff;
 exports.prevMenu                = prevMenu;
 exports.nextMenu                = nextMenu;
@@ -23,32 +25,47 @@ exports.prevArea                = prevArea;
 exports.nextArea                = nextArea;
 exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
 
+const handleAuthFailures = (callingMenu, err, cb) => {
+    //  already logged in with this user?
+    if(ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
+        _.has(callingMenu, 'menuConfig.config.tooNodeMenu'))
+    {
+        return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
+    }
+
+    //  banned username results in disconnect
+    if(ErrorReasons.NotAllowed === err.reasonCode) {
+        return logoff(callingMenu, {}, {}, cb);
+    }
+
+    const ReasonsMenus = [
+        ErrorReasons.TooMany, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked
+    ];
+    if(ReasonsMenus.includes(err.reasonCode)) {
+        const menu = _.get(callingMenu, [ 'menuConfig', 'config', err.reasonCode.toLowerCase() ]);
+        return menu ? callingMenu.gotoMenu(menu, cb) : logoff(callingMenu, {}, {}, cb);
+    }
+
+    //  Other error
+    return callingMenu.prevMenu(cb);
+};
+
 function login(callingMenu, formData, extraArgs, cb) {
 
     userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
         if(err) {
-            //  already logged in with this user?
-            if(ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
-                _.has(callingMenu, 'menuConfig.config.tooNodeMenu'))
-            {
-                return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
-            }
+            return handleAuthFailures(callingMenu, err, cb);
+        }
 
-            //  banned username results in disconnect
-            if(ErrorReasons.NotAllowed === err.reasonCode) {
-                return logoff(callingMenu, {}, {}, cb);
-            }
+        //  success!
+        return callingMenu.nextMenu(cb);
+    });
+}
 
-            const ReasonsMenus = [
-                ErrorReasons.TooMany, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked
-            ];
-            if(ReasonsMenus.includes(err.reasonCode)) {
-                const menu = _.get(callingMenu, [ 'menuConfig', 'config', err.reasonCode.toLowerCase() ]);
-                return menu ? callingMenu.gotoMenu(menu, cb) : logoff(callingMenu, {}, {}, cb);
-            }
-
-            //  Other error
-            return callingMenu.prevMenu(cb);
+function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
+    user2FA_OTP(callingMenu.client, formData.value.token, err => {
+        if(err) {
+            return handleAuthFailures(callingMenu, err, cb);
         }
 
         //  success!

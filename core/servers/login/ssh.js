@@ -107,7 +107,7 @@ function SSHClient(clientConn) {
         };
 
         const authWithPasswordOrPubKey = (authType) => {
-            if(User.AuthFactor1Types.PubKey !== authType || !self.user.isAuthenticated() || !ctx.signature) {
+            if(User.AuthFactor1Types.SSHPubKey !== authType || !self.user.isAuthenticated() || !ctx.signature) {
                 //  step 1: login/auth using PubKey
                 userLogin(self, ctx.username, ctx.password, { authType, ctx }, (err) => {
                     if(err) {
@@ -126,7 +126,7 @@ function SSHClient(clientConn) {
                 });
             } else {
                 //  step 2: verify signature
-                const pubKeyActual = ssh2.utils.parseKey(self.user.getProperty(UserProps.LoginPubKey));
+                const pubKeyActual = ssh2.utils.parseKey(self.user.getProperty(UserProps.AuthPubKey));
                 if(!pubKeyActual || !pubKeyActual.verify(ctx.blob, ctx.signature)) {
                     return slowTerminateConnection();
                 }
@@ -191,7 +191,7 @@ function SSHClient(clientConn) {
                 //return authWithPassword();
 
             case 'publickey' :
-                return authWithPasswordOrPubKey(User.AuthFactor1Types.PubKey);
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.SSHPubKey);
                 //return authWithPubKey();
 
             case 'keyboard-interactive' :
