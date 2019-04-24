@@ -40,7 +40,7 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **chat.freenode.net** ([webchat](https://webchat.freenode.net/?channels=enigma-bbs))
-* Discussion on [fsxNet](http://bbs.geek.nz/#fsxNet) available on many boards
+* FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) available on many boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
@@ -76,7 +76,7 @@ Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/install
 * [Luciano Ayres](http://www.lucianoayres.com.br/) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
-* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system
+* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
 * [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
