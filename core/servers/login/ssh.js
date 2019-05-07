@@ -380,7 +380,7 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.ssh.port}`));
         }
 
-        this.server.listen(port, err => {
+        this.server.listen(port, config.loginServers.ssh.address, err => {
             if(!err) {
                 Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
             }

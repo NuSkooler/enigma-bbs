@@ -84,6 +84,22 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         * Font support ala all other menus... or does this just work?
     */
 
+    incrementActiveDoorNodeInstances() {
+        if(activeDoorNodeInstances[this.config.name]) {
+            activeDoorNodeInstances[this.config.name] += 1;
+        } else {
+            activeDoorNodeInstances[this.config.name] = 1;
+        }
+        this.activeDoorInstancesIncremented = true;
+    }
+
+    decrementActiveDoorNodeInstances() {
+        if(true === this.activeDoorInstancesIncremented) {
+            activeDoorNodeInstances[this.config.name] -= 1;
+            this.activeDoorInstancesIncremented = false;
+        }
+    }
+
     initSequence() {
         const self = this;
 
@@ -116,14 +132,8 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                             });
                         }
                     } else {
-                        //  :TODO: JS elegant way to do this?
-                        if(activeDoorNodeInstances[self.config.name]) {
-                            activeDoorNodeInstances[self.config.name] += 1;
-                        } else {
-                            activeDoorNodeInstances[self.config.name] = 1;
-                        }
-
-                        callback(null);
+                        self.incrementActiveDoorNodeInstances();
+                        return callback(null);
                     }
                 },
                 function prepareDoor(callback) {
@@ -169,6 +179,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
         this.doorInstance.run(exeInfo, () => {
             trackDoorRunEnd(doorTracking);
+            this.decrementActiveDoorNodeInstances();
 
             //  client may have disconnected while process was active -
             //  we're done here if so.
@@ -194,9 +205,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
     leave() {
         super.leave();
-        if(!this.lastError) {
-            activeDoorNodeInstances[this.config.name] -= 1;
-        }
+        this.decrementActiveDoorNodeInstances();
     }
 
     finishedLoading() {

@@ -138,7 +138,7 @@ exports.getModule = class WebServerModule extends ServerModule {
                     return nextService(Errors.Invalid(`Invalid port: ${config.contentServers.web[service].port}`));
                 }
 
-                this[name].listen(port, err => {
+                this[name].listen(port, config.contentServers.web[service].address, err => {
                     return nextService(err);
                 });
             } else {
