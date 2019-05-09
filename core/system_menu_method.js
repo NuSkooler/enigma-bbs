@@ -8,7 +8,9 @@ const { userLogin }     = require('./user_login.js');
 const messageArea       = require('./message_area.js');
 const { ErrorReasons }  = require('./enig_error.js');
 const UserProps         = require('./user_property.js');
-const { user2FA_OTP }   = require('./user_2fa_otp.js');
+const {
+    loginFactor2_OTP
+}                       = require('./user_2fa_otp.js');
 
 //  deps
 const _                 = require('lodash');
@@ -63,7 +65,7 @@ function login(callingMenu, formData, extraArgs, cb) {
 }
 
 function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
-    user2FA_OTP(callingMenu.client, formData.value.token, err => {
+    loginFactor2_OTP(callingMenu.client, formData.value.token, err => {
         if(err) {
             return handleAuthFailures(callingMenu, err, cb);
         }

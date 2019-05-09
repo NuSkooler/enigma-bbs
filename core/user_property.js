@@ -62,6 +62,6 @@ module.exports = {
     AuthFactor1Types                : 'auth_factor1_types',         //  List of User.AuthFactor1Types value(s)
     AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA
     AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
-    AuthFactor2OTPScratchCodes      : 'auth_factor2_otp_scratch',   //  JSON array style codes ["code1", "code2", ...]
+    AuthFactor2OTPBackupCodes       : 'auth_factor2_otp_backup',    //  JSON array of backup codes: [{salt,code}, ...]
 };
 
