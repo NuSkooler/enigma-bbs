@@ -373,7 +373,7 @@ function twoFactorAuth(user) {
                     qrType      : argv['qr-type'] || 'ascii',
                 };
                 prepareOTP(otpType, otpOpts, (err, otpInfo) => {
-                    return callback(err, otpInfo);
+                    return callback(err, Object.assign(otpInfo, { otpType }));
                 });
             },
             function storeOrDisplayQR(otpInfo, callback) {
@@ -381,20 +381,35 @@ function twoFactorAuth(user) {
                     return callback(null, otpInfo);
                 }
 
-                if('-' === argv.out) {
-                    console.info(otpInfo.qr);
-                    return callback(null, otpInfo);
-                }
-
                 fs.writeFile(argv.out, otpInfo.qr, 'utf8', err => {
+                    return callback(err, otpInfo);
+                });
+            },
+            function persist(otpInfo, callback) {
+                const props = {
+                    [ UserProps.AuthFactor2OTP ]            : otpInfo.otpType,
+                    [ UserProps.AuthFactor2OTPSecret ]      : otpInfo.secret,
+                    [ UserProps.AuthFactor2OTPBackupCodes ] : JSON.stringify(otpInfo.backupCodes),
+                };
+                user.persistProperties(props, err => {
                     return callback(err, otpInfo);
                 });
             }
         ],
-        (err) => {
+        (err, otpInfo) => {
             if(err) {
                 console.error(err.message);
             } else {
+                console.info(`OTP enabled for ${user.username}.`);
+                console.info(`Secret: ${otpInfo.secret}`);
+                console.info(`Backup codes: ${otpInfo.backupCodes.join(', ')}`);
+
+                if(!argv.out) {
+                    console.info('QR code:');
+                    console.info(otpInfo.qr);
+                } else {
+                    console.info(`QR code saved to ${argv.out}`);
+                }
             }
         }
     );

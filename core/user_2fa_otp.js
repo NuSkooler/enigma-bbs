@@ -81,63 +81,25 @@ function generateOTPBackupCode() {
     return bits.join('-');
 }
 
-function backupCodePBKDF2(secret, salt, cb) {
-    return crypto.pbkdf2(secret, salt, 1000, 128, 'sha1', cb);
-}
-
-function generateNewBackupCodes(cb) {
-    const plainTextCodes = [...Array(6)].map(() => generateOTPBackupCode());
-    async.map(plainTextCodes, (code, nextCode) => {
-        crypto.randomBytes(16, (err, salt) => {
-            if(err) {
-                return nextCode(err);
-            }
-            salt = salt.toString('base64');
-            backupCodePBKDF2(code, salt, (err, code) => {
-                if(err) {
-                    return nextCode(err);
-                }
-                code = code.toString('base64');
-                return nextCode(null, { salt, code });
-            });
-        });
-    },
-    (err, codes) => {
-        return cb(err, codes, plainTextCodes);
-    });
+function generateNewBackupCodes() {
+    const codes = [...Array(6)].map(() => generateOTPBackupCode());
+    return codes;
 }
 
 function validateAndConsumeBackupCode(user, token, cb) {
     try
     {
         let validCodes = JSON.parse(user.getProperty(UserProps.AuthFactor2OTPBackupCodes));
-        async.detect(validCodes, (entry, nextEntry) => {
-            backupCodePBKDF2(token, entry.salt, (err, code) => {
-                if(err) {
-                    return nextEntry(err);
-                }
-                code = code.toString('base64');
-                return nextEntry(null, code === entry.code);
-            });
-        },
-        (err, matchingEntry) => {
-            if(err) {
-                return cb(err);
-            }
+        const matchingCode = validCodes.find(c => c === token);
+        if(!matchingCode) {
+            return cb(Errors.BadLogin('Invalid OTP value supplied', ErrorReasons.Invalid2FA));
+        }
 
-            if(!matchingEntry) {
-                return cb(Errors.BadLogin('Invalid OTP value supplied', ErrorReasons.Invalid2FA));
-            }
-
-            //  We're consuming a match - remove it from available backup codes
-            validCodes = validCodes.filter(entry => {
-                return entry.code != matchingEntry.code && entry.salt != matchingEntry.salt;
-            });
-
-            validCodes = JSON.stringify(validCodes);
-            user.persistProperty(UserProps.AuthFactor2OTPBackupCodes, validCodes, err => {
-                return cb(err);
-            });
+        //  We're consuming a match - remove it from available backup codes
+        validCodes = validCodes.filter(c => c !== matchingCode);
+        validCodes = JSON.stringify(validCodes);
+        user.persistProperty(UserProps.AuthFactor2OTPBackupCodes, validCodes, err => {
+            return cb(err);
         });
     } catch(e) {
         return cb(e);
@@ -174,10 +136,10 @@ function prepareOTP(otpType, options, cb) {
         otp.generateSecret() :
         crypto.randomBytes(64).toString('base64').substr(0, 32);
 
-    generateNewBackupCodes((err, codes, plainTextCodes) => {
-        const qr = createQRCode(otp, options, secret);
-        return cb(err, { secret, codes, plainTextCodes, qr } );
-    });
+    const backupCodes   = generateNewBackupCodes();
+    const qr            = createQRCode(otp, options, secret);
+
+    return cb(null, { secret, backupCodes, qr } );
 }
 
 function loginFactor2_OTP(client, token, cb) {
