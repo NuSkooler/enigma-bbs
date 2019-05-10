@@ -16,6 +16,7 @@ const UserProps                 = require('../user_property.js');
 const async						= require('async');
 const _							= require('lodash');
 const moment                    = require('moment');
+const fs                        = require('fs-extra');
 
 exports.handleUserCommand		= handleUserCommand;
 
@@ -343,6 +344,62 @@ Affiliations : ${propOrNA(UserProps.Affiliations)}
 `);
 }
 
+function twoFactorAuth(user) {
+    if(argv._.length < 4) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const {
+        OTPTypes,
+        prepareOTP,
+    } = require('../../core/user_2fa_otp.js');
+
+    async.waterfall(
+        [
+            function validate(callback) {
+                //  :TODO: Prompt for if not supplied
+                let otpType = argv._[argv._.length - 1];
+                otpType = _.find(OTPTypes, t => {
+                    return t.toLowerCase() === otpType;
+                });
+                if(!otpType) {
+                    return callback(Errors.Invalid('Invalid OTP type'));
+                }
+                return callback(null, otpType);
+            },
+            function prepare(otpType, callback) {
+                const otpOpts = {
+                    username    : user.username,
+                    qrType      : argv['qr-type'] || 'ascii',
+                };
+                prepareOTP(otpType, otpOpts, (err, otpInfo) => {
+                    return callback(err, otpInfo);
+                });
+            },
+            function storeOrDisplayQR(otpInfo, callback) {
+                if(!argv.out) {
+                    return callback(null, otpInfo);
+                }
+
+                if('-' === argv.out) {
+                    console.info(otpInfo.qr);
+                    return callback(null, otpInfo);
+                }
+
+                fs.writeFile(argv.out, otpInfo.qr, 'utf8', err => {
+                    return callback(err, otpInfo);
+                });
+            }
+        ],
+        (err) => {
+            if(err) {
+                console.error(err.message);
+            } else {
+            }
+        }
+    );
+}
+
 function handleUserCommand() {
     function errUsage()  {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -356,7 +413,8 @@ function handleUserCommand() {
     const usernameIdx = [
         'pw', 'pass', 'passwd', 'password',
         'group',
-        'mv', 'rename'
+        'mv', 'rename',
+        '2fa',
     ].includes(action) ? argv._.length - 2 : argv._.length - 1;
     const userName = argv._[usernameIdx];
 
@@ -391,6 +449,8 @@ function handleUserCommand() {
             group		: modUserGroups,
 
             info        : showUserInfo,
+
+            '2fa'       : twoFactorAuth,
         }[action] || errUsage)(user, action);
     });
 }

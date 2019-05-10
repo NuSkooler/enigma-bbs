@@ -12,14 +12,16 @@ const {
     recordLogin,
     transformLoginError,
 }                       = require('./user_login.js');
+const Config            = require('./config.js').get;
 
 //  deps
 const _             = require('lodash');
 const crypto        = require('crypto');
 const async         = require('async');
+const qrGen         = require('qrcode-generator');
 
-exports.loginFactor2_OTP        = loginFactor2_OTP;
-exports.generateNewBackupCodes  = generateNewBackupCodes;
+exports.prepareOTP          = prepareOTP;
+exports.loginFactor2_OTP    = loginFactor2_OTP;
 
 const OTPTypes = exports.OTPTypes = {
     RFC6238_TOTP        : 'rfc6238_TOTP',   //  Time-Based, SHA-512
@@ -28,23 +30,27 @@ const OTPTypes = exports.OTPTypes = {
 };
 
 function otpFromType(otpType) {
-    return {
-        [ OTPTypes.RFC6238_TOTP ] : () => {
-            const totp = require('otplib/totp');
-            totp.options = { crypto, algorithm : 'sha256' };
-            return totp;
-        },
-        [ OTPTypes.RFC4266_HOTP ] : () => {
-            const hotp = require('otplib/hotp');
-            hotp.options = { crypto, algorithm : 'sha256' };
-            return hotp;
-        },
-        [ OTPTypes.GoogleAuthenticator ] : () => {
-            const googleAuth = require('otplib/authenticator');
-            googleAuth.options = { crypto };
-            return googleAuth;
-        },
-    }[otpType]();
+    try {
+        return {
+            [ OTPTypes.RFC6238_TOTP ] : () => {
+                const totp = require('otplib/totp');
+                totp.options = { crypto, algorithm : 'sha256' };
+                return totp;
+            },
+            [ OTPTypes.RFC4266_HOTP ] : () => {
+                const hotp = require('otplib/hotp');
+                hotp.options = { crypto, algorithm : 'sha256' };
+                return hotp;
+            },
+            [ OTPTypes.GoogleAuthenticator ] : () => {
+                const googleAuth = require('otplib/authenticator');
+                googleAuth.options = { crypto };
+                return googleAuth;
+            },
+        }[otpType]();
+    } catch(e) {
+        //  nothing
+    }
 }
 
 function generateOTPBackupCode() {
@@ -79,13 +85,9 @@ function backupCodePBKDF2(secret, salt, cb) {
     return crypto.pbkdf2(secret, salt, 1000, 128, 'sha1', cb);
 }
 
-function generateNewBackupCodes(user, cb) {
-    //
-    //  Backup codes are not stored in plain text, but rather
-    //  an array of objects: [{salt, code}, ...]
-    //
-    const plainCodes = [...Array(6)].map(() => generateOTPBackupCode());
-    async.map(plainCodes, (code, nextCode) => {
+function generateNewBackupCodes(cb) {
+    const plainTextCodes = [...Array(6)].map(() => generateOTPBackupCode());
+    async.map(plainTextCodes, (code, nextCode) => {
         crypto.randomBytes(16, (err, salt) => {
             if(err) {
                 return nextCode(err);
@@ -101,14 +103,7 @@ function generateNewBackupCodes(user, cb) {
         });
     },
     (err, codes) => {
-        if(err) {
-            return cb(err);
-        }
-
-        codes = JSON.stringify(codes);
-        user.persistProperty(UserProps.AuthFactor2OTPBackupCodes, codes, err => {
-            return cb(err, plainCodes);
-        });
+        return cb(err, codes, plainTextCodes);
     });
 }
 
@@ -149,13 +144,51 @@ function validateAndConsumeBackupCode(user, token, cb) {
     }
 }
 
+function createQRCode(otp, options, secret) {
+    const uri = otp.keyuri(options.username || 'user', Config().general.boardName, secret);
+    const qrCode = qrGen(0, 'L');
+    qrCode.addData(uri);
+    qrCode.make();
+
+    options.qrType = options.qrType || 'ascii';
+    return {
+        ascii   : qrCode.createASCII,
+        data    : qrCode.createDataURL,
+        img     : qrCode.createImgTag,
+        svg     : qrCode.createSvgTag,
+    }[options.qrType]();
+}
+
+function prepareOTP(otpType, options, cb) {
+    if(!_.isFunction(cb)) {
+        cb = options;
+        options = {};
+    }
+
+    const otp = otpFromType(otpType);
+    if(!otp) {
+        return cb(Errors.Invalid(`Unknown OTP type: ${otpType}`));
+    }
+
+    const secret = OTPTypes.GoogleAuthenticator === otpType ?
+        otp.generateSecret() :
+        crypto.randomBytes(64).toString('base64').substr(0, 32);
+
+    generateNewBackupCodes((err, codes, plainTextCodes) => {
+        const qr = createQRCode(otp, options, secret);
+        return cb(err, { secret, codes, plainTextCodes, qr } );
+    });
+}
+
 function loginFactor2_OTP(client, token, cb) {
     if(client.user.authFactor < User.AuthFactors.Factor1) {
         return cb(Errors.AccessDenied('OTP requires prior authentication factor 1'));
     }
 
     const otpType = client.user.getProperty(UserProps.AuthFactor2OTP);
-    if(!_.values(OTPTypes).includes(otpType)) {
+    const otp     = otpFromType(otpType);
+
+    if(!otp) {
         return cb(Errors.Invalid(`Unknown OTP type: ${otpType}`));
     }
 
@@ -164,7 +197,6 @@ function loginFactor2_OTP(client, token, cb) {
         return cb(Errors.Invalid('Missing OTP secret'));
     }
 
-    const otp   = otpFromType(otpType);
     const valid = otp.verify( { token, secret } );
 
     const allowLogin = () => {

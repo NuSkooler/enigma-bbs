@@ -1570,6 +1570,11 @@ punycode@^1.4.1:
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-1.4.1.tgz#c0d5a63b2718800ad8e1eb0fa5269c84dd41845e"
   integrity sha1-wNWmOycYgArY4esPpSachN1BhF4=
 
+qrcode-generator@1.4.3:
+  version "1.4.3"
+  resolved "https://registry.yarnpkg.com/qrcode-generator/-/qrcode-generator-1.4.3.tgz#4876e8f280e65b6c94615f4c19c484f6b964b199"
+  integrity sha512-++rVRvMRq5BlHfmAafl8a4ppUntzUxCCUTT2t0siUgqKwdnqRzY8IH6f6WSX5dZUhD2Ul5/MIKuTJddflwrGzw==
+
 qs@~6.5.2:
   version "6.5.2"
   resolved "https://registry.yarnpkg.com/qs/-/qs-6.5.2.tgz#cb3ae806e8740444584ef154ce8ee98d403f3e36"

@@ -20,6 +20,7 @@ const User              = require('./user.js');
 //  deps
 const async             = require('async');
 const _                 = require('lodash');
+const assert            = require('assert');
 
 exports.userLogin             = userLogin;
 exports.recordLogin           = recordLogin;
@@ -110,6 +111,8 @@ function userLogin(client, username, password, options, cb) {
 }
 
 function recordLogin(client, cb) {
+    assert(client.user.authenticated);  //  don't get in situations where this isn't true
+
     const user = client.user;
     async.parallel(
         [
