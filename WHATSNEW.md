@@ -5,7 +5,9 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
 + SSH Public Key Authentication has been added. The system uses a OpenSSH style public key set on the `ssh_public_key` user property.
-+ 
++ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used.
++ `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
+* `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
 
 
 ## 0.0.9-alpha
