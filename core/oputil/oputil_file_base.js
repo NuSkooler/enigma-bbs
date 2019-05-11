@@ -209,7 +209,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                 async.series(
                                     [
                                         function quickCheck(next) {
-                                            if(!options.quick) {
+                                            if(options['full-scan']) {
                                                 return next(null);
                                             }
 
@@ -476,8 +476,8 @@ function scanFileAreas() {
         options.tags = tags.split(',');
     }
 
-    options.descFile 	= argv['desc-file'];	//	--desc-file or --desc-file PATH
-    options.quick 		= argv.quick;
+    options.descFile 	    = argv['desc-file'];	//	--desc-file or --desc-file PATH
+    options['full-scan'] 	= argv['-full-scan'];
 
     options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
 

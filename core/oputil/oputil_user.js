@@ -329,7 +329,7 @@ function showUserInfo(user) {
         return user.properties[p] || 'N/A';
     };
 
-    console.info(`User information:
+    const stdInfo = `User information:
 Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
 Real name    : ${propOrNA(UserProps.RealName)}
 ID           : ${user.userId}
@@ -340,11 +340,29 @@ Last login   : ${lastLogin()}
 Login count  : ${propOrNA(UserProps.LoginCount)}
 Email        : ${propOrNA(UserProps.EmailAddress)}
 Location     : ${propOrNA(UserProps.Location)}
-Affiliations : ${propOrNA(UserProps.Affiliations)}
-`);
+Affiliations : ${propOrNA(UserProps.Affiliations)}`;
+    let secInfo = '';
+    if(argv.security) {
+        const otp = user.getProperty(UserProps.AuthFactor2OTP);
+        if(otp) {
+            const backupCodesOrNa = () => {
+                try
+                {
+                    return JSON.parse(user.getProperty(UserProps.AuthFactor2OTPBackupCodes)).join(', ');
+                } catch(e) {
+                    return 'N/A';
+                }
+            };
+            secInfo = `\n2FA OTP      : ${otp}
+OTP secret   : ${user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'}
+OTP Backup   : ${backupCodesOrNa()}`;
+        }
+    }
+
+    console.info(`${stdInfo}${secInfo}`);
 }
 
-function twoFactorAuth(user) {
+function twoFactorAuthOTP(user) {
     if(argv._.length < 4) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
@@ -359,8 +377,15 @@ function twoFactorAuth(user) {
             function validate(callback) {
                 //  :TODO: Prompt for if not supplied
                 let otpType = argv._[argv._.length - 1];
+
+                //  allow aliases for OTP types
+                otpType = {
+                    google  : OTPTypes.GoogleAuthenticator,
+                    hotp    : OTPTypes.RFC4266_HOTP,
+                    totp    : OTPTypes.RFC6238_TOTP,
+                }[otpType] || otpType;
                 otpType = _.find(OTPTypes, t => {
-                    return t.toLowerCase() === otpType;
+                    return t.toLowerCase() === otpType.toLowerCase();
                 });
                 if(!otpType) {
                     return callback(Errors.Invalid('Invalid OTP type'));
@@ -377,7 +402,7 @@ function twoFactorAuth(user) {
                 });
             },
             function storeOrDisplayQR(otpInfo, callback) {
-                if(!argv.out) {
+                if(!argv.out || !otpInfo.qr) {
                     return callback(null, otpInfo);
                 }
 
@@ -400,15 +425,18 @@ function twoFactorAuth(user) {
             if(err) {
                 console.error(err.message);
             } else {
-                console.info(`OTP enabled for ${user.username}.`);
-                console.info(`Secret: ${otpInfo.secret}`);
-                console.info(`Backup codes: ${otpInfo.backupCodes.join(', ')}`);
+                console.info(`OTP enabled for  : ${user.username}`);
+                console.info(`Secret           : ${otpInfo.secret}`);
+                console.info(`Backup codes     : ${otpInfo.backupCodes.join(', ')}`);
 
-                if(!argv.out) {
-                    console.info('QR code:');
-                    console.info(otpInfo.qr);
-                } else {
-                    console.info(`QR code saved to ${argv.out}`);
+                if(otpInfo.qr) {
+                    if(!argv.out) {
+                        console.info('--- Begin QR ---');
+                        console.info(otpInfo.qr);
+                        console.info('--- End QR ---');
+                    } else {
+                        console.info(`QR code saved to ${argv.out}`);
+                    }
                 }
             }
         }
@@ -429,7 +457,7 @@ function handleUserCommand() {
         'pw', 'pass', 'passwd', 'password',
         'group',
         'mv', 'rename',
-        '2fa',
+        '2fa-otp', 'otp'
     ].includes(action) ? argv._.length - 2 : argv._.length - 1;
     const userName = argv._[usernameIdx];
 
@@ -465,7 +493,8 @@ function handleUserCommand() {
 
             info        : showUserInfo,
 
-            '2fa'       : twoFactorAuth,
+            '2fa-otp'   : twoFactorAuthOTP,
+            otp         : twoFactorAuthOTP,
         }[action] || errUsage)(user, action);
     });
 }
