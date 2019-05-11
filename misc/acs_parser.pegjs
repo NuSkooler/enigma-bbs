@@ -150,8 +150,8 @@
 						return false;
 					}
 					switch(value) {
-						case 1 : return user.authFactor >= User.AuthFactors.Factor1;
-						case 2 : return user.authFactor >= User.AuthFActors.Factor2;
+						case 1 : return true;
+						case 2 : return user.getProperty(UserProps.AuthFactor2OTP) ? true : false;
 						default : return false;
 					}
 				},
