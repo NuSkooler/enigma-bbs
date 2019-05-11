@@ -107,18 +107,22 @@ function validateAndConsumeBackupCode(user, token, cb) {
 }
 
 function createQRCode(otp, options, secret) {
-    const uri = otp.keyuri(options.username || 'user', Config().general.boardName, secret);
-    const qrCode = qrGen(0, 'L');
-    qrCode.addData(uri);
-    qrCode.make();
+    try {
+        const uri = otp.keyuri(options.username || 'user', Config().general.boardName, secret);
+        const qrCode = qrGen(0, 'L');
+        qrCode.addData(uri);
+        qrCode.make();
 
-    options.qrType = options.qrType || 'ascii';
-    return {
-        ascii   : qrCode.createASCII,
-        data    : qrCode.createDataURL,
-        img     : qrCode.createImgTag,
-        svg     : qrCode.createSvgTag,
-    }[options.qrType]();
+        options.qrType = options.qrType || 'ascii';
+        return {
+            ascii   : qrCode.createASCII,
+            data    : qrCode.createDataURL,
+            img     : qrCode.createImgTag,
+            svg     : qrCode.createSvgTag,
+        }[options.qrType]();
+    } catch(e) {
+        return;
+    }
 }
 
 function prepareOTP(otpType, options, cb) {
