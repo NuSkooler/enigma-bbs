@@ -57,6 +57,9 @@ function sliceAtEOF(data, eofMarker) {
             break;
         }
     }
+    if(eof === data.length || eof < 128) {
+        return data;
+    }
     return data.slice(0, eof);
 }
 
