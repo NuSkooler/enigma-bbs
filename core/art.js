@@ -144,7 +144,7 @@ function getArt(name, options, cb) {
 
     //  If an extension is provided, just read the file now
     if('' !== ext) {
-        const directPath = paths.join(options.basePath, name);
+        const directPath = paths.isAbsolute(name) ? name : paths.join(options.basePath, name);
         return getArtFromPath(directPath, options, cb);
     }
 
