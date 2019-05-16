@@ -329,7 +329,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         const msgOpts = {
             areaTag         : this.messageAreaTag,
             toUserName      : headerValues.to,
-            fromUserName    : this.client.user.username,
+            fromUserName    : this.client.user.getProperty(UserProps.RealName) || this.client.user.username,
             subject         : headerValues.subject,
             //  :TODO: don't hard code 1 here:
             message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
