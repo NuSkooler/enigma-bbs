@@ -46,7 +46,7 @@ exports.getModule = class MrcModule extends ServerModule {
         const enigmaVersion = "ENiGMA-BBS_" + require('../../../package.json').version
 
         const mrcConnectOpts = {
-            port    : 5000,
+            port    : 50000,
             host    : "mrc.bottomlessabyss.net"
         };
 
@@ -65,6 +65,9 @@ exports.getModule = class MrcModule extends ServerModule {
             // split on \n to deal with getting messages in batches
             data.toString().split('\n').forEach( item => {
                 if (item == '') return;
+                console.log('start')
+                console.log(item)
+                console.log('end')
                 
                 this.log.debug( { data : item } , `Received data`); 
                 let message = this.parseMessage(item);
