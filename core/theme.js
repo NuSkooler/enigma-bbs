@@ -439,7 +439,7 @@ function getThemeArt(options, cb) {
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!
     options.asAnsi      = true; //  always convert to ANSI
-    options.readSauce   = true; //  read SAUCE, if avail
+    options.readSauce   = _.get(options, 'readSauce', true); //  read SAUCE, if avail
     options.random      = _.get(options, 'random', true);   //  FILENAME<n>.EXT support
 
     //
