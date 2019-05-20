@@ -14,6 +14,7 @@ const net                   = require('net');
 const _                     = require('lodash');
 const os                    = require('os');
 
+
 // MRC
 const PROTOCOL_VERSION = '1.2.9';
 
@@ -65,15 +66,13 @@ exports.getModule = class MrcModule extends ServerModule {
             // split on \n to deal with getting messages in batches
             data.toString().split('\n').forEach( item => {
                 if (item == '') return;
-                console.log('start')
-                console.log(item)
-                console.log('end')
                 
                 this.log.debug( { data : item } , `Received data`); 
                 let message = this.parseMessage(item);
                 this.log.debug(message, `Parsed data`);                
-           
-                this.receiveFromMRC(this.mrcClient, message);
+                if (message) {
+                    this.receiveFromMRC(this.mrcClient, message);
+                }
             });
         });
 
@@ -82,13 +81,12 @@ exports.getModule = class MrcModule extends ServerModule {
         });
 
         this.mrcClient.on('error', err => {
-            Log.info( { error : err.message }, 'MRC server error');
+            this.log.info( { error : err.message }, 'MRC server error');
         });
 
         // start a local server for clients to connect to
         this.server = net.createServer( function(socket) {
             socket.setEncoding('ascii');
-            connectedSockets.add(socket);
             
             socket.on('data', data => {
                 // split on \n to deal with getting messages in batches
@@ -96,7 +94,8 @@ exports.getModule = class MrcModule extends ServerModule {
                     if (item == '') return;
 
                     // save username with socket
-                    if(item.startsWith('--DUDE-ITS--')) { 
+                    if(item.startsWith('--DUDE-ITS--')) {
+                        connectedSockets.add(socket);
                         socket.username = item.split('|')[1];
                         Log.debug( { server : 'MRC', user: socket.username } , `User connected`); 
                     } 
@@ -147,10 +146,12 @@ exports.getModule = class MrcModule extends ServerModule {
         return _.isNumber(_.get(config, 'chatServers.mrc.multiplexerPort'));
     }
 
-    sendToClient(message, username) {
+    sendToClient(message) {
         connectedSockets.forEach( (client) => {
-            this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user')
-            client.write(JSON.stringify(message) + '\n');
+            if (message.to_user == '' || message.to_user == client.username || message.to_user == 'CLIENT') {
+                // this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user')
+                client.write(JSON.stringify(message) + '\n');
+            }
         });
     }
 
@@ -172,7 +173,8 @@ exports.getModule = class MrcModule extends ServerModule {
         } else {
             // if not a heartbeat, and we have clients then we need to send something to them
             //console.log(this.connectedSockets);
-            this.sendToClient(message); 
+            this.sendToClient(message);
+            
             return;    
         }
     }
@@ -220,7 +222,6 @@ function sanitiseMessage(message) {
 function receiveFromClient(username, message) {
     try {
         message = JSON.parse(message)
-        message.from_user = username
     } catch (e) {
         Log.debug({ server : 'MRC', user : username, message : message }, 'Dodgy message received from client');
     }
@@ -250,7 +251,7 @@ function sendToMrcServer(socket, fromUser, fromRoom, toUser, toSite, toRoom, mes
 function slugify(text)
 {
   return text.toString()
-    .replace(/\s+/g, '_')           // Replace spaces with -
+    .replace(/\s+/g, '_')           // Replace spaces with _
     .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
     .replace(/\-\-+/g, '_')         // Replace multiple - with single -
     .replace(/^-+/, '')             // Trim - from start of text
