@@ -6,8 +6,6 @@ const Log                       = require('../../logger.js').log;
 const { ServerModule }          = require('../../server_module.js');
 const Config                    = require('../../config.js').get;
 const { Errors }                = require('../../enig_error.js');
-const { wordWrapText }          = require('../../word_wrap.js');
-const { stripMciColorCodes }    = require('../../color_codes.js');
 
 //  deps
 const net                   = require('net');
@@ -41,24 +39,26 @@ exports.getModule = class MrcModule extends ServerModule {
         if (!this.enabled) {
             return cb(null);
         }
-        
+
+        const self = this;
+
         const config = Config();
-        const boardName  = config.general.boardName
-        const enigmaVersion = "ENiGMA-BBS_" + require('../../../package.json').version
+        const boardName  = config.general.boardName;
+        const enigmaVersion = 'ENiGMA-BBS_' + require('../../../package.json').version;
 
         const mrcConnectOpts = {
             port    : 50000,
-            host    : "mrc.bottomlessabyss.net"
+            host    : 'mrc.bottomlessabyss.net'
         };
 
-        const handshake = `${boardName}~${enigmaVersion}/${os.platform()}-${os.arch()}/${PROTOCOL_VERSION}`
-        this.log.debug({ handshake : handshake }, "Handshaking with MRC server")
+        const handshake = `${boardName}~${enigmaVersion}/${os.platform()}-${os.arch()}/${PROTOCOL_VERSION}`;
+        this.log.debug({ handshake : handshake }, 'Handshaking with MRC server');
 
         // create connection to MRC server
         this.mrcClient = net.createConnection(mrcConnectOpts, () => {
             this.mrcClient.write(handshake);
             this.log.info(mrcConnectOpts, 'Connected to MRC server');
-            mrcCentralConnection = this.mrcClient
+            mrcCentralConnection = this.mrcClient;
         });
 
         // do things when we get data from MRC central
@@ -66,10 +66,10 @@ exports.getModule = class MrcModule extends ServerModule {
             // split on \n to deal with getting messages in batches
             data.toString().split('\n').forEach( item => {
                 if (item == '') return;
-                
-                this.log.debug( { data : item } , `Received data`); 
+
+                this.log.debug( { data : item } , 'Received data');
                 let message = this.parseMessage(item);
-                this.log.debug(message, `Parsed data`);                
+                this.log.debug(message, 'Parsed data');
                 if (message) {
                     this.receiveFromMRC(this.mrcClient, message);
                 }
@@ -87,20 +87,20 @@ exports.getModule = class MrcModule extends ServerModule {
         // start a local server for clients to connect to
         this.server = net.createServer( function(socket) {
             socket.setEncoding('ascii');
-            
+
             socket.on('data', data => {
                 // split on \n to deal with getting messages in batches
                 data.toString().split('\n').forEach( item => {
+
                     if (item == '') return;
 
                     // save username with socket
                     if(item.startsWith('--DUDE-ITS--')) {
                         connectedSockets.add(socket);
                         socket.username = item.split('|')[1];
-                        Log.debug( { server : 'MRC', user: socket.username } , `User connected`); 
-                    } 
-                    else {
-                        receiveFromClient(socket.username, item);
+                        Log.debug( { server : 'MRC', user: socket.username } , 'User connected');
+                    } else {
+                        self.receiveFromClient(socket.username, item);
                     }
                 });
 
@@ -112,7 +112,7 @@ exports.getModule = class MrcModule extends ServerModule {
 
             socket.on('error', err => {
                 if('ECONNRESET' !== err.code) { //  normal
-                    console.log(err.message);
+                    this.log.error( { error: err.message }, 'MRC error' );
                 }
             });
         });
@@ -156,26 +156,21 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 
     receiveFromMRC(socket, message) {
-    
+
         const config = Config();
-        const siteName = slugify(config.general.boardName)
+        const siteName = slugify(config.general.boardName);
 
         if (message.from_user == 'SERVER' && message.body == 'HELLO') {
             // initial server hello, can ignore
-            return;
 
         } else if (message.from_user == 'SERVER' && message.body.toUpperCase() == 'PING') {
             // reply to heartbeat
             // this.log.debug('Respond to heartbeat');
-            let message = sendToMrcServer(socket, 'CLIENT', '', 'SERVER', 'ALL', '', `IMALIVE:${siteName}`);
-            return message;
+            this.sendToMrcServer(socket, 'CLIENT', '', 'SERVER', 'ALL', '', `IMALIVE:${siteName}`);
 
         } else {
             // if not a heartbeat, and we have clients then we need to send something to them
-            //console.log(this.connectedSockets);
             this.sendToClient(message);
-            
-            return;    
         }
     }
 
@@ -197,6 +192,34 @@ exports.getModule = class MrcModule extends ServerModule {
         };
     }
 
+    receiveFromClient(username, message) {
+        try {
+            message = JSON.parse(message);
+        } catch (e) {
+            Log.debug({ server : 'MRC', user : username, message : message }, 'Dodgy message received from client');
+        }
+
+        this.sendToMrcServer(mrcCentralConnection, message.from_user, message.from_room, message.to_user, message.to_site, message.to_room, message.body);
+    }
+
+    // send a message back to the mrc central server
+    sendToMrcServer(socket, fromUser, fromRoom, toUser, toSite, toRoom, messageBody) {
+        const config = Config();
+        const siteName = slugify(config.general.boardName);
+
+        const line = [
+            fromUser,
+            siteName,
+            sanitiseRoomName(fromRoom),
+            sanitiseName(toUser || ''),
+            sanitiseName(toSite || ''),
+            sanitiseRoomName(toRoom || ''),
+            sanitiseMessage(messageBody)
+        ].join('~') + '~';
+
+        Log.debug({ server : 'MRC', data : line }, 'Sending data');
+        return socket.write(line + '\n');
+    }
 };
 
 
@@ -219,41 +242,11 @@ function sanitiseMessage(message) {
     return message.replace(/[^\x20-\x7D]/g, '');
 }
 
-function receiveFromClient(username, message) {
-    try {
-        message = JSON.parse(message)
-    } catch (e) {
-        Log.debug({ server : 'MRC', user : username, message : message }, 'Dodgy message received from client');
-    }
-    
-    sendToMrcServer(mrcCentralConnection, message.from_user, message.from_room, message.to_user, message.to_site, message.to_room, message.body)
-}
-
-// send a message back to the mrc central server
-function sendToMrcServer(socket, fromUser, fromRoom, toUser, toSite, toRoom, messageBody) {
-    const config = Config();
-    const siteName = slugify(config.general.boardName)
-
-    const line = [
-        fromUser,
-        siteName,
-        sanitiseRoomName(fromRoom),
-        sanitiseName(toUser || ''),
-        sanitiseName(toSite || ''),
-        sanitiseRoomName(toRoom || ''),
-        sanitiseMessage(messageBody)
-    ].join('~') + '~';
-
-    Log.debug({ server : 'MRC', data : line }, 'Sending data');
-    return socket.write(line + '\n');
-}
-
-function slugify(text)
-{
-  return text.toString()
-    .replace(/\s+/g, '_')           // Replace spaces with _
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '_')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start of text
-    .replace(/-+$/, '');            // Trim - from end of text
+function slugify(text) {
+    return text.toString()
+        .replace(/\s+/g, '_')           // Replace spaces with _
+        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+        .replace(/\-\-+/g, '_')         // Replace multiple - with single -
+        .replace(/^-+/, '')             // Trim - from start of text
+        .replace(/-+$/, '');            // Trim - from end of text
 }

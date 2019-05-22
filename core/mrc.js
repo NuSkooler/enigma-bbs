@@ -4,12 +4,11 @@
 //  ENiGMA½
 const Log               = require('./logger.js').log;
 const { MenuModule }    = require('./menu_module.js');
-const { Errors }        = require('./enig_error.js');
 const {
     pipeToAnsi
 }                       = require('./color_codes.js');
 const stringFormat              = require('./string_format.js');
-const StringUtil                = require('./string_util.js')
+const StringUtil                = require('./string_util.js');
 
 //  deps
 const _                 = require('lodash');
@@ -23,7 +22,7 @@ exports.moduleInfo = {
     author      : 'RiPuk',
     packageName : 'codes.l33t.enigma.mrc.client',
 
-    // Whilst this module was put together by me (RiPuk), it should be noted that a lot of the ideas (and even some code snippets) were 
+    // Whilst this module was put together by me (RiPuk), it should be noted that a lot of the ideas (and even some code snippets) were
     // borrowed from the Synchronet implementation of MRC by echicken. So...thanks, your code was very helpful in putting this together.
     // Source at http://cvs.synchro.net/cgi-bin/viewcvs.cgi/xtrn/mrc/.
 };
@@ -45,7 +44,7 @@ var MciViewIds = {
 };
 
 
- 
+
 // TODO: this is a bit shit, could maybe do it with an ansi instead
 const helpText = `
 General Chat:
@@ -73,7 +72,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
         this.log    = Log.child( { module : 'MRC' } );
         this.config = Object.assign({}, _.get(options, 'menuConfig.config'), { extraArgs : options.extraArgs });
-        
+
         this.state = {
             socket: '',
             alias: this.client.user.username,
@@ -82,17 +81,17 @@ exports.getModule = class mrcModule extends MenuModule {
             nicks: [],
             last_ping: 0
         };
-        
+
         this.menuMethods = {
 
             sendChatMessage : (formData, extraArgs, cb) => {
-            
+
                 const inputAreaView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.inputArea);
                 const inputData		= inputAreaView.getData();
 
-                this.processSentMessage(inputData);
+                this.processOutgoingMessage(inputData);
                 inputAreaView.clearText();
-                
+
                 return cb(null);
             },
 
@@ -109,7 +108,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
                 return cb(null);
             }
-        }
+        };
     }
 
     mciReady(mciData, cb) {
@@ -129,7 +128,7 @@ exports.getModule = class mrcModule extends MenuModule {
                     (callback) => {
                         const connectOpts = {
                             port	: 5000,
-                            host	: "localhost",
+                            host	: 'localhost',
                         };
 
                         // connect to multiplexer
@@ -143,7 +142,7 @@ exports.getModule = class mrcModule extends MenuModule {
                             // send register to central MRC and get stats every 60s
                             setInterval(function () {
                                 self.sendHeartbeat();
-                                self.sendServerCommand('STATS')
+                                self.sendServerMessage('STATS');
                             }, 60000);
                         });
 
@@ -159,28 +158,36 @@ exports.getModule = class mrcModule extends MenuModule {
                 err => {
                     return cb(err);
                 }
-           );
+            );
         });
     }
 
+    /**
+     * Adds a message to the chat log on screen
+     */
+    addMessageToChatLog(message) {
+        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
+        chatLogView.addText(pipeToAnsi(message));
+    }
+
+    /**
+     * Processes data received back from the MRC multiplexer
+     */    
     processReceivedMessage(blob) {
         blob.split('\n').forEach( message => {
 
             try {
-                message = JSON.parse(message)
+                message = JSON.parse(message);
             } catch (e) {
-                return
+                return;
             }
-
-            const chatMessageView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
-
 
             if (message.from_user == 'SERVER') {
                 const params = message.body.split(':');
 
                 switch (params[0]) {
                     case 'BANNER':
-                        chatMessageView.addText(pipeToAnsi(params[1].replace(/^\s+/, '')));
+                        this.addMessageToChatLog(params[1].replace(/^\s+/, ''));
                         break;
 
                     case 'ROOMTOPIC':
@@ -188,13 +195,12 @@ exports.getModule = class mrcModule extends MenuModule {
                         this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.roomTopic).setText(pipeToAnsi(params[2]));
                         this.state.room = params[1];
                         break;
-                        
+
                     case 'USERLIST':
                         this.state.nicks = params[1].split(',');
                         break;
-                    
+
                     case 'STATS':
-                        console.log("got stats back")
                         const stats = params[1].split(' ');
                         this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcUsers).setText(stats[2]);
                         this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcBbses).setText(stats[0]);
@@ -203,18 +209,25 @@ exports.getModule = class mrcModule extends MenuModule {
                         break;
 
                     default:
-                        chatMessageView.addText(pipeToAnsi(message.body));
+                        this.addMessageToChatLog(message.body);
                         break;
                 }
 
             } else {
-                if (message.from_user == this.state.alias && message.to_user == "NOTME") {
+                if (message.from_user == this.state.alias && message.to_user == 'NOTME') {
                     // don't deliver NOTME messages
                     return;
                 } else {
                     // if we're here then we want to show it to the user
                     const currentTime = moment().format(this.client.currentTheme.helpers.getTimeFormat());
-                    chatMessageView.addText(pipeToAnsi("|08" + currentTime + "|00 " + message.body + "|00"));
+
+                    if (message.to_user == this.state.alias) {
+                        // it's a pm
+                        this.addMessageToChatLog('|08' + currentTime + ' |14PM|00 ' + message.body + '|00');
+                    } else {
+                        // it's not a pm
+                        this.addMessageToChatLog('|08' + currentTime + '|00 ' + message.body + '|00');
+                    }
                 }
             }
 
@@ -222,14 +235,17 @@ exports.getModule = class mrcModule extends MenuModule {
         });
     }
 
-    processSentMessage(message, to_user) {
+    /**
+     * Receives the message input from the user and does something with it based on what it is
+     */
+    processOutgoingMessage(message, to_user) {
         if (message.startsWith('/')) {
 
-            this.processSlashCommand(message)
+            this.processSlashCommand(message);
 
         } else {
             if (message == '') {
-                this.sendServerCommand('STATS');
+                this.sendServerMessage('STATS');
                 return;
             }
 
@@ -244,7 +260,8 @@ exports.getModule = class mrcModule extends MenuModule {
                 '|00|10<|02{fromUserName}|10>|00 |03{message}|00';
 
             try {
-                this.sendChat(stringFormat(messageFormat, textFormatObj), to_user || '');
+                const formattedMessage = stringFormat(messageFormat, textFormatObj);
+                this.sendMessageToMultiplexer(to_user || '', '', this.state.room, formattedMessage);
             } catch(e) {
                 this.client.log.warn( { error : e.message }, 'MRC error');
             }
@@ -252,60 +269,63 @@ exports.getModule = class mrcModule extends MenuModule {
 
     }
 
+    /**
+     * Processes a message that begins with a slash
+     */
     processSlashCommand(message) {
         // get the chat log view in case we need it
-        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog)
+        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
 
         const cmd = message.split(' ');
         cmd[0] = cmd[0].substr(1).toLowerCase();
 
         switch (cmd[0]) {
             case 'pm':
-                this.processSentMessage(cmd[2], cmd[1])
+                this.processOutgoingMessage(cmd[2], cmd[1]);
                 break;
             case 'rainbow':
                 // this is brutal, but i love it
                 const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
-                    var cc = Math.floor((Math.random() * 31) + 1).toString().padStart(2, '0');
+                    const cc = Math.floor((Math.random() * 31) + 1).toString().padStart(2, '0');
                     a += `|${cc}${c}|00 `;
                     return a;
                 }, '').substr(0, 140).replace(/\\s\|\d*$/, '');
 
-                this.processSentMessage(line);
+                this.processOutgoingMessage(line);
                 break;
 
             case 'l33t':
-                this.processSentMessage(StringUtil.stylizeString(message.substr(5), 'l33t'));
+                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(5), 'l33t'));
                 break;
 
             case 'kewl':
                 const text_modes = Array('f','v','V','i','M');
                 const mode = text_modes[Math.floor(Math.random() * text_modes.length)];
-                this.processSentMessage(StringUtil.stylizeString(message.substr(5), mode));
+                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(5), mode));
                 break;
 
             case 'whoon':
-                this.sendServerCommand('WHOON');
+                this.sendServerMessage('WHOON');
                 break;
 
             case 'motd':
-                this.sendServerCommand('MOTD');
+                this.sendServerMessage('MOTD');
                 break;
 
             case 'meetups':
-                this.sendServerCommand('MEETUPS');
+                this.sendServerMessage('MEETUPS');
                 break;
 
             case 'bbses':
-                this.sendServerCommand('CONNECTED');
+                this.sendServerMessage('CONNECTED');
                 break;
 
             case 'topic':
-                this.sendServerCommand(`NEWTOPIC:${this.state.room}:${message.substr(7)}`)
+                this.sendServerMessage(`NEWTOPIC:${this.state.room}:${message.substr(7)}`);
                 break;
 
             case 'info':
-                this.sendServerCommand(`INFO ${cmd[1]}`);
+                this.sendServerMessage(`INFO ${cmd[1]}`);
                 break;
 
             case 'join':
@@ -313,11 +333,11 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'chatters':
-                this.sendServerCommand('CHATTERS');
+                this.sendServerMessage('CHATTERS');
                 break;
 
             case 'rooms':
-                this.sendServerCommand('LIST');
+                this.sendServerMessage('LIST');
                 break;
 
             case 'clear':
@@ -325,20 +345,23 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case '?':
-                chatLogView.addText(helpText);
+                this.addMessageToChatLog(helpText);
                 break;
 
             default:
-                
+
                 break;
         }
 
         // just do something to get the cursor back to the right place ¯\_(ツ)_/¯
-        this.sendServerCommand('STATS');
+        this.sendServerMessage('STATS');
 
-    };
+    }
 
-    sendMessage(to_user, to_site, to_room, body) {
+    /**
+     * Creates a json object, stringifies it and sends it to the MRC multiplexer
+     */
+    sendMessageToMultiplexer(to_user, to_site, to_room, body) {
 
         const message = {
             from_user: this.state.alias,
@@ -353,35 +376,42 @@ exports.getModule = class mrcModule extends MenuModule {
         // TODO: check socket still exists here
 
         this.state.socket.write(JSON.stringify(message) + '\n');
-    };
-
-    sendServerCommand(command, to_site) {
-        Log.debug({ module: 'mrc', command: command }, 'Sending server command');
-        this.sendMessage('SERVER', to_site || '', this.state.room, command);
-    };
-
-
-    sendHeartbeat() {
-        this.sendServerCommand('IAMHERE');
     }
 
+    /**
+     * Sends an MRC 'server' message
+     */
+    sendServerMessage(command, to_site) {
+        Log.debug({ module: 'mrc', command: command }, 'Sending server command');
+        this.sendMessageToMultiplexer('SERVER', to_site || '', this.state.room, command);
+    }
+
+    /**
+     * Sends a heartbeat to the MRC server
+     */
+    sendHeartbeat() {
+        this.sendServerMessage('IAMHERE');
+    }
+
+    /**
+     * Joins a room, unsurprisingly
+     */
     joinRoom(room) {
         // room names are displayed with a # but referred to without. confusing.
         room = room.replace(/^#/, '');
         this.state.room = room;
-        this.sendServerCommand(`NEWROOM:${this.state.room}:${room}`);
-        this.sendServerCommand('USERLIST')
+        this.sendServerMessage(`NEWROOM:${this.state.room}:${room}`);
+        this.sendServerMessage('USERLIST');
     }
 
+    /**
+     * Things that happen when a local user connects to the MRC multiplexer
+     */
     clientConnect() {
-        this.sendServerCommand('MOTD');
+        this.sendServerMessage('MOTD');
         this.joinRoom('lobby');
-        this.sendServerCommand('STATS');
+        this.sendServerMessage('STATS');
         this.sendHeartbeat();
-    }
-
-    sendChat(message, to_user) {
-        this.sendMessage(to_user || '', '', this.state.room, message)
     }
 };
 
