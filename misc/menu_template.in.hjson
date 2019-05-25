@@ -1067,6 +1067,10 @@
                     action: @menu:mainMenuUserAchievementsEarned
                 }
                 {
+                    value: { command: "MRC" }
+                    action: @menu:mrc
+                }
+                {
                     value: 1
                     action: @menu:mainMenu
                 }
@@ -1090,6 +1094,48 @@
                             action: @systemMethod:prevMenu
                         }
                     ]
+                }
+            }
+        }
+
+        mrc: {
+            desc: MRC Chat
+            module: mrc
+            art: MRC
+            config: {
+                cls: true
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+							mode: preview
+							autoScroll: true
+						}
+                        ET2: {
+                            argName: inputArea
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            action: @method:movementKeyPressed
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { inputArea: null }
+                                action: @method:sendChatMessage
+                            }
+                        ]
+                    }
                 }
             }
         }

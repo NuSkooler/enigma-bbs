@@ -452,9 +452,17 @@ function getDefaultConfig() {
         chatServers : {
             mrc: {
                 enabled             : true,
+                serverHostname      : 'mrc.bottomlessabyss.net',
+                serverPort          : 5000,
                 multiplexerPort     : 5000,
-                serverHostname      : "mrc.bottomlessabyss.com",
-                serverPort          : 5000
+                bbsInfo : {
+                    sysop           : '',
+                    telnet          : '',
+                    website         : '',
+                    ssh             : '',
+                    description     : '',
+
+                }
             }
         },
 
