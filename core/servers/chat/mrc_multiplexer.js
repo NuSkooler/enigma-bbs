@@ -2,10 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const Log                       = require('../../logger.js').log;
-const { ServerModule }          = require('../../server_module.js');
-const Config                    = require('../../config.js').get;
-const { Errors }                = require('../../enig_error.js');
+const Log                   = require('../../logger.js').log;
+const { ServerModule }      = require('../../server_module.js');
+const Config                = require('../../config.js').get;
+const { Errors }            = require('../../enig_error.js');
+const SysProps              = require('../../system_property.js');
+const StatLog               = require('../../stat_log.js');
 
 //  deps
 const net                   = require('net');
@@ -30,9 +32,7 @@ let mrcCentralConnection = '';
 exports.getModule = class MrcModule extends ServerModule {
     constructor() {
         super();
-
         this.log        = Log.child( { server : 'MRC' } );
-
     }
 
     createServer(cb) {
@@ -43,12 +43,12 @@ exports.getModule = class MrcModule extends ServerModule {
         const self = this;
 
         const config = Config();
-        const boardName  = config.general.boardName;
+        const boardName  = config.general.prettyBoardName || config.general.boardName;
         const enigmaVersion = 'ENiGMA-BBS_' + require('../../../package.json').version;
 
         const mrcConnectOpts = {
-            port    : 50000,
-            host    : 'mrc.bottomlessabyss.net'
+            host    : config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
+            port    : config.chatServers.mrc.serverPort || 5000
         };
 
         const handshake = `${boardName}~${enigmaVersion}/${os.platform()}-${os.arch()}/${PROTOCOL_VERSION}`;
@@ -91,7 +91,6 @@ exports.getModule = class MrcModule extends ServerModule {
             socket.on('data', data => {
                 // split on \n to deal with getting messages in batches
                 data.toString().split('\n').forEach( item => {
-
                     if (item == '') return;
 
                     // save username with socket
@@ -103,7 +102,6 @@ exports.getModule = class MrcModule extends ServerModule {
                         self.receiveFromClient(socket.username, item);
                     }
                 });
-
             });
 
             socket.on('end', function() {
@@ -116,7 +114,6 @@ exports.getModule = class MrcModule extends ServerModule {
                 }
             });
         });
-
 
         return cb(null);
     }
@@ -146,22 +143,31 @@ exports.getModule = class MrcModule extends ServerModule {
         return _.isNumber(_.get(config, 'chatServers.mrc.multiplexerPort'));
     }
 
+    /**
+     * Sends received messages to local clients
+     */
     sendToClient(message) {
         connectedSockets.forEach( (client) => {
-            if (message.to_user == '' || message.to_user == client.username || message.to_user == 'CLIENT') {
-                // this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user')
+            if (message.to_user == '' || message.to_user == client.username || message.to_user == 'CLIENT' || message.from_user == client.username || message.to_user == 'NOTME' ) {
+                this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user');
                 client.write(JSON.stringify(message) + '\n');
+            } else {
+                this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Not forwarding message');
             }
         });
     }
 
+    /**
+     * Processes messages received     // split raw data received into an object we can work withfrom the central MRC server
+     */
     receiveFromMRC(socket, message) {
 
         const config = Config();
         const siteName = slugify(config.general.boardName);
 
         if (message.from_user == 'SERVER' && message.body == 'HELLO') {
-            // initial server hello, can ignore
+            // reply with extra bbs info
+            this.sendToMrcServer(socket, 'CLIENT', '', 'SERVER', 'ALL', '', `INFOSYS:${StatLog.getSystemStat(SysProps.SysOpUsername)}`);
 
         } else if (message.from_user == 'SERVER' && message.body.toUpperCase() == 'PING') {
             // reply to heartbeat
@@ -174,7 +180,9 @@ exports.getModule = class MrcModule extends ServerModule {
         }
     }
 
-    // split raw data received into an object we can work with
+    /**
+     * Takes an MRC message and parses it into something usable
+     */
     parseMessage(line) {
         const msg = line.split('~');
         if (msg.length < 7) {
@@ -192,6 +200,9 @@ exports.getModule = class MrcModule extends ServerModule {
         };
     }
 
+    /**
+     * Receives a message from a local client and sanity checks before sending on to the central MRC server
+     */
     receiveFromClient(username, message) {
         try {
             message = JSON.parse(message);
@@ -202,7 +213,9 @@ exports.getModule = class MrcModule extends ServerModule {
         this.sendToMrcServer(mrcCentralConnection, message.from_user, message.from_room, message.to_user, message.to_site, message.to_room, message.body);
     }
 
-    // send a message back to the mrc central server
+    /**
+     * Converts a message back into the MRC format and sends it to the central MRC server
+     */
     sendToMrcServer(socket, fromUser, fromRoom, toUser, toSite, toRoom, messageBody) {
         const config = Config();
         const siteName = slugify(config.general.boardName);
@@ -222,8 +235,9 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 };
 
-
-// User / site name must be ASCII 33-125, no MCI, 30 chars max, underscores
+/**
+ * User / site name must be ASCII 33-125, no MCI, 30 chars max, underscores
+ */
 function sanitiseName(str) {
     return str.replace(
         /\s/g, '_'
@@ -242,6 +256,9 @@ function sanitiseMessage(message) {
     return message.replace(/[^\x20-\x7D]/g, '');
 }
 
+/**
+ * SLugifies the BBS name for use as an MRC "site name"
+ */
 function slugify(text) {
     return text.toString()
         .replace(/\s+/g, '_')           // Replace spaces with _

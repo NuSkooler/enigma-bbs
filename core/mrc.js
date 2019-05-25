@@ -5,16 +5,17 @@
 const Log               = require('./logger.js').log;
 const { MenuModule }    = require('./menu_module.js');
 const {
-    pipeToAnsi
+    pipeToAnsi,
+    stripMciColorCodes
 }                       = require('./color_codes.js');
-const stringFormat              = require('./string_format.js');
-const StringUtil                = require('./string_util.js');
+const stringFormat      = require('./string_format.js');
+const StringUtil        = require('./string_util.js');
 
 //  deps
 const _                 = require('lodash');
 const async             = require('async');
-const net                   = require('net');
-const moment                = require('moment');
+const net               = require('net');
+const moment            = require('moment');
 
 exports.moduleInfo = {
     name        : 'MRC Client',
@@ -107,6 +108,12 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
 
                 return cb(null);
+            },
+
+            quit : (formData, extraArgs, cb) => {
+                this.sendServerMessage('LOGOFF');
+                this.state.socket.destroy();
+                return this.prevMenu(cb);
             }
         };
     }
@@ -167,12 +174,23 @@ exports.getModule = class mrcModule extends MenuModule {
      */
     addMessageToChatLog(message) {
         const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
-        chatLogView.addText(pipeToAnsi(message));
+        const messageLength = stripMciColorCodes(message).length;
+        const chatWidth = chatLogView.dimens.width;
+        let padAmount = 0;
+
+        if (messageLength > chatWidth) {
+            padAmount = chatWidth - (messageLength % chatWidth);
+        } else {
+            padAmount = chatWidth - messageLength;
+        }
+
+        const padding = ' |00' + ' '.repeat(padAmount - 2);
+        chatLogView.addText(pipeToAnsi(message + padding));
     }
 
     /**
-     * Processes data received back from the MRC multiplexer
-     */    
+     * Processes data received from the MRC multiplexer
+     */
     processReceivedMessage(blob) {
         blob.split('\n').forEach( message => {
 
@@ -200,13 +218,13 @@ exports.getModule = class mrcModule extends MenuModule {
                         this.state.nicks = params[1].split(',');
                         break;
 
-                    case 'STATS':
+                    case 'STATS': {
                         const stats = params[1].split(' ');
                         this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcUsers).setText(stats[2]);
                         this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcBbses).setText(stats[0]);
                         this.state.last_ping = stats[1];
-
                         break;
+                    }
 
                     default:
                         this.addMessageToChatLog(message.body);
@@ -214,20 +232,10 @@ exports.getModule = class mrcModule extends MenuModule {
                 }
 
             } else {
-                if (message.from_user == this.state.alias && message.to_user == 'NOTME') {
-                    // don't deliver NOTME messages
-                    return;
-                } else {
+                if (message.to_room == this.state.room) {
                     // if we're here then we want to show it to the user
                     const currentTime = moment().format(this.client.currentTheme.helpers.getTimeFormat());
-
-                    if (message.to_user == this.state.alias) {
-                        // it's a pm
-                        this.addMessageToChatLog('|08' + currentTime + ' |14PM|00 ' + message.body + '|00');
-                    } else {
-                        // it's not a pm
-                        this.addMessageToChatLog('|08' + currentTime + '|00 ' + message.body + '|00');
-                    }
+                    this.addMessageToChatLog('|08' + currentTime + '|00 ' + message.body + '|00');
                 }
             }
 
@@ -240,27 +248,39 @@ exports.getModule = class mrcModule extends MenuModule {
      */
     processOutgoingMessage(message, to_user) {
         if (message.startsWith('/')) {
-
             this.processSlashCommand(message);
-
         } else {
             if (message == '') {
+                // don't do anything if message is blank, just update stats
                 this.sendServerMessage('STATS');
                 return;
             }
 
-            // just format and send
+            // else just format and send
             const textFormatObj = {
                 fromUserName    : this.state.alias,
+                toUserName      : to_user,
                 message         : message
             };
 
             const messageFormat =
                 this.config.messageFormat ||
                 '|00|10<|02{fromUserName}|10>|00 |03{message}|00';
+            
+            const privateMessageFormat =
+                this.config.outgoingPrivateMessageFormat ||
+                '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}|00';
 
+            let formattedMessage = '';
+            if (to_user == undefined) {
+                // normal message
+                formattedMessage = stringFormat(messageFormat, textFormatObj);
+            } else {
+                // pm 
+                formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
+            }
+            
             try {
-                const formattedMessage = stringFormat(messageFormat, textFormatObj);
                 this.sendMessageToMultiplexer(to_user || '', '', this.state.room, formattedMessage);
             } catch(e) {
                 this.client.log.warn( { error : e.message }, 'MRC error');
@@ -283,7 +303,7 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'pm':
                 this.processOutgoingMessage(cmd[2], cmd[1]);
                 break;
-            case 'rainbow':
+            case 'rainbow': {
                 // this is brutal, but i love it
                 const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
                     const cc = Math.floor((Math.random() * 31) + 1).toString().padStart(2, '0');
@@ -293,17 +313,17 @@ exports.getModule = class mrcModule extends MenuModule {
 
                 this.processOutgoingMessage(line);
                 break;
-
+            }
             case 'l33t':
-                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(5), 'l33t'));
+                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), 'l33t'));
                 break;
 
-            case 'kewl':
+            case 'kewl': {
                 const text_modes = Array('f','v','V','i','M');
                 const mode = text_modes[Math.floor(Math.random() * text_modes.length)];
-                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(5), mode));
+                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), mode));
                 break;
-
+            }
             case 'whoon':
                 this.sendServerMessage('WHOON');
                 break;
