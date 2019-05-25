@@ -68,6 +68,15 @@ exports.getModule = class ShowArtModule extends MenuModule {
     }
 
     showByExtraArgs(cb) {
+        const artData = _.get(this.config, 'extraArgs.artData');
+        if(Buffer.isBuffer(artData)) {
+            const options = {
+                pause   : this.shouldPause(),
+                desc    : 'extraArgs',
+            };
+            return this.displaySingleArtWithOptions(artData, options, cb);
+        }
+
         this.getArtKeyValue(this.config.key, (err, artSpec) => {
             if(err) {
                 return cb(err);
