@@ -136,14 +136,8 @@ function Client(/*input, output*/) {
     //
     this.getTermClient = function(deviceAttr) {
         let termClient = {
-            //
-            //  See http://www.fbl.cz/arctel/download/techman.pdf
-            //
-            //  Known clients:
-            //  * Irssi ConnectBot (Android)
-            //
-            '63;1;2'        : 'arctel',
-            '50;86;84;88'   : 'vtx',
+            '63;1;2'        : 'arctel', //  http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
+            '50;86;84;88'   : 'vtx',    //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
         }[deviceAttr];
 
         if(!termClient) {
