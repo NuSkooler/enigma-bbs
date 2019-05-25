@@ -1078,14 +1078,37 @@
 				}
 			}
 
-
-			//////////////////////////////// ERC ///////////////////////////////
-
-			ercClient: {
+			mrc: {
 				config: {
-					//chatEntryFormat: "|00|08[|03{bbsTag}|08] |10{userName}|08: |02{message}"
+					messageFormat: "|00|10<|02{fromUserName}|10>|00 |03{message}|00"
+					privateMessageFormat: "|00|10<|02{fromUserName}|15->{toUserName}|10>|00 |03{message}|00"
+				}
+				0: {
+					mci: {
+						MT1: {
+							width: 72
+							height: 18
+						}
+                        ET2: {
+                            width: 69 // fnarr!
+                            maxLength: 140
+                        }
+                        TL3: {
+                            width: 20
+                        }
+                        TL4: {
+                            width: 20
+                        }
+						TL5: {
+                            width: 2
+                        }
+                        TL6: {
+                            width: 2
+                        }
+					}
 				}
 			}
+
 		}
 
 		prompts: {
