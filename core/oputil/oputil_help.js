@@ -11,11 +11,11 @@ const usageHelp = exports.USAGE_HELP = {
 `usage: oputil.js [--version] [--help]
                   <command> [<arguments>]
 
-global arguments:
-  -c, --config PATH         Specify config path (${getDefaultConfigPath()})
+Global arguments:
+  -c, --config PATH         Specify config path (default is ${getDefaultConfigPath()})
   -n, --no-prompt           Assume defaults (don't prompt for input where possible)
 
-commands:
+Commands:
   user                      User management
   config                    Configuration management
   fb                        File base management
@@ -36,13 +36,17 @@ Actions:
   rename USERNAME NEWNAME      Rename a user
   (mv)
 
-  2fa-otp USERNAME SPEC        Enable Two Factor Authentication (2FA)
+  2fa-otp USERNAME SPEC        Enable 2FA/OTP for the user
   (otp)
 
+  The system supports various implementations of Two Factor Authentication (2FA)
+  One Time Password (OTP) authentication.
+
   Valid specs:
-    totp   : Time-Based One-Time Password Algorithm (RFC-6238)
-    hotp   : HMAC-Based One-Time Password Algorithm (RFC-4266)
-    google : Google Authenticator
+    disable : Removes 2FA/OTP from the user
+    google  : Google Authenticator
+    hotp    : HMAC-Based One-Time Password Algorithm (RFC-4266)
+    totp    : Time-Based One-Time Password Algorithm (RFC-6238)
 
   activate USERNAME            Set a user's status to "active"
 
