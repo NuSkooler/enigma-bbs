@@ -60,7 +60,7 @@ module.exports = {
 
     SSHPubKey                       : 'ssh_public_key',             //  OpenSSH format (ssh-keygen, etc.)
     AuthFactor1Types                : 'auth_factor1_types',         //  List of User.AuthFactor1Types value(s)
-    AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA
+    AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA. See OTPTypes
     AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes       : 'auth_factor2_otp_backup',    //  JSON array of backup codes
 };

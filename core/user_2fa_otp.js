@@ -17,10 +17,11 @@ const Config            = require('./config.js').get;
 //  deps
 const _             = require('lodash');
 const crypto        = require('crypto');
-const async         = require('async');
 const qrGen         = require('qrcode-generator');
 
 exports.prepareOTP          = prepareOTP;
+exports.createQRCode        = createQRCode;
+exports.otpFromType         = otpFromType;
 exports.loginFactor2_OTP    = loginFactor2_OTP;
 
 const OTPTypes = exports.OTPTypes = {

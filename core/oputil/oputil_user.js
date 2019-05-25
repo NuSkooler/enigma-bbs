@@ -372,12 +372,28 @@ function twoFactorAuthOTP(user) {
         prepareOTP,
     } = require('../../core/user_2fa_otp.js');
 
+    let otpType = argv._[argv._.length - 1];
+
+    //  shortcut for removal
+    if('disable' === otpType) {
+        const props = [
+            UserProps.AuthFactor2OTP,
+            UserProps.AuthFactor2OTPSecret,
+            UserProps.AuthFactor2OTPBackupCodes,
+        ];
+        return user.removeProperties(props, err => {
+            if(err) {
+                console.error(err.message);
+            } else {
+                console.info(`2FA OTP disabled for ${user.username}`);
+            }
+        });
+    }
+
     async.waterfall(
         [
             function validate(callback) {
                 //  :TODO: Prompt for if not supplied
-                let otpType = argv._[argv._.length - 1];
-
                 //  allow aliases for OTP types
                 otpType = {
                     google  : OTPTypes.GoogleAuthenticator,

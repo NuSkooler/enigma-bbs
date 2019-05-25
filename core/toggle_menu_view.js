@@ -35,11 +35,16 @@ util.inherits(ToggleMenuView, MenuView);
 ToggleMenuView.prototype.redraw = function() {
     ToggleMenuView.super_.prototype.redraw.call(this);
 
+    if(0 === this.items.length) {
+        return;
+    }
+
     //this.cachePositions();
 
     this.client.term.write(this.hasFocus ? this.getFocusSGR() : this.getSGR());
 
-    assert(this.items.length === 2);
+    assert(this.items.length === 2, 'ToggleMenuView must contain exactly (2) items');
+
     for(var i = 0; i < 2; i++) {
         var item = this.items[i];
         var text = strUtil.stylizeString(
@@ -102,7 +107,7 @@ ToggleMenuView.prototype.onKeyPress = function(ch, key) {
     if(key) {
         if(this.isKeyMapped('right', key.name) || this.isKeyMapped('down', key.name)) {
             this.focusNext();
-        } else if(this.isKeyMapped('left', key.name) || this.isKeyMapped('up', key.nam4e)) {
+        } else if(this.isKeyMapped('left', key.name) || this.isKeyMapped('up', key.name)) {
             this.focusPrevious();
         }
     }
