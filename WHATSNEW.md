@@ -8,7 +8,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 + 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used.
 + `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
 * `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
-
+* `oputil.js fb scan --quick` is now the default. Override with `--full-scan`.
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
