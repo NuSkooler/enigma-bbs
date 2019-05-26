@@ -112,6 +112,7 @@ exports.getModule = class mrcModule extends MenuModule {
 
             quit : (formData, extraArgs, cb) => {
                 this.sendServerMessage('LOGOFF');
+                clearInterval(this.heartbeat);
                 this.state.socket.destroy();
                 return this.prevMenu(cb);
             }
@@ -147,7 +148,7 @@ exports.getModule = class mrcModule extends MenuModule {
                             self.clientConnect();
 
                             // send register to central MRC and get stats every 60s
-                            setInterval(function () {
+                            self.heartbeat = setInterval(function () {
                                 self.sendHeartbeat();
                                 self.sendServerMessage('STATS');
                             }, 60000);
