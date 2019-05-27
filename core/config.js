@@ -984,38 +984,38 @@ function getDefaultConfig() {
         eventScheduler : {
 
             events : {
-                // dailyMaintenance : {
-                //     schedule    : 'at 11:59pm',
-                //     action      : '@method:core/misc_scheduled_events.js:dailyMaintenanceScheduledEvent',
-                // },
-                // trimMessageAreas : {
-                //     //  may optionally use [or ]@watch:/path/to/file
-                //     schedule    : 'every 24 hours',
+                dailyMaintenance : {
+                    schedule    : 'at 11:59pm',
+                    action      : '@method:core/misc_scheduled_events.js:dailyMaintenanceScheduledEvent',
+                },
+                trimMessageAreas : {
+                    //  may optionally use [or ]@watch:/path/to/file
+                    schedule    : 'every 24 hours',
 
-                //     //  action:
-                //     //  - @method:path/to/module.js:theMethodName
-                //     //    (path is relative to ENiGMA base dir)
-                //     //
-                //     //  - @execute:/path/to/something/executable.sh
-                //     //
-                //     action      : '@method:core/message_area.js:trimMessageAreasScheduledEvent',
-                // },
+                    //  action:
+                    //  - @method:path/to/module.js:theMethodName
+                    //    (path is relative to ENiGMA base dir)
+                    //
+                    //  - @execute:/path/to/something/executable.sh
+                    //
+                    action      : '@method:core/message_area.js:trimMessageAreasScheduledEvent',
+                },
 
-                // nntpMaintenance : {
-                //     schedule    : 'every 12 hours', //  should generally be < trimMessageAreas interval
-                //     action      : '@method:core/servers/content/nntp.js:performMaintenanceTask',
-                // },
+                nntpMaintenance : {
+                    schedule    : 'every 12 hours', //  should generally be < trimMessageAreas interval
+                    action      : '@method:core/servers/content/nntp.js:performMaintenanceTask',
+                },
 
-                // updateFileAreaStats : {
-                //     schedule    : 'every 1 hours',
-                //     action      : '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
-                // },
+                updateFileAreaStats : {
+                    schedule    : 'every 1 hours',
+                    action      : '@method:core/file_base_area.js:updateAreaStatsScheduledEvent',
+                },
 
-                // forgotPasswordMaintenance : {
-                //     schedule    : 'every 24 hours',
-                //     action      : '@method:core/web_password_reset.js:performMaintenanceTask',
-                //     args        : [ '24 hours' ]    //  items older than this will be removed
-                // },
+                forgotPasswordMaintenance : {
+                    schedule    : 'every 24 hours',
+                    action      : '@method:core/web_password_reset.js:performMaintenanceTask',
+                    args        : [ '24 hours' ]    //  items older than this will be removed
+                },
 
                 //
                 //  Enable the following entry in your config.hjson to periodically create/update
