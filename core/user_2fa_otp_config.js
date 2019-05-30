@@ -34,6 +34,11 @@ const MciViewIds = {
     customRangeStart    : 10,   //  10+ = customs
 };
 
+const DefaultMsg = {
+    otpNotEnabled   : '2FA/OTP is not currently enabled for this account.',
+    noBackupCodes   : 'No backup codes remaining or set.',
+};
+
 exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     constructor(options) {
         super(options);
@@ -42,6 +47,12 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         this.menuMethods = {
             showQRCode : (formData, extraArgs, cb) => {
                 return this.showQRCode(cb);
+            },
+            showSecret : (formData, extraArgs, cb) => {
+                return this.showSecret(cb);
+            },
+            showBackupCodes : (formData, extraArgs, cb) => {
+                return this.showBackupCodes(cb);
             }
         };
     }
@@ -101,33 +112,61 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         });
     }
 
-    showQRCode(cb) {
-        const otp = otpFromType(this.client.user.getProperty(UserProps.AuthFactor2OTP));
-        let qrCodeAscii = '';
-        if(!otp) {
-            qrCodeAscii = '2FA/OTP is not currently enabled for this account';
-        }
-
-        const qrOptions = {
-            username    : this.client.user.username,
-            qrType      : 'ascii',
-        };
-        qrCodeAscii = createQRCode(
-            otp,
-            qrOptions,
-            this.client.user.getProperty(UserProps.AuthFactor2OTPSecret)
-        ).replace(/\n/g, '\r\n');
-
+    displayDetails(details, cb) {
         const modOpts = {
             extraArgs : {
-                artData : iconv.encode(`${qrCodeAscii}\r\n`, 'cp437'),
+                artData : iconv.encode(`${details}\r\n`, 'cp437'),
             }
         };
         this.gotoMenu(
-            this.menuConfig.config.mainMenuUser2FAOTP_ShowQR || 'mainMenuUser2FAOTP_ShowQR',
+            this.menuConfig.config.user2FAOTP_ShowDetails || 'user2FAOTP_ShowDetails',
             modOpts,
             cb
         );
+    }
+
+    showQRCode(cb) {
+        const otp = otpFromType(this.client.user.getProperty(UserProps.AuthFactor2OTP));
+
+        let qrCode;
+        if(!otp) {
+            qrCode = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+        } else {
+            const qrOptions = {
+                username    : this.client.user.username,
+                qrType      : 'ascii',
+            };
+            qrCode = createQRCode(
+                otp,
+                qrOptions,
+                this.client.user.getProperty(UserProps.AuthFactor2OTPSecret)
+            ).replace(/\n/g, '\r\n');
+        }
+
+        return this.displayDetails(qrCode, cb);
+    }
+
+    showSecret(cb) {
+        const info =
+            this.client.user.getProperty(UserProps.AuthFactor2OTPSecret) ||
+            this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+        return this.displayDetails(info, cb);
+    }
+
+    showBackupCodes(cb) {
+        let info;
+        const noBackupCodes = this.config.noBackupCodes || DefaultMsg.noBackupCodes;
+        if(!this.isOTPEnabledForUser()) {
+            info = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+        } else {
+            try {
+                info = JSON.parse(this.client.user.getProperty(UserProps.AuthFactor2OTPBackupCodes) || '[]').join(', ');
+                info = info || noBackupCodes;
+            } catch(e) {
+                info = noBackupCodes;
+            }
+        }
+        return this.displayDetails(info, cb);
     }
 
     isOTPEnabledForUser() {
@@ -140,8 +179,8 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
 
     enableToggleUpdate(idx) {
         const key = {
-            0 : '2faDisabled',
-            1 : '2faEnabled',
+            0 : 'disabled',
+            1 : 'enabled',
         }[idx];
         this.updateCustomViewTextsWithFilter('menu', MciViewIds.customRangeStart, { infoText : this.getInfoText(key) } );
     }
@@ -164,7 +203,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     }
 
     typeSelectionUpdate(idx) {
-        const key = '2faType_' + this.otpTypeFromTypeSelectionIndex(idx);
+        const key = this.otpTypeFromTypeSelectionIndex(idx);
         this.updateCustomViewTextsWithFilter('menu', MciViewIds.customRangeStart, { infoText : this.getInfoText(key) } );
     }
 };
