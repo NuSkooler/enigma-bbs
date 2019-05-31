@@ -396,9 +396,7 @@ exports.getModule = class mrcModule extends MenuModule {
             body: body
         };
 
-        this.log.debug({ message: message }, 'Sending message to MRC multiplexer');
         // TODO: check socket still exists here
-
         this.state.socket.write(JSON.stringify(message) + '\n');
     }
 

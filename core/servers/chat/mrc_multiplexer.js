@@ -34,11 +34,12 @@ exports.getModule = class MrcModule extends ServerModule {
         super();
 
         this.log            = Log.child( { server : 'MRC' } );
-        this.config         = Config();
+
+        const config        = Config();
         this.mrcConnectOpts = {
-            host         : this.config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
-            port         : this.config.chatServers.mrc.serverPort || 5000,
-            retryDelay   : this.config.chatServers.mrc.retryDelay || 10000
+            host         : config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
+            port         : config.chatServers.mrc.serverPort || 5000,
+            retryDelay   : config.chatServers.mrc.retryDelay || 10000
         };
     }
 
@@ -78,7 +79,7 @@ exports.getModule = class MrcModule extends ServerModule {
             this.log.warn( { port : config.chatServers.mrc.multiplexerPort, server : ModuleInfo.name }, 'Invalid port' );
             return cb(Errors.Invalid(`Invalid port: ${config.chatServers.mrc.multiplexerPort}`));
         }
-        Log.info( { server : ModuleInfo.name, port : config.chatServers.mrc.multiplexerPort }, 'MRC multiplexer local listener starting up');
+        Log.info( { server : ModuleInfo.name, port : config.chatServers.mrc.multiplexerPort }, 'MRC multiplexer starting up');
         return this.server.listen(port, cb);
     }
 
@@ -135,10 +136,9 @@ exports.getModule = class MrcModule extends ServerModule {
 
             if (this.mrcClient && this.mrcClient.requestedDisconnect)
                 return;
+
             this.log.info(this.mrcConnectOpts, 'Disconnected from MRC server, reconnecting');
-
             this.log.debug('Waiting ' + this.mrcConnectOpts.retryDelay + 'ms before retrying');
-
 
             setTimeout(function() {
                 self.connectToMrc();
@@ -199,10 +199,8 @@ exports.getModule = class MrcModule extends ServerModule {
     sendToClient(message) {
         connectedSockets.forEach( (client) => {
             if (message.to_user == '' || message.to_user == client.username || message.to_user == 'CLIENT' || message.from_user == client.username || message.to_user == 'NOTME' ) {
-                this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user');
+                // this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Forwarding message to connected user');
                 client.write(JSON.stringify(message) + '\n');
-            } else {
-                this.log.debug({ server : 'MRC', username : client.username, message : message }, 'Not forwarding message');
             }
         });
     }
@@ -225,7 +223,6 @@ exports.getModule = class MrcModule extends ServerModule {
 
         } else if (message.from_user == 'SERVER' && message.body.toUpperCase() == 'PING') {
             // reply to heartbeat
-            // this.log.debug('Respond to heartbeat');
             this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `IMALIVE:${siteName}`);
 
         } else {
