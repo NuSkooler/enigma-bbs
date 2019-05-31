@@ -178,14 +178,17 @@ exports.getModule = class mrcModule extends MenuModule {
         const messageLength = stripMciColorCodes(message).length;
         const chatWidth = chatLogView.dimens.width;
         let padAmount = 0;
+        let spaces = 2;
 
         if (messageLength > chatWidth) {
-            padAmount = chatWidth - (messageLength % chatWidth);
+            padAmount = chatWidth - (messageLength % chatWidth) - spaces;
         } else {
-            padAmount = chatWidth - messageLength;
+            padAmount = chatWidth - messageLength - spaces ;
         }
 
-        const padding = ' |00' + ' '.repeat(padAmount - 2);
+        if (padAmount < 0) padAmount = 0;
+
+        const padding = ' |00' + ' '.repeat(padAmount);
         chatLogView.addText(pipeToAnsi(message + padding));
     }
 
