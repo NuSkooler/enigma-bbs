@@ -169,6 +169,11 @@ function getDefaultConfig() {
     return {
         general : {
             boardName       : 'Another Fine ENiGMA½ BBS',
+            prettyBoardName : '|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS',
+            telnetHostname  : '',
+            sshHostname     : '',
+            website         : 'https://enigma-bbs.github.io',
+            description     : 'An ENiGMA½ BBS',
 
             //  :TODO: closedSystem prob belongs under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
@@ -454,15 +459,8 @@ function getDefaultConfig() {
                 enabled             : true,
                 serverHostname      : 'mrc.bottomlessabyss.net',
                 serverPort          : 5000,
+                retryDelay          : 10000,
                 multiplexerPort     : 5000,
-                bbsInfo : {
-                    sysop           : '',
-                    telnet          : '',
-                    website         : '',
-                    ssh             : '',
-                    description     : '',
-
-                }
             }
         },
 
