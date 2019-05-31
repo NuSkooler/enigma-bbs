@@ -45,12 +45,12 @@ exports.getModule = class MrcModule extends ServerModule {
     _connectionHandler() {
         const config = Config();
         const boardName  = config.general.prettyBoardName || config.general.boardName;
-        const enigmaVersion = 'ENiGMA-BBS_' + require('../../../package.json').version;
+        const enigmaVersion = 'ENiGMA½-BBS_' + require('../../../package.json').version;
 
         const handshake = `${boardName}~${enigmaVersion}/${os.platform()}-${os.arch()}/${protocolVersion}`;
         this.log.debug({ handshake : handshake }, 'Handshaking with MRC server');
 
-        this.mrcClient.write(handshake);
+        this.sendRaw(handshake);
         this.log.info(this.mrcConnectOpts, 'Connected to MRC server');
     }
 
@@ -94,10 +94,10 @@ exports.getModule = class MrcModule extends ServerModule {
         this.mrcClient.requestedDisconnect = false;
 
         // do things when we get data from MRC central
-        var buffer = new Buffer.from('');
+        let buffer = new Buffer.from('');
 
         function handleData(chunk) {
-            if (typeof (chunk) === 'string') {
+            if(_.isString(chunk)) {
                 buffer += chunk;
             } else {
                 buffer = Buffer.concat([buffer, chunk]);
@@ -113,7 +113,7 @@ exports.getModule = class MrcModule extends ServerModule {
                 buffer = new Buffer.from('');
             }
 
-            lines.forEach(function iterator(line) {
+            lines.forEach( line => {
                 if (line.length) {
                     let message = self.parseMessage(line);
                     if (message) {
@@ -151,10 +151,9 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 
     createLocalListener() {
-        const self = this;
-
         // start a local server for clients to connect to
-        this.server = net.createServer( function(socket) {
+
+        this.server = net.createServer( socket => {
             socket.setEncoding('ascii');
 
             socket.on('data', data => {
@@ -168,7 +167,7 @@ exports.getModule = class MrcModule extends ServerModule {
                         socket.username = item.split('|')[1];
                         Log.debug( { server : 'MRC', user: socket.username } , 'User connected');
                     } else {
-                        self.receiveFromClient(socket.username, item);
+                        this.receiveFromClient(socket.username, item);
                     }
                 });
             });
@@ -219,6 +218,10 @@ exports.getModule = class MrcModule extends ServerModule {
         if (message.from_user == 'SERVER' && message.body == 'HELLO') {
             // reply with extra bbs info
             this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `INFOSYS:${StatLog.getSystemStat(SysProps.SysOpUsername)}`);
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `INFOWEB:${config.general.website}`);
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `INFOTEL:${config.general.telnetHostname}`);
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `INFOSSH:${config.general.sshHostname}`);
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `INFODSC:${config.general.description}`);
 
         } else if (message.from_user == 'SERVER' && message.body.toUpperCase() == 'PING') {
             // reply to heartbeat
@@ -235,20 +238,15 @@ exports.getModule = class MrcModule extends ServerModule {
      * Takes an MRC message and parses it into something usable
      */
     parseMessage(line) {
-        const msg = line.split('~');
-        if (msg.length < 7) {
-            return;
-        }
 
-        return {
-            from_user: msg[0],
-            from_site: msg[1],
-            from_room: msg[2],
-            to_user: msg[3],
-            to_site: msg[4],
-            to_room: msg[5],
-            body: msg[6]
-        };
+        const [from_user, from_site, from_room, to_user, to_site, to_room, body ] = line.split('~');
+
+        // const msg = line.split('~');
+        // if (msg.length < 7) {
+        //     return;
+        // }
+
+        return { from_user, from_site, from_room, to_user, to_site, to_room, body };
     }
 
     /**
@@ -287,7 +285,7 @@ exports.getModule = class MrcModule extends ServerModule {
 
     sendRaw(message) {
         // optionally log messages here
-        this.mrcClient.write(message + '\r\n');
+        this.mrcClient.write(message + '\n');
     }
 };
 
