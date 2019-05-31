@@ -47,7 +47,7 @@ exports.getModule = class MrcModule extends ServerModule {
         const boardName  = config.general.prettyBoardName || config.general.boardName;
         const enigmaVersion = 'ENiGMA½-BBS_' + require('../../../package.json').version;
 
-        const handshake = `${boardName}~${enigmaVersion}/${os.platform()}-${os.arch()}/${protocolVersion}`;
+        const handshake = `${boardName}~${enigmaVersion}/${os.platform()}.${os.arch()}/${protocolVersion}`;
         this.log.debug({ handshake : handshake }, 'Handshaking with MRC server');
 
         this.sendRaw(handshake);
