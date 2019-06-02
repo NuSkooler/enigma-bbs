@@ -456,7 +456,7 @@ function getDefaultConfig() {
 
         chatServers : {
             mrc: {
-                enabled             : true,
+                enabled             : false,
                 serverHostname      : 'mrc.bottomlessabyss.net',
                 serverPort          : 5000,
                 retryDelay          : 10000,
