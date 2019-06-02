@@ -49,17 +49,14 @@ var MciViewIds = {
 // TODO: this is a bit shit, could maybe do it with an ansi instead
 const helpText = `
 General Chat:
-/rooms                     - List of current rooms
-/join <room>               - Join a room
+/rooms & /join <ro         - List all or join a room
 /pm <user> <message>       - Send a private message
-/clear                     - Clear the chat log
 ----
 /whoon                     - Who's on what BBS
 /chatters                  - Who's in what room
-/topic <message>           - Set the topic
-/meetups                   - MRC MeetUps
-/bbses                     - BBS's connected
-/info <id>                 - Info about specific BBS
+/topic <message>           - Set the room topic
+/bbses & /info <id>        - Info about BBS's connected
+/meetups                   - Info about MRC MeetUps
 ---
 /l33t <your message>       - l337 5p34k
 /kewl <your message>       - BBS KeWL SPeaK
