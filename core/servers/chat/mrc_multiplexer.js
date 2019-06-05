@@ -276,7 +276,7 @@ exports.getModule = class MrcModule extends ServerModule {
             sanitiseMessage(messageBody)
         ].join('~') + '~';
 
-        Log.debug({ server : 'MRC', data : line }, 'Sending data');
+        // Log.debug({ server : 'MRC', data : line }, 'Sending data');
         this.sendRaw(line);
     }
 
