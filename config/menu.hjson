@@ -999,6 +999,10 @@
                     action: @menu:nodeMessage
                 }
                 {
+                    value: { command: "MRC" }
+                    action: @menu:mrc
+                }
+                {
                     value: { command: "G" }
                     action: @menu:fullLogoffSequence
                 }
@@ -1067,10 +1071,6 @@
                     action: @menu:mainMenuUserAchievementsEarned
                 }
                 {
-                    value: { command: "MRC" }
-                    action: @menu:mrc
-                }
-                {
                     value: 1
                     action: @menu:mainMenu
                 }
@@ -1098,6 +1098,58 @@
             }
         }
 
+		ercClient: {
+			art: erc
+			module: erc_client
+			config: {
+				host: localhost
+        		port: 5001
+				bbsTag: CHANGEME
+      		}
+
+			form: {
+				0: {
+					mci: {
+						MT1: {
+							width: 79
+							height: 21
+							mode: preview
+							autoScroll: true
+						}
+						ET3: {
+							autoScale: false
+							width: 77
+							argName: inputArea
+							focus: true
+							submit: true
+						}
+					}
+
+					submit: {
+						*: [
+							{
+								value: { inputArea: null }
+								action: @method:inputAreaSubmit
+							}
+						]
+					}
+					actionKeys: [
+						{
+							keys: [ "tab" ]
+						}
+						{
+							keys: [ "up arrow" ]
+							action: @method:scrollDown
+						}
+						{
+							keys: [ "down arrow" ]
+							action: @method:scrollUp
+						}
+					]
+				}
+			}
+		}
+
         mrc: {
             desc: MRC Chat
             module: mrc
@@ -1121,7 +1173,7 @@
                     actionKeys: [
                         {
                             keys: [ "escape" ]
-                            action: @systemMethod:prevMenu
+                            action: @method:quit
                         }
                         {
                             keys: [ "down arrow", "up arrow", "page up", "page down" ]

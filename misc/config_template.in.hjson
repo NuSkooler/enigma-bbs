@@ -50,6 +50,21 @@
     general: {
         //  Your BBS Name!
         boardName: XXXXX
+
+        // Your BBS name, with pipe codes for styling
+        prettyBoardName : '|08XXXXX'
+
+        // Telnet hostname and port for your board
+        telnetHostname  : 'xibalba.l33t.codes:44510'
+
+        // SSH hostname and port for your board
+        sshHostname     : 'xibalba.l33t.codes:44511'
+
+        // Your board's website
+        website         : 'https://enigma-bbs.github.io'
+
+        // Short board description
+        description     : 'Yet another awesome ENiGMA½ BBS'
     }
 
     paths: {
@@ -271,6 +286,16 @@
                 certPem: XXXXX
                 keyPem: XXXXX
             }
+        }
+    }
+
+    chatServers: {
+        // multi relay chat settings. No need to sign up, just enable it.
+        // More info: https://bbswiki.bottomlessabyss.net/index.php?title=MRC_Chat_platform
+        mrc: {
+            enabled             : false
+            serverHostname      : 'mrc.bottomlessabyss.net'
+            serverPort          : 5000
         }
     }
 
