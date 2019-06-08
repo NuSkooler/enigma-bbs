@@ -55,13 +55,13 @@ const helpText = `
 |03/|11whoon                     |08- |07Who's on what BBS
 |03/|11chatters                  |08- |07Who's in what room
 |03/|11clear                     |08- |07Clear back buffer
-|03/|11topic <message>           |08- |07Set the room topic
-|03/|11bbses & |03/|11info <id>        |08- |07Info about BBS's connected
+|03/|11topic |03<message>           |08- |07Set the room topic
+|03/|11bbses |08& |03/|11info <id>        |08- |07Info about BBS's connected
 |03/|11meetups                   |08- |07Info about MRC MeetUps
 ---
-|03/|11l33t <your message>       |08- |07l337 5p34k
-|03/|11kewl <your message>       |08- |07BBS KeWL SPeaK
-|03/|11rainbow <your message>    |08- |07Crazy rainbow text
+|03/|11l33t |03<your message>       |08- |07l337 5p34k
+|03/|11kewl |03<your message>       |08- |07BBS KeWL SPeaK
+|03/|11rainbow |03<your message>    |08- |07Crazy rainbow text
 `;
 
 
@@ -179,6 +179,7 @@ exports.getModule = class mrcModule extends MenuModule {
         if(this.state.socket) {
             this.sendServerMessage('LOGOFF');
             this.state.socket.destroy();
+            delete this.state.socket;
         }
     }
 
