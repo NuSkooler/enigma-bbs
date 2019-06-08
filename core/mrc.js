@@ -32,7 +32,7 @@ const FormIds = {
     mrcChat    : 0,
 };
 
-var MciViewIds = {
+const MciViewIds = {
     mrcChat  : {
         chatLog             : 1,
         inputArea           : 2,
@@ -48,19 +48,20 @@ var MciViewIds = {
 
 // TODO: this is a bit shit, could maybe do it with an ansi instead
 const helpText = `
-General Chat:
-/rooms & /join <ro         - List all or join a room
-/pm <user> <message>       - Send a private message
+|15General Chat|08:
+|03/|11rooms |08& |03/|11join |03<room>      |08- |07List all or join a room
+|03/|11pm |03<user> <message>       |08- |07Send a private message
 ----
-/whoon                     - Who's on what BBS
-/chatters                  - Who's in what room
-/topic <message>           - Set the room topic
-/bbses & /info <id>        - Info about BBS's connected
-/meetups                   - Info about MRC MeetUps
+|03/|11whoon                     |08- |07Who's on what BBS
+|03/|11chatters                  |08- |07Who's in what room
+|03/|11clear                     |08- |07Clear back buffer
+|03/|11topic <message>           |08- |07Set the room topic
+|03/|11bbses & |03/|11info <id>        |08- |07Info about BBS's connected
+|03/|11meetups                   |08- |07Info about MRC MeetUps
 ---
-/l33t <your message>       - l337 5p34k
-/kewl <your message>       - BBS KeWL SPeaK
-/rainbow <your message>    - Crazy rainbow text
+|03/|11l33t <your message>       |08- |07l337 5p34k
+|03/|11kewl <your message>       |08- |07BBS KeWL SPeaK
+|03/|11rainbow <your message>    |08- |07Crazy rainbow text
 `;
 
 
@@ -94,7 +95,7 @@ exports.getModule = class mrcModule extends MenuModule {
             },
 
             movementKeyPressed : (formData, extraArgs, cb) => {
-                const bodyView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);  //  :TODO: use const here vs magic #
+                const bodyView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
                 switch(formData.key.name) {
                     case 'down arrow'   : bodyView.scrollDocumentUp(); break;
                     case 'up arrow'     : bodyView.scrollDocumentDown(); break;
@@ -108,9 +109,6 @@ exports.getModule = class mrcModule extends MenuModule {
             },
 
             quit : (formData, extraArgs, cb) => {
-                this.sendServerMessage('LOGOFF');
-                clearInterval(this.heartbeat);
-                this.state.socket.destroy();
                 return this.prevMenu(cb);
             }
         };
@@ -138,16 +136,19 @@ exports.getModule = class mrcModule extends MenuModule {
 
                         // connect to multiplexer
                         this.state.socket = net.createConnection(connectOpts, () => {
-                            const self = this;
-                            // handshake with multiplexer
-                            self.state.socket.write(`--DUDE-ITS--|${self.state.alias}\n`);
+                            this.client.once('end', () => {
+                                this.quitServer();
+                            });
 
-                            self.clientConnect();
+                            // handshake with multiplexer
+                            this.state.socket.write(`--DUDE-ITS--|${this.state.alias}\n`);
+
+                            this.clientConnect();
 
                             // send register to central MRC and get stats every 60s
-                            self.heartbeat = setInterval(function () {
-                                self.sendHeartbeat();
-                                self.sendServerMessage('STATS');
+                            this.heartbeat = setInterval( () => {
+                                this.sendHeartbeat();
+                                this.sendServerMessage('STATS');
                             }, 60000);
                         });
 
@@ -167,26 +168,46 @@ exports.getModule = class mrcModule extends MenuModule {
         });
     }
 
+    leave() {
+        this.quitServer();
+        return super.leave();
+    }
+
+    quitServer() {
+        clearInterval(this.heartbeat);
+
+        if(this.state.socket) {
+            this.sendServerMessage('LOGOFF');
+            this.state.socket.destroy();
+        }
+    }
+
     /**
      * Adds a message to the chat log on screen
      */
     addMessageToChatLog(message) {
-        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
-        const messageLength = stripMciColorCodes(message).length;
-        const chatWidth = chatLogView.dimens.width;
-        let padAmount = 0;
-        let spaces = 2;
-
-        if (messageLength > chatWidth) {
-            padAmount = chatWidth - (messageLength % chatWidth) - spaces;
-        } else {
-            padAmount = chatWidth - messageLength - spaces ;
+        if(!Array.isArray(message)) {
+            message = [ message ];
         }
 
-        if (padAmount < 0) padAmount = 0;
+        message.forEach(msg => {
+            const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
+            const messageLength = stripMciColorCodes(msg).length;
+            const chatWidth = chatLogView.dimens.width;
+            let padAmount = 0;
+            let spaces = 2;
 
-        const padding = ' |00' + ' '.repeat(padAmount);
-        chatLogView.addText(pipeToAnsi(message + padding));
+            if (messageLength > chatWidth) {
+                padAmount = chatWidth - (messageLength % chatWidth) - spaces;
+            } else {
+                padAmount = chatWidth - messageLength - spaces;
+            }
+
+            if (padAmount < 0) padAmount = 0;
+
+            const padding = ' |00' + ' '.repeat(padAmount);
+            chatLogView.addText(pipeToAnsi(msg + padding));
+        });
     }
 
     /**
@@ -267,7 +288,7 @@ exports.getModule = class mrcModule extends MenuModule {
             const messageFormat =
                 this.config.messageFormat ||
                 '|00|10<|02{fromUserName}|10>|00 |03{message}|00';
-            
+
             const privateMessageFormat =
                 this.config.outgoingPrivateMessageFormat ||
                 '|00|10<|02{fromUserName}|10|14->|02{toUserName}>|00 |03{message}|00';
@@ -280,7 +301,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 // pm 
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
             }
-            
+
             try {
                 this.sendMessageToMultiplexer(to_user || '', '', this.state.room, formattedMessage);
             } catch(e) {
@@ -366,7 +387,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case '?':
-                this.addMessageToChatLog(helpText);
+                this.addMessageToChatLog(helpText.split(/\n/g));
                 break;
 
             default:
@@ -385,16 +406,17 @@ exports.getModule = class mrcModule extends MenuModule {
     sendMessageToMultiplexer(to_user, to_site, to_room, body) {
 
         const message = {
-            from_user: this.state.alias,
-            from_room: this.state.room,
-            to_user: to_user,
-            to_site: to_site,
-            to_room: to_room,
-            body: body
+            to_user,
+            to_site,
+            to_room,
+            body,
+            from_user   : this.state.alias,
+            from_room   : this.state.room,
         };
 
-        // TODO: check socket still exists here
-        this.state.socket.write(JSON.stringify(message) + '\n');
+        if(this.state.socket) {
+            this.state.socket.write(JSON.stringify(message) + '\n');
+        }
     }
 
     /**
