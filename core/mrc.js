@@ -72,6 +72,8 @@ exports.getModule = class mrcModule extends MenuModule {
         this.log    = Log.child( { module : 'MRC' } );
         this.config = Object.assign({}, _.get(options, 'menuConfig.config'), { extraArgs : options.extraArgs });
 
+        this.config.maxScrollbackLines = this.config.maxScrollbackLines || 500;
+
         this.state = {
             socket: '',
             alias: this.client.user.username,
@@ -208,6 +210,10 @@ exports.getModule = class mrcModule extends MenuModule {
 
             const padding = ' |00' + ' '.repeat(padAmount);
             chatLogView.addText(pipeToAnsi(msg + padding));
+
+            if(chatLogView.getLineCount() > this.config.maxScrollbackLines) {
+                chatLogView.deleteLine(0);
+            }
         });
     }
 

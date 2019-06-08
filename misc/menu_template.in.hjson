@@ -1104,6 +1104,9 @@
             art: MRC
             config: {
                 cls: true
+
+                //  max lines kept in scrollback buffer
+                maxScrollbackLines: 500
             }
             form: {
                 0: {
