@@ -158,6 +158,16 @@ exports.getModule = class mrcModule extends MenuModule {
                                 this.sendHeartbeat();
                                 this.sendServerMessage('STATS');
                             }, 60000);
+
+                            //  override idle logout seconds if configured
+                            const idleLogoutSeconds = parseInt(this.config.idleLogoutSeconds);
+                            if(0 === idleLogoutSeconds) {
+                                this.log.debug('Temporary disable idle monitor due to config');
+                                this.client.stopIdleMonitor();
+                            } else if (!isNaN(idleLogoutSeconds) && idleLogoutSeconds >= 60) {
+                                this.log.debug( { idleLogoutSeconds }, 'Temporary override idle logout seconds due to config');
+                                this.client.overrideIdleLogoutSeconds(idleLogoutSeconds);
+                            }
                         });
 
                         // when we get data, process it
@@ -187,6 +197,12 @@ exports.getModule = class mrcModule extends MenuModule {
 
     leave() {
         this.quitServer();
+
+        //  restore idle monitor to previous state
+        this.log.debug('Restoring idle monitor to previous state');
+        this.client.restoreIdleLogoutSeconds();
+        this.client.startIdleMonitor();
+
         return super.leave();
     }
 

@@ -439,6 +439,11 @@ Client.prototype.setTermType = function(termType) {
 };
 
 Client.prototype.startIdleMonitor = function() {
+    //  clear existing, if any
+    if(this.idleCheck) {
+        this.stopIdleMonitor();
+    }
+
     this.lastKeyPressMs = Date.now();
 
     //
@@ -474,6 +479,9 @@ Client.prototype.startIdleMonitor = function() {
             idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
         }
 
+        //  use override value if set
+        idleLogoutSeconds = this.idleLogoutSecondsOverride || idleLogoutSeconds;
+
         if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
             this.emit('idle timeout');
         }
@@ -481,7 +489,18 @@ Client.prototype.startIdleMonitor = function() {
 };
 
 Client.prototype.stopIdleMonitor = function() {
-    clearInterval(this.idleCheck);
+    if(this.idleCheck) {
+        clearInterval(this.idleCheck);
+        delete this.idleCheck;
+    }
+};
+
+Client.prototype.overrideIdleLogoutSeconds = function(seconds) {
+    this.idleLogoutSecondsOverride = seconds;
+};
+
+Client.prototype.restoreIdleLogoutSeconds = function() {
+    delete this.idleLogoutSecondsOverride;
 };
 
 Client.prototype.end = function () {
