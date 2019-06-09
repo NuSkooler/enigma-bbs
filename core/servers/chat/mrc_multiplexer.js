@@ -104,7 +104,7 @@ exports.getModule = class MrcModule extends ServerModule {
                 buffer = Buffer.concat([buffer, chunk]);
             }
 
-            var lines = buffer.toString().split(lineDelimiter);
+            let lines = buffer.toString().split(lineDelimiter);
 
             if (lines.pop()) {
                 // if buffer is not ended with \r\n, there's more chunks.

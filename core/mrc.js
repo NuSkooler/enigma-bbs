@@ -138,7 +138,7 @@ exports.getModule = class mrcModule extends MenuModule {
                     },
                     (callback) => {
                         const connectOpts = {
-                            port	: _.get(Config(), 'chatServers.mrc.serverPort', 5000),
+                            port	: _.get(Config(), 'chatServers.mrc.multiplexerPort', 5000),
                             host	: 'localhost',
                         };
 
