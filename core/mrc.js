@@ -10,6 +10,7 @@ const {
 }                       = require('./color_codes.js');
 const stringFormat      = require('./string_format.js');
 const StringUtil        = require('./string_util.js');
+const Config            = require('./config.js').get;
 
 //  deps
 const _                 = require('lodash');
@@ -112,6 +113,11 @@ exports.getModule = class mrcModule extends MenuModule {
 
             quit : (formData, extraArgs, cb) => {
                 return this.prevMenu(cb);
+            },
+
+            clearMessages : (formData, extraArgs, cb) => {
+                this.clearMessages();
+                return cb(null);
             }
         };
     }
@@ -132,7 +138,7 @@ exports.getModule = class mrcModule extends MenuModule {
                     },
                     (callback) => {
                         const connectOpts = {
-                            port	: 5000,
+                            port	: _.get(Config(), 'chatServers.mrc.serverPort', 5000),
                             host	: 'localhost',
                         };
 
@@ -158,6 +164,15 @@ exports.getModule = class mrcModule extends MenuModule {
                         this.state.socket.on('data', data => {
                             data = data.toString();
                             this.processReceivedMessage(data);
+                        });
+
+                        this.state.socket.once('error', err => {
+                            this.log.warn( { error : err.message }, 'MRC multiplexer socket error' );
+                            this.state.socket.destroy();
+                            delete this.state.socket;
+
+                            //  bail with error - fall back to prev menu
+                            return callback(err);
                         });
 
                         return(callback);
@@ -389,8 +404,11 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendServerMessage('LIST');
                 break;
 
+            case 'quit' :
+                return this.prevMenu();
+
             case 'clear':
-                chatLogView.setText('');
+                this.clearMessages();
                 break;
 
             case '?':
@@ -404,7 +422,11 @@ exports.getModule = class mrcModule extends MenuModule {
 
         // just do something to get the cursor back to the right place ¯\_(ツ)_/¯
         this.sendServerMessage('STATS');
+    }
 
+    clearMessages() {
+        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
+        chatLogView.setText('');
     }
 
     /**
