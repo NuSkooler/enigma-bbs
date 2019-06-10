@@ -41,7 +41,8 @@ const MciViewIds = {
         roomTopic           : 4,
         mrcUsers            : 5,
         mrcBbses            : 6,
-        customRangeStart    : 10,   //  10+ = customs
+
+        customRangeStart    : 20,   //  20+ = customs
     }
 };
 
@@ -82,6 +83,16 @@ exports.getModule = class mrcModule extends MenuModule {
             room_topic: '',
             nicks: [],
             last_ping: 0
+        };
+
+        this.customFormatObj = {
+            roomName        : '',
+            roomTopic       : '',
+            roomUserCount   : 0,
+            userCount       : 0,
+            boardCount      : 0,
+            roomCount       : 0,
+            //latencyMs       : 0,
         };
 
         this.menuMethods = {
@@ -269,19 +280,33 @@ exports.getModule = class mrcModule extends MenuModule {
                         break;
 
                     case 'ROOMTOPIC':
-                        this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.roomName).setText(`#${params[1]}`);
-                        this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.roomTopic).setText(pipeToAnsi(params[2]));
+                        this.setText(MciViewIds.mrcChat.roomName, `#${params[1]}`);
+                        this.setText(MciViewIds.mrcChat.roomTopic, params[2]);
+
+                        this.customFormatObj.roomName   = params[1];
+                        this.customFormatObj.roomTopic  = params[2];
+                        this.updateCustomViews();
+
                         this.state.room = params[1];
                         break;
 
                     case 'USERLIST':
                         this.state.nicks = params[1].split(',');
+
+                        this.customFormatObj.roomUserCount = this.state.nicks.length;
+                        this.updateCustomViews();
                         break;
 
                     case 'STATS': {
                         const stats = params[1].split(' ');
-                        this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcUsers).setText(stats[2]);
-                        this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.mrcBbses).setText(stats[0]);
+                        this.setText(MciViewIds.mrcChat.mrcUsers, stats[2]);
+                        this.setText(MciViewIds.mrcChat.mrcBbses, stats[0]);
+
+                        this.customFormatObj.boardCount = parseInt(stats[0]);
+                        this.customFormatObj.roomCount  = parseInt(stats[1]);
+                        this.customFormatObj.userCount  = parseInt(stats[2]);
+                        this.updateCustomViews();
+
                         this.state.last_ping = stats[1];
                         break;
                     }
@@ -301,6 +326,18 @@ exports.getModule = class mrcModule extends MenuModule {
 
             this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
         });
+    }
+
+    setText(mciId, text) {
+        return this.setViewText('mrcChat', mciId, text);
+    }
+
+    updateCustomViews() {
+        return this.updateCustomViewTextsWithFilter(
+            'mrcChat',
+            MciViewIds.mrcChat.customRangeStart,
+            this.customFormatObj
+        );
     }
 
     /**
@@ -353,9 +390,6 @@ exports.getModule = class mrcModule extends MenuModule {
      * Processes a message that begins with a slash
      */
     processSlashCommand(message) {
-        // get the chat log view in case we need it
-        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
-
         const cmd = message.split(' ');
         cmd[0] = cmd[0].substr(1).toLowerCase();
 
