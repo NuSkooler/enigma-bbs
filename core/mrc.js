@@ -92,7 +92,7 @@ exports.getModule = class mrcModule extends MenuModule {
             userCount               : 0,
             boardCount              : 0,
             roomCount               : 0,
-            //latencyMs             : 0,
+            latencyMs               : 0,
             activityLevel           : 0,
             activityLevelIndicator  : ' ',
         };
@@ -352,7 +352,7 @@ exports.getModule = class mrcModule extends MenuModule {
         if(!Array.isArray(indicators) || indicators.length < level + 1) {
             indicators = [ ' ', '░', '▒', '▓' ];
         }
-        return indicators[level].charAt(0);
+        return indicators[level];
     }
 
     setText(mciId, text) {
