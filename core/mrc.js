@@ -82,17 +82,19 @@ exports.getModule = class mrcModule extends MenuModule {
             room: '',
             room_topic: '',
             nicks: [],
-            last_ping: 0
+            lastSentMsg : {},   //  used for latency est.
         };
 
         this.customFormatObj = {
-            roomName        : '',
-            roomTopic       : '',
-            roomUserCount   : 0,
-            userCount       : 0,
-            boardCount      : 0,
-            roomCount       : 0,
-            //latencyMs       : 0,
+            roomName                : '',
+            roomTopic               : '',
+            roomUserCount           : 0,
+            userCount               : 0,
+            boardCount              : 0,
+            roomCount               : 0,
+            //latencyMs             : 0,
+            activityLevel           : 0,
+            activityLevelIndicator  : ' ',
         };
 
         this.menuMethods = {
@@ -298,16 +300,27 @@ exports.getModule = class mrcModule extends MenuModule {
                         break;
 
                     case 'STATS': {
-                        const stats = params[1].split(' ');
-                        this.setText(MciViewIds.mrcChat.mrcUsers, stats[2]);
-                        this.setText(MciViewIds.mrcChat.mrcBbses, stats[0]);
+                        const [
+                            boardCount,
+                            roomCount,
+                            userCount,
+                            activityLevel
+                        ] = params[1].split(' ').map(v => parseInt(v));
 
-                        this.customFormatObj.boardCount = parseInt(stats[0]);
-                        this.customFormatObj.roomCount  = parseInt(stats[1]);
-                        this.customFormatObj.userCount  = parseInt(stats[2]);
+                        const activityLevelIndicator = this.getActivityLevelIndicator(activityLevel);
+
+                        Object.assign(
+                            this.customFormatObj,
+                            {
+                                boardCount, roomCount, userCount,
+                                activityLevel, activityLevelIndicator
+                            }
+                        );
+
+                        this.setText(MciViewIds.mrcChat.mrcUsers, userCount);
+                        this.setText(MciViewIds.mrcChat.mrcBbses, boardCount);
+
                         this.updateCustomViews();
-
-                        this.state.last_ping = stats[1];
                         break;
                     }
 
@@ -317,6 +330,12 @@ exports.getModule = class mrcModule extends MenuModule {
                 }
 
             } else {
+                if(message.body === this.state.lastSentMsg.msg) {
+                    this.customFormatObj.latencyMs =
+                        moment.duration(moment().diff(this.state.lastSentMsg.time)).asMilliseconds();
+                    delete this.state.lastSentMsg.msg;
+                }
+
                 if (message.to_room == this.state.room) {
                     // if we're here then we want to show it to the user
                     const currentTime = moment().format(this.client.currentTheme.helpers.getTimeFormat());
@@ -326,6 +345,14 @@ exports.getModule = class mrcModule extends MenuModule {
 
             this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
         });
+    }
+
+    getActivityLevelIndicator(level) {
+        let indicators = this.config.activityLevelIndicators;
+        if(!Array.isArray(indicators) || indicators.length < level + 1) {
+            indicators = [ ' ', '░', '▒', '▓' ];
+        }
+        return indicators[level].charAt(0);
     }
 
     setText(mciId, text) {
@@ -378,6 +405,10 @@ exports.getModule = class mrcModule extends MenuModule {
             }
 
             try {
+                this.state.lastSentMsg = {
+                    msg     : formattedMessage,
+                    time    : moment(),
+                };
                 this.sendMessageToMultiplexer(to_user || '', '', this.state.room, formattedMessage);
             } catch(e) {
                 this.client.log.warn( { error : e.message }, 'MRC error');
@@ -397,6 +428,7 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'pm':
                 this.processOutgoingMessage(cmd[2], cmd[1]);
                 break;
+
             case 'rainbow': {
                 // this is brutal, but i love it
                 const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
@@ -408,6 +440,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.processOutgoingMessage(line);
                 break;
             }
+
             case 'l33t':
                 this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), 'l33t'));
                 break;
@@ -418,6 +451,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), mode));
                 break;
             }
+
             case 'whoon':
                 this.sendServerMessage('WHOON');
                 break;
@@ -471,6 +505,7 @@ exports.getModule = class mrcModule extends MenuModule {
         }
 
         // just do something to get the cursor back to the right place ¯\_(ツ)_/¯
+        //  :TODO: fix me!
         this.sendServerMessage('STATS');
     }
 
