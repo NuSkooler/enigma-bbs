@@ -169,6 +169,11 @@ function getDefaultConfig() {
     return {
         general : {
             boardName       : 'Another Fine ENiGMA½ BBS',
+            prettyBoardName : '|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS',
+            telnetHostname  : '',
+            sshHostname     : '',
+            website         : 'https://enigma-bbs.github.io',
+            description     : 'An ENiGMA½ BBS',
 
             //  :TODO: closedSystem prob belongs under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
@@ -212,7 +217,8 @@ function getDefaultConfig() {
 
             badUserNames        : [
                 'sysop', 'admin', 'administrator', 'root', 'all',
-                'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
+                'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix',
+                'server', 'client', 'notme'
             ],
 
             preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
@@ -258,6 +264,7 @@ function getDefaultConfig() {
             mods                : paths.join(__dirname, './../mods/'),
             loginServers        : paths.join(__dirname, './servers/login/'),
             contentServers      : paths.join(__dirname, './servers/content/'),
+            chatServers         : paths.join(__dirname, './servers/chat/'),
 
             scannerTossers      : paths.join(__dirname, './scanner_tossers/'),
             mailers             : paths.join(__dirname, './mailers/')       ,
@@ -449,6 +456,16 @@ function getDefaultConfig() {
                     certPem     : paths.join(__dirname, './../config/nntps_cert.pem'),
                     keyPem      : paths.join(__dirname, './../config/nntps_key.pem'),
                 }
+            }
+        },
+
+        chatServers : {
+            mrc: {
+                enabled             : false,
+                serverHostname      : 'mrc.bottomlessabyss.net',
+                serverPort          : 5000,
+                retryDelay          : 10000,
+                multiplexerPort     : 5000,
             }
         },
 

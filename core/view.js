@@ -226,6 +226,12 @@ View.prototype.setPropertyValue = function(propName, value) {
 
         case 'argName' : this.submitArgName = value; break;
 
+        case 'omit' :
+            if(_.isBoolean(value)) {
+                this.omitFromSubmission = value; break;
+            }
+            break;
+
         case 'validate' :
             if(_.isFunction(value)) {
                 this.validate = value;

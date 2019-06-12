@@ -117,6 +117,7 @@ function getModulePaths() {
         config.paths.mods,
         config.paths.loginServers,
         config.paths.contentServers,
+        config.paths.chatServers,
         config.paths.scannerTossers,
     ];
 }

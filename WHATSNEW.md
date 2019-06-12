@@ -36,7 +36,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 * Usernames found in the `config.users.badUserNames` are now not only disallowed from applying, but disconnected at any login attempt.
 * Total minutes online is now tracked for users. Of course, it only starts after you get the update :)
-
+* Form entries in `menu.hjson` can now be omitted from submission handlers using `omit: true`
 
 ## 0.0.8-alpha
 * [Mystic BBS style](http://wiki.mysticbbs.com/doku.php?id=displaycodes) extended pipe color codes. These allow for example, to set "iCE" background colors.
