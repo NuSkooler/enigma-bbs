@@ -79,7 +79,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
 
     /*
         :TODO:
-        * disconnecting wile door is open leaves dosemu
+        * disconnecting while door is open leaves dosemu
         * http://bbslink.net/sysop.php support
         * Font support ala all other menus... or does this just work?
     */

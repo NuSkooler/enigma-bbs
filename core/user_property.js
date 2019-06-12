@@ -63,5 +63,6 @@ module.exports = {
     AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA. See OTPTypes
     AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes       : 'auth_factor2_otp_backup',    //  JSON array of backup codes
+    AuthFactor2OTPEnableToken       : 'auth_factor2_otp_enable_token',
 };
 

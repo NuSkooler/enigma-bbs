@@ -9,11 +9,16 @@ const {
     otpFromType,
     createQRCode,
 }                           = require('./user_2fa_otp.js');
+const { Errors }            = require('./enig_error.js');
+const { sendMail }          = require('./email.js');
+const { getServer }         = require('./listening_server.js');
+const WebServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
 
 //  deps
 const async             = require('async');
 const _                 = require('lodash');
 const iconv             = require('iconv-lite');
+const crypto            = require('crypto');
 
 exports.moduleInfo = {
     name        : 'User 2FA/OTP Configuration',
@@ -26,10 +31,10 @@ const FormIds = {
 };
 
 const MciViewIds = {
-    enableToggle        : 1,
-    typeSelection       : 2,
-    submission          : 3,
-    infoText            : 4,
+    enableToggle    : 1,
+    otpType        : 2,
+    submit          : 3,
+    infoText        : 4,
 
     customRangeStart    : 10,   //  10+ = customs
 };
@@ -53,8 +58,20 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
             },
             showBackupCodes : (formData, extraArgs, cb) => {
                 return this.showBackupCodes(cb);
+            },
+            saveChanges : (formData, extraArgs, cb) => {
+                return this.saveChanges(formData, cb);
             }
         };
+    }
+
+    initSequence() {
+        this.webServer = getServer(WebServerPackageName);
+        if(!this.webServer || !this.webServer.instance.isEnabled()) {
+            this.client.log.warn('User 2FA/OTP configuration requires the web server to be enabled!');
+            return this.prevMenu( () => { /* dummy */ } );
+        }
+        return super.initSequence();
     }
 
     mciReady(mciData, cb) {
@@ -71,8 +88,8 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                     (callback) => {
                         const requiredCodes = [
                             MciViewIds.enableToggle,
-                            MciViewIds.typeSelection,
-                            MciViewIds.submission,
+                            MciViewIds.otpType,
+                            MciViewIds.submit,
                         ];
                         return this.validateMCIByViewIds('menu', requiredCodes, callback);
                     },
@@ -86,19 +103,19 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                             return this.enableToggleUpdate(idx);
                         });
 
-                        const typeSelectionView = this.getView('menu', MciViewIds.typeSelection);
-                        initialIndex = this.typeSelectionIndexFromUserOTPType();
-                        typeSelectionView.setFocusItemIndex(initialIndex);
+                        const otpTypeView = this.getView('menu', MciViewIds.otpType);
+                        initialIndex = this.otpTypeIndexFromUserOTPType();
+                        otpTypeView.setFocusItemIndex(initialIndex);
 
-                        typeSelectionView.on('index update', idx => {
-                            return this.typeSelectionUpdate(idx);
+                        otpTypeView.on('index update', idx => {
+                            return this.otpTypeUpdate(idx);
                         });
 
                         this.viewControllers.menu.on('return', view => {
                             if(view === enableToggleView) {
                                 return this.enableToggleUpdate(enableToggleView.focusedItemIndex);
-                            } else if (view === typeSelectionView) {
-                                return this.typeSelectionUpdate(typeSelectionView.focusedItemIndex);
+                            } else if (view === otpTypeView) {
+                                return this.otpTypeUpdate(otpTypeView.focusedItemIndex);
                             }
                         });
 
@@ -169,8 +186,74 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         return this.displayDetails(info, cb);
     }
 
+    saveChanges(formData, cb) {
+        const enabled = 1 === _.get(formData, 'value.enableToggle', 0);
+        return enabled ? this.saveChangesEnable(formData, cb) : this.saveChangesDisable(cb);
+    }
+
+    saveChangesEnable(formData, cb) {
+        const otpTypeProp = this.otpTypeFromOTPTypeIndex(_.get(formData, 'value.otpType'));
+
+        //  sanity check
+        if(!otpFromType(otpTypeProp)) {
+            return cb(Errors.Invalid('Cannot convert selected index to valid OTP type'));
+        }
+
+        async.waterfall(
+            [
+                (callback) => {
+                    return this.removeUserOTPProperties(callback);
+                },
+                (callback) => {
+                    return crypto.randomBytes(256, callback);
+                },
+                (token, callback) => {
+                    //  :TODO: consider temporary tokens table - this has become semi-common
+                    //  token | timestamp | token_type |
+                    //  abc   | ISO       | '2fa_otp_register'
+                    token = token.toString('hex');
+                    this.client.user.persistProperty(UserProps.AuthFactor2OTPEnableToken, token, err => {
+                        return callback(err, token);
+                    });
+                },
+                (token, callback) => {
+                    const resetUrl = this.webServer.instance.buildUrl(
+                        `/enable_2fa_otp?token=&otpType=${otpTypeProp}&token=${token}`
+                    );
+
+                    //  clear any existing (e.g. same as disable) -> send activation email
+
+                    return callback(null);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    removeUserOTPProperties(cb) {
+        const props = [
+            UserProps.AuthFactor2OTP,
+            UserProps.AuthFactor2OTPSecret,
+            UserProps.AuthFactor2OTPBackupCodes,
+        ];
+        return this.client.user.removeProperties(props, cb);
+    }
+
+    saveChangesDisable(cb) {
+        this.removeUserOTPProperties( err => {
+            if(err) {
+                return cb(err);
+            }
+
+            //  :TODO: show "saved+disabled" art/message -> prevMenu
+            return cb(null);
+        });
+    }
+
     isOTPEnabledForUser() {
-        return this.typeSelectionIndexFromUserOTPType(-1) != -1;
+        return this.otpTypeIndexFromUserOTPType(-1) != -1;
     }
 
     getInfoText(key) {
@@ -185,7 +268,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         this.updateCustomViewTextsWithFilter('menu', MciViewIds.customRangeStart, { infoText : this.getInfoText(key) } );
     }
 
-    typeSelectionIndexFromUserOTPType(defaultIndex = 0) {
+    otpTypeIndexFromUserOTPType(defaultIndex = 0) {
         const type = this.client.user.getProperty(UserProps.AuthFactor2OTP);
         return {
             [ OTPTypes.RFC6238_TOTP ]           : 0,
@@ -194,7 +277,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         }[type] || defaultIndex;
     }
 
-    otpTypeFromTypeSelectionIndex(idx) {
+    otpTypeFromOTPTypeIndex(idx) {
         return {
             0 : OTPTypes.RFC6238_TOTP,
             1 : OTPTypes.RFC4266_HOTP,
@@ -202,8 +285,8 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         }[idx];
     }
 
-    typeSelectionUpdate(idx) {
-        const key = this.otpTypeFromTypeSelectionIndex(idx);
+    otpTypeUpdate(idx) {
+        const key = this.otpTypeFromOTPTypeIndex(idx);
         this.updateCustomViewTextsWithFilter('menu', MciViewIds.customRangeStart, { infoText : this.getInfoText(key) } );
     }
 };
