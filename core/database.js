@@ -212,9 +212,9 @@ const DB_INIT_TABLE = {
             `CREATE TABLE IF NOT EXISTS user_temporary_token (
                 user_id             INTEGER NOT NULL,
                 token               VARCHAR NOT NULL,
+                token_type          VARCHAR NOT NULL,
                 timestamp           DATETIME NOT NULL,
-                purpose             VARCHAR NOT NULL,
-                UNIQUE(user_id, token),
+                UNIQUE(user_id, token_type),
                 FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
             );`
         );
