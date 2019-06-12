@@ -22,7 +22,7 @@ const _                     = require('lodash');
 
 const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT =
     `%USERNAME%:
-a password reset has been requested for your account on %BOARDNAME%.
+A password reset has been requested for your account on %BOARDNAME%.
     
     * If this was not you, please ignore this email.
     * Otherwise, follow this link: %RESET_URL%

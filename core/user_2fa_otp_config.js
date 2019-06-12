@@ -13,12 +13,17 @@ const { Errors }            = require('./enig_error.js');
 const { sendMail }          = require('./email.js');
 const { getServer }         = require('./listening_server.js');
 const WebServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
+const {
+    createToken,
+    WellKnownTokenTypes,
+}                           = require('./user_temp_token.js');
+const Config                = require('./config.js').get;
 
 //  deps
 const async             = require('async');
 const _                 = require('lodash');
 const iconv             = require('iconv-lite');
-const crypto            = require('crypto');
+const fs                = require('fs-extra');
 
 exports.moduleInfo = {
     name        : 'User 2FA/OTP Configuration',
@@ -43,6 +48,17 @@ const DefaultMsg = {
     otpNotEnabled   : '2FA/OTP is not currently enabled for this account.',
     noBackupCodes   : 'No backup codes remaining or set.',
 };
+
+const DefaultEmailTextTemplate =
+    `%USERNAME%:
+You have requested to enable 2-Factor Authentication via One-Time-Password
+for your account on %BOARDNAME%.
+
+    * If this was not you, please ignore this email and change your password.
+    * Otherwise, please follow the link below:
+
+    %REGISTER_URL%
+`;
 
 exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     constructor(options) {
@@ -205,25 +221,54 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                     return this.removeUserOTPProperties(callback);
                 },
                 (callback) => {
-                    return crypto.randomBytes(256, callback);
+                    return createToken(this.client.user.userId, WellKnownTokenTypes.AuthFactor2OTPRegister, callback);
                 },
                 (token, callback) => {
-                    //  :TODO: consider temporary tokens table - this has become semi-common
-                    //  token | timestamp | token_type |
-                    //  abc   | ISO       | '2fa_otp_register'
-                    token = token.toString('hex');
-                    this.client.user.persistProperty(UserProps.AuthFactor2OTPEnableToken, token, err => {
-                        return callback(err, token);
+                    const config = Config();
+                    const txtTemplateFile   = _.get(config, 'users.twoFactorAuth.otp.registerEmailText');
+                    const htmlTemplateFile  = _.get(config, 'users.twoFactorAuth.otp.registerEmailHtml');
+
+                    fs.readFile(txtTemplateFile, 'utf8', (err, textTemplate) => {
+                        textTemplate = textTemplate || DefaultEmailTextTemplate;
+                        fs.readFile(htmlTemplateFile, 'utf8', (err, htmlTemplate) => {
+                            htmlTemplate = htmlTemplate || null;    //  be explicit for waterfall
+                            return callback(null, token, textTemplate, htmlTemplate);
+                        });
                     });
                 },
-                (token, callback) => {
-                    const resetUrl = this.webServer.instance.buildUrl(
+                (token, textTemplate, htmlTemplate, callback) => {
+                    const registerUrl = this.webServer.instance.buildUrl(
                         `/enable_2fa_otp?token=&otpType=${otpTypeProp}&token=${token}`
                     );
 
-                    //  clear any existing (e.g. same as disable) -> send activation email
+                    const user = this.client.user;
 
-                    return callback(null);
+                    const replaceTokens = (s) => {
+                        return s
+                            .replace(/%BOARDNAME%/g,    Config().general.boardName)
+                            .replace(/%USERNAME%/g,     user.username)
+                            .replace(/%TOKEN%/g,        token)
+                            .replace(/%REGISTER_URL%/g, registerUrl)
+                        ;
+                    };
+
+                    textTemplate = replaceTokens(textTemplate);
+                    if(htmlTemplate) {
+                        htmlTemplate = replaceTokens(htmlTemplate);
+                    }
+
+                    const message = {
+                        to      : `${user.getProperty(UserProps.RealName) || user.username} <${user.getProperty(UserProps.EmailAddress)}>`,
+                        //  from will be filled in
+                        subject : '2-Factor Authentication Registration',
+                        text    : textTemplate,
+                        html    : htmlTemplate,
+                    };
+
+                    sendMail(message, (err, info) => {
+                        //  :TODO: Log info!
+                        return callback(err);
+                    });
                 }
             ],
             err => {

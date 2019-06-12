@@ -233,6 +233,11 @@ function getDefaultConfig() {
 
             twoFactorAuth : {
                 method : 'googleAuth',
+
+                otp : {
+                    registerEmailText   : paths.join(__dirname, '../misc/otp_register_email.template.txt'),
+                    registerEmailHtml   : paths.join(__dirname, '../misc/otp_register_email.template.html')
+                }
             }
         },
 
