@@ -10,20 +10,15 @@ const {
     createQRCode,
 }                           = require('./user_2fa_otp.js');
 const { Errors }            = require('./enig_error.js');
-const { sendMail }          = require('./email.js');
 const { getServer }         = require('./listening_server.js');
 const WebServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
-const {
-    createToken,
-    WellKnownTokenTypes,
-}                           = require('./user_temp_token.js');
 const Config                = require('./config.js').get;
+const WebRegister           = require('./user_2fa_otp_web_register.js');
 
 //  deps
 const async             = require('async');
 const _                 = require('lodash');
 const iconv             = require('iconv-lite');
-const fs                = require('fs-extra');
 
 exports.moduleInfo = {
     name        : 'User 2FA/OTP Configuration',
@@ -49,17 +44,6 @@ const DefaultMsg = {
     noBackupCodes   : 'No backup codes remaining or set.',
 };
 
-const DefaultEmailTextTemplate =
-    `%USERNAME%:
-You have requested to enable 2-Factor Authentication via One-Time-Password
-for your account on %BOARDNAME%.
-
-    * If this was not you, please ignore this email and change your password.
-    * Otherwise, please follow the link below:
-
-    %REGISTER_URL%
-`;
-
 exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     constructor(options) {
         super(options);
@@ -82,8 +66,8 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     }
 
     initSequence() {
-        this.webServer = getServer(WebServerPackageName);
-        if(!this.webServer || !this.webServer.instance.isEnabled()) {
+        const webServer = getServer(WebServerPackageName);
+        if(!webServer || !webServer.instance.isEnabled()) {
             this.client.log.warn('User 2FA/OTP configuration requires the web server to be enabled!');
             return this.prevMenu( () => { /* dummy */ } );
         }
@@ -215,66 +199,12 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
             return cb(Errors.Invalid('Cannot convert selected index to valid OTP type'));
         }
 
-        async.waterfall(
-            [
-                (callback) => {
-                    return this.removeUserOTPProperties(callback);
-                },
-                (callback) => {
-                    return createToken(this.client.user.userId, WellKnownTokenTypes.AuthFactor2OTPRegister, callback);
-                },
-                (token, callback) => {
-                    const config = Config();
-                    const txtTemplateFile   = _.get(config, 'users.twoFactorAuth.otp.registerEmailText');
-                    const htmlTemplateFile  = _.get(config, 'users.twoFactorAuth.otp.registerEmailHtml');
-
-                    fs.readFile(txtTemplateFile, 'utf8', (err, textTemplate) => {
-                        textTemplate = textTemplate || DefaultEmailTextTemplate;
-                        fs.readFile(htmlTemplateFile, 'utf8', (err, htmlTemplate) => {
-                            htmlTemplate = htmlTemplate || null;    //  be explicit for waterfall
-                            return callback(null, token, textTemplate, htmlTemplate);
-                        });
-                    });
-                },
-                (token, textTemplate, htmlTemplate, callback) => {
-                    const registerUrl = this.webServer.instance.buildUrl(
-                        `/enable_2fa_otp?token=&otpType=${otpTypeProp}&token=${token}`
-                    );
-
-                    const user = this.client.user;
-
-                    const replaceTokens = (s) => {
-                        return s
-                            .replace(/%BOARDNAME%/g,    Config().general.boardName)
-                            .replace(/%USERNAME%/g,     user.username)
-                            .replace(/%TOKEN%/g,        token)
-                            .replace(/%REGISTER_URL%/g, registerUrl)
-                        ;
-                    };
-
-                    textTemplate = replaceTokens(textTemplate);
-                    if(htmlTemplate) {
-                        htmlTemplate = replaceTokens(htmlTemplate);
-                    }
-
-                    const message = {
-                        to      : `${user.getProperty(UserProps.RealName) || user.username} <${user.getProperty(UserProps.EmailAddress)}>`,
-                        //  from will be filled in
-                        subject : '2-Factor Authentication Registration',
-                        text    : textTemplate,
-                        html    : htmlTemplate,
-                    };
-
-                    sendMail(message, (err, info) => {
-                        //  :TODO: Log info!
-                        return callback(err);
-                    });
-                }
-            ],
-            err => {
+        this.removeUserOTPProperties(err => {
+            if(err) {
                 return cb(err);
             }
-        );
+            return WebRegister.sendRegisterEmail(this.client.user, otpTypeProp, cb);
+        });
     }
 
     removeUserOTPProperties(cb) {
@@ -287,7 +217,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     }
 
     saveChangesDisable(cb) {
-        this.removeUserOTPProperties( err => {
+        this.removeUserOTPProperties(this.client.user, err => {
             if(err) {
                 return cb(err);
             }

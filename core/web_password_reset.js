@@ -133,7 +133,7 @@ class WebPasswordReset {
                         if(err) {
                             Log.warn( { error : err.message }, 'Failed sending password reset email' );
                         } else {
-                            Log.debug( { info : info }, 'Successfully sent password reset email');
+                            Log.info( { info : info }, 'Successfully sent password reset email');
                         }
 
                         return callback(err);

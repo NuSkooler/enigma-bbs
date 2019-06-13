@@ -15,7 +15,7 @@ exports.sendMail            = sendMail;
 function sendMail(message, cb) {
     const config = Config();
     if(!_.has(config, 'email.transport')) {
-        return cb(Errors.MissingConfig('Email "email::transport" configuration missing'));
+        return cb(Errors.MissingConfig('Email "email.transport" configuration missing'));
     }
 
     message.from = message.from || config.email.defaultFrom;

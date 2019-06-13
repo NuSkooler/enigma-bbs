@@ -306,6 +306,10 @@ function initialize(cb) {
                 const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
                 return WebPasswordReset.startup(callback);
             },
+            function ready2FA_OTPRegister(callback) {
+                const User2FA_OTPWebRegister = require('./user_2fa_otp_web_register.js');
+                return User2FA_OTPWebRegister.startup(callback);
+            },
             function readyEventScheduler(callback) {
                 const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
                 EventSchedulerModule.loadAndStart( (err, modInst) => {

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+        <title>Enable 2FA/OTP — ENiGMA½ BBS</title>
+        <meta name="description" content="Enable 2-Factor Authentication via One-Time-Password">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<script>
+			window.onload = function() {
+				//document.getElementById('password').onchange			= validatePassword;
+				//document.getElementById('confirm_password').onchange	= validatePassword;
+			}
+
+            /*
+			function validatePassword() {
+				var pw 		= document.getElementById('password');
+				var confirm	= document.getElementById('confirm_password');
+
+				if(pw.value !== confirm.value) {
+					confirm.setCustomValidity('Passwords must match!');
+				} else {
+					confirm.setCustomValidity('');
+				}
+            }
+            */
+		</script>
+	</head>
+	<body>
+	<form action="%POST_URL%" method="post">        
+        <legend>Enable One-Time-Password</legend>
+        <input type="text" placeholder="One Time Password" id="otp" name="otp" required>
+        <input type="hidden" value="%TOKEN%" name="token">
+        <input type="hidden" value="%OTP_TYPE%" name="otpType">
+		<button type="submit">Confirm</button>
+	</form>
+	</body>
+</html>

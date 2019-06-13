@@ -25,17 +25,17 @@ exports.WellKnownTokenTypes = {
     AuthFactor2OTPRegister    : 'auth_factor2_otp_register',
 };
 
-function createToken(userId, tokenType, cb) {
+function createToken(userId, tokenType, options = { bits : 128 }, cb) {
     async.waterfall(
         [
             (callback) => {
-                return crypto.randomBytes(256, callback);
+                return crypto.randomBytes(options.bits, callback);
             },
             (token, callback) => {
                 token = token.toString('hex');
 
                 UserDb.run(
-                    `INSERT INTO user_temporary_token (user_id, token, token_type, timestamp)
+                    `INSERT OR REPLACE INTO user_temporary_token (user_id, token, token_type, timestamp)
                     VALUES (?, ?, ?, ?);`,
                     [ userId, token, tokenType, getISOTimestampString() ],
                     err => {
