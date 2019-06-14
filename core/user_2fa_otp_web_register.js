@@ -3,11 +3,11 @@
 
 //  ENiGMA½
 const Config                = require('./config.js').get;
-const Errors                = require('./enig_error.js').Errors;
 const getServer             = require('./listening_server.js').getServer;
 const webServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
 const {
     createToken,
+    deleteToken,
     getTokenInfo,
     WellKnownTokenTypes,
 }                           = require('./user_temp_token.js');
@@ -145,7 +145,7 @@ module.exports = class User2FA_OTPWebRegister
                 );
             }
 
-            if(tokenInfo.tokenType !== 'auth_factor2_otp_register') {
+            if(tokenInfo.tokenType !== WellKnownTokenTypes.AuthFactor2OTPRegister) {
                 return User2FA_OTPWebRegister.accessDenied(webServer, resp);
             }
 
@@ -157,7 +157,7 @@ module.exports = class User2FA_OTPWebRegister
 
             prepareOTP(otpType, prepareOptions, (err, otpInfo) => {
                 if(err) {
-                    //  :TODO: Log error
+                    Log.error({ error : err.message }, 'Failed to prepare OTP');
                     return User2FA_OTPWebRegister.accessDenied(webServer, resp);
                 }
 
@@ -231,7 +231,13 @@ module.exports = class User2FA_OTPWebRegister
                     if(err) {
                         return webServer.instance.respondWithError(resp, 500, 'Internal Server Error', 'Internal Server Error');
                     }
-                    //  :TODO: remove token
+
+                    //  we can now remove the token - no need to wait
+                    deleteToken(formData.token, err => {
+                        if(err) {
+                            Log.error({error : err.message, token : formData.token}, 'Failed to delete temporary token');
+                        }
+                    });
 
                     //  :TODO: use a html template here too, if provided
                     resp.writeHead(200);

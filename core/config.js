@@ -1026,6 +1026,15 @@ function getDefaultConfig() {
                     args        : [ '24 hours' ]    //  items older than this will be removed
                 },
 
+                twoFactorRegisterTokenMaintenance : {
+                    schedule    : 'every 24 hours',
+                    action      : '@method:core/user_temp_token.js:temporaryTokenMaintenanceTask',
+                    args        : [
+                        'auth_factor2_otp_register',
+                        '24 hours', //  expire time
+                    ]
+                },
+
                 //
                 //  Enable the following entry in your config.hjson to periodically create/update
                 //  DESCRIPT.ION files for your file base
