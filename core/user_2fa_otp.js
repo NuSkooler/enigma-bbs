@@ -20,6 +20,7 @@ const crypto        = require('crypto');
 const qrGen         = require('qrcode-generator');
 
 exports.prepareOTP          = prepareOTP;
+exports.createBackupCodes   = createBackupCodes;
 exports.createQRCode        = createQRCode;
 exports.otpFromType         = otpFromType;
 exports.loginFactor2_OTP    = loginFactor2_OTP;
@@ -82,7 +83,7 @@ function generateOTPBackupCode() {
     return bits.join('-');
 }
 
-function generateNewBackupCodes() {
+function createBackupCodes() {
     const codes = [...Array(6)].map(() => generateOTPBackupCode());
     return codes;
 }
@@ -120,7 +121,7 @@ function createQRCode(otp, options, secret) {
             data    : qrCode.createDataURL,
             img     : qrCode.createImgTag,
             svg     : qrCode.createSvgTag,
-        }[options.qrType]();
+        }[options.qrType](options.cellSize);
     } catch(e) {
         return;
     }
@@ -141,10 +142,9 @@ function prepareOTP(otpType, options, cb) {
         otp.generateSecret() :
         crypto.randomBytes(64).toString('base64').substr(0, 32);
 
-    const backupCodes   = generateNewBackupCodes();
-    const qr            = createQRCode(otp, options, secret);
+    const qr = createQRCode(otp, options, secret);
 
-    return cb(null, { secret, backupCodes, qr } );
+    return cb(null, { secret, qr } );
 }
 
 function loginFactor2_OTP(client, token, cb) {

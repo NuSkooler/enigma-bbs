@@ -11,6 +11,11 @@ const {
     getTokenInfo,
     WellKnownTokenTypes,
 }                           = require('./user_temp_token.js');
+const {
+    prepareOTP,
+    createBackupCodes,
+    otpFromType,
+}                           = require('./user_2fa_otp.js');
 const { sendMail }          = require('./email.js');
 const UserProps             = require('./user_property.js');
 const Log                   = require('./logger.js').log;
@@ -70,7 +75,7 @@ module.exports = class User2FA_OTPWebRegister
                 (token, textTemplate, htmlTemplate, callback) => {
                     const webServer = getWebServer();
                     const registerUrl = webServer.instance.buildUrl(
-                        `/enable_2fa_otp?token=&otpType=${otpType}&token=${token}`
+                        `/enable_2fa_otp?token=${token}&otpType=${otpType}`
                     );
 
                     const replaceTokens = (s) => {
@@ -133,36 +138,48 @@ module.exports = class User2FA_OTPWebRegister
         getTokenInfo(token, (err, tokenInfo) => {
             if(err) {
                 //  assume expired
-                return webServer.instance.respondWithError(resp, 410, 'Invalid or expired registration link.', 'Expired Link');
+                return webServer.instance.respondWithError(
+                    resp,
+                    410,
+                    'Invalid or expired registration link.', 'Expired Link'
+                );
             }
 
             if(tokenInfo.tokenType !== 'auth_factor2_otp_register') {
                 return User2FA_OTPWebRegister.accessDenied(webServer, resp);
             }
 
-            const qrImg = '';   //  :TODO: fix me
-            const secret = '';
-            const backupCodes = '';
+            const prepareOptions = {
+                qrType      : 'data',
+                cellSize    : 8,
+                username    : tokenInfo.user.username,
+            };
 
-            const postUrl = webServer.instance.buildUrl('/enable_2fa_otp');
-            const config = Config();
-            return webServer.instance.routeTemplateFilePage(
-                _.get(config, 'users.twoFactorAuth.otp.registerPageTemplate'),
-                (templateData, next) => {
-                    const finalPage = templateData
-                        .replace(/%BOARDNAME%/g,    config.general.boardName)
-                        .replace(/%USERNAME%/g,     tokenInfo.user.username)
-                        .replace(/%TOKEN%/g,        token)
-                        .replace(/%OTP_TYPE%/g,     otpType)
-                        .replace(/%POST_URL%/g,     postUrl)
-                        .replace(/%QR_IMG%/g,       qrImg)
-                        .replace(/%SECRET%/g,       secret)
-                        .replace(/%BACKUP_CODES%/g, backupCodes)
-                    ;
-                    return next(null, finalPage);
-                },
-                resp
-            );
+            prepareOTP(otpType, prepareOptions, (err, otpInfo) => {
+                if(err) {
+                    //  :TODO: Log error
+                    return User2FA_OTPWebRegister.accessDenied(webServer, resp);
+                }
+
+                const postUrl = webServer.instance.buildUrl('/enable_2fa_otp');
+                const config = Config();
+                return webServer.instance.routeTemplateFilePage(
+                    _.get(config, 'users.twoFactorAuth.otp.registerPageTemplate'),
+                    (templateData, next) => {
+                        const finalPage = templateData
+                            .replace(/%BOARDNAME%/g,    config.general.boardName)
+                            .replace(/%USERNAME%/g,     tokenInfo.user.username)
+                            .replace(/%TOKEN%/g,        token)
+                            .replace(/%OTP_TYPE%/g,     otpType)
+                            .replace(/%POST_URL%/g,     postUrl)
+                            .replace(/%QR_IMG_DATA%/g,  otpInfo.qr)
+                            .replace(/%SECRET%/g,       otpInfo.secret)
+                        ;
+                        return next(null, finalPage);
+                    },
+                    resp
+                );
+            });
         });
     }
 
@@ -181,13 +198,52 @@ module.exports = class User2FA_OTPWebRegister
         req.on('end', () => {
             const formData = querystring.parse(bodyData);
 
-            const config = Config();
-            if(!formData.token || !formData.otpType || !formData.otp) {
+            if(!formData.token || !formData.otpType || !formData.otp ||
+                !formData.secret)
+            {
                 return badRequest();
             }
-        });
 
-        return webServer.instance.respondWithError(resp, 410, 'Invalid or expired registration link.', 'Expired Link');
+            const otp = otpFromType(formData.otpType);
+            if(!otp) {
+                return badRequest();
+            }
+
+            const valid = otp.verify( { token : formData.otp, secret : formData.secret } );
+            if(!valid) {
+                return User2FA_OTPWebRegister.accessDenied(webServer, resp);
+            }
+
+            getTokenInfo(formData.token, (err, tokenInfo) => {
+                if(err) {
+                    return User2FA_OTPWebRegister.accessDenied(webServer, resp);
+                }
+
+                const backupCodes = createBackupCodes();
+
+                const props = {
+                    [ UserProps.AuthFactor2OTP ]            : formData.otpType,
+                    [ UserProps.AuthFactor2OTPSecret ]      : formData.secret,
+                    [ UserProps.AuthFactor2OTPBackupCodes ] : JSON.stringify(backupCodes),
+                };
+
+                tokenInfo.user.persistProperties(props, err => {
+                    if(err) {
+                        return webServer.instance.respondWithError(resp, 500, 'Internal Server Error', 'Internal Server Error');
+                    }
+                    //  :TODO: remove token
+
+                    //  :TODO: use a html template here too, if provided
+                    resp.writeHead(200);
+                    return resp.end(
+                        `2-Factor Authentication via One-Time-Password has been enabled for this account. Please write down your backup codes and store them in safe place:
+
+${backupCodes}
+                        `
+                    );
+                });
+            });
+        });
     }
 
     static registerRoutes(cb) {

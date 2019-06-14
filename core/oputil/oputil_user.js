@@ -370,6 +370,7 @@ function twoFactorAuthOTP(user) {
     const {
         OTPTypes,
         prepareOTP,
+        createBackupCodes,
     } = require('../../core/user_2fa_otp.js');
 
     let otpType = argv._[argv._.length - 1];
@@ -414,7 +415,7 @@ function twoFactorAuthOTP(user) {
                     qrType      : argv['qr-type'] || 'ascii',
                 };
                 prepareOTP(otpType, otpOpts, (err, otpInfo) => {
-                    return callback(err, Object.assign(otpInfo, { otpType }));
+                    return callback(err, Object.assign(otpInfo, { otpType, backupCodes : createBackupCodes() }));
                 });
             },
             function storeOrDisplayQR(otpInfo, callback) {
