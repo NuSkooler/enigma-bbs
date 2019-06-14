@@ -123,7 +123,7 @@ function createQRCode(otp, options, secret) {
             svg     : qrCode.createSvgTag,
         }[options.qrType](options.cellSize);
     } catch(e) {
-        return;
+        return '';
     }
 }
 

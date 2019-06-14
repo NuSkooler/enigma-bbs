@@ -19,6 +19,9 @@ const {
 const { sendMail }          = require('./email.js');
 const UserProps             = require('./user_property.js');
 const Log                   = require('./logger.js').log;
+const {
+    getConnectionByUserId
+}                           = require('./client_connections.js');
 
 //  deps
 const async                 = require('async');
@@ -104,7 +107,7 @@ module.exports = class User2FA_OTPWebRegister
                         if(err) {
                             Log.warn({ error : err.message }, 'Failed sending 2FA/OTP register email');
                         } else {
-                            Log.info( { info }, 'Successfully sent 2FA/OTP register email');
+                            Log.info({ info }, 'Successfully sent 2FA/OTP register email');
                         }
                         return callback(err);
                     });
@@ -172,7 +175,7 @@ module.exports = class User2FA_OTPWebRegister
                             .replace(/%TOKEN%/g,        token)
                             .replace(/%OTP_TYPE%/g,     otpType)
                             .replace(/%POST_URL%/g,     postUrl)
-                            .replace(/%QR_IMG_DATA%/g,  otpInfo.qr)
+                            .replace(/%QR_IMG_DATA%/g,  otpInfo.qr || '')
                             .replace(/%SECRET%/g,       otpInfo.secret)
                         ;
                         return next(null, finalPage);
@@ -232,6 +235,17 @@ module.exports = class User2FA_OTPWebRegister
                         return webServer.instance.respondWithError(resp, 500, 'Internal Server Error', 'Internal Server Error');
                     }
 
+                    //
+                    //  User may be online still - find account & update it if so
+                    //
+                    const clientConn = getConnectionByUserId(tokenInfo.user.userId);
+                    if(clientConn && clientConn.user) {
+                        //  just update live props, we've already persisted them.
+                        _.each(props, (v, n) => {
+                            clientConn.user.setProperty(n, v);
+                        });
+                    }
+
                     //  we can now remove the token - no need to wait
                     deleteToken(formData.token, err => {
                         if(err) {
@@ -261,7 +275,7 @@ ${backupCodes}
         [
             {
                 method  : 'GET',
-                path    : '^\\/enable_2fa_otp\\?token\\=[a-f0-9]+&otpType\\=[a-zA-Z0-9]+$',
+                path    : '^\\/enable_2fa_otp\\?token\\=[a-f0-9]+&otpType\\=[a-zA-Z0-9_]+$',
                 handler : User2FA_OTPWebRegister.routeRegisterGet,
             },
             {

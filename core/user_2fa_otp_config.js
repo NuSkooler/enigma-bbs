@@ -8,11 +8,11 @@ const {
     OTPTypes,
     otpFromType,
     createQRCode,
+    createBackupCodes,
 }                           = require('./user_2fa_otp.js');
 const { Errors }            = require('./enig_error.js');
 const { getServer }         = require('./listening_server.js');
 const WebServerPackageName  = require('./servers/content/web.js').moduleInfo.packageName;
-const Config                = require('./config.js').get;
 const WebRegister           = require('./user_2fa_otp_web_register.js');
 
 //  deps
@@ -42,6 +42,11 @@ const MciViewIds = {
 const DefaultMsg = {
     otpNotEnabled   : '2FA/OTP is not currently enabled for this account.',
     noBackupCodes   : 'No backup codes remaining or set.',
+    saveDisabled    : '2FA/OTP is now disabled for this account.',
+    saveEmailSent   : 'An 2FA/OTP registration email has been sent with further instructions.',
+    saveError       : 'Failed to send email. Please contact the system operator.',
+    qrNotAvail      : 'QR code not available for this OTP type.',
+    emailRequired   : 'Your account must have a valid email address set to use this feature.',
 };
 
 exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
@@ -58,6 +63,9 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
             },
             showBackupCodes : (formData, extraArgs, cb) => {
                 return this.showBackupCodes(cb);
+            },
+            generateNewBackupCodes : (formData, extraArgs, cb) => {
+                return this.generateNewBackupCodes(cb);
             },
             saveChanges : (formData, extraArgs, cb) => {
                 return this.saveChanges(formData, cb);
@@ -153,11 +161,18 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                 username    : this.client.user.username,
                 qrType      : 'ascii',
             };
+
             qrCode = createQRCode(
                 otp,
                 qrOptions,
                 this.client.user.getProperty(UserProps.AuthFactor2OTPSecret)
-            ).replace(/\n/g, '\r\n');
+            );
+
+            if(qrCode) {
+                qrCode = qrCode.replace(/\n/g, '\r\n');
+            } else {
+                qrCode = this.config.qrNotAvail || DefaultMsg.qrNotAvail;
+            }
         }
 
         return this.displayDetails(qrCode, cb);
@@ -186,24 +201,66 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         return this.displayDetails(info, cb);
     }
 
+    generateNewBackupCodes(cb) {
+        if(!this.isOTPEnabledForUser()) {
+            const info = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+            return this.displayDetails(info, cb);
+        }
+
+        const backupCodes = createBackupCodes();
+        this.client.user.persistProperty(
+            UserProps.AuthFactor2OTPBackupCodes,
+            JSON.stringify(backupCodes),
+            err => {
+                if(err) {
+                    return cb(err);
+                }
+                const info = backupCodes.join(', ');
+                return this.displayDetails(info, cb);
+            }
+        );
+    }
+
     saveChanges(formData, cb) {
         const enabled = 1 === _.get(formData, 'value.enableToggle', 0);
         return enabled ? this.saveChangesEnable(formData, cb) : this.saveChangesDisable(cb);
     }
 
     saveChangesEnable(formData, cb) {
+        //  User must have an email address set to save
+        const emailRegExp = /[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
+        const emailAddr = this.client.user.getProperty(UserProps.EmailAddress);
+        if(!emailAddr || !emailRegExp.test(emailAddr)) {
+            const info = this.config.emailRequired || DefaultMsg.emailRequired;
+            return this.displayDetails(info, cb);
+        }
+
         const otpTypeProp = this.otpTypeFromOTPTypeIndex(_.get(formData, 'value.otpType'));
+
+        const saveFailedError = (err) => {
+            const info = this.config.saveError || DefaultMsg.saveError;
+            this.displayDetails(info, () => {
+                return cb(err);
+            });
+        };
 
         //  sanity check
         if(!otpFromType(otpTypeProp)) {
-            return cb(Errors.Invalid('Cannot convert selected index to valid OTP type'));
+            return saveFailedError(Errors.Invalid('Cannot convert selected index to valid OTP type'));
         }
 
         this.removeUserOTPProperties(err => {
             if(err) {
-                return cb(err);
+                return saveFailedError(err);
             }
-            return WebRegister.sendRegisterEmail(this.client.user, otpTypeProp, cb);
+            WebRegister.sendRegisterEmail(this.client.user, otpTypeProp, err => {
+                if(err) {
+                    return saveFailedError(err);
+                }
+
+                const info = this.config.saveEmailSent || DefaultMsg.saveEmailSent;
+                return this.displayDetails(info, cb);
+            });
         });
     }
 
@@ -217,18 +274,18 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     }
 
     saveChangesDisable(cb) {
-        this.removeUserOTPProperties(this.client.user, err => {
+        this.removeUserOTPProperties(err => {
             if(err) {
                 return cb(err);
             }
 
-            //  :TODO: show "saved+disabled" art/message -> prevMenu
-            return cb(null);
+            const info = this.config.saveDisabled || DefaultMsg.saveDisabled;
+            return this.displayDetails(info, cb);
         });
     }
 
     isOTPEnabledForUser() {
-        return this.otpTypeIndexFromUserOTPType(-1) != -1;
+        return this.client.user.getProperty(UserProps.AuthFactor2OTP) ? true : false;
     }
 
     getInfoText(key) {
