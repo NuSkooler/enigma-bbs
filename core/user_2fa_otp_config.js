@@ -40,13 +40,22 @@ const MciViewIds = {
 };
 
 const DefaultMsg = {
-    otpNotEnabled   : '2FA/OTP is not currently enabled for this account.',
-    noBackupCodes   : 'No backup codes remaining or set.',
-    saveDisabled    : '2FA/OTP is now disabled for this account.',
-    saveEmailSent   : 'An 2FA/OTP registration email has been sent with further instructions.',
-    saveError       : 'Failed to send email. Please contact the system operator.',
-    qrNotAvail      : 'QR code not available for this OTP type.',
-    emailRequired   : 'Your account must have a valid email address set to use this feature.',
+    infoText: {
+        disabled        : 'Enabling 2-Factor Authentication via One-Time-Password can greatly increase the security of your account.',
+        enabled         : 'A valid email address set in user config is required to enable 2-Factor Authentication.',
+        rfc6238_TOTP    : 'Time-Based One-Time-Password (TOTP, RFC-6238).',
+        rfc4266_HOTP    : 'HMAC-Based One-Time-Passowrd (HOTP, RFC-4266).',
+        googleAuth      : 'Google Authenticator.',
+    },
+    statusText : {
+        otpNotEnabled   : '2FA/OTP is not currently enabled for this account.',
+        noBackupCodes   : 'No backup codes remaining or set.',
+        saveDisabled    : '2FA/OTP is now disabled for this account.',
+        saveEmailSent   : 'An 2FA/OTP registration email has been sent with further instructions.',
+        saveError       : 'Failed to send email. Please contact the system operator.',
+        qrNotAvail      : 'QR code not available for this OTP type.',
+        emailRequired   : 'Your account must have a valid email address set to use this feature.',
+    }
 };
 
 exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
@@ -155,7 +164,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
 
         let qrCode;
         if(!otp) {
-            qrCode = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+            qrCode = this.getStatusText('otpNotEnabled');
         } else {
             const qrOptions = {
                 username    : this.client.user.username,
@@ -171,7 +180,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
             if(qrCode) {
                 qrCode = qrCode.replace(/\n/g, '\r\n');
             } else {
-                qrCode = this.config.qrNotAvail || DefaultMsg.qrNotAvail;
+                qrCode = this.getStatusText('qrNotAvail');
             }
         }
 
@@ -181,15 +190,15 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     showSecret(cb) {
         const info =
             this.client.user.getProperty(UserProps.AuthFactor2OTPSecret) ||
-            this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+            this.getStatusText('otpNotEnabled');
         return this.displayDetails(info, cb);
     }
 
     showBackupCodes(cb) {
         let info;
-        const noBackupCodes = this.config.noBackupCodes || DefaultMsg.noBackupCodes;
+        const noBackupCodes = this.getStatusText('noBackupCodes');
         if(!this.isOTPEnabledForUser()) {
-            info = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+            info = this.getStatusText('otpNotEnabled');
         } else {
             try {
                 info = JSON.parse(this.client.user.getProperty(UserProps.AuthFactor2OTPBackupCodes) || '[]').join(', ');
@@ -203,7 +212,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
 
     generateNewBackupCodes(cb) {
         if(!this.isOTPEnabledForUser()) {
-            const info = this.config.otpNotEnabled || DefaultMsg.otpNotEnabled;
+            const info = this.getStatusText('otpNotEnabled');
             return this.displayDetails(info, cb);
         }
 
@@ -231,14 +240,14 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
         const emailRegExp = /[a-z0-9!#$%&'*+/=?^_`{|}~.-]+@[a-z0-9-]+(.[a-z0-9-]+)*/;
         const emailAddr = this.client.user.getProperty(UserProps.EmailAddress);
         if(!emailAddr || !emailRegExp.test(emailAddr)) {
-            const info = this.config.emailRequired || DefaultMsg.emailRequired;
+            const info = this.getStatusText('emailRequired');
             return this.displayDetails(info, cb);
         }
 
         const otpTypeProp = this.otpTypeFromOTPTypeIndex(_.get(formData, 'value.otpType'));
 
         const saveFailedError = (err) => {
-            const info = this.config.saveError || DefaultMsg.saveError;
+            const info = this.getStatusText('saveError');
             this.displayDetails(info, () => {
                 return cb(err);
             });
@@ -258,7 +267,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                     return saveFailedError(err);
                 }
 
-                const info = this.config.saveEmailSent || DefaultMsg.saveEmailSent;
+                const info = this.getStatusText('saveEmailSent');
                 return this.displayDetails(info, cb);
             });
         });
@@ -279,7 +288,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
                 return cb(err);
             }
 
-            const info = this.config.saveDisabled || DefaultMsg.saveDisabled;
+            const info = this.getStatusText('saveDisabled');
             return this.displayDetails(info, cb);
         });
     }
@@ -289,7 +298,11 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
     }
 
     getInfoText(key) {
-        return _.get(this.config, [ 'infoText', key ], '');
+        return _.get(this.config, [ 'infoText', key ], DefaultMsg.infoText[key]);
+    }
+
+    getStatusText(key) {
+        return _.get(this.config, [ 'statusText', key ], DefaultMsg.statusText[key]);
     }
 
     enableToggleUpdate(idx) {
