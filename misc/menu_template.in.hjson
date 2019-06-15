@@ -60,11 +60,20 @@
 
         //
         //  SSH connections are pre-authenticated via the SSH server itself.
-        //  Jump directly to the login sequence
+        //  Jump directly to either the 2FA/OTP auth or the login sequence
+        //  depending on user ACS.
         //
         sshConnected: {
             art: CONNECT
-            next: fullLoginSequenceLoginArt
+            next: [
+                {
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: mainMenu
+                }
+            ]
             config: { nextTimeout: 1500 }
         }
 
@@ -90,11 +99,6 @@
                                 submit: true
                                 focus:  true
                                 argName: navSelect
-                                //
-                                //  To enable forgot password, you will need to have the web server
-                                //  enabled and mail/SMTP configured. Once that is in place, swap out
-                                //  the commented lines below as well as in the submit block
-                                //
                                 items: [
                                     {
                                         text: login
@@ -104,10 +108,20 @@
                                         text: apply
                                         data: apply
                                     }
+
+                                    //
+                                    //  To enable the forgot password option, you'll need to have
+                                    //  the web server & email configured. Once that is in place,
+                                    //  uncomment the section below.
+                                    //
+                                    //  See docs for more information
+                                    //
+                                    /*
                                     {
                                         text: forgot pass
                                         data: forgot
                                     }
+                                    */
                                     {
                                         text: log off
                                         data: logoff
@@ -142,7 +156,20 @@
 
         login: {
             art: USERLOG
-            next: fullLoginSequenceLoginArt
+            next: [
+                {
+                    //
+                    //  Users with 2FA/OTP enabled *must* go through
+                    //  an additional OTP authentication step
+                    //
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    //  ...everyone else can carry on as per usual
+                    next: fullLoginSequenceLoginArt
+                }
+            ]
             config: {
                 tooNodeMenu: loginAttemptTooNode
                 inactive: loginAttemptAccountInactive
@@ -216,6 +243,46 @@
                 nextTimeout: 2000
             }
             next: logoff
+        }
+
+        //
+        //  Empty menu to catch us in a 2FA/OTP auth loop
+        //  until the user either authenticates successfully
+        //  or the system boots them.
+        //
+        loginTwoFactorAuthOTPLoop: {
+            next: loginTwoFactorAuthOTP
+        }
+
+        loginTwoFactorAuthOTP: {
+            art: 2FAOTP
+            next: fullLoginSequenceLoginArt
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
         }
 
         forgotPassword: {
