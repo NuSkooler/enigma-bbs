@@ -38,7 +38,7 @@ The following are ACS codes available as of this writing:
 | AC<i>achievementCount</i> | User has >= _achievementCount_ achievements |
 | AP<i>achievementPoints</i> | User has >= _achievementPoints_ achievement points |
 | AF<i>authFactor</i> | User's current *Authentication Factor* is >= _authFactor_. Authentication factor 1 refers to username + password (or PubKey) while factor 2 refers to 2FA such as One-Time-Password authentication. |
-| AR<i>authFactorReq</i> | Current users **requires** an Authentication Factor >= _authFactorReq_ |
+| AR<i>authFactorReq</i> | Current user **requires** an Authentication Factor >= _authFactorReq_ |
 
 ## ACS Strings
 ACS strings are one or more ACS codes in addition to some basic language semantics. 

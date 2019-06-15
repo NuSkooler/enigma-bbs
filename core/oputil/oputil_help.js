@@ -161,7 +161,7 @@ General Information:
     MessageBase :
 `usage: oputil.js mb <action> [<arguments>]
 
-actions:
+Actions:
   areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
 
   NetMail is sent to supplied address  with the supplied command(s). Multi-part commands

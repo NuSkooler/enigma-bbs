@@ -9,17 +9,17 @@ Let's look the main help output as per this writing:
 
 ```
 usage: oputil.js [--version] [--help]
-                  <command> [<args>]
+                  <command> [<arguments>]
 
-global args:
-  -c, --config PATH         specify config path (./config/)
-  -n, --no-prompt           assume defaults/don't prompt for input where possible
+Global arguments:
+  -c, --config PATH         Specify config path (default is ./config/)
+  -n, --no-prompt           Assume defaults (don't prompt for input where possible)
 
-commands:
-  user                      user utilities
-  config                    config file management
-  fb                        file base management
-  mb                        message base management
+Commands:
+  user                      User management
+  config                    Configuration management
+  fb                        File base management
+  mb                        Message base management
 ```
 
 Commands break up operations by groups:
@@ -41,21 +41,55 @@ Type `./oputil.js <command> --help` for additional help on a particular command.
 The `user` command covers various user operations.
 
 ```
-usage: oputil.js user <action> [<args>]
+usage: oputil.js user <action> [<arguments>]
 
-actions:
-  info USERNAME                display information about a user
-  pw USERNAME PASSWORD         set a user's password
-                               aliases: password, passwd
-  rm USERNAME                  permanently removes user from system
-                               aliases: remove, delete, del
-  rename USERNAME NEWNAME      rename a user
-                               aliases: mv
-  activate USERNAME            set status to active
-  deactivate USERNAME          set status to inactive
-  disable USERNAME             set status to disabled
-  lock USERNAME                set status to locked
-  group USERNAME [+|-]GROUP    adds (+) or removes (-) user from a group
+Actions:
+  info USERNAME                Display information about a user
+
+  pw USERNAME PASSWORD         Set a user's password
+  (passwd|password)
+
+  rm USERNAME                  Permanently removes user from system
+  (del|delete|remove)
+
+  rename USERNAME NEWNAME      Rename a user
+  (mv)
+
+  2fa-otp USERNAME SPEC        Enable 2FA/OTP for the user
+  (otp)
+
+  The system supports various implementations of Two Factor Authentication (2FA)
+  One Time Password (OTP) authentication.
+
+  Valid specs:
+    disable : Removes 2FA/OTP from the user
+    google  : Google Authenticator
+    hotp    : HMAC-Based One-Time Password Algorithm (RFC-4266)
+    totp    : Time-Based One-Time Password Algorithm (RFC-6238)
+
+  activate USERNAME            Set a user's status to "active"
+
+  deactivate USERNAME          Set a user's status to "inactive"
+
+  disable USERNAME             Set a user's status to "disabled"
+
+  lock USERNAME                Set a user's status to "locked"
+
+  group USERNAME [+|-]GROUP    Adds (+) or removes (-) user from a group
+
+info arguments:
+  --security                   Include security information in output
+
+2fa-otp arguments:
+  --qr-type TYPE               Specify QR code type
+
+  Valid QR types:
+    ascii : Plain ASCII (default)
+    data  : HTML data URL
+    img   : HTML image tag
+    svg   : SVG image
+
+  --out PATH                   Path to write QR code to. defaults to stdout
 ```
 
 | Action    | Description       | Examples                              | Aliases   |
@@ -64,25 +98,30 @@ actions:
 | `pw`        | Set password      | `./oputil.js user pw joeuser s3cr37`  | `passwd`, `password` |
 | `rm`        | Removes user      | `./oputil.js user del joeuser`        | `remove`, `del`, `delete` |
 | `rename` | Renames a user | `./oputil.js user rename joeuser joe` | `mv` |
+| `2fa-otp` | Manage 2FA/OTP for a user | `./oputil.js user 2fa-otp joeuser googleAuth` | `otp`
 | `activate` | Activates user    | `./oputil.js user activate joeuser`   | N/A   |
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |
 | `lock` | Locks the user account (prevents logins) | `./oputil.js user lock joeuser` | N/A |
 | `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser -derp`   | N/A    |
 
+#### Manage 2FA/OTP
+While `oputil.js` can be used to manage a user's 2FA/OTP, it is highly recommended to require users to opt-in themselves. See [Security](/docs/configuration/security.md) for details.
+
 ## Configuration
 The `config` command allows sysops to perform various system configuration and maintenance tasks.
 
 ```
-usage: oputil.js config <action> [<args>]
+usage: oputil.js config <action> [<arguments>]
 
-actions:
-  new                      generate a new/initial configuration  
-  cat                      cat current configuration to stdout
+Actions:
+  new                      Generate a new / default configuration
 
-cat args:
-  --no-color               disable color
-  --no-comments            strip any comments
+  cat                      Write current configuration to stdout
+
+cat arguments:
+  --no-color               Disable color
+  --no-comments            Strip any comments
 ```
 
 | Action    | Description       | Examples                              |
@@ -94,56 +133,75 @@ cat args:
 The `fb` command provides a powerful file base management interface.
 
 ```
-usage: oputil.js fb <action> [<args>]
+usage: oputil.js fb <action> [<arguments>]
 
-actions:
-  scan AREA_TAG[@STORAGE_TAG]  scan specified area
-                               may also contain optional GLOB as last parameter,
-                               for example: scan some_area *.zip
+Actions:
+  scan AREA_TAG[@STORAGE_TAG]  Scan specified area
 
-  info CRITERIA                display information about areas and/or files
-                               matching CRITERIA.
+  May contain optional GLOB as last parameter.
+  Example: ./oputil.js fb scan d0pew4r3z *.zip
 
-  mv SRC [SRC...] DST          move entry(s) from SRC to DST
-                               SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
-                               DST: AREA_TAG[@STORAGE_TAG]
+  info CRITERIA                Display information about areas and/or files
 
-  rm SRC [SRC...]              remove entry(s) from the system matching SRC
-                               SRC: FILENAME_WC|SHA|FILE_ID|AREA_TAG[@STORAGE_TAG]
-  desc CRITERIA                sets a new file description for file base entry
-                               matching CRITERIA. Launches an external editor using
-                               $VISUAL, $EDITOR, or vim/notepad.
-  import-areas FILEGATE.ZXX    import file base areas using FileGate RAID type format
+  mv SRC [SRC...] DST          Move matching entry(s)
+  (move)
 
-scan args:
-  --tags TAG1,TAG2,...         specify tag(s) to assign to discovered entries
+  Source may be any of the following:
+    - Filename including '*' wildcards
+    - SHA-1
+    - File ID
+    - Area tag with optional @storageTag suffix
+  Destination is area tag with optional @storageTag suffix
 
-  --desc-file [PATH]           prefer file descriptions from supplied path over other
-                               other sources such as FILE_ID.DIZ. Path must point to
-                               a valid FILES.BBS or DESCRIPT.ION file.
-  --update                     attempt to update information for existing entries
-  --quick                      perform quick scan
+  rm SRC [SRC...]              Remove entry(s) from the system
+  (del|delete|remove)
 
-info args:
-  --show-desc                  display short description, if any
+  Source may be any of the following:
+    - Filename including '*' wildcards
+    - SHA-1
+    - File ID
+    - Area tag with optional @storageTag suffix
 
-remove args:
-  --phys-file                  also remove underlying physical file
+  desc CRITERIA                Updates an file base entry's description
 
-import-areas args:
-  --type TYPE                  sets import areas type. valid options are "zxx" or "na"
-  --create-dirs                create backing storage directories
+  Launches an external editor using $VISUAL, $EDITOR, or vim/notepad.
 
-general information:
-  AREA_TAG[@STORAGE_TAG]       can specify an area tag and optionally, a storage specific tag
-                               example: retro@bbs
+  import-areas FILEGATE.ZXX    Import file base areas using FileGate RAID type format
 
-  CRITERIA                     file base entry criteria. in general, can be AREA_TAG, SHA,
-                               FILE_ID, or FILENAME_WC.
-  
-  FILENAME_WC                  filename with * and ? wildcard support. may match 0:n entries
-  SHA                          full or partial SHA-256
-  FILE_ID                      a file identifier. see file.sqlite3
+scan arguments:
+  --tags TAG1,TAG2,...         Specify hashtag(s) to assign to discovered entries
+
+  --desc-file [PATH]           Prefer file descriptions from supplied input file
+
+  If a file description can be found in the supplied input file, prefer that description
+  over other sources such related FILE_ID.DIZ. Path must point to a valid FILES.BBS or
+  DESCRIPT.ION file.
+
+  --update                     Attempt to update information for existing entries
+  --full-scan                  Perform a full scan (default is quick)
+
+info arguments:
+  --show-desc                  Display short description, if any
+
+remove arguments:
+  --phys-file                  Also remove underlying physical file
+
+import-areas arguments:
+  --type TYPE                  Sets import areas type
+
+  Valid types are are "zxx" or "na".
+
+  --create-dirs                Also create backing storage directories
+
+General Information:
+  Generally an area tag can also include an optional storage tag. For example, the
+  area of 'bbswarez' stored using 'bbswarez_main': bbswarez@bbswarez_main
+
+  When performing an initial import of a large area or storage backing, --full-scan
+  is the best option. If re-scanning an area for updates a standard / quick scan is
+  generally good enough.
+
+  File ID's are those found in file.sqlite3.
 ```
 
 #### Scan File Area
@@ -152,7 +210,8 @@ The `scan` action can (re)scan a file area for new entries as well as update (`-
 ##### Examples
 Performing a quick scan of a specific area's storage location ("retro_warez", "retro_warez_games) matching only *.zip extensions:
 ```bash
-$ ./oputil.js fb scan --quick retro_warez@retro_warez_games *.zip`
+# note that we must quote the wildcard to prevent shell expansion
+$ ./oputil.js fb scan --quick retro_warez@retro_warez_games "*.zip"`
 ```
 
 Update all entries in the "artscene" area supplying the file tags "artscene", and "textmode".
@@ -221,19 +280,23 @@ The above command will process FILEGATE.ZXX creating areas and backing directori
 The `mb` command provides various Message Base related tools:
 
 ```
-usage: oputil.js mb <action> [<args>]
+usage: oputil.js mb <action> [<arguments>]
 
-actions:
-  areafix CMD1 CMD2 ... ADDR  sends an AreaFix NetMail to ADDR with the supplied command(s)
-                              one or more commands may be supplied. commands that are multi
-                              part such as "%COMPRESS ZIP" should be quoted.
-  import-areas PATH           import areas using fidonet *.NA or AREAS.BBS file from PATH
+Actions:
+  areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
 
-import-areas args:
-  --conf CONF_TAG             conference tag in which to import areas
-  --network NETWORK           network name/key to associate FTN areas
-  --uplinks UL1,UL2,...       one or more comma separated uplinks
-  --type TYPE                 area import type. valid options are "bbs" and "na"
+  NetMail is sent to supplied address  with the supplied command(s). Multi-part commands
+  such as "%COMPRESS ZIP" should be quoted.
+
+  import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
+
+import-areas arguments:
+  --conf CONF_TAG             Conference tag in which to import areas
+  --network NETWORK           Network name/key to associate FTN areas
+  --uplinks UL1,UL2,...       One or more uplinks (comma separated)
+  --type TYPE                 Area import type
+
+  Valid types are "bbs" and "na"
 ```
 
 | Action    | Description       | Examples                              |
