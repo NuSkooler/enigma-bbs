@@ -51,3 +51,23 @@ The following MCI codes are available:
 * MCI 3: (ie: `TM3`): Submit/cancel toggle.
 * MCI 10...99: Custom entries with the following format members available:
     * `{infoText}`: **Info Text** for current selection.
+
+### Web and Email Templates
+A template system is also available to customize registration emails and the landing page.
+
+#### Emails
+Multipart MIME emails are send built using template files pointed to by `users.twoFactorAuth.otp.registerEmailText` and `users.toFactorAuth.otp.registerEmailHtml` supporting the following variables:
+* `%BOARDNAME%`: BBS name.
+* `%USERNAME%`: Username receiving email.
+* `%TOKEN%`: Temporary registration token generally used in URL.
+* `%REGISTER_URL%`: Full registration URL.
+
+#### Landing Page
+The landing page template is pointed to by `users.twoFactorAuth.otp.registerPageTemplate` and supports the following variables:
+* `%BOARDNAME%`: BBS name.
+* `%USERNAME%`: Username receiving email.
+* `%TOKEN%`: Temporary registration token generally used in URL.
+* `%OTP_TYPE%`: OTP type such as `googleAuth`.
+* `%POST_URL%`: URL to POST form to.
+* `%QR_IMG_DATA%`: QR code in URL image data format. Not always available depending on OTP type and will be set to blank in these cases.
+* `%SECRET%`: Secret for manual entry.
