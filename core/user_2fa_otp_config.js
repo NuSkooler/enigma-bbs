@@ -153,7 +153,7 @@ exports.getModule = class User2FA_OTPConfigModule extends MenuModule {
             }
         };
         this.gotoMenu(
-            this.menuConfig.config.user2FAOTP_ShowDetails || 'user2FAOTP_ShowDetails',
+            this.menuConfig.config.userTwoFactorAuthOTPConfigShowDetails || 'userTwoFactorAuthOTPConfigShowDetails',
             modOpts,
             cb
         );

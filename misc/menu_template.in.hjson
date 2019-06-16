@@ -1304,6 +1304,19 @@
         userTwoFactorAuthOTPSecConnRequired: {
             desc: Insecure Warning
             art: 2FAOTPSECREQ
+            config: {
+                cls: true
+                pause: true
+            }
+        }
+
+        userTwoFactorAuthOTPConfigShowDetails: {
+            desc: 2FA/OTP Details
+            module: show_art
+            config: {
+                pause: true
+                method: extraArgs
+            }
         }
 
         nodeMessage: {
