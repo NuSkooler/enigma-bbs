@@ -172,7 +172,8 @@ function handleAction(client, formData, conf, cb) {
         return cb(Errors.MissingParam('Missing config'));
     }
 
-    const actionAsset = asset.parseAsset(conf.action);
+    const action = client.acs.getConditionalValue(conf.action, 'action');    //  handle any conditionals
+    const actionAsset = asset.parseAsset(action);
     if(!_.isObject(actionAsset)) {
         return cb(Errors.Invalid('Unable to parse "conf.action"'));
     }

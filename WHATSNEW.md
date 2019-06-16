@@ -10,6 +10,23 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 + `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
 * `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
 * `oputil.js fb scan --quick` is now the default. Override with `--full-scan`.
+* ACS checks can now be applied to form actions. For example:
+```hjson
+{
+    value: { command: "SEC" }
+    action: [
+        {
+            //  secure connections can go here
+            acs: SC
+            action: @menu:securityMenu
+        }
+        {
+            //  non-secure connections
+            action: @menu:secureConnectionRequired
+        }
+    ]
+}
+```
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
