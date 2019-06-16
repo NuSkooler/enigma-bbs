@@ -1138,6 +1138,23 @@
                     action: @menu:mrc
                 }
                 {
+                    value: { command: "2FA" }
+                    action: [
+                        {
+                            //
+                            //  For security reasons, only allow 2FA/OTP to be
+                            //  configured over already secure (SSL, wss://, ...)
+                            //  connections. Not doing so risks leaking secrets!
+                            //
+                            acs: SC
+                            action: @menu:userTwoFactorAuthOTPConfig
+                        }
+                        {
+                            action: @menu:userTwoFactorAuthOTPSecConnRequired
+                        }
+                    ]
+                }
+                {
                     value: 1
                     action: @menu:mainMenu
                 }
@@ -1208,6 +1225,85 @@
                     }
                 }
             }
+        }
+
+        userTwoFactorAuthOTPConfig: {
+            desc: 2FA/OTP Config
+            module: user_2fa_otp_config
+            art: 2FACONFSCR
+            form: {
+                0: {
+                    mci: {
+                        TM1: {
+                            argName: enableToggle
+                            focus: true
+                            items: [
+                                //  order is important here:
+                                "disable"
+                                "enable/reset"
+                            ]
+                        }
+                        SM2: {
+                            argName: otpType
+                            items: [
+                                //  order is important here:
+                                "Time-Based - TOTP"
+                                "HMAC-Based - HOTP"
+                                "Google Authenticator"
+                            ]
+                        }
+                        TM3: {
+                            argName: submit
+                            items: [
+                                "save"
+                                "cancel"
+                            ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { submit: 0 }
+                                action: @method:saveChanges
+                            }
+                            {
+                                value: { submit: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "q", "shift + q" ]
+                            action: @method:showQRCode
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:showSecret
+                        }
+                        {
+                            keys: [ "b", "shift + b" ]
+                            action: @method:showBackupCodes
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @method:generateNewBackupCodes
+                        }
+                    ]
+                }
+            }
+        }
+
+        userTwoFactorAuthOTPSecConnRequired: {
+            desc: Insecure Warning
+            art: 2FAOTPSECREQ
         }
 
         nodeMessage: {

@@ -385,6 +385,47 @@
 				}
 			}
 
+			userTwoFactorAuthOTPConfig: {
+				config: {
+					menuInfoFormat10: "{infoText}"
+					infoText: {
+						disabled: Enabling 2-factor authentication can greatly increase account security.
+					}
+				}
+				mci: {
+					TM1: {
+						width: 20
+						items: [
+							"enabled"
+							"disabled"
+						]
+						focusTextStyle: upper
+						styleSGR1: |08
+					}
+					SM2: {
+						width: 20
+						focusTextStyle: upper
+						styleSGR1: |08
+						items: [
+						//	order is important:
+							"Time-Based - TOTP"
+							"HMAC-Based - HOTP"
+							"Google Auth"
+						]
+					}
+					TM3: {
+						focusTextStyle: upper
+						styleSGR1: |00|08
+					}
+					MT10: {
+						width: 31
+						height: 3
+						mode: preview
+						acceptsFocus: false
+					}
+				}
+			}
+
 			nodeMessage: {
 				config: {
 					messageFormat: "|00|08 :: |03message from |11{fromUserName} |08/ |03node |11{fromNodeId}|08 @ |11{timestamp} |08::\r\n|07    {message}"

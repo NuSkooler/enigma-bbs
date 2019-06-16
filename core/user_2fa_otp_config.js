@@ -34,13 +34,14 @@ const MciViewIds = {
     enableToggle        : 1,
     otpType             : 2,
     submit              : 3,
+    infoText            : 4,
 
     customRangeStart    : 10,   //  10+ = customs
 };
 
 const DefaultMsg = {
     infoText: {
-        disabled        : 'Enabling 2-Factor Authentication via One-Time-Password (2FA/OTP) can greatly increase the security of your account.',
+        disabled        : 'Enabling 2-factor authentication can greatly increase account security.',
         enabled         : 'A valid email address set in user config is required to enable 2-Factor Authentication.',
         rfc6238_TOTP    : 'Time-Based One-Time-Password (TOTP, RFC-6238).',
         rfc4266_HOTP    : 'HMAC-Based One-Time-Password (HOTP, RFC-4266).',
