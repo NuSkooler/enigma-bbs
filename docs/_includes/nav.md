@@ -25,6 +25,7 @@
     - [Colour Codes]({{ site.baseurl }}{% link configuration/colour-codes.md %})
     - [Access Condition System (ACS)]({{ site.baseurl }}{% link configuration/acs.md %})
     - [Event Scheduler]({{ site.baseurl }}{% link configuration/event-scheduler.md %})
+    - [Security]({{ site.baseurl }}{% link configuration/security.md %})
     - Scheduled jobs
 
   - File Base
@@ -83,6 +84,7 @@
     - [Set Newscan Date]({{ site.baseurl }}{% link modding/set-newscan-date.md %})
     - [Node to Node Messaging]({{ site.baseurl }}{% link modding/node-msg.md %})
     - [Top X]({{ site.baseurl }}{% link modding/top-x.md %})
+    - [2FA/OTP Config]({{ site.baseurl }}{% link modding/user-2fa-otp-config.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
