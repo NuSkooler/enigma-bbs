@@ -396,8 +396,8 @@
 					TM1: {
 						width: 20
 						items: [
-							"enabled"
 							"disabled"
+							"enabled"
 						]
 						focusTextStyle: upper
 						styleSGR1: |08
