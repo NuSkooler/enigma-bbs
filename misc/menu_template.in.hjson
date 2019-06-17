@@ -71,7 +71,7 @@
                     next: loginTwoFactorAuthOTPLoop
                 }
                 {
-                    next: mainMenu
+                    next: fullLoginSequenceLoginArt
                 }
             ]
             config: { nextTimeout: 1500 }
