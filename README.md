@@ -17,6 +17,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Renegade style [pipe color codes](/docs/configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
+ * Support for 2-Factor Authentication with One-Time-Passwords
  * [Door support](docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
  * [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](docs/servers/gopher.md), or [NNTP](docs/servers/nntp.md)!

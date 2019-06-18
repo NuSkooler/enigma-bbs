@@ -326,10 +326,17 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     buildMessage(cb) {
         const headerValues = this.viewControllers.header.getFormData().value;
 
+        const getFromUserName = () => {
+            const area = getMessageAreaByTag(this.messageAreaTag);
+            return (area && area.realNames) ?
+                this.client.user.getProperty(UserProps.RealName) || this.client.user.username :
+                this.client.user.username;
+        };
+
         const msgOpts = {
             areaTag         : this.messageAreaTag,
             toUserName      : headerValues.to,
-            fromUserName    : this.client.user.getProperty(UserProps.RealName) || this.client.user.username,
+            fromUserName    : getFromUserName(),
             subject         : headerValues.subject,
             //  :TODO: don't hard code 1 here:
             message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
