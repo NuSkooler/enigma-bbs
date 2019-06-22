@@ -36,6 +36,7 @@ exports.getModule = class MrcModule extends ServerModule {
         this.log            = Log.child( { server : 'MRC' } );
 
         const config        = Config();
+        this.boardName      = config.general.prettyBoardName || config.general.boardName;
         this.mrcConnectOpts = {
             host         : config.chatServers.mrc.serverHostname || 'mrc.bottomlessabyss.net',
             port         : config.chatServers.mrc.serverPort || 5000,
@@ -44,11 +45,9 @@ exports.getModule = class MrcModule extends ServerModule {
     }
 
     _connectionHandler() {
-        const config = Config();
-        const boardName  = config.general.prettyBoardName || config.general.boardName;
         const enigmaVersion = 'ENiGMA½-BBS_' + require('../../../package.json').version;
 
-        const handshake = `${boardName}~${enigmaVersion}/${os.platform()}.${os.arch()}/${protocolVersion}`;
+        const handshake = `${this.boardName}~${enigmaVersion}/${os.platform()}.${os.arch()}/${protocolVersion}`;
         this.log.debug({ handshake : handshake }, 'Handshaking with MRC server');
 
         this.sendRaw(handshake);
@@ -209,9 +208,7 @@ exports.getModule = class MrcModule extends ServerModule {
      * Processes messages received from the central MRC server
      */
     receiveFromMRC(message) {
-
         const config = Config();
-        const siteName = slugify(config.general.boardName);
 
         if (message.from_user == 'SERVER' && message.body == 'HELLO') {
             // reply with extra bbs info
@@ -223,7 +220,7 @@ exports.getModule = class MrcModule extends ServerModule {
 
         } else if (message.from_user == 'SERVER' && message.body.toUpperCase() == 'PING') {
             // reply to heartbeat
-            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `IMALIVE:${siteName}`);
+            this.sendToMrcServer('CLIENT', '', 'SERVER', 'ALL', '', `IMALIVE:${this.boardName}`);
 
         } else {
             // if not a heartbeat, and we have clients then we need to send something to them
@@ -263,12 +260,10 @@ exports.getModule = class MrcModule extends ServerModule {
      * Converts a message back into the MRC format and sends it to the central MRC server
      */
     sendToMrcServer(fromUser, fromRoom, toUser, toSite, toRoom, messageBody) {
-        const config = Config();
-        const siteName = slugify(config.general.boardName);
 
         const line = [
             fromUser,
-            siteName,
+            this.boardName,
             sanitiseRoomName(fromRoom),
             sanitiseName(toUser || ''),
             sanitiseName(toSite || ''),
@@ -307,14 +302,3 @@ function sanitiseMessage(message) {
     return message.replace(/[^\x20-\x7D]/g, '');
 }
 
-/**
- * SLugifies the BBS name for use as an MRC "site name"
- */
-function slugify(text) {
-    return text.toString()
-        .replace(/\s+/g, '_')           // Replace spaces with _
-        .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-        .replace(/\-\-+/g, '_')         // Replace multiple - with single -
-        .replace(/^-+/, '')             // Trim - from start of text
-        .replace(/-+$/, '');            // Trim - from end of text
-}
