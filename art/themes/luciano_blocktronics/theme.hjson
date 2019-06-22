@@ -1128,7 +1128,7 @@
 					mci: {
 						MT1: {
 							width: 72
-							height: 19
+							height: 18
 						}
                         ET2: {
                             width: 69 // fnarr!
