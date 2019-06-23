@@ -338,7 +338,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             toUserName      : headerValues.to,
             fromUserName    : getFromUserName(),
             subject         : headerValues.subject,
-            //  :TODO: don't hard code 1 here:
             message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
         };
 
