@@ -53,12 +53,12 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [NetRunner](http://mysticbbs.com/downloads.html)
 * [MagiTerm](https://magickabbs.com/index.php/magiterm/)
 
-## Boards
-* WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
+## Some Boards
+* :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
 * [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
-
+* [Goblin Studio](https://goblin.strangled.net): (**ssh://goblin.strangled.net:8889**)
 
 ## Installation
 On *nix type systems:
@@ -82,6 +82,7 @@ Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/install
 * [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
 * [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
+* [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:
