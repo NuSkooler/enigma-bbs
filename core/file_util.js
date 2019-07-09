@@ -38,7 +38,7 @@ function moveOrCopyFileWithCollisionHandling(src, dst, operation, cb) {
     }
 
     async.until(
-        () => opOk, //  until moved OK
+        (callback) => callback(null, opOk), //  until moved OK
         (cb) => {
             if(0 === renameIndex) {
                 //  try originally supplied path first

@@ -205,7 +205,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
         let tryDstPath;
 
         async.until(
-            () => movedOk,  //  until moved OK
+            (callback) => callback(null, movedOk),  //  until moved OK
             (cb) => {
                 if(0 === renameIndex) {
                     //  try originally supplied path first
