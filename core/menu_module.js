@@ -186,7 +186,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         let opts = { cls : true };  //  clear screen for first message
 
         async.whilst(
-            () => this.client.interruptQueue.hasItems(),
+            (callback) => callback(null, this.client.interruptQueue.hasItems()),
             next => {
                 this.client.interruptQueue.displayNext(opts, err => {
                     opts = {};
