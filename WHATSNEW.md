@@ -27,6 +27,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
     ]
 }
 ```
+* `idleLogoutSeconds` and `preAuthIdleLogoutSeconds` can now be set to `0` to fully disable the idle monitor.
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!

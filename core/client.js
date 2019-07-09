@@ -476,7 +476,7 @@ Client.prototype.startIdleMonitor = function() {
         //  use override value if set
         idleLogoutSeconds = this.idleLogoutSecondsOverride || idleLogoutSeconds;
 
-        if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
+        if(idleLogoutSeconds > 0 && (nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000))) {
             this.emit('idle timeout');
         }
     }, 1000 * 60);
