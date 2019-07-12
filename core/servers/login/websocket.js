@@ -88,7 +88,7 @@ function WebSocketClient(ws, req, serverType) {
     });
 
     //
-    //  Montior connection status with ping/pong
+    //  Monitor connection status with ping/pong
     //
     ws.on('pong', () => {
         Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);

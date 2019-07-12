@@ -135,27 +135,34 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     };
 
                     let clientTerminated;
+                    let dataOut;
 
                     self.client.term.write(resetScreen());
-                    self.client.term.write('  Connecting to BBSLink.net, please wait...\n');
+                    self.client.term.write(`  Connecting to ${self.config.host}, please wait...\n`);
 
                     const doorTracking = trackDoorRunBegin(self.client, `bbslink_${self.config.door}`);
 
                     const bridgeConnection = net.createConnection(connectOpts, function connected() {
                         self.client.log.info(connectOpts, 'BBSLink bridge connection established');
 
-                        self.client.term.output.pipe(bridgeConnection);
+                        dataOut = (data) => {
+                            return bridgeConnection.write(data);
+                        };
+
+                        self.client.term.output.on('data', dataOut);
 
                         self.client.once('end', function clientEnd() {
                             self.client.log.info('Connection ended. Terminating BBSLink connection');
                             clientTerminated = true;
-                            bridgeConnection.end();                            
+                            bridgeConnection.end();
                         });
                     });
 
-                    const restorePipe = function() {
-                        self.client.term.output.unpipe(bridgeConnection);
-                        self.client.term.output.resume();
+                    const restore = () => {
+                        if(dataOut && self.client.term.output) {
+                            self.client.term.output.removeListener('data', dataOut);
+                            dataOut = null;
+                        }
 
                         trackDoorRunEnd(doorTracking);
                     };
@@ -167,14 +174,14 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                     });
 
                     bridgeConnection.on('end', function connectionEnd() {
-                        restorePipe();
+                        restore();
                         return callback(clientTerminated ? Errors.General('Client connection terminated') : null);
                     });
 
                     bridgeConnection.on('error', function error(err) {
                         self.client.log.info('BBSLink bridge connection error: ' + err.message);
-                        restorePipe();
-                        callback(err);
+                        restore();
+                        return callback(err);
                     });
                 }
             ],
