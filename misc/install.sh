@@ -3,7 +3,7 @@
 { # this ensures the entire script is downloaded before execution
 
 ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=10}
-ENIGMA_BRANCH=master
+ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
 TIME_FORMAT=`date "+%Y-%m-%d %H:%M:%S"`
@@ -21,7 +21,7 @@ _____________________   _____  ____________________    __________\\_   /
                                                                        /__   _\\
        <*> ENiGMA½ // https://github.com/NuSkooler/enigma-bbs <*>        /__/
 
-ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE}.
+ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE}, branch ${ENIGMA_BRANCH}.
 
 ENiGMA½ requires Node.js. Version ${ENIGMA_NODE_VERSION}.x current will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
 
@@ -37,6 +37,7 @@ fatal_error() {
 }
 
 enigma_install_needs() {
+    echo "Checking $1 installation"
     command -v $1 >/dev/null 2>&1 || fatal_error "ENiGMA½ requires $1 but it's not installed. Please install it and restart the installer."
 }
 
@@ -45,14 +46,11 @@ log()  {
 }
 
 enigma_install_init() {
-    log "Checking git installation"
     enigma_install_needs git
-
-    log "Checking curl installation"
     enigma_install_needs curl
-
-    log "Checking Python installation"
     enigma_install_needs python
+    enigma_install_needs make
+    enigma_install_needs gcc
 }
 
 install_nvm() {
