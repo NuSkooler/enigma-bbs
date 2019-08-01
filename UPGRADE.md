@@ -37,7 +37,7 @@ npm install
 ```
 
 # Problems
-Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
+Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
 # 0.0.9-alpha to 0.0.10-alpha
