@@ -616,6 +616,7 @@
                             argName: to
                             focus: true
                             text: @sysStat:sysop_username
+                            maxLength: 36
                             //  :TODO: readOnly: true
                         }
                         ET3: {
@@ -1532,6 +1533,7 @@
                             argName: to
                             focus: true
                             text: @sysStat:sysop_username
+                            maxLength: 36
                             //  :TODO: readOnly: true
                         }
                         ET3: {
@@ -2534,6 +2536,7 @@
                             argName: to
                             focus: true
                             validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject
@@ -2692,6 +2695,7 @@
                             focus: true
                             text: All
                             validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject
@@ -2851,6 +2855,7 @@
                             argName: to
                             focus: true
                             validate: @systemMethod:validateGeneralMailAddressedTo
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject
