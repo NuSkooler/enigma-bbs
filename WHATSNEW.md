@@ -9,7 +9,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](/docs/configuration/acs.md) for details.
 + `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
 * `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
-* `oputil.js fb scan --quick` is now the default. Override with `--full-scan`.
+* `oputil.js fb scan --quick` is now the default. Override with `--full`.
 * ACS checks can now be applied to form actions. For example:
 ```hjson
 {

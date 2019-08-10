@@ -14,6 +14,7 @@ const usageHelp = exports.USAGE_HELP = {
 Global arguments:
   -c, --config PATH         Specify config path (default is ${getDefaultConfigPath()})
   -n, --no-prompt           Assume defaults (don't prompt for input where possible)
+  --verbose                 Verbose output, where applicable
 
 Commands:
   user                      User management
@@ -131,7 +132,7 @@ scan arguments:
   DESCRIPT.ION file.
 
   --update                     Attempt to update information for existing entries
-  --full-scan                  Perform a full scan (default is quick)
+  --full                       Perform a full scan (default is quick)
 
 info arguments:
   --show-desc                  Display short description, if any
@@ -152,7 +153,7 @@ General Information:
   Generally an area tag can also include an optional storage tag. For example, the
   area of 'bbswarez' stored using 'bbswarez_main': bbswarez@bbswarez_main
 
-  When performing an initial import of a large area or storage backing, --full-scan
+  When performing an initial import of a large area or storage backing, --full
   is the best option. If re-scanning an area for updates a standard / quick scan is
   generally good enough.
 
