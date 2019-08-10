@@ -2091,10 +2091,50 @@
                     action: @menu:messageSearch
                 }
                 {
+                    value: { command: "A" }
+                    action: @menu:editAutoSignature
+                }
+                {
                     value: 1
                     action: @menu:messageArea
                 }
             ]
+        }
+
+        editAutoSignature: {
+            desc: Auto Sig Editor
+            module: autosig_edit
+            art: autosig
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            argName: signature
+                            tabSwitchesView: true
+                        }
+                        BT2: {
+                            text: save
+                            argName: save
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { save: null }
+                                action: @method:saveChanges
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
         }
 
         messageSearch: {
