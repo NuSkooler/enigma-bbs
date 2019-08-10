@@ -42,6 +42,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 # 0.0.9-alpha to 0.0.10-alpha
 * Security related files such as private keys and certs are now looked for in `config/security` by default.
+* Default archive handler for zip files has switched to InfoZip due to a bug in the latest p7Zip packages causing "volume not found" errors. Ensure you have the InfoZip `zip` and `unzip` commands in ENiGMA's path. You can switch back to 7Zip by overriding `archiveHandler` for `application/zip` in your `config.hjson` under `fileTypes` to `7Zip`.
 
 # 0.0.8-alpha to 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. Follow your standard upgrade path to update to Node 10.x before using 0.0.9-alpha!
