@@ -577,7 +577,7 @@ function getDefaultConfig() {
                 desc            : 'ZIP Archive',
                 sig             : '504b0304',
                 offset          : 0,
-                archiveHandler  : '7Zip',
+                archiveHandler  : 'InfoZip',
             },
             /*
             'application/x-cbr' : {
@@ -651,7 +651,7 @@ function getDefaultConfig() {
 
         archives : {
             archivers : {
-                '7Zip' : {
+                '7Zip' : {  //  p7zip package
                     compress        : {
                         cmd         : '7za',
                         args        : [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
@@ -669,6 +669,26 @@ function getDefaultConfig() {
                         cmd         : '7za',
                         args        : [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
                     },
+                },
+
+                InfoZip: {
+                    compress        : {
+                        cmd         : 'zip',
+                        args        : [ '{archivePath}', '{fileList}' ],
+                    },
+                    decompress      : {
+                        cmd         : 'unzip',
+                        args        : [ '{archivePath}', '-d', '{extractPath}' ],
+                    },
+                    list            : {
+                        cmd         : 'unzip',
+                        args        : [ '-l', '{archivePath}' ],
+                        entryMatch  : '^\\s*([0-9]+)\\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\\s+[0-9]{2}:[0-9]{2}\\s+([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : 'unzip',
+                        args        : [ '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
+                    }
                 },
 
                 Lha : {
