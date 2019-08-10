@@ -357,6 +357,9 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             }
         }
 
+        //
+        //  Append auto-signature, if enabled for the area & the user has one
+        //
         if(false != area.autoSignatures) {
             const sig = this.client.user.getProperty(UserProps.AutoSignature);
             if(sig) {
@@ -364,8 +367,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             }
         }
 
+        //  finally, create the message
         msgOpts.message = messageBody;
-
         this.message = new Message(msgOpts);
 
         return cb(null);
