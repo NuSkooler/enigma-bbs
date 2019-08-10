@@ -325,20 +325,21 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     buildMessage(cb) {
         const headerValues = this.viewControllers.header.getFormData().value;
+        const area = getMessageAreaByTag(this.messageAreaTag);
 
         const getFromUserName = () => {
-            const area = getMessageAreaByTag(this.messageAreaTag);
             return (area && area.realNames) ?
                 this.client.user.getProperty(UserProps.RealName) || this.client.user.username :
                 this.client.user.username;
         };
+
+        let messageBody = this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } );
 
         const msgOpts = {
             areaTag         : this.messageAreaTag,
             toUserName      : headerValues.to,
             fromUserName    : getFromUserName(),
             subject         : headerValues.subject,
-            message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
         };
 
         if(this.isReply()) {
@@ -351,10 +352,19 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 //  to packetAnsiMsgEncoding (generally cp437) as various boards
                 //  really don't like ANSI messages in UTF-8 encoding (they should!)
                 //
-                msgOpts.meta        = { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
-                msgOpts.message     = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
+                msgOpts.meta    = { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
+                messageBody     = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${messageBody}`;
             }
         }
+
+        if(false != area.autoSignatures) {
+            const sig = this.client.user.getProperty(UserProps.AutoSignature);
+            if(sig) {
+                messageBody += `\r\n-- \r\n${sig}`;
+            }
+        }
+
+        msgOpts.message = messageBody;
 
         this.message = new Message(msgOpts);
 

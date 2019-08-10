@@ -447,6 +447,20 @@
 				}
 			}
 
+			editAutoSignature: {
+				0: {
+					mci: {
+						MT1: {
+							height: 8
+							width: 73
+						}
+						BT2: {
+							focusTextStyle: upper
+						}
+					}
+				}
+			}
+
 			messageSearch: {
 				0: {
 					mci: {

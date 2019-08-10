@@ -27,6 +27,7 @@ module.exports = {
     LastLoginTs                     : 'last_login_timestamp',
     LoginCount                      : 'login_count',
     UserComment                     : 'user_comment',               //  NYI
+    AutoSignature                   : 'auto_signature',
 
     DownloadQueue                   : 'dl_queue',                   // download_queue.js
 
