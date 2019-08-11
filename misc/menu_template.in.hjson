@@ -2091,6 +2091,10 @@
                     action: @menu:messageSearch
                 }
                 {
+                    value: { command: "M" }
+                    action: @menu:myMessages
+                }
+                {
                     value: { command: "A" }
                     action: @menu:editAutoSignature
                 }
@@ -2234,6 +2238,14 @@
                         }
                     ]
                 }
+            }
+        }
+
+        myMessages: {
+            desc: Personal Messages
+            module: my_messages
+            config: {
+                messageListMenu: messageAreaMyMessagesList
             }
         }
 
