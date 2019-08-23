@@ -683,7 +683,8 @@ function getDefaultConfig() {
                     list            : {
                         cmd         : 'unzip',
                         args        : [ '-l', '{archivePath}' ],
-                        entryMatch  : '^\\s*([0-9]+)\\s+[0-9]{4}-[0-9]{2}-[0-9]{2}\\s+[0-9]{2}:[0-9]{2}\\s+([^\\r\\n]+)$',
+                        //  Annoyingly, dates can be in YYYY-MM-DD or MM-DD-YYYY format
+                        entryMatch  : '^\\s*([0-9]+)\\s+[0-9]{2,4}-[0-9]{2}-[0-9]{2,4}\\s+[0-9]{2}:[0-9]{2}\\s+([^\\r\\n]+)$',
                     },
                     extract         : {
                         cmd         : 'unzip',
