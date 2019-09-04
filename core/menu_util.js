@@ -17,6 +17,7 @@ const _                     = require('lodash');
 exports.loadMenu                        = loadMenu;
 exports.getFormConfigByIDAndMap         = getFormConfigByIDAndMap;
 exports.handleAction                    = handleAction;
+exports.getResolvedSpec                 = getResolvedSpec;
 exports.handleNext                      = handleNext;
 
 function getMenuConfig(client, name, cb) {
@@ -172,7 +173,7 @@ function handleAction(client, formData, conf, cb) {
         return cb(Errors.MissingParam('Missing config'));
     }
 
-    const action = client.acs.getConditionalValue(conf.action, 'action');    //  handle any conditionals
+    const action = getResolvedSpec(client, conf.action, 'action');  //  random/conditionals/etc.
     const actionAsset = asset.parseAsset(action);
     if(!_.isObject(actionAsset)) {
         return cb(Errors.Invalid('Unable to parse "conf.action"'));
@@ -216,9 +217,38 @@ function handleAction(client, formData, conf, cb) {
     }
 }
 
-function handleNext(client, nextSpec, conf, cb) {
-    nextSpec = client.acs.getConditionalValue(nextSpec, 'next');    //  handle any conditionals
+function getResolvedSpec(client, spec, memberName) {
+    //
+    //  'next', 'action', etc. can come in various flavors:
+    //  (1) Simple string:
+    //    next: foo
+    //  (2) Array of objects with 'acs' checks; any object missing 'acs'
+    //    is assumed to be "true":
+    //    next: [
+    //      {
+    //        acs: AR2
+    //        next: foo
+    //      }
+    //      {
+    //        next: baz
+    //      }
+    //    ]
+    //  (3) Simple array of strings. A random selection will be made:
+    //    next: [ "foo", "baz", "fizzbang" ]
+    //
+    if(!Array.isArray(spec)) {
+        return spec;    //  (1) simple string, as-is
+    }
 
+    if(_.isObject(spec[0])) {
+        return client.acs.getConditionalValue(spec, memberName);    //  (2) ACS conditionals
+    }
+
+    return spec[Math.floor(Math.random() * spec.length)];   //  (3) random
+}
+
+function handleNext(client, nextSpec, conf, cb) {
+    nextSpec = getResolvedSpec(client, nextSpec, 'next');
     const nextAsset = asset.getAssetWithShorthand(nextSpec, 'menu');
     //  :TODO: getAssetWithShorthand() can return undefined - handle it!
 

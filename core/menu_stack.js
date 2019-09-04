@@ -7,6 +7,9 @@ const {
     Errors,
     ErrorReasons
 }               = require('./enig_error.js');
+const {
+    getResolvedSpec
+}               = require('./menu_util.js');
 
 //  deps
 const _         = require('lodash');
@@ -53,7 +56,7 @@ module.exports = class MenuStack {
     next(cb) {
         const currentModuleInfo = this.top();
         const menuConfig        = currentModuleInfo.instance.menuConfig;
-        const nextMenu          = this.client.acs.getConditionalValue(menuConfig.next, 'next');
+        const nextMenu          = getResolvedSpec(this.client, menuConfig.next, 'next');
         if(!nextMenu) {
             return cb(Array.isArray(menuConfig.next) ?
                 Errors.MenuStack('No matching condition for "next"', ErrorReasons.NoConditionMatch) :
