@@ -180,6 +180,23 @@ opOnlyMenu: {
 }
 ```
 
+### Action Matches
+Action blocks (`action`) can perform ACS checks:
+```
+// ...
+{
+    action: [
+        {
+            acs: SC1
+            action: @menu:secureMenu
+        }
+        {
+            action: @menu:nonSecureMenu
+        }
+    ]
+}
+```
+
 ### Flow Control
 The `next` member of a menu may be an array of objects containing an `acs` check as well as the destination. Depending on the current user's ACS, the system will pick the appropriate target. The last element in an array without an `acs` can be used as a catch all. Example:
 ```
