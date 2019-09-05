@@ -74,6 +74,23 @@ Submit actions are declared using the `action` member of a submit handler block.
 | `@method:methodName` | Executes *methodName* local to the calling module. That is, the module set by the `module` member of a menu entry. |
 | `@method:/path/to/some_module.js:methodName` | Executes *methodName* exported by the module at */path/to/some_module.js*. |
 
+#### Advanced Action Handling
+In addition to simple simple actions, `action` may also be:
+* An array of objects containing ACS checks and a sub `action` if that ACS is matched. See **Action Matches** in the ACS documentation below for details.
+* An array of actions. In this case a random selection will be made. Example:
+```hjson
+submit: [
+    {
+        value: { command: "FOO" }
+        action: [
+            // one of the following actions will be matched:
+            "@menu:menuStyle1"
+            "@menu:menuStyle2"
+        ]
+    }
+]
+```
+
 #### Method Signature
 Methods executed using `@method`, or `@systemMethod` have the following signature:
 ```

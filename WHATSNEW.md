@@ -29,6 +29,19 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 ```
 * `idleLogoutSeconds` and `preAuthIdleLogoutSeconds` can now be set to `0` to fully disable the idle monitor.
 * Switched default archive handler for zip files from 7zip to InfoZip (`zip` and `unzip`) commands. See [UPGRADE](UPGRADE.md).
+* Menu submit `action`'s can now in addition to being a simple string such as `@menu:someMenu`, or an array of objects with ACS checks, be a simple array of strings. In this case, a random match will be made. For example:
+```hjson
+submit: [
+    {
+        value: { command: "FOO" }
+        action: [
+            // one of the following actions will be matched:
+            "@menu:menuStyle1"
+            "@menu:menuStyle2"
+        ]
+    }
+]
+```
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
