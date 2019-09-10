@@ -16,6 +16,16 @@ const UserProps         = require('./user_property.js');
 const SysProps          = require('./system_property.js');
 const SystemLogKeys     = require('./system_log.js');
 const User              = require('./user.js');
+const {
+    getMessageConferenceByTag,
+    getMessageAreaByTag,
+    getDefaultMessageConferenceTag,
+    getDefaultMessageAreaTagByConfTag,
+}                       = require('./message_area.js');
+const {
+    getFileAreaByTag,
+    getDefaultFileAreaTag,
+}                       = require('./file_base_area.js');
 
 //  deps
 const async             = require('async');
@@ -101,13 +111,75 @@ function userLogin(client, username, password, options, cb) {
         Events.emit(Events.getSystemEvents().UserLogin, { user } );
 
         setClientTheme(client, user.properties[UserProps.ThemeId]);
-        if(user.authenticated) {
-            return recordLogin(client, cb);
-        }
 
-        //  recordLogin() must happen after 2FA!
-        return cb(null);
+        postLoginPrep(client, err => {
+            if(err) {
+                return cb(err);
+            }
+
+            if(user.authenticated) {
+                return recordLogin(client, cb);
+            }
+
+            //  recordLogin() must happen after 2FA!
+            return cb(null);
+        });
     });
+}
+
+function postLoginPrep(client, cb) {
+
+    const defaultMsgAreaTag = (confTag) => {
+        return getDefaultMessageAreaTagByConfTag(client, confTag) ||
+            getDefaultMessageAreaTagByConfTag(client, getDefaultMessageConferenceTag(client)) ||
+            '';
+    };
+
+    async.series(
+        [
+            (callback) => {
+                //
+                //  User may (no longer) have read (view) rights to their current
+                //  message, conferences and/or areas. Move them out if so.
+                //
+                let confTag = client.user.getProperty(UserProps.MessageConfTag);
+                const conf  = getMessageConferenceByTag(confTag) || {};
+                const area  = getMessageAreaByTag(client.user.getProperty(UserProps.MessageAreaTag), confTag) || {};
+
+                if(!client.acs.hasMessageConfRead(conf)) {
+                    confTag = getDefaultMessageConferenceTag(client) || '';
+                    client.user.persistProperties({
+                        [ UserProps.MessageConfTag ] : confTag,
+                        [ UserProps.MessageAreaTag ] : defaultMsgAreaTag(confTag),
+                    },
+                    err => {
+                        return callback(err);
+                    });
+                } else if (!client.acs.hasMessageAreaRead(area)) {
+                    client.user.persistProperty(UserProps.MessageAreaTag, defaultMsgAreaTag(confTag), err => {
+                        return callback(err);
+                    });
+                } else {
+                    return callback(null);
+                }
+            },
+            (callback) => {
+                //  Likewise for file areas
+                const area = getFileAreaByTag(client.user.getProperty(UserProps.FileAreaTag)) || {};
+                if(!client.acs.hasFileAreaRead(area)) {
+                    const areaTag = getDefaultFileAreaTag(client) || '';
+                    client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
+                        return callback(err);
+                    });
+                } else {
+                    return callback(null);
+                }
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function recordLogin(client, cb) {
