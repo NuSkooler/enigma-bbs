@@ -404,8 +404,15 @@ function getMessageListForArea(client, areaTag, filter, cb)
         Object.assign(filter, { areaTag } );
     }
 
+    if(client) {
+        const area = getMessageAreaByTag(areaTag);
+        if(!client.acs.hasMessageAreaRead(area)) {
+            return cb(null, []);
+        }
+    }
+
     if(Message.isPrivateAreaTag(areaTag)) {
-        filter.privateTagUserId = client.user.userId;
+        filter.privateTagUserId = client ? client.user.userId : 'INVALID_USER_ID';
     }
 
     return Message.findMessages(filter, cb);

@@ -130,9 +130,11 @@ function userLogin(client, username, password, options, cb) {
 function postLoginPrep(client, cb) {
 
     const defaultMsgAreaTag = (confTag) => {
-        return getDefaultMessageAreaTagByConfTag(client, confTag) ||
+        return (
+            getDefaultMessageAreaTagByConfTag(client, confTag) ||
             getDefaultMessageAreaTagByConfTag(client, getDefaultMessageConferenceTag(client)) ||
-            '';
+            ''
+        );
     };
 
     async.series(
