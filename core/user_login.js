@@ -19,8 +19,6 @@ const User              = require('./user.js');
 const {
     getMessageConferenceByTag,
     getMessageAreaByTag,
-    getDefaultMessageConferenceTag,
-    getDefaultMessageAreaTagByConfTag,
     getSuitableMessageConfAndAreaTags,
 }                       = require('./message_area.js');
 const {
