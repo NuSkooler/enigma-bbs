@@ -33,6 +33,7 @@ exports.changeMessageConference             = changeMessageConference;
 exports.changeMessageArea                   = changeMessageArea;
 exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
 exports.filterMessageAreaTagsByReadACS      = filterMessageAreaTagsByReadACS;
+exports.filterMessageListByReadACS          = filterMessageListByReadACS;
 exports.tempChangeMessageConfAndArea        = tempChangeMessageConfAndArea;
 exports.getMessageListForArea               = getMessageListForArea;
 exports.getNewMessageCountInAreaForUser     = getNewMessageCountInAreaForUser;
@@ -417,6 +418,29 @@ function filterMessageAreaTagsByReadACS(client, areaTags) {
     return areaTags.filter( areaTag => {
         const area = getMessageAreaByTag(areaTag);
         return hasMessageConfAndAreaRead(client, area);
+    });
+}
+
+function filterMessageListByReadACS(client, messageList) {
+    //
+    //  Filter out messages belonging to conf/areas the user
+    //  doesn't have access to.
+    //
+
+    //  Keep a cache around for quick lookup.
+    const acsCache = new Map();    //  areaTag:boolean
+
+    return messageList.filter(msg => {
+        let cached = acsCache.get(msg.areaTag);
+        if(false === cached) {
+            return false;
+        }
+        if(true === cached) {
+            return true;
+        }
+        cached = hasMessageConfAndAreaRead(client, msg.areaTag);
+        acsCache.set(msg.areaTag, cached);
+        return cached;
     });
 }
 

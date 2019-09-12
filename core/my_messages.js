@@ -6,7 +6,7 @@ const MenuModule    = require('./menu_module.js').MenuModule;
 const Message       = require('./message.js');
 const UserProps     = require('./user_property.js');
 const {
-    hasMessageConfAndAreaRead
+    filterMessageListByReadACS
 }                   = require('./message_area.js');
 
 exports.moduleInfo = {
@@ -34,25 +34,8 @@ exports.getModule = class MyMessagesModule extends MenuModule {
                 return this.prevMenu();
             }
 
-            //
-            //  We need to filter out messages belonging to conf/areas the user
-            //  doesn't have access to.
-            //
-            //  Keep a cache around for quick lookup.
-            //
-            const acsCache = new Map();    //  areaTag:boolean
-            this.messageList = messageList.filter(msg => {
-                let cached = acsCache.get(msg.areaTag);
-                if(false === cached) {
-                    return false;
-                }
-                if(true === cached) {
-                    return true;
-                }
-                cached = hasMessageConfAndAreaRead(this.client, msg.areaTag);
-                acsCache.set(msg.areaTag, cached);
-                return cached;
-            });
+            //  don't include results without ACS
+            this.messageList = filterMessageListByReadACS(this.client, messageList);
 
             this.finishedLoading();
         });
