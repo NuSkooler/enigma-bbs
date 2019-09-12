@@ -254,7 +254,7 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
 
     //  :TODO: this could be cached
     if(_.isString(optionalConfTag)) {
-        if(_.isObject(confs, [ optionalConfTag, 'areas', areaTag ])) {
+        if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
             return Object.assign(
                 {
                     areaTag,
@@ -269,7 +269,7 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
         //
         let area;
         _.forEach(confs, (conf, confTag) => {
-            if(_.isObject(conf, [ 'areas', areaTag ])) {
+            if(_.has(conf, [ 'areas', areaTag ])) {
                 area = Object.assign({ areaTag, confTag }, conf.areas[areaTag]);
                 return false;   //  stop iteration
             }
@@ -401,9 +401,12 @@ function changeMessageArea(client, areaTag, cb) {
     changeMessageAreaWithOptions(client, areaTag, { persist : true }, cb);
 }
 
-function hasMessageConfAndAreaRead(client, area) {
-    const conf = getMessageConfTagByAreaTag(area.areaTag);
-    return client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(area);
+function hasMessageConfAndAreaRead(client, areaOrTag) {
+    if(_.isString(areaOrTag)) {
+        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    const conf = getMessageConferenceByTag(areaOrTag.confTag);
+    return client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(areaOrTag);
 }
 
 function filterMessageAreaTagsByReadACS(client, areaTags) {
@@ -472,8 +475,7 @@ function getMessageListForArea(client, areaTag, filter, cb)
     }
 
     if(client) {
-        const area = getMessageAreaByTag(areaTag);
-        if(!client.acs.hasMessageAreaRead(area)) {
+        if(!hasMessageConfAndAreaRead(client, areaTag)) {
             return cb(null, []);
         }
     }
