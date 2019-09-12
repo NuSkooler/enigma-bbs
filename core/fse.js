@@ -307,7 +307,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             fromUserId          : _.get(this.message, 'meta.System.local_from_user_id', localUserIdNotAvail),
             toUserId            : _.get(this.message, 'meta.System.local_to_user_id', localUserIdNotAvail),
             fromRemoteUser      : _.get(this.message, 'meta.System.remote_from_user', remoteUserNotAvail),
-            toRemoteUser        : _.get(this.messgae, 'meta.System.remote_to_user', remoteUserNotAvail),
+            toRemoteUser        : _.get(this.message, 'meta.System.remote_to_user', remoteUserNotAvail),
             subject             : this.message.subject,
             modTimestamp        : this.message.modTimestamp.format(modTimestampFormat),
             msgNum              : this.messageIndex + 1,

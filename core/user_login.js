@@ -21,6 +21,7 @@ const {
     getMessageAreaByTag,
     getDefaultMessageConferenceTag,
     getDefaultMessageAreaTagByConfTag,
+    getSuitableMessageConfAndAreaTags,
 }                       = require('./message_area.js');
 const {
     getFileAreaByTag,
@@ -128,15 +129,6 @@ function userLogin(client, username, password, options, cb) {
 }
 
 function postLoginPrep(client, cb) {
-
-    const defaultMsgAreaTag = (confTag) => {
-        return (
-            getDefaultMessageAreaTagByConfTag(client, confTag) ||
-            getDefaultMessageAreaTagByConfTag(client, getDefaultMessageConferenceTag(client)) ||
-            ''
-        );
-    };
-
     async.series(
         [
             (callback) => {
@@ -144,21 +136,18 @@ function postLoginPrep(client, cb) {
                 //  User may (no longer) have read (view) rights to their current
                 //  message, conferences and/or areas. Move them out if so.
                 //
-                let confTag = client.user.getProperty(UserProps.MessageConfTag);
-                const conf  = getMessageConferenceByTag(confTag) || {};
-                const area  = getMessageAreaByTag(client.user.getProperty(UserProps.MessageAreaTag), confTag) || {};
+                const confTag   = client.user.getProperty(UserProps.MessageConfTag);
+                const conf      = getMessageConferenceByTag(confTag) || {};
+                const area      = getMessageAreaByTag(client.user.getProperty(UserProps.MessageAreaTag), confTag) || {};
 
-                if(!client.acs.hasMessageConfRead(conf)) {
-                    confTag = getDefaultMessageConferenceTag(client) || '';
+                if(!client.acs.hasMessageConfRead(conf) || !client.acs.hasMessageAreaRead(area)) {
+                    //  move them out of both area and possibly conf to something suitable, hopefully.
+                    const [newConfTag, newAreaTag] = getSuitableMessageConfAndAreaTags(client);
                     client.user.persistProperties({
-                        [ UserProps.MessageConfTag ] : confTag,
-                        [ UserProps.MessageAreaTag ] : defaultMsgAreaTag(confTag),
+                        [ UserProps.MessageConfTag ] : newConfTag,
+                        [ UserProps.MessageAreaTag ] : newAreaTag,
                     },
                     err => {
-                        return callback(err);
-                    });
-                } else if (!client.acs.hasMessageAreaRead(area)) {
-                    client.user.persistProperty(UserProps.MessageAreaTag, defaultMsgAreaTag(confTag), err => {
                         return callback(err);
                     });
                 } else {
