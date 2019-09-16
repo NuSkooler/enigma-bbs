@@ -14,6 +14,20 @@ class ACS {
         this.subject = subject;
     }
 
+    static get Defaults() {
+        return {
+            MessageConfRead     : 'GM[users]',  //  list/read
+            MessageConfWrite    : 'GM[users]',  //  post/write
+
+            MessageAreaRead     : 'GM[users]',  //  list/read; requires parent conf read
+            MessageAreaWrite    : 'GM[users]',  //  post/write; requires parent conf write
+
+            FileAreaRead        : 'GM[users]',  //  list
+            FileAreaWrite       : 'GM[sysops]', //  upload
+            FileAreaDownload    : 'GM[users]',  //  download
+        };
+    }
+
     check(acs, scope, defaultAcs) {
         acs = acs ? acs[scope] : defaultAcs;
         acs = acs || defaultAcs;
@@ -32,8 +46,16 @@ class ACS {
         return this.check(conf.acs, 'read', ACS.Defaults.MessageConfRead);
     }
 
+    hasMessageConfWrite(conf) {
+        return this.check(conf.acs, 'write', ACS.Defaults.MessageConfWrite);
+    }
+
     hasMessageAreaRead(area) {
         return this.check(area.acs, 'read', ACS.Defaults.MessageAreaRead);
+    }
+
+    hasMessageAreaWrite(area) {
+        return this.check(area.acs, 'write', ACS.Defaults.MessageAreaWrite);
     }
 
     //
@@ -44,6 +66,7 @@ class ACS {
     }
 
     hasFileAreaWrite(area) {
+        //  :TODO: create 'upload' alias?
         return this.check(area.acs, 'write', ACS.Defaults.FileAreaWrite);
     }
 
@@ -90,14 +113,5 @@ class ACS {
         }
     }
 }
-
-ACS.Defaults = {
-    MessageAreaRead     : 'GM[users]',
-    MessageConfRead     : 'GM[users]',
-
-    FileAreaRead        : 'GM[users]',
-    FileAreaWrite       : 'GM[sysops]',
-    FileAreaDownload    : 'GM[users]',
-};
 
 module.exports = ACS;
