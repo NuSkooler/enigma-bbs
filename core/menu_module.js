@@ -259,6 +259,44 @@ exports.MenuModule = class MenuModule extends PluginModule {
         return this.client.menuStack.goto(name, options, cb);
     }
 
+    gotoMenuOrPrev(name, options, cb) {
+        this.client.menuStack.goto(name, options, err => {
+            if(!err) {
+                if(cb) {
+                    return cb(null);
+                }
+            }
+
+            return this.prevMenu(cb);
+        });
+    }
+
+    gotoMenuOrShowMessage(name, message, options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+
+        options = options || { clearScreen: true };
+
+        this.gotoMenu(name, options, err => {
+            if(err) {
+                if(options.clearScreen) {
+                    this.client.term.rawWrite(ansi.resetScreen());
+                }
+
+                this.client.term.write(`${message}\n`);
+                return this.pausePrompt( () => {
+                    return this.prevMenu(cb);
+                });
+            }
+
+            if(cb) {
+                return cb(null);
+            }
+        });
+    }
+
     reload(cb) {
         const prevMenu = this.client.menuStack.pop();
         prevMenu.instance.leave();

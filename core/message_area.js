@@ -32,6 +32,7 @@ exports.getMessageAreaByTag                 = getMessageAreaByTag;
 exports.changeMessageConference             = changeMessageConference;
 exports.changeMessageArea                   = changeMessageArea;
 exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
+exports.hasMessageConfAndAreaWrite          = hasMessageConfAndAreaWrite;
 exports.filterMessageAreaTagsByReadACS      = filterMessageAreaTagsByReadACS;
 exports.filterMessageListByReadACS          = filterMessageListByReadACS;
 exports.tempChangeMessageConfAndArea        = tempChangeMessageConfAndArea;
@@ -408,6 +409,14 @@ function hasMessageConfAndAreaRead(client, areaOrTag) {
     }
     const conf = getMessageConferenceByTag(areaOrTag.confTag);
     return client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(areaOrTag);
+}
+
+function hasMessageConfAndAreaWrite(client, areaOrTag) {
+    if(_.isString(areaOrTag)) {
+        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    const conf = getMessageConferenceByTag(areaOrTag.confTag);
+    return client.acs.hasMessageConfWrite(conf) && client.acs.hasMessageAreaWrite(areaOrTag);
 }
 
 function filterMessageAreaTagsByReadACS(client, areaTags) {
