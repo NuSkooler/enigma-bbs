@@ -35,7 +35,7 @@
     "iconv-lite": "^0.4.23",
     "inquirer": "^6.2.1",
     "later": "1.2.0",
-    "lodash": "^4.17.10",
+    "lodash": "^4.17.13",
     "lru-cache": "^5.1.1",
     "mime-types": "^2.1.21",
     "minimist": "1.2.x",
