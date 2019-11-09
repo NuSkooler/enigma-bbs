@@ -275,7 +275,7 @@ class NNTPServer extends NNTPServerBase {
         //
         const remoteFrom = _.get(message.meta, [ 'System', Message.SystemMetaNames.RemoteFromUser ]);
         message.nntpHeaders['X-FTN-From'] = remoteFrom ? `${fromName} <${remoteFrom}>` : fromName;
-        const  remoteTo = _.get(message.meta [ 'System', Message.SystemMetaNames.RemoteToUser ]);
+        const  remoteTo = _.get(message.meta, [ 'System', Message.SystemMetaNames.RemoteToUser ]);
         message.nntpHeaders['X-FTN-To'] = remoteTo ? `${toName} <${remoteTo}>` : toName;
 
         if(!message.replyToMsgId) {

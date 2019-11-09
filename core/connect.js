@@ -112,7 +112,6 @@ function ansiAttemptDetectUTF8(client, cb) {
                     }
                 }
                 return cb(null);
-
         }
     };
 

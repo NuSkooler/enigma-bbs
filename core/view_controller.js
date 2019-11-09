@@ -219,7 +219,7 @@ function ViewController(options) {
                         break;
 
                     default :
-                        propValue = propValue = conf[propName];
+                        propValue = conf[propName];
                         break;
                 }
             } else {

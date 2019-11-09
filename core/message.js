@@ -329,8 +329,8 @@ module.exports = class Message {
             appendWhereClause(`m.area_tag = "${Message.WellKnownAreaTags.Private}"`);
             appendWhereClause(
                 `m.message_id IN (
-                    SELECT message_id 
-                    FROM message_meta 
+                    SELECT message_id
+                    FROM message_meta
                     WHERE meta_category = "System" AND meta_name = "${Message.SystemMetaNames.LocalToUserID}" AND meta_value = ${filter.privateTagUserId}
                 )`);
         } else {
@@ -619,7 +619,7 @@ module.exports = class Message {
         }
 
         const metaStmt = transOrDb.prepare(
-            `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value) 
+            `INSERT INTO message_meta (message_id, meta_category, meta_name, meta_value)
             VALUES (?, ?, ?, ?);`);
 
         if(!_.isArray(value)) {
@@ -840,7 +840,7 @@ module.exports = class Message {
         } else {
             const QUOTE_RE  = /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
             const quoted    = [];
-            const input     = _.trimEnd(this.message).replace(/\b/g, '');
+            const input     = _.trimEnd(this.message).replace(/\x08/g, '');
 
             //  find *last* tearline
             let tearLinePos = this.getTearLinePosition(input);
