@@ -21,7 +21,8 @@ Each conference is represented by a entry under `messageConferences`. Each entri
 
 ### ACS
 An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
-* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
+* `read`: ACS required to read (see) this conference. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this conference. Defaults to `GM[users]`.
 
 ### Example
 
@@ -55,7 +56,8 @@ Message Areas are topic specific containers for messages that live within a part
 
 ### ACS
 An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
-* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
+* `read`: ACS required to read (see) this area. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this area. Defaults to `GM[users]`.
 
 ### Example
 
@@ -64,13 +66,14 @@ messageConferences: {
   local: {
     // ... see above ...
     areas: {
-      enigma_dev: {                     // Area tag - required elsewhere!
-        name: ENiGMA 1/2 Development   
-        desc: ENiGMA 1/2 discussion!   
-        sort: 1                        
+      enigma_dev: { // Area tag - required elsewhere!
+        name: ENiGMA 1/2 Development
+        desc: ENiGMA 1/2 development and discussion!
+        sort: 1
         default: true
         acs: {
           read: GM[users] // default
+          write: GM[l33t] // super elite ENiGMA 1/2 users!
         }
       }
     }
