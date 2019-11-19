@@ -3,13 +3,13 @@
         - [Install script]({{ site.baseurl }}{% link installation/install-script.md %})
         - [Docker]({{ site.baseurl }}{% link installation/docker.md %})
         - [Manual installation]({{ site.baseurl }}{% link installation/manual.md %})
-    - [OS / Hardware Specific]({{ site.baseurl }}{% link installation/os-hardware.md %})  
-      - [Raspberry Pi]({{ site.baseurl }}{% link installation/rpi.md %})  
-      - [Windows]({{ site.baseurl }}{% link installation/windows.md %})  
+    - [OS / Hardware Specific]({{ site.baseurl }}{% link installation/os-hardware.md %})
+      - [Raspberry Pi]({{ site.baseurl }}{% link installation/rpi.md %})
+      - [Windows]({{ site.baseurl }}{% link installation/windows.md %})
     - [Your Network Setup]({{ site.baseurl }}{% link installation/network.md %})
     - [Testing Your Installation]({{ site.baseurl }}{% link installation/testing.md %})
     - [Production Installation]({{ site.baseurl }}{% link installation/production.md %})
-    
+
   - Configuration
     - [Creating Config Files]({{ site.baseurl }}{% link configuration/creating-config.md %})
     - [SysOp Setup]({{ site.baseurl }}{% link configuration/sysop-setup.md %})
@@ -37,13 +37,13 @@
     - [TIC Support]({{ site.baseurl }}{% link filebase/tic-support.md %}) (Importing from FTN networks)
     - Tips and tricks
       - [Network mounts and symlinks]({{ site.baseurl }}{% link filebase/network-mounts-and-symlinks.md %})
-    
+
   - Message Areas
     - [Configuring a Message Area]({{ site.baseurl }}{% link messageareas/configuring-a-message-area.md %})
     - [Message networks]({{ site.baseurl }}{% link messageareas/message-networks.md %})
     - [BSO Import & Export]({{ site.baseurl }}{% link messageareas/bso-import-export.md %})
-    - [Netmail]({{ site.baseurl }}{% link messageareas/netmail.md %})     
-    
+    - [Netmail]({{ site.baseurl }}{% link messageareas/netmail.md %})
+
   - Art
     - [General]({{ site.baseurl }}{% link art/general.md %})
     - [Themes]({{ site.baseurl }}{% link art/themes.md %})
@@ -59,10 +59,10 @@
       - [Web]({{ site.baseurl }}{% link servers/web-server.md %})
       - [Gopher]({{ site.baseurl }}{% link servers/gopher.md %})
       - [NNTP]({{ site.baseurl }}{% link servers/nntp.md %})
-              
+
   - Modding
     - [Local Doors]({{ site.baseurl }}{% link modding/local-doors.md %})
-    - [Door Servers]({{ site.baseurl }}{% link modding/door-servers.md %}) 
+    - [Door Servers]({{ site.baseurl }}{% link modding/door-servers.md %})
         - DoorParty
         - BBSLink
         - Combatnet
@@ -85,6 +85,7 @@
     - [Node to Node Messaging]({{ site.baseurl }}{% link modding/node-msg.md %})
     - [Top X]({{ site.baseurl }}{% link modding/top-x.md %})
     - [2FA/OTP Config]({{ site.baseurl }}{% link modding/user-2fa-otp-config.md %})
+    - [Auto Signature Editor]({{ site.baseurl }}{% link modding/autosig-edit.md %})
 
   - Administration
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
