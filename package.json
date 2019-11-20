@@ -1,6 +1,6 @@
 {
   "name": "enigma-bbs",
-  "version": "0.0.10-alpha",
+  "version": "0.0.11-beta",
   "description": "ENiGMA½ Bulletin Board System",
   "author": "Bryan Ashby <bryan@l33t.codes>",
   "license": "BSD-2-Clause",

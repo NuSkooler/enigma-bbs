@@ -1,6 +1,9 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.11-beta
+* Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
+
 ## 0.0.10-alpha
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.

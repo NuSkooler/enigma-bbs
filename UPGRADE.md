@@ -40,6 +40,8 @@ npm install
 Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
+# 0.0.10-alpha to 0.0.11-beta
+
 # 0.0.9-alpha to 0.0.10-alpha
 * Security related files such as private keys and certs are now looked for in `config/security` by default.
 * Default archive handler for zip files has switched to InfoZip due to a bug in the latest p7Zip packages causing "volume not found" errors. Ensure you have the InfoZip `zip` and `unzip` commands in ENiGMA's path. You can switch back to 7Zip by overriding `archiveHandler` for `application/zip` in your `config.hjson` under `fileTypes` to `7Zip`.
