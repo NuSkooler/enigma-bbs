@@ -16,6 +16,7 @@ const UserProps                 = require('../user_property.js');
 const async						= require('async');
 const _							= require('lodash');
 const moment                    = require('moment');
+const fs                        = require('fs-extra');
 
 exports.handleUserCommand		= handleUserCommand;
 
@@ -227,6 +228,41 @@ function removeUser(user) {
     );
 }
 
+function renameUser(user) {
+    if(argv._.length < 3) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const newUserName = argv._[argv._.length - 1];
+
+    async.series(
+        [
+            (callback) => {
+                const { validateUserNameAvail } = require('../../core/system_view_validate.js');
+                return validateUserNameAvail(newUserName, callback);
+            },
+            (callback) => {
+                const userDb = require('../../core/database.js').dbs.user;
+                userDb.run(
+                    `UPDATE user
+                    SET user_name = ?
+                    WHERE id = ?;`,
+                    [ newUserName, user.userId, ],
+                    err => {
+                        return callback(err);
+                    }
+                );
+            }
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+            return console.info(`User "${user.username}" renamed to "${newUserName}"`);
+        }
+    );
+}
+
 function modUserGroups(user) {
     if(argv._.length < 3) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -293,7 +329,7 @@ function showUserInfo(user) {
         return user.properties[p] || 'N/A';
     };
 
-    console.info(`User information:
+    const stdInfo = `User information:
 Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
 Real name    : ${propOrNA(UserProps.RealName)}
 ID           : ${user.userId}
@@ -304,8 +340,124 @@ Last login   : ${lastLogin()}
 Login count  : ${propOrNA(UserProps.LoginCount)}
 Email        : ${propOrNA(UserProps.EmailAddress)}
 Location     : ${propOrNA(UserProps.Location)}
-Affiliations : ${propOrNA(UserProps.Affiliations)}
-`);
+Affiliations : ${propOrNA(UserProps.Affiliations)}`;
+    let secInfo = '';
+    if(argv.security) {
+        const otp = user.getProperty(UserProps.AuthFactor2OTP);
+        if(otp) {
+            const backupCodesOrNa = () => {
+                try
+                {
+                    return JSON.parse(user.getProperty(UserProps.AuthFactor2OTPBackupCodes)).join(', ');
+                } catch(e) {
+                    return 'N/A';
+                }
+            };
+            secInfo = `\n2FA OTP      : ${otp}
+OTP secret   : ${user.getProperty(UserProps.AuthFactor2OTPSecret) || 'N/A'}
+OTP Backup   : ${backupCodesOrNa()}`;
+        }
+    }
+
+    console.info(`${stdInfo}${secInfo}`);
+}
+
+function twoFactorAuthOTP(user) {
+    if(argv._.length < 4) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    const {
+        OTPTypes,
+        prepareOTP,
+        createBackupCodes,
+    } = require('../../core/user_2fa_otp.js');
+
+    let otpType = argv._[argv._.length - 1];
+
+    //  shortcut for removal
+    if('disable' === otpType) {
+        const props = [
+            UserProps.AuthFactor2OTP,
+            UserProps.AuthFactor2OTPSecret,
+            UserProps.AuthFactor2OTPBackupCodes,
+        ];
+        return user.removeProperties(props, err => {
+            if(err) {
+                console.error(err.message);
+            } else {
+                console.info(`2FA OTP disabled for ${user.username}`);
+            }
+        });
+    }
+
+    async.waterfall(
+        [
+            function validate(callback) {
+                //  :TODO: Prompt for if not supplied
+                //  allow aliases for OTP types
+                otpType = {
+                    google  : OTPTypes.GoogleAuthenticator,
+                    hotp    : OTPTypes.RFC4266_HOTP,
+                    totp    : OTPTypes.RFC6238_TOTP,
+                }[otpType] || otpType;
+                otpType = _.find(OTPTypes, t => {
+                    return t.toLowerCase() === otpType.toLowerCase();
+                });
+                if(!otpType) {
+                    return callback(Errors.Invalid('Invalid OTP type'));
+                }
+                return callback(null, otpType);
+            },
+            function prepare(otpType, callback) {
+                const otpOpts = {
+                    username    : user.username,
+                    qrType      : argv['qr-type'] || 'ascii',
+                };
+                prepareOTP(otpType, otpOpts, (err, otpInfo) => {
+                    return callback(err, Object.assign(otpInfo, { otpType, backupCodes : createBackupCodes() }));
+                });
+            },
+            function storeOrDisplayQR(otpInfo, callback) {
+                if(!argv.out || !otpInfo.qr) {
+                    return callback(null, otpInfo);
+                }
+
+                fs.writeFile(argv.out, otpInfo.qr, 'utf8', err => {
+                    return callback(err, otpInfo);
+                });
+            },
+            function persist(otpInfo, callback) {
+                const props = {
+                    [ UserProps.AuthFactor2OTP ]            : otpInfo.otpType,
+                    [ UserProps.AuthFactor2OTPSecret ]      : otpInfo.secret,
+                    [ UserProps.AuthFactor2OTPBackupCodes ] : JSON.stringify(otpInfo.backupCodes),
+                };
+                user.persistProperties(props, err => {
+                    return callback(err, otpInfo);
+                });
+            }
+        ],
+        (err, otpInfo) => {
+            if(err) {
+                console.error(err.message);
+            } else {
+                console.info(`OTP enabled for  : ${user.username}`);
+                console.info(`Secret           : ${otpInfo.secret}`);
+                console.info(`Backup codes     : ${otpInfo.backupCodes.join(', ')}`);
+
+                if(otpInfo.qr) {
+                    if(!argv.out) {
+                        console.info('--- Begin QR ---');
+                        console.info(otpInfo.qr);
+                        console.info('--- End QR ---');
+                    } else {
+                        console.info(`QR code saved to ${argv.out}`);
+                    }
+                }
+            }
+        }
+    );
 }
 
 function handleUserCommand() {
@@ -317,9 +469,14 @@ function handleUserCommand() {
         return errUsage();
     }
 
-    const action		= argv._[1];
-    const usernameIdx	= [ 'pw', 'pass', 'passwd', 'password', 'group' ].includes(action) ? argv._.length - 2 : argv._.length - 1;
-    const userName		= argv._[usernameIdx];
+    const action = argv._[1];
+    const usernameIdx = [
+        'pw', 'pass', 'passwd', 'password',
+        'group',
+        'mv', 'rename',
+        '2fa-otp', 'otp'
+    ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+    const userName = argv._[usernameIdx];
 
     if(!userName) {
         return errUsage();
@@ -341,6 +498,9 @@ function handleUserCommand() {
             del			: removeUser,
             delete		: removeUser,
 
+            mv          : renameUser,
+            rename      : renameUser,
+
             activate	: setAccountStatus,
             deactivate	: setAccountStatus,
             disable		: setAccountStatus,
@@ -349,6 +509,9 @@ function handleUserCommand() {
             group		: modUserGroups,
 
             info        : showUserInfo,
+
+            '2fa-otp'   : twoFactorAuthOTP,
+            otp         : twoFactorAuthOTP,
         }[action] || errUsage)(user, action);
     });
 }

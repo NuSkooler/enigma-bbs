@@ -1,6 +1,53 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.10-alpha
++ `oputil.js user rename USERNAME NEWNAME`
++ `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
++ SSH Public Key Authentication has been added. The system uses a OpenSSH style public key set on the `ssh_public_key` user property.
++ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used. See [Security](/docs/configuration/security.md) for more info!
+* New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](/docs/configuration/acs.md) for details.
++ `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
+* `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
+* `oputil.js fb scan --quick` is now the default. Override with `--full`.
+* ACS checks can now be applied to form actions. For example:
+```hjson
+{
+    value: { command: "SEC" }
+    action: [
+        {
+            //  secure connections can go here
+            acs: SC
+            action: @menu:securityMenu
+        }
+        {
+            //  non-secure connections
+            action: @menu:secureConnectionRequired
+        }
+    ]
+}
+```
+* `idleLogoutSeconds` and `preAuthIdleLogoutSeconds` can now be set to `0` to fully disable the idle monitor.
+* Switched default archive handler for zip files from 7zip to InfoZip (`zip` and `unzip`) commands. See [UPGRADE](UPGRADE.md).
+* Menu submit `action`'s can now in addition to being a simple string such as `@menu:someMenu`, or an array of objects with ACS checks, be a simple array of strings. In this case, a random match will be made. For example:
+```hjson
+submit: [
+    {
+        value: { command: "FOO" }
+        action: [
+            // one of the following actions will be matched:
+            "@menu:menuStyle1"
+            "@menu:menuStyle2"
+        ]
+    }
+]
+```
+* Added `read` (list/view) and `write` (post) ACS support to message conferences and areas.
+* Many new built in modules adding support for things like auto signatures, listing "my" messages, top stats, etc. Take a look in the docs for setting them up!
+* Built in MRC support!
+* Added an customizable achievement system!
+
+
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
 * Fixed `justify` properties: `left` and `right` values were formerly swapped (oops!)
@@ -17,7 +64,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Add ability to skip file and/or message areas during newscan. Set config.omitFileAreaTags and config.omitMessageAreaTags in new_scan configuration of your menu.hjson
 * `{userName}` (sanitized) and `{userNameRaw}` as well as `{cwd}` have been added to param options when launching a door.
 * Any module may now register for a system startup initialization via the `initializeModules(initInfo, cb)` export.
-* User event log is now functional. Various events a user performs will be persisted to the `system.db` `user_event_log` table for up to 90 days. An example usage can be found in the updated `last_callers` module where events are turned into Ami/X style actions. Please see `UPGRADE.md`!
+* User event log is now functional. Various events a user performs will be persisted to the `system.sqlite3` `user_event_log` table for up to 90 days. An example usage can be found in the updated `last_callers` module where events are turned into Ami/X style actions. Please see `UPGRADE.md`!
 * New MCI codes including general purpose movement codes. See [MCI codes](docs/art/mci.md)
 * `install.sh` will now attempt to use NPM's `--build-from-source` option when ARM is detected.
 * `oputil.js config new` will now generate a much more complete configuration file with comments, examples, etc. `oputil.js config cat` dumps your current config to stdout.
@@ -27,7 +74,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 * Usernames found in the `config.users.badUserNames` are now not only disallowed from applying, but disconnected at any login attempt.
 * Total minutes online is now tracked for users. Of course, it only starts after you get the update :)
-
+* Form entries in `menu.hjson` can now be omitted from submission handlers using `omit: true`
 
 ## 0.0.8-alpha
 * [Mystic BBS style](http://wiki.mysticbbs.com/doku.php?id=displaycodes) extended pipe color codes. These allow for example, to set "iCE" background colors.
@@ -40,7 +87,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Added web (http://, https://) based download manager including batch downloads. Clickable links if using [VTXClient](https://github.com/codewar65/VTX_ClientServer)!
 * General VTX hyperlink support for web links
 * DEL vs Backspace key differences in FSE
-* Correly parse oddball `INTL`, `TOPT`, `FMPT`, `Via`, etc. FTN kludge lines
+* Correctly parse oddball `INTL`, `TOPT`, `FMPT`, `Via`, etc. FTN kludge lines
 * NetMail support! You can now send and receive NetMail. To send a NetMail address a external user using `Name <address>` format from your personal email menu. For example, `Foo Bar <123:123/123>`. The system also detects other formats such asa `Name @ address` (`Foo Bar@123:123/123`)
 * `oputil.js`: Added `mb areafix` command to quickly send AreaFix messages from the command line. You can manually send them from personal mail as well.
 * `oputil.js fb rm|remove|del|delete` functionality to remove file base entries.

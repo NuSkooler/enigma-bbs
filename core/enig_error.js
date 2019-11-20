@@ -51,4 +51,5 @@ exports.ErrorReasons = {
     Inactive            : 'INACTIVE',
     Locked              : 'LOCKED',
     NotAllowed          : 'NOTALLOWED',
+    Invalid2FA          : 'INVALID2FA',
 };

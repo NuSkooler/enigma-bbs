@@ -875,7 +875,7 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.telnet.port}`));
         }
 
-        this.server.listen(port, err => {
+        this.server.listen(port, config.loginServers.telnet.address, err => {
             if(!err) {
                 Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
             }

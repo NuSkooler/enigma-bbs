@@ -307,7 +307,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             fromUserId          : _.get(this.message, 'meta.System.local_from_user_id', localUserIdNotAvail),
             toUserId            : _.get(this.message, 'meta.System.local_to_user_id', localUserIdNotAvail),
             fromRemoteUser      : _.get(this.message, 'meta.System.remote_from_user', remoteUserNotAvail),
-            toRemoteUser        : _.get(this.messgae, 'meta.System.remote_to_user', remoteUserNotAvail),
+            toRemoteUser        : _.get(this.message, 'meta.System.remote_to_user', remoteUserNotAvail),
             subject             : this.message.subject,
             modTimestamp        : this.message.modTimestamp.format(modTimestampFormat),
             msgNum              : this.messageIndex + 1,
@@ -325,14 +325,21 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     buildMessage(cb) {
         const headerValues = this.viewControllers.header.getFormData().value;
+        const area = getMessageAreaByTag(this.messageAreaTag);
+
+        const getFromUserName = () => {
+            return (area && area.realNames) ?
+                this.client.user.getProperty(UserProps.RealName) || this.client.user.username :
+                this.client.user.username;
+        };
+
+        let messageBody = this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } );
 
         const msgOpts = {
             areaTag         : this.messageAreaTag,
             toUserName      : headerValues.to,
-            fromUserName    : this.client.user.username,
+            fromUserName    : getFromUserName(),
             subject         : headerValues.subject,
-            //  :TODO: don't hard code 1 here:
-            message         : this.viewControllers.body.getView(MciViewIds.body.message).getData( { forceLineTerms : this.replyIsAnsi } ),
         };
 
         if(this.isReply()) {
@@ -345,11 +352,23 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 //  to packetAnsiMsgEncoding (generally cp437) as various boards
                 //  really don't like ANSI messages in UTF-8 encoding (they should!)
                 //
-                msgOpts.meta        = { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
-                msgOpts.message     = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${msgOpts.message}`;
+                msgOpts.meta    = { System : { 'explicit_encoding' : _.get(Config(), 'scannerTossers.ftn_bso.packetAnsiMsgEncoding', 'cp437') } };
+                messageBody     = `${ansi.reset()}${ansi.eraseData(2)}${ansi.goto(1,1)}\r\n${ansi.up()}${messageBody}`;
             }
         }
 
+        //
+        //  Append auto-signature, if enabled for the area & the user has one
+        //
+        if(false != area.autoSignatures) {
+            const sig = this.client.user.getProperty(UserProps.AutoSignature);
+            if(sig) {
+                messageBody += `\r\n-- \r\n${sig}`;
+            }
+        }
+
+        //  finally, create the message
+        msgOpts.message = messageBody;
         this.message = new Message(msgOpts);
 
         return cb(null);

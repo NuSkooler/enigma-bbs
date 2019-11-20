@@ -19,7 +19,7 @@ const UserProps             = require('./user_property.js');
 const SysProps              = require('./system_menu_method.js');
 
 //  deps
-const hashids       = require('hashids');
+const hashids       = require('hashids/cjs');
 const moment        = require('moment');
 const paths         = require('path');
 const async         = require('async');

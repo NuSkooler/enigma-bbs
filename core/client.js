@@ -136,14 +136,8 @@ function Client(/*input, output*/) {
     //
     this.getTermClient = function(deviceAttr) {
         let termClient = {
-            //
-            //  See http://www.fbl.cz/arctel/download/techman.pdf
-            //
-            //  Known clients:
-            //  * Irssi ConnectBot (Android)
-            //
-            '63;1;2'        : 'arctel',
-            '50;86;84;88'   : 'vtx',
+            '63;1;2'        : 'arctel', //  http://www.fbl.cz/arctel/download/techman.pdf - Irssi ConnectBot (Android)
+            '50;86;84;88'   : 'vtx',    //  https://github.com/codewar65/VTX_ClientServer/blob/master/vtx.txt
         }[deviceAttr];
 
         if(!termClient) {
@@ -439,6 +433,11 @@ Client.prototype.setTermType = function(termType) {
 };
 
 Client.prototype.startIdleMonitor = function() {
+    //  clear existing, if any
+    if(this.idleCheck) {
+        this.stopIdleMonitor();
+    }
+
     this.lastKeyPressMs = Date.now();
 
     //
@@ -474,14 +473,28 @@ Client.prototype.startIdleMonitor = function() {
             idleLogoutSeconds = Config().users.preAuthIdleLogoutSeconds;
         }
 
-        if(nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000)) {
+        //  use override value if set
+        idleLogoutSeconds = this.idleLogoutSecondsOverride || idleLogoutSeconds;
+
+        if(idleLogoutSeconds > 0 && (nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000))) {
             this.emit('idle timeout');
         }
     }, 1000 * 60);
 };
 
 Client.prototype.stopIdleMonitor = function() {
-    clearInterval(this.idleCheck);
+    if(this.idleCheck) {
+        clearInterval(this.idleCheck);
+        delete this.idleCheck;
+    }
+};
+
+Client.prototype.overrideIdleLogoutSeconds = function(seconds) {
+    this.idleLogoutSecondsOverride = seconds;
+};
+
+Client.prototype.restoreIdleLogoutSeconds = function() {
+    delete this.idleLogoutSecondsOverride;
 };
 
 Client.prototype.end = function () {

@@ -21,20 +21,30 @@ const async             = require('async');
 const _                 = require('lodash');
 const moment            = require('moment');
 const sanatizeFilename  = require('sanitize-filename');
+const ssh2              = require('ssh2');
 
 exports.isRootUserId = function(id) { return 1 === id; };
 
 module.exports = class User {
     constructor() {
-        this.userId     = 0;
-        this.username   = '';
-        this.properties = {};   //  name:value
-        this.groups     = [];   //  group membership(s)
+        this.userId         = 0;
+        this.username       = '';
+        this.properties     = {};   //  name:value
+        this.groups         = [];   //  group membership(s)
+        this.authFactor     = User.AuthFactors.None;
     }
 
     //  static property accessors
     static get RootUserID() {
         return 1;
+    }
+
+    static get AuthFactors() {
+        return {
+            None    : 0,    //  Not yet authenticated in any way
+            Factor1 : 1,    //  username + password/pubkey/etc. checked out
+            Factor2 : 2,    //  validated with 2FA of some sort such as OTP
+        };
     }
 
     static get PBKDF2() {
@@ -47,7 +57,10 @@ module.exports = class User {
 
     static get StandardPropertyGroups() {
         return {
-            password    : [ UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk ],
+            auth : [
+                UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk,
+                UserProps.AuthPubKey,
+            ],
         };
     }
 
@@ -58,18 +71,6 @@ module.exports = class User {
             active      : 2,    //  standard, active
             locked      : 3,    //  locked out (too many bad login attempts, etc.)
         };
-    }
-
-    static isSamePasswordSlowCompare(passBuf1, passBuf2) {
-        if(passBuf1.length !== passBuf2.length) {
-            return false;
-        }
-
-        let c = 0;
-        for(let i = 0; i < passBuf1.length; i++) {
-            c |= passBuf1[i] ^ passBuf2[i];
-        }
-        return 0 === c;
     }
 
     isAuthenticated() {
@@ -186,9 +187,52 @@ module.exports = class User {
         });
     }
 
-    authenticate(username, password, cb) {
+    static get AuthFactor1Types() {
+        return {
+            SSHPubKey   : 'sshPubKey',
+            Password    : 'password',
+            TLSClient   : 'tlsClientAuth',
+        };
+    }
+
+    authenticateFactor1(authInfo, cb) {
+        const username = authInfo.username;
         const self = this;
         const tempAuthInfo = {};
+
+        const validatePassword = (props, callback) => {
+            User.generatePasswordDerivedKey(authInfo.password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+                if(err) {
+                    return callback(err);
+                }
+
+                //
+                //  Use constant time comparison here for security feel-goods
+                //
+                const passDkBuf     = Buffer.from(dk, 'hex');
+                const propsDkBuf    = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
+
+                return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
+                    null :
+                    Errors.AccessDenied('Invalid password')
+                );
+            });
+        };
+
+        const validatePubKey = (props, callback) => {
+            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.AuthPubKey]);
+            if(!pubKeyActual) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            if(authInfo.pubKey.key.algo != pubKeyActual.type ||
+                !crypto.timingSafeEqual(authInfo.pubKey.key.data, pubKeyActual.getPublicSSH()))
+            {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
+
+            return callback(null);
+        };
 
         async.waterfall(
             [
@@ -203,27 +247,15 @@ module.exports = class User {
                 },
                 function getRequiredAuthProperties(callback) {
                     //  fetch properties required for authentication
-                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
+                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
                         return callback(err, props);
                     });
                 },
-                function getDkWithSalt(props, callback) {
-                    //  get DK from stored salt and password provided
-                    User.generatePasswordDerivedKey(password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
-                        return callback(err, dk, props[UserProps.PassPbkdf2Dk]);
-                    });
-                },
-                function validateAuth(passDk, propsDk, callback) {
-                    //
-                    //  Use constant time comparison here for security feel-goods
-                    //
-                    const passDkBuf     = Buffer.from(passDk,   'hex');
-                    const propsDkBuf    = Buffer.from(propsDk,  'hex');
-
-                    return callback(User.isSamePasswordSlowCompare(passDkBuf, propsDkBuf) ?
-                        null :
-                        Errors.AccessDenied('Invalid password')
-                    );
+                function validatePassOrPubKey(props, callback) {
+                    if(User.AuthFactor1Types.SSHPubKey === authInfo.type) {
+                        return validatePubKey(props, callback);
+                    }
+                    return validatePassword(props, callback);
                 },
                 function initProps(callback) {
                     User.loadProperties(tempAuthInfo.userId, (err, allProps) => {
@@ -301,7 +333,12 @@ module.exports = class User {
                     self.username       = tempAuthInfo.username;
                     self.properties     = tempAuthInfo.properties;
                     self.groups         = tempAuthInfo.groups;
-                    self.authenticated  = true;
+                    self.authFactor      = User.AuthFactors.Factor1;
+
+                    //
+                    //  If 2FA/OTP is required, this user is not quite authenticated yet.
+                    //
+                    self.authenticated = !(self.getProperty(UserProps.AuthFactor2OTP) ? true : false);
 
                     self.removeProperty(UserProps.FailedLoginAttempts);
 
@@ -582,7 +619,10 @@ module.exports = class User {
                 user.username       = userName;
                 user.properties     = properties;
                 user.groups         = groups;
-                user.authenticated  = false;    //  this is NOT an authenticated user!
+
+                //  explicitly NOT an authenticated user!
+                user.authenticated  = false;
+                user.authFactor     = User.AuthFactors.None;
 
                 return cb(err, user);
             }

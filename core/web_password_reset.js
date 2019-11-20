@@ -22,7 +22,7 @@ const _                     = require('lodash');
 
 const PW_RESET_EMAIL_TEXT_TEMPLATE_DEFAULT =
     `%USERNAME%:
-a password reset has been requested for your account on %BOARDNAME%.
+A password reset has been requested for your account on %BOARDNAME%.
     
     * If this was not you, please ignore this email.
     * Otherwise, follow this link: %RESET_URL%
@@ -133,7 +133,7 @@ class WebPasswordReset {
                         if(err) {
                             Log.warn( { error : err.message }, 'Failed sending password reset email' );
                         } else {
-                            Log.debug( { info : info }, 'Successfully sent password reset email');
+                            Log.info( { info : info }, 'Successfully sent password reset email');
                         }
 
                         return callback(err);

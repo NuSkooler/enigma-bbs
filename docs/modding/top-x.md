@@ -48,7 +48,7 @@ mciMap: {
 }
 ```
 
-### Theming
+## Theming
 Generally `mciMap` entries will point to a Vertical List View Menu (`%VM1`, `%VM2`, etc.). The following `itemFormat` object is provided:
 * `value`: The value acquired from the supplied data source.
 * `userName`: User's username.

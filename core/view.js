@@ -178,6 +178,12 @@ View.prototype.setSpecialKeyMapOverride = function(specialKeyMapOverride) {
 
 View.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
+        case 'acceptsFocus' :
+            if (_.isBoolean(value)) {
+                this.acceptsFocus = value;
+            }
+            break;
+
         case 'height'   : this.setHeight(value); break;
         case 'width'    : this.setWidth(value); break;
         case 'focus'    : this.setFocus(value); break;
@@ -219,6 +225,12 @@ View.prototype.setPropertyValue = function(propName, value) {
             break;
 
         case 'argName' : this.submitArgName = value; break;
+
+        case 'omit' :
+            if(_.isBoolean(value)) {
+                this.omitFromSubmission = value; break;
+            }
+            break;
 
         case 'validate' :
             if(_.isFunction(value)) {

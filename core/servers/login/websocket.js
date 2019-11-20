@@ -88,7 +88,7 @@ function WebSocketClient(ws, req, serverType) {
     });
 
     //
-    //  Montior connection status with ping/pong
+    //  Monitor connection status with ping/pong
     //
     ws.on('pong', () => {
         Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
@@ -200,7 +200,8 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
             }
 
             const serverName    = `${ModuleInfo.name} (${serverType})`;
-            const confPort      = _.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws', 'port' ] );
+            const conf          = _.get(Config(), [ 'loginServers', 'webSocket', 'secure' === serverType ? 'wss' : 'ws' ] );
+            const confPort      = conf.port;
             const port          = parseInt(confPort);
 
             if(isNaN(port)) {
@@ -208,7 +209,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
                 return nextServerType(Errors.Invalid(`Invalid port: ${confPort}`));
             }
 
-            server.httpServer.listen(port, err => {
+            server.httpServer.listen(port, conf.address, err => {
                 if(err) {
                     return nextServerType(err);
                 }

@@ -203,6 +203,22 @@ const DB_INIT_TABLE = {
             );`
         );
 
+        //
+        //  Table for temporary tokens, generally used for e.g. 'outside'
+        //  access such as email links.
+        //  Examples: PW reset, enabling of 2FA/OTP, etc.
+        //
+        dbs.user.run(
+            `CREATE TABLE IF NOT EXISTS user_temporary_token (
+                user_id             INTEGER NOT NULL,
+                token               VARCHAR NOT NULL,
+                token_type          VARCHAR NOT NULL,
+                timestamp           DATETIME NOT NULL,
+                UNIQUE(user_id, token_type),
+                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+            );`
+        );
+
         return cb(null);
     },
 

@@ -2,6 +2,7 @@
 {
 	const UserProps	= require('./user_property.js');
 	const Log       = require('./logger.js').log;
+	const User		= require('./user.js');
 
 	const _			= require('lodash');
 	const moment	= require('moment');
@@ -137,6 +138,22 @@
 				},
 				SC 	: function isSecureConnection() {
 					return _.get(client, 'session.isSecure', false);
+				},
+				AF	: function currentAuthFactor() {
+					if(!user) {
+						return false;
+					}
+					return !isNaN(value) && user.authFactor >= value;
+				},
+				AR	: function authFactorRequired() {
+					if(!user) {
+						return false;
+					}
+					switch(value) {
+						case 1 : return true;
+						case 2 : return user.getProperty(UserProps.AuthFactor2OTP) ? true : false;
+						default : return false;
+					}
 				},
 				ML	: function minutesLeft() {
 					//	:TODO: implement me!

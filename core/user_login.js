@@ -15,14 +15,32 @@ const {
 const UserProps         = require('./user_property.js');
 const SysProps          = require('./system_property.js');
 const SystemLogKeys     = require('./system_log.js');
+const User              = require('./user.js');
+const {
+    getMessageConferenceByTag,
+    getMessageAreaByTag,
+    getSuitableMessageConfAndAreaTags,
+}                       = require('./message_area.js');
+const {
+    getFileAreaByTag,
+    getDefaultFileAreaTag,
+}                       = require('./file_base_area.js');
 
 //  deps
 const async             = require('async');
 const _                 = require('lodash');
+const assert            = require('assert');
 
-exports.userLogin       = userLogin;
+exports.userLogin             = userLogin;
+exports.recordLogin           = recordLogin;
+exports.transformLoginError   = transformLoginError;
 
-function userLogin(client, username, password, cb) {
+function userLogin(client, username, password, options, cb) {
+    if(!cb && _.isFunction(options)) {
+        cb = options;
+        options = {};
+    }
+
     const config = Config();
 
     if(config.users.badUserNames.includes(username.toLowerCase())) {
@@ -34,22 +52,23 @@ function userLogin(client, username, password, cb) {
         }, 2000);
     }
 
-    client.user.authenticate(username, password, err => {
-        if(err) {
-            client.user.sessionFailedLoginAttempts = _.get(client.user, 'sessionFailedLoginAttempts', 0) + 1;
-            const disconnect = config.users.failedLogin.disconnect;
-            if(disconnect > 0 && client.user.sessionFailedLoginAttempts >= disconnect) {
-                err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
-            }
+    const authInfo = {
+        username,
+        password,
+    };
 
-            client.log.info( { username, ip : client.remoteAddress, reason : err.message }, 'Failed login attempt');
-            return cb(err);
+    authInfo.type   = options.authType || User.AuthFactor1Types.Password;
+    authInfo.pubKey = options.ctx;
+
+    client.user.authenticateFactor1(authInfo, err => {
+        if(err) {
+            return cb(transformLoginError(err, client, username));
         }
 
         const user = client.user;
 
         //  Good login; reset any failed attempts
-        delete user.sessionFailedLoginAttempts;
+        delete client.sessionFailedLoginAttempts;
 
         //
         //  Ensure this user is not already logged in.
@@ -90,41 +109,113 @@ function userLogin(client, username, password, cb) {
 
         Events.emit(Events.getSystemEvents().UserLogin, { user } );
 
-        async.parallel(
-            [
-                function setTheme(callback) {
-                    setClientTheme(client, user.properties[UserProps.ThemeId]);
-                    return callback(null);
-                },
-                function updateSystemLoginCount(callback) {
-                    StatLog.incrementNonPersistentSystemStat(SysProps.LoginsToday, 1);
-                    return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
-                },
-                function recordLastLogin(callback) {
-                    return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
-                },
-                function updateUserLoginCount(callback) {
-                    return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
-                },
-                function recordLoginHistory(callback) {
-                    const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;
-                    const historyItem = JSON.stringify({
-                        userId      : user.userId,
-                        sessionId   : user.sessionId,
-                    });
+        setClientTheme(client, user.properties[UserProps.ThemeId]);
 
-                    return StatLog.appendSystemLogEntry(
-                        SystemLogKeys.UserLoginHistory,
-                        historyItem,
-                        loginHistoryMax,
-                        StatLog.KeepType.Max,
-                        callback
-                    );
-                }
-            ],
-            err => {
+        postLoginPrep(client, err => {
+            if(err) {
                 return cb(err);
             }
-        );
+
+            if(user.authenticated) {
+                return recordLogin(client, cb);
+            }
+
+            //  recordLogin() must happen after 2FA!
+            return cb(null);
+        });
     });
+}
+
+function postLoginPrep(client, cb) {
+    async.series(
+        [
+            (callback) => {
+                //
+                //  User may (no longer) have read (view) rights to their current
+                //  message, conferences and/or areas. Move them out if so.
+                //
+                const confTag   = client.user.getProperty(UserProps.MessageConfTag);
+                const conf      = getMessageConferenceByTag(confTag) || {};
+                const area      = getMessageAreaByTag(client.user.getProperty(UserProps.MessageAreaTag), confTag) || {};
+
+                if(!client.acs.hasMessageConfRead(conf) || !client.acs.hasMessageAreaRead(area)) {
+                    //  move them out of both area and possibly conf to something suitable, hopefully.
+                    const [newConfTag, newAreaTag] = getSuitableMessageConfAndAreaTags(client);
+                    client.user.persistProperties({
+                        [ UserProps.MessageConfTag ] : newConfTag,
+                        [ UserProps.MessageAreaTag ] : newAreaTag,
+                    },
+                    err => {
+                        return callback(err);
+                    });
+                } else {
+                    return callback(null);
+                }
+            },
+            (callback) => {
+                //  Likewise for file areas
+                const area = getFileAreaByTag(client.user.getProperty(UserProps.FileAreaTag)) || {};
+                if(!client.acs.hasFileAreaRead(area)) {
+                    const areaTag = getDefaultFileAreaTag(client) || '';
+                    client.user.persistProperty(UserProps.FileAreaTag, areaTag, err => {
+                        return callback(err);
+                    });
+                } else {
+                    return callback(null);
+                }
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
+}
+
+function recordLogin(client, cb) {
+    assert(client.user.authenticated);  //  don't get in situations where this isn't true
+
+    const user = client.user;
+    async.parallel(
+        [
+            (callback) => {
+                StatLog.incrementNonPersistentSystemStat(SysProps.LoginsToday, 1);
+                return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
+            },
+            (callback) => {
+                return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
+            },
+            (callback) => {
+                return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
+            },
+            (callback) => {
+                const loginHistoryMax = Config().statLog.systemEvents.loginHistoryMax;
+                const historyItem = JSON.stringify({
+                    userId      : user.userId,
+                    sessionId   : user.sessionId,
+                });
+
+                return StatLog.appendSystemLogEntry(
+                    SystemLogKeys.UserLoginHistory,
+                    historyItem,
+                    loginHistoryMax,
+                    StatLog.KeepType.Max,
+                    callback
+                );
+            }
+        ],
+        err => {
+            return cb(err);
+        }
+    );
+}
+
+function transformLoginError(err, client, username) {
+    client.sessionFailedLoginAttempts = _.get(client, 'sessionFailedLoginAttempts', 0) + 1;
+    const disconnect = Config().users.failedLogin.disconnect;
+    if(disconnect > 0 && client.sessionFailedLoginAttempts >= disconnect) {
+        err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
+    }
+
+    client.log.info( { username, ip : client.remoteAddress, reason : err.message }, 'Failed login attempt');
+    return err;
 }

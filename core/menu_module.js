@@ -16,6 +16,7 @@ const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
 const async                 = require('async');
 const assert                = require('assert');
 const _                     = require('lodash');
+const iconvDecode           = require('iconv-lite').decode;
 
 exports.MenuModule = class MenuModule extends PluginModule {
 
@@ -185,7 +186,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         let opts = { cls : true };  //  clear screen for first message
 
         async.whilst(
-            () => this.client.interruptQueue.hasItems(),
+            (callback) => callback(null, this.client.interruptQueue.hasItems()),
             next => {
                 this.client.interruptQueue.displayNext(opts, err => {
                     opts = {};
@@ -256,6 +257,44 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
     gotoMenu(name, options, cb) {
         return this.client.menuStack.goto(name, options, cb);
+    }
+
+    gotoMenuOrPrev(name, options, cb) {
+        this.client.menuStack.goto(name, options, err => {
+            if(!err) {
+                if(cb) {
+                    return cb(null);
+                }
+            }
+
+            return this.prevMenu(cb);
+        });
+    }
+
+    gotoMenuOrShowMessage(name, message, options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+
+        options = options || { clearScreen: true };
+
+        this.gotoMenu(name, options, err => {
+            if(err) {
+                if(options.clearScreen) {
+                    this.client.term.rawWrite(ansi.resetScreen());
+                }
+
+                this.client.term.write(`${message}\n`);
+                return this.pausePrompt( () => {
+                    return this.prevMenu(cb);
+                });
+            }
+
+            if(cb) {
+                return cb(null);
+            }
+        });
     }
 
     reload(cb) {
@@ -379,7 +418,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
         );
     }
 
-    displayAsset(name, options, cb) {
+    displayAsset(nameOrData, options, cb) {
         if(_.isFunction(options)) {
             cb = options;
             options = {};
@@ -389,10 +428,25 @@ exports.MenuModule = class MenuModule extends PluginModule {
             this.client.term.rawWrite(ansi.resetScreen());
         }
 
+        options = Object.assign( { client : this.client, font : this.menuConfig.config.font }, options );
+
+        if(Buffer.isBuffer(nameOrData)) {
+            const data = iconvDecode(nameOrData, options.encoding || 'cp437');
+            return theme.displayPreparedArt(
+                options,
+                { data },
+                (err, artData) => {
+                    if(cb) {
+                        return cb(err, artData);
+                    }
+                }
+            );
+        }
+
         return theme.displayThemedAsset(
-            name,
+            nameOrData,
             this.client,
-            Object.assign( { font : this.menuConfig.config.font }, options ),
+            options,
             (err, artData) => {
                 if(cb) {
                     return cb(err, artData);
@@ -513,7 +567,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     setViewText(formName, mciId, text, appendMultiLine) {
-        const view = this.viewControllers[formName].getView(mciId);
+        const view = this.getView(formName, mciId);
         if(!view) {
             return;
         }
@@ -523,6 +577,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
         } else {
             view.setText(text);
         }
+    }
+
+    getView(formName, id) {
+        const form = this.viewControllers[formName];
+        return form && form.getView(id);
     }
 
     updateCustomViewTextsWithFilter(formName, startId, fmtObj, options) {

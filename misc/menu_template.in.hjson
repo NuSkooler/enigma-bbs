@@ -60,11 +60,20 @@
 
         //
         //  SSH connections are pre-authenticated via the SSH server itself.
-        //  Jump directly to the login sequence
+        //  Jump directly to either the 2FA/OTP auth or the login sequence
+        //  depending on user ACS.
         //
         sshConnected: {
             art: CONNECT
-            next: fullLoginSequenceLoginArt
+            next: [
+                {
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: fullLoginSequenceLoginArt
+                }
+            ]
             config: { nextTimeout: 1500 }
         }
 
@@ -90,11 +99,6 @@
                                 submit: true
                                 focus:  true
                                 argName: navSelect
-                                //
-                                //  To enable forgot password, you will need to have the web server
-                                //  enabled and mail/SMTP configured. Once that is in place, swap out
-                                //  the commented lines below as well as in the submit block
-                                //
                                 items: [
                                     {
                                         text: login
@@ -104,10 +108,20 @@
                                         text: apply
                                         data: apply
                                     }
+
+                                    //
+                                    //  To enable the forgot password option, you'll need to have
+                                    //  the web server & email configured. Once that is in place,
+                                    //  uncomment the section below.
+                                    //
+                                    //  See docs for more information
+                                    //
+                                    /*
                                     {
                                         text: forgot pass
                                         data: forgot
                                     }
+                                    */
                                     {
                                         text: log off
                                         data: logoff
@@ -142,7 +156,20 @@
 
         login: {
             art: USERLOG
-            next: fullLoginSequenceLoginArt
+            next: [
+                {
+                    //
+                    //  Users with 2FA/OTP enabled *must* go through
+                    //  an additional OTP authentication step
+                    //
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    //  ...everyone else can carry on as per usual
+                    next: fullLoginSequenceLoginArt
+                }
+            ]
             config: {
                 tooNodeMenu: loginAttemptTooNode
                 inactive: loginAttemptAccountInactive
@@ -216,6 +243,46 @@
                 nextTimeout: 2000
             }
             next: logoff
+        }
+
+        //
+        //  Empty menu to catch us in a 2FA/OTP auth loop
+        //  until the user either authenticates successfully
+        //  or the system boots them.
+        //
+        loginTwoFactorAuthOTPLoop: {
+            next: loginTwoFactorAuthOTP
+        }
+
+        loginTwoFactorAuthOTP: {
+            art: 2FAOTP
+            next: fullLoginSequenceLoginArt
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
         }
 
         forgotPassword: {
@@ -549,6 +616,7 @@
                             argName: to
                             focus: true
                             text: @sysStat:sysop_username
+                            maxLength: 36
                             //  :TODO: readOnly: true
                         }
                         ET3: {
@@ -1067,6 +1135,27 @@
                     action: @menu:mainMenuUserAchievementsEarned
                 }
                 {
+                    value: { command: "MRC" }
+                    action: @menu:mrc
+                }
+                {
+                    value: { command: "2FA" }
+                    action: [
+                        {
+                            //
+                            //  For security reasons, only allow 2FA/OTP to be
+                            //  configured over already secure (SSL, wss://, ...)
+                            //  connections. Not doing so risks leaking secrets!
+                            //
+                            acs: SC
+                            action: @menu:userTwoFactorAuthOTPConfig
+                        }
+                        {
+                            action: @menu:userTwoFactorAuthOTPSecConnRequired
+                        }
+                    ]
+                }
+                {
                     value: 1
                     action: @menu:mainMenu
                 }
@@ -1091,6 +1180,143 @@
                         }
                     ]
                 }
+            }
+        }
+
+        mrc: {
+            desc: MRC Chat
+            module: mrc
+            art: MRC
+            config: {
+                cls: true
+
+                //  max lines kept in scrollback buffer
+                maxScrollbackLines: 500
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+							mode: preview
+							autoScroll: true
+						}
+                        ET2: {
+                            argName: inputArea
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            action: @method:movementKeyPressed
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { inputArea: null }
+                                action: @method:sendChatMessage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        userTwoFactorAuthOTPConfig: {
+            desc: 2FA/OTP Config
+            module: user_2fa_otp_config
+            art: 2FACONFSCR
+            form: {
+                0: {
+                    mci: {
+                        TM1: {
+                            argName: enableToggle
+                            focus: true
+                            items: [
+                                //  order is important here:
+                                "disable"
+                                "enable/reset"
+                            ]
+                        }
+                        SM2: {
+                            argName: otpType
+                            items: [
+                                //  order is important here:
+                                "Time-Based - TOTP"
+                                "HMAC-Based - HOTP"
+                                "Google Authenticator"
+                            ]
+                        }
+                        TM3: {
+                            argName: submit
+                            items: [
+                                "save"
+                                "cancel"
+                            ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { submit: 0 }
+                                action: @method:saveChanges
+                            }
+                            {
+                                value: { submit: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "q", "shift + q" ]
+                            action: @method:showQRCode
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:showSecret
+                        }
+                        {
+                            keys: [ "b", "shift + b" ]
+                            action: @method:showBackupCodes
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @method:generateNewBackupCodes
+                        }
+                    ]
+                }
+            }
+        }
+
+        userTwoFactorAuthOTPSecConnRequired: {
+            desc: Insecure Warning
+            art: 2FAOTPSECREQ
+            config: {
+                cls: true
+                pause: true
+            }
+        }
+
+        userTwoFactorAuthOTPConfigShowDetails: {
+            desc: 2FA/OTP Details
+            module: show_art
+            config: {
+                pause: true
+                method: extraArgs
             }
         }
 
@@ -1307,6 +1533,7 @@
                             argName: to
                             focus: true
                             text: @sysStat:sysop_username
+                            maxLength: 36
                             //  :TODO: readOnly: true
                         }
                         ET3: {
@@ -1864,10 +2091,54 @@
                     action: @menu:messageSearch
                 }
                 {
+                    value: { command: "M" }
+                    action: @menu:myMessages
+                }
+                {
+                    value: { command: "A" }
+                    action: @menu:editAutoSignature
+                }
+                {
                     value: 1
                     action: @menu:messageArea
                 }
             ]
+        }
+
+        editAutoSignature: {
+            desc: Auto Sig Editor
+            module: autosig_edit
+            art: autosig
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            argName: signature
+                            tabSwitchesView: true
+                        }
+                        BT2: {
+                            text: save
+                            argName: save
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { save: null }
+                                action: @method:saveChanges
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
         }
 
         messageSearch: {
@@ -1950,6 +2221,48 @@
                         }
                         TL6: {
                             //  theme me!
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { message: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        myMessages: {
+            desc: Personal Messages
+            module: my_messages
+            config: {
+                messageListMenu: messageAreaMyMessagesList
+            }
+        }
+
+        messageAreaMyMessagesList: {
+            desc: Personal Messages
+            module: msg_list
+            art: MYMSGLST
+            config: {
+                menuViewPost: messageAreaViewPost
+            }
+            form: {
+                0: {
+                    mci:  {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: message
                         }
                     }
                     submit: {
@@ -2275,6 +2588,7 @@
                             argName: to
                             focus: true
                             validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject
@@ -2433,6 +2747,7 @@
                             focus: true
                             text: All
                             validate: @systemMethod:validateNonEmpty
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject
@@ -2592,6 +2907,7 @@
                             argName: to
                             focus: true
                             validate: @systemMethod:validateGeneralMailAddressedTo
+                            maxLength: 36
                         }
                         ET3: {
                             argName: subject

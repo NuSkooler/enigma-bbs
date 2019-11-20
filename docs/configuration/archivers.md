@@ -11,9 +11,15 @@ Archivers are manged via the `archives:archivers` configuration block of `config
 The following archivers are pre-configured in ENiGMA½ as of this writing. Remember that you can override settings or add new handlers!
 
 #### ZZip
-* Formats: .7z, .bzip2, .zip, .gzip/.gz, and more
+* Formats: .7z, .bzip2, .gzip/.gz, and more
 * Key: `7Zip`
 * Homepage/package: [7-zip.org](http://www.7-zip.org/). Generally obtained from a `p7zip` package in UNIX-like environments. See http://p7zip.sourceforge.net/ for details.
+* Notes: Versions previous to 0.0.10-alpha defaulted to using 7zip for .zip files as well, but newer versions of the package give "volume" errors at times. See InfoZip below.
+
+#### InfoZip
+* Formats: .zip
+* Key: InfoZip
+* Homepage/package: http://infozip.sourceforge.net/. Often already available in Linux. You will need `zip` and `unzip` in ENiGMA's path.
 
 #### Lha
 * Formats: <a href="https://en.wikipedia.org/wiki/LHA_(file_format)">LHA</a> files such as .lzh.

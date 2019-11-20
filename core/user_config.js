@@ -76,12 +76,12 @@ exports.getModule = class UserConfigModule extends MenuModule {
             },
 
             validatePassConfirmMatch : function(data, cb) {
-                var passwordView = self.getView(MciCodeIds.Password);
+                var passwordView = self.getMenuView(MciCodeIds.Password);
                 cb(passwordView.getData() === data ? null : new Error('Passwords do not match'));
             },
 
             viewValidationListener : function(err, cb) {
-                var errMsgView = self.getView(MciCodeIds.ErrorMsg);
+                var errMsgView = self.getMenuView(MciCodeIds.ErrorMsg);
                 var newFocusId;
                 if(errMsgView) {
                     if(err) {
@@ -89,7 +89,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
 
                         if(err.view.getId() === MciCodeIds.PassConfirm) {
                             newFocusId = MciCodeIds.Password;
-                            var passwordView = self.getView(MciCodeIds.Password);
+                            var passwordView = self.getMenuView(MciCodeIds.Password);
                             passwordView.clearText();
                             err.view.clearText();
                         }
@@ -150,7 +150,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
         };
     }
 
-    getView(viewId) {
+    getMenuView(viewId) {
         return this.viewControllers.menu.getView(viewId);
     }
 
@@ -200,13 +200,13 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         self.setViewText('menu', MciCodeIds.TermHeight, user.properties[UserProps.TermHeight].toString());
 
 
-                        var themeView = self.getView(MciCodeIds.Theme);
+                        var themeView = self.getMenuView(MciCodeIds.Theme);
                         if(themeView) {
                             themeView.setItems(_.map(self.availThemeInfo, 'name'));
                             themeView.setFocusItemIndex(currentThemeIdIndex);
                         }
 
-                        var realNameView = self.getView(MciCodeIds.RealName);
+                        var realNameView = self.getMenuView(MciCodeIds.RealName);
                         if(realNameView) {
                             realNameView.setFocus(true);    //  :TODO: HACK! menu.hjson sets focus, but manual population above breaks this. Needs a real fix!
                         }

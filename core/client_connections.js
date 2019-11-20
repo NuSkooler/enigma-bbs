@@ -9,7 +9,7 @@ const UserProps     = require('./user_property.js');
 //  deps
 const _             = require('lodash');
 const moment        = require('moment');
-const hashids       = require('hashids');
+const hashids       = require('hashids/cjs');
 
 exports.getActiveConnections    = getActiveConnections;
 exports.getActiveConnectionList = getActiveConnectionList;

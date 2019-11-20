@@ -169,6 +169,11 @@ function getDefaultConfig() {
     return {
         general : {
             boardName       : 'Another Fine ENiGMA½ BBS',
+            prettyBoardName : '|08A|07nother |07F|08ine |07E|08NiGMA|07½ B|08BS',
+            telnetHostname  : '',
+            sshHostname     : '',
+            website         : 'https://enigma-bbs.github.io',
+            description     : 'An ENiGMA½ BBS',
 
             //  :TODO: closedSystem prob belongs under users{}?
             closedSystem    : false,                    //  is the system closed to new users?
@@ -212,7 +217,8 @@ function getDefaultConfig() {
 
             badUserNames        : [
                 'sysop', 'admin', 'administrator', 'root', 'all',
-                'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix'
+                'areamgr', 'filemgr', 'filefix', 'areafix', 'allfix',
+                'server', 'client', 'notme'
             ],
 
             preAuthIdleLogoutSeconds    : 60 * 3,   //  3m
@@ -224,6 +230,16 @@ function getDefaultConfig() {
                 autoUnlockMinutes   : 60 * 6,       //  0=disabled; Auto unlock after N minutes.
             },
             unlockAtEmailPwReset    : true,         //  if true, password reset via email will unlock locked accounts
+
+            twoFactorAuth : {
+                method : 'googleAuth',
+
+                otp : {
+                    registerEmailText       : paths.join(__dirname, '../misc/otp_register_email.template.txt'),
+                    registerEmailHtml       : paths.join(__dirname, '../misc/otp_register_email.template.html'),
+                    registerPageTemplate    : paths.join(__dirname, '../www/otp_register.template.html'),
+                }
+            }
         },
 
         theme : {
@@ -250,16 +266,18 @@ function getDefaultConfig() {
 
         paths : {
             config              : paths.join(__dirname, './../config/'),
+            security            : paths.join(__dirname, './../config/security'),    //  certs, keys, etc.
             mods                : paths.join(__dirname, './../mods/'),
             loginServers        : paths.join(__dirname, './servers/login/'),
             contentServers      : paths.join(__dirname, './servers/content/'),
+            chatServers         : paths.join(__dirname, './servers/chat/'),
 
             scannerTossers      : paths.join(__dirname, './scanner_tossers/'),
             mailers             : paths.join(__dirname, './mailers/')       ,
 
             art                 : paths.join(__dirname, './../art/general/'),
             themes              : paths.join(__dirname, './../art/themes/'),
-            logs                : paths.join(__dirname, './../logs/'),  //  :TODO: set up based on system, e.g. /var/logs/enigmabbs or such
+            logs                : paths.join(__dirname, './../logs/'),
             db                  : paths.join(__dirname, './../db/'),
             modsDb              : paths.join(__dirname, './../db/mods/'),
             dropFiles           : paths.join(__dirname, './../drop/'), //  + "/node<x>/
@@ -284,10 +302,10 @@ function getDefaultConfig() {
                 //
                 //  > openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
                 //      -pkeyopt rsa_keygen_pubexp:65537 | openssl rsa \
-                //      -out ./config/ssh_private_key.pem -aes128
+                //      -out ./config/security/ssh_private_key.pem -aes128
                 //
-                //  (The above is a more modern equivelant of the following):
-                //  > openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
+                //  (The above is a more modern equivalent of the following):
+                //  > openssl genrsa -aes128 -out ./config/security/ssh_private_key.pem 2048
                 //
                 //  2 - Set 'privateKeyPass' to the password you used in step #1
                 //
@@ -297,7 +315,7 @@ function getDefaultConfig() {
                 //  - https://blog.sleeplessbeastie.eu/2017/12/28/how-to-generate-private-key/
                 //  - https://gist.github.com/briansmith/2ee42439923d8e65a266994d0f70180b
                 //
-                privateKeyPem       : paths.join(__dirname, './../config/ssh_private_key.pem'),
+                privateKeyPem       : paths.join(__dirname, './../config/security/ssh_private_key.pem'),
                 firstMenu           : 'sshConnected',
                 firstMenuNewUser    : 'sshConnectedNewUser',
 
@@ -447,6 +465,16 @@ function getDefaultConfig() {
             }
         },
 
+        chatServers : {
+            mrc: {
+                enabled             : false,
+                serverHostname      : 'mrc.bottomlessabyss.net',
+                serverPort          : 5000,
+                retryDelay          : 10000,
+                multiplexerPort     : 5000,
+            }
+        },
+
         infoExtractUtils : {
             Exiftool2Desc :  {
                 cmd         : `${__dirname}/../util/exiftool2desc.js`,  //  ensure chmod +x
@@ -549,7 +577,7 @@ function getDefaultConfig() {
                 desc            : 'ZIP Archive',
                 sig             : '504b0304',
                 offset          : 0,
-                archiveHandler  : '7Zip',
+                archiveHandler  : 'InfoZip',
             },
             /*
             'application/x-cbr' : {
@@ -623,7 +651,7 @@ function getDefaultConfig() {
 
         archives : {
             archivers : {
-                '7Zip' : {
+                '7Zip' : {  //  p7zip package
                     compress        : {
                         cmd         : '7za',
                         args        : [ 'a', '-tzip', '{archivePath}', '{fileList}' ],
@@ -641,6 +669,27 @@ function getDefaultConfig() {
                         cmd         : '7za',
                         args        : [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
                     },
+                },
+
+                InfoZip: {
+                    compress        : {
+                        cmd         : 'zip',
+                        args        : [ '{archivePath}', '{fileList}' ],
+                    },
+                    decompress      : {
+                        cmd         : 'unzip',
+                        args        : [ '{archivePath}', '-d', '{extractPath}' ],
+                    },
+                    list            : {
+                        cmd         : 'unzip',
+                        args        : [ '-l', '{archivePath}' ],
+                        //  Annoyingly, dates can be in YYYY-MM-DD or MM-DD-YYYY format
+                        entryMatch  : '^\\s*([0-9]+)\\s+[0-9]{2,4}-[0-9]{2}-[0-9]{2,4}\\s+[0-9]{2}:[0-9]{2}\\s+([^\\r\\n]+)$',
+                    },
+                    extract         : {
+                        cmd         : 'unzip',
+                        args        : [ '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
+                    }
                 },
 
                 Lha : {
@@ -996,6 +1045,15 @@ function getDefaultConfig() {
                     schedule    : 'every 24 hours',
                     action      : '@method:core/web_password_reset.js:performMaintenanceTask',
                     args        : [ '24 hours' ]    //  items older than this will be removed
+                },
+
+                twoFactorRegisterTokenMaintenance : {
+                    schedule    : 'every 24 hours',
+                    action      : '@method:core/user_temp_token.js:temporaryTokenMaintenanceTask',
+                    args        : [
+                        'auth_factor2_otp_register',
+                        '24 hours', //  expire time
+                    ]
                 },
 
                 //

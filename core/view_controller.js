@@ -46,6 +46,8 @@ function ViewController(options) {
             return; //  ignore until this is finished!
         }
 
+        self.client.log.trace( { actionBlock }, 'Action match' );
+
         self.waitActionCompletion = true;
         menuUtil.handleAction(self.client, formData, actionBlock, (err) => {
             if(err) {
@@ -121,9 +123,7 @@ function ViewController(options) {
         self.emit('submit', this.getFormData(key));
     };
 
-    //  :TODO: replace this in favor of overriding toJSON() for various things such that logging will *never* output them
     this.getLogFriendlyFormData = function(formData) {
-        //  :TODO: these fields should be part of menu.json sensitiveMembers[]
         var safeFormData = _.cloneDeep(formData);
         if(safeFormData.value.password) {
             safeFormData.value.password = '*****';
@@ -219,7 +219,7 @@ function ViewController(options) {
                         break;
 
                     default :
-                        propValue = propValue = conf[propName];
+                        propValue = conf[propName];
                         break;
                 }
             } else {
@@ -330,15 +330,6 @@ function ViewController(options) {
                 }
             }
         }
-
-        self.client.log.trace(
-            {
-                formValue   : formValue,
-                actionValue : actionValue
-            },
-            'Action match'
-        );
-
         return true;
     };
 
@@ -577,7 +568,7 @@ ViewController.prototype.loadFromPromptConfig = function(options, cb) {
                 if(false === self.noInput) {
 
                     self.on('submit', function promptSubmit(formData) {
-                        self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Prompt submit');
+                        self.client.log.trace( { formData }, 'Prompt submit');
 
                         const doSubmitNotify = () => {
                             if(options.submitNotify) {
@@ -752,8 +743,7 @@ ViewController.prototype.loadFromMenuConfig = function(options, cb) {
                 }
 
                 self.on('submit', function formSubmit(formData) {
-
-                    self.client.log.trace( { formData : self.getLogFriendlyFormData(formData) }, 'Form submit');
+                    self.client.log.trace( { formData }, 'Form submit');
 
                     //
                     //  Locate configuration for this form ID
@@ -867,6 +857,11 @@ ViewController.prototype.getFormData = function(key) {
         try {
             //  don't fill forms with static, non user-editable data data
             if(!view.acceptsInput) {
+                return;
+            }
+
+            //  some form values may be omitted from submission all together
+            if(view.omitFromSubmission) {
                 return;
             }
 

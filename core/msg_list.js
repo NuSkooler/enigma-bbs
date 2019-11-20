@@ -227,7 +227,7 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                             return callback(err);
                         });
                     },
-                    function getLastReadMesageId(callback) {
+                    function getLastReadMessageId(callback) {
                         //  messageList entries can contain |isNew| if they want to be considered new
                         if(configProvidedMessageList) {
                             self.lastReadId = 0;

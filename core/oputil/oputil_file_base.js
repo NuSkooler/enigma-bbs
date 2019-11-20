@@ -209,7 +209,7 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                 async.series(
                                     [
                                         function quickCheck(next) {
-                                            if(!options.quick) {
+                                            if(options['full']) {
                                                 return next(null);
                                             }
 
@@ -228,6 +228,16 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                 {
                                                     areaTag		: areaInfo.areaTag,
                                                     storageTag	: storageLoc.storageTag
+                                                },
+                                                (stepInfo, next) => {
+                                                    if(argv.verbose) {
+                                                        if(stepInfo.error) {
+                                                            console.error(`  error: ${stepInfo.error}`);
+                                                        } else {
+                                                            console.info(`  processing: ${stepInfo.step}`);
+                                                        }
+                                                    }
+                                                    return next(null);
                                                 },
                                                 (err, fileEntry, dupeEntries) => {
                                                     if(err) {
@@ -476,8 +486,8 @@ function scanFileAreas() {
         options.tags = tags.split(',');
     }
 
-    options.descFile 	= argv['desc-file'];	//	--desc-file or --desc-file PATH
-    options.quick 		= argv.quick;
+    options.descFile 	    = argv['desc-file'];	//	--desc-file or --desc-file PATH
+    options['full'] 	    = argv.full;
 
     options.areaAndStorageInfo = getAreaAndStorage(argv._.slice(2));
 

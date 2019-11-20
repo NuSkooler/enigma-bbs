@@ -27,6 +27,7 @@ exports.getAvailableThemes      = getAvailableThemes;
 exports.getRandomTheme          = getRandomTheme;
 exports.setClientTheme          = setClientTheme;
 exports.initAvailableThemes     = initAvailableThemes;
+exports.displayPreparedArt      = displayPreparedArt;
 exports.displayThemeArt         = displayThemeArt;
 exports.displayThemedPause      = displayThemedPause;
 exports.displayThemedPrompt     = displayThemedPrompt;
@@ -439,7 +440,7 @@ function getThemeArt(options, cb) {
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!
     options.asAnsi      = true; //  always convert to ANSI
-    options.readSauce   = true; //  read SAUCE, if avail
+    options.readSauce   = _.get(options, 'readSauce', true); //  read SAUCE, if avail
     options.random      = _.get(options, 'random', true);   //  FILENAME<n>.EXT support
 
     //
@@ -510,6 +511,17 @@ function getThemeArt(options, cb) {
     );
 }
 
+function displayPreparedArt(options, artInfo, cb) {
+    const displayOpts = {
+        sauce       : artInfo.sauce,
+        font        : options.font,
+        trailingLF  : options.trailingLF,
+    };
+    art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
+        return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
+    });
+}
+
 function displayThemeArt(options, cb) {
     assert(_.isObject(options));
     assert(_.isObject(options.client));
@@ -537,14 +549,7 @@ function displayThemeArt(options, cb) {
                 }
             },
             function disp(artInfo, callback) {
-                const displayOpts = {
-                    sauce       : artInfo.sauce,
-                    font        : options.font,
-                    trailingLF  : options.trailingLF,
-                };
-                art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
-                    return callback(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
-                });
+                return displayPreparedArt(options, artInfo, callback);
             }
         ],
         (err, artData) => {

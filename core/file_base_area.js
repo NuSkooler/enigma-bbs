@@ -401,7 +401,7 @@ function extractAndProcessDescFiles(fileEntry, filePath, archiveEntries, cb) {
                                 //
                                 //  :TODO: This isn't really always the case - how to handle this? We could do a quick detection...
                                 const decodedData           = iconv.decode(data, 'cp437');
-                                fileEntry[descType]         = sliceAtSauceMarker(decodedData, 0x1a);
+                                fileEntry[descType]         = sliceAtSauceMarker(decodedData);
                                 fileEntry[`${descType}Src`] = 'descFile';
                                 return next(null);
                             });
@@ -575,7 +575,7 @@ function populateFileEntryInfoFromFile(fileEntry, filePath, cb) {
                     `${_.upperFirst(descType)} description command failed`
                 );
             } else {
-                stdout = (stdout || '').trim();
+                stdout = stdout.trim();
                 if(stdout.length > 0) {
                     const key = 'short' === descType ? 'desc' : 'descLong';
                     if('desc' === key) {

@@ -17,6 +17,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Renegade style [pipe color codes](/docs/configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
+ * Support for 2-Factor Authentication with One-Time-Passwords
  * [Door support](docs/modding/door-servers.md) including common dropfile formats for legacy DOS doors. Built in [BBSLink](http://bbslink.net/), [DoorParty](http://forums.throwbackbbs.com/), [Exodus](https://oddnetwork.org/exodus/) and [CombatNet](http://combatnet.us/) support!
  * [Bunyan](https://github.com/trentm/node-bunyan) logging!
  * [Message networks](docs/messageareas/message-networks.md) with FidoNet Type Network (FTN) + BinkleyTerm Style Outbound (BSO) message import/export. Messages Bases can also be exposed via [Gopher](docs/servers/gopher.md), or [NNTP](docs/servers/nntp.md)!
@@ -40,7 +41,7 @@ See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **chat.freenode.net** ([webchat](https://webchat.freenode.net/?channels=enigma-bbs))
-* Discussion on [fsxNet](http://bbs.geek.nz/#fsxNet) available on many boards
+* FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) available on many boards
 * Email: bryan -at- l33t.codes
 * [Facebook ENiGMA½ group](https://www.facebook.com/groups/enigmabbs/)
 
@@ -52,17 +53,17 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [NetRunner](http://mysticbbs.com/downloads.html)
 * [MagiTerm](https://magickabbs.com/index.php/magiterm/)
 
-## Boards
-* WQH: :skull: [Xibalba](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
+## Some Boards
+* :skull: [Xibalba - ENiGMA WHQ](https://l33t.codes/xibalba-bbs) :skull: (**ssh://xibalba.l33t.codes:44511** or **telnet://xibalba.l33t.codes:44510**)
 * [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
-
+* [Goblin Studio](https://goblin.strangled.net): (**ssh://goblin.strangled.net:8889**)
 
 ## Installation
 On *nix type systems:
 ```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/0.0.10-alpha/misc/install.sh | bash
 ```
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
@@ -76,11 +77,12 @@ Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/install
 * [Luciano Ayres](http://www.lucianoayres.com.br/) of [Blocktronics](http://blocktronics.org/), creator of the "Mystery Skulls" default ENiGMA½ theme!
 * Sudndeath for Xibalba ANSI work!
 * Jack Phlash for kick ass ENiGMA½ and Xibalba ASCII (Check out [IMPURE60](http://pc.textmod.es/pack/impure60/)!!)
-* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system
+* Avon of [Agency BBS](http://bbs.geek.nz/) and [fsxNet](http://bbs.geek.nz/#fsxNet) for putting up with my experiments to his system and for FSX_ENG!
 * Maskreet of [Throwback BBS](http://www.throwbackbbs.com/) hosting [DoorParty](http://forums.throwbackbbs.com/)!
 * [Apam](https://github.com/apamment) of [Magicka](https://magickabbs.com/)
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
 * [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
+* [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:

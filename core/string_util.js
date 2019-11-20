@@ -29,9 +29,11 @@ exports.isAnsiLine                  = isAnsiLine;
 exports.isFormattedLine             = isFormattedLine;
 exports.splitTextAtTerms            = splitTextAtTerms;
 
-//  :TODO: create Unicode verison of this
-const VOWELS = [ 'a', 'e', 'i', 'o', 'u' ];
-VOWELS.concat(VOWELS.map(l => l.toUpperCase()));
+//  :TODO: create Unicode version of this
+const VOWELS = [
+    'a', 'e', 'i', 'o', 'u',
+    'A', 'E', 'I', 'O', 'U',
+];
 
 const SIMPLE_ELITE_MAP = {
     'a' : '4',

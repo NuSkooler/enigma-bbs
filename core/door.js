@@ -70,14 +70,13 @@ module.exports = class Door {
 
         const args = exeInfo.args.map( arg => stringFormat(arg, formatObj) );
 
-        this.client.log.debug(
+        this.client.log.info(
             { cmd : exeInfo.cmd, args, io : this.io },
-            'Executing door'
+            'Executing external door process'
         );
 
-        let door;
         try {
-            door = pty.spawn(exeInfo.cmd, args, {
+            this.doorPty = pty.spawn(exeInfo.cmd, args, {
                 cols        : this.client.term.termWidth,
                 rows        : this.client.term.termHeight,
                 cwd         : cwd,
@@ -88,15 +87,19 @@ module.exports = class Door {
             return cb(e);
         }
 
+        this.client.log.debug(
+            { processId : this.doorPty.pid }, 'External door process spawned'
+        );
+
         if('stdio' === this.io) {
             this.client.log.debug('Using stdio for door I/O');
 
-            this.client.term.output.pipe(door);
+            this.client.term.output.pipe(this.doorPty);
 
-            door.on('data', this.doorDataHandler.bind(this));
+            this.doorPty.on('data', this.doorDataHandler.bind(this));
 
-            door.once('close', () => {
-                return this.restoreIo(door);
+            this.doorPty.once('close', () => {
+                return this.restoreIo(this.doorPty);
             });
         } else if('socket' === this.io) {
             this.client.log.debug(
@@ -105,7 +108,7 @@ module.exports = class Door {
             );
         }
 
-        door.once('exit', exitCode => {
+        this.doorPty.once('exit', exitCode => {
             this.client.log.info( { exitCode : exitCode }, 'Door exited');
 
             if(this.sockServer) {
@@ -114,10 +117,11 @@ module.exports = class Door {
 
             //  we may not get a close
             if('stdio' === this.io) {
-                this.restoreIo(door);
+                this.restoreIo(this.doorPty);
             }
 
-            door.removeAllListeners();
+            this.doorPty.removeAllListeners();
+            delete this.doorPty;
 
             return cb(null);
         });
@@ -128,9 +132,15 @@ module.exports = class Door {
     }
 
     restoreIo(piped) {
-        if(!this.restored && this.client.term.output) {
-            this.client.term.output.unpipe(piped);
-            this.client.term.output.resume();
+        if(!this.restored) {
+            if(this.doorPty) {
+                this.doorPty.kill();
+            }
+
+            if(this.client.term.output) {
+                this.client.term.output.unpipe(piped);
+                this.client.term.output.resume();
+            }
             this.restored = true;
         }
     }

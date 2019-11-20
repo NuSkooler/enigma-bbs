@@ -26,10 +26,15 @@ exports.getAvailableMessageAreasByConfTag   = getAvailableMessageAreasByConfTag;
 exports.getSortedAvailMessageAreasByConfTag = getSortedAvailMessageAreasByConfTag;
 exports.getDefaultMessageConferenceTag      = getDefaultMessageConferenceTag;
 exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
+exports.getSuitableMessageConfAndAreaTags   = getSuitableMessageConfAndAreaTags;
 exports.getMessageConferenceByTag           = getMessageConferenceByTag;
 exports.getMessageAreaByTag                 = getMessageAreaByTag;
 exports.changeMessageConference             = changeMessageConference;
 exports.changeMessageArea                   = changeMessageArea;
+exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
+exports.hasMessageConfAndAreaWrite          = hasMessageConfAndAreaWrite;
+exports.filterMessageAreaTagsByReadACS      = filterMessageAreaTagsByReadACS;
+exports.filterMessageListByReadACS          = filterMessageListByReadACS;
 exports.tempChangeMessageConfAndArea        = tempChangeMessageConfAndArea;
 exports.getMessageListForArea               = getMessageListForArea;
 exports.getNewMessageCountInAreaForUser     = getNewMessageCountInAreaForUser;
@@ -185,7 +190,10 @@ function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
             }
         }
 
-        defaultArea = _.findKey(areaPool, (area) => {
+        defaultArea = _.findKey(areaPool, (area, areaTag) => {
+            if(Message.isPrivateAreaTag(areaTag)) {
+                return false;
+            }
             return (true === disableAcsCheck || client.acs.hasMessageAreaRead(area));
         });
 
@@ -193,8 +201,47 @@ function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
     }
 }
 
+function getSuitableMessageConfAndAreaTags(client) {
+    //
+    //  Attempts to get a pair of suitable conf/area tags:
+    //  * Where the client/user has proper ACS to both
+    //  * Try to use defaults where possible
+    //  * If default conf/area is not an option, use any
+    //    that pass ACS.
+    //  * Returns a tuple [confTag, areaTag]; areaTag
+    //    and possibly confTag may both be set to '' if
+    //    if we fail to find something.
+    //
+    let confTag = getDefaultMessageConferenceTag(client);
+    if(!confTag) {
+        return ['', ''];    //  can't have an area without a conf
+    }
+
+    let areaTag = getDefaultMessageAreaTagByConfTag(client, confTag);
+    if(!areaTag) {
+        //  OK, perhaps *any* area in *any* conf?
+        _.forEach(Config().messageConferences, (conf, ct) => {
+            if(!client.acs.hasMessageConfRead(conf)) {
+                return;
+            }
+            _.forEach(conf.areas, (area, at) => {
+                if(!_.includes(Message.WellKnownAreaTags, at) && client.acs.hasMessageAreaRead(area)) {
+                    confTag = ct;
+                    areaTag = at;
+                    return false;   //  stop inner iteration
+                }
+            });
+            if(areaTag) {
+                return false;   //  stop iteration
+            }
+        });
+    }
+
+    return [confTag, areaTag || ''];
+}
+
 function getMessageConferenceByTag(confTag) {
-    return Config().messageConferences[confTag];
+    return Object.assign({ confTag }, Config().messageConferences[confTag]);
 }
 
 function getMessageConfTagByAreaTag(areaTag) {
@@ -210,16 +257,22 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
     //  :TODO: this could be cached
     if(_.isString(optionalConfTag)) {
         if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
-            return confs[optionalConfTag].areas[areaTag];
+            return Object.assign(
+                {
+                    areaTag,
+                    confTag : optionalConfTag,
+                },
+                confs[optionalConfTag].areas[areaTag]
+            );
         }
     } else {
         //
         //  No confTag to work with - we'll have to search through them all
         //
         let area;
-        _.forEach(confs, (v) => {
-            if(_.has(v, [ 'areas', areaTag ])) {
-                area = v.areas[areaTag];
+        _.forEach(confs, (conf, confTag) => {
+            if(_.has(conf, [ 'areas', areaTag ])) {
+                area = Object.assign({ areaTag, confTag }, conf.areas[areaTag]);
                 return false;   //  stop iteration
             }
         });
@@ -350,6 +403,56 @@ function changeMessageArea(client, areaTag, cb) {
     changeMessageAreaWithOptions(client, areaTag, { persist : true }, cb);
 }
 
+function hasMessageConfAndAreaRead(client, areaOrTag) {
+    if(_.isString(areaOrTag)) {
+        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    const conf = getMessageConferenceByTag(areaOrTag.confTag);
+    return client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(areaOrTag);
+}
+
+function hasMessageConfAndAreaWrite(client, areaOrTag) {
+    if(_.isString(areaOrTag)) {
+        areaOrTag = getMessageAreaByTag(areaOrTag) || {};
+    }
+    const conf = getMessageConferenceByTag(areaOrTag.confTag);
+    return client.acs.hasMessageConfWrite(conf) && client.acs.hasMessageAreaWrite(areaOrTag);
+}
+
+function filterMessageAreaTagsByReadACS(client, areaTags) {
+    if(!Array.isArray(areaTags)) {
+        areaTags = [ areaTags ];
+    }
+
+    return areaTags.filter( areaTag => {
+        const area = getMessageAreaByTag(areaTag);
+        return hasMessageConfAndAreaRead(client, area);
+    });
+}
+
+function filterMessageListByReadACS(client, messageList) {
+    //
+    //  Filter out messages belonging to conf/areas the user
+    //  doesn't have access to.
+    //
+
+    //  Keep a cache around for quick lookup.
+    const acsCache = new Map();    //  areaTag:boolean
+
+    return messageList.filter(msg => {
+        let cached = acsCache.get(msg.areaTag);
+        if(false === cached) {
+            return false;
+        }
+        if(true === cached) {
+            return true;
+        }
+        cached = hasMessageConfAndAreaRead(client, msg.areaTag);
+        acsCache.set(msg.areaTag, cached);
+        return cached;
+    });
+}
+
 function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
     getMessageAreaLastReadId(userId, areaTag, (err, lastMessageId) => {
         lastMessageId = lastMessageId || 0;
@@ -404,8 +507,14 @@ function getMessageListForArea(client, areaTag, filter, cb)
         Object.assign(filter, { areaTag } );
     }
 
+    if(client) {
+        if(!hasMessageConfAndAreaRead(client, areaTag)) {
+            return cb(null, []);
+        }
+    }
+
     if(Message.isPrivateAreaTag(areaTag)) {
-        filter.privateTagUserId = client.user.userId;
+        filter.privateTagUserId = client ? client.user.userId : 'INVALID_USER_ID';
     }
 
     return Message.findMessages(filter, cb);

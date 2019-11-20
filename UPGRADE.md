@@ -8,7 +8,7 @@ This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # General Notes
 ## Configuration File Updates
-In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the defualt `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
 
 ### menu.hjson
 Upgrades often come with changes to the default `menu_template.in.hjson`. It is wise to use a *different* file name for your BBS's version of this file and point to it via `config.hjson`. For example:
@@ -37,8 +37,12 @@ npm install
 ```
 
 # Problems
-Report your issue on Xibalba BBS, hop in #enigma-bbs on Freenet and chat, or
+Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
+
+# 0.0.9-alpha to 0.0.10-alpha
+* Security related files such as private keys and certs are now looked for in `config/security` by default.
+* Default archive handler for zip files has switched to InfoZip due to a bug in the latest p7Zip packages causing "volume not found" errors. Ensure you have the InfoZip `zip` and `unzip` commands in ENiGMA's path. You can switch back to 7Zip by overriding `archiveHandler` for `application/zip` in your `config.hjson` under `fileTypes` to `7Zip`.
 
 # 0.0.8-alpha to 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. Follow your standard upgrade path to update to Node 10.x before using 0.0.9-alpha!
@@ -77,7 +81,7 @@ ENiGMA 0.0.8-alpha comes with some structure changes:
 With the change to the `./mods` directory, `@systemModule` is now implied for `module` declarations in `menu.hjson`. To use a user module in `./mods` you must specify `@userModule`!
 
 With the above changes, you'll need to to at least:
-* Move your `~/.config/enigma-bbs/config.hjson` to `./config/config.hjson` or utlize the `--config` option. 
+* Move your `~/.config/enigma-bbs/config.hjson` to `./config/config.hjson` or utlize the `--config` option.
 * Move your `prompt.hjson` and `menu.hjson` (e.g. `myboardname.hjson`) to `./config`
 * Move any non-theme art files, and theme directories to their appropriate locations mentioned above
 * Move any module directories such as `message_post_evt` to `./mods/`

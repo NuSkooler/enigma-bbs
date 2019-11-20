@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Enable 2FA/OTP — ENiGMA½ BBS</title>
+        <meta name="description" content="Enable 2-Factor Authentication via One-Time-Password">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+	<body>
+        <p>
+            Your OTP secret:<br>
+            <b>%SECRET%</b>
+        </p>
+        <script>
+            if('googleAuth' == '%OTP_TYPE%') {
+                document.write('QR Code:<br>');
+                document.write('<img src="%QR_IMG_DATA%"/>');
+            }
+        </script>
+        <form action="%POST_URL%" method="post">
+            <legend>Confirm One-Time-Password to continue:</legend>
+            <input type="text" placeholder="One Time Password" id="otp" name="otp" required>
+            <input type="hidden" value="%TOKEN%" name="token">
+            <input type="hidden" value="%OTP_TYPE%" name="otpType">
+            <input type="hidden" value="%SECRET%" name="secret">
+            <button type="submit">Confirm</button>
+        </form>
+	</body>
+</html>

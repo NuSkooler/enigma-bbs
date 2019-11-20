@@ -141,7 +141,7 @@ class NNTPServer extends NNTPServerBase {
 
         return new Promise( resolve => {
             const user = new User();
-            user.authenticate(username, password, err => {
+            user.authenticateFactor1({ type : User.AuthFactor1Types.Password, username, password }, err => {
                 if(err) {
                     //  :TODO: Log IP address
                     this.log.debug( { username, reason : err.message }, 'Authentication failure');
@@ -275,7 +275,7 @@ class NNTPServer extends NNTPServerBase {
         //
         const remoteFrom = _.get(message.meta, [ 'System', Message.SystemMetaNames.RemoteFromUser ]);
         message.nntpHeaders['X-FTN-From'] = remoteFrom ? `${fromName} <${remoteFrom}>` : fromName;
-        const  remoteTo = _.get(message.meta [ 'System', Message.SystemMetaNames.RemoteToUser ]);
+        const  remoteTo = _.get(message.meta, [ 'System', Message.SystemMetaNames.RemoteToUser ]);
         message.nntpHeaders['X-FTN-To'] = remoteTo ? `${toName} <${remoteTo}>` : toName;
 
         if(!message.replyToMsgId) {

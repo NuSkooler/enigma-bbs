@@ -7,6 +7,8 @@ const {
     getSortedAvailMessageConferences,
     getAvailableMessageAreasByConfTag,
     getSortedAvailMessageAreasByConfTag,
+    hasMessageConfAndAreaRead,
+    filterMessageListByReadACS,
 }                                   = require('./message_area.js');
 const Errors                        = require('./enig_error.js').Errors;
 const Message                       = require('./message.js');
@@ -101,6 +103,14 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
             limit           : 2048, //  :TODO: best way to handle this? we should probably let the user know if some results are returned
         };
 
+        const returnNoResults = () => {
+            return this.gotoMenu(
+                this.menuConfig.config.noResultsMenu || 'messageSearchNoResults',
+                { menuFlags : [ 'popParent' ] },
+                cb
+            );
+        };
+
         if(isAdvanced) {
             filter.toUserName   = value.toUserName;
             filter.fromUserName = value.fromUserName;
@@ -113,7 +123,11 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
                     (area, areaTag) => areaTag
                 );
             } else if(value.areaTag) {
-                filter.areaTag = value.areaTag; //  specific conf + area
+                if(hasMessageConfAndAreaRead(this.client, value.areaTag)) {
+                    filter.areaTag = value.areaTag; //  specific conf + area
+                } else {
+                    return returnNoResults();
+                }
             }
         }
 
@@ -122,12 +136,14 @@ exports.getModule = class MessageBaseSearch extends MenuModule {
                 return cb(err);
             }
 
+            //  don't include results without ACS -- if the user searched by
+            //  explicit conf/area tag, we should have already filtered (above)
+            if(!value.confTag && !value.areaTag) {
+                messageList = filterMessageListByReadACS(this.client, messageList);
+            }
+
             if(0 === messageList.length) {
-                return this.gotoMenu(
-                    this.menuConfig.config.noResultsMenu || 'messageSearchNoResults',
-                    { menuFlags : [ 'popParent' ] },
-                    cb
-                );
+                return returnNoResults();
             }
 
             const menuOpts = {

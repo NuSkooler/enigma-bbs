@@ -14,6 +14,8 @@ const {
     Errors,
     ErrorReasons
 }                       = require('../../enig_error.js');
+const User              = require('../../user.js');
+const UserProps         = require('../../user_property.js');
 
 //  deps
 const ssh2          = require('ssh2');
@@ -42,8 +44,6 @@ function SSHClient(clientConn) {
 
     clientConn.on('authentication', function authAttempt(ctx) {
         const username  = ctx.username || '';
-        const password  = ctx.password || '';
-
         const config    = Config();
         self.isNewUser  = (config.users.newUserNames || []).indexOf(username) > -1;
 
@@ -106,37 +106,36 @@ function SSHClient(clientConn) {
             }
         };
 
-        //
-        //  If the system is open and |isNewUser| is true, the login
-        //  sequence is hijacked in order to start the application process.
-        //
-        if(false === config.general.closedSystem && self.isNewUser) {
-            return ctx.accept();
-        }
+        const authWithPasswordOrPubKey = (authType) => {
+            if(User.AuthFactor1Types.SSHPubKey !== authType || !self.user.isAuthenticated() || !ctx.signature) {
+                //  step 1: login/auth using PubKey
+                userLogin(self, ctx.username, ctx.password, { authType, ctx }, (err) => {
+                    if(err) {
+                        if(isSpecialHandleError(err)) {
+                            return handleSpecialError(err, username);
+                        }
 
-        if(username.length > 0 && password.length > 0) {
-            userLogin(self, ctx.username, ctx.password, function authResult(err) {
-                if(err) {
-                    if(isSpecialHandleError(err)) {
-                        return handleSpecialError(err, username);
+                        if(Errors.BadLogin().code === err.code) {
+                            return slowTerminateConnection();
+                        }
+
+                        return safeContextReject(SSHClient.ValidAuthMethods);
                     }
 
-                    if(Errors.BadLogin().code === err.code) {
-                        return slowTerminateConnection();
-                    }
-
-                    return safeContextReject(SSHClient.ValidAuthMethods);
+                    ctx.accept();
+                });
+            } else {
+                //  step 2: verify signature
+                const pubKeyActual = ssh2.utils.parseKey(self.user.getProperty(UserProps.AuthPubKey));
+                if(!pubKeyActual || !pubKeyActual.verify(ctx.blob, ctx.signature)) {
+                    return slowTerminateConnection();
                 }
-
-                ctx.accept();
-            });
-        } else {
-            if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
-                return safeContextReject(SSHClient.ValidAuthMethods);
+                return ctx.accept();
             }
+        };
 
+        const authKeyboardInteractive = () => {
             if(0 === username.length) {
-                //  :TODO: can we display something here?
                 return safeContextReject();
             }
 
@@ -176,6 +175,30 @@ function SSHClient(clientConn) {
                     }
                 });
             });
+        };
+
+        //
+        //  If the system is open and |isNewUser| is true, the login
+        //  sequence is hijacked in order to start the application process.
+        //
+        if(false === config.general.closedSystem && self.isNewUser) {
+            return ctx.accept();
+        }
+
+        switch(ctx.method) {
+            case 'password' :
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.Password);
+                //return authWithPassword();
+
+            case 'publickey' :
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.SSHPubKey);
+                //return authWithPubKey();
+
+            case 'keyboard-interactive' :
+                return authKeyboardInteractive();
+
+            default :
+                return safeContextReject(SSHClient.ValidAuthMethods);
         }
     });
 
@@ -293,7 +316,11 @@ function SSHClient(clientConn) {
 
 util.inherits(SSHClient, baseClient.Client);
 
-SSHClient.ValidAuthMethods = [ 'password', 'keyboard-interactive' ];
+SSHClient.ValidAuthMethods = [
+    'password',
+    'keyboard-interactive',
+    'publickey',
+];
 
 exports.getModule = class SSHServerModule extends LoginServerModule {
     constructor() {
@@ -353,7 +380,7 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
             return cb(Errors.Invalid(`Invalid port: ${config.loginServers.ssh.port}`));
         }
 
-        this.server.listen(port, err => {
+        this.server.listen(port, config.loginServers.ssh.address, err => {
             if(!err) {
                 Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
             }

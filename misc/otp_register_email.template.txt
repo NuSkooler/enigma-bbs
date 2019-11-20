@@ -1,0 +1,7 @@
+%USERNAME%:
+
+You have requested to enable 2-Factor Authentication via One-Time-Password for your account on %BOARDNAME%.
+
+If this was not you, please ignore this email and consider changing your password. Otherwise, please follow the link below:
+
+%REGISTER_URL%

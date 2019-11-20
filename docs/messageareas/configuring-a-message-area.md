@@ -21,7 +21,8 @@ Each conference is represented by a entry under `messageConferences`. Each entri
 
 ### ACS
 An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
-* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
+* `read`: ACS required to read (see) this conference. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this conference. Defaults to `GM[users]`.
 
 ### Example
 
@@ -51,10 +52,12 @@ Message Areas are topic specific containers for messages that live within a part
 | `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
 | `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
+| `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
 
 ### ACS
 An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
-* `read`: ACS require to read (see) this conference. Defaults to `GM[users]`.
+* `read`: ACS required to read (see) this area. Defaults to `GM[users]`.
+* `write`: ACS required to write (post) to this area. Defaults to `GM[users]`.
 
 ### Example
 
@@ -63,13 +66,14 @@ messageConferences: {
   local: {
     // ... see above ...
     areas: {
-      enigma_dev: {                     // Area tag - required elsewhere!
-        name: ENiGMA 1/2 Development   
-        desc: ENiGMA 1/2 discussion!   
-        sort: 1                        
+      enigma_dev: { // Area tag - required elsewhere!
+        name: ENiGMA 1/2 Development
+        desc: ENiGMA 1/2 development and discussion!
+        sort: 1
         default: true
         acs: {
           read: GM[users] // default
+          write: GM[l33t] // super elite ENiGMA 1/2 users!
         }
       }
     }
