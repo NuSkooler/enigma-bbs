@@ -42,6 +42,11 @@ submit: [
     }
 ]
 ```
+* Added `read` (list/view) and `write` (post) ACS support to message conferences and areas.
+* Many new built in modules adding support for things like auto signatures, listing "my" messages, top stats, etc. Take a look in the docs for setting them up!
+* Built in MRC support!
+* Added an customizable achievement system!
+
 
 ## 0.0.9-alpha
 * Development is now against Node.js 10.x LTS. While other Node.js series may continue to work, you're own your own and YMMV!
@@ -82,7 +87,7 @@ submit: [
 * Added web (http://, https://) based download manager including batch downloads. Clickable links if using [VTXClient](https://github.com/codewar65/VTX_ClientServer)!
 * General VTX hyperlink support for web links
 * DEL vs Backspace key differences in FSE
-* Correly parse oddball `INTL`, `TOPT`, `FMPT`, `Via`, etc. FTN kludge lines
+* Correctly parse oddball `INTL`, `TOPT`, `FMPT`, `Via`, etc. FTN kludge lines
 * NetMail support! You can now send and receive NetMail. To send a NetMail address a external user using `Name <address>` format from your personal email menu. For example, `Foo Bar <123:123/123>`. The system also detects other formats such asa `Name @ address` (`Foo Bar@123:123/123`)
 * `oputil.js`: Added `mb areafix` command to quickly send AreaFix messages from the command line. You can manually send them from personal mail as well.
 * `oputil.js fb rm|remove|del|delete` functionality to remove file base entries.

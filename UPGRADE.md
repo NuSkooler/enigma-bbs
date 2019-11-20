@@ -8,7 +8,7 @@ This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # General Notes
 ## Configuration File Updates
-In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the defualt `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
 
 ### menu.hjson
 Upgrades often come with changes to the default `menu_template.in.hjson`. It is wise to use a *different* file name for your BBS's version of this file and point to it via `config.hjson`. For example:
@@ -81,7 +81,7 @@ ENiGMA 0.0.8-alpha comes with some structure changes:
 With the change to the `./mods` directory, `@systemModule` is now implied for `module` declarations in `menu.hjson`. To use a user module in `./mods` you must specify `@userModule`!
 
 With the above changes, you'll need to to at least:
-* Move your `~/.config/enigma-bbs/config.hjson` to `./config/config.hjson` or utlize the `--config` option. 
+* Move your `~/.config/enigma-bbs/config.hjson` to `./config/config.hjson` or utlize the `--config` option.
 * Move your `prompt.hjson` and `menu.hjson` (e.g. `myboardname.hjson`) to `./config`
 * Move any non-theme art files, and theme directories to their appropriate locations mentioned above
 * Move any module directories such as `message_post_evt` to `./mods/`
