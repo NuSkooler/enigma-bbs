@@ -25,10 +25,10 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * Upload processor supporting [FILE_ID.DIZ](https://en.wikipedia.org/wiki/FILE_ID.DIZ) and [NFO](https://en.wikipedia.org/wiki/.nfo) extraction, year estimation, and more!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
  * A built in achievement system. BBSing gamified!
- 
+
 ## Documentation
 [Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](/docs/) folder as well for the latest and greatest documentation.
- 
+
 ## In the Works
 Many more features are in the pipeline. Checkout the [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features.
 
@@ -63,7 +63,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## Installation
 On *nix type systems:
 ```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/0.0.10-alpha/misc/install.sh | bash
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
