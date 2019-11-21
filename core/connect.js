@@ -18,7 +18,7 @@ function ansiDiscoverHomePosition(client, cb) {
     //  think of home as 0,0. If this is the case, we need to offset
     //  our positioning to accommodate for such.
     //
-    const done = function(err) {
+    const done = (err) => {
         client.removeListener('cursor position report', cprListener);
         clearTimeout(giveUpTimer);
         return cb(err);

@@ -134,7 +134,6 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         host    : self.config.host,
                     };
 
-                    let clientTerminated;
                     let dataOut;
 
                     self.client.term.write(resetScreen());
