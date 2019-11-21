@@ -2,7 +2,7 @@
 
 { # this ensures the entire script is downloaded before execution
 
-ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=10}
+ENIGMA_NODE_VERSION=${ENIGMA_NODE_VERSION:=12}
 ENIGMA_BRANCH=${ENIGMA_BRANCH:=master}
 ENIGMA_INSTALL_DIR=${ENIGMA_INSTALL_DIR:=$HOME/enigma-bbs}
 ENIGMA_SOURCE=${ENIGMA_SOURCE:=https://github.com/NuSkooler/enigma-bbs.git}
