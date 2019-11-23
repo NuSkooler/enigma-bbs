@@ -49,7 +49,7 @@
     "sane": "4.1.0",
     "sanitize-filename": "^1.6.3",
     "sqlite3": "^4.1.0",
-    "sqlite3-trans": "^1.2.1",
+    "sqlite3-trans": "^1.2.2",
     "ssh2": "0.8.6",
     "temptmp": "^1.1.0",
     "uuid": "^3.3.3",

@@ -1138,11 +1138,6 @@ lodash@^4.17.15:
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
   integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
 
-lodash@^4.17.4:
-  version "4.17.11"
-  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.11.tgz#b39ea6229ef607ecd89e2c8df12536891cac9b8d"
-  integrity sha512-cQKh8igo5QUhZ7lg38DYWAxMvjSAKG0A8wGSVimP07SIUEK2UO+arSRKbRZWtelMtN5V0Hkwh5ryOto/SshYIg==
-
 lru-cache@^5.1.1:
   version "5.1.1"
   resolved "https://registry.yarnpkg.com/lru-cache/-/lru-cache-5.1.1.tgz#1da27e6710271947695daf6848e847f01d84b920"
@@ -1918,12 +1913,12 @@ split2@^3.0.0:
   dependencies:
     readable-stream "^3.0.0"
 
-sqlite3-trans@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/sqlite3-trans/-/sqlite3-trans-1.2.1.tgz#642dff9f6da53d533ccd264b49e68c8818542255"
-  integrity sha512-KLtR+PBZN/moxDTKWTwWypkunDCJ0oi5vknjht8omjUXswwUEf+MX2DKtgQB1V5Tsjgc4mL4mHjv9zp7+FHs5g==
+sqlite3-trans@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/sqlite3-trans/-/sqlite3-trans-1.2.2.tgz#faf268cc8d04dfd1a4854d64a70a229bdb50609f"
+  integrity sha512-+c2je0JMgPeNYHM7vMwEv/nHqOMYa5NNgQDcUyFkVMJ5QHATOQ+GywJptlVbkRCjgSTctmighfWLwUHPlkXbSQ==
   dependencies:
-    lodash "^4.17.4"
+    lodash "^4.17.15"
 
 sqlite3@^4.1.0:
   version "4.1.0"
