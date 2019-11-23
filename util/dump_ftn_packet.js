@@ -42,7 +42,10 @@ function main() {
 
 			return next(null);
 		},
-		() => {
+		(err) => {
+			if(err) {
+				return console.error(`Error processing packet: ${err.message}`);
+			}
 			console.info('');
 			console.info('--- EOF --- ');
 			console.info('');

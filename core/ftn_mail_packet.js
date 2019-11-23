@@ -552,13 +552,18 @@ function Packet(options) {
                 .uint16le('ftn_msg_dest_net')
                 .uint16le('ftn_attr_flags')
                 .uint16le('ftn_cost')
-                //  :TODO: use string() for these if https://github.com/keichi/binary-parser/issues/33 is resolved
+                //
+                //  It would be nice to just string() these, but we want CP437 which requires
+                //  iconv. Another option would be to use a formatter, but until issue 33
+                //  (https://github.com/keichi/binary-parser/issues/33) is fixed, this is cumbersome.
+                //
                 .array('modDateTime', {
                     type        : 'uint8',
-                    readUntil   : b => 0x00 === b,
+                    length      : 20,   //  FTS-0001.016: 20 bytes
                 })
                 .array('toUserName', {
                     type        : 'uint8',
+                    //  :TODO: array needs some soft of 'limit' field
                     readUntil   : b => 0x00 === b,
                 })
                 .array('fromUserName', {
@@ -585,15 +590,34 @@ function Packet(options) {
         //
         //  Convert null terminated arrays to strings
         //
+        //  From FTS-0001.016:
+        //  * modDateTime: 20 bytes exactly (see above)
+        //  * toUserName and fromUserName: *max* 36 bytes, aka "up to"; null terminated
+        //  * subject: *max* 72 bytes, aka "up to"; null terminated
+        //  * message: Unbounded & null terminated
+        //
+        //  For everything above but message, we can get away with assuming CP437
+        //  and probably even just "ascii" for most cases. The message field is
+        //  much more complex so we'll look for encoding kludges, detection, etc.
+        //  later on.
+        //
+        if(msgData.modDateTime.length != 20) {
+            return cb(Errors.Invalid(`FTN packet DateTime field must be 20 bytes (got ${msgData.modDateTime.length})`));
+        }
+        if(msgData.toUserName.length > 36) {
+            return cb(Errors.Invalid(`FTN packet toUserName field must be 36 bytes max (got ${msgData.toUserName.length})`));
+        }
+        if(msgData.fromUserName.length > 36) {
+            return cb(Errors.Invalid(`FTN packet fromUserName field must be 36 bytes max (got ${msgData.fromUserName.length})`));
+        }
+        if(msgData.subject.length > 72) {
+            return cb(Errors.Invalid(`FTN packet subject field must be 72 bytes max (got ${msgData.subject.length})`));
+        }
+
+        //  Arrays of CP437 bytes -> String
         [ 'modDateTime', 'toUserName', 'fromUserName', 'subject' ].forEach(k => {
             msgData[k] = strUtil.stringFromNullTermBuffer(msgData[k], 'CP437');
         });
-
-        //  Technically the following fields have length limits as per fts-0001.016:
-        //  * modDateTime   : 20 bytes
-        //  * toUserName    : 36 bytes
-        //  * fromUserName  : 36 bytes
-        //  * subject       : 72 bytes
 
         //
         //  The message body itself is a special beast as it may
