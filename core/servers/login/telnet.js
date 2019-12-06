@@ -192,6 +192,18 @@ OPTION_IMPLS[OPTIONS.SUPPRESS_GO_AHEAD]     = function(bufs, i, event) {
     return event;
 };
 
+const TermTypeCmdParser = new Parser()
+    .uint8('iac1')
+    .uint8('sb')
+    .uint8('opt')
+    .uint8('is')
+    .array('ttype', {
+        type        : 'uint8',
+        readUntil   : b => 255 === b,   //  255=COMMANDS.IAC
+    })
+    //  note we read iac2 above
+    .uint8('se');
+
 OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
     if(event.commandCode !== COMMANDS.SB) {
         OPTION_IMPLS.NO_ARGS(bufs, i, event);
@@ -208,18 +220,7 @@ OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
 
         let ttypeCmd;
         try {
-            ttypeCmd = new Parser()
-                .uint8('iac1')
-                .uint8('sb')
-                .uint8('opt')
-                .uint8('is')
-                .array('ttype', {
-                    type        : 'uint8',
-                    readUntil   : b => 255 === b,   //  255=COMMANDS.IAC
-                })
-                //  note we read iac2 above
-                .uint8('se')
-                .parse(bufs.toBuffer());
+            ttypeCmd = TermTypeCmdParser.parse(bufs.toBuffer());
         } catch(e) {
             Log.debug( { error : e }, 'Failed parsing TTYP telnet command');
             return event;
@@ -242,6 +243,15 @@ OPTION_IMPLS[OPTIONS.TERMINAL_TYPE] = function(bufs, i, event) {
     return event;
 };
 
+const NawsCmdParser = new Parser()
+    .uint8('iac1')
+    .uint8('sb')
+    .uint8('opt')
+    .uint16be('width')
+    .uint16be('height')
+    .uint8('iac2')
+    .uint8('se');
+
 OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
     if(event.commandCode !== COMMANDS.SB) {
         OPTION_IMPLS.NO_ARGS(bufs, i, event);
@@ -253,15 +263,7 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 
         let nawsCmd;
         try {
-            nawsCmd = new Parser()
-                .uint8('iac1')
-                .uint8('sb')
-                .uint8('opt')
-                .uint16be('width')
-                .uint16be('height')
-                .uint8('iac2')
-                .uint8('se')
-                .parse(bufs.splice(0, 9).toBuffer());
+            nawsCmd = NawsCmdParser.parse(bufs.splice(0, 9).toBuffer());
         } catch(e) {
             Log.debug( { error : e }, 'Failed parsing NAWS telnet command');
             return event;
@@ -281,6 +283,18 @@ OPTION_IMPLS[OPTIONS.WINDOW_SIZE] = function(bufs, i, event) {
 
 //  Build an array of delimiters for parsing NEW_ENVIRONMENT[_DEP]
 //const NEW_ENVIRONMENT_DELIMITERS = _.values(NEW_ENVIRONMENT_COMMANDS);
+
+const EnvCmdParser = new Parser()
+    .uint8('iac1')
+    .uint8('sb')
+    .uint8('opt')
+    .uint8('isOrInfo')  //  IS=initial, INFO=updates
+    .array('envBlock', {
+        type : 'uint8',
+        readUntil   : b => 255 === b,   //  255=COMMANDS.IAC
+    })
+    //  note we consume IAC above
+    .uint8('se');
 
 //  Handle the deprecated RFC 1408 & the updated RFC 1572:
 OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT_DEP]   =
@@ -306,18 +320,7 @@ OPTION_IMPLS[OPTIONS.NEW_ENVIRONMENT]       = function(bufs, i, event) {
 
         let envCmd;
         try {
-            envCmd = new Parser()
-                .uint8('iac1')
-                .uint8('sb')
-                .uint8('opt')
-                .uint8('isOrInfo')  //  IS=initial, INFO=updates
-                .array('envBlock', {
-                    type : 'uint8',
-                    readUntil   : b => 255 === b,   //  255=COMMANDS.IAC
-                })
-                //  note we consume IAC above
-                .uint8('se')
-                .parse(bufs.splice(0, bufs.length).toBuffer());
+            envCmd = EnvCmdParser.parse(bufs.splice(0, bufs.length).toBuffer());
         } catch(e) {
             Log.debug( { error : e }, 'Failed parsing NEW-ENVIRON telnet command');
             return event;
