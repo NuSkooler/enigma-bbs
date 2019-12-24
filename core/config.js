@@ -678,7 +678,7 @@ function getDefaultConfig() {
                     },
                     decompress      : {
                         cmd         : 'unzip',
-                        args        : [ '{archivePath}', '-d', '{extractPath}' ],
+                        args        : [ '-n', '{archivePath}', '-d', '{extractPath}' ],
                     },
                     list            : {
                         cmd         : 'unzip',
@@ -688,7 +688,7 @@ function getDefaultConfig() {
                     },
                     extract         : {
                         cmd         : 'unzip',
-                        args        : [ '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
+                        args        : [ '-n', '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
                     }
                 },
 
