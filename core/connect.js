@@ -199,7 +199,7 @@ function displayBanner(term) {
     //  note: intentional formatting:
     term.pipeWrite(`
 |06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN
-|06Copyright (c) 2014-2019 Bryan Ashby |14- |12http://l33t.codes/
+|06Copyright (c) 2014-2020 Bryan Ashby |14- |12http://l33t.codes/
 |06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/
 |00`
     );
