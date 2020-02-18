@@ -408,7 +408,8 @@ module.exports = class User {
                     });
                 },
                 function setInitialGroupMembership(trans, callback) {
-                    self.groups = config.users.defaultGroups;
+                    //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
+                    self.groups = [...config.users.defaultGroups];
 
                     if(User.RootUserID === self.userId) {   //  root/SysOp?
                         self.groups.push('sysops');
