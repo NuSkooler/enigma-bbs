@@ -31,12 +31,17 @@ const SMBTZToUTCOffset = (smbTZ) => {
         '4294'  : '-11:00', //  Bering
 
         //  US Daylight
+        //  :TODO: FINISH ME!
 
     }[smbTZ];
 };
 
 const QWKMessageBlockSize = 128;
 
+//  See the following:
+//  -   http://fileformats.archiveteam.org/wiki/QWK
+//  -   http://wiki.synchro.net/ref:qwk
+//
 const MessageHeaderParser = new Parser()
     .endianess('little')
     .string('status', {
@@ -273,6 +278,9 @@ class QWKPacketReader extends EventEmitter {
         async.series(
             [
                 (callback) => {
+                    return this.readControl(callback);
+                },
+                (callback) => {
                     return this.readHeadersExtension(callback);
                 },
                 (callback) => {
@@ -283,6 +291,91 @@ class QWKPacketReader extends EventEmitter {
                 return cb(err);
             }
         )
+    }
+
+    readControl(cb) {
+        //
+        //  CONTROL.DAT is a CRLF text file containing information about
+        //  the originating BBS, conf number <> name mapping, etc.
+        //
+        //  References:
+        //  -   http://fileformats.archiveteam.org/wiki/QWK
+        //
+        if (!this.packetInfo.control) {
+            return cb(Errors.DoesNotExist('No control file found within QWK packet'));
+        }
+
+        const path = paths.join(this.packetInfo.tempDir, this.packetInfo.control.filename);
+
+        //  note that we read as UTF-8. Legacy says it should be CP437/ASCII
+        //  but this seems safer for now so conference names and the like
+        //  can be non-English for example.
+        fs.readFile(path, { encoding : 'utf8' }, (err, controlLines) => {
+            if (err) {
+                return cb(err);
+            }
+
+            controlLines = splitTextAtTerms(controlLines);
+
+            let state = 'header';
+            const control = { confMap : {} };
+            let currConfNumber;
+            for (let lineNumber = 0; lineNumber < controlLines.length; ++lineNumber) {
+                const line = controlLines[lineNumber].trim();
+                switch (lineNumber) {
+                    //  first set of lines is header info
+                    case 0  : control.bbsName = line; break;
+                    case 1  : control.bbsLocation = line; break;
+                    case 2  : control.bbsPhone = line; break;
+                    case 3  : control.bbsSysOp = line; break;
+                    case 4  : control.doorRegAndBoardID = line; break;
+                    case 5  : control.packetCreationTime = line; break;
+                    case 6  : control.toUser = line; break;
+                    case 7  : break; //  Qmail menu
+                    case 8  : break; //  unknown, always 0?
+                    case 9  : break; //  total messages in packet (often set to 0)
+                    case 10 :
+                        control.totalMessages = (parseInt(line) + 1);
+                        state = 'confNumber';
+                        break;
+
+                    default :
+                        switch (state) {
+                            case 'confNumber' :
+                                currConfNumber = parseInt(line);
+                                if (isNaN(currConfNumber)) {
+                                    state = 'news';
+
+                                    control.welcomeFile = line;
+                                } else {
+                                    state = 'confName';
+                                }
+                                break;
+
+                            case 'confName' :
+                                control.confMap[currConfNumber] = line;
+                                state = 'confNumber';
+                                break;
+
+                            case 'news' :
+                                control.newsFile = line;
+                                state = 'logoff';
+                                break;
+
+                            case 'logoff' :
+                                control.logoffFile = line;
+                                state = 'footer';
+                                break;
+
+                            case 'footer' :
+                                //  some systems append additional info; we don't care.
+                                break;
+                        }
+                }
+            }
+
+             return cb(null);
+        });
     }
 
     readHeadersExtension(cb) {
