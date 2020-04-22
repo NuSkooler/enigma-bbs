@@ -14,6 +14,7 @@ const { Parser } = require('binary-parser');
 const iconv = require('iconv-lite');
 const moment = require('moment');
 const _ = require('lodash');
+const IniConfigParser = require('ini-config-parser');
 
 const SMBTZToUTCOffset = (smbTZ) => {
     //  convert a Synchronet smblib TZ to a UTC offset
@@ -242,7 +243,6 @@ class QWKPacketReader extends EventEmitter {
                                     packetFileInfo,
                                     {
                                         tempDir,
-                                        defaultEncoding : 'CP437'
                                     }
                                 );
                                 return callback(null);
@@ -270,7 +270,41 @@ class QWKPacketReader extends EventEmitter {
     }
 
     processPacketFiles(cb) {
-        return this.readMessages(cb);
+        async.series(
+            [
+                (callback) => {
+                    return this.readHeadersExtension(callback);
+                },
+                (callback) => {
+                    return this.readMessages(callback);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        )
+    }
+
+    readHeadersExtension(cb) {
+        if (!this.packetInfo.headers) {
+            return cb(null);    //  nothing to do
+        }
+
+        const path = paths.join(this.packetInfo.tempDir, this.packetInfo.headers.filename);
+        fs.readFile(path, { encoding : 'utf8' }, (err, iniData) => {
+            if (err) {
+                this.emit('warning', Errors.Invalid(`HEADERS.DAT file appears to be invalid (${err.message})`));
+                return cb(null);    //  non-fatal
+            }
+
+            try {
+                this.packetInfo.headers.ini = IniConfigParser.parse(iniData);
+            } catch (e) {
+                this.emit('warning', Errors.Invalid(`HEADERS.DAT file appears to be invalid (${e.message})`));
+            }
+
+            return cb(null);
+        });
     }
 
     readMessages(cb) {
@@ -279,12 +313,53 @@ class QWKPacketReader extends EventEmitter {
             return cb(Errors.DoesNotExist('No messages file found within QWK packet'));
         }
 
-        const encoding = this.packetInfo.defaultEncoding;
+        const encodingToSpec = 'cp437';
+        let encoding = encodingToSpec;
+
         const path = paths.join(this.packetInfo.tempDir, this.packetInfo.messages.filename);
         fs.open(path, 'r', (err, fd) => {
             if (err) {
                 return cb(err);
             }
+
+            //  Some mappings/etc. used in loops below....
+            //  Sync sets these in HEADERS.DAT: http://wiki.synchro.net/ref:qwk
+            const FTNPropertyMapping = {
+                'X-FTN-AREA'    : Message.FtnPropertyNames.FtnArea,
+                'X-FTN-SEEN-BY' : Message.FtnPropertyNames.FtnSeenBy,
+                'X-FTN-FLAGS'   : Message.FtnPropertyNames
+            };
+
+            const FTNKludgeMapping = {
+                'X-FTN-PATH'    : 'PATH',
+                'X-FTN-MSGID'   : 'MSGID',
+                'X-FTN-REPLY'   : 'REPLY',
+                'X-FTN-PID'     : 'PID',
+                'X-FTN-FLAGS'   : 'FLAGS',
+                'X-FTN-TID'     : 'TID',
+                'X-FTN-CHRS'    : 'CHRS',
+                //  :TODO: X-FTN-KLUDGE - not sure what this is?
+            };
+
+            //
+            //  Various kludge tags defined by QWKE, etc.
+            //  See the following:
+            //  - ftp://vert.synchro.net/main/BBS/qwke.txt
+            //  - http://wiki.synchro.net/ref:qwk
+            //
+            const Kludges = {
+                //  QWKE
+                To      : 'To:',
+                From    : 'From:',
+                Subject : 'Subject:',
+
+                //  Synchronet
+                Via     : '@VIA:',
+                MsgID   : '@MSGID:',
+                Reply   : '@REPLY:',
+                TZ      : '@TZ:',       //  https://github.com/kvadevack/synchronet/blob/master/src/smblib/smbdefs.h
+                ReplyTo : '@REPLYTO:',
+            };
 
             let blockCount = 0;
             let currMessage = { };
@@ -321,7 +396,8 @@ class QWKPacketReader extends EventEmitter {
 
                                 //  massage into something a little more sane (things we can't quite do in the parser directly)
                                 ['toName', 'fromName', 'subject'].forEach(field => {
-                                    header[field] = iconv.decode(header[field], encoding).trim();
+                                    //  note: always use to-spec encoding here
+                                    header[field] = iconv.decode(header[field], encodingToSpec).trim();
                                 });
 
                                 header.timestamp = moment(header.timestamp, 'MM-DD-YYHH:mm');
@@ -333,6 +409,19 @@ class QWKPacketReader extends EventEmitter {
                                     fromName    : header.fromName,
                                     subject     : header.subject,
                                 };
+
+                                if (_.has(this.packetInfo, 'headers.ini')) {
+                                    //  Sections for a message in HEADERS.DAT are by current byte offset.
+                                    //  128 = first message header = 0x80 = section [80]
+                                    const headersSectionId = (blockCount * QWKMessageBlockSize).toString(16);
+                                    currMessage.headersExtension = this.packetInfo.headers.ini[headersSectionId];
+                                }
+
+                                //  if we have HEADERS.DAT with a 'Utf8' override for this message,
+                                //  the overridden to/from/subject/message fields are UTF-8
+                                if (currMessage.headersExtension && currMessage.headersExtension.Utf8) {
+                                    encoding = 'utf8';
+                                }
 
                                 //  remainder of blocks until the end of this message
                                 messageBlocksRemain = header.numBlocks - 1;
@@ -372,26 +461,6 @@ class QWKPacketReader extends EventEmitter {
                                     const messageLines = splitTextAtTerms(iconv.decode(currMessage.body, encoding).trimEnd());
                                     const bodyLines = [];
 
-                                    //
-                                    //  Various kludge tags defined by QWKE, etc.
-                                    //  See the following:
-                                    //  - ftp://vert.synchro.net/main/BBS/qwke.txt
-                                    //  - http://wiki.synchro.net/ref:qwk
-                                    //
-                                    const Kludges = {
-                                        //  QWKE
-                                        To      : 'To:',
-                                        From    : 'From:',
-                                        Subject : 'Subject:',
-
-                                        //  Synchronet
-                                        Via     : '@VIA:',
-                                        MsgID   : '@MSGID:',
-                                        Reply   : '@REPLY:',
-                                        TZ      : '@TZ:',       //  https://github.com/kvadevack/synchronet/blob/master/src/smblib/smbdefs.h
-                                        ReplyTo : '@REPLYTO:',
-                                    };
-
                                     let bodyState = 'kludge';
 
                                     const MessageTrailers = {
@@ -404,6 +473,7 @@ class QWKPacketReader extends EventEmitter {
 
                                     const qwkKludge = {};
                                     const ftnProperty = {};
+                                    const ftnKludge = {};
 
                                     messageLines.forEach(line => {
                                         if (0 === line.length) {
@@ -449,12 +519,60 @@ class QWKPacketReader extends EventEmitter {
                                         }
                                     });
 
+                                    let messageTimestamp = currMessage.header.timestamp;
+
+                                    //  HEADERS.DAT support.
+                                    let useTZKludge = true;
+                                    if (currMessage.headersExtension) {
+                                        const ext = currMessage.headersExtension;
+
+                                        //  to and subject can be overridden yet again if entries are present
+                                        currMessage.toName  = ext.To || currMessage.toName
+                                        currMessage.subject = ext.Subject || currMessage.subject;
+                                        currMessage.from    = ext.Sender || currMessage.from;   //  why not From? Who the fuck knows.
+
+                                        //  possibly override message ID kludge
+                                        qwkKludge.msg_id    = ext['Message-ID'] || qwkKludge.msg_id;
+
+                                        //  WhenWritten contains a ISO-8601-ish timestamp and a Synchronet/SMB style TZ offset:
+                                        //  20180101174837-0600  4168
+                                        //  We can use this to get a very slightly better precision on the timestamp (addition of seconds)
+                                        //  over the headers value. Why not milliseconds? Who the fuck knows.
+                                        if (ext.WhenWritten) {
+                                            const whenWritten = moment(ext.WhenWritten, 'YYYYMMDDHHmmssZ');
+                                            if (whenWritten.isValid()) {
+                                                messageTimestamp = whenWritten;
+                                                useTZKludge = false;
+                                            }
+                                        }
+
+                                        if (ext.Tags) {
+                                            currMessage.hashTags = ext.Tags.split(' ');
+                                        }
+
+                                        //  FTN style properties/kludges represented as X-FTN-XXXX
+                                        for (let [extName, propName] of Object.entries(FTNPropertyMapping)) {
+                                            const v = ext[extName];
+                                            if (v) {
+                                                ftnProperty[propName] = v;
+                                            }
+                                        }
+
+                                        for (let [extName, kludgeName] of Object.entries(FTNKludgeMapping)) {
+                                            const v = ext[extName];
+                                            if (v) {
+                                                ftnKludge[kludgeName] = v;
+                                            }
+                                        }
+                                    }
+
                                     const message = new Message({
                                         toUserName      : currMessage.toName,
                                         fromUserName    : currMessage.fromName,
                                         subject         : currMessage.subject,
-                                        modTimestamp    : currMessage.header.timestamp,
+                                        modTimestamp    : messageTimestamp,
                                         message         : bodyLines.join('\n'),
+                                        hashTags        : currMessage.hashTags,
                                     });
 
                                     if (!_.isEmpty(qwkKludge)) {
@@ -463,6 +581,10 @@ class QWKPacketReader extends EventEmitter {
 
                                     if (!_.isEmpty(ftnProperty)) {
                                         message.meta.FtnProperty = ftnProperty;
+                                    }
+
+                                    if (!_.isEmpty(ftnKludge)) {
+                                        message.meta.FtnKludge = ftnKludge;
                                     }
 
                                     //  Add in tear line and origin if requested
@@ -477,7 +599,7 @@ class QWKPacketReader extends EventEmitter {
                                     }
 
                                     //  Update the timestamp if we have a valid TZ
-                                    if (_.has(message, 'meta.QwkKludge.synchronet_timezone')) {
+                                    if (useTZKludge && _.has(message, 'meta.QwkKludge.synchronet_timezone')) {
                                         const tzOffset = SMBTZToUTCOffset(message.meta.QwkKludge.synchronet_timezone);
                                         if (tzOffset) {
                                             message.modTimestamp.utcOffset(tzOffset);
@@ -491,9 +613,15 @@ class QWKPacketReader extends EventEmitter {
 
                                     if (this.mode === QWKPacketReader.Modes.QWK) {
                                         message.meta.QwkProperty.qwk_msg_num = currMessage.header.num;
+                                        message.meta.QwkProperty.qwk_conf_num = currMessage.header.confNum;
                                     } else {
                                         //  For REP's, prefer the larger field.
                                         message.meta.QwkProperty.qwk_conf_num = currMessage.header.num || currMessage.header.confNum;
+                                    }
+
+                                    //  Another quick HEADERS.DAT fix-up
+                                    if (currMessage.headersExtension) {
+                                        message.meta.QwkProperty.qwk_conf_num = currMessage.headersExtension.Conference || message.meta.QwkProperty.qwk_conf_num;
                                     }
 
                                     this.emit('message', message);

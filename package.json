@@ -33,6 +33,7 @@
     "hashids": "2.1.0",
     "hjson": "^3.2.1",
     "iconv-lite": "0.5.0",
+    "ini-config-parser": "^1.0.4",
     "inquirer": "^7.0.0",
     "later": "1.2.0",
     "lodash": "^4.17.15",
