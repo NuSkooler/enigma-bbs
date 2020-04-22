@@ -434,6 +434,66 @@ function getImportEntries(importType, importData) {
     return importEntries;
 }
 
+function handleQWK() {
+    const packetPath = argv._[argv._.length - 1];
+    if(argv._.length < 4 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    }
+
+    const subAction = argv._[argv._.length - 2];
+    switch (subAction) {
+        case 'dump' :
+            return dumpQWKPacket(packetPath);
+
+        default :
+            return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    }
+}
+
+function dumpQWKPacket(packetPath) {
+    async.waterfall(
+        [
+            (callback) => {
+                return initConfigAndDatabases(callback);
+            },
+            (callback) => {
+                const { QWKPacketReader } = require('../qwk_mail_packet');
+                const reader = new QWKPacketReader(packetPath);
+
+                reader.on('error', err => {
+                    console.error(`ERROR: ${err.message}`);
+                    return callback(err);
+                });
+
+                reader.on('done', () => {
+                    return callback(null);
+                });
+
+                reader.on('archive type', archiveType => {
+                    console.info(`-> Archive type: ${archiveType}`);
+                });
+
+                reader.on('creator', creator => {
+                    console.info(`-> Creator: ${creator}`);
+                });
+
+                reader.on('message', message => {
+                    console.info('--- message ---');
+                    console.info(`To        : ${message.toUserName}`);
+                    console.info(`From      : ${message.fromUserName}`);
+                    console.info(`Subject   : ${message.subject}`);
+                    console.info(`Message   :\r\n${message.message}`);
+                });
+
+                reader.read();
+            }
+        ],
+        err => {
+
+        }
+    )
+}
+
 function handleMessageBaseCommand() {
 
     function errUsage() {
@@ -452,5 +512,6 @@ function handleMessageBaseCommand() {
     return({
         areafix	        : areaFix,
         'import-areas'  : importAreas,
+        qwk             : handleQWK,
     }[action] || errUsage)();
 }

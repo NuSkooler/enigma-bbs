@@ -87,6 +87,21 @@ const FTN_PROPERTY_NAMES = {
     FtnSeenBy           : 'ftn_seen_by',        //  http://ftsc.org/docs/fts-0004.001
 };
 
+const QWKPropertyNames = {
+    MessageNumber       : 'qwk_msg_num',
+    MessageStatus       : 'qwk_msg_status',         //  See http://wiki.synchro.net/ref:qwk for a decent list
+    ConferenceNumber    : 'qwk_conf_num',
+    InReplyToNum        : 'qwk_in_reply_to_num',    //  note that we prefer the 'InReplyToMsgId' kludge if available
+};
+
+const QWKKludgeNames = {
+    Via                 : 'via',
+    MessageId           : 'msg_id',
+    InReplyToMsgId      : 'in_reply_to_msg_id',
+    SyncTZ              : 'synchronet_timezone',
+    ReplyTo             : 'reply_to',
+};
+
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
     reply_to_message_id : 'replyToMsgId',
@@ -181,6 +196,10 @@ module.exports = class Message {
 
     static get FtnPropertyNames() {
         return FTN_PROPERTY_NAMES;
+    }
+
+    static get QWKPropertyNames() {
+        return QWKPropertyNames;
     }
 
     setLocalToUserId(userId) {
