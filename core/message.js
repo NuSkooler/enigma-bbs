@@ -49,7 +49,8 @@ const SYSTEM_META_NAMES = {
 const ADDRESS_FLAVOR = {
     Local       : 'local',  //  local / non-remote addressing
     FTN         : 'ftn',    //  FTN style
-    Email       : 'email',
+    Email       : 'email',  //  From email
+    QWK         : 'qwk',    //  QWK packet
 };
 
 const STATE_FLAGS0 = {
@@ -92,14 +93,6 @@ const QWKPropertyNames = {
     MessageStatus       : 'qwk_msg_status',         //  See http://wiki.synchro.net/ref:qwk for a decent list
     ConferenceNumber    : 'qwk_conf_num',
     InReplyToNum        : 'qwk_in_reply_to_num',    //  note that we prefer the 'InReplyToMsgId' kludge if available
-};
-
-const QWKKludgeNames = {
-    Via                 : 'via',
-    MessageId           : 'msg_id',
-    InReplyToMsgId      : 'in_reply_to_msg_id',
-    SyncTZ              : 'synchronet_timezone',
-    ReplyTo             : 'reply_to',
 };
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!

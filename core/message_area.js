@@ -29,6 +29,7 @@ exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
 exports.getSuitableMessageConfAndAreaTags   = getSuitableMessageConfAndAreaTags;
 exports.getMessageConferenceByTag           = getMessageConferenceByTag;
 exports.getMessageAreaByTag                 = getMessageAreaByTag;
+exports.getMessageConfTagByAreaTag          = getMessageConfTagByAreaTag;
 exports.changeMessageConference             = changeMessageConference;
 exports.changeMessageArea                   = changeMessageArea;
 exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
