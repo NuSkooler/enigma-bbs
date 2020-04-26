@@ -26,7 +26,9 @@ _____________________   _____  ____________________    __________\_   /
 
 System started!
 ```
-Grab your favourite telnet client, connect to localhost:8888 and test out your installation. 
+Grab your favourite telnet client, connect to localhost:8888 and test out your installation.
+
+To shut down the server, press Ctrl-C.
 
 ## Points of Interest
 
