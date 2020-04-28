@@ -2,7 +2,10 @@ const ArchiveUtil = require('./archive_util');
 const { Errors } = require('./enig_error');
 const Message = require('./message');
 const { splitTextAtTerms } = require('./string_util');
-const { getMessageConfTagByAreaTag } = require('./message_area');
+const {
+    getMessageConfTagByAreaTag,
+    getMessageAreaByTag,
+} = require('./message_area');
 const StatLog = require('./stat_log');
 const Config = require('./config').get;
 const SysProps = require('./system_property');
@@ -76,6 +79,26 @@ const UTCOffsetToSMBTZ   = _.invert(SMBTZToUTCOffset);
 const QWKMessageBlockSize       = 128;
 const QWKHeaderTimestampFormat  = 'MM-DD-YYHH:mm';
 const QWKLF                     = 0xe3;
+
+const QWKMessageStatusCodes = {
+    UnreadPublic                : ' ',
+    ReadPublic                  : '-',
+    ReadBySomeonePrivate        : '*',
+    UnreadPrivate               : '+',
+    UnreadCommentToSysOp        : '~',
+    ReadCommentToSysOp          : '`',
+    UnreadSenderPWProtected     : '%',
+    ReadSenderPWProtected       : '^',
+    UnreadGroupPWProtected      : '!',
+    ReadGroupPWProtected        : '#',
+    PWProtectedToAll            : '$',
+    Vote                        : 'V',
+};
+
+const QWKMessageActiveStatus = {
+    Active  : 255,
+    Deleted : 226,
+};
 
 //  See the following:
 //  -   http://fileformats.archiveteam.org/wiki/QWK
@@ -796,7 +819,8 @@ class QWKPacketWriter extends EventEmitter {
             encoding = 'cp437',
             systemDomain = 'enigma-bbs',
             bbsID = '',
-            toUser = '',
+            user = null,
+            archiveFormat = 'application/zip',
         } = QWKPacketWriter.DefaultOptions)
     {
         super();
@@ -807,7 +831,8 @@ class QWKPacketWriter extends EventEmitter {
             enableAtKludges,
             systemDomain,
             bbsID,
-            toUser,
+            user,
+            archiveFormat,
             encoding : encoding.toLowerCase(),
         };
 
@@ -822,7 +847,8 @@ class QWKPacketWriter extends EventEmitter {
             encoding                : 'cp437',
             systemDomain            : 'enigma-bbs',
             bbsID                   : '',
-            toUser                  : '',
+            user                    : null,
+            archiveFormat           :'application/zip',
         };
     }
 
@@ -913,13 +939,12 @@ class QWKPacketWriter extends EventEmitter {
         }
 
         //  The actual message contents
-        fullMessageBody += message.message;
+        //fullMessageBody += message.message;
 
-        //  :TODO: sanitize line feeds -> \n ????
-
-        // splitTextAtTerms(message.message).forEach(line => {
-        //     appendBodyLine(line);
-        // });
+        //  Sanitize line feeds (e.g. CRLF -> LF, and possibly -> QWK style below)
+        splitTextAtTerms(message.message).forEach(line => {
+            fullMessageBody += `${line}\n`;
+        });
 
         const encodedMessage = iconv.encode(fullMessageBody, this.options.encoding);
 
@@ -938,16 +963,20 @@ class QWKPacketWriter extends EventEmitter {
         const remainBytes   = QWKMessageBlockSize - (encodedMessage.length % QWKMessageBlockSize);
 
         //  The first block is always a header
-        this._writeMessageHeader(
+        if (!this._writeMessageHeader(
             message,
             fullBlocks + 1 + (remainBytes ? 1 : 0),
-        );
+        ))
+        {
+            //  we can't write this message
+            return;
+        }
 
         this.messagesStream.write(encodedMessage);
 
 
         if (remainBytes) {
-            this.messagesStream.write(Buffer.alloc(remainBytes, 0x00));
+            this.messagesStream.write(Buffer.alloc(remainBytes, ' '));
         }
 
         if (this.options.enableHeadersExtension) {
@@ -989,6 +1018,9 @@ class QWKPacketWriter extends EventEmitter {
                 },
                 (callback) => {
                     return this._createControlData(callback);
+                },
+                (callback) => {
+                    return this._producePacketArchive(packetPath, callback);
                 }
             ],
             err => {
@@ -1003,6 +1035,41 @@ class QWKPacketWriter extends EventEmitter {
         )
     }
 
+    _producePacketArchive(packetPath, cb) {
+        const archiveUtil = ArchiveUtil.getInstance();
+
+        const packetFiles = [
+            'messages.dat', 'headers.dat', 'control.dat',
+        ].map(filename => {
+            return filename;
+            //return paths.join(this.workDir, filename);
+        });
+
+        archiveUtil.compressTo(
+            this.options.archiveFormat,
+            packetPath,
+            packetFiles,
+            this.workDir,
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    _qwkMessageStatus(message) {
+        //  - Public vs Private
+        //  - Look at message pointers for read status
+        //  - If +op is exporting and this message is to +op
+        //  -
+        //  :TODO: this needs addressed - handle unread vs read, +op, etc.
+        //  ....see getNewMessagesInAreaForUser(); Variant with just IDs, or just a way to get first new message ID per area?
+
+        if (message.isPrivate()) {
+            return QWKMessageStatusCodes.UnreadPrivate;
+        }
+        return QWKMessageStatusCodes.UnreadPublic;
+    }
+
     _writeMessageHeader(message, totalBlocks) {
         const asciiNum = (n, l) => {
             if (isNaN(n)) {
@@ -1011,18 +1078,26 @@ class QWKPacketWriter extends EventEmitter {
             return n.toString().substr(0, l);
         };
 
-        const status = 'FIXME';
-        const totalBlocksStr = asciiNum(totalBlocks, 6);//totalBlocks.toString().padEnd(6, ' ');
-        const messageStatus = 255;  //  :TODO: ever anything different?
-        const confNumber = 1004;    //  :TODO: areaTag -> conf mapping
-        const netTag = ' '; //  :TODO:
-
-        if (totalBlocksStr.length > 6) {
-            return this.emit('warning', Errors.General('Message too large for packet'), message);
+        const asciiTotalBlocks = asciiNum(totalBlocks, 6);
+        if (asciiTotalBlocks.length > 6) {
+            this.emit('warning', Errors.General('Message too large for packet'), message);
+            return false;
         }
 
+        const conferenceNumber = this._getMessageConferenceNumberByAreaTag(message.areaTag);
+        if (isNaN(conferenceNumber)) {
+            this.emit('warning', Errors.MissingConfig(`No QWK conference mapping for areaTag ${message.areaTag}`));
+            return false;
+        }
+
+        const netTag = ' '; //  :TODO:
+
+        this.lolMessageId = this.lolMessageId || 1;
+        //message.messageId = this.lolMessageId;
+        this.lolMessageId++;
+
         const header = Buffer.alloc(QWKMessageBlockSize, ' ');
-        header.write(status[0], 0, 1, 'ascii');
+        header.write(this._qwkMessageStatus(message), 0, 1, 'ascii');
         header.write(asciiNum(message.messageId), 1, 'ascii');  //  :TODO: It seems Sync puts the relative, as in # of messages we've called appendMessage()?!
         header.write(message.modTimestamp.format(QWKHeaderTimestampFormat), 8, 13, 'ascii');
         header.write(message.toUserName.substr(0, 25), 21, 'ascii');
@@ -1030,16 +1105,35 @@ class QWKPacketWriter extends EventEmitter {
         header.write(message.subject.substr(0, 25), 71, 'ascii');
         header.write(' '.repeat(12), 96, 'ascii');  //  we don't use the password field
         header.write(asciiNum(message.replyToMsgId), 108, 'ascii');
-        header.write(asciiNum(totalBlocks, 6), 116, 'ascii');
-        header.writeUInt8(messageStatus, 122);
-        header.writeUInt16LE(confNumber, 123);
+        header.write(asciiTotalBlocks, 116, 'ascii');
+        header.writeUInt8(QWKMessageActiveStatus.Active, 122);
+        header.writeUInt16LE(conferenceNumber, 123);
         header.writeUInt16LE(0, 125);   //  :TODO: Check if others actually populate this
         header.write(netTag[0], 127, 1, 'ascii');
 
         this.messagesStream.write(header);
+
+        return true;
+    }
+
+    _getMessageConferenceNumberByAreaTag(areaTag) {
+        const areaConfig = _.get(Config(), [ 'messageNetworks', 'qwk', 'areas', areaTag ]);
+        return areaConfig && areaConfig.conference;
+    }
+
+    _getExportForUsername() {
+        return _.get(this.options, 'user.username', 'Any');
+    }
+
+    _getExportSysOpUsername() {
+        return StatLog.getSystemStat(SysProps.SysOpUsername) || 'SysOp';
     }
 
     _createControlData(cb) {
+        const areas = Array.from(this.areaTagsSeen).map(areaTag => {
+            return getMessageAreaByTag(areaTag);
+        });
+
         const controlStream = fs.createWriteStream(paths.join(this.workDir, 'control.dat'));
         controlStream.setDefaultEncoding('ascii');
 
@@ -1051,30 +1145,36 @@ class QWKPacketWriter extends EventEmitter {
             return cb(err);
         });
 
-        const controlData = [
+        const initialControlData = [
             Config().general.boardName,
             'Earth',
             'XXX-XXX-XXX',
-            `${StatLog.getSystemStat(SysProps.SysOpUsername)}, Sysop`,
+            `${this._getExportSysOpUsername()}, Sysop`,
             `0000,${this.options.bbsID}`,
             moment().format('MM-DD-YYYY,HH:mm:ss'),
-            this.options.toUser,
+            this._getExportForUsername(),
             '',     // name of Qmail menu
             '0',    // uh, OK
             this.totalMessages.toString(),
             //  this next line is total conferences - 1:
             //  We have areaTag <> conference mapping, so the number should work out
             (this.areaTagsSeen.size - 1).toString(),
-
-            //  :TODO: append all areaTag->conf number/IDs and names (13 chars max)
-            '0', 'First Conf',
-            'HELLO',
-            'BBSNEWS',
-            'GOODBYE',
         ];
 
-        controlData.forEach(line => {
+        initialControlData.forEach(line => {
             controlStream.write(`${line}\r\n`);
+        });
+
+        //  map areas as conf #\r\nDescription\r\n pairs
+        areas.forEach(area => {
+            const conferenceNumber = this._getMessageConferenceNumberByAreaTag(area.areaTag);
+            controlStream.write(`${conferenceNumber}\r\n`);
+            controlStream.write(`${area.name}\r\n`);
+        });
+
+        //  :TODO: do we ever care here?!
+        ['HELLO', 'BBSNEWS', 'GOODBYE'].forEach(trailer => {
+            controlStream.write(`${trailer}\r\n`);
         });
 
         controlStream.end();
@@ -1129,18 +1229,18 @@ class QWKPacketWriter extends EventEmitter {
             if (message.meta.FtnProperty) {
                 const ftnProp = message.meta.FtnProperty;
                 messageData['X-FTN-AREA']       = ftnProp[Message.FtnPropertyNames.FtnArea];
-                messageData['X-FTN-SEEN-BY']    = fntProp[Message.FtnPropertyNames.FtnSeenBy];
+                messageData['X-FTN-SEEN-BY']    = ftnProp[Message.FtnPropertyNames.FtnSeenBy];
             }
 
             if (message.meta.FtnKludge) {
                 const ftnKludge = message.meta.FtnKludge;
                 messageData['X-FTN-PATH']   = ftnKludge.PATH;
                 messageData['X-FTN-MSGID']  = ftnKludge.MSGID;
-                messageData['X-FTN-REPLY']  = fntKludge.REPLY;
-                messageData['X-FTN-PID']    = fntKludge.PID;
+                messageData['X-FTN-REPLY']  = ftnKludge.REPLY;
+                messageData['X-FTN-PID']    = ftnKludge.PID;
                 messageData['X-FTN-FLAGS']  = ftnKludge.FLAGS;
-                messageData['X-FTN-TID']    = fntKludge.TID;
-                messageData['X-FTN-CHRS']   = fntKludge.CHRS;
+                messageData['X-FTN-TID']    = ftnKludge.TID;
+                messageData['X-FTN-CHRS']   = ftnKludge.CHRS;
             }
         } else {
             messageData.WhenExported    = this._makeSynchronetTimestamp(moment());

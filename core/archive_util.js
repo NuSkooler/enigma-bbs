@@ -204,11 +204,16 @@ module.exports = class ArchiveUtil {
         });
     }
 
-    compressTo(archType, archivePath, files, cb) {
+    compressTo(archType, archivePath, files, workDir, cb) {
         const archiver = this.getArchiver(archType, paths.extname(archivePath));
 
         if(!archiver) {
             return cb(Errors.Invalid(`Unknown archive type: ${archType}`));
+        }
+
+        if (!cb && _.isFunction(workDir)) {
+            cb = workDir;
+            workDir = null;
         }
 
         const fmtObj = {
@@ -216,11 +221,20 @@ module.exports = class ArchiveUtil {
             fileList    : files.join(' '),  //  :TODO: probably need same hack as extractTo here!
         };
 
-        const args = archiver.compress.args.map( arg => stringFormat(arg, fmtObj) );
+        //  :TODO: DRY with extractTo()
+        const args = archiver.compress.args.map( arg => {
+            return '{fileList}' === arg ? arg : stringFormat(arg, fmtObj);
+        });
+
+        const fileListPos = args.indexOf('{fileList}');
+        if(fileListPos > -1) {
+            //  replace {fileList} with 0:n sep file list arguments
+            args.splice.apply(args, [fileListPos, 1].concat(files));
+        }
 
         let proc;
         try {
-            proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts());
+            proc = pty.spawn(archiver.compress.cmd, args, this.getPtyOpts(workDir));
         } catch(e) {
             return cb(Errors.ExternalProcess(
                 `Error spawning archiver process "${archiver.compress.cmd}" with args "${args.join(' ')}": ${e.message}`)
@@ -332,15 +346,15 @@ module.exports = class ArchiveUtil {
         });
     }
 
-    getPtyOpts(extractPath) {
+    getPtyOpts(cwd) {
         const opts = {
             name    : 'enigma-archiver',
             cols    : 80,
             rows    : 24,
             env     : process.env,
         };
-        if(extractPath) {
-            opts.cwd = extractPath;
+        if(cwd) {
+            opts.cwd = cwd;
         }
         //  :TODO: set cwd to supplied temp path if not sepcific extract
         return opts;
