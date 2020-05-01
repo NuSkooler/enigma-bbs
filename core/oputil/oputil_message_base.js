@@ -445,6 +445,9 @@ function handleQWK() {
         case 'dump' :
             return dumpQWKPacket(packetPath);
 
+        case 'export' :
+            return exportQWKPacket(packetPath);
+
         default :
             return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
     }
@@ -457,41 +460,201 @@ function dumpQWKPacket(packetPath) {
                 return initConfigAndDatabases(callback);
             },
             (callback) => {
+                ////
+                const { QWKPacketWriter } = require('../qwk_mail_packet');
+                const writer = new QWKPacketWriter({
+                    bbsID : 'XIBALBA',
+                    toUser : 'NuSkooler',
+                    encoding : 'cp437',
+                });
+
                 const { QWKPacketReader } = require('../qwk_mail_packet');
-                const reader = new QWKPacketReader(packetPath);
 
-                reader.on('error', err => {
-                    console.error(`ERROR: ${err.message}`);
-                    return callback(err);
+
+                writer.on('ready', () => {
+                    const reader = new QWKPacketReader(packetPath);
+
+                    reader.on('error', err => {
+                        console.error(`ERROR: ${err.message}`);
+                        return callback(err);
+                    });
+
+                    reader.on('done', () => {
+                        writer.finish();
+                    });
+
+                    reader.on('archive type', archiveType => {
+                        console.info(`-> Archive type: ${archiveType}`);
+                    });
+
+                    reader.on('creator', creator => {
+                        console.info(`-> Creator: ${creator}`);
+                    });
+
+                    reader.on('message', message => {
+                        writer.appendMessage(message);
+                    });
+
+                    reader.read();
                 });
 
-                reader.on('done', () => {
-                    return callback(null);
+                writer.on('finished', () => {
+                    console.log('done');
                 });
 
-                reader.on('archive type', archiveType => {
-                    console.info(`-> Archive type: ${archiveType}`);
-                });
+                writer.init();
 
-                reader.on('creator', creator => {
-                    console.info(`-> Creator: ${creator}`);
-                });
+                ////
 
-                reader.on('message', message => {
-                    console.info('--- message ---');
-                    console.info(`To        : ${message.toUserName}`);
-                    console.info(`From      : ${message.fromUserName}`);
-                    console.info(`Subject   : ${message.subject}`);
-                    console.info(`Message   :\r\n${message.message}`);
-                });
+                // const { QWKPacketReader } = require('../qwk_mail_packet');
+                // const reader = new QWKPacketReader(packetPath);
 
-                reader.read();
+                // reader.on('error', err => {
+                //     console.error(`ERROR: ${err.message}`);
+                //     return callback(err);
+                // });
+
+                // reader.on('done', () => {
+                //     return callback(null);
+                // });
+
+                // reader.on('archive type', archiveType => {
+                //     console.info(`-> Archive type: ${archiveType}`);
+                // });
+
+                // reader.on('creator', creator => {
+                //     console.info(`-> Creator: ${creator}`);
+                // });
+
+                // reader.on('message', message => {
+                //     console.info('--- message ---');
+                //     console.info(`To        : ${message.toUserName}`);
+                //     console.info(`From      : ${message.fromUserName}`);
+                //     console.info(`Subject   : ${message.subject}`);
+                //     console.info(`Message   :\r\n${message.message}`);
+                // });
+
+                // reader.read();
             }
         ],
         err => {
 
         }
     )
+}
+
+function exportQWKPacket(packetPath) {
+    //  oputil mb qwk export SPEC PATH [--user USER]
+    //  [areaTag1[@dateTime]],[...] PATH --user USER
+
+    const posArgLen = argv._.length;
+
+    if (posArgLen < 4) {
+        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    }
+
+    let areaTagSpecs = '*';
+    if (5 === posArgLen) {
+        areaTagSpecs = argv._[areaTagSpecs - 2];
+    }
+
+
+    //const areaTagSpecs = argv._[areaTagSpecs - 2];
+
+    /*const packetPath = argv._[argv._.length - 1];
+    if(argv._.length < 4 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    }*/
+
+    //  :TODO: parse area tags(s) and timestamps
+    const areaTags = [ 'general', 'fsx_gen' ];
+
+    const userName = argv.user || '-';
+
+    async.waterfall(
+        [
+            (callback) => {
+                return initConfigAndDatabases(callback);
+            },
+            (callback) => {
+                const User = require('../../core/user.js');
+
+                User.getUserIdAndName(userName, (err, userId) => {
+                    if (err) {
+                        if ('-' === userName) {
+                            userId = 1;
+                        } else {
+                            return callback(err);
+                        }
+                    }
+                    return User.getUser(userId, callback);
+                });
+            },
+            (user, callback) => {
+                const Message = require('../message');
+
+                const filter = {
+                    resultType  : 'id',
+                    areaTag     : areaTags,
+
+                    //  :TODO: newerThanTimestamp
+                };
+
+                //  public
+                Message.findMessages(filter, (err, publicMessageIds) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    delete filter.areaTag;
+                    filter.privateTagUserId = user.userId;
+
+                    Message.findMessages(filter, (err, privateMessageIds) => {
+                        return callback(err, user, Message, privateMessageIds.concat(publicMessageIds));
+                    });
+                });
+            },
+            (user, Message, messageIds, callback) => {
+                const { QWKPacketWriter } = require('../qwk_mail_packet');
+                const writer = new QWKPacketWriter({
+                    //  :TODO: export needs these options
+                    bbsID : 'XIBALBA',
+                    toUser : 'NuSkooler',
+                    encoding : 'cp437',
+                    user        : user,
+                });
+
+                writer.on('ready', () => {
+                    async.eachSeries(messageIds, (messageId, nextMessageId) => {
+                        const message = new Message();
+                        message.load( { messageId }, err => {
+                            if (!err) {
+                                writer.appendMessage(message);
+                            }
+                            return nextMessageId(err);
+                        });
+                    },
+                    (err) => {
+                        writer.finish('/home/nuskooler/Downloads/qwk2/TEST1.QWK');
+                        if (err) {
+                            console.error(`Failed to write one or more messages: ${err.message}`);
+                        }
+                    });
+                });
+
+                writer.on('finished', () => {
+                    return callback(null);
+                });
+
+                writer.init();
+            }
+        ],
+        err => {
+            if(err) {
+                console.error(err.reason ? err.reason : err.message);
+            }
+        }
+    );
 }
 
 function handleMessageBaseCommand() {

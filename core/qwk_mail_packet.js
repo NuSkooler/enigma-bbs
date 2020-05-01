@@ -9,6 +9,8 @@ const {
 const StatLog = require('./stat_log');
 const Config = require('./config').get;
 const SysProps = require('./system_property');
+const UserProps = require('./user_property');
+const { numToMbf32 } = require('./mbf');
 
 const { EventEmitter } = require('events');
 const temptmp = require('temptmp');
@@ -83,8 +85,8 @@ const QWKLF                     = 0xe3;
 const QWKMessageStatusCodes = {
     UnreadPublic                : ' ',
     ReadPublic                  : '-',
-    ReadBySomeonePrivate        : '*',
     UnreadPrivate               : '+',
+    ReadPrivate                 : '*',
     UnreadCommentToSysOp        : '~',
     ReadCommentToSysOp          : '`',
     UnreadSenderPWProtected     : '%',
@@ -98,6 +100,11 @@ const QWKMessageStatusCodes = {
 const QWKMessageActiveStatus = {
     Active  : 255,
     Deleted : 226,
+};
+
+const QWKNetworkTagIndicator = {
+    Present     : '*',
+    NotPresent  : ' ',
 };
 
 //  See the following:
@@ -878,6 +885,9 @@ class QWKPacketWriter extends EventEmitter {
 
                     this.totalMessages = 0;
                     this.areaTagsSeen = new Set();
+                    this.personalIndex = [];    //  messages addressed to 'user'
+                    this.inboxIndex = [];       //  private messages for 'user'
+                    this.publicIndex = new Map();
 
                     return callback(null);
                 },
@@ -938,9 +948,6 @@ class QWKPacketWriter extends EventEmitter {
             }
         }
 
-        //  The actual message contents
-        //fullMessageBody += message.message;
-
         //  Sanitize line feeds (e.g. CRLF -> LF, and possibly -> QWK style below)
         splitTextAtTerms(message.message).forEach(line => {
             fullMessageBody += `${line}\n`;
@@ -961,11 +968,12 @@ class QWKPacketWriter extends EventEmitter {
         //  block padded by spaces or nulls (we use nulls)
         const fullBlocks    = Math.trunc(encodedMessage.length / QWKMessageBlockSize);
         const remainBytes   = QWKMessageBlockSize - (encodedMessage.length % QWKMessageBlockSize);
+        const totalBlocks   = fullBlocks + 1 + (remainBytes ? 1 : 0);
 
         //  The first block is always a header
         if (!this._writeMessageHeader(
             message,
-            fullBlocks + 1 + (remainBytes ? 1 : 0),
+            totalBlocks
         ))
         {
             //  we can't write this message
@@ -974,24 +982,59 @@ class QWKPacketWriter extends EventEmitter {
 
         this.messagesStream.write(encodedMessage);
 
-
         if (remainBytes) {
             this.messagesStream.write(Buffer.alloc(remainBytes, ' '));
         }
+
+        this._updateIndexTracking(message);
 
         if (this.options.enableHeadersExtension) {
             this._appendHeadersExtensionData(message);
         }
 
-        this.currentMessageOffset += fullBlocks * QWKMessageBlockSize;
-
-        if (remainBytes)
-        {
-            this.currentMessageOffset += QWKMessageBlockSize;
-        }
+        //  next message starts at this block
+        this.currentMessageOffset += totalBlocks * QWKMessageBlockSize;
 
         this.totalMessages += 1;
         this.areaTagsSeen.add(message.areaTag);
+    }
+
+    _messageAddressedToUser(message) {
+        if (_.isUndefined(this.cachedCompareNames)) {
+            if (this.options.user) {
+                this.cachedCompareNames = [
+                    this.options.user.username.toLowerCase()
+                ];
+                const realName = this.options.user.getProperty(UserProps.RealName);
+                if (realName) {
+                    this.cachedCompareNames.push(realName.toLowerCase());
+                }
+            } else {
+                this.cachedCompareNames = [];
+            }
+        };
+
+        return this.cachedCompareNames.includes(message.toUserName.toLowerCase());
+    }
+
+    _updateIndexTracking(message) {
+        //  index points at start of *message* not the header for... reasons?
+        const index = (this.currentMessageOffset / QWKMessageBlockSize) + 1;
+        if (message.isPrivate()) {
+            this.inboxIndex.push(index);
+        } else {
+            if (this._messageAddressedToUser(message)) {
+                //  :TODO: add to both indexes???
+                this.personalIndex.push(index);
+            }
+
+            const areaTag = message.areaTag;
+            if (!this.publicIndex.has(areaTag)) {
+                this.publicIndex.set(areaTag, [index]);
+            } else {
+                this.publicIndex.get(areaTag).push(index);
+            }
+        }
     }
 
     appendNewFile() {
@@ -1020,6 +1063,9 @@ class QWKPacketWriter extends EventEmitter {
                     return this._createControlData(callback);
                 },
                 (callback) => {
+                    return this._createIndexes(callback);
+                },
+                (callback) => {
                     return this._producePacketArchive(packetPath, callback);
                 }
             ],
@@ -1038,22 +1084,21 @@ class QWKPacketWriter extends EventEmitter {
     _producePacketArchive(packetPath, cb) {
         const archiveUtil = ArchiveUtil.getInstance();
 
-        const packetFiles = [
-            'messages.dat', 'headers.dat', 'control.dat',
-        ].map(filename => {
-            return filename;
-            //return paths.join(this.workDir, filename);
-        });
-
-        archiveUtil.compressTo(
-            this.options.archiveFormat,
-            packetPath,
-            packetFiles,
-            this.workDir,
-            err => {
+        fs.readdir(this.workDir, (err, files) => {
+            if (err) {
                 return cb(err);
             }
-        );
+
+            archiveUtil.compressTo(
+                this.options.archiveFormat,
+                packetPath,
+                files,
+                this.workDir,
+                err => {
+                    return cb(err);
+                }
+            );
+        });
     }
 
     _qwkMessageStatus(message) {
@@ -1090,15 +1135,9 @@ class QWKPacketWriter extends EventEmitter {
             return false;
         }
 
-        const netTag = ' '; //  :TODO:
-
-        this.lolMessageId = this.lolMessageId || 1;
-        //message.messageId = this.lolMessageId;
-        this.lolMessageId++;
-
         const header = Buffer.alloc(QWKMessageBlockSize, ' ');
         header.write(this._qwkMessageStatus(message), 0, 1, 'ascii');
-        header.write(asciiNum(message.messageId), 1, 'ascii');  //  :TODO: It seems Sync puts the relative, as in # of messages we've called appendMessage()?!
+        header.write(asciiNum(message.messageId), 1, 'ascii');
         header.write(message.modTimestamp.format(QWKHeaderTimestampFormat), 8, 13, 'ascii');
         header.write(message.toUserName.substr(0, 25), 21, 'ascii');
         header.write(message.fromUserName.substr(0, 25), 46, 'ascii');
@@ -1108,8 +1147,8 @@ class QWKPacketWriter extends EventEmitter {
         header.write(asciiTotalBlocks, 116, 'ascii');
         header.writeUInt8(QWKMessageActiveStatus.Active, 122);
         header.writeUInt16LE(conferenceNumber, 123);
-        header.writeUInt16LE(0, 125);   //  :TODO: Check if others actually populate this
-        header.write(netTag[0], 127, 1, 'ascii');
+        header.writeUInt16LE(this.totalMessages + 1, 125);
+        header.write(QWKNetworkTagIndicator.NotPresent, 127, 1, 'ascii');   //  :TODO: Present if for network output?
 
         this.messagesStream.write(header);
 
@@ -1117,6 +1156,9 @@ class QWKPacketWriter extends EventEmitter {
     }
 
     _getMessageConferenceNumberByAreaTag(areaTag) {
+        if (Message.isPrivateAreaTag(areaTag)) {
+            return 0;
+        }
         const areaConfig = _.get(Config(), [ 'messageNetworks', 'qwk', 'areas', areaTag ]);
         return areaConfig && areaConfig.conference;
     }
@@ -1131,6 +1173,13 @@ class QWKPacketWriter extends EventEmitter {
 
     _createControlData(cb) {
         const areas = Array.from(this.areaTagsSeen).map(areaTag => {
+            if (Message.isPrivateAreaTag(areaTag)) {
+                return {
+                    areaTag : Message.WellKnownAreaTags.Private,
+                    name    : 'Private',
+                    desc    : 'Private Messages',
+                };
+            }
             return getMessageAreaByTag(areaTag);
         });
 
@@ -1168,8 +1217,12 @@ class QWKPacketWriter extends EventEmitter {
         //  map areas as conf #\r\nDescription\r\n pairs
         areas.forEach(area => {
             const conferenceNumber = this._getMessageConferenceNumberByAreaTag(area.areaTag);
+            let desc = area.name;
+            if (area.desc) {
+                desc += ` - ${area.desc}`
+            }
             controlStream.write(`${conferenceNumber}\r\n`);
-            controlStream.write(`${area.name}\r\n`);
+            controlStream.write(`${desc}\r\n`);
         });
 
         //  :TODO: do we ever care here?!
@@ -1178,6 +1231,73 @@ class QWKPacketWriter extends EventEmitter {
         });
 
         controlStream.end();
+    }
+
+    _createIndexes(cb) {
+        const appendIndexData = (stream, offset) => {
+            const msb = numToMbf32(offset);
+            stream.write(msb);
+
+            //  technically, the conference #, but only as a byte, so pretty much useless
+            //  AND the filename itself is the conference number... dafuq.
+            stream.write(Buffer.from([0x00]));
+        };
+
+        async.series(
+            [
+                (callback) => {
+                    //  Create PERSONAL.NDX
+                    if (!this.personalIndex.length) {
+                        return callback(null);
+                    }
+
+                    const indexStream = fs.createWriteStream(paths.join(this.workDir, 'personal.ndx'));
+                    this.personalIndex.forEach(offset => appendIndexData(indexStream, offset));
+
+                    indexStream.on('close', err => {
+                        return callback(err);
+                    });
+
+                    indexStream.end();
+                },
+                (callback) => {
+                    //  000.NDX of private mails
+                    if (!this.inboxIndex.length) {
+                        return callback(null);
+                    }
+
+                    const indexStream = fs.createWriteStream(paths.join(this.workDir, '000.ndx'));
+                    this.inboxIndex.forEach(offset => appendIndexData(indexStream, offset));
+
+                    indexStream.on('close', err => {
+                        return callback(err);
+                    });
+
+                    indexStream.end();
+                },
+                (callback) => {
+                    //  ####.NDX
+                    async.eachSeries(this.publicIndex.keys(), (areaTag, nextArea) => {
+                        const offsets = this.publicIndex.get(areaTag);
+                        const conferenceNumber = this._getMessageConferenceNumberByAreaTag(areaTag);
+                        const indexStream = fs.createWriteStream(paths.join(this.workDir, `${conferenceNumber.toString()}.ndx`));
+                        offsets.forEach(offset => appendIndexData(indexStream, offset));
+
+                        indexStream.on('close', err => {
+                            return nextArea(err);
+                        });
+
+                        indexStream.end();
+                    },
+                    err => {
+                        return callback(err);
+                    });
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
     }
 
     _makeSynchronetTimestamp(ts) {
@@ -1215,7 +1335,7 @@ class QWKPacketWriter extends EventEmitter {
             Tags            : message.hashTags.join(' '),
 
             //  :TODO: Needs tested with Sync/etc.; Sync wants Conference *numbers*
-            Conference      : getMessageConfTagByAreaTag(message.areaTag),
+            Conference      : message.isPrivate() ? '0' : getMessageConfTagByAreaTag(message.areaTag),
 
             //  ENiGMA Headers
             MessageUUID     : message.uuid,
