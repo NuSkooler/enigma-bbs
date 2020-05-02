@@ -10,17 +10,19 @@ const {
     initConfigAndDatabases,
     getAnswers,
     writeConfig,
-}                               = require('./oputil_common.js');
-const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const Address					= require('../ftn_address.js');
-const Errors					= require('../enig_error.js').Errors;
+} = require('./oputil_common.js');
+
+const getHelpFor	= require('./oputil_help.js').getHelpFor;
+const Address		= require('../ftn_address.js');
+const Errors	    = require('../enig_error.js').Errors;
 
 //	deps
-const async						= require('async');
-const paths                     = require('path');
-const fs                        = require('fs');
-const hjson                     = require('hjson');
-const _                         = require('lodash');
+const async		= require('async');
+const paths     = require('path');
+const fs        = require('fs');
+const hjson     = require('hjson');
+const _         = require('lodash');
+const moment    = require('moment');
 
 exports.handleMessageBaseCommand	= handleMessageBaseCommand;
 
@@ -434,105 +436,47 @@ function getImportEntries(importType, importData) {
     return importEntries;
 }
 
-function handleQWK() {
+function dumpQWKPacket() {
     const packetPath = argv._[argv._.length - 1];
-    if(argv._.length < 4 || !packetPath || 0 === packetPath.length) {
-        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
     }
 
-    const subAction = argv._[argv._.length - 2];
-    switch (subAction) {
-        case 'dump' :
-            return dumpQWKPacket(packetPath);
-
-        case 'export' :
-            return exportQWKPacket(packetPath);
-
-        default :
-            return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
-    }
-}
-
-function dumpQWKPacket(packetPath) {
     async.waterfall(
         [
             (callback) => {
                 return initConfigAndDatabases(callback);
             },
             (callback) => {
-                ////
-                const { QWKPacketWriter } = require('../qwk_mail_packet');
-                const writer = new QWKPacketWriter({
-                    bbsID : 'XIBALBA',
-                });
-
                 const { QWKPacketReader } = require('../qwk_mail_packet');
+                const reader = new QWKPacketReader(packetPath);
 
-
-                writer.on('ready', () => {
-                    const reader = new QWKPacketReader(packetPath);
-
-                    reader.on('error', err => {
-                        console.error(`ERROR: ${err.message}`);
-                        return callback(err);
-                    });
-
-                    reader.on('done', () => {
-                        writer.finish();
-                    });
-
-                    reader.on('archive type', archiveType => {
-                        console.info(`-> Archive type: ${archiveType}`);
-                    });
-
-                    reader.on('creator', creator => {
-                        console.info(`-> Creator: ${creator}`);
-                    });
-
-                    reader.on('message', message => {
-                        writer.appendMessage(message);
-                    });
-
-                    reader.read();
+                reader.on('error', err => {
+                    console.error(`ERROR: ${err.message}`);
+                    return callback(err);
                 });
 
-                writer.on('finished', () => {
-                    console.log('done');
+                reader.on('done', () => {
+                    return callback(null);
                 });
 
-                writer.init();
+                reader.on('archive type', archiveType => {
+                    console.info(`-> Archive type: ${archiveType}`);
+                });
 
-                ////
+                reader.on('creator', creator => {
+                    console.info(`-> Creator: ${creator}`);
+                });
 
-                // const { QWKPacketReader } = require('../qwk_mail_packet');
-                // const reader = new QWKPacketReader(packetPath);
+                reader.on('message', message => {
+                    console.info('--- message ---');
+                    console.info(`To:      ${message.toUserName}`);
+                    console.info(`From:    ${message.fromUserName}`);
+                    console.info(`Subject: ${message.subject}`);
+                    console.info(`Message:\r\n${message.message}`);
+                });
 
-                // reader.on('error', err => {
-                //     console.error(`ERROR: ${err.message}`);
-                //     return callback(err);
-                // });
-
-                // reader.on('done', () => {
-                //     return callback(null);
-                // });
-
-                // reader.on('archive type', archiveType => {
-                //     console.info(`-> Archive type: ${archiveType}`);
-                // });
-
-                // reader.on('creator', creator => {
-                //     console.info(`-> Creator: ${creator}`);
-                // });
-
-                // reader.on('message', message => {
-                //     console.info('--- message ---');
-                //     console.info(`To        : ${message.toUserName}`);
-                //     console.info(`From      : ${message.fromUserName}`);
-                //     console.info(`Subject   : ${message.subject}`);
-                //     console.info(`Message   :\r\n${message.message}`);
-                // });
-
-                // reader.read();
+                reader.read();
             }
         ],
         err => {
@@ -541,36 +485,43 @@ function dumpQWKPacket(packetPath) {
     )
 }
 
-function exportQWKPacket(packetPath) {
-    //  oputil mb qwk export SPEC PATH [--user USER]
-    //  [areaTag1[@dateTime]],[...] PATH --user USER
+function exportQWKPacket() {
+    let packetPath = argv._[argv._.length - 1];
+    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
+    }
 
-    //  :TODO: bbsID from PATH filename else 'ENIGMA'
+    //  oputil mb qwk-export TAGS PATH [--user USER] [--after TIMESTAMP]
+    //  [areaTag1,areaTag2,...] PATH --user USER --after TIMESTAMP
+    let bbsID = 'ENIGMA';
+    const filename = paths.basename(packetPath);
+    if (filename) {
+        const ext = paths.extname(filename);
+        bbsID = paths.basename(filename, ext);
+    }
+
+    packetPath = paths.dirname(packetPath);
 
     const posArgLen = argv._.length;
 
-    if (posArgLen < 4) {
-        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
+    let areaTags;
+    if (4 === posArgLen) {
+        areaTags = argv._[posArgLen - 2].split(',');
+    } else {
+        areaTags = [];
     }
 
-    let areaTagSpecs = '*';
-    if (5 === posArgLen) {
-        areaTagSpecs = argv._[areaTagSpecs - 2];
+    let newerThanTimestamp = null;
+    if (argv.after) {
+        const ts = moment(argv.after);
+        if (ts.isValid()) {
+            newerThanTimestamp = ts.format();
+        }
     }
-
-
-    //const areaTagSpecs = argv._[areaTagSpecs - 2];
-
-    /*const packetPath = argv._[argv._.length - 1];
-    if(argv._.length < 4 || !packetPath || 0 === packetPath.length) {
-        return printUsageAndSetExitCode(getHelpFor('QWK'), ExitCodes.ERROR);
-    }*/
-
-    //  :TODO: parse area tags(s) and timestamps
-    const areaTags = [ 'general', 'fsx_gen' ];
 
     const userName = argv.user || '-';
 
+    let totalExported = 0;
     async.waterfall(
         [
             (callback) => {
@@ -591,13 +542,28 @@ function exportQWKPacket(packetPath) {
                 });
             },
             (user, callback) => {
+                //  populate area tags with all available to user
+                //  if they were not explicitly supplied
+                if (!areaTags.length) {
+                    const {
+                        getAvailableMessageConferences,
+                        getAvailableMessageAreasByConfTag
+                    } = require('../../core/message_area');
+
+                    const confTags = Object.keys(getAvailableMessageConferences(null, { noClient : true }));
+                    confTags.forEach( confTag => {
+                        areaTags = areaTags.concat(Object.keys(getAvailableMessageAreasByConfTag(confTag)));
+                    });
+                }
+                return callback(null, user);
+            },
+            (user, callback) => {
                 const Message = require('../message');
 
                 const filter = {
                     resultType  : 'id',
                     areaTag     : areaTags,
-
-                    //  :TODO: newerThanTimestamp
+                    newerThanTimestamp,
                 };
 
                 //  public
@@ -617,9 +583,8 @@ function exportQWKPacket(packetPath) {
             (user, Message, messageIds, callback) => {
                 const { QWKPacketWriter } = require('../qwk_mail_packet');
                 const writer = new QWKPacketWriter({
-                    //  :TODO: export needs these options
-                    bbsID : 'XIBALBA',
-                    user        : user,
+                    bbsID,
+                    user,
                 });
 
                 writer.on('ready', () => {
@@ -628,16 +593,21 @@ function exportQWKPacket(packetPath) {
                         message.load( { messageId }, err => {
                             if (!err) {
                                 writer.appendMessage(message);
+                                ++totalExported;
                             }
                             return nextMessageId(err);
                         });
                     },
                     (err) => {
-                        writer.finish('/home/nuskooler/Downloads/qwk2/');
+                        writer.finish(packetPath);
                         if (err) {
                             console.error(`Failed to write one or more messages: ${err.message}`);
                         }
                     });
+                });
+
+                writer.on('warning', err => {
+                    console.warn(`!!! ${err.reason ? err.reason : err.message}`);
                 });
 
                 writer.on('finished', () => {
@@ -649,8 +619,10 @@ function exportQWKPacket(packetPath) {
         ],
         err => {
             if(err) {
-                console.error(err.reason ? err.reason : err.message);
+                return console.error(err.reason ? err.reason : err.message);
             }
+
+            console.info(`-> Exported ${totalExported} messages`);
         }
     );
 }
@@ -673,6 +645,7 @@ function handleMessageBaseCommand() {
     return({
         areafix	        : areaFix,
         'import-areas'  : importAreas,
-        qwk             : handleQWK,
+        'qwk-dump'      : dumpQWKPacket,
+        'qwk-export'    : exportQWKPacket,
     }[action] || errUsage)();
 }

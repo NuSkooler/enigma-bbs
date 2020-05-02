@@ -493,7 +493,7 @@ class QWKPacketReader extends EventEmitter {
         }
 
         const encodingToSpec = 'cp437';
-        let encoding = encodingToSpec;
+        let encoding;
 
         const path = paths.join(this.packetInfo.tempDir, this.packetInfo.messages.filename);
         fs.open(path, 'r', (err, fd) => {
@@ -575,6 +575,7 @@ class QWKPacketReader extends EventEmitter {
                         switch (state) {
                             case 'header' :
                                 const header = MessageHeaderParser.parse(buffer);
+                                encoding = encodingToSpec;  //  reset per message
 
                                 //  massage into something a little more sane (things we can't quite do in the parser directly)
                                 ['toName', 'fromName', 'subject'].forEach(field => {
@@ -601,7 +602,7 @@ class QWKPacketReader extends EventEmitter {
 
                                 //  if we have HEADERS.DAT with a 'Utf8' override for this message,
                                 //  the overridden to/from/subject/message fields are UTF-8
-                                if (currMessage.headersExtension && currMessage.headersExtension.Utf8) {
+                                if (currMessage.headersExtension && 'true' === currMessage.headersExtension.Utf8.toLowerCase()) {
                                     encoding = 'utf8';
                                 }
 
@@ -825,7 +826,7 @@ class QWKPacketWriter extends EventEmitter {
             enableHeadersExtension = true,
             enableAtKludges = true,
             systemDomain = 'enigma-bbs',
-            bbsID = '',
+            bbsID = 'ENIGMA',
             user = null,
             archiveFormat = 'application/zip',
             forceEncoding = null,
@@ -853,7 +854,7 @@ class QWKPacketWriter extends EventEmitter {
             enableHeadersExtension  : true,
             enableAtKludges         : true,
             systemDomain            : 'enigma-bbs',
-            bbsID                   : '',
+            bbsID                   : 'ENIGMA',
             user                    : null,
             archiveFormat           :'application/zip',
             forceEncoding           : null,
