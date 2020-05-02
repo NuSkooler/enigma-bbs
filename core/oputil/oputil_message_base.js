@@ -464,8 +464,6 @@ function dumpQWKPacket(packetPath) {
                 const { QWKPacketWriter } = require('../qwk_mail_packet');
                 const writer = new QWKPacketWriter({
                     bbsID : 'XIBALBA',
-                    toUser : 'NuSkooler',
-                    encoding : 'cp437',
                 });
 
                 const { QWKPacketReader } = require('../qwk_mail_packet');
@@ -547,6 +545,8 @@ function exportQWKPacket(packetPath) {
     //  oputil mb qwk export SPEC PATH [--user USER]
     //  [areaTag1[@dateTime]],[...] PATH --user USER
 
+    //  :TODO: bbsID from PATH filename else 'ENIGMA'
+
     const posArgLen = argv._.length;
 
     if (posArgLen < 4) {
@@ -619,8 +619,6 @@ function exportQWKPacket(packetPath) {
                 const writer = new QWKPacketWriter({
                     //  :TODO: export needs these options
                     bbsID : 'XIBALBA',
-                    toUser : 'NuSkooler',
-                    encoding : 'cp437',
                     user        : user,
                 });
 
@@ -635,7 +633,7 @@ function exportQWKPacket(packetPath) {
                         });
                     },
                     (err) => {
-                        writer.finish('/home/nuskooler/Downloads/qwk2/TEST1.QWK');
+                        writer.finish('/home/nuskooler/Downloads/qwk2/');
                         if (err) {
                             console.error(`Failed to write one or more messages: ${err.message}`);
                         }

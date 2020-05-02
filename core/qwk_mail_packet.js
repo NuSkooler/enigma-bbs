@@ -11,6 +11,7 @@ const Config = require('./config').get;
 const SysProps = require('./system_property');
 const UserProps = require('./user_property');
 const { numToMbf32 } = require('./mbf');
+const { getEncodingFromCharacterSetIdentifier } = require('./ftn_util');
 
 const { EventEmitter } = require('events');
 const temptmp = require('temptmp');
@@ -823,11 +824,11 @@ class QWKPacketWriter extends EventEmitter {
             enableQWKE = true,
             enableHeadersExtension = true,
             enableAtKludges = true,
-            encoding = 'cp437',
             systemDomain = 'enigma-bbs',
             bbsID = '',
             user = null,
             archiveFormat = 'application/zip',
+            forceEncoding = null,
         } = QWKPacketWriter.DefaultOptions)
     {
         super();
@@ -840,7 +841,7 @@ class QWKPacketWriter extends EventEmitter {
             bbsID,
             user,
             archiveFormat,
-            encoding : encoding.toLowerCase(),
+            forceEncoding : forceEncoding ? forceEncoding.toLowerCase() : null,
         };
 
         this.temptmp = temptmp.createTrackedSession('qwkpacketwriter');
@@ -851,11 +852,11 @@ class QWKPacketWriter extends EventEmitter {
             enableQWKE              : true,
             enableHeadersExtension  : true,
             enableAtKludges         : true,
-            encoding                : 'cp437',
             systemDomain            : 'enigma-bbs',
             bbsID                   : '',
             user                    : null,
             archiveFormat           :'application/zip',
+            forceEncoding           : null,
         };
     }
 
@@ -945,6 +946,8 @@ class QWKPacketWriter extends EventEmitter {
                 }
             } else {
                 fullMessageBody += `@MSGID: ${this.makeMessageIdentifier(message)}\n`;
+                fullMessageBody += `@TZ: ${UTCOffsetToSMBTZ[moment().format('Z')]}\n`;
+                //  :TODO: REPLY and REPLYTO
             }
         }
 
@@ -953,14 +956,16 @@ class QWKPacketWriter extends EventEmitter {
             fullMessageBody += `${line}\n`;
         });
 
-        const encodedMessage = iconv.encode(fullMessageBody, this.options.encoding);
+        const encoding = this._getEncoding(message);
+
+        const encodedMessage = iconv.encode(fullMessageBody, encoding);
 
         //
         //  QWK spec wants line feeds as 0xe3 for some reason, so we'll have
         //  to replace the \n's. If we're going against the spec and using UTF-8
         //  we can just leave them be.
         //
-        if ('utf8' !== this.options.encoding) {
+        if ('utf8' !== encoding) {
             replaceCharInBuffer(encodedMessage, 0x0a, QWKLF);
         }
 
@@ -989,7 +994,7 @@ class QWKPacketWriter extends EventEmitter {
         this._updateIndexTracking(message);
 
         if (this.options.enableHeadersExtension) {
-            this._appendHeadersExtensionData(message);
+            this._appendHeadersExtensionData(message, encoding);
         }
 
         //  next message starts at this block
@@ -997,6 +1002,38 @@ class QWKPacketWriter extends EventEmitter {
 
         this.totalMessages += 1;
         this.areaTagsSeen.add(message.areaTag);
+    }
+
+    _getEncoding(message) {
+        if (this.options.forceEncoding) {
+            return this.options.forceEncoding;
+        }
+
+        //  If the system has stored an explicit encoding, use that.
+        let encoding = _.get(message.meta, 'System.explicit_encoding');
+        if (encoding) {
+            return encoding;
+        }
+
+        //  If the message is already tagged with a supported encoding
+        //  indicator such as FTN-style CHRS, try to use that.
+        encoding = _.get(message.meta, 'FtnKludge.CHRS');
+        if (encoding) {
+            //  convert from CHRS to something standard
+            encoding = getEncodingFromCharacterSetIdentifier(encoding);
+            if (encoding) {
+                return encoding;
+            }
+        }
+
+        //  The to-spec default is CP437/ASCII. If it can be encoded as
+        //  such then do so.
+        if (message.isCP437Encodable()) {
+            return 'cp437';
+        }
+
+        //  Something more modern...
+        return 'utf8';
     }
 
     _messageAddressedToUser(message) {
@@ -1041,7 +1078,7 @@ class QWKPacketWriter extends EventEmitter {
 
     }
 
-    finish(packetPath) {
+    finish(packetDirectory) {
         async.series(
             [
                 (callback) => {
@@ -1066,7 +1103,7 @@ class QWKPacketWriter extends EventEmitter {
                     return this._createIndexes(callback);
                 },
                 (callback) => {
-                    return this._producePacketArchive(packetPath, callback);
+                    return this._producePacketArchive(packetDirectory, callback);
                 }
             ],
             err => {
@@ -1081,7 +1118,44 @@ class QWKPacketWriter extends EventEmitter {
         )
     }
 
-    _producePacketArchive(packetPath, cb) {
+    _getNextAvailPacketFileName(packetDirectory, cb) {
+        //
+        //  According to http://wiki.synchro.net/ref:qwk filenames should
+        //  start with .QWK -> .QW1 ... .QW9 -> .Q10 ... .Q99
+        //
+        let digits = 0;
+        async.doWhilst( callback => {
+            let ext;
+            if (0 === digits) {
+                ext = 'QWK';
+            } else if (digits < 10) {
+                ext = `QW${digits}`;
+            } else if (digits < 100) {
+                ext = `Q${digits}`;
+            } else {
+                return callback(Errors.UnexpectedState(`Unable to choose a valid QWK output filename`));
+            }
+
+            ++digits;
+
+            const filename = `${this.options.bbsID}.${ext}`;
+            fs.stat(paths.join(packetDirectory, filename), (err, stats) => {
+                if (err && 'ENOENT' === err.code) {
+                    return callback(null, filename);
+                } else {
+                    return callback(null, null);
+                }
+            });
+        },
+        (filename, callback) => {
+            return callback(null, filename ? false : true);
+        },
+        (err, filename) => {
+            return cb(err, filename);
+        });
+    }
+
+    _producePacketArchive(packetDirectory, cb) {
         const archiveUtil = ArchiveUtil.getInstance();
 
         fs.readdir(this.workDir, (err, files) => {
@@ -1089,15 +1163,22 @@ class QWKPacketWriter extends EventEmitter {
                 return cb(err);
             }
 
-            archiveUtil.compressTo(
-                this.options.archiveFormat,
-                packetPath,
-                files,
-                this.workDir,
-                err => {
+            this._getNextAvailPacketFileName(packetDirectory, (err, filename) => {
+                if (err) {
                     return cb(err);
                 }
-            );
+
+                const packetPath = paths.join(packetDirectory, filename);
+                archiveUtil.compressTo(
+                    this.options.archiveFormat,
+                    packetPath,
+                    files,
+                    this.workDir,
+                    err => {
+                        return cb(err);
+                    }
+                );
+            });
         });
     }
 
@@ -1306,10 +1387,10 @@ class QWKPacketWriter extends EventEmitter {
         return `${syncTimestamp} ${syncTZ}`;
     }
 
-    _appendHeadersExtensionData(message) {
+    _appendHeadersExtensionData(message, encoding) {
         const messageData = {
             //  Synchronet style
-            Utf8            : ('utf8' === this.options.encoding ? 'true' : 'false'),
+            Utf8            : ('utf8' === encoding ? 'true' : 'false'),
             'Message-ID'    : this.makeMessageIdentifier(message),
 
             WhenWritten     : this._makeSynchronetTimestamp(message.modTimestamp),
@@ -1367,11 +1448,11 @@ class QWKPacketWriter extends EventEmitter {
             messageData.Editor          = `ENiGMA 1/2 BBS FSE v${enigmaVersion}`;
         }
 
-        this.headersDatStream.write(iconv.encode(`[${this.currentMessageOffset.toString(16)}]\r\n`, this.options.encoding));
+        this.headersDatStream.write(iconv.encode(`[${this.currentMessageOffset.toString(16)}]\r\n`, encoding));
 
         for (let [name, value] of Object.entries(messageData)) {
             if (value) {
-                this.headersDatStream.write(iconv.encode(`${name}: ${value}\r\n`, this.options.encoding));
+                this.headersDatStream.write(iconv.encode(`${name}: ${value}\r\n`, encoding));
             }
         }
 

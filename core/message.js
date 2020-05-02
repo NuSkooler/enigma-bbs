@@ -11,6 +11,9 @@ const {
     sanitizeString,
     getISOTimestampString } = require('./database.js');
 
+const { isCP437Encodable } = require('./cp437util');
+const { containsNonLatinCodepoints } = require('./string_util');
+
 const {
     isAnsi, isFormattedLine,
     splitTextAtTerms,
@@ -143,6 +146,20 @@ module.exports = class Message {
 
     isFromRemoteUser() {
         return null !== _.get(this, 'meta.System.remote_from_user', null);
+    }
+
+    isCP437Encodable() {
+        return isCP437Encodable(this.toUserName) &&
+            isCP437Encodable(this.fromUserName) &&
+            isCP437Encodable(this.subject) &&
+            isCP437Encodable(this.message);
+    }
+
+    containsNonLatinCodepoints() {
+        return containsNonLatinCodepoints(this.toUserName) ||
+            containsNonLatinCodepoints(this.fromUserName) ||
+            containsNonLatinCodepoints(this.subject) ||
+            containsNonLatinCodepoints(this.message);
     }
 
     /*
