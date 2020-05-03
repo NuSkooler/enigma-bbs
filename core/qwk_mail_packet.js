@@ -1412,7 +1412,7 @@ class QWKPacketWriter extends EventEmitter {
                         return callback(null);
                     }
 
-                    const indexStream = fs.createWriteStream(paths.join(this.workDir, '000.ndx'));
+                    const indexStream = fs.createWriteStream(paths.join(this.workDir, '0000.ndx'));
                     this.inboxIndex.forEach(offset => appendIndexData(indexStream, offset));
 
                     indexStream.on('close', err => {
