@@ -24,6 +24,7 @@ exports.getAvailableMessageConferences      = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences    = getSortedAvailMessageConferences;
 exports.getAvailableMessageAreasByConfTag   = getAvailableMessageAreasByConfTag;
 exports.getSortedAvailMessageAreasByConfTag = getSortedAvailMessageAreasByConfTag;
+exports.getAllAvailableMessageAreaTags      = getAllAvailableMessageAreaTags;
 exports.getDefaultMessageConferenceTag      = getDefaultMessageConferenceTag;
 exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
 exports.getSuitableMessageConfAndAreaTags   = getSuitableMessageConfAndAreaTags;
@@ -138,6 +139,20 @@ function getSortedAvailMessageAreasByConfTag(confTag, options) {
     sortAreasOrConfs(areas, 'area');
 
     return areas;
+}
+
+function getAllAvailableMessageAreaTags(client, options) {
+    const areaTags = [];
+
+    //  mask over older messy APIs for now
+    const confOpts = Object.assign({}, options, { noClient : client ? false : true });
+    const areaOpts = Object.assign({}, options, { client });
+
+    Object.keys(getAvailableMessageConferences(client, confOpts)).forEach(confTag => {
+        areaTags.push(...Object.keys(getAvailableMessageAreasByConfTag(confTag, areaOpts)));
+    });
+
+    return areaTags;
 }
 
 function getDefaultMessageConferenceTag(client, disableAcsCheck) {

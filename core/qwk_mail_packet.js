@@ -5,6 +5,7 @@ const { splitTextAtTerms } = require('./string_util');
 const {
     getMessageConfTagByAreaTag,
     getMessageAreaByTag,
+    getAllAvailableMessageAreaTags,
 } = require('./message_area');
 const StatLog = require('./stat_log');
 const Config = require('./config').get;
@@ -822,6 +823,7 @@ class QWKPacketReader extends EventEmitter {
 class QWKPacketWriter extends EventEmitter {
     constructor(
         {
+            mode = QWKPacketWriter.Modes.User,
             enableQWKE = true,
             enableHeadersExtension = true,
             enableAtKludges = true,
@@ -835,6 +837,7 @@ class QWKPacketWriter extends EventEmitter {
         super();
 
         this.options = {
+            mode,
             enableQWKE,
             enableHeadersExtension,
             enableAtKludges,
@@ -846,10 +849,13 @@ class QWKPacketWriter extends EventEmitter {
         };
 
         this.temptmp = temptmp.createTrackedSession('qwkpacketwriter');
+
+        this.areaTagConfMap = {};
     }
 
     static get DefaultOptions() {
         return {
+            mode                    : QWKPacketWriter.Modes.User,
             enableQWKE              : true,
             enableHeadersExtension  : true,
             enableAtKludges         : true,
@@ -858,6 +864,13 @@ class QWKPacketWriter extends EventEmitter {
             user                    : null,
             archiveFormat           :'application/zip',
             forceEncoding           : null,
+        };
+    }
+
+    static get Modes() {
+        return {
+            User    : 'user',       //  creation of a packet for a user (non-network); non-mapped confs allowed
+            Network : 'network',    //  creation of a packet for QWK network
         };
     }
 
@@ -872,6 +885,48 @@ class QWKPacketWriter extends EventEmitter {
                         this.workDir = workDir;
                         return callback(err);
                     });
+                },
+                (callback) => {
+                    //
+                    //  Prepare areaTag -> conference number mapping:
+                    //  - In User mode, areaTags's that are not explicitly configured
+                    //    will have their conference number auto-generated.
+                    //  - In Network mode areaTags's missing a configuration will not
+                    //    be mapped, and thus skipped.
+                    //
+                    const configuredAreas = _.get(Config(), 'messageNetworks.qwk.areas');
+                    if (configuredAreas) {
+                        Object.keys(configuredAreas).forEach(areaTag => {
+                            const confNumber = configuredAreas[areaTag].conference;
+                            if (confNumber) {
+                                this.areaTagConfMap[areaTag] = confNumber;
+                            }
+                        });
+                    }
+
+                    if (this.options.mode === QWKPacketWriter.Modes.User) {
+                        //  All the rest
+                        let confNumber = 1;
+                        const usedConfNumbers = new Set(Object.values(this.areaTagConfMap));
+                        getAllAvailableMessageAreaTags().forEach(areaTag => {
+                            if (this.areaTagConfMap[areaTag]) {
+                                return;
+                            }
+
+                            while (confNumber < 65537 && usedConfNumbers.has(confNumber)) {
+                                ++confNumber;
+                            }
+
+                            if (confNumber === 65536) { //  sanity...
+                                this.emit('warning', Errors.General(`To many conferences`));
+                            } else {
+                                this.areaTagConfMap[areaTag] = confNumber;
+                                ++confNumber;
+                            }
+                        });
+                    }
+
+                    return callback(null);
                 },
                 (callback) => {
                     this.messagesStream = fs.createWriteStream(paths.join(this.workDir, 'messages.dat'));
@@ -1241,8 +1296,8 @@ class QWKPacketWriter extends EventEmitter {
         if (Message.isPrivateAreaTag(areaTag)) {
             return 0;
         }
-        const areaConfig = _.get(Config(), [ 'messageNetworks', 'qwk', 'areas', areaTag ]);
-        return areaConfig && areaConfig.conference;
+
+        return this.areaTagConfMap[areaTag];
     }
 
     _getExportForUsername() {

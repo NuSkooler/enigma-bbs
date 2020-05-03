@@ -546,14 +546,10 @@ function exportQWKPacket() {
                 //  if they were not explicitly supplied
                 if (!areaTags.length) {
                     const {
-                        getAvailableMessageConferences,
-                        getAvailableMessageAreasByConfTag
+                        getAllAvailableMessageAreaTags
                     } = require('../../core/message_area');
 
-                    const confTags = Object.keys(getAvailableMessageConferences(null, { noClient : true }));
-                    confTags.forEach( confTag => {
-                        areaTags = areaTags.concat(Object.keys(getAvailableMessageAreasByConfTag(confTag)));
-                    });
+                    areaTags = getAllAvailableMessageAreaTags();
                 }
                 return callback(null, user);
             },
