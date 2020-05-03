@@ -963,6 +963,15 @@ class QWKPacketWriter extends EventEmitter {
         return `<${message.messageId}.${message.messageUuid}@${this.options.systemDomain}>`;
     }
 
+    _encodeWithFallback(s, encoding) {
+        try {
+            return iconv.encode(s, encoding);
+        } catch (e) {
+            this.emit('warning', Errors.General(`Failed to encode buffer using ${encoding}; Falling back to 'ascii'`));
+            return iconv.encode(s, 'ascii');
+        }
+    }
+
     appendMessage(message) {
         //
         //  Each message has to:
@@ -1014,7 +1023,7 @@ class QWKPacketWriter extends EventEmitter {
 
         const encoding = this._getEncoding(message);
 
-        const encodedMessage = iconv.encode(fullMessageBody, encoding);
+        const encodedMessage = this._encodeWithFallback(fullMessageBody, encoding);
 
         //
         //  QWK spec wants line feeds as 0xe3 for some reason, so we'll have
@@ -1504,11 +1513,11 @@ class QWKPacketWriter extends EventEmitter {
             messageData.Editor          = `ENiGMA 1/2 BBS FSE v${enigmaVersion}`;
         }
 
-        this.headersDatStream.write(iconv.encode(`[${this.currentMessageOffset.toString(16)}]\r\n`, encoding));
+        this.headersDatStream.write(this._encodeWithFallback(`[${this.currentMessageOffset.toString(16)}]\r\n`, encoding));
 
         for (let [name, value] of Object.entries(messageData)) {
             if (value) {
-                this.headersDatStream.write(iconv.encode(`${name}: ${value}\r\n`, encoding));
+                this.headersDatStream.write(this._encodeWithFallback(`${name}: ${value}\r\n`, encoding));
             }
         }
 
