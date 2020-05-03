@@ -906,7 +906,8 @@ class QWKPacketWriter extends EventEmitter {
 
                     if (this.options.mode === QWKPacketWriter.Modes.User) {
                         //  All the rest
-                        let confNumber = 1;
+                        //  Start at 1000 to work around what seems to be a bug with some readers
+                        let confNumber = 1000;
                         const usedConfNumbers = new Set(Object.values(this.areaTagConfMap));
                         getAllAvailableMessageAreaTags().forEach(areaTag => {
                             if (this.areaTagConfMap[areaTag]) {
