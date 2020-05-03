@@ -13,6 +13,7 @@ exports.pad                         = pad;
 exports.insert                      = insert;
 exports.replaceAt                   = replaceAt;
 exports.isPrintable                 = isPrintable;
+exports.containsNonLatinCodepoints  = containsNonLatinCodepoints;
 exports.stripAllLineFeeds           = stripAllLineFeeds;
 exports.debugEscapedString          = debugEscapedString;
 exports.stringFromNullTermBuffer    = stringFromNullTermBuffer;
@@ -194,6 +195,20 @@ function isPrintable(s) {
     //
     //  :TODO: Probably need somthing better here.
     return !RE_NON_PRINTABLE.test(s);
+}
+
+const NonLatinCodePointsRegExp = /[^\u0000-\u00ff]/;
+
+function containsNonLatinCodepoints(s) {
+    if (!s.length) {
+		return false;
+	}
+
+	if (s.charCodeAt(0) > 255) {
+		return true;
+	}
+
+    return NonLatinCodepointsRegEx.test(s);
 }
 
 function stripAllLineFeeds(s) {

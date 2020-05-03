@@ -170,6 +170,11 @@ Actions:
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
 
+  qwk-dump PATH               Dumps a QWK packet to stdout.
+  qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
+                              packet in the directory specified by PATH. The QWK
+                              BBS ID will be obtained by the final component of PATH.
+
 import-areas arguments:
   --conf CONF_TAG             Conference tag in which to import areas
   --network NETWORK           Network name/key to associate FTN areas
@@ -177,6 +182,11 @@ import-areas arguments:
   --type TYPE                 Area import type
 
   Valid types are "bbs" and "na".
+
+qwk-export arguments:
+  --user USER                 User in which to export for. Defaults to the SysOp.
+  --after TIMESTAMP           Export only messages with a timestamp later than
+                              TIMESTAMP.
 `
 };
 

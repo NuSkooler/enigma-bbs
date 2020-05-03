@@ -11,6 +11,9 @@ const {
     sanitizeString,
     getISOTimestampString } = require('./database.js');
 
+const { isCP437Encodable } = require('./cp437util');
+const { containsNonLatinCodepoints } = require('./string_util');
+
 const {
     isAnsi, isFormattedLine,
     splitTextAtTerms,
@@ -49,7 +52,8 @@ const SYSTEM_META_NAMES = {
 const ADDRESS_FLAVOR = {
     Local       : 'local',  //  local / non-remote addressing
     FTN         : 'ftn',    //  FTN style
-    Email       : 'email',
+    Email       : 'email',  //  From email
+    QWK         : 'qwk',    //  QWK packet
 };
 
 const STATE_FLAGS0 = {
@@ -85,6 +89,13 @@ const FTN_PROPERTY_NAMES = {
     FtnOrigin           : 'ftn_origin',         //  http://ftsc.org/docs/fts-0004.001
     FtnArea             : 'ftn_area',           //  http://ftsc.org/docs/fts-0004.001
     FtnSeenBy           : 'ftn_seen_by',        //  http://ftsc.org/docs/fts-0004.001
+};
+
+const QWKPropertyNames = {
+    MessageNumber       : 'qwk_msg_num',
+    MessageStatus       : 'qwk_msg_status',         //  See http://wiki.synchro.net/ref:qwk for a decent list
+    ConferenceNumber    : 'qwk_conf_num',
+    InReplyToNum        : 'qwk_in_reply_to_num',    //  note that we prefer the 'InReplyToMsgId' kludge if available
 };
 
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
@@ -137,6 +148,20 @@ module.exports = class Message {
         return null !== _.get(this, 'meta.System.remote_from_user', null);
     }
 
+    isCP437Encodable() {
+        return isCP437Encodable(this.toUserName) &&
+            isCP437Encodable(this.fromUserName) &&
+            isCP437Encodable(this.subject) &&
+            isCP437Encodable(this.message);
+    }
+
+    containsNonLatinCodepoints() {
+        return containsNonLatinCodepoints(this.toUserName) ||
+            containsNonLatinCodepoints(this.fromUserName) ||
+            containsNonLatinCodepoints(this.subject) ||
+            containsNonLatinCodepoints(this.message);
+    }
+
     /*
     :TODO: finish me
     static checkUserHasDeleteRights(user, messageIdOrUuid, cb) {
@@ -181,6 +206,10 @@ module.exports = class Message {
 
     static get FtnPropertyNames() {
         return FTN_PROPERTY_NAMES;
+    }
+
+    static get QWKPropertyNames() {
+        return QWKPropertyNames;
     }
 
     setLocalToUserId(userId) {
