@@ -1426,7 +1426,7 @@ class QWKPacketWriter extends EventEmitter {
                     async.eachSeries(this.publicIndex.keys(), (areaTag, nextArea) => {
                         const offsets = this.publicIndex.get(areaTag);
                         const conferenceNumber = this._getMessageConferenceNumberByAreaTag(areaTag);
-                        const indexStream = fs.createWriteStream(paths.join(this.workDir, `${conferenceNumber.toString()}.ndx`));
+                        const indexStream = fs.createWriteStream(paths.join(this.workDir, `${conferenceNumber.toString().padStart(4, '0')}.ndx`));
                         offsets.forEach(offset => appendIndexData(indexStream, offset));
 
                         indexStream.on('close', err => {
