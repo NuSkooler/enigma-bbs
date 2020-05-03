@@ -913,11 +913,12 @@ class QWKPacketWriter extends EventEmitter {
                                 return;
                             }
 
-                            while (confNumber < 65537 && usedConfNumbers.has(confNumber)) {
+                            while (confNumber < 10001 && usedConfNumbers.has(confNumber)) {
                                 ++confNumber;
                             }
 
-                            if (confNumber === 65536) { //  sanity...
+                            //  we can go up to 65535 for some things, but NDX files are limited to 9999
+                            if (confNumber === 10000) { //  sanity...
                                 this.emit('warning', Errors.General(`To many conferences`));
                             } else {
                                 this.areaTagConfMap[areaTag] = confNumber;
@@ -1412,7 +1413,7 @@ class QWKPacketWriter extends EventEmitter {
                         return callback(null);
                     }
 
-                    const indexStream = fs.createWriteStream(paths.join(this.workDir, '0000.ndx'));
+                    const indexStream = fs.createWriteStream(paths.join(this.workDir, '000.ndx'));
                     this.inboxIndex.forEach(offset => appendIndexData(indexStream, offset));
 
                     indexStream.on('close', err => {
