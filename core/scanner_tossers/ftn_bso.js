@@ -1931,8 +1931,8 @@ function FTNMessageScanTossModule() {
             `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ? AND
-                (SELECT COUNT(message_id) 
-                FROM message_meta 
+                (SELECT COUNT(message_id)
+                FROM message_meta
                 WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
             ORDER BY message_id;`
             ;
@@ -2012,7 +2012,7 @@ function FTNMessageScanTossModule() {
         const getNewUuidsSql =
             `SELECT message_id, message_uuid
             FROM message m
-            WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND 
+            WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND
                 (SELECT COUNT(message_id)
                 FROM message_meta
                 WHERE message_id = m.message_id
@@ -2023,7 +2023,7 @@ function FTNMessageScanTossModule() {
                 (SELECT COUNT(message_id)
                 FROM message_meta
                 WHERE message_id = m.message_id
-                    AND meta_category = 'System' 
+                    AND meta_category = 'System'
                     AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
                     AND meta_value = '${Message.AddressFlavor.FTN}'
                 ) = 1
@@ -2287,13 +2287,18 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 
 FTNMessageScanTossModule.prototype.performImport = function(cb) {
     if(!this.hasValidConfiguration()) {
-        return cb(new Error('Missing or invalid configuration'));
+        return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
     const self = this;
 
     async.each( [ 'inbound', 'secInbound' ], (inboundType, nextDir) => {
-        self.importFromDirectory(inboundType, self.moduleConfig.paths[inboundType], () => {
+        const importDir = self.moduleConfig.paths[inboundType];
+        self.importFromDirectory(inboundType, importDir, err => {
+            if (err) {
+                Log.warn({ importDir, error : err.message }, 'Error(s) during import');
+            }
+
             return nextDir(null);
         });
     }, cb);
@@ -2305,7 +2310,7 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
     //  and let's find out what messages need exported.
     //
     if(!this.hasValidConfiguration()) {
-        return cb(new Error('Missing or invalid configuration'));
+        return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
     const self = this;
@@ -2313,7 +2318,7 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
     async.eachSeries( [ 'EchoMail', 'NetMail' ], (type, nextType) => {
         self[`perform${type}Export`]( err => {
             if(err) {
-                Log.warn( { error : err.message, type : type }, 'Error(s) during export' );
+                Log.warn( { type, error : err.message }, 'Error(s) during export' );
             }
             return nextType(null);  //  try next, always
         });
