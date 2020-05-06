@@ -521,6 +521,13 @@ function exportQWKPacket() {
 
     const userName = argv.user || '-';
 
+    const writerOptions = {
+        enableQWKE              : !(false === argv.qwke),
+        enableHeadersExtension  : !(false === argv.synchronet),
+        enableAtKludges         : !(false === argv.synchronet),
+        archiveFormat           : argv.format || 'application/zip'
+    };
+
     let totalExported = 0;
     async.waterfall(
         [
@@ -578,10 +585,10 @@ function exportQWKPacket() {
             },
             (user, Message, messageIds, callback) => {
                 const { QWKPacketWriter } = require('../qwk_mail_packet');
-                const writer = new QWKPacketWriter({
+                const writer = new QWKPacketWriter(Object.assign(writerOptions, {
                     bbsID,
                     user,
-                });
+                }));
 
                 writer.on('ready', () => {
                     async.eachSeries(messageIds, (messageId, nextMessageId) => {

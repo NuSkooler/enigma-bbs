@@ -187,6 +187,8 @@ qwk-export arguments:
   --user USER                 User in which to export for. Defaults to the SysOp.
   --after TIMESTAMP           Export only messages with a timestamp later than
                               TIMESTAMP.
+  --no-qwke                   Disable QWKE extensions.
+  --no-synchronet             Disable Synchronet style extensions.
 `
 };
 

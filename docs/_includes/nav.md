@@ -41,6 +41,8 @@
     - [Message networks]({{ site.baseurl }}{% link messageareas/message-networks.md %})
     - [BSO Import & Export]({{ site.baseurl }}{% link messageareas/bso-import-export.md %})
     - [Netmail]({{ site.baseurl }}{% link messageareas/netmail.md %})
+    - [QWK]({{ site.baseurl }}{% link messageareas/qwk.md %})
+    - [FTN]({{ site.baseurl }}{% link messageareas/ftn.md %})
 
   - Art
     - [General]({{ site.baseurl }}{% link art/general.md %})
