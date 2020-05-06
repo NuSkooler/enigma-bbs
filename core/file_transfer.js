@@ -378,7 +378,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
         const externalProc = pty.spawn(cmd, args, spawnOpts);
 
+        let dataHits = 0;
+        const updateActivity = () => {
+            if (0 === (dataHits++ % 4)) {
+                this.client.explicitActivityTimeUpdate();
+            }
+        };
+
         this.client.setTemporaryDirectDataHandler(data => {
+            updateActivity();
+
             //  needed for things like sz/rz
             if(external.escapeTelnet) {
                 const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
@@ -389,6 +398,8 @@ exports.getModule = class TransferFileModule extends MenuModule {
         });
 
         externalProc.on('data', data => {
+            updateActivity();
+
             //  needed for things like sz/rz
             if(external.escapeTelnet) {
                 const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');   //  escape
