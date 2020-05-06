@@ -291,17 +291,32 @@ Actions:
 
   import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
 
+  qwk-dump PATH               Dumps a QWK packet to stdout.
+  qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
+                              packet in the directory specified by PATH. The QWK
+                              BBS ID will be obtained by the final component of PATH.
+
 import-areas arguments:
   --conf CONF_TAG             Conference tag in which to import areas
   --network NETWORK           Network name/key to associate FTN areas
   --uplinks UL1,UL2,...       One or more uplinks (comma separated)
   --type TYPE                 Area import type
 
-  Valid types are "bbs" and "na"
+  Valid types are "bbs" and "na".
+
+qwk-export arguments:
+  --user USER                 User in which to export for. Defaults to the SysOp.
+  --after TIMESTAMP           Export only messages with a timestamp later than
+                              TIMESTAMP.
+  --no-qwke                   Disable QWKE extensions.
+  --no-synchronet             Disable Synchronet style extensions.
 ```
 
 | Action    | Description       | Examples                              |
 |-----------|-------------------|---------------------------------------|
 | `import-areas`    | Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.  | `./oputil.js config import-areas /some/path/l33tnet.na`   |
+| `areafix` | Utility for sending AreaFix mails without logging into the system | |
+| `qwk-dump` | Dump a QWK packet to stdout | `./oputil.js mb qwk-dump /path/to/XIBALBA.QWK` |
+| `qwk-export` | Export messages to a QWK packet | `./oputil.js mb qwk-export /path/to/XIBALBA.QWK` |
 
 When using the `import-areas` action, you will be prompted for any missing additional arguments described in "import-areas args".

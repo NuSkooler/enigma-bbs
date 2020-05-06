@@ -4,14 +4,14 @@ title: FidoNet-Style Networks (FTN)
 ---
 
 ## FidoNet-Style Networks (FTN)
-
-TODO: preamble
+[FidoNet](https://en.wikipedia.org/wiki/FidoNet) proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you'll be up and running in no time!
 
 ### Configuration
+Getting a fully running FTN enabled system requires a few configuration points:
 
-1. `messageNetworks.ftn.networks`: declares available networks.
-2. `messageNetworks.ftn.areas`: establishes local area mappings and per-area specifics.
-3. `scannerTossers.ftn_bso`: general configuration for the scanner/tosser (import/export). This is also where we configure per-node settings.
+1. `messageNetworks.ftn.networks`: Declares available networks. That is, networks you wish to sync up with.
+2. `messageNetworks.ftn.areas`: Establishes local area mappings (ENiGMA½ to/from FTN area tags) and per-area specific configurations.
+3. `scannerTossers.ftn_bso`: General configuration for the scanner/tosser (import/export) process. This is also where we configure per-node (uplink) settings.
 
 :information_source: ENiGMA½'s `ftn_bso` module is **not a mailer** and makes **no attempts** to perform packet transport! An external utility such as Binkd is required for this task.
 

@@ -4,7 +4,7 @@ title: QWK Support
 ---
 
 ## QWK and QWK-Net Style Networks
-As like all other such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format.
+As like all other networks such as FidoNet-Style (FTN) networks, ENiGMA½ considers QWK external to the system but can import and export the format.
 
 ### Supported Standards
 QWK must be considered a semi-standard as there are many implementations. What follows is a short & incomplete list of such standards ENiGMA½ supports:
@@ -17,8 +17,6 @@ QWK must be considered a semi-standard as there are many implementations. What f
 QWK configuration occurs in the `messageNetworks.qwk` config block of `config.hjson`. As QWK wants to deal with conference numbers and ENiGMA½ uses area tags (conferences and conference tags are only used for logical grouping), a mapping can be made.
 
 :information_source: During a regular, non QWK-Net exports, conference numbers can be auto-generated. Note that for QWK-Net style networks, you will need to create mappings however.
-
-:TODO: information on QWK-Net type setup here
 
 Example:
 ```hjson
@@ -36,13 +34,10 @@ Example:
 ```
 
 ### oputil
-The `oputil.js` utility can export packet files, dump the messages of a packet to stdout, etc.
-
-TODO: Examples, etc.
-TODO: Link to oputil, update --help there.
+The `oputil.js` utility can export packet files, dump the messages of a packet to stdout, etc. See [the oputil documentation](/docs/admin/oputil.md) for more information.
 
 ### Offline Readers
-A few of the offline readers that have been tested with QWK packet files produced by ENiGMA:
+A few of the offline readers that have been tested with QWK packet files produced by ENiGMA½:
 
 | Software | Status | Notes |
 |----------|--------|-------|
