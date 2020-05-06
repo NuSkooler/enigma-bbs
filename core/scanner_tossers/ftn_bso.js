@@ -2151,6 +2151,10 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 FTNMessageScanTossModule.prototype.startup = function(cb) {
     Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
 
+    if (!this.hasValidConfiguration()) {
+        Log.debug('No configuration present');
+    }
+
     let importing = false;
 
     let self = this;
