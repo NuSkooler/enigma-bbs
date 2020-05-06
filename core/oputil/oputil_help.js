@@ -59,6 +59,15 @@ Actions:
 
   group USERNAME [+|-]GROUP    Adds (+) or removes (-) user from a group
 
+  list [FILTER]                List users with optional FILTER.
+
+  Valid filters:
+    all      : All users (default).
+    disabled : Disabled users.
+    inactive : Inactive users.
+    active   : Active (regular) users.
+    locked   : Locked users.
+
 info arguments:
   --security                   Include security information in output
 
