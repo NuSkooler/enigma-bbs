@@ -29,6 +29,7 @@ exports.isAnsi                      = isAnsi;
 exports.isAnsiLine                  = isAnsiLine;
 exports.isFormattedLine             = isFormattedLine;
 exports.splitTextAtTerms            = splitTextAtTerms;
+exports.wildcardMatch               = wildcardMatch;
 
 //  :TODO: create Unicode version of this
 const VOWELS = [
@@ -473,4 +474,9 @@ function isAnsi(input) {
 
 function splitTextAtTerms(s) {
     return s.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+}
+
+function wildcardMatch(input, rule) {
+    const escapeRegex = (s) => s.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+    return new RegExp("^" + rule.split("*").map(escapeRegex).join(".*") + "$").test(input);
 }

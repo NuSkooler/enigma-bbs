@@ -101,8 +101,12 @@ cat arguments:
 Actions:
   scan AREA_TAG[@STORAGE_TAG]  Scan specified area
 
-  May contain optional GLOB as last parameter.
-  Example: ./oputil.js fb scan d0pew4r3z *.zip
+  Tips:
+    - May contain optional GLOB as last parameter.
+      Example: ./oputil.js fb scan d0pew4r3z *.zip
+
+    - AREA_TAG may contain simple wildcards.
+      Example: ./oputil.js fb scan *warez*
 
   info CRITERIA                Display information about areas and/or files
 

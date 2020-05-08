@@ -521,7 +521,24 @@ function scanFileAreas() {
                 });
             },
             function scanAreas(callback) {
-                fileArea = require('../../core/file_base_area.js');
+                fileArea = require('../../core/file_base_area');
+
+                //  Further expand any wildcards
+                let areaAndStorageInfoExpanded = [];
+                options.areaAndStorageInfo.forEach(info => {
+                    if (info.areaTag.indexOf('*') > -1) {
+                        const areas = fileArea.getFileAreasByTagWildcardRule(info.areaTag);
+                        areas.forEach(area => {
+                            areaAndStorageInfoExpanded.push(Object.assign({}, info, {
+                                areaTag : area.areaTag,
+                            }));
+                        });
+                    } else {
+                        areaAndStorageInfoExpanded.push(info);
+                    }
+                });
+
+                options.areaAndStorageInfo = areaAndStorageInfoExpanded;
 
                 async.eachSeries(options.areaAndStorageInfo, (areaAndStorage, nextAreaTag) => {
                     const areaInfo = fileArea.getFileAreaByTag(areaAndStorage.areaTag);
