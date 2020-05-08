@@ -19,7 +19,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 | Item   | Description  |
 |--------|--------------|
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
-| `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
+| `art` | An art file *spec*. See [General Art Information](/art/general.md). |
 | `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in `prompt.hjson`. |
 | `submit` | Defines a submit handler when using `prompt`.
@@ -30,7 +30,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 ### Menu Modules
 A given menu entry is backed by a *menu module*. That is, the code behind it. Menus are considered "standard" if the `module` member is not specified (and therefore backed by `core/standard_menu.js`).
 
-See [Menu Modules](/docs/modding/menu-modules.md) for more information.
+See [Menu Modules](/modding/menu-modules.md) for more information.
 
 ### Config Block
 The `config` block for a menu entry can contain common members as well as a per-module (when `module` is used) settings.
@@ -40,8 +40,8 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `cls` | If `true` the screen will be cleared before showing this menu. |
 | `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
-| `baudRate` | See baud rate information in [General Art Information](/docs/art/general.md). |
-| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](/docs/art/general.md). |
+| `baudRate` | See baud rate information in [General Art Information](/art/general.md). |
+| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](/art/general.md). |
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
 
 #### Menu Flags
@@ -59,7 +59,7 @@ ENiGMA½ uses a concept of *forms* in menus. A form is a collection of associate
 
 Menus may also support more than one layout type by using a *MCI key*. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (`VM` key) while another uses a horizontal (`HM` key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in `menu.hjson`.
 
-For more information on views and associated MCI codes, see [MCI Codes](/docs/art/mci.md).
+For more information on views and associated MCI codes, see [MCI Codes](/art/mci.md).
 
 ## Submit Handlers
 When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
@@ -124,7 +124,7 @@ telnetConnected: {
 ```
 
 The above entry `telnetConnected` is set as the Telnet server's first menu entry (set by `firstMenu` in the Telnet server's config). The entry sets up a few things:
-* A `art` spec of `CONNECT`. (See [General Art Information](/docs/art/general.md)).
+* A `art` spec of `CONNECT`. (See [General Art Information](/art/general.md)).
 * A `next` entry up the next menu, by name, in the stack (`matrix`) that we'll go to after `telnetConnected`.
 * An `config` block containing a single `nextTimeout` field telling the system to proceed to the `next` (`matrix`) entry automatically after 1500ms.
 
