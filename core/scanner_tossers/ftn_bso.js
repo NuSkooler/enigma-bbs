@@ -517,8 +517,20 @@ function FTNMessageScanTossModule() {
     };
 
 
-    this.hasValidConfiguration = function() {
-        if(!_.has(this, 'moduleConfig.nodes') || !_.has(Config(), 'messageNetworks.ftn.areas')) {
+    this.hasValidConfiguration = function({shouldLog = false} = {}) {
+        const hasNodes = _.has(this, 'moduleConfig.nodes');
+        const hasAreas = _.has(Config(), 'messageNetworks.ftn.areas');
+
+        if(!hasNodes && !hasAreas) {
+            if (shouldLog) {
+                Log.warn(
+                    {
+                        'scannerTossers.ftn_bso.nodes' : hasNodes,
+                        'messageNetworks.ftn.areas' : hasAreas,
+                    },
+                    'Missing one or more required configuration blocks'
+                );
+            }
             return false;
         }
 
@@ -2151,9 +2163,7 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 FTNMessageScanTossModule.prototype.startup = function(cb) {
     Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
 
-    if (!this.hasValidConfiguration()) {
-        Log.debug('No configuration present');
-    }
+    this.hasValidConfiguration({ shouldLog : true });   //  just check and log
 
     let importing = false;
 
@@ -2300,7 +2310,7 @@ FTNMessageScanTossModule.prototype.performImport = function(cb) {
         const importDir = self.moduleConfig.paths[inboundType];
         self.importFromDirectory(inboundType, importDir, err => {
             if (err) {
-                Log.warn({ importDir, error : err.message }, 'Error(s) during import');
+                Log.trace({ importDir, error : err.message }, 'Cannot perform FTN import for directory');
             }
 
             return nextDir(null);
