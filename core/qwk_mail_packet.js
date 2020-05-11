@@ -1242,7 +1242,12 @@ class QWKPacketWriter extends EventEmitter {
                     files,
                     this.workDir,
                     err => {
-                        return cb(err);
+                        fs.stat(packetPath, (err, stats) => {
+                            if (stats) {
+                                this.emit('packet', { stats, path : packetPath } );
+                            }
+                            return cb(err);
+                        });
                     }
                 );
             });

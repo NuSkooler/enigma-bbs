@@ -37,6 +37,7 @@ exports.Errors = {
     MissingParam        : (reason, reasonCode)  => new EnigError('Missing paramter(s)', -32008, reason, reasonCode),
     MissingMci          : (reason, reasonCode)  => new EnigError('Missing required MCI code(s)', -32009, reason, reasonCode),
     BadLogin            : (reason, reasonCode)  => new EnigError('Bad login attempt', -32010, reason, reasonCode),
+    UserInterrupt       : (reason, reasonCode)  => new EnigError('User interrupted', -32011, reason, reasonCode),
 };
 
 exports.ErrorReasons = {

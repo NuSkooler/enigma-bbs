@@ -28,7 +28,7 @@ const yazl              = require('yazl');
     tsFormat            - timestamp format (theme 'short')
     descWidth           - max desc width (45)
     progBarChar         - progress bar character (▒)
-    compressThreshold   - threshold to kick in comrpession for lists (1.44 MiB)
+    compressThreshold   - threshold to kick in compression for lists (1.44 MiB)
     templates           - object containing:
         header          - filename of header template (misc/file_list_header.asc)
         entry           - filename of entry template (misc/file_list_entry.asc)
@@ -244,6 +244,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                 },
                 function done(callback) {
                     //  re-enable idle monitor
+                    //  :TODO: this should probably be moved down below at the end of the full waterfall
                     self.client.startIdleMonitor();
 
                     updateStatus('Exported list has been added to your download queue');
