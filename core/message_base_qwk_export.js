@@ -5,14 +5,15 @@ const { Errors } = require('./enig_error');
 const {
     getMessageAreaByTag,
     hasMessageConfAndAreaRead,
+    getAllAvailableMessageAreaTags,
 } = require('./message_area');
 const FileArea = require('./file_base_area');
 const { QWKPacketWriter } = require('./qwk_mail_packet');
 const { renderSubstr } = require('./string_util');
 const Config = require('./config').get;
 const FileEntry = require('./file_entry');
-const Events = require('./events');
 const DownloadQueue = require('./download_queue');
+const { Log } = require('./logger').log;
 
 //  deps
 const async = require('async');
@@ -85,7 +86,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         });
                     },
                     (sysTempDownloadDir, callback) => {
-                        this.performExport(sysTempDownloadDir, err => {
+                        this._performExport(sysTempDownloadDir, err => {
                             return callback(err);
                         });
                     },
@@ -111,7 +112,41 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
         this.prevMenu();
     }
 
-    performExport(sysTempDownloadDir, cb) {
+    _getUserQWKExportOptions() {
+        let qwkOptions = this.client.user.getProperty('qwk_export_options');
+        try {
+            qwkOptions = JSON.parse(qwkOptions);
+        } catch(e) {
+            qwkOptions = {
+                enableQWKE              : true,
+                enableHeadersExtension  : true,
+                enableAtKludges         : true,
+                archiveFormat           : 'application/zip',
+            };
+        }
+        return qwkOptions;
+    }
+
+    _getUserQWKExportAreas() {
+        let qwkExportAreas = this.client.user.getProperty('qwk_export_msg_areas');
+        try {
+            qwkExportAreas = JSON.parse(qwkExportAreas);
+        } catch(e) {
+            //  default to all public and private without 'since'
+            qwkExportAreas = getAllAvailableMessageAreaTags(this.client).map(areaTag => {
+                return { areaTag };
+            });
+
+            //  Include user's private area
+            qwkExportAreas.push({
+                areaTag : Message.WellKnownAreaTags.Private,
+            });
+        }
+
+        return qwkExportAreas;
+    }
+
+    _performExport(sysTempDownloadDir, cb) {
         const statusView = this.viewControllers.main.getView(MciViewIds.main.status);
         const updateStatus = (status) => {
             if (statusView) {
@@ -202,10 +237,12 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
             });
         };
 
-        const packetWriter = new QWKPacketWriter({
-            user    : this.client.user,
-            bbsID   : this.config.bbsID,
-        });   //  :TODO: User configuration here
+        const packetWriter = new QWKPacketWriter(
+            Object.assign(this._getUserQWKExportOptions(), {
+                user    : this.client.user,
+                bbsID   : this.config.bbsID,
+            })
+        );
 
         packetWriter.on('warning', warning => {
             this.client.log.warn( { warning }, 'QWK packet writer warning');
@@ -232,26 +269,9 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     packetWriter.init();
                 },
                 (callback) => {
-                    //
-                    //  Fetch messages for user-configured area tags.
-                    //  - If private tag is present, we fetch this separately.
-                    //  - User property determines newscan timestamps dates if present for tag, else "all"
-                    //  - We have to fetch one area at a time in order to process message pointers/timestamps.
-                    //    ...this also allows for better progress.
-                    //
-                    //  TL;DR: for each area -> for each message
-                    //
-                    const exportAreas = [ //  :TODO: Load in something like this
-                        {
-                            areaTag : 'general',
-                            newerThanTimestamp : '2018-01-01',
-                        },
-                        {
-                            areaTag : 'fsx_gen',
-                        }
-                    ];
-
-                    async.eachSeries(exportAreas, (exportArea, nextExportArea) => {
+                    //  For each public area -> for each message
+                    const userExportAreas = this._getUserQWKExportAreas();
+                    async.eachSeries(userExportAreas, (exportArea, nextExportArea) => {
                         const area = getMessageAreaByTag(exportArea.areaTag);
                         if (!area) {
                             //  :TODO: remove from user properties - this area does not exist
@@ -291,6 +311,8 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     });
                 },
                 (callback) => {
+                    //  private messages to current user
+                    //  :TODO: Only if user property has private area tag
                     const filter = {
                         resultType          : 'id',
                         privateTagUserId    : this.client.user.userId,
@@ -339,23 +361,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     newEntry.persist(err => {
                         if(!err) {
                             //  queue it!
-                            const dlQueue = new DownloadQueue(this.client);
-                            dlQueue.add(newEntry, true);    //  true=systemFile
-
-                            //  clean up after ourselves when the session ends
-                            //  :TODO: DRY this with that in file_base_user_export
-                            const thisClientId = this.client.session.id;
-                            Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-                                if(thisClientId === _.get(evt, 'client.session.id')) {
-                                    FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
-                                        if(err) {
-                                            Log.warn( { fileId : newEntry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
-                                        } else {
-                                            Log.debug( { fileId : newEntry.fileId, path : outputFileName }, 'Removed temporary session download item' );
-                                        }
-                                    });
-                                }
-                            });
+                            DownloadQueue.get(this.client).addTemporaryDownload(newEntry);
                         }
                         return callback(err);
                     });
@@ -368,8 +374,6 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 if (!err) {
                     updateStatus('A QWK packet has been placed in your download queue');
                 }
-
-                //  :TODO: send user to download manager with pop flags/etc.
 
                 return cb(err);
             }

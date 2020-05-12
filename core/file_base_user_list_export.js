@@ -7,8 +7,6 @@ const FileEntry             = require('./file_entry.js');
 const FileArea              = require('./file_base_area.js');
 const { renderSubstr }      = require('./string_util.js');
 const { Errors }            = require('./enig_error.js');
-const Events                = require('./events.js');
-const Log                   = require('./logger.js').log;
 const DownloadQueue         = require('./download_queue.js');
 const { exportFileList }    = require('./file_base_list_export.js');
 
@@ -222,22 +220,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                     newEntry.persist(err => {
                         if(!err) {
                             //  queue it!
-                            const dlQueue = new DownloadQueue(self.client);
-                            dlQueue.add(newEntry, true);    //  true=systemFile
-
-                            //  clean up after ourselves when the session ends
-                            const thisClientId = self.client.session.id;
-                            Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-                                if(thisClientId === _.get(evt, 'client.session.id')) {
-                                    FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
-                                        if(err) {
-                                            Log.warn( { fileId : newEntry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
-                                        } else {
-                                            Log.debug( { fileId : newEntry.fileId, path : outputFileName }, 'Removed temporary session download item' );
-                                        }
-                                    });
-                                }
-                            });
+                            DownloadQueue.get(self.client).addTemporaryDownload(newEntry);
                         }
                         return callback(err);
                     });
