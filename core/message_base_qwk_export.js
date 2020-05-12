@@ -4,6 +4,7 @@ const Message = require('./message');
 const { Errors } = require('./enig_error');
 const {
     getMessageAreaByTag,
+    getMessageConferenceByTag,
     hasMessageConfAndAreaRead,
     getAllAvailableMessageAreaTags,
 } = require('./message_area');
@@ -216,7 +217,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                             message,
                             step    : 'message',
                             total   : messageIds.length,
-                            status  : `Writing message ${current} / ${messageIds.length}`,
+                            status  : `${_.truncate(message.subject, { length : 25 })} (${current} / ${messageIds.length})`,
                         };
 
                         progressHandler(progress, err => {
@@ -276,7 +277,8 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         });
                     async.eachSeries(userExportAreas, (exportArea, nextExportArea) => {
                         const area = getMessageAreaByTag(exportArea.areaTag);
-                        if (!area) {
+                        const conf = getMessageConferenceByTag(area.confTag);
+                        if (!area || !conf) {
                             //  :TODO: remove from user properties - this area does not exist
                             this.client.log.warn({ areaTag : exportArea.areaTag }, 'Cannot QWK export area as it does not exist');
                             return nextExportArea(null);
@@ -288,9 +290,10 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         }
 
                         const progress = {
+                            conf,
                             area,
                             step    : 'next_area',
-                            status  : `Gathering messages in ${area.name}...`,
+                            status  : `Gathering in ${conf.name} - ${area.name}...`,
                         };
 
                         progressHandler(progress, err => {

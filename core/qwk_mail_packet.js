@@ -5,6 +5,7 @@ const { splitTextAtTerms } = require('./string_util');
 const {
     getMessageConfTagByAreaTag,
     getMessageAreaByTag,
+    getMessageConferenceByTag,
     getAllAvailableMessageAreaTags,
 } = require('./message_area');
 const StatLog = require('./stat_log');
@@ -1370,10 +1371,9 @@ class QWKPacketWriter extends EventEmitter {
         //  map areas as conf #\r\nDescription\r\n pairs
         areas.forEach(area => {
             const conferenceNumber = this._getMessageConferenceNumberByAreaTag(area.areaTag);
-            let desc = area.name;
-            if (area.desc) {
-                desc += ` - ${area.desc}`
-            }
+            const conf = getMessageConferenceByTag(area.confTag);
+            const desc = `${conf.name} - ${area.name}`;
+
             controlStream.write(`${conferenceNumber}\r\n`);
             controlStream.write(`${desc}\r\n`);
         });
