@@ -307,12 +307,16 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         });
                     },
                     err => {
-                        return callback(err);
+                        return callback(err, userExportAreas);
                     });
                 },
-                (callback) => {
-                    //  private messages to current user
-                    //  :TODO: Only if user property has private area tag
+                (userExportAreas, callback) => {
+                    //  Private messages to current user if the user has
+                    //  elected to export private messages
+                    if (!(userExportAreas.find(exportArea => exportArea.areaTag === Message.WellKnownAreaTags.Private))) {
+                        return callback(null);
+                    }
+
                     const filter = {
                         resultType          : 'id',
                         privateTagUserId    : this.client.user.userId,
@@ -352,7 +356,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
                             //  :TODO: something like this: allow to override the displayed/downloaded as filename
                             //  separate from the actual on disk filename. E.g. we could always download as "ENIGMA.QWK"
-                            visible_filename    : paths.basename(packetInfo.path),
+                            //visible_filename    : paths.basename(packetInfo.path),
                         }
                     });
 
