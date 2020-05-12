@@ -7,8 +7,6 @@ const FileEntry             = require('./file_entry.js');
 const FileArea              = require('./file_base_area.js');
 const { renderSubstr }      = require('./string_util.js');
 const { Errors }            = require('./enig_error.js');
-const Events                = require('./events.js');
-const Log                   = require('./logger.js').log;
 const DownloadQueue         = require('./download_queue.js');
 const { exportFileList }    = require('./file_base_list_export.js');
 
@@ -28,7 +26,7 @@ const yazl              = require('yazl');
     tsFormat            - timestamp format (theme 'short')
     descWidth           - max desc width (45)
     progBarChar         - progress bar character (▒)
-    compressThreshold   - threshold to kick in comrpession for lists (1.44 MiB)
+    compressThreshold   - threshold to kick in compression for lists (1.44 MiB)
     templates           - object containing:
         header          - filename of header template (misc/file_list_header.asc)
         entry           - filename of entry template (misc/file_list_entry.asc)
@@ -222,28 +220,14 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                     newEntry.persist(err => {
                         if(!err) {
                             //  queue it!
-                            const dlQueue = new DownloadQueue(self.client);
-                            dlQueue.add(newEntry, true);    //  true=systemFile
-
-                            //  clean up after ourselves when the session ends
-                            const thisClientId = self.client.session.id;
-                            Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-                                if(thisClientId === _.get(evt, 'client.session.id')) {
-                                    FileEntry.removeEntry(newEntry, { removePhysFile : true }, err => {
-                                        if(err) {
-                                            Log.warn( { fileId : newEntry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
-                                        } else {
-                                            Log.debug( { fileId : newEntry.fileId, path : outputFileName }, 'Removed temporary session download item' );
-                                        }
-                                    });
-                                }
-                            });
+                            DownloadQueue.get(self.client).addTemporaryDownload(newEntry);
                         }
                         return callback(err);
                     });
                 },
                 function done(callback) {
                     //  re-enable idle monitor
+                    //  :TODO: this should probably be moved down below at the end of the full waterfall
                     self.client.startIdleMonitor();
 
                     updateStatus('Exported list has been added to your download queue');

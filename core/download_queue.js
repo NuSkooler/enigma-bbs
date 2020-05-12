@@ -1,11 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const FileEntry     = require('./file_entry.js');
-const UserProps     = require('./user_property.js');
+const FileEntry     = require('./file_entry');
+const UserProps     = require('./user_property');
+const Events        = require('./events');
 
 //  deps
-const { partition } = require('lodash');
+const _ = require('lodash');
 
 module.exports = class DownloadQueue {
     constructor(client) {
@@ -18,6 +19,10 @@ module.exports = class DownloadQueue {
                 this.client.user.downloadQueue = [];
             }
         }
+    }
+
+    static get(client) {
+        return new DownloadQueue(client);
     }
 
     get items() {
@@ -52,7 +57,7 @@ module.exports = class DownloadQueue {
             fileIds = [ fileIds ];
         }
 
-        const [ remain, removed ] = partition(this.client.user.downloadQueue, e => ( -1 === fileIds.indexOf(e.fileId) ));
+        const [ remain, removed ] = _.partition(this.client.user.downloadQueue, e => ( -1 === fileIds.indexOf(e.fileId) ));
         this.client.user.downloadQueue = remain;
         return removed;
     }
@@ -75,5 +80,24 @@ module.exports = class DownloadQueue {
 
             this.client.log.error( { error : e.message, property : prop }, 'Failed parsing download queue property');
         }
+    }
+
+    addTemporaryDownload(entry) {
+        this.add(entry, true);    //  true=systemFile
+
+        //  clean up after ourselves when the session ends
+        const thisClientId = this.client.session.id;
+        Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
+            if(thisClientId === _.get(evt, 'client.session.id')) {
+                FileEntry.removeEntry(entry, { removePhysFile : true }, err => {
+                    const Log = require('./logger').log;
+                    if(err) {
+                        Log.warn( { fileId : entry.fileId, path : entry.filePath }, 'Failed removing temporary session download' );
+                    } else {
+                        Log.debug( { fileId : entry.fileId, path : entry.filePath }, 'Removed temporary session download item' );
+                    }
+                });
+            }
+        });
     }
 };
