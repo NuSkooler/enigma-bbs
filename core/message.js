@@ -288,7 +288,7 @@ module.exports = class Message {
         filter.extraFields = []
 
         filter.privateTagUserId = <userId> - if set, only private messages belonging to <userId> are processed
-        - any other areaTag or confTag filters will be ignored
+        - areaTags filter ignored
         - if NOT present, private areas are skipped
 
         *=NYI
@@ -364,20 +364,23 @@ module.exports = class Message {
                 )`);
         } else {
             if(filter.areaTag && filter.areaTag.length > 0) {
-                if(Array.isArray(filter.areaTag)) {
-                    const areaList = filter.areaTag
-                        .filter(t => t != Message.WellKnownAreaTags.Private)
-                        .map(t => `"${t}"`).join(', ');
-                    if(areaList.length > 0) {
-                        appendWhereClause(`m.area_tag IN(${areaList})`);
-                    }
-                } else if(_.isString(filter.areaTag) && Message.WellKnownAreaTags.Private !== filter.areaTag) {
-                    appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
+                if (!Array.isArray(filter.areaTag)) {
+                    filter.areaTag = [ filter.areaTag ];
                 }
-            }
 
-            //  explicit exclude of Private
-            appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`, 'AND');
+                const areaList = filter.areaTag
+                    .filter(t => t !== Message.WellKnownAreaTags.Private)
+                    .map(t => `"${t}"`).join(', ');
+                if(areaList.length > 0) {
+                    appendWhereClause(`m.area_tag IN(${areaList})`);
+                } else {
+                    //  nothing to do; no areas remain
+                    return cb(null, []);
+                }
+            } else {
+                //  explicit exclude of Private
+                appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`, 'AND');
+            }
         }
 
         if(_.isNumber(filter.replyToMessageId)) {

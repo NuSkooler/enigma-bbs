@@ -270,7 +270,10 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 },
                 (callback) => {
                     //  For each public area -> for each message
-                    const userExportAreas = this._getUserQWKExportAreas();
+                    const userExportAreas = this._getUserQWKExportAreas()
+                        .filter(exportArea => {
+                            return exportArea.areaTag !== Message.WellKnownAreaTags.Private;
+                        });
                     async.eachSeries(userExportAreas, (exportArea, nextExportArea) => {
                         const area = getMessageAreaByTag(exportArea.areaTag);
                         if (!area) {
