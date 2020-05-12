@@ -92,9 +92,9 @@ module.exports = class DownloadQueue {
                 FileEntry.removeEntry(entry, { removePhysFile : true }, err => {
                     const Log = require('./logger').log;
                     if(err) {
-                        Log.warn( { fileId : entry.fileId, path : outputFileName }, 'Failed removing temporary session download' );
+                        Log.warn( { fileId : entry.fileId, path : entry.filePath }, 'Failed removing temporary session download' );
                     } else {
-                        Log.debug( { fileId : entry.fileId, path : outputFileName }, 'Removed temporary session download item' );
+                        Log.debug( { fileId : entry.fileId, path : entry.filePath }, 'Removed temporary session download item' );
                     }
                 });
             }
