@@ -14,7 +14,7 @@ const { renderSubstr } = require('./string_util');
 const Config = require('./config').get;
 const FileEntry = require('./file_entry');
 const DownloadQueue = require('./download_queue');
-const { Log } = require('./logger').log;
+const { getISOTimestampString } = require('./database');
 
 //  deps
 const async = require('async');
@@ -23,6 +23,7 @@ const fse = require('fs-extra');
 const temptmp = require('temptmp');
 const paths = require('path');
 const UUIDv4 = require('uuid/v4');
+const moment = require('moment');
 
 const FormIds = {
     main    : 0,
@@ -35,6 +36,11 @@ const MciViewIds = {
 
         customRangeStart    : 10,
     }
+};
+
+const UserProperties = {
+    ExportOptions   : 'qwk_export_options',
+    ExportAreas     : 'qwk_export_msg_areas',
 };
 
 exports.moduleInfo = {
@@ -114,7 +120,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
     }
 
     _getUserQWKExportOptions() {
-        let qwkOptions = this.client.user.getProperty('qwk_export_options');
+        let qwkOptions = this.client.user.getProperty(UserProperties.ExportOptions);
         try {
             qwkOptions = JSON.parse(qwkOptions);
         } catch(e) {
@@ -129,9 +135,14 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
     }
 
     _getUserQWKExportAreas() {
-        let qwkExportAreas = this.client.user.getProperty('qwk_export_msg_areas');
+        let qwkExportAreas = this.client.user.getProperty(UserProperties.ExportAreas);
         try {
-            qwkExportAreas = JSON.parse(qwkExportAreas);
+            qwkExportAreas = JSON.parse(qwkExportAreas).map(exportArea => {
+                if (exportArea.newerThanTimestamp) {
+                    exportArea.newerThanTimestamp = moment(exportArea.newerThanTimestamp);
+                }
+                return exportArea;
+            });
         } catch(e) {
             //  default to all public and private without 'since'
             qwkExportAreas = getAllAvailableMessageAreaTags(this.client).map(areaTag => {
@@ -173,13 +184,13 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     case 'next_area' :
                         updateStatus(state.status);
                         updateProgressBar(0, 0);
-                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state.area);
+                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state);
                         break;
 
                     case 'message' :
                         updateStatus(state.status);
                         updateProgressBar(state.current, state.total);
-                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state.message);
+                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state);
                         break;
 
                     default :
@@ -198,6 +209,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
             }
         };
 
+        let totalExported = 0;
         const processMessagesWithFilter = (filter, cb) => {
             Message.findMessages(filter, (err, messageIds) => {
                 if (err) {
@@ -213,11 +225,12 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         }
 
                         const progress = {
-                            current,
                             message,
-                            step    : 'message',
-                            total   : messageIds.length,
-                            status  : `${_.truncate(message.subject, { length : 25 })} (${current} / ${messageIds.length})`,
+                            step        : 'message',
+                            total       : ++totalExported,
+                            areaCurrent : current,
+                            areaCount   : messageIds.length,
+                            status      : `${_.truncate(message.subject, { length : 25 })} (${current} / ${messageIds.length})`,
                         };
 
                         progressHandler(progress, err => {
@@ -271,11 +284,13 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 },
                 (callback) => {
                     //  For each public area -> for each message
-                    const userExportAreas = this._getUserQWKExportAreas()
+                    const userExportAreas = this._getUserQWKExportAreas();
+
+                    const publicExportAreas = userExportAreas
                         .filter(exportArea => {
                             return exportArea.areaTag !== Message.WellKnownAreaTags.Private;
                         });
-                    async.eachSeries(userExportAreas, (exportArea, nextExportArea) => {
+                    async.eachSeries(publicExportAreas, (exportArea, nextExportArea) => {
                         const area = getMessageAreaByTag(exportArea.areaTag);
                         const conf = getMessageConferenceByTag(area.confTag);
                         if (!area || !conf) {
@@ -319,15 +334,15 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 (userExportAreas, callback) => {
                     //  Private messages to current user if the user has
                     //  elected to export private messages
-                    if (!(userExportAreas.find(exportArea => exportArea.areaTag === Message.WellKnownAreaTags.Private))) {
+                    const privateExportArea = userExportAreas.find(exportArea => exportArea.areaTag === Message.WellKnownAreaTags.Private);
+                    if (!privateExportArea) {
                         return callback(null);
                     }
 
                     const filter = {
                         resultType          : 'id',
                         privateTagUserId    : this.client.user.userId,
-                        //  :TODO: newerThanTimestamp for private messages
-                        //newerThanTimestamp  : exportArea.newerThanTimestamp
+                        newerThanTimestamp  : privateExportArea.newerThanTimestamp,
                     };
                     return processMessagesWithFilter(filter, callback);
                 },
@@ -344,6 +359,10 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     packetWriter.finish(this.tempPacketDir);
                 },
                 (packetInfo, callback) => {
+                    if (0 === totalExported) {
+                        return callback(Errors.NothingToDo('No messages exported'));
+                    }
+
                     const sysDownloadPath = paths.join(sysTempDownloadDir, this.tempName);
                     fse.move(packetInfo.path, sysDownloadPath, err => {
                         return callback(null, sysDownloadPath, packetInfo);
@@ -375,7 +394,21 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                         }
                         return callback(err);
                     });
-                }
+                },
+                (callback) => {
+                    //  update user's export area dates; they can always change/reset them again
+                    const updatedUserExportAreas = this._getUserQWKExportAreas().map(exportArea => {
+                        return Object.assign(exportArea, {
+                            newerThanTimestamp : getISOTimestampString(),
+                        });
+                    });
+
+                    return this.client.user.persistProperty(
+                        UserProperties.ExportAreas,
+                        JSON.stringify(updatedUserExportAreas),
+                        callback
+                    );
+                },
             ],
             err => {
                 this.client.startIdleMonitor(); //  re-enable
@@ -383,6 +416,9 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
                 if (!err) {
                     updateStatus('A QWK packet has been placed in your download queue');
+                } else if (err.code === Errors.NothingToDo().code) {
+                    updateStatus('No messages to export with current criteria');
+                    err = null;
                 }
 
                 return cb(err);
