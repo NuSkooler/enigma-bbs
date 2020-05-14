@@ -61,27 +61,27 @@ function getActiveConnectionList(authUsersOnly) {
 
 function addNewClient(client, clientSock) {
     //
-    //  Assign ID/client ID to next lowest & available #
+    //  Find a node ID "slot"
     //
-    let id = 0;
-    for(let i = 0; i < clientConnections.length; ++i) {
-        if(clientConnections[i].id > id) {
-            break;
+    let nodeId;
+    for (nodeId = 1; nodeId < Number.MAX_SAFE_INTEGER; ++nodeId) {
+        const existing = clientConnections.find(client => nodeId === client.node);
+        if (!existing) {
+            break;  //  available slot
         }
-        id++;
     }
 
-    client.session.id = id;
-    const remoteAddress = client.remoteAddress  = clientSock.remoteAddress;
+    client.session.id = nodeId;
+    const remoteAddress = client.remoteAddress = clientSock.remoteAddress;
     //  create a unique identifier one-time ID for this session
-    client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ id, moment().valueOf() ]);
+    client.session.uniqueId = new hashids('ENiGMA½ClientSession').encode([ nodeId, moment().valueOf() ]);
 
     clientConnections.push(client);
     clientConnections.sort( (c1, c2) => c1.session.id - c2.session.id);
 
     //  Create a client specific logger
     //  Note that this will be updated @ login with additional information
-    client.log = logger.log.child( { clientId : id, sessionId : client.session.uniqueId } );
+    client.log = logger.log.child( { nodeId, sessionId : client.session.uniqueId } );
 
     const connInfo = {
         remoteAddress   : remoteAddress,
@@ -101,7 +101,7 @@ function addNewClient(client, clientSock) {
         { client : client, connectionCount : clientConnections.length }
     );
 
-    return id;
+    return nodeId;
 }
 
 function removeClient(client) {
@@ -114,7 +114,7 @@ function removeClient(client) {
         logger.log.info(
             {
                 connectionCount : clientConnections.length,
-                clientId        : client.session.id
+                nodeId          : client.node,
             },
             'Client disconnected'
         );

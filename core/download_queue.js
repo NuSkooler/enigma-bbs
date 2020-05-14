@@ -86,9 +86,9 @@ module.exports = class DownloadQueue {
         this.add(entry, true);    //  true=systemFile
 
         //  clean up after ourselves when the session ends
-        const thisClientId = this.client.session.id;
+        const thisUniqueId = this.client.session.uniqueId;
         Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
-            if(thisClientId === _.get(evt, 'client.session.id')) {
+            if(thisUniqueId === _.get(evt, 'client.session.uniqueId')) {
                 FileEntry.removeEntry(entry, { removePhysFile : true }, err => {
                     const Log = require('./logger').log;
                     if(err) {
