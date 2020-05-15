@@ -3,9 +3,9 @@ layout: page
 title: Uploads
 ---
 ## Uploads
-The default ACS for file areas areas in ENiGMA½ is to allow read (viewing of the area), and downloads for users while only permitting SysOps to write (upload). See [File Base ACS](acs.md) for more information.
+The default ACS for file areas in ENiGMA½ is to allow regular users 'read' and sysops 'read/write'. Read ACS includes listing and downloading while write allows for uploading. See [File Base ACS](acs.md) for more information.
 
-To allow uploads to a particular area, change the ACS level for `write`. For example:
+To change ACS for a particular area, create an `acs` block specifying ACS for `read` and/or `write`. For example, let's allow regular users (in the "users" group) to upload to an area:
 ```hjson
 uploads: {
     name: Uploads

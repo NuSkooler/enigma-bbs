@@ -2,9 +2,10 @@
 layout: page
 title: TIC Support
 ---
-ENiGMA½ supports TIC files. This is handled by mapping TIC areas to local file areas.
+## TIC Support
+ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas.
 
-Under a given node defined in the `ftn_bso` config section in `config.hjson` (see 
+Under a given node defined in the `ftn_bso` config section in `config.hjson` (see
 [BSO Import/Export](../messageareas/bso-import-export)), TIC configuration may be supplied:
 
 ```hjson
@@ -28,11 +29,9 @@ Under a given node defined in the `ftn_bso` config section in `config.hjson` (se
 }
 ```
 
-You then need to configure the mapping between TIC areas you want to carry, and the file 
-base area and storage tag for them to be tossed to. Optionally you can also add hashtags to the tossed
-files to assist users in searching for files:
+You then need to configure the mapping between TIC areas you want to carry, and the file base area and storage tag for them to be tossed to. Optionally you can also add hashtags to the tossed files to assist users in searching for files:
 
-````hjson
+```hjson
 ticAreas: {
     agn_node: {
         areaTag: msgNetworks
@@ -41,21 +40,20 @@ ticAreas: {
     }
 }
 
-````
-Multiple TIC areas can be mapped to a single file base area. 
+```
+Multiple TIC areas can be mapped to a single file base area.
 
-## Example Configuration
+### Example Configuration
+An example configuration linking file base areas, FTN BSO node configuration and TIC area configuration.
 
-An example configuration linking filebase areas, FTN BSO node configuration and TIC area configuration.
-
-````hjson
+```hjson
 fileBase: {
     areaStoragePrefix: /home/bbs/file_areas/
-    
+
     storageTags: {
         msg_network: "msg_network"
     }
-    
+
     areas: {
         msgNetworks: {
             name: Message Networks
@@ -97,4 +95,7 @@ ticAreas: {
         hashTags: agoranet,infopack
     }
 }
-````
+```
+
+## See Also
+[Message Networks](/docs/messageareas/message-networks.md)

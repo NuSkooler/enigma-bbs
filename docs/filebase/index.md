@@ -20,3 +20,9 @@ ENiGMA½ has strayed away from the old familiar setup here and instead takes a m
 * Duplicates are checked for by cryptographically secure [SHA-256](https://en.wikipedia.org/wiki/SHA-2) hashes.
 * Support for many archive and file formats. External utilities can easily be added to the configuration to extend for additional formats.
 * Much, much more!
+
+### Modding
+The default ENiGMA½ approach for file areas may not be for everyone. Remember that you can mod everything your setup! Some inspirational examples:
+* A more traditional set of areas and scrolling file listings.
+* An S/X style integration of message areas and file areas.
+* Something completely different! Some tweaks are possible without any code while others may require creating new JavaScript modules to use instead of the defaults.
