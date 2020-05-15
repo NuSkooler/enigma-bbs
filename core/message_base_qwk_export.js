@@ -22,7 +22,7 @@ const _ = require('lodash');
 const fse = require('fs-extra');
 const temptmp = require('temptmp');
 const paths = require('path');
-const UUIDv4 = require('uuid/v4');
+const { v4 : UUIDv4 } = require('uuid');
 const moment = require('moment');
 
 const FormIds = {

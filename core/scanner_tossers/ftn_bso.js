@@ -36,7 +36,7 @@ const assert                = require('assert');
 const sane                  = require('sane');
 const fse                   = require('fs-extra');
 const iconv                 = require('iconv-lite');
-const uuidV4                = require('uuid/v4');
+const { v4 : UUIDv4 }       = require('uuid');
 
 exports.moduleInfo = {
     name    : 'FTN BSO',
@@ -1215,7 +1215,7 @@ function FTNMessageScanTossModule() {
                     //
                     if(true === _.get(Config(), [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
                         //  just generate a UUID & therefor always allow for dupes
-                        message.messageUuid = uuidV4();
+                        message.messageUuid = UUIDv4();
                     }
 
                     return callback(null);

@@ -17,7 +17,7 @@ const fs                = require('graceful-fs');
 const fse               = require('fs-extra');
 const paths             = require('path');
 const moment            = require('moment');
-const uuidv4            = require('uuid/v4');
+const { v4 : UUIDv4 } = require('uuid');
 const yazl              = require('yazl');
 
 /*
@@ -188,7 +188,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
                         const outputFileName = paths.join(
                             sysTempDownloadDir,
-                            `file_list_${uuidv4().substr(-8)}_${moment().format('YYYY-MM-DD')}.txt`
+                            `file_list_${UUIDv4().substr(-8)}_${moment().format('YYYY-MM-DD')}.txt`
                         );
 
                         fs.writeFile(outputFileName, listBody, 'utf8', err => {
