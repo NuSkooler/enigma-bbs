@@ -38,7 +38,7 @@
     "later": "1.2.0",
     "lodash": "^4.17.15",
     "lru-cache": "^5.1.1",
-    "mime-types": "2.1.25",
+    "mime-types": "2.1.27",
     "minimist": "1.2.0",
     "moment": "^2.24.0",
     "nntp-server": "^1.0.3",
