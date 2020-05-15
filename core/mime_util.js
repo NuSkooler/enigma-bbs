@@ -35,7 +35,7 @@ function startup(cb) {
 
 function resolveMimeType(query) {
     if(mimeTypes.extensions[query]) {
-        return query;   //  alreaed a mime-type
+        return query;   //  already a mime-type
     }
 
     return mimeTypes.lookup(query) || undefined;    //  lookup() returns false; we want undefined
