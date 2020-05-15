@@ -3,15 +3,15 @@ layout: page
 title: Configuring a File Base
 ---
 ## Configuring a File Base
-ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the `fileBase` section of `config.hjson`. 
+ENiGMA½ offers a powerful and flexible file base. Configuration of file the file base and areas is handled via the `fileBase` section of `config.hjson`.
 
 ## ENiGMA½ File Base Key Concepts
 First, there are some core concepts you should understand:
 * Storage Tags
-* Areas (and Area Tags)
+* Area Tags
 
 ### Storage Tags
-*Storage Tags* define paths to physical (file) storage locations that are referenced in a file *Area* entry. Each entry may be either a fully qualified path or a relative path. Relative paths are relative to the value set by the `areaStoragePrefix` key (defaults to `/path/to/enigma-bbs/file_base`). 
+*Storage Tags* define paths to physical (filesystem) storage locations that are referenced in a file *Area* entry. Each entry may be either a fully qualified path or a relative path. Relative paths are relative to the value set by the `fileBase.areaStoragePrefix` key (defaults to `/path/to/enigma-bbs/file_base`).
 
 Below is an example defining some storage tags using the relative and fully qualified forms:
 
@@ -28,7 +28,7 @@ storageTags: {
 :information_source: Remember that paths are case sensitive on most non-Windows systems!
 
 ### Areas
-File base *Areas* are configured using the `fileBase::areas` configuration block in `config.hjson`. Valid members for an area are as follows:
+File base *Areas* are configured using the `fileBase.areas` configuration block in `config.hjson`. Each entry's block starts with an *area tag*. Valid members for an area are as follows:
 
 | Item | Required | Description |
 |--------|---------------|------------------|
@@ -41,7 +41,7 @@ Example areas section:
 
 ```hjson
 areas: {
-	retro_pc: {
+	retro_pc: { // an area tag!
 		name: Retro PC
 		desc: Oldschool PC/DOS
 		storageTags: [ "retro_pc_dos", "retro_pc_bbs" ]
@@ -55,6 +55,7 @@ This combines the two concepts described above. When viewing the file areas from
 
 ```hjson
 fileBase: {
+	// override the default relative location
 	areaStoragePrefix: /enigma-bbs/file_base
 
 	storageTags: {
