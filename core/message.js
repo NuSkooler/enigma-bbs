@@ -107,15 +107,23 @@ const MESSAGE_ROW_MAP = {
 module.exports = class Message {
     constructor(
         {
-            messageId = 0, areaTag = Message.WellKnownAreaTags.Invalid, uuid, replyToMsgId = 0,
-            toUserName = '', fromUserName = '', subject = '', message = '', modTimestamp = moment(),
-            meta, hashTags = [],
+            messageId = 0,
+            areaTag = Message.WellKnownAreaTags.Invalid,
+            uuid,
+            replyToMsgId = 0,
+            toUserName = '',
+            fromUserName = '',
+            subject = '',
+            message = '',
+            modTimestamp = moment(),
+            meta,
+            hashTags = [],
         } = { }
     )
     {
         this.messageId      = messageId;
         this.areaTag        = areaTag;
-        this.uuid           = uuid;
+        this.messageUuid    = uuid;
         this.replyToMsgId   = replyToMsgId;
         this.toUserName     = toUserName;
         this.fromUserName   = fromUserName;
@@ -132,6 +140,10 @@ module.exports = class Message {
         _.defaultsDeep(this.meta, { System : {} }, meta);
 
         this.hashTags       = hashTags;
+    }
+
+    get uuid() {    //  deprecated, will be removed in the near future
+        return this.messageUuid;
     }
 
     isValid() { return true; }  //  :TODO: obviously useless; look into this or remove it
@@ -684,8 +696,8 @@ module.exports = class Message {
                 function storeMessage(trans, callback) {
                     //  generate a UUID for this message if required (general case)
                     const msgTimestamp = moment();
-                    if(!self.uuid) {
-                        self.uuid = Message.createMessageUUID(
+                    if(!self.messageUuid) {
+                        self.messageUuid = Message.createMessageUUID(
                             self.areaTag,
                             msgTimestamp,
                             self.subject,
@@ -696,7 +708,10 @@ module.exports = class Message {
                     trans.run(
                         `INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-                        [ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
+                        [
+                            self.areaTag, self.messageUuid, self.replyToMsgId, self.toUserName,
+                            self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp)
+                        ],
                         function inserted(err) {    //  use non-arrow function for 'this' scope
                             if(!err) {
                                 self.messageId = this.lastID;

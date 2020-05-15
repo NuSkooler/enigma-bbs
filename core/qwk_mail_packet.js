@@ -1491,7 +1491,7 @@ class QWKPacketWriter extends EventEmitter {
             Conference      : message.isPrivate() ? '0' : getMessageConfTagByAreaTag(message.areaTag),
 
             //  ENiGMA Headers
-            MessageUUID     : message.uuid,
+            MessageUUID     : message.messageUuid,
             ModTimestamp    : message.modTimestamp.format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
             AreaTag         : message.areaTag,
         };

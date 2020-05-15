@@ -1215,7 +1215,7 @@ function FTNMessageScanTossModule() {
                     //
                     if(true === _.get(Config(), [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
                         //  just generate a UUID & therefor always allow for dupes
-                        message.uuid = uuidV4();
+                        message.messageUuid = uuidV4();
                     }
 
                     return callback(null);
@@ -1378,7 +1378,7 @@ function FTNMessageScanTossModule() {
                     }
                 }
 
-                message.uuid = Message.createMessageUUID(
+                message.messageUuid = Message.createMessageUUID(
                     localAreaTag,
                     message.modTimestamp,
                     message.subject,
@@ -1398,7 +1398,7 @@ function FTNMessageScanTossModule() {
                         if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
                             const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
                             Log.info(
-                                { area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId },
+                                { area : localAreaTag, subject : message.subject, uuid : message.messageUuid, MSGID : msgId },
                                 'Not importing non-unique message');
 
                             return next(null);
@@ -2349,7 +2349,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         return;
     }
 
-    const info = { uuid : message.uuid, subject : message.subject };
+    const info = { uuid : message.messageUuid, subject : message.subject };
 
     function exportLog(err) {
         if(err) {
@@ -2363,7 +2363,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         Object.assign(info, { type : 'NetMail' } );
 
         if(this.exportingStart()) {
-            this.exportNetMailMessagesToUplinks( [ message.uuid ], err => {
+            this.exportNetMailMessagesToUplinks( [ message.messageUuid ], err => {
                 this.exportingEnd( () => exportLog(err) );
             });
         }
@@ -2376,7 +2376,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         }
 
         if(this.exportingStart()) {
-            this.exportEchoMailMessagesToUplinks( [ message.uuid ], areaConfig, err => {
+            this.exportEchoMailMessagesToUplinks( [ message.messageUuid ], areaConfig, err => {
                 this.exportingEnd( () => exportLog(err) );
             });
         }
