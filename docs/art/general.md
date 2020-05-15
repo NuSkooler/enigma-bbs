@@ -7,13 +7,36 @@ One of the most basic elements of BBS customization is through it's artwork. ENi
 
 As a general rule, art files live in one of two places:
 
-1. The `art/general` directory. This is where you place command non-themed art files.
-2. Within a theme such as `art/themes/super_fancy_theme`.
+1. The `art/general` directory. This is where you place common/non-themed art files.
+2. Within a _theme_ such as `art/themes/super_fancy_theme`.
 
-### Menu Entries
-While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms: a "standard" entry where a single `art` spec is utilized or a entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries.
+### Art in Menus
+While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms.
 
-A menu entry has a few elements that control how art is choosen and displayed. First, the `art` *spec* tells teh system how to look for the art asset. Second, the `config` block can further control aspecs of lookup and display:
+**Form 1**: A "standard" entry where a single `art` spec is utilized:
+```hjson
+{
+    mainMenu: {
+        art: main_menu.ans
+    }
+}
+```
+
+**Form 2**: An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
+```hjson
+{
+    nodeMessage: {
+        config: {
+            art: {
+                header: node_msg_header
+                footer: node_msg_footer
+            }
+        }
+    }
+}
+```
+
+A menu entry has a few elements that control how art is selected and displayed. First, the `art` *spec* tells the system how to look for the art asset. Second, the `config` block can further control aspects of lookup and display. The following table describes such entries:
 
 | Item | Description|
 |------|------------|
@@ -23,13 +46,13 @@ A menu entry has a few elements that control how art is choosen and displayed. F
 | `cls` | Clear the screen before display if set to `true`. |
 | `random` | Set to `false` to explicitly disable random lookup. |
 | `types` | An optional array of types (aka file extensions) to consider for lookup. For example : `[ '.ans', '.asc' ]` |
-| `readSauce` | May be set to `false` if you need to explictly disable SAUCE support. |
+| `readSauce` | May be set to `false` if you need to explicitly disable SAUCE support. |
 
 #### Art Spec
-It was mentioned that the `art` member is a *spec*. The value of a `art` member controls how the system looks for an asset. The following forms are supported:
+In the section above it is mentioned that the `art` member is a *spec*. The value of a `art` spec controls how the system looks for an asset. The following forms are supported:
 
 * `FOO`: The system will look for `FOO.ANS`, `FOO.ASC`, `FOO.TXT`, etc. using the default search path. Unless otherwise specified if `FOO1.ANS`, `FOO2.ANS`, and so on exist, a random selection will be made.
-* `FOO.ANS`: By specifying an extension, only that type will be searched for.
+* `FOO.ANS`: By specifying an extension, only the exact match will be searched for.
 * `rel/path/to/BAR.ANS`: Only match a path (relative to the system's `art` directory).
 * `/path/to/BAZ.ANS`: Exact path only.
 
@@ -40,8 +63,27 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 3. In the system default theme directory.
 4. In the `art/general` directory.
 
+#### ACS-Driven Conditionals
+The [ACS](/docs/configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
+```hjson
+{
+    fancyMenu: {
+        art: [
+            {
+                acs: GM[l33t]
+                art: leet_art.ans
+            }
+            {
+                //  default
+                art: newb.asc
+            }
+        ]
+    }
+}
+```
+
 #### SyncTERM Style Fonts
-ENiGMA½ can set a [SyncTERM](http://syncterm.bbsdev.net/) style font for art display. This is supported by many popular BBS terminals besides just SyncTERM and is common for displaying Amiga style fonts for example. The system will use the `font` specifier or look for a font declared in an artworks SAUCE record (unless `readSauce` is `false`).
+ENiGMA½ can set a [SyncTERM](http://syncterm.bbsdev.net/) style font for art display. This is supported by many other popular BBS terminals as well. A common usage is for displaying Amiga style fonts for example. The system will use the `font` specifier or look for a font declared in an artworks SAUCE record (unless `readSauce` is `false`).
 
 The most common fonts are probably as follows:
 
@@ -96,7 +138,7 @@ See [this specification](https://github.com/protomouse/synchronet/blob/master/sr
 #### SyncTERM Style Baud Rates
 The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.  See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
-## Common Example
+### Common Example
 ```hjson
 fullLogoffSequenceRandomBoardAd: {
     art: OTHRBBS
@@ -109,3 +151,6 @@ fullLogoffSequenceRandomBoardAd: {
     }
 }
 ```
+
+### See Also
+See also the [Show Art Module](/docs/modding/show-art.md) for more advanced art display!
