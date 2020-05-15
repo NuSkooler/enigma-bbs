@@ -29,7 +29,7 @@
     "exiftool": "^0.0.3",
     "fs-extra": "9.0.0",
     "glob": "7.1.6",
-    "graceful-fs": "^4.2.3",
+    "graceful-fs": "^4.2.4",
     "hashids": "2.1.0",
     "hjson": "^3.2.1",
     "iconv-lite": "0.5.0",
