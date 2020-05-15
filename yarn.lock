@@ -149,10 +149,10 @@ bcrypt-pbkdf@^1.0.2:
   dependencies:
     tweetnacl "^0.14.3"
 
-binary-parser@^1.5.0:
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-1.5.0.tgz#3e50de3a5076badbacd760e833e7d94892b9e9fa"
-  integrity sha512-z+hqNSnO7trFDPLihjUGTwlSTbcIzLYSCwnbiasFkRvCIY9F3ZTex7Mlm9UAP3w5mfHD3KxejnWFPJjtsVVMuw==
+binary-parser@^1.6.2:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-1.6.2.tgz#8410a82ffd9403271ec182bd91e63a09cee88cbe"
+  integrity sha512-cYAhKB51A9T/uylDvMK7uAYaPLWLwlferNOpnQ0E0fuO73yPi7kWaWiOm22BvuKxCbggmkiFN0VkuLg6gc+KQQ==
 
 brace-expansion@^1.1.7:
   version "1.1.11"
