@@ -27,7 +27,7 @@
     "buffers": "github:NuSkooler/node-buffers",
     "bunyan": "^1.8.12",
     "exiftool": "^0.0.3",
-    "fs-extra": "8.1.0",
+    "fs-extra": "9.0.0",
     "glob": "7.1.6",
     "graceful-fs": "^4.2.3",
     "hashids": "2.1.0",
