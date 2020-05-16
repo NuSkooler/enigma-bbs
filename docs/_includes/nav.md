@@ -67,6 +67,7 @@
         - BBSLink
         - Combatnet
         - Exodus
+    - [Telnet Bridge]({{ site.baseurl }}{% link modding/telnet-bridge.md %})
     - [Existing Mods]({{ site.baseurl }}{% link modding/existing-mods.md %})
     - [File Area List]({{ site.baseurl }}{% link modding/file-area-list.md %})
     - [Last Callers]({{ site.baseurl }}{% link modding/last-callers.md %})

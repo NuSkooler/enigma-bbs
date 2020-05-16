@@ -29,8 +29,8 @@ showWithExtraArgs: {
 If the `showWithExtraArgs` menu was entered and passed `extraArgs` as the following:
 ```json
 {
-    fizzBang : true,
-    fooBaz : "LOLART"
+    "fizzBang" : true,
+    "fooBaz" : "LOLART"
 }
 ```
 

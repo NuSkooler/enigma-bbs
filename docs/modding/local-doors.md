@@ -3,7 +3,7 @@ layout: page
 title: Local Doors
 ---
 ## Local Doors
-ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The `abracadabra` module!
+ENiGMA½ has many ways to add doors to your system. In addition to the [many built in door server modules](door-servers.md), local doors are of course also supported using the ! The `abracadabra` module!
 
 ## The abracadabra Module
 The `abracadabra` module provides a generic and flexible solution for many door types. Through this module you can execute native processes & scripts directly, and perform I/O through standard I/O (stdio) or a temporary TCP server.
@@ -17,7 +17,7 @@ The `abracadabra` `config` block can contain the following members:
 | `dropFileType` | :+1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). |
 | `cmd` | :+1: | Path to executable to launch. |
 | `args` | :-1: | Array of argument(s) to pass to `cmd`. See **Argument Variables** below for information on variables that can be used here.
-| `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. | 
+| `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. |
 | `nodeMax` | :-1: | Max number of nodes that can access this door at once. Uses `name` as a tracking key. |
 | `tooManyArt` | :-1: | Art spec to display if too many instances are already in use. |
 | `io` | :-1: | How to process input/output (I/O). Can be `stdio` or `socket`. When using `stdio`, I/O is handled via standard stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected back to. The server listens on localhost on `{srvPort}` (See **Argument Variables** below for more information). Default value is `stdio`. |
@@ -99,8 +99,8 @@ doorPimpWars: {
         cmd: /usr/bin/dosemu
         args: [
             "-quiet",
-            "-f", 
-            "/path/to/dosemu.conf", 
+            "-f",
+            "/path/to/dosemu.conf",
             "X:\\PW\\START.BAT {dropFile} {node}"
         ],
         nodeMax: 1
@@ -149,7 +149,7 @@ Please see the [bivrost!](https://github.com/NuSkooler/bivrost) documentation fo
 Pre-built binaries of bivrost! have been released under [Phenom Productions](https://www.phenomprod.com/) and can be found on various boards.
 
 #### Alternative Workarounds
-Alternative workarounds include Telnet Bridge (`telnet_bridge` module) to hook up Telnet-accessible (including local) door servers -- It may also be possible bridge via [NET2BBS](http://pcmicro.com/netfoss/guide/net2bbs.html).
+Alternative workarounds include [Telnet Bridge module](telnet-bridge.md) to hook up Telnet-accessible (including local) door servers -- It may also be possible bridge via [NET2BBS](http://pcmicro.com/netfoss/guide/net2bbs.html).
 
 ### QEMU with abracadabra
 [QEMU](http://wiki.qemu.org/Main_Page) provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: **Multiple instances of a particular door/OS image should not be run at once!** Being more flexible means being a bit more complex. Let's look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.
@@ -223,8 +223,13 @@ doorLORD: {
 }
 ```
 
+## See Also
+* [Telnet Bridge](telnet-bridge.md)
+* [Door Servers](door-servers.md)
+
 ## Additional Resources
-### DOSBox
+### DOS Emulation
+* [DOSEMU](http://www.dosemu.org/)
 * [DOSBox-X](https://github.com/joncampbell123/dosbox-x)
 
 ### Door Downloads & Support Sites
