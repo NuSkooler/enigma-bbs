@@ -4,6 +4,9 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
 * Development is now against Node.js 12.x LTS. Other versions may work but are not currently supported!
+* [QWK support](/docs/messageareas/qwk.md)
+* `oputil fb scan *areaTagWildcard*` scans all areas in which wildcard is matched.
+
 
 ## 0.0.10-alpha
 + `oputil.js user rename USERNAME NEWNAME`
