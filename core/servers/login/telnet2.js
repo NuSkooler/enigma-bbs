@@ -20,8 +20,6 @@ const ModuleInfo = exports.moduleInfo = {
     packageName : 'codes.l33t.enigma.telnet.server.v2',
 };
 
-
-
 class TelnetClient {
     constructor(socket) {
         Client.apply(this, socket, socket);
@@ -37,6 +35,33 @@ class TelnetClient {
             this.clientReady();
         }, 3000);
 
+        this.socket.on('data', data => {
+            this.emit('data', data);
+        });
+
+        this.socket.on('error', err => {
+            //  :TODO: Log me
+            return this.emit('end');
+        });
+
+        this.socket.on('end', () => {
+            this.emit('end');
+        });
+
+        this.socket.on('DO', command => {
+            switch (command.option) {
+                case Options.ECHO :
+                    return this.socket.will.echo();
+
+                default :
+                    return this.socket.command(Commands.WONT, command.option);
+            }
+        });
+
+        this.socket.on('DONT', command => {
+            //  :TODO: Log me
+        });
+
         this.socket.on('WILL', command => {
             switch (command.option) {
                 case Options.LINEMODE :
@@ -51,6 +76,10 @@ class TelnetClient {
                 default :
                     break;
             }
+        });
+
+        this.socket.on('WONT', command => {
+            //  :TODO: see telnet.js handling
         });
 
         this.socket.on('SB', command => {
@@ -78,18 +107,39 @@ class TelnetClient {
                     break;
 
                 case Options.NAWS :
-                    this.term.termWidth     = command.optionData.width;
-                    this.term.termHeight    = command.optionData.height;
+                    {
+                        const { width, height } = command.optionData;
 
-                    //  :TODO: update env, see old telnet.js
+                        this.term.termWidth     = width;
+                        this.term.termHeight    = height;
 
-                    this.clearMciCache();
+                        if (width) {
+                            this.term.env.COLUMNS = width;
+                        }
 
-                    //  :TODO: Log negotiation
+                        if (height) {
+                            this.term.env.ROWS = height;
+                        }
+
+                        this.clearMciCache();
+
+                        //  :TODO: Log negotiation
+                    }
                     break;
             }
         });
 
+        this.socket.on('IP', command => {
+            //  :TODO: Log me
+            return this.disconnect();
+        });
+
+        this.socket.on('AYT', () => {
+            //  :TODO: Log me
+            return this.socket.write('\b');
+        });
+
+        //  kick off negotiations
         this.banner();
     }
 
@@ -100,6 +150,14 @@ class TelnetClient {
 
         this.clientReadyHandled = true;
         this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
+    }
+
+    disconnect() {
+        try {
+            return this.socket.rawSocket.end();
+        } catch (e) {
+            //  ignored
+        }
     }
 
     banner() {
