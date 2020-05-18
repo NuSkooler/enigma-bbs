@@ -285,6 +285,11 @@ function getDefaultConfig() {
         },
 
         loginServers : {
+            telnet2: {
+                port: 8810,
+                enabled : true,
+                firstMenu: 'telnetConnected',
+            },
             telnet : {
                 port            : 8888,
                 enabled         : true,
