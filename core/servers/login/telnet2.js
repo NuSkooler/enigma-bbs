@@ -35,9 +35,11 @@ class TelnetClient {
             this.clientReady();
         }, 3000);
 
-        this.socket.on('data', data => {
+        this.dataHandler = function(data) {
             this.emit('data', data);
-        });
+        }.bind(this);
+
+        this.socket.on('data', this.dataHandler);
 
         this.socket.on('error', err => {
             //  :TODO: Log me
@@ -79,7 +81,14 @@ class TelnetClient {
         });
 
         this.socket.on('WONT', command => {
-            //  :TODO: see telnet.js handling
+            switch (command.option) {
+                case Options.NEW_ENVIRON :
+                    return this.socket.dont.new_environ();
+
+                    default :
+                        //  :TODO: Log me
+                        break;
+            }
         });
 
         this.socket.on('SB', command => {
@@ -142,6 +151,10 @@ class TelnetClient {
         //  kick off negotiations
         this.banner();
     }
+
+    // dataHandler(data) {
+    //     this.emit('data', data);
+    // }
 
     clientReady() {
         if (this.clientReadyHandled) {
