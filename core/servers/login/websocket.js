@@ -95,7 +95,7 @@ function WebSocketClient(ws, req, serverType) {
         ws.isConnectionAlive = true;
     });
 
-    TelnetClient.call(this, this.socketBridge, this.socketBridge);
+    TelnetClient.call(this, this.socketBridge);
 
     Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
 
