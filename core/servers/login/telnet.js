@@ -176,9 +176,6 @@ class TelnetClient {
             this.socket.write('\b');
             return this._logTrace(command, 'Are You There (AYT) - Replied');
         });
-
-        //  kick off negotiations
-        this._banner();
     }
 
     disconnect() {
@@ -187,6 +184,21 @@ class TelnetClient {
         } catch (e) {
             //  ignored
         }
+    }
+
+    banner() {
+        this.socket.do.echo();
+        this.socket.will.echo();              //  we'll echo back
+
+        this.socket.will.sga();
+        this.socket.do.sga();
+
+        this.socket.do.transmit_binary();
+        this.socket.will.transmit_binary();
+
+        this.socket.do.ttype();
+        this.socket.do.naws();
+        this.socket.do.new_environ();
     }
 
     _logTrace(info, msg) {
@@ -209,21 +221,6 @@ class TelnetClient {
         this.clientReadyHandled = true;
         this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
     }
-
-    _banner() {
-        this.socket.do.echo();
-        this.socket.will.echo();              //  we'll echo back
-
-        this.socket.will.sga();
-        this.socket.do.sga();
-
-        this.socket.do.transmit_binary();
-        this.socket.will.transmit_binary();
-
-        this.socket.do.ttype();
-        this.socket.do.naws();
-        this.socket.do.new_environ();
-    }
 };
 
 inherits(TelnetClient, Client);
@@ -236,6 +233,7 @@ exports.getModule = class TelnetServerModule extends LoginServerModule {
     createServer(cb) {
         this.server = net.createServer( socket => {
             const client = new TelnetClient(socket);
+            client.banner();    //  start negotiations
             this.handleNewClient(client, socket, ModuleInfo);
         });
 
