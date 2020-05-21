@@ -390,6 +390,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
             //  needed for things like sz/rz
             if(external.escapeTelnet) {
+                //  :TODO: do this faster for already-buffers...
                 const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
                 externalProc.write(Buffer.from(tmp, 'binary'));
             } else {
