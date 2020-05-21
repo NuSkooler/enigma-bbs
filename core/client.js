@@ -107,11 +107,13 @@ function Client(/*input, output*/) {
     });
 
     this.setTemporaryDirectDataHandler = function(handler) {
+        this.dataPassthrough = true;    //  let implementations do with what they will here
         this.input.removeAllListeners('data');
         this.input.on('data', handler);
     };
 
     this.restoreDataHandler = function() {
+        this.dataPassthrough = false;
         this.input.removeAllListeners('data');
         this.input.on('data', this.dataHandler);
     };
