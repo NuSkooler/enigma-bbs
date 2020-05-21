@@ -24,8 +24,8 @@ class TelnetClient {
     constructor(socket) {
         Client.apply(this, socket, socket);
 
-        this.setInputOutput(socket, socket);
         this.socket = new TelnetSocket(socket);
+        this.setInputOutput(this.socket, this.socket);
 
         //
         //  Wait up to 3s to hear about from our terminal type request
@@ -49,6 +49,8 @@ class TelnetClient {
         this.socket.on('end', () => {
             this.emit('end');
         });
+
+        //  :TODO: handle 'command error' event
 
         this.socket.on('DO', command => {
             switch (command.option) {
@@ -176,6 +178,14 @@ class TelnetClient {
             this.socket.write('\b');
             return this._logTrace(command, 'Are You There (AYT) - Replied');
         });
+    }
+
+    get dataPassthrough() {
+        return this.socket.passthrough;
+    }
+
+    set dataPassthrough(passthrough) {
+        this.socket.passthrough = passthrough;
     }
 
     disconnect() {
