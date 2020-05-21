@@ -1840,9 +1840,8 @@ tar@^4:
     safe-buffer "^5.1.2"
     yallist "^3.0.2"
 
-"telnet-socket@github:NuSkooler/telnet-socket":
+telnet-socket@../telnet-socket:
   version "0.1.0"
-  resolved "https://codeload.github.com/NuSkooler/telnet-socket/tar.gz/a29ea2edaec98bb844f2b0d27fa0977f33eaa7bf"
   dependencies:
     binary-parser "^1.5.0"
     buffers "github:NuSkooler/node-buffers"
