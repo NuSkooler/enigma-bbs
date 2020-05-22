@@ -15,6 +15,7 @@ const http              = require('http');
 const https             = require('https');
 const fs                = require('graceful-fs');
 const Writable          = require('stream');
+const { Duplex } = require('stream');
 const forEachSeries     = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
@@ -30,45 +31,83 @@ class WebSocketClient extends TelnetClient {
         //  This bridge makes accessible various calls that client sub classes
         //  want to access on I/O socket
         //
-        const socketBridge = new class SocketBridge extends Writable {
+        const socketBridge = new class SocketBridge extends Duplex {
             constructor(ws) {
                 super();
                 this.ws = ws;
+
+                this.ws.on('close', err => this.emit('close', err));
+                //this.ws.on('connect', () => this.emit('connect'));
+                //this.ws.on('drain', () => this.emit('drain'));
+                //this.ws.on('end', () => this.emit('end'));
+                this.ws.on('error', err => this.emit('error', err));
+
+                //this.ws.on('ready', () => this.emit('ready'));
+                //this.ws.on('timeout', () => this.emit('timeout'));
+                this.ws.on('data', data => this._data(data));
             }
 
             setClient(client) {
                 this.client = client;
             }
 
-            end() {
-                return ws.close();
-            }
-
-            write(data, cb) {
-                cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
-
-                return this.ws.send(data, { binary : true }, cb);
-            }
-
-            pipe(dest) {
-                Log.trace('WebSocket SocketBridge pipe()');
-                this.client.pipedDest = dest;
-            }
-
-            unpipe() {
-                Log.trace('WebSocket SocketBridge unpipe()');
-                this.client.pipedDest = null;
-            }
-
-            resume() {
-                Log.trace('WebSocket SocketBridge resume()');
-            }
-
             get remoteAddress() {
                 //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
                 return (this.client.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
             }
+
+            _write(data, encoding, cb) {
+                cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
+                return this.ws.send(data, { binary : true }, cb);
+            }
+
+            _read() {
+                //  dummy
+            }
+
+            _data(data) {
+                this.push(data);
+            }
         }(ws);
+        // const socketBridge = new class SocketBridge extends Writable {
+        //     constructor(ws) {
+        //         super();
+        //         this.ws = ws;
+        //     }
+
+        //     setClient(client) {
+        //         this.client = client;
+        //     }
+
+        //     end() {
+        //         return ws.close();
+        //     }
+
+        //     write(data, cb) {
+        //         cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
+
+        //         return this.ws.send(data, { binary : true }, cb);
+        //     }
+
+        //     pipe(dest) {
+        //         Log.trace('WebSocket SocketBridge pipe()');
+        //         this.client.pipedDest = dest;
+        //     }
+
+        //     unpipe() {
+        //         Log.trace('WebSocket SocketBridge unpipe()');
+        //         this.client.pipedDest = null;
+        //     }
+
+        //     resume() {
+        //         Log.trace('WebSocket SocketBridge resume()');
+        //     }
+
+        //     get remoteAddress() {
+        //         //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
+        //         return (this.client.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
+        //     }
+        // }(ws);
 
         //  :TODO: this is quite the clusterfuck...
         super(socketBridge);
