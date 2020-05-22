@@ -42,7 +42,7 @@ class TelnetClient {
         this.socket.on('data', this.dataHandler);
 
         this.socket.on('error', err => {
-            this._logDebug( { error : err.message }, 'Socket error');
+            this._logDebug({ error : err.message }, 'Socket error');
             return this.emit('end');
         });
 
@@ -50,12 +50,17 @@ class TelnetClient {
             this.emit('end');
         });
 
-        //  :TODO: handle 'command error' event
+        this.socket.on('command error', (command, err) => {
+            this._logDebug({ command, error : err.message }, 'Command error');
+        });
 
         this.socket.on('DO', command => {
             switch (command.option) {
-                case Options.ECHO :
-                    return this.socket.will.echo();
+                case Options.SGA :
+                    return this.socket.will.sga();
+
+                case Options.TRANSMIT_BINARY :
+                    return this.socket.will.transmit_binary();
 
                 default :
                     return this.socket.command(Commands.WONT, command.option);
@@ -68,9 +73,6 @@ class TelnetClient {
 
         this.socket.on('WILL', command => {
             switch (command.option) {
-                case Options.LINEMODE :
-                    return this.socket.dont.linemode();
-
                 case Options.TTYPE :
                     return this.socket.sb.send.ttype();
 
@@ -197,8 +199,7 @@ class TelnetClient {
     }
 
     banner() {
-        this.socket.do.echo();
-        this.socket.will.echo();              //  we'll echo back
+        this.socket.will.echo();    //  we'll echo back
 
         this.socket.will.sga();
         this.socket.do.sga();
