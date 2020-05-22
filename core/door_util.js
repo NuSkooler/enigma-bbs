@@ -16,6 +16,10 @@ function trackDoorRunBegin(client, doorTag) {
 }
 
 function trackDoorRunEnd(trackInfo) {
+    if (!trackInfo) {
+        return;
+    }
+
     const { startTime, client, doorTag } = trackInfo;
 
     const diff = moment.duration(moment().diff(startTime));
