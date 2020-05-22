@@ -56,11 +56,14 @@ class TelnetClient {
 
         this.socket.on('DO', command => {
             switch (command.option) {
+                //  We've already stated we WILL do the following via
+                //  the banner - some terminals will ask over and over
+                //  if we respond to a DO with a WILL, so just don't
+                //  do anything...
                 case Options.SGA :
-                    return this.socket.will.sga();
-
+                case Options.ECHO :
                 case Options.TRANSMIT_BINARY :
-                    return this.socket.will.transmit_binary();
+                    break;
 
                 default :
                     return this.socket.command(Commands.WONT, command.option);
@@ -199,6 +202,7 @@ class TelnetClient {
     }
 
     banner() {
+        this.socket.do.echo();
         this.socket.will.echo();    //  we'll echo back
 
         this.socket.will.sga();
