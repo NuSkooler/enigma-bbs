@@ -364,6 +364,16 @@ exports.getModule = class TransferFileModule extends MenuModule {
         const external  = this.protocolConfig.external;
         const cmd       = external[`${this.direction}Cmd`];
 
+        //  support for handlers that need IACs taken care of over Telnet/etc.
+        const processIACs =
+            external.processIACs ||
+            external.escapeTelnet;   //  deprecated name
+
+        //  :TODO: we should only do this when over Telnet (or derived, such as WebSockets)?
+
+        const IAC           = Buffer.from([255]);
+        const EscapedIAC    = Buffer.from([255, 255]);
+
         this.client.log.debug(
             { cmd : cmd, args : args, tempDir : this.recvDirectory, direction : this.direction },
             'Executing external protocol'
@@ -385,14 +395,92 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         };
 
+        // const procBuffer = [];
+
+        // let buffering = false;
+        // const procWrite = (data) => {
+        //     if (!externalProc._socket) {
+        //         return externalProc.write(data);
+        //     }
+
+        //     if (buffering) {
+        //         return procBuffer.push(data);
+        //     }
+
+        //     // while (procBuffer.length && externalProc._socket.writable) {
+        //     //     externalProc.write(procBuffer.unshift());
+        //     // }
+
+        //     if (externalProc._socket.writable) {
+        //         externalProc.write(data);
+        //     } else {
+        //         //  last write put us into buffer mode
+        //         externalProc._socket.once('drain', () => {
+        //             while (procBuffer.length && externalProc._socket.writable) {
+        //                 externalProc.write(procBuffer.unshift());
+        //             }
+        //             buffering = !externalProc._socket.writable;
+        //         });
+        //         buffering = true;
+        //         procBuffer.push(data);
+        //     }
+        // };
+
+        // const writeData = (data) => {
+        //     updateActivity();
+
+        //     if(processIACs) {
+        //         let iacPos = data.indexOf(EscapedIAC);
+        //         if (-1 === iacPos) {
+        //             return procWrite(data);
+        //         }
+
+        //         //  at least one double (escaped) IAC
+        //         let lastPos = 0;
+        //         while (iacPos > -1) {
+        //             let rem = iacPos - lastPos;
+        //             if (rem >= 0) {
+        //                 procWrite(data.slice(lastPos, iacPos + 1));
+        //             }
+        //             lastPos = iacPos + 2;
+        //             iacPos = data.indexOf(EscapedIAC, lastPos);
+        //         }
+
+        //         if (lastPos < data.length) {
+        //             procWrite(data.slice(lastPos));
+        //         }
+        //     } else {
+        //         procWrite(data);
+        //     }
+        // };
+
         this.client.setTemporaryDirectDataHandler(data => {
             updateActivity();
-
             //  needed for things like sz/rz
-            if(external.escapeTelnet) {
-                //  :TODO: do this faster for already-buffers...
-                const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
-                externalProc.write(Buffer.from(tmp, 'binary'));
+            if(processIACs) {
+                let iacPos = data.indexOf(EscapedIAC);
+                if (-1 === iacPos) {
+                    return externalProc.write(data);
+                }
+
+                //  at least one double (escaped) IAC
+                externalProc._socket.cork();
+                let lastPos = 0;
+                while (iacPos > -1) {
+                    let rem = iacPos - lastPos;
+                    if (rem >= 0) {
+                        externalProc.write(data.slice(lastPos, iacPos + 1));
+                    }
+                    lastPos = iacPos + 2;
+                    iacPos = data.indexOf(EscapedIAC, lastPos);
+                }
+
+                if (lastPos < data.length) {
+                    externalProc.write(data.slice(lastPos));
+                }
+                externalProc._socket.uncork();
+                // const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
+                // externalProc.write(Buffer.from(tmp, 'binary'));
             } else {
                 externalProc.write(data);
             }
@@ -402,9 +490,26 @@ exports.getModule = class TransferFileModule extends MenuModule {
             updateActivity();
 
             //  needed for things like sz/rz
-            if(external.escapeTelnet) {
-                const tmp = data.toString('binary').replace(/\xff/g, '\xff\xff');   //  escape
-                this.client.term.rawWrite(Buffer.from(tmp, 'binary'));
+            if(processIACs) {
+                let iacPos = data.indexOf(IAC);
+                if (-1 === iacPos) {
+                    return this.client.term.rawWrite(data);
+                }
+
+                //  Has at least a single IAC
+                let lastPos = 0;
+                while (iacPos !== -1) {
+                    if (iacPos - lastPos > 0) {
+                        this.client.term.rawWrite(data.slice(lastPos, iacPos));
+                    }
+                    this.client.term.rawWrite(EscapedIAC);
+                    lastPos = iacPos + 1;
+                    iacPos = data.indexOf(IAC, lastPos);
+                }
+
+                if (lastPos < data.length) {
+                    this.client.term.rawWrite(data.slice(lastPos));
+                }
             } else {
                 this.client.term.rawWrite(data);
             }

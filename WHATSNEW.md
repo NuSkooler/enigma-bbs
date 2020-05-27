@@ -6,7 +6,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Development is now against Node.js 12.x LTS. Other versions may work but are not currently supported!
 * [QWK support](/docs/messageareas/qwk.md)
 * `oputil fb scan *areaTagWildcard*` scans all areas in which wildcard is matched.
-
+* The archiver configuration `escapeTelnet` has been renamed `escapeIACs`. Support for the old value will be removed in the future.
 
 ## 0.0.10-alpha
 + `oputil.js user rename USERNAME NEWNAME`
