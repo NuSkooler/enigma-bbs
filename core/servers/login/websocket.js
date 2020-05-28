@@ -38,13 +38,17 @@ class WebSocketClient extends TelnetClient {
                 this.ws.on('message', data => this._data(data));
             }
 
-            setClient(client) {
+            setClient(client, httpRequest) {
                 this.client = client;
+
+                //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
+                this.resolvedRemoteAddress =
+                    (this.client.proxied && (httpRequest.headers['x-forwarded-for'] || httpRequest.headers['x-real-ip'])) ||
+                    httpRequest.connection.remoteAddress;
             }
 
             get remoteAddress() {
-                //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
-                return (this.client.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
+                return  this.resolvedRemoteAddress;
             }
 
             _write(data, encoding, cb) {
@@ -62,7 +66,10 @@ class WebSocketClient extends TelnetClient {
         }(ws);
 
         super(wsDuplex);
-        wsDuplex.setClient(this);
+        wsDuplex.setClient(this, req);
+
+        //  fudge remoteAddress on socket, which is now TelnetSocket
+        this.socket.remoteAddress = wsDuplex.remoteAddress;
 
         wsDuplex.on('close', () => {
             //  we'll remove client connection which will in turn end() via our SocketBridge above
