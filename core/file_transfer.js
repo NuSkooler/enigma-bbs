@@ -395,65 +395,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         };
 
-        // const procBuffer = [];
-
-        // let buffering = false;
-        // const procWrite = (data) => {
-        //     if (!externalProc._socket) {
-        //         return externalProc.write(data);
-        //     }
-
-        //     if (buffering) {
-        //         return procBuffer.push(data);
-        //     }
-
-        //     // while (procBuffer.length && externalProc._socket.writable) {
-        //     //     externalProc.write(procBuffer.unshift());
-        //     // }
-
-        //     if (externalProc._socket.writable) {
-        //         externalProc.write(data);
-        //     } else {
-        //         //  last write put us into buffer mode
-        //         externalProc._socket.once('drain', () => {
-        //             while (procBuffer.length && externalProc._socket.writable) {
-        //                 externalProc.write(procBuffer.unshift());
-        //             }
-        //             buffering = !externalProc._socket.writable;
-        //         });
-        //         buffering = true;
-        //         procBuffer.push(data);
-        //     }
-        // };
-
-        // const writeData = (data) => {
-        //     updateActivity();
-
-        //     if(processIACs) {
-        //         let iacPos = data.indexOf(EscapedIAC);
-        //         if (-1 === iacPos) {
-        //             return procWrite(data);
-        //         }
-
-        //         //  at least one double (escaped) IAC
-        //         let lastPos = 0;
-        //         while (iacPos > -1) {
-        //             let rem = iacPos - lastPos;
-        //             if (rem >= 0) {
-        //                 procWrite(data.slice(lastPos, iacPos + 1));
-        //             }
-        //             lastPos = iacPos + 2;
-        //             iacPos = data.indexOf(EscapedIAC, lastPos);
-        //         }
-
-        //         if (lastPos < data.length) {
-        //             procWrite(data.slice(lastPos));
-        //         }
-        //     } else {
-        //         procWrite(data);
-        //     }
-        // };
-
         this.client.setTemporaryDirectDataHandler(data => {
             updateActivity();
             //  needed for things like sz/rz
