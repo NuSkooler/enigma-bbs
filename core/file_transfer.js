@@ -397,6 +397,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
         this.client.setTemporaryDirectDataHandler(data => {
             updateActivity();
+
             //  needed for things like sz/rz
             if(processIACs) {
                 let iacPos = data.indexOf(EscapedIAC);
