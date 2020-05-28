@@ -464,7 +464,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 }
 
                 //  at least one double (escaped) IAC
-                externalProc._socket.cork();
                 let lastPos = 0;
                 while (iacPos > -1) {
                     let rem = iacPos - lastPos;
@@ -478,7 +477,6 @@ exports.getModule = class TransferFileModule extends MenuModule {
                 if (lastPos < data.length) {
                     externalProc.write(data.slice(lastPos));
                 }
-                externalProc._socket.uncork();
                 // const tmp = data.toString('binary').replace(/\xff{2}/g, '\xff');    //  de-escape
                 // externalProc.write(Buffer.from(tmp, 'binary'));
             } else {
