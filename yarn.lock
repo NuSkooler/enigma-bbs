@@ -160,7 +160,7 @@ bcrypt-pbkdf@^1.0.2:
   dependencies:
     tweetnacl "^0.14.3"
 
-binary-parser@^1.5.0, binary-parser@^1.6.2:
+binary-parser@1.6.2, binary-parser@^1.6.2:
   version "1.6.2"
   resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-1.6.2.tgz#8410a82ffd9403271ec182bd91e63a09cee88cbe"
   integrity sha512-cYAhKB51A9T/uylDvMK7uAYaPLWLwlferNOpnQ0E0fuO73yPi7kWaWiOm22BvuKxCbggmkiFN0VkuLg6gc+KQQ==
@@ -1840,10 +1840,12 @@ tar@^4:
     safe-buffer "^5.1.2"
     yallist "^3.0.2"
 
-telnet-socket@../telnet-socket:
-  version "0.1.0"
+telnet-socket@^0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/telnet-socket/-/telnet-socket-0.2.1.tgz#1b7d74152a90740a630c166070ab6e751f50fda1"
+  integrity sha512-8o5kIq5CGvaEuVbVTl40Lw9NCz2v68Il2Skb7iMLuid23kWV3Sq5AAg5lIl5o0H7agoJkEGNlmMRp/6+saDaNA==
   dependencies:
-    binary-parser "^1.5.0"
+    binary-parser "1.6.2"
     buffers "github:NuSkooler/node-buffers"
 
 temptmp@^1.1.0:
