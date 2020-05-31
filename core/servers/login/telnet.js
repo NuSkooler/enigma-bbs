@@ -196,8 +196,8 @@ class TelnetClient {
     }
 
     banner() {
-        this.socket.do.echo();
-        this.socket.will.echo();    //  we'll echo back
+        this.socket.dont.echo();    //  don't echo characters
+        this.socket.will.echo();    //  ...we'll echo them back
 
         this.socket.will.sga();
         this.socket.do.sga();
