@@ -90,13 +90,7 @@ class TelnetClient {
         });
 
         this.socket.on('WONT', command => {
-            switch (command.option) {
-                case Options.NEW_ENVIRON :
-                    return this.socket.dont.new_environ();
-
-                    default :
-                        return this._logTrace(command, 'WONT');
-            }
+            return this._logTrace(command, 'WONT');
         });
 
         this.socket.on('SB', command => {
