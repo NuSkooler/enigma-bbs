@@ -462,7 +462,9 @@ function twoFactorAuthOTP(user) {
 
 function listUsers() {
     //  oputil user list [disabled|inactive|active|locked|all]
-    //  :TODO: --after TIMESTAMP (new users)
+    //  :TODO: --created-since SPEC and --last-called SPEC
+    //  --created-since SPEC
+    //  SPEC can be TIMESTAMP or e.g. "-1hour" or "-90days"
     //  :TODO: --sort name|id
     let listWhat;
     if (argv._.length > 2) {

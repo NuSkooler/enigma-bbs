@@ -89,6 +89,7 @@
     - [Auto Signature Editor]({{ site.baseurl }}{% link modding/autosig-edit.md %})
 
   - Administration
+    - [Administration]({{ site.baseurl }}{% link admin/administration.md %})
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
     - [Updating]({{ site.baseurl }}{% link admin/updating.md %})
 
