@@ -2,7 +2,7 @@
 layout: page
 title: Web Server
 ---
-ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Bases](file_base.md) registers routes for file downloads, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
+ENiGMA½ comes with a built in *content server* for supporting both HTTP and HTTPS. Currently the [File Bases](file_base.md) registers routes for file downloads, password reset email links are handled via the server, and static files can also be served for your BBS. Other features will likely come in the future or you can easily write your own!
 
 # Configuration
 By default the web server is not enabled. To enable it, you will need to at a minimum configure two keys in the `contentServers.web` section of `config.hjson`:
@@ -37,7 +37,7 @@ Entries available under `contentServers.web.http`:
 | `address` | :-1: | Sets an explicit bind address. |
 
 ### HTTPS Configuration
-Entries available under `contentServers.web.htt2`:
+Entries available under `contentServers.web.https`:
 
 | Key | Required | Description |
 |------|----------|-------------|
