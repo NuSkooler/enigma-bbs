@@ -1840,10 +1840,10 @@ tar@^4:
     safe-buffer "^5.1.2"
     yallist "^3.0.2"
 
-telnet-socket@^0.2.2:
-  version "0.2.2"
-  resolved "https://registry.yarnpkg.com/telnet-socket/-/telnet-socket-0.2.2.tgz#9abf29bbd022f2bc1176fd35ab62ca94e62916c1"
-  integrity sha512-fKcpbCNn8NQ1wBshjliTLh4UmbXq0iYhoPsc48RTJfgdisxQOyLJe8dMwH26ezx03pEM4GWpg9ge+g4DGz7c/Q==
+telnet-socket@^0.2.3:
+  version "0.2.3"
+  resolved "https://registry.yarnpkg.com/telnet-socket/-/telnet-socket-0.2.3.tgz#0ffdc64ea957cb64f8ac5287d45a857f1c05a16e"
+  integrity sha512-PbZycTkGq6VcVUa35FYFySx4pCzmJo4xoMX6cimls1/kv/lrgMfddKfgjBKt6HQuokkkDfieDhGLq/L/P2Unaw==
   dependencies:
     binary-parser "1.6.2"
     buffers "github:NuSkooler/node-buffers"

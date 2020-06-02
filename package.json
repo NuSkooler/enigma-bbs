@@ -58,7 +58,7 @@
     "ws": "^7.3.0",
     "xxhash": "^0.3.0",
     "yazl": "^2.5.1",
-    "telnet-socket" : "^0.2.2"
+    "telnet-socket" : "^0.2.3"
   },
   "devDependencies": {},
   "engines": {
