@@ -29,7 +29,7 @@ module.exports = {
     UserComment                     : 'user_comment',               //  NYI
     AutoSignature                   : 'auto_signature',
 
-    DownloadQueue                   : 'dl_queue',                   // download_queue.js
+    DownloadQueue                   : 'dl_queue',                   // see download_queue.js
 
     FailedLoginAttempts             : 'failed_login_attempts',
     AccountLockedTs                 : 'account_locked_timestamp',
@@ -64,5 +64,6 @@ module.exports = {
     AuthFactor2OTP                  : 'auth_factor2_otp',           //  If present, OTP type for 2FA. See OTPTypes
     AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes       : 'auth_factor2_otp_backup',    //  JSON array of backup codes
+
 };
 

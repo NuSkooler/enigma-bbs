@@ -13,6 +13,7 @@ exports.pad                         = pad;
 exports.insert                      = insert;
 exports.replaceAt                   = replaceAt;
 exports.isPrintable                 = isPrintable;
+exports.containsNonLatinCodepoints  = containsNonLatinCodepoints;
 exports.stripAllLineFeeds           = stripAllLineFeeds;
 exports.debugEscapedString          = debugEscapedString;
 exports.stringFromNullTermBuffer    = stringFromNullTermBuffer;
@@ -28,6 +29,7 @@ exports.isAnsi                      = isAnsi;
 exports.isAnsiLine                  = isAnsiLine;
 exports.isFormattedLine             = isFormattedLine;
 exports.splitTextAtTerms            = splitTextAtTerms;
+exports.wildcardMatch               = wildcardMatch;
 
 //  :TODO: create Unicode version of this
 const VOWELS = [
@@ -194,6 +196,20 @@ function isPrintable(s) {
     //
     //  :TODO: Probably need somthing better here.
     return !RE_NON_PRINTABLE.test(s);
+}
+
+const NonLatinCodePointsRegExp = /[^\u0000-\u00ff]/;
+
+function containsNonLatinCodepoints(s) {
+    if (!s.length) {
+		return false;
+	}
+
+	if (s.charCodeAt(0) > 255) {
+		return true;
+	}
+
+    return NonLatinCodepointsRegEx.test(s);
 }
 
 function stripAllLineFeeds(s) {
@@ -458,4 +474,9 @@ function isAnsi(input) {
 
 function splitTextAtTerms(s) {
     return s.split(/\r\n|[\n\v\f\r\x85\u2028\u2029]/g);
+}
+
+function wildcardMatch(input, rule) {
+    const escapeRegex = (s) => s.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+    return new RegExp("^" + rule.split("*").map(escapeRegex).join(".*") + "$").test(input);
 }

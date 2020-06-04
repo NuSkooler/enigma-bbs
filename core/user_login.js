@@ -81,9 +81,9 @@ function userLogin(client, username, password, options, cb) {
         if(existingClientConnection) {
             client.log.info(
                 {
-                    existingClientId    : existingClientConnection.session.id,
-                    username            : user.username,
-                    userId              : user.userId
+                    existingNodeId  : existingClientConnection.node,
+                    username        : user.username,
+                    userId          : user.userId
                 },
                 'Already logged in'
             );
@@ -97,11 +97,12 @@ function userLogin(client, username, password, options, cb) {
         //  update client logger with addition of username
         client.log = logger.log.child(
             {
-                clientId    : client.log.fields.clientId,
+                nodeId      : client.log.fields.nodeId,
                 sessionId   : client.log.fields.sessionId,
                 username    : user.username,
             }
         );
+
         client.log.info('Successful login');
 
         //  User's unique session identifier is the same as the connection itself

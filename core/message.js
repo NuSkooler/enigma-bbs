@@ -11,6 +11,9 @@ const {
     sanitizeString,
     getISOTimestampString } = require('./database.js');
 
+const { isCP437Encodable } = require('./cp437util');
+const { containsNonLatinCodepoints } = require('./string_util');
+
 const {
     isAnsi, isFormattedLine,
     splitTextAtTerms,
@@ -49,7 +52,8 @@ const SYSTEM_META_NAMES = {
 const ADDRESS_FLAVOR = {
     Local       : 'local',  //  local / non-remote addressing
     FTN         : 'ftn',    //  FTN style
-    Email       : 'email',
+    Email       : 'email',  //  From email
+    QWK         : 'qwk',    //  QWK packet
 };
 
 const STATE_FLAGS0 = {
@@ -87,6 +91,13 @@ const FTN_PROPERTY_NAMES = {
     FtnSeenBy           : 'ftn_seen_by',        //  http://ftsc.org/docs/fts-0004.001
 };
 
+const QWKPropertyNames = {
+    MessageNumber       : 'qwk_msg_num',
+    MessageStatus       : 'qwk_msg_status',         //  See http://wiki.synchro.net/ref:qwk for a decent list
+    ConferenceNumber    : 'qwk_conf_num',
+    InReplyToNum        : 'qwk_in_reply_to_num',    //  note that we prefer the 'InReplyToMsgId' kludge if available
+};
+
 //  :TODO: this is a ugly hack due to bad variable names - clean it up & just _.camelCase(k)!
 const MESSAGE_ROW_MAP = {
     reply_to_message_id : 'replyToMsgId',
@@ -96,15 +107,23 @@ const MESSAGE_ROW_MAP = {
 module.exports = class Message {
     constructor(
         {
-            messageId = 0, areaTag = Message.WellKnownAreaTags.Invalid, uuid, replyToMsgId = 0,
-            toUserName = '', fromUserName = '', subject = '', message = '', modTimestamp = moment(),
-            meta, hashTags = [],
+            messageId = 0,
+            areaTag = Message.WellKnownAreaTags.Invalid,
+            uuid,
+            replyToMsgId = 0,
+            toUserName = '',
+            fromUserName = '',
+            subject = '',
+            message = '',
+            modTimestamp = moment(),
+            meta,
+            hashTags = [],
         } = { }
     )
     {
         this.messageId      = messageId;
         this.areaTag        = areaTag;
-        this.uuid           = uuid;
+        this.messageUuid    = uuid;
         this.replyToMsgId   = replyToMsgId;
         this.toUserName     = toUserName;
         this.fromUserName   = fromUserName;
@@ -123,6 +142,10 @@ module.exports = class Message {
         this.hashTags       = hashTags;
     }
 
+    get uuid() {    //  deprecated, will be removed in the near future
+        return this.messageUuid;
+    }
+
     isValid() { return true; }  //  :TODO: obviously useless; look into this or remove it
 
     static isPrivateAreaTag(areaTag) {
@@ -135,6 +158,20 @@ module.exports = class Message {
 
     isFromRemoteUser() {
         return null !== _.get(this, 'meta.System.remote_from_user', null);
+    }
+
+    isCP437Encodable() {
+        return isCP437Encodable(this.toUserName) &&
+            isCP437Encodable(this.fromUserName) &&
+            isCP437Encodable(this.subject) &&
+            isCP437Encodable(this.message);
+    }
+
+    containsNonLatinCodepoints() {
+        return containsNonLatinCodepoints(this.toUserName) ||
+            containsNonLatinCodepoints(this.fromUserName) ||
+            containsNonLatinCodepoints(this.subject) ||
+            containsNonLatinCodepoints(this.message);
     }
 
     /*
@@ -181,6 +218,10 @@ module.exports = class Message {
 
     static get FtnPropertyNames() {
         return FTN_PROPERTY_NAMES;
+    }
+
+    static get QWKPropertyNames() {
+        return QWKPropertyNames;
     }
 
     setLocalToUserId(userId) {
@@ -259,7 +300,7 @@ module.exports = class Message {
         filter.extraFields = []
 
         filter.privateTagUserId = <userId> - if set, only private messages belonging to <userId> are processed
-        - any other areaTag or confTag filters will be ignored
+        - areaTags filter ignored
         - if NOT present, private areas are skipped
 
         *=NYI
@@ -335,20 +376,23 @@ module.exports = class Message {
                 )`);
         } else {
             if(filter.areaTag && filter.areaTag.length > 0) {
-                if(Array.isArray(filter.areaTag)) {
-                    const areaList = filter.areaTag
-                        .filter(t => t != Message.WellKnownAreaTags.Private)
-                        .map(t => `"${t}"`).join(', ');
-                    if(areaList.length > 0) {
-                        appendWhereClause(`m.area_tag IN(${areaList})`);
-                    }
-                } else if(_.isString(filter.areaTag) && Message.WellKnownAreaTags.Private !== filter.areaTag) {
-                    appendWhereClause(`m.area_tag = "${filter.areaTag}"`);
+                if (!Array.isArray(filter.areaTag)) {
+                    filter.areaTag = [ filter.areaTag ];
                 }
-            }
 
-            //  explicit exclude of Private
-            appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`, 'AND');
+                const areaList = filter.areaTag
+                    .filter(t => t !== Message.WellKnownAreaTags.Private)
+                    .map(t => `"${t}"`).join(', ');
+                if(areaList.length > 0) {
+                    appendWhereClause(`m.area_tag IN(${areaList})`);
+                } else {
+                    //  nothing to do; no areas remain
+                    return cb(null, []);
+                }
+            } else {
+                //  explicit exclude of Private
+                appendWhereClause(`m.area_tag != "${Message.WellKnownAreaTags.Private}"`, 'AND');
+            }
         }
 
         if(_.isNumber(filter.replyToMessageId)) {
@@ -652,8 +696,8 @@ module.exports = class Message {
                 function storeMessage(trans, callback) {
                     //  generate a UUID for this message if required (general case)
                     const msgTimestamp = moment();
-                    if(!self.uuid) {
-                        self.uuid = Message.createMessageUUID(
+                    if(!self.messageUuid) {
+                        self.messageUuid = Message.createMessageUUID(
                             self.areaTag,
                             msgTimestamp,
                             self.subject,
@@ -664,7 +708,10 @@ module.exports = class Message {
                     trans.run(
                         `INSERT INTO message (area_tag, message_uuid, reply_to_message_id, to_user_name, from_user_name, subject, message, modified_timestamp)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
-                        [ self.areaTag, self.uuid, self.replyToMsgId, self.toUserName, self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp) ],
+                        [
+                            self.areaTag, self.messageUuid, self.replyToMsgId, self.toUserName,
+                            self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp)
+                        ],
                         function inserted(err) {    //  use non-arrow function for 'this' scope
                             if(!err) {
                                 self.messageId = this.lastID;

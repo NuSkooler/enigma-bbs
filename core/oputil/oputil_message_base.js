@@ -10,17 +10,19 @@ const {
     initConfigAndDatabases,
     getAnswers,
     writeConfig,
-}                               = require('./oputil_common.js');
-const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const Address					= require('../ftn_address.js');
-const Errors					= require('../enig_error.js').Errors;
+} = require('./oputil_common.js');
+
+const getHelpFor	= require('./oputil_help.js').getHelpFor;
+const Address		= require('../ftn_address.js');
+const Errors	    = require('../enig_error.js').Errors;
 
 //	deps
-const async						= require('async');
-const paths                     = require('path');
-const fs                        = require('fs');
-const hjson                     = require('hjson');
-const _                         = require('lodash');
+const async		= require('async');
+const paths     = require('path');
+const fs        = require('fs');
+const hjson     = require('hjson');
+const _         = require('lodash');
+const moment    = require('moment');
 
 exports.handleMessageBaseCommand	= handleMessageBaseCommand;
 
@@ -434,6 +436,200 @@ function getImportEntries(importType, importData) {
     return importEntries;
 }
 
+function dumpQWKPacket() {
+    const packetPath = argv._[argv._.length - 1];
+    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
+    }
+
+    async.waterfall(
+        [
+            (callback) => {
+                return initConfigAndDatabases(callback);
+            },
+            (callback) => {
+                const { QWKPacketReader } = require('../qwk_mail_packet');
+                const reader = new QWKPacketReader(packetPath);
+
+                reader.on('error', err => {
+                    console.error(`ERROR: ${err.message}`);
+                    return callback(err);
+                });
+
+                reader.on('done', () => {
+                    return callback(null);
+                });
+
+                reader.on('archive type', archiveType => {
+                    console.info(`-> Archive type: ${archiveType}`);
+                });
+
+                reader.on('creator', creator => {
+                    console.info(`-> Creator: ${creator}`);
+                });
+
+                reader.on('message', message => {
+                    console.info('--- message ---');
+                    console.info(`To:      ${message.toUserName}`);
+                    console.info(`From:    ${message.fromUserName}`);
+                    console.info(`Subject: ${message.subject}`);
+                    console.info(`Message:\r\n${message.message}`);
+                });
+
+                reader.read();
+            }
+        ],
+        err => {
+
+        }
+    )
+}
+
+function exportQWKPacket() {
+    let packetPath = argv._[argv._.length - 1];
+    if(argv._.length < 3 || !packetPath || 0 === packetPath.length) {
+        return printUsageAndSetExitCode(getHelpFor('MessageBase'), ExitCodes.ERROR);
+    }
+
+    //  oputil mb qwk-export TAGS PATH [--user USER] [--after TIMESTAMP]
+    //  [areaTag1,areaTag2,...] PATH --user USER --after TIMESTAMP
+    let bbsID = 'ENIGMA';
+    const filename = paths.basename(packetPath);
+    if (filename) {
+        const ext = paths.extname(filename);
+        bbsID = paths.basename(filename, ext);
+    }
+
+    packetPath = paths.dirname(packetPath);
+
+    const posArgLen = argv._.length;
+
+    let areaTags;
+    if (4 === posArgLen) {
+        areaTags = argv._[posArgLen - 2].split(',');
+    } else {
+        areaTags = [];
+    }
+
+    let newerThanTimestamp = null;
+    if (argv.after) {
+        const ts = moment(argv.after);
+        if (ts.isValid()) {
+            newerThanTimestamp = ts.format();
+        }
+    }
+
+    const userName = argv.user || '-';
+
+    const writerOptions = {
+        enableQWKE              : !(false === argv.qwke),
+        enableHeadersExtension  : !(false === argv.synchronet),
+        enableAtKludges         : !(false === argv.synchronet),
+        archiveFormat           : argv.format || 'application/zip'
+    };
+
+    let totalExported = 0;
+    async.waterfall(
+        [
+            (callback) => {
+                return initConfigAndDatabases(callback);
+            },
+            (callback) => {
+                const User = require('../../core/user.js');
+
+                User.getUserIdAndName(userName, (err, userId) => {
+                    if (err) {
+                        if ('-' === userName) {
+                            userId = 1;
+                        } else {
+                            return callback(err);
+                        }
+                    }
+                    return User.getUser(userId, callback);
+                });
+            },
+            (user, callback) => {
+                //  populate area tags with all available to user
+                //  if they were not explicitly supplied
+                if (!areaTags.length) {
+                    const {
+                        getAllAvailableMessageAreaTags
+                    } = require('../../core/message_area');
+
+                    areaTags = getAllAvailableMessageAreaTags();
+                }
+                return callback(null, user);
+            },
+            (user, callback) => {
+                const Message = require('../message');
+
+                const filter = {
+                    resultType  : 'id',
+                    areaTag     : areaTags,
+                    newerThanTimestamp,
+                };
+
+                //  public
+                Message.findMessages(filter, (err, publicMessageIds) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    delete filter.areaTag;
+                    filter.privateTagUserId = user.userId;
+
+                    Message.findMessages(filter, (err, privateMessageIds) => {
+                        return callback(err, user, Message, privateMessageIds.concat(publicMessageIds));
+                    });
+                });
+            },
+            (user, Message, messageIds, callback) => {
+                const { QWKPacketWriter } = require('../qwk_mail_packet');
+                const writer = new QWKPacketWriter(Object.assign(writerOptions, {
+                    bbsID,
+                    user,
+                }));
+
+                writer.on('ready', () => {
+                    async.eachSeries(messageIds, (messageId, nextMessageId) => {
+                        const message = new Message();
+                        message.load( { messageId }, err => {
+                            if (!err) {
+                                writer.appendMessage(message);
+                                ++totalExported;
+                            }
+                            return nextMessageId(err);
+                        });
+                    },
+                    (err) => {
+                        writer.finish(packetPath);
+                        if (err) {
+                            console.error(`Failed to write one or more messages: ${err.message}`);
+                        }
+                    });
+                });
+
+                writer.on('warning', err => {
+                    console.warn(`!!! ${err.reason ? err.reason : err.message}`);
+                });
+
+                writer.on('finished', () => {
+                    return callback(null);
+                });
+
+                writer.init();
+            }
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+
+            console.info(`-> Exported ${totalExported} messages`);
+        }
+    );
+}
+
 function handleMessageBaseCommand() {
 
     function errUsage() {
@@ -452,5 +648,7 @@ function handleMessageBaseCommand() {
     return({
         areafix	        : areaFix,
         'import-areas'  : importAreas,
+        'qwk-dump'      : dumpQWKPacket,
+        'qwk-export'    : exportQWKPacket,
     }[action] || errUsage)();
 }

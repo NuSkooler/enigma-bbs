@@ -678,7 +678,7 @@ function getDefaultConfig() {
                     },
                     decompress      : {
                         cmd         : 'unzip',
-                        args        : [ '{archivePath}', '-d', '{extractPath}' ],
+                        args        : [ '-n', '{archivePath}', '-d', '{extractPath}' ],
                     },
                     list            : {
                         cmd         : 'unzip',
@@ -688,7 +688,7 @@ function getDefaultConfig() {
                     },
                     extract         : {
                         cmd         : 'unzip',
-                        args        : [ '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
+                        args        : [ '-n', '{archivePath}', '{fileList}', '-d', '{extractPath}' ],
                     }
                 },
 
@@ -865,8 +865,7 @@ function getDefaultConfig() {
                     recvArgs    : [
                         '--zmodem', '--binary', '--restricted', '--keep-uppercase',     //  dumps to CWD which is set to {uploadDir}
                     ],
-                    //  :TODO: can we not just use --escape ?
-                    escapeTelnet    : true, //  set to true to escape Telnet codes such as IAC
+                    processIACs     : true, // escape/de-escape IACs (0xff)
                 }
             }
         },

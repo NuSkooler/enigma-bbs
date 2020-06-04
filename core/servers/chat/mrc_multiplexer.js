@@ -249,11 +249,10 @@ exports.getModule = class MrcModule extends ServerModule {
     receiveFromClient(username, message) {
         try {
             message = JSON.parse(message);
+            this.sendToMrcServer(message.from_user, message.from_room, message.to_user, message.to_site, message.to_room, message.body);
         } catch (e) {
             Log.debug({ server : 'MRC', user : username, message : message }, 'Dodgy message received from client');
         }
-
-        this.sendToMrcServer(message.from_user, message.from_room, message.to_user, message.to_site, message.to_room, message.body);
     }
 
     /**
@@ -264,11 +263,11 @@ exports.getModule = class MrcModule extends ServerModule {
         const line = [
             fromUser,
             this.boardName,
-            sanitiseRoomName(fromRoom),
+            sanitiseRoomName(fromRoom || ''),
             sanitiseName(toUser || ''),
             sanitiseName(toSite || ''),
             sanitiseRoomName(toRoom || ''),
-            sanitiseMessage(messageBody)
+            sanitiseMessage(messageBody || '')
         ].join('~') + '~';
 
         // Log.debug({ server : 'MRC', data : line }, 'Sending data');

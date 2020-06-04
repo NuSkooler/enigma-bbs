@@ -84,7 +84,7 @@ function Client(/*input, output*/) {
 
     this.user               = new User();
     this.currentTheme       = { info : { name : 'N/A', description : 'None' } };
-    this.lastKeyPressMs     = Date.now();
+    this.lastActivityTime   = Date.now();
     this.menuStack          = new MenuStack(this);
     this.acs                = new ACS( { client : this, user : this.user } );
     this.mciCache           = {};
@@ -96,7 +96,7 @@ function Client(/*input, output*/) {
 
     Object.defineProperty(this, 'node', {
         get : function() {
-            return self.session.id + 1;
+            return self.session.id;
         }
     });
 
@@ -107,11 +107,13 @@ function Client(/*input, output*/) {
     });
 
     this.setTemporaryDirectDataHandler = function(handler) {
+        this.dataPassthrough = true;    //  let implementations do with what they will here
         this.input.removeAllListeners('data');
         this.input.on('data', handler);
     };
 
     this.restoreDataHandler = function() {
+        this.dataPassthrough = false;
         this.input.removeAllListeners('data');
         this.input.on('data', this.dataHandler);
     };
@@ -406,7 +408,7 @@ function Client(/*input, output*/) {
                     self.log.trace( { key : key, ch : escape(ch) }, 'User keyboard input'); // jshint ignore:line
                 }
 
-                self.lastKeyPressMs = Date.now();
+                self.lastActivityTime = Date.now();
 
                 if(!self.ignoreInput) {
                     self.emit('key press', ch, key);
@@ -438,7 +440,7 @@ Client.prototype.startIdleMonitor = function() {
         this.stopIdleMonitor();
     }
 
-    this.lastKeyPressMs = Date.now();
+    this.lastActivityTime = Date.now();
 
     //
     //  Every 1m, check for idle.
@@ -476,7 +478,7 @@ Client.prototype.startIdleMonitor = function() {
         //  use override value if set
         idleLogoutSeconds = this.idleLogoutSecondsOverride || idleLogoutSeconds;
 
-        if(idleLogoutSeconds > 0 && (nowMs - this.lastKeyPressMs >= (idleLogoutSeconds * 1000))) {
+        if(idleLogoutSeconds > 0 && (nowMs - this.lastActivityTime >= (idleLogoutSeconds * 1000))) {
             this.emit('idle timeout');
         }
     }, 1000 * 60);
@@ -488,6 +490,10 @@ Client.prototype.stopIdleMonitor = function() {
         delete this.idleCheck;
     }
 };
+
+Client.prototype.explicitActivityTimeUpdate = function() {
+    this.lastActivityTime = Date.now();
+}
 
 Client.prototype.overrideIdleLogoutSeconds = function(seconds) {
     this.idleLogoutSecondsOverride = seconds;

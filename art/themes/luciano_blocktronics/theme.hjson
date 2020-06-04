@@ -288,6 +288,17 @@
 				}
 			}
 
+			qwkExportPacketCurrentConfig: {
+				mci: {
+					TL1: {
+						width: 70
+					}
+					TL2: {
+						width: 70
+					}
+				}
+			}
+
 			mailMenuCreateMessage: {
 				0: {
 					mci: {

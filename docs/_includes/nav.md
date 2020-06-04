@@ -41,6 +41,8 @@
     - [Message networks]({{ site.baseurl }}{% link messageareas/message-networks.md %})
     - [BSO Import & Export]({{ site.baseurl }}{% link messageareas/bso-import-export.md %})
     - [Netmail]({{ site.baseurl }}{% link messageareas/netmail.md %})
+    - [QWK]({{ site.baseurl }}{% link messageareas/qwk.md %})
+    - [FTN]({{ site.baseurl }}{% link messageareas/ftn.md %})
 
   - Art
     - [General]({{ site.baseurl }}{% link art/general.md %})
@@ -65,6 +67,7 @@
         - BBSLink
         - Combatnet
         - Exodus
+    - [Telnet Bridge]({{ site.baseurl }}{% link modding/telnet-bridge.md %})
     - [Existing Mods]({{ site.baseurl }}{% link modding/existing-mods.md %})
     - [File Area List]({{ site.baseurl }}{% link modding/file-area-list.md %})
     - [Last Callers]({{ site.baseurl }}{% link modding/last-callers.md %})
@@ -86,6 +89,7 @@
     - [Auto Signature Editor]({{ site.baseurl }}{% link modding/autosig-edit.md %})
 
   - Administration
+    - [Administration]({{ site.baseurl }}{% link admin/administration.md %})
     - [oputil]({{ site.baseurl }}{% link admin/oputil.md %})
     - [Updating]({{ site.baseurl }}{% link admin/updating.md %})
 

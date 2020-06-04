@@ -1,6 +1,13 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.11-beta
+* Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
+* Development is now against Node.js 12.x LTS. Other versions may work but are not currently supported!
+* [QWK support](/docs/messageareas/qwk.md)
+* `oputil fb scan *areaTagWildcard*` scans all areas in which wildcard is matched.
+* The archiver configuration `escapeTelnet` has been renamed `escapeIACs`. Support for the old value will be removed in the future.
+
 ## 0.0.10-alpha
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.

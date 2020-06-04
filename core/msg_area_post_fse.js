@@ -50,7 +50,7 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
                     } else {
                         //  note: not logging 'from' here as it's part of client.log.xxxx()
                         self.client.log.info(
-                            { to : msg.toUserName, subject : msg.subject, uuid : msg.uuid },
+                            { to : msg.toUserName, subject : msg.subject, uuid : msg.messageUuid },
                             'Message persisted'
                         );
                     }

@@ -17,6 +17,7 @@ const StatLog           = require('./stat_log.js');
 const UserProps         = require('./user_property.js');
 const SysProps          = require('./system_property.js');
 const SAUCE             = require('./sauce.js');
+const { wildcardMatch } = require('./string_util');
 
 //  deps
 const _             = require('lodash');
@@ -40,6 +41,7 @@ exports.getAreaDefaultStorageDirectory  = getAreaDefaultStorageDirectory;
 exports.getAreaStorageLocations         = getAreaStorageLocations;
 exports.getDefaultFileAreaTag           = getDefaultFileAreaTag;
 exports.getFileAreaByTag                = getFileAreaByTag;
+exports.getFileAreasByTagWildcardRule   = getFileAreasByTagWildcardRule;
 exports.getFileEntryPath                = getFileEntryPath;
 exports.changeFileAreaWithOptions       = changeFileAreaWithOptions;
 exports.scanFile                        = scanFile;
@@ -141,6 +143,15 @@ function getFileAreaByTag(areaTag) {
         areaInfo.storage    = getAreaStorageLocations(areaInfo);
         return areaInfo;
     }
+}
+
+function getFileAreasByTagWildcardRule(rule) {
+    const areaTags = Object.keys(Config().fileBase.areas)
+        .filter(areaTag => {
+            return !isInternalArea(areaTag) && wildcardMatch(areaTag, rule);
+        });
+
+    return areaTags.map(areaTag => getFileAreaByTag(areaTag));
 }
 
 function changeFileAreaWithOptions(client, areaTag, options, cb) {

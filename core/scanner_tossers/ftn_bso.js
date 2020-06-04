@@ -36,7 +36,7 @@ const assert                = require('assert');
 const sane                  = require('sane');
 const fse                   = require('fs-extra');
 const iconv                 = require('iconv-lite');
-const uuidV4                = require('uuid/v4');
+const { v4 : UUIDv4 }       = require('uuid');
 
 exports.moduleInfo = {
     name    : 'FTN BSO',
@@ -517,8 +517,20 @@ function FTNMessageScanTossModule() {
     };
 
 
-    this.hasValidConfiguration = function() {
-        if(!_.has(this, 'moduleConfig.nodes') || !_.has(Config(), 'messageNetworks.ftn.areas')) {
+    this.hasValidConfiguration = function({shouldLog = false} = {}) {
+        const hasNodes = _.has(this, 'moduleConfig.nodes');
+        const hasAreas = _.has(Config(), 'messageNetworks.ftn.areas');
+
+        if(!hasNodes && !hasAreas) {
+            if (shouldLog) {
+                Log.warn(
+                    {
+                        'scannerTossers.ftn_bso.nodes' : hasNodes,
+                        'messageNetworks.ftn.areas' : hasAreas,
+                    },
+                    'Missing one or more required configuration blocks'
+                );
+            }
             return false;
         }
 
@@ -1203,7 +1215,7 @@ function FTNMessageScanTossModule() {
                     //
                     if(true === _.get(Config(), [ 'messageNetworks', 'ftn', 'areas', config.localAreaTag, 'allowDupes' ], false)) {
                         //  just generate a UUID & therefor always allow for dupes
-                        message.uuid = uuidV4();
+                        message.messageUuid = UUIDv4();
                     }
 
                     return callback(null);
@@ -1366,7 +1378,7 @@ function FTNMessageScanTossModule() {
                     }
                 }
 
-                message.uuid = Message.createMessageUUID(
+                message.messageUuid = Message.createMessageUUID(
                     localAreaTag,
                     message.modTimestamp,
                     message.subject,
@@ -1386,7 +1398,7 @@ function FTNMessageScanTossModule() {
                         if('SQLITE_CONSTRAINT' === err.code || 'DUPE_MSGID' === err.code) {
                             const msgId = _.has(message.meta, 'FtnKludge.MSGID') ? message.meta.FtnKludge.MSGID : 'N/A';
                             Log.info(
-                                { area : localAreaTag, subject : message.subject, uuid : message.uuid, MSGID : msgId },
+                                { area : localAreaTag, subject : message.subject, uuid : message.messageUuid, MSGID : msgId },
                                 'Not importing non-unique message');
 
                             return next(null);
@@ -1931,8 +1943,8 @@ function FTNMessageScanTossModule() {
             `SELECT message_id, message_uuid
             FROM message m
             WHERE area_tag = ? AND message_id > ? AND
-                (SELECT COUNT(message_id) 
-                FROM message_meta 
+                (SELECT COUNT(message_id)
+                FROM message_meta
                 WHERE message_id = m.message_id AND meta_category = 'System' AND meta_name = 'state_flags0') = 0
             ORDER BY message_id;`
             ;
@@ -2012,7 +2024,7 @@ function FTNMessageScanTossModule() {
         const getNewUuidsSql =
             `SELECT message_id, message_uuid
             FROM message m
-            WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND 
+            WHERE area_tag = '${Message.WellKnownAreaTags.Private}' AND message_id > ? AND
                 (SELECT COUNT(message_id)
                 FROM message_meta
                 WHERE message_id = m.message_id
@@ -2023,7 +2035,7 @@ function FTNMessageScanTossModule() {
                 (SELECT COUNT(message_id)
                 FROM message_meta
                 WHERE message_id = m.message_id
-                    AND meta_category = 'System' 
+                    AND meta_category = 'System'
                     AND meta_name = '${Message.SystemMetaNames.ExternalFlavor}'
                     AND meta_value = '${Message.AddressFlavor.FTN}'
                 ) = 1
@@ -2150,6 +2162,8 @@ FTNMessageScanTossModule.prototype.processTicFilesInDirectory = function(importD
 
 FTNMessageScanTossModule.prototype.startup = function(cb) {
     Log.info(`${exports.moduleInfo.name} Scanner/Tosser starting up`);
+
+    this.hasValidConfiguration({ shouldLog : true });   //  just check and log
 
     let importing = false;
 
@@ -2287,13 +2301,18 @@ FTNMessageScanTossModule.prototype.shutdown = function(cb) {
 
 FTNMessageScanTossModule.prototype.performImport = function(cb) {
     if(!this.hasValidConfiguration()) {
-        return cb(new Error('Missing or invalid configuration'));
+        return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
     const self = this;
 
     async.each( [ 'inbound', 'secInbound' ], (inboundType, nextDir) => {
-        self.importFromDirectory(inboundType, self.moduleConfig.paths[inboundType], () => {
+        const importDir = self.moduleConfig.paths[inboundType];
+        self.importFromDirectory(inboundType, importDir, err => {
+            if (err) {
+                Log.trace({ importDir, error : err.message }, 'Cannot perform FTN import for directory');
+            }
+
             return nextDir(null);
         });
     }, cb);
@@ -2305,7 +2324,7 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
     //  and let's find out what messages need exported.
     //
     if(!this.hasValidConfiguration()) {
-        return cb(new Error('Missing or invalid configuration'));
+        return cb(Errors.MissingConfig('Invalid or missing configuration'));
     }
 
     const self = this;
@@ -2313,7 +2332,7 @@ FTNMessageScanTossModule.prototype.performExport = function(cb) {
     async.eachSeries( [ 'EchoMail', 'NetMail' ], (type, nextType) => {
         self[`perform${type}Export`]( err => {
             if(err) {
-                Log.warn( { error : err.message, type : type }, 'Error(s) during export' );
+                Log.warn( { type, error : err.message }, 'Error(s) during export' );
             }
             return nextType(null);  //  try next, always
         });
@@ -2330,7 +2349,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         return;
     }
 
-    const info = { uuid : message.uuid, subject : message.subject };
+    const info = { uuid : message.messageUuid, subject : message.subject };
 
     function exportLog(err) {
         if(err) {
@@ -2344,7 +2363,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         Object.assign(info, { type : 'NetMail' } );
 
         if(this.exportingStart()) {
-            this.exportNetMailMessagesToUplinks( [ message.uuid ], err => {
+            this.exportNetMailMessagesToUplinks( [ message.messageUuid ], err => {
                 this.exportingEnd( () => exportLog(err) );
             });
         }
@@ -2357,7 +2376,7 @@ FTNMessageScanTossModule.prototype.record = function(message) {
         }
 
         if(this.exportingStart()) {
-            this.exportEchoMailMessagesToUplinks( [ message.uuid ], areaConfig, err => {
+            this.exportEchoMailMessagesToUplinks( [ message.messageUuid ], areaConfig, err => {
                 this.exportingEnd( () => exportLog(err) );
             });
         }

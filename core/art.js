@@ -49,7 +49,7 @@ function getFontNameFromSAUCE(sauce) {
 
 function sliceAtEOF(data, eofMarker) {
     let eof         = data.length;
-    const stopPos   = Math.max(data.length - (256), 0); //  256 = 2 * sizeof(SAUCE)
+    const stopPos   = Math.max(data.length - 256, 0); //  256 = 2 * sizeof(SAUCE)
 
     for(let i = eof - 1; i > stopPos; i--) {
         if(eofMarker === data[i]) {
@@ -57,9 +57,16 @@ function sliceAtEOF(data, eofMarker) {
             break;
         }
     }
-    if(eof === data.length || eof < 128) {
+
+    if (eof === data.length) {
+        return data;    //  nothing to do
+    }
+
+    //  try to prevent goofs
+    if (eof < 128 && 'SAUCE00' !== data.slice(eof + 1, eof + 8).toString()) {
         return data;
     }
+
     return data.slice(0, eof);
 }
 

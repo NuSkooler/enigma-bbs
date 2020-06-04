@@ -72,12 +72,12 @@ module.exports = class LoginServerModule extends ServerModule {
         });
 
         client.on('error', err => {
-            logger.log.info({ clientId : client.session.id, error : err.message }, 'Connection error');
+            logger.log.info({ nodeId : client.node, error : err.message }, 'Connection error');
         });
 
         client.on('close', err => {
             const logFunc = err ? logger.log.info : logger.log.debug;
-            logFunc( { clientId : client.session.id }, 'Connection closed');
+            logFunc( { nodeId : client.node }, 'Connection closed');
 
             clientConns.removeClient(client);
         });

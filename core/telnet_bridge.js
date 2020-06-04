@@ -11,7 +11,16 @@ const async         = require('async');
 const _             = require('lodash');
 const net           = require('net');
 const EventEmitter  = require('events');
-const buffers       = require('buffers');
+
+const {
+    TelnetSocket,
+    TelnetSpec :
+    {
+        Commands,
+        Options,
+        SubNegotiationCommands,
+    },
+} = require('telnet-socket');
 
 /*
     Expected configuration block:
@@ -33,7 +42,10 @@ exports.moduleInfo = {
     author  : 'Andrew Pamment',
 };
 
-const IAC_DO_TERM_TYPE = Buffer.from( [ 255, 253, 24 ] );
+const IAC_DO_TERM_TYPE = TelnetSocket.commandBuffer(
+    Commands.DO,
+    Options.TTYPE,
+);
 
 class TelnetClientConnection extends EventEmitter {
     constructor(client) {
@@ -46,6 +58,7 @@ class TelnetClientConnection extends EventEmitter {
     restorePipe() {
         if(!this.pipeRestored) {
             this.pipeRestored = true;
+            this.client.dataPassthrough = false;
 
             //  client may have bailed
             if(null !== _.get(this, 'client.term.output', null)) {
@@ -62,6 +75,7 @@ class TelnetClientConnection extends EventEmitter {
             this.emit('connected');
 
             this.pipeRestored = false;
+            this.client.dataPassthrough = true;
             this.client.term.output.pipe(this.bridgeConnection);
         });
 
@@ -69,7 +83,7 @@ class TelnetClientConnection extends EventEmitter {
             this.client.term.rawWrite(data);
 
             //
-            //  Wait for a terminal type request, and send it eactly once.
+            //  Wait for a terminal type request, and send it exactly once.
             //  This is enough (in additional to other negotiations handled in telnet.js)
             //  to get us in on most systems
             //
@@ -110,25 +124,18 @@ class TelnetClientConnection extends EventEmitter {
         //  Create a TERMINAL-TYPE sub negotiation buffer using the
         //  actual/current terminal type.
         //
-        let bufs = buffers();
-
-        bufs.push(Buffer.from(
+        const sendTermType = TelnetSocket.commandBuffer(
+            Commands.SB,
+            Options.TTYPE,
             [
-                255,    //  IAC
-                250,    //  SB
-                24,     //  TERMINAL-TYPE
-                0,      //  IS
+                SubNegotiationCommands.IS,
+                ...Buffer.from(this.client.term.termType),  //  e.g. "ansi"
+                Commands.IAC,
+                Commands.SE,
             ]
-        ));
-
-        bufs.push(
-            Buffer.from(this.client.term.termType), //  e.g. "ansi"
-            Buffer.from( [ 255, 240 ] )             //  IAC, SE
         );
-
-        return bufs.toBuffer();
+        return sendTermType;
     }
-
 }
 
 exports.getModule = class TelnetBridgeModule extends MenuModule {

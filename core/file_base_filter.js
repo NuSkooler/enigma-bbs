@@ -5,7 +5,7 @@ const UserProps = require('./user_property.js');
 
 //  deps
 const _         = require('lodash');
-const uuidV4    = require('uuid/v4');
+const { v4 : UUIDv4 } = require('uuid');
 
 module.exports = class FileBaseFilters {
     constructor(client) {
@@ -41,7 +41,7 @@ module.exports = class FileBaseFilters {
     }
 
     add(filterInfo) {
-        const filterUuid = uuidV4();
+        const filterUuid = UUIDv4();
 
         filterInfo.tags = this.cleanTags(filterInfo.tags);
 

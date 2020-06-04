@@ -2,22 +2,22 @@
 layout: page
 title: MCI Codes
 ---
-ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce information about the current user, system, 
-or other statistics while others are used to instantiate a **View**. MCI codes are two characters in length and are 
-prefixed with a percent (%) symbol. Some MCI codes have additional options that may be set directly from the code itself 
-while others -- and more advanced options -- are controlled via the current theme. Standard (non-focus) and focus colors 
+ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce information about the current user, system,
+or other statistics while others are used to instantiate a **View**. MCI codes are two characters in length and are
+prefixed with a percent (%) symbol. Some MCI codes have additional options that may be set directly from the code itself
+while others -- and more advanced options -- are controlled via the current theme. Standard (non-focus) and focus colors
 are set by placing duplicate codes back to back in art files.
 
 ## Predefined MCI Codes
-There are many predefined MCI codes that can be used anywhere on the system (placed in any art file). More are added all 
-the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) 
+There are many predefined MCI codes that can be used anywhere on the system (placed in any art file). More are added all
+the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
 for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.10-alpha" |
-| `VN` | Version *number*, eg.. "0.0.10-alpha" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.11-beta" |
+| `VN` | Version *number*, eg.. "0.0.11-beta" |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |
@@ -75,7 +75,7 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `SD` | Total downloads, system wide |
 | `SO` | Total downloaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `SU` | Total uploads, system wide |
-| `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) | 
+| `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `TF` | Total number of files on the system |
 | `TB` | Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.) |
 | `TP` | Total messages posted/imported to the system *currently* |
@@ -93,7 +93,7 @@ Some additional special case codes also exist:
 
 
 ## Views
-A **View** is a control placed on a **form** that can display variable data or collect input. One example of a View is 
+A **View** is a control placed on a **form** that can display variable data or collect input. One example of a View is
 a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu.
 
 | Code | Name                 | Description      |
@@ -103,14 +103,14 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `ME` | Masked Edit Text     | Collect user input using a *mask* |
 | `MT` | Multi Line Text Edit | Multi line edit control |
 | `BT` | Button               | A button |
-| `VM` | Vertical Menu        | A vertical menu aka a vertical lightbar | 
-| `HM` | Horizontal Menu      | A horizontal menu aka a horizontal lightbar | 
+| `VM` | Vertical Menu        | A vertical menu aka a vertical lightbar |
+| `HM` | Horizontal Menu      | A horizontal menu aka a horizontal lightbar |
 | `SM` | Spinner Menu         | A spinner input control |
-| `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input | 
+| `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input |
 | `KE` | Key Entry            | A *single* key input control |
 
 
-Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to 
+Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to
 see additional information.
 
 
@@ -132,7 +132,7 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
 | `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
 
-These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default 
+These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default
 `menu.hjson` and `theme.hjson` files!
 
 ### Custom Properties
@@ -144,7 +144,7 @@ Standard style types available for `textStyle` and `focusTextStyle`:
 
 | Style    | Description  |
 |----------|--------------|
-| `normal` | Leaves text as-is. This is the default. | 
+| `normal` | Leaves text as-is. This is the default. |
 | `upper` | ENIGMA BULLETIN BOARD SOFTWARE |
 | `lower` | enigma bulletin board software |
 | `title` | Enigma Bulletin Board Software |

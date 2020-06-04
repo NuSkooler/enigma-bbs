@@ -375,26 +375,28 @@ function getCharacterSetIdentifierByEncoding(encodingName) {
     return value ? `${value[0]} ${value[1]}` : encodingName.toUpperCase();
 }
 
+//  http://ftsc.org/docs/fts-5003.001
+//  http://www.unicode.org/L2/L1999/99325-N.htm
 function getEncodingFromCharacterSetIdentifier(chrs) {
     const ident = chrs.split(' ')[0].toUpperCase();
 
     //  :TODO: fill in the rest!!!
     return {
         //  level 1
-        'ASCII'     : 'iso-646-1',
-        'DUTCH'     : 'iso-646',
-        'FINNISH'   : 'iso-646-10',
-        'FRENCH'    : 'iso-646',
-        'CANADIAN'  : 'iso-646',
-        'GERMAN'    : 'iso-646',
-        'ITALIAN'   : 'iso-646',
-        'NORWEIG'   : 'iso-646',
-        'PORTU'     : 'iso-646',
+        'ASCII'     : 'ascii',      // ISO-646-1
+        'DUTCH'     : 'ascii',      // ISO-646
+        'FINNISH'   : 'ascii',      // ISO-646-10
+        'FRENCH'    : 'ascii',      // ISO-646
+        'CANADIAN'  : 'ascii',      // ISO-646
+        'GERMAN'    : 'ascii',      // ISO-646
+        'ITALIAN'   : 'ascii',      // ISO-646
+        'NORWEIG'   : 'ascii',      // ISO-646
+        'PORTU'     : 'ascii',      // ISO-646
         'SPANISH'   : 'iso-656',
-        'SWEDISH'   : 'iso-646-10',
-        'SWISS'     : 'iso-646',
-        'UK'        : 'iso-646',
-        'ISO-10'    : 'iso-646-10',
+        'SWEDISH'   : 'ascii',      // ISO-646-10
+        'SWISS'     : 'ascii',      // ISO-646
+        'UK'        : 'ascii',      // ISO-646
+        'ISO-10'    : 'ascii',      // ISO-646-10
 
         //  level 2
         'CP437'     : 'cp437',

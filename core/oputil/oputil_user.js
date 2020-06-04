@@ -460,6 +460,66 @@ function twoFactorAuthOTP(user) {
     );
 }
 
+function listUsers() {
+    //  oputil user list [disabled|inactive|active|locked|all]
+    //  :TODO: --created-since SPEC and --last-called SPEC
+    //  --created-since SPEC
+    //  SPEC can be TIMESTAMP or e.g. "-1hour" or "-90days"
+    //  :TODO: --sort name|id
+    let listWhat;
+    if (argv._.length > 2) {
+        listWhat = argv._[argv._.length - 1];
+    } else {
+        listWhat = 'all';
+    }
+
+    const User = require('../../core/user');
+    if (![ 'all' ].concat(Object.keys(User.AccountStatus)).includes(listWhat)) {
+        return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
+    }
+
+    async.waterfall(
+        [
+            (callback) => {
+                const UserProps = require('../../core/user_property');
+
+                const userListOpts = {
+                    properties : [
+                        UserProps.AccountStatus,
+                    ],
+                };
+
+                User.getUserList(userListOpts, (err, userList) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    if ('all' === listWhat) {
+                        return callback(null, userList);
+                    }
+
+                    const accountStatusFilter = User.AccountStatus[listWhat].toString();
+
+                    return callback(null, userList.filter(user => {
+                        return user[UserProps.AccountStatus] === accountStatusFilter;
+                    }));
+                });
+            },
+            (userList, callback) => {
+                userList.forEach(user => {
+
+                    console.info(`${user.userId}: ${user.userName}`);
+                });
+            },
+        ],
+        err => {
+            if(err) {
+                return console.error(err.reason ? err.reason : err.message);
+            }
+        }
+    );
+}
+
 function handleUserCommand() {
     function errUsage()  {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
@@ -470,20 +530,25 @@ function handleUserCommand() {
     }
 
     const action = argv._[1];
-    const usernameIdx = [
-        'pw', 'pass', 'passwd', 'password',
-        'group',
-        'mv', 'rename',
-        '2fa-otp', 'otp'
-    ].includes(action) ? argv._.length - 2 : argv._.length - 1;
-    const userName = argv._[usernameIdx];
+    const userRequired = ![ 'list' ].includes(action);
 
-    if(!userName) {
+    let userName;
+    if (userRequired) {
+        const usernameIdx = [
+            'pw', 'pass', 'passwd', 'password',
+            'group',
+            'mv', 'rename',
+            '2fa-otp', 'otp'
+        ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+        userName = argv._[usernameIdx];
+    }
+
+    if(!userName && userRequired) {
         return errUsage();
     }
 
     initAndGetUser(userName, (err, user) => {
-        if(err) {
+        if(userName && err) {
             process.exitCode = ExitCodes.ERROR;
             return console.error(err.message);
         }
@@ -512,6 +577,7 @@ function handleUserCommand() {
 
             '2fa-otp'   : twoFactorAuthOTP,
             otp         : twoFactorAuthOTP,
+            list        : listUsers,
         }[action] || errUsage)(user, action);
     });
 }

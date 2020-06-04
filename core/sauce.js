@@ -26,6 +26,25 @@ exports.SAUCE_SIZE      = SAUCE_SIZE;
 //
 const SAUCE_VALID_DATA_TYPES = [0, 1, 2, 3, 4, 5, 6, 7, 8 ];
 
+const SAUCEParser = new Parser()
+    .buffer('id', { length : 5 } )
+    .buffer('version', { length : 2 } )
+    .buffer('title', { length: 35 } )
+    .buffer('author', { length : 20 } )
+    .buffer('group', { length: 20 } )
+    .buffer('date', { length: 8 } )
+    .uint32le('fileSize')
+    .int8('dataType')
+    .int8('fileType')
+    .uint16le('tinfo1')
+    .uint16le('tinfo2')
+    .uint16le('tinfo3')
+    .uint16le('tinfo4')
+    .int8('numComments')
+    .int8('flags')
+    //  :TODO: does this need to be optional?
+    .buffer('tinfos', { length: 22 } );  //  SAUCE 00.5
+
 function readSAUCE(data, cb) {
     if(data.length < SAUCE_SIZE) {
         return cb(Errors.DoesNotExist('No SAUCE record present'));
@@ -33,29 +52,10 @@ function readSAUCE(data, cb) {
 
     let sauceRec;
     try {
-        sauceRec = new Parser()
-            .buffer('id', { length : 5 } )
-            .buffer('version', { length : 2 } )
-            .buffer('title', { length: 35 } )
-            .buffer('author', { length : 20 } )
-            .buffer('group', { length: 20 } )
-            .buffer('date', { length: 8 } )
-            .uint32le('fileSize')
-            .int8('dataType')
-            .int8('fileType')
-            .uint16le('tinfo1')
-            .uint16le('tinfo2')
-            .uint16le('tinfo3')
-            .uint16le('tinfo4')
-            .int8('numComments')
-            .int8('flags')
-            //  :TODO: does this need to be optional?
-            .buffer('tinfos', { length: 22 } )  //  SAUCE 00.5
-            .parse(data.slice(data.length - SAUCE_SIZE));
+        sauceRec = SAUCEParser.parse(data.slice(data.length - SAUCE_SIZE));
     } catch(e) {
         return cb(Errors.Invalid('Invalid SAUCE record'));
     }
-
 
     if(!SAUCE_ID.equals(sauceRec.id)) {
         return cb(Errors.DoesNotExist('No SAUCE record present'));

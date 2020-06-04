@@ -87,6 +87,7 @@ function ANSIEscapeParser(options) {
         let pos     = 0;
         let start   = 0;
         let charCode;
+        let lastCharCode;
 
         while(pos < len) {
             charCode = text.charCodeAt(pos) & 0xff; //  8bit clean
@@ -102,6 +103,12 @@ function ANSIEscapeParser(options) {
                     break;
 
                 case LF :
+                    //  Handle ANSI saved with UNIX-style LF's only
+                    //  vs the CRLF pairs
+                    if (lastCharCode !== CR) {
+                        self.column = 1;
+                    }
+
                     self.emit('literal', text.slice(start, pos));
                     start = pos;
 
@@ -126,6 +133,7 @@ function ANSIEscapeParser(options) {
             }
 
             ++pos;
+            lastCharCode = charCode;
         }
 
         //

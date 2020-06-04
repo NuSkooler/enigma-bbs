@@ -165,6 +165,74 @@ exports.PacketHeader = PacketHeader;
 //  *   Writeup on differences between type 2, 2.2, and 2+:
 //      http://walon.org/pub/fidonet/FTSC-nodelists-etc./pkt-types.txt
 //
+const PacketHeaderParser = new Parser()
+    .uint16le('origNode')
+    .uint16le('destNode')
+    .uint16le('year')
+    .uint16le('month')
+    .uint16le('day')
+    .uint16le('hour')
+    .uint16le('minute')
+    .uint16le('second')
+    .uint16le('baud')
+    .uint16le('packetType')
+    .uint16le('origNet')
+    .uint16le('destNet')
+    .int8('prodCodeLo')
+    .int8('prodRevLo')  //  aka serialNo
+    .buffer('password', { length : 8 }) //  can't use string; need CP437 - see https://github.com/keichi/binary-parser/issues/33
+    .uint16le('origZone')
+    .uint16le('destZone')
+    //
+    //  The following is "filler" in FTS-0001, specifics in
+    //  FSC-0045 and FSC-0048
+    //
+    .uint16le('auxNet')
+    .uint16le('capWordValidate')
+    .int8('prodCodeHi')
+    .int8('prodRevHi')
+    .uint16le('capWord')
+    .uint16le('origZone2')
+    .uint16le('destZone2')
+    .uint16le('origPoint')
+    .uint16le('destPoint')
+    .uint32le('prodData');
+
+const MessageHeaderParser = new Parser()
+    .uint16le('messageType')
+    .uint16le('ftn_msg_orig_node')
+    .uint16le('ftn_msg_dest_node')
+    .uint16le('ftn_msg_orig_net')
+    .uint16le('ftn_msg_dest_net')
+    .uint16le('ftn_attr_flags')
+    .uint16le('ftn_cost')
+    //
+    //  It would be nice to just string() these, but we want CP437 which requires
+    //  iconv. Another option would be to use a formatter, but until issue 33
+    //  (https://github.com/keichi/binary-parser/issues/33) is fixed, this is cumbersome.
+    //
+    .array('modDateTime', {
+        type        : 'uint8',
+        length      : 20,   //  FTS-0001.016: 20 bytes
+    })
+    .array('toUserName', {
+        type        : 'uint8',
+        //  :TODO: array needs some soft of 'limit' field
+        readUntil   : b => 0x00 === b,
+    })
+    .array('fromUserName', {
+        type        : 'uint8',
+        readUntil   : b => 0x00 === b,
+    })
+    .array('subject', {
+        type        : 'uint8',
+        readUntil   : b => 0x00 === b,
+    })
+    .array('message', {
+        type        : 'uint8',
+        readUntil   : b => 0x00 === b,
+    });
+
 function Packet(options) {
     var self = this;
 
@@ -175,39 +243,7 @@ function Packet(options) {
 
         let packetHeader;
         try {
-            packetHeader = new Parser()
-                .uint16le('origNode')
-                .uint16le('destNode')
-                .uint16le('year')
-                .uint16le('month')
-                .uint16le('day')
-                .uint16le('hour')
-                .uint16le('minute')
-                .uint16le('second')
-                .uint16le('baud')
-                .uint16le('packetType')
-                .uint16le('origNet')
-                .uint16le('destNet')
-                .int8('prodCodeLo')
-                .int8('prodRevLo')  //  aka serialNo
-                .buffer('password', { length : 8 }) //  can't use string; need CP437 - see https://github.com/keichi/binary-parser/issues/33
-                .uint16le('origZone')
-                .uint16le('destZone')
-                //
-                //  The following is "filler" in FTS-0001, specifics in
-                //  FSC-0045 and FSC-0048
-                //
-                .uint16le('auxNet')
-                .uint16le('capWordValidate')
-                .int8('prodCodeHi')
-                .int8('prodRevHi')
-                .uint16le('capWord')
-                .uint16le('origZone2')
-                .uint16le('destZone2')
-                .uint16le('origPoint')
-                .uint16le('destPoint')
-                .uint32le('prodData')
-                .parse(packetBuffer);
+            packetHeader = PacketHeaderParser.parse(packetBuffer);
         } catch(e) {
             return Errors.Invalid(`Unable to parse FTN packet header: ${e.message}`);
         }
@@ -544,41 +580,7 @@ function Packet(options) {
 
         let msgData;
         try {
-            msgData = new Parser()
-                .uint16le('messageType')
-                .uint16le('ftn_msg_orig_node')
-                .uint16le('ftn_msg_dest_node')
-                .uint16le('ftn_msg_orig_net')
-                .uint16le('ftn_msg_dest_net')
-                .uint16le('ftn_attr_flags')
-                .uint16le('ftn_cost')
-                //
-                //  It would be nice to just string() these, but we want CP437 which requires
-                //  iconv. Another option would be to use a formatter, but until issue 33
-                //  (https://github.com/keichi/binary-parser/issues/33) is fixed, this is cumbersome.
-                //
-                .array('modDateTime', {
-                    type        : 'uint8',
-                    length      : 20,   //  FTS-0001.016: 20 bytes
-                })
-                .array('toUserName', {
-                    type        : 'uint8',
-                    //  :TODO: array needs some soft of 'limit' field
-                    readUntil   : b => 0x00 === b,
-                })
-                .array('fromUserName', {
-                    type        : 'uint8',
-                    readUntil   : b => 0x00 === b,
-                })
-                .array('subject', {
-                    type        : 'uint8',
-                    readUntil   : b => 0x00 === b,
-                })
-                .array('message', {
-                    type        : 'uint8',
-                    readUntil   : b => 0x00 === b,
-                })
-                .parse(packetBuffer);
+            msgData = MessageHeaderParser.parse(packetBuffer);
         } catch(e) {
             return cb(Errors.Invalid(`Failed to parse FTN message header: ${e.message}`));
         }
