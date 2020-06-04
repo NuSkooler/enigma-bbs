@@ -16,8 +16,8 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | Code | Description  |
 |------|--------------|
 | `BN` | Board Name |
-| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.11-beta" |
-| `VN` | Version *number*, eg.. "0.0.11-beta" |
+| `VL` | Version *label*, e.g. "ENiGMA½ v0.0.12-beta" |
+| `VN` | Version *number*, eg.. "0.0.12-beta" |
 | `SN` | SysOp username |
 | `SR` | SysOp real name |
 | `SL` | SysOp location |

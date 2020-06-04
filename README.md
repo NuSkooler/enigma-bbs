@@ -33,7 +33,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
 Many more features are in the pipeline. Checkout the [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features.
 
 ## Known Issues
-As of now this is considered **alpha** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. With that said, the code is actually quite stable and is used by a number of boards.
+As of now this is considered **beta** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. With that said, the code is actually quite stable and is used by a number of boards.
 
 See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more information.
 
@@ -63,7 +63,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 ## Installation
 On *nix type systems:
 ```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/0.0.11-beta/misc/install.sh | bash
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
