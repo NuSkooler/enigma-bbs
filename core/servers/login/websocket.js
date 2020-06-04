@@ -15,6 +15,7 @@ const http              = require('http');
 const https             = require('https');
 const fs                = require('graceful-fs');
 const Writable          = require('stream');
+const { Duplex } = require('stream');
 const forEachSeries     = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
@@ -24,99 +25,90 @@ const ModuleInfo = exports.moduleInfo = {
     packageName : 'codes.l33t.enigma.websocket.server',
 };
 
-function WebSocketClient(ws, req, serverType) {
+class WebSocketClient extends TelnetClient {
+    constructor(ws, req, serverType) {
+        //  allow WebSocket to act like a Duplex (socket)
+        const wsDuplex = new class WebSocketDuplex extends Duplex {
+            constructor(ws) {
+                super();
+                this.ws = ws;
 
-    Object.defineProperty(this, 'isSecure', {
-        get : () => ('secure' === serverType || true === this.proxied) ? true : false,
-    });
+                this.ws.on('close', err => this.emit('close', err));
+                this.ws.on('error', err => this.emit('error', err));
+                this.ws.on('message', data => this._data(data));
+            }
 
-    const self = this;
+            setClient(client, httpRequest) {
+                this.client = client;
 
-    this.dataHandler = function(data) {
-        if(self.pipedDest) {
-            self.pipedDest.write(data);
+                //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
+                this.resolvedRemoteAddress =
+                    (this.client.proxied && (httpRequest.headers['x-forwarded-for'] || httpRequest.headers['x-real-ip'])) ||
+                    httpRequest.connection.remoteAddress;
+            }
+
+            get remoteAddress() {
+                return  this.resolvedRemoteAddress;
+            }
+
+            _write(data, encoding, cb) {
+                cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
+                return this.ws.send(data, { binary : true }, cb);
+            }
+
+            _read() {
+                //  dummy
+            }
+
+            _data(data) {
+                this.push(data);
+            }
+        }(ws);
+
+        super(wsDuplex);
+        wsDuplex.setClient(this, req);
+
+        //  fudge remoteAddress on socket, which is now TelnetSocket
+        this.socket.remoteAddress = wsDuplex.remoteAddress;
+
+        wsDuplex.on('close', () => {
+            //  we'll remove client connection which will in turn end() via our SocketBridge above
+            return this.emit('end');
+        });
+
+        this.serverType = serverType;
+
+        //
+        //  Monitor connection status with ping/pong
+        //
+        ws.on('pong', () => {
+            Log.trace(`Pong from ${wsDuplex.remoteAddress}`);
+            ws.isConnectionAlive = true;
+        });
+
+        Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
+
+        //
+        //  If the config allows it, look for 'x-forwarded-proto' as "https"
+        //  to override |isSecure|
+        //
+        if(true === _.get(Config(), 'loginServers.webSocket.proxied') &&
+            'https' === req.headers['x-forwarded-proto'])
+        {
+            Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
+            this.proxied = true;
         } else {
-            self.socketBridge.emit('data', data);
-        }
-    };
-
-    //
-    //  This bridge makes accessible various calls that client sub classes
-    //  want to access on I/O socket
-    //
-    this.socketBridge = new class SocketBridge extends Writable {
-        constructor(ws) {
-            super();
-            this.ws = ws;
+            this.proxied = false;
         }
 
-        end() {
-            return ws.close();
-        }
-
-        write(data, cb) {
-            cb = cb || ( () => { /* eat it up */} );    //  handle data writes after close
-
-            return this.ws.send(data, { binary : true }, cb);
-        }
-
-        pipe(dest) {
-            Log.trace('WebSocket SocketBridge pipe()');
-            self.pipedDest = dest;
-        }
-
-        unpipe() {
-            Log.trace('WebSocket SocketBridge unpipe()');
-            self.pipedDest = null;
-        }
-
-        resume() {
-            Log.trace('WebSocket SocketBridge resume()');
-        }
-
-        get remoteAddress() {
-            //  Support X-Forwarded-For and X-Real-IP headers for proxied connections
-            return (self.proxied && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || req.connection.remoteAddress;
-        }
-    }(ws);
-
-    ws.on('message', this.dataHandler);
-
-    ws.on('close', () => {
-        //  we'll remove client connection which will in turn end() via our SocketBridge above
-        return this.emit('end');
-    });
-
-    //
-    //  Monitor connection status with ping/pong
-    //
-    ws.on('pong', () => {
-        Log.trace(`Pong from ${this.socketBridge.remoteAddress}`);
-        ws.isConnectionAlive = true;
-    });
-
-    TelnetClient.call(this, this.socketBridge, this.socketBridge);
-
-    Log.trace( { headers : req.headers }, 'WebSocket connection headers' );
-
-    //
-    //  If the config allows it, look for 'x-forwarded-proto' as "https"
-    //  to override |isSecure|
-    //
-    if(true === _.get(Config(), 'loginServers.webSocket.proxied') &&
-        'https' === req.headers['x-forwarded-proto'])
-    {
-        Log.debug(`Assuming secure connection due to X-Forwarded-Proto of "${req.headers['x-forwarded-proto']}"`);
-        this.proxied = true;
-    } else {
-        this.proxied = false;
+        //  start handshake process
+        this.banner();
     }
 
-    //  start handshake process
-    this.banner();
+    get isSecure() {
+        return ('secure' === this.serverType || true === this.proxied) ? true : false;
+    }
 }
-
-require('util').inherits(WebSocketClient, TelnetClient);
 
 const WSS_SERVER_TYPES = [ 'insecure', 'secure' ];
 
@@ -216,7 +208,7 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
 
                 server.wsServer.on('connection', (ws, req) => {
                     const webSocketClient = new WebSocketClient(ws, req, serverType);
-                    this.handleNewClient(webSocketClient, webSocketClient.socketBridge, ModuleInfo);
+                    this.handleNewClient(webSocketClient, webSocketClient.socket, ModuleInfo);
                 });
 
                 Log.info( { server : serverName, port : port }, 'Listening for connections' );
@@ -226,10 +218,5 @@ exports.getModule = class WebSocketLoginServer extends LoginServerModule {
         err => {
             cb(err);
         });
-    }
-
-    webSocketConnection(conn) {
-        const webSocketClient = new WebSocketClient(conn);
-        this.handleNewClient(webSocketClient, webSocketClient.socketShim, ModuleInfo);
     }
 };
