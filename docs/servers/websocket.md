@@ -6,26 +6,26 @@ title: Web Socket / Web Interface Server
 The WebSocket Login Server provides **secure** (wss://) as well as non-secure (ws://) WebSocket login access. This is often combined with a browser based WebSocket client such as VTX or fTelnet.
 
 # VTX Web Client
-ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at 
+ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at
 [Xibalba](https://l33t.codes/vtx/xibalba.html) and [fORCE9](https://bbs.force9.org/vtx/force9.html).
 
 ## Before You Start
 
 There are a few things out of scope of this document:
 
- - You'll need a web server for hosting the files - this can be anywhere, but it obviously makes sense to host it 
+ - You'll need a web server for hosting the files - this can be anywhere, but it obviously makes sense to host it
  somewhere with a hostname relevant to your BBS!
 
- - It's not required, but you should use SSL certificates to secure your website, and for supplying to ENiGMA to 
+ - It's not required, but you should use SSL certificates to secure your website, and for supplying to ENiGMA to
  secure the websocket connections. [Let's Encrypt](https://letsencrypt.org/) provide a free well-respected service.
- 
- - How you make the websocket service available on the internet is up to you, but it'll likely by forwarding ports on 
- your router to the box hosting ENiGMA. Use the same method you did for forwarding the telnet port. 
- 
+
+ - How you make the websocket service available on the internet is up to you, but it'll likely by forwarding ports on
+ your router to the box hosting ENiGMA. Use the same method you did for forwarding the telnet port.
+
 ## Setup
 
 1. Enable the websocket in ENiGMA, by adding `webSocket` configuration to the `loginServers` block in `config.hjson` (create it if you
-don't already have it defined). 
+don't already have it defined).
 
     ````hjson
     loginServers: {
@@ -34,6 +34,9 @@ don't already have it defined).
                         // non-secure ws://
                         port: 8810
                         enabled: true
+
+                        //  optional bind address
+                        address: 127.0.0.1
                     }
                     wss: {
                         //  secure-over-tls wss://
@@ -50,16 +53,16 @@ don't already have it defined).
     }
     ````
 
-2. Restart ENiGMA and check the logs to ensure the websocket service starts successfully, you'll see something like the 
+2. Restart ENiGMA and check the logs to ensure the websocket service starts successfully, you'll see something like the
 following:
 
     ````
     [2017-10-29T12:13:30.668Z]  INFO: ENiGMA½ BBS/30978 on force9: Listening for connections (server="WebSocket (insecure)", port=8810)
     [2017-10-29T12:13:30.669Z]  INFO: ENiGMA½ BBS/30978 on force9: Listening for connections (server="WebSocket (secure)", port=8811)
     ````
-                
+
 3. Download the [VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer/archive/master.zip) to your
-webserver, and unpack it to a temporary directory. 
+webserver, and unpack it to a temporary directory.
 
 4. Download the example [VTX client HTML file](/misc/vtx/vtx.html) and save it to your webserver root.
 
@@ -96,10 +99,10 @@ webserver, and unpack it to a temporary directory.
     };
     ````
 
-8. Update `sysName` and `wsConnect` accordingly. Use `wss://` if you set up the websocket service with SSL, `ws://` 
+8. Update `sysName` and `wsConnect` accordingly. Use `wss://` if you set up the websocket service with SSL, `ws://`
 otherwise.
-    
+
 9. If you navigate to http://your-hostname.here/vtx.html, you should see a splash screen like the following:
     ![VTXClient](../assets/images/vtxclient.png "VTXClient")
 
- 
+
