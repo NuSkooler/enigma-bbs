@@ -40,6 +40,9 @@ npm install
 Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 [file a issue on GitHub](https://github.com/NuSkooler/enigma-bbs/issues).
 
+# 0.0.11-beta to 0.0.12-beta
+* Be aware that `master` is now mainline! This means all `git pull`'s will yield the latest version. See [WHATSNEW](WHATSNEW.md) for more information.
+
 # 0.0.10-alpha to 0.0.11-beta
 * Node.js 12.x LTS is now in use. Follow standard Node.js upgrade procedures (e.g.: `nvm install 12 && nvm use 12`).
 
