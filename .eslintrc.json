@@ -3,11 +3,13 @@
         "es6": true,
         "node": true
     },
-    "extends": "eslint:recommended",
+    "extends": [
+        "eslint:recommended"
+    ],
     "rules": {
         "indent": [
             "error",
-            "tab",
+            4,
             {
                 "SwitchCase" : 1
             }
@@ -24,6 +26,7 @@
             "error",
             "always"
         ],
-        "comma-dangle": 0
+        "comma-dangle": 0,
+        "no-trailing-spaces" :"warn"
     }
 }

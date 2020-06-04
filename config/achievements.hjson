@@ -1,0 +1,469 @@
+    /*
+        ./\/\." ENiGMA½ Achievement Configuration -/--/-------- - --   -
+
+        _____________________   _____  ____________________    __________\_   /
+        \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+        //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+        /____       _____|      __________       ___|__|      ____|     \   /  _____  \
+        ---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+                                                                         /__   _\
+        <*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+
+        *-----------------------------------------------------------------------------*
+
+        General Information
+        ------------------------------- -   -
+        This configuration is in HJSON (http://hjson.org/) format. Strict to-spec
+        JSON is also perfectly valid. Use "hjson" from npm to convert to/from JSON.
+
+        See http://hjson.org/ for more information and syntax.
+
+        Various editors and IDEs such as Sublime Text 3 Visual Studio Code and so
+        on have syntax highlighting for the HJSON format which are highly recommended.
+
+        ------------------------------- -- -    -
+        Achievement Configuration
+        ------------------------------- -   -
+        Achievements are currently fairly limited in what can trigger them. This is
+        being expanded upon and more will be available in the near future. For now
+        you should mostly be interested in:
+        - Perhaps adding additional *levels* of triggers & points
+        - Applying customizations via the achievements section in theme.hjson
+
+        Some tips:
+        - For 'userStatSet' types, see user_property.js
+
+        Don"t forget to RTFM ...er uh... see the documentation for more information and
+        don"t be shy to ask for help:
+
+        BBS     : Xibalba @ xibalba.l33t.codes
+        FTN     : BBS Discussion on fsxNet or ArakNet
+        IRC     : #enigma-bbs / FreeNode
+        Email   : bryan@l33t.codes
+*/
+{
+    //  Set to false to disable the achievement system
+    enabled : true
+
+    art : {
+        localHeader: achievement_local_header
+        localFooter: achievement_local_footer
+        globalHeader: achievement_global_header
+        globalFooter: achievement_global_footer
+    }
+
+    achievements: {
+        user_login_count: {
+            type: userStatSet
+            statName: login_count
+            match: {
+                2: {
+                    title: "Return Caller"
+                    globalText: "{userName} has returned to {boardName}!"
+                    text: "You've returned to {boardName}!"
+                    points: 5
+                }
+                10: {
+                    title: "Curious Caller"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 10
+                }
+                25: {
+                    title: "Inquisitive"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 10
+                }
+                75: {
+                    title: "Still Interested!"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 15
+                }
+                100: {
+                    title: "Regular Customer"
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 25
+                }
+                250: {
+                    title: "Speed Dial",
+                    globalText: "{userName} has logged into {boardName} {achievedValue} times!"
+                    text: "You've logged into {boardName} {achievedValue} times!"
+                    points: 50
+                }
+                500:  {
+                    title: "System Addict"
+                    globalText: "{userName} the BBS {boardName} addict has logged in {achievedValue} times!"
+                    text: "You're a {boardName} addict! You've logged in {achievedValue} times!"
+                    points: 50
+                }
+            }
+        }
+
+        user_post_count: {
+            type: userStatSet
+            statName: post_count
+            match: {
+                2: {
+                    title: "Poster"
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 5
+                }
+                5: {
+                    title: "Poster... again!",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 5
+                }
+                20: {
+                    title: "Just Want to Talk",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 10
+                }
+                100: {
+                    title: "Probably Just Spam",
+                    globalText: "{userName} has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 25
+                }
+                250: {
+                    title: "Scribe"
+                    globalText: "{userName} the scribe has posted {achievedValue} messages!"
+                    text: "Such a scribe! You've posted {achievedValue} messages!"
+                    points: 50
+                }
+                500: {
+                    title: "Writing a Book"
+                    globalText: "{userName} is writing a book and has posted {achievedValue} messages!"
+                    text: "You've posted {achievedValue} messages!"
+                    points: 50
+                }
+            }
+        }
+
+        user_upload_count: {
+            type: userStatSet
+            statName: ul_total_count
+            match: {
+                1: {
+                    title: "Uploader"
+                    globalText: "{userName} has uploaded a file!"
+                    text: "You've uploaded somthing!"
+                    points: 5
+                }
+                10: {
+                    title: "Moar Uploads!"
+                    globalText: "{userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 10
+                }
+                50: {
+                    title: "Contributor"
+                    globalText: "{userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 25
+
+                }
+                100: {
+                    title: "Courier"
+                    globalText: "Courier {userName} has uploaded {achievedValue} files!"
+                    text: "You've uploaded {achievedValue} files!"
+                    points: 50
+                }
+                200: {
+                    title: "Must Be a Drop Site"
+                    globalText: "{userName} has uploaded a whomping {achievedValue} files!"
+                    text: "You've uploaded a whomping {achievedValue} files!"
+                    points: 55
+                }
+            }
+        }
+
+        user_upload_bytes: {
+            type: userStatSet
+            statName: ul_total_bytes
+            match: {
+                10240: {
+                    text: "UNIVAC Drum"
+                    globalText: "{userName} has uploaded 10k. Enough to fill a UNIVAC drum!"
+                    text: "You've uploaded 10k. Enough to fill a UNIVAC drum!"
+                    points: 5
+                }
+                524288: {
+                    title: "Kickstart"
+                    globalText: "{userName} has uploaded 512KB, enough for a Kickstart!"
+                    text: "You've uploaded 512KB, enough for a Kickstart!"
+                    points: 10
+                }
+                1474560: {
+                    title: "AOL Disk Anyone?"
+                    globalText: "{userName} has uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    title: "You've uploaded 1.44M worth of data. Hopefully it's not AOL!"
+                    points: 10
+                }
+                6291456: {
+                    title: "A Quake of a Upload"
+                    globalText: "{userName} has uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
+                    text: "You've uploaded 6 x 1.44MB disks worth of data. That's the size of Quake for DOS!"
+                    points: 20
+                }
+                104857600: {
+                    title: "Zip 100"
+                    globalText: "{userName} has uploaded a Zip 100 disk's worth of data!"
+                    text: "You've uploaded a Zip 100 disk's worth of data!"
+                    points: 25
+                }
+                1073741824: {
+                    title: "Gigabyte!"
+                    globalText: "{userName} has uploaded a Gigabyte worth of data!"
+                    text: "You've uploaded a Gigabyte worth of data!"
+                    points: 50
+                }
+                3407872000: {
+                    title: "Encarta"
+                    globalText: "{userName} has uploaded 5xCD discs worth of data. That's the size of Encarta!"
+                    text: "You've uploaded 5xCD discs worth of data. That's the size of Encarta!"
+                    points: 50
+                }
+                7025459200: {
+                    title: "NFL_Madden_2007_USA_BLURAY_DIRFIX_PS3-PARADOX"
+                    globalText: "{userName} has uploaded 67x100 MiB worth of data, the size of the worlds first PS3 rip!"
+                    text: "You've uploaded 67x100 MiB worth of data, the size of the world first PS3 rip!"
+                    points: 100
+                }
+                25018184499: {
+                    title: "WaYsTeD"
+                    globalText: "{userName} has uploaded 23.3 GiB of data, the size of the first PS4 rip: Watch.Dogs.PS4-WaYsTeD!"
+                    text: "You've uploaded 23.3 GiB of data, the size of the first PS4 rip: Watch.Dogs.PS4-WaYsTeD!"
+                    points: 150
+                }
+            }
+        }
+
+        user_download_count: {
+            type: userStatSet
+            statName: dl_total_count
+            match: {
+                1: {
+                    title: "Downloader"
+                    globalText: "{userName} has downloaded a file!"
+                    text: "You've downloaded somthing!"
+                    points: 5
+                }
+                10: {
+                    title: "Moar Downloads!"
+                    globalText: "{userName} has downloaded {achievedValue} files!"
+                    text: "You've downloaded {achievedValue} files!"
+                    points: 10
+                }
+                50: {
+                    title: "Leecher"
+                    globalText: "{userName} has leeched {achievedValue} files!"
+                    text: "You've leeched... er... downloaded {achievedValue} files!"
+                    points: 15
+                }
+                100: {
+                    title: "Hoarder"
+                    globalText: "{userName} has downloaded {achievedValue} files!"
+                    text: "Hoarding files? You've downloaded {achievedValue} files!"
+                    points: 20
+                }
+                200: {
+                    title: "Digital Archivist"
+                    globalText: "{userName} the digital archivist has {achievedValue} files!"
+                    text: "Building an archive? You've downloaded {achievedValue} files!"
+                    points: 25
+                }
+            }
+        }
+
+        user_download_bytes: {
+            type: userStatSet
+            statName: dl_total_bytes
+            match: {
+                655360: {
+                    title: "Ought to be Enough"
+                    globalText: "{userName} has downloaded 640K. Ought to be enough for anyone!"
+                    text: "You've downloaded 640K. Ought to be enough for anyone!"
+                    points: 5
+                }
+                1474560: {
+                    title: "Fits on a Floppy"
+                    globalText: "{userName} has downloaded 1.44MB worth of data!"
+                    text: "You've downloaded 1.44MB of data!"
+                    points: 5
+                }
+                104857600: {
+                    title: "Click of Death"
+                    globalText: "{userName} has downloaded 100MB... perhaps to a Zip Disk?"
+                    text: "You've downloaded 100MB of data... perhaps to a Zip Disk?"
+                    points: 10
+                }
+                681574400: {
+                    title: "CD Rip"
+                    globalText: "{userName} has downloaded a CD-ROM's worth of data!"
+                    text: "You've downloaded a CD-ROM's worth of data!"
+                    points: 15
+                }
+                1073741824: {
+                    title: "Like One Hundred Floppys, Man"
+                    globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
+                    text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
+                    points: 25
+                }
+                5368709120: {
+                    title: "That's a Lot of Bits!"
+                    globalText: "{userName} has downloaded {achievedValue!sizeWithAbbr} of data!"
+                    text: "You've downloaded {achievedValue!sizeWithAbbr} of data!"
+                }
+            }
+        }
+
+        user_door_runs: {
+            type: userStatSet
+            statName: door_run_total_count
+            match: {
+                1: {
+                    title: "Nostalgia Toe Dip",
+                    globalText: "{userName} ran a door!"
+                    text: "You ran a door!"
+                    points: 5
+                },
+                10: {
+                    title: "This is Kinda Fun"
+                    globalText: "{userName} ran {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors!"
+                    points: 10
+                }
+                50: {
+                    title: "Gamer"
+                    globalText: "{userName} ran {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors!"
+                    points: 20
+                }
+                100: {
+                    title: "Trying Them All"
+                    globalText: "{userName} must really like textmode and has run {achievedValue} doors!"
+                    text: "You've run {achievedValue} doors! You must really like textmode!"
+                    points: 50
+                }
+                200: {
+                    title: "Dropfile Enthusiast"
+                    globalText: "{userName} the dropfile enthusiast ran {achievedValue} doors!"
+                    text: "You're a dropfile enthusiast! You've run {achievedValue} doors!"
+                    points: 55
+                }
+            }
+        }
+
+        user_individual_door_run_minutes: {
+            type: userStatInc
+            statName: door_run_total_minutes
+            retroactive: false
+            match: {
+                1: {
+                    title: "Nevermind!"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}. Guess it's not their thing!"
+                    text: "You ran a door for only {achievedValue!durationMinutes}. Not your thing?"
+                    points: 5
+                }
+                10: {
+                    title: "It's OK I Guess"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}!"
+                    text: "You ran a door for {achievedValue!durationMinutes}!"
+                    points: 10
+                }
+                30: {
+                    title: "Good Game"
+                    globalText: "{userName} ran a door for {achievedValue!durationMinutes}!"
+                    text: "You ran a door for {achievedValue!durationMinutes}!"
+                    points: 20
+                }
+                60: {
+                    title: "What? Limited Turns?!"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
+                    points: 25
+                }
+                120: {
+                    title: "It's the Only One I Know!"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
+                    points: 50
+                }
+                240: {
+                    title: "Possible Addict"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} in a door!"
+                    text: "You've spent {achievedValue!durationMinutes} in a door!"
+                    points: 55
+                }
+            }
+        }
+
+        user_door_run_total_minutes: {
+            type: userStatIncNewVal
+            statName: door_run_total_minutes
+            match: {
+                10: {
+                    title: "Enough for the Instructions"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 10
+                }
+                30: {
+                    title: "Probably Just L.O.R.D."
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 20
+                }
+                60: {
+                    title: "Retro or Bust"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 25
+                }
+                240: {
+                    title: "Textmode Dragon Slayer"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} playing doors!"
+                    text: "You've spent {achievedValue!durationMinutes} playing doors!"
+                    points: 50
+                }
+            }
+        }
+
+        user_total_system_online_minutes: {
+            type: userStatSet
+            statName: minutes_online_total_count
+            match: {
+                30: {
+                    title: "Just Poking Around"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 5
+                }
+                60: {
+                    title: "Mildly Interesting"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 15
+                }
+                120: {
+                    title: "Nothing Better to Do"
+                    globalText: "{userName} has spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 25
+                }
+                1440: {
+                    title: "Idle Bot"
+                    globalText: "{userName} is probably a bot. They've spent {achievedValue!durationMinutes} on {boardName}!"
+                    text: "You're a bot, aren't you? You've been on {boardName} for a total of {achievedValue!durationMinutes}!"
+                    points: 55
+                }
+            }
+        }
+    }
+}

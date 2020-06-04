@@ -1,269 +1,390 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Config			= require('../../config.js').config;
-const baseClient		= require('../../client.js');
-const Log				= require('../../logger.js').log;
-const LoginServerModule	= require('../../login_server_module.js');
-const userLogin			= require('../../user_login.js').userLogin;
-const enigVersion 		= require('../../../package.json').version;
-const theme				= require('../../theme.js');
-const stringFormat		= require('../../string_format.js');
+//  ENiGMA½
+const Config            = require('../../config.js').get;
+const baseClient        = require('../../client.js');
+const Log               = require('../../logger.js').log;
+const LoginServerModule = require('../../login_server_module.js');
+const userLogin         = require('../../user_login.js').userLogin;
+const enigVersion       = require('../../../package.json').version;
+const theme             = require('../../theme.js');
+const stringFormat      = require('../../string_format.js');
+const {
+    Errors,
+    ErrorReasons
+}                       = require('../../enig_error.js');
+const User              = require('../../user.js');
+const UserProps         = require('../../user_property.js');
 
-//	deps
-const ssh2			= require('ssh2');
-const fs			= require('graceful-fs');
-const util			= require('util');
-const _				= require('lodash');
-const assert		= require('assert');
+//  deps
+const ssh2          = require('ssh2');
+const fs            = require('graceful-fs');
+const util          = require('util');
+const _             = require('lodash');
+const assert        = require('assert');
 
 const ModuleInfo = exports.moduleInfo = {
-	name		: 'SSH',
-	desc		: 'SSH Server',
-	author		: 'NuSkooler',
-	isSecure	: true,
-	packageName	: 'codes.l33t.enigma.ssh.server',
+    name        : 'SSH',
+    desc        : 'SSH Server',
+    author      : 'NuSkooler',
+    isSecure    : true,
+    packageName : 'codes.l33t.enigma.ssh.server',
 };
 
 function SSHClient(clientConn) {
-	baseClient.Client.apply(this, arguments);
+    baseClient.Client.apply(this, arguments);
 
-	//
-	//	WARNING: Until we have emit 'ready', self.input, and self.output and
-	//	not yet defined!
-	//
+    //
+    //  WARNING: Until we have emit 'ready', self.input, and self.output and
+    //  not yet defined!
+    //
 
-	const self = this;
+    const self = this;
 
-	let loginAttempts = 0;
+    clientConn.on('authentication', function authAttempt(ctx) {
+        const username  = ctx.username || '';
+        const config    = Config();
+        self.isNewUser  = (config.users.newUserNames || []).indexOf(username) > -1;
 
-	clientConn.on('authentication', function authAttempt(ctx) {
-		const username	= ctx.username || '';
-		const password	= ctx.password || '';
-		
-		self.isNewUser	= (Config.users.newUserNames || []).indexOf(username) > -1;
+        self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
 
-		self.log.trace( { method : ctx.method, username : username, newUser : self.isNewUser }, 'SSH authentication attempt');
+        const safeContextReject = (param) => {
+            try {
+                return ctx.reject(param);
+            } catch(e) {
+                return;
+            }
+        };
 
-		function terminateConnection() {
-			ctx.reject();
-			clientConn.end();
-		}
+        const terminateConnection = () => {
+            safeContextReject();
+            return clientConn.end();
+        };
 
-		//
-		//	If the system is open and |isNewUser| is true, the login
-		//	sequence is hijacked in order to start the applicaiton process.
-		//
-		if(false === Config.general.closedSystem && self.isNewUser) {
-			return ctx.accept();
-		}
+        //  slow version to thwart brute force attacks
+        const slowTerminateConnection = () => {
+            setTimeout( () => {
+                return terminateConnection();
+            }, 2000);
+        };
 
-		if(username.length > 0 && password.length > 0) {
-			loginAttempts += 1;
+        const promptAndTerm = (msg, method = 'standard') => {
+            if('keyboard-interactive' === ctx.method) {
+                ctx.prompt(msg);
+            }
+            return 'slow' === method ? slowTerminateConnection() : terminateConnection();
+        };
 
-			userLogin(self, ctx.username, ctx.password, function authResult(err) {
-				if(err) {
-					if(err.existingConn) {
-						//	:TODO: Can we display somthing here?
-						terminateConnection();
-						return;
-					} else {
-						return ctx.reject(SSHClient.ValidAuthMethods);
-					}
-				} else {
-					ctx.accept();
-				}
-			});
-		} else {
-			if(-1 === SSHClient.ValidAuthMethods.indexOf(ctx.method)) {
-				return ctx.reject(SSHClient.ValidAuthMethods);
-			}
+        const accountAlreadyLoggedIn = (username) => {
+            return promptAndTerm(`${username} is already connected to the system. Terminating connection.\n(Press any key to continue)`);
+        };
 
-			if(0 === username.length) {
-				//	:TODO: can we display something here?
-				return ctx.reject();
-			}
+        const accountDisabled = (username) => {
+            return promptAndTerm(`${username} is disabled.\n(Press any key to continue)`);
+        };
 
-			let interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
+        const accountInactive = (username) => {
+            return promptAndTerm(`${username} is waiting for +op activation.\n(Press any key to continue)`);
+        };
 
-			ctx.prompt(interactivePrompt, function retryPrompt(answers) {
-				loginAttempts += 1;
+        const accountLocked = (username) => {
+            return promptAndTerm(`${username} is locked.\n(Press any key to continue)`, 'slow');
+        };
 
-				userLogin(self, username, (answers[0] || ''), err => {
-					if(err) {
-						if(err.existingConn) {
-							//	:TODO: can we display something here?
-							terminateConnection();
-						} else {				
-							if(loginAttempts >= Config.general.loginAttempts) {
-								terminateConnection();
-							} else {
-								const artOpts = {
-									client		: self,
-									name 		: 'SSHPMPT.ASC',
-									readSauce	: false,
-								};
+        const isSpecialHandleError = (err) => {
+            return [ ErrorReasons.AlreadyLoggedIn, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked ].includes(err.reasonCode);
+        };
 
-								theme.getThemeArt(artOpts, (err, artInfo) => {
-									if(err) {
-										interactivePrompt.prompt = `Access denied\n${ctx.username}'s password: `;
-									} else {										
-										const newUserNameList = _.has(Config, 'users.newUserNames') && Config.users.newUserNames.length > 0 ?
-											Config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
-											'(No new user names enabled!)';
+        const handleSpecialError = (err, username) => {
+            switch(err.reasonCode) {
+                case ErrorReasons.AlreadyLoggedIn   : return accountAlreadyLoggedIn(username);
+                case ErrorReasons.Inactive          : return accountInactive(username);
+                case ErrorReasons.Disabled          : return accountDisabled(username);
+                case ErrorReasons.Locked            : return accountLocked(username);
+                default                             : return terminateConnection();
+            }
+        };
 
-										interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password'`;
-									}
-									return ctx.prompt(interactivePrompt, retryPrompt);
-								});
-							}
-						}
-					} else {
-						ctx.accept();
-					}
-				});	
-			});		
-		}
-	});
+        const authWithPasswordOrPubKey = (authType) => {
+            if(User.AuthFactor1Types.SSHPubKey !== authType || !self.user.isAuthenticated() || !ctx.signature) {
+                //  step 1: login/auth using PubKey
+                userLogin(self, ctx.username, ctx.password, { authType, ctx }, (err) => {
+                    if(err) {
+                        if(isSpecialHandleError(err)) {
+                            return handleSpecialError(err, username);
+                        }
 
-	this.updateTermInfo = function(info) {
-		//
-		//	From ssh2 docs:
-		//	"rows and cols override width and height when rows and cols are non-zero."
-		//
-		let termHeight;
-		let termWidth;
+                        if(Errors.BadLogin().code === err.code) {
+                            return slowTerminateConnection();
+                        }
 
-		if(info.rows > 0 && info.cols > 0) {
-			termHeight 	= info.rows;
-			termWidth	= info.cols;
-		} else if(info.width > 0 && info.height > 0) {
-			termHeight	= info.height;
-			termWidth	= info.width;
-		}
+                        return safeContextReject(SSHClient.ValidAuthMethods);
+                    }
 
-		assert(_.isObject(self.term));
+                    ctx.accept();
+                });
+            } else {
+                //  step 2: verify signature
+                const pubKeyActual = ssh2.utils.parseKey(self.user.getProperty(UserProps.AuthPubKey));
+                if(!pubKeyActual || !pubKeyActual.verify(ctx.blob, ctx.signature)) {
+                    return slowTerminateConnection();
+                }
+                return ctx.accept();
+            }
+        };
 
-		//
-		//	Note that if we fail here, connect.js attempts some non-standard
-		//	queries/etc., and ultimately will default to 80x24 if all else fails
-		//
-		if(termHeight > 0 && termWidth > 0) {
-			self.term.termHeight = termHeight;
-			self.term.termWidth	= termWidth;
+        const authKeyboardInteractive = () => {
+            if(0 === username.length) {
+                return safeContextReject();
+            }
 
-			self.clearMciCache();	//	term size changes = invalidate cache
-		}
+            const interactivePrompt = { prompt : `${ctx.username}'s password: `, echo : false };
 
-		if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
-			self.setTermType(info.term);
-		}
-	};
+            ctx.prompt(interactivePrompt, function retryPrompt(answers) {
+                userLogin(self, username, (answers[0] || ''), err => {
+                    if(err) {
+                        if(isSpecialHandleError(err)) {
+                            return handleSpecialError(err, username);
+                        }
 
-	clientConn.once('ready', function clientReady() {
-		self.log.info('SSH authentication success');
+                        if(Errors.BadLogin().code === err.code) {
+                            return slowTerminateConnection();
+                        }
 
-		clientConn.on('session', accept => {
-			
-			const session = accept();
+                        const artOpts = {
+                            client      : self,
+                            name        : 'SSHPMPT.ASC',
+                            readSauce   : false,
+                        };
 
-			session.on('pty', function pty(accept, reject, info) {
-				self.log.debug(info, 'SSH pty event');
+                        theme.getThemeArt(artOpts, (err, artInfo) => {
+                            if(err) {
+                                interactivePrompt.prompt = `Access denied\n${ctx.username}'s password: `;
+                            } else {
+                                const newUserNameList = _.has(config, 'users.newUserNames') && config.users.newUserNames.length > 0 ?
+                                    config.users.newUserNames.map(newName => '"' + newName + '"').join(', ') :
+                                    '(No new user names enabled!)';
 
-				if(_.isFunction(accept)) {
-					accept();
-				}
+                                interactivePrompt.prompt = `Access denied\n${stringFormat(artInfo.data, { newUserNames : newUserNameList })}\n${ctx.username}'s password:`;
+                            }
+                            return ctx.prompt(interactivePrompt, retryPrompt);
+                        });
+                    } else {
+                        ctx.accept();
+                    }
+                });
+            });
+        };
 
-				if(self.input) {	//	do we have I/O?
-					self.updateTermInfo(info);
-				} else {
-					self.cachedPtyInfo = info;
-				}
-			});
+        //
+        //  If the system is open and |isNewUser| is true, the login
+        //  sequence is hijacked in order to start the application process.
+        //
+        if(false === config.general.closedSystem && self.isNewUser) {
+            return ctx.accept();
+        }
 
-			session.on('shell', accept => {
-				self.log.debug('SSH shell event');
+        switch(ctx.method) {
+            case 'password' :
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.Password);
+                //return authWithPassword();
 
-				const channel = accept();
+            case 'publickey' :
+                return authWithPasswordOrPubKey(User.AuthFactor1Types.SSHPubKey);
+                //return authWithPubKey();
 
-				self.setInputOutput(channel.stdin, channel.stdout);
+            case 'keyboard-interactive' :
+                return authKeyboardInteractive();
 
-				channel.stdin.on('data', data => {
-					self.emit('data', data);
-				});
+            default :
+                return safeContextReject(SSHClient.ValidAuthMethods);
+        }
+    });
 
-				if(self.cachedPtyInfo) {
-					self.updateTermInfo(self.cachedPtyInfo);
-					delete self.cachedPtyInfo;
-				}
+    this.dataHandler = function(data) {
+        self.emit('data', data);
+    };
 
-				//	we're ready!
-				const firstMenu = self.isNewUser ? Config.loginServers.ssh.firstMenuNewUser : Config.loginServers.ssh.firstMenu;
-				self.emit('ready', { firstMenu : firstMenu } );
-			});
+    this.updateTermInfo = function(info) {
+        //
+        //  From ssh2 docs:
+        //  "rows and cols override width and height when rows and cols are non-zero."
+        //
+        let termHeight;
+        let termWidth;
 
-			session.on('window-change', (accept, reject, info) => {
-				self.log.debug(info, 'SSH window-change event');
-				
-				self.updateTermInfo(info);
-			});
+        if(info.rows > 0 && info.cols > 0) {
+            termHeight  = info.rows;
+            termWidth   = info.cols;
+        } else if(info.width > 0 && info.height > 0) {
+            termHeight  = info.height;
+            termWidth   = info.width;
+        }
 
-		});
-	});
+        assert(_.isObject(self.term));
 
-	clientConn.on('end', () => {
-		self.emit('end');	//	remove client connection/tracking
-	});
+        //
+        //  Note that if we fail here, connect.js attempts some non-standard
+        //  queries/etc., and ultimately will default to 80x24 if all else fails
+        //
+        if(termHeight > 0 && termWidth > 0) {
+            self.term.termHeight = termHeight;
+            self.term.termWidth = termWidth;
 
-	clientConn.on('error', err => {
-		self.log.warn( { error : err.message, code : err.code }, 'SSH connection error');
-	});
+            self.clearMciCache();   //  term size changes = invalidate cache
+        }
+
+        if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
+            self.setTermType(info.term);
+        }
+    };
+
+    clientConn.once('ready', function clientReady() {
+        self.log.info('SSH authentication success');
+
+        clientConn.on('session', accept => {
+
+            const session = accept();
+
+            session.on('pty', function pty(accept, reject, info) {
+                self.log.debug(info, 'SSH pty event');
+
+                if(_.isFunction(accept)) {
+                    accept();
+                }
+
+                if(self.input) {    //  do we have I/O?
+                    self.updateTermInfo(info);
+                } else {
+                    self.cachedTermInfo = info;
+                }
+            });
+
+            session.on('env', (accept, reject, info) => {
+                self.log.debug(info, 'SSH env event');
+
+                if(_.isFunction(accept)) {
+                    accept();
+                }
+            });
+
+            session.on('shell', accept => {
+                self.log.debug('SSH shell event');
+
+                const channel = accept();
+
+                self.setInputOutput(channel.stdin, channel.stdout);
+
+                channel.stdin.on('data', self.dataHandler);
+
+                if(self.cachedTermInfo) {
+                    self.updateTermInfo(self.cachedTermInfo);
+                    delete self.cachedTermInfo;
+                }
+
+                //  we're ready!
+                const firstMenu = self.isNewUser ? Config().loginServers.ssh.firstMenuNewUser : Config().loginServers.ssh.firstMenu;
+                self.emit('ready', { firstMenu : firstMenu } );
+            });
+
+            session.on('window-change', (accept, reject, info) => {
+                self.log.debug(info, 'SSH window-change event');
+
+                if(self.input) {
+                    self.updateTermInfo(info);
+                } else {
+                    self.cachedTermInfo = info;
+                }
+            });
+
+        });
+    });
+
+    clientConn.once('end', () => {
+        return self.emit('end');   //  remove client connection/tracking
+    });
+
+    clientConn.on('error', err => {
+        self.log.warn( { error : err.message, code : err.code }, 'SSH connection error');
+    });
+
+    this.disconnect = function() {
+        return clientConn.end();
+    };
 }
 
 util.inherits(SSHClient, baseClient.Client);
 
-SSHClient.ValidAuthMethods = [ 'password', 'keyboard-interactive' ];
+SSHClient.ValidAuthMethods = [
+    'password',
+    'keyboard-interactive',
+    'publickey',
+];
 
 exports.getModule = class SSHServerModule extends LoginServerModule {
-	constructor() {
-		super();
-	}
+    constructor() {
+        super();
+    }
 
-	createServer() {
-		const serverConf = {
-			hostKeys : [
-				{
-					key			: fs.readFileSync(Config.loginServers.ssh.privateKeyPem),
-					passphrase	: Config.loginServers.ssh.privateKeyPass, 
-				}
-			],
-			ident : 'enigma-bbs-' + enigVersion + '-srv',
-			
-			//	Note that sending 'banner' breaks at least EtherTerm!
-			debug : (sshDebugLine) => { 
-				if(true === Config.loginServers.ssh.traceConnections) {
-					Log.trace(`SSH: ${sshDebugLine}`);
-				}
-			},
-		};
+    createServer(cb) {
+        const config = Config();
+        if(true != config.loginServers.ssh.enabled) {
+            return cb(null);
+        }
 
-		this.server = ssh2.Server(serverConf);
-		this.server.on('connection', (conn, info) => {
-			Log.info(info, 'New SSH connection');
-			this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
-		});
-	}
+        const serverConf = {
+            hostKeys : [
+                {
+                    key         : fs.readFileSync(config.loginServers.ssh.privateKeyPem),
+                    passphrase  : config.loginServers.ssh.privateKeyPass,
+                }
+            ],
+            ident : 'enigma-bbs-' + enigVersion + '-srv',
 
-	listen() {
-		const port = parseInt(Config.loginServers.ssh.port);
-		if(isNaN(port)) {
-			Log.error( { server : ModuleInfo.name, port : Config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
-			return false;
-		}
+            //  Note that sending 'banner' breaks at least EtherTerm!
 
-		this.server.listen(port);
-		Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
-		return true;
-	}
+            debug : (sshDebugLine) => {
+                if(true === config.loginServers.ssh.traceConnections) {
+                    Log.trace(`SSH: ${sshDebugLine}`);
+                }
+            },
+            algorithms : config.loginServers.ssh.algorithms,
+        };
+
+        //
+        //  This is a terrible hack, and we should not have to do it;
+        //  However, as of this writing, NetRunner and SyncTERM both
+        //  fail to respond to OpenSSH keep-alive pings (keepalive@openssh.com)
+        //
+        ssh2.Server.KEEPALIVE_INTERVAL = 0;
+
+        this.server = ssh2.Server(serverConf);
+        this.server.on('connection', (conn, info) => {
+            Log.info(info, 'New SSH connection');
+            this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
+        });
+
+        return cb(null);
+    }
+
+    listen(cb) {
+        const config = Config();
+        if(true != config.loginServers.ssh.enabled) {
+            return cb(null);
+        }
+
+        const port = parseInt(config.loginServers.ssh.port);
+        if(isNaN(port)) {
+            Log.error( { server : ModuleInfo.name, port : config.loginServers.ssh.port }, 'Cannot load server (invalid port)' );
+            return cb(Errors.Invalid(`Invalid port: ${config.loginServers.ssh.port}`));
+        }
+
+        this.server.listen(port, config.loginServers.ssh.address, err => {
+            if(!err) {
+                Log.info( { server : ModuleInfo.name, port : port }, 'Listening for connections' );
+            }
+            return cb(err);
+        });
+    }
 };

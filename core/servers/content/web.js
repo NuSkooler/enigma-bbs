@@ -1,243 +1,271 @@
 /* jslint node: true */
 'use strict';
 
-//	ENiGMA½
-const Log			= require('../../logger.js').log;
-const ServerModule	= require('../../server_module.js').ServerModule;
-const Config		= require('../../config.js').config;
+//  ENiGMA½
+const Log           = require('../../logger.js').log;
+const ServerModule  = require('../../server_module.js').ServerModule;
+const Config        = require('../../config.js').get;
+const { Errors }    = require('../../enig_error.js');
 
-//	deps
-const http			= require('http');
-const https			= require('https');
-const _				= require('lodash');
-const fs			= require('graceful-fs');
-const paths			= require('path');
-const mimeTypes		= require('mime-types');
+//  deps
+const http          = require('http');
+const https         = require('https');
+const _             = require('lodash');
+const fs            = require('graceful-fs');
+const paths         = require('path');
+const mimeTypes     = require('mime-types');
+const forEachSeries = require('async/forEachSeries');
 
 const ModuleInfo = exports.moduleInfo = {
-	name		: 'Web',
-	desc		: 'Web Server',
-	author		: 'NuSkooler',
-	packageName	: 'codes.l33t.enigma.web.server',
+    name        : 'Web',
+    desc        : 'Web Server',
+    author      : 'NuSkooler',
+    packageName : 'codes.l33t.enigma.web.server',
 };
 
 class Route {
-	constructor(route) {
-		Object.assign(this, route);
-		
-		if(this.method) {
-			this.method = this.method.toUpperCase();
-		}
+    constructor(route) {
+        Object.assign(this, route);
 
-		try {
-			this.pathRegExp = new RegExp(this.path);
-		} catch(e) {
-			Log.debug( { route : route }, 'Invalid regular expression for route path' );
-		}
-	}
+        if(this.method) {
+            this.method = this.method.toUpperCase();
+        }
 
-	isValid() {
-		return (
-			this.pathRegExp instanceof RegExp && 
-			( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) || 
-			!_.isFunction(this.handler)
-		);
-	}
+        try {
+            this.pathRegExp = new RegExp(this.path);
+        } catch(e) {
+            Log.debug( { route : route }, 'Invalid regular expression for route path' );
+        }
+    }
 
-	matchesRequest(req) {
-		return req.method === this.method && this.pathRegExp.test(req.url);
-	}
+    isValid() {
+        return (
+            this.pathRegExp instanceof RegExp &&
+            ( -1 !== [ 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE',  ].indexOf(this.method) ) ||
+            !_.isFunction(this.handler)
+        );
+    }
 
-	getRouteKey() { return `${this.method}:${this.path}`; }
+    matchesRequest(req) {
+        return req.method === this.method && this.pathRegExp.test(req.url);
+    }
+
+    getRouteKey() { return `${this.method}:${this.path}`; }
 }
 
 exports.getModule = class WebServerModule extends ServerModule {
-	constructor() {
-		super();
+    constructor() {
+        super();
 
-		this.enableHttp		= Config.contentServers.web.http.enabled || false;
-		this.enableHttps	= Config.contentServers.web.https.enabled || false;
+        const config        = Config();
+        this.enableHttp     = config.contentServers.web.http.enabled || false;
+        this.enableHttps    = config.contentServers.web.https.enabled || false;
 
-		this.routes = {};
+        this.routes = {};
 
-		if(this.isEnabled() && Config.contentServers.web.staticRoot) {
-			this.addRoute({
-				method		: 'GET',
-				path		: '/static/.*$',
-				handler		: this.routeStaticFile.bind(this),
-			});
-		}
-	}
+        if(this.isEnabled() && config.contentServers.web.staticRoot) {
+            this.addRoute({
+                method      : 'GET',
+                path        : '/static/.*$',
+                handler     : this.routeStaticFile.bind(this),
+            });
+        }
+    }
 
-	buildUrl(pathAndQuery) {
-		//
-		//	Create a URL such as
-		//	https://l33t.codes:44512/ + |pathAndQuery|
-		//
-		//	Prefer HTTPS over HTTP. Be explicit about the port
-		//	only if non-standard. Allow users to override full prefix in config.
-		//
-		if(_.isString(Config.contentServers.web.overrideUrlPrefix)) {
-			return `${Config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
-		}
+    buildUrl(pathAndQuery) {
+        //
+        //  Create a URL such as
+        //  https://l33t.codes:44512/ + |pathAndQuery|
+        //
+        //  Prefer HTTPS over HTTP. Be explicit about the port
+        //  only if non-standard. Allow users to override full prefix in config.
+        //
+        const config = Config();
+        if(_.isString(config.contentServers.web.overrideUrlPrefix)) {
+            return `${config.contentServers.web.overrideUrlPrefix}${pathAndQuery}`;
+        }
 
-		let schema;
-		let port;
-		if(Config.contentServers.web.https.enabled) {
-			schema	= 'https://';
-			port	=  (443 === Config.contentServers.web.https.port) ?
-				'' :
-				`:${Config.contentServers.web.https.port}`;
-		} else {
-			schema	= 'http://';
-			port	= (80 === Config.contentServers.web.http.port) ?
-				'' :
-				`:${Config.contentServers.web.http.port}`;
-		}
-		
-		return `${schema}${Config.contentServers.web.domain}${port}${pathAndQuery}`;
-	}
+        let schema;
+        let port;
+        if(config.contentServers.web.https.enabled) {
+            schema  = 'https://';
+            port    =  (443 === config.contentServers.web.https.port) ?
+                '' :
+                `:${config.contentServers.web.https.port}`;
+        } else {
+            schema  = 'http://';
+            port    = (80 === config.contentServers.web.http.port) ?
+                '' :
+                `:${config.contentServers.web.http.port}`;
+        }
 
-	isEnabled() {
-		return this.enableHttp || this.enableHttps;
-	}
+        return `${schema}${config.contentServers.web.domain}${port}${pathAndQuery}`;
+    }
 
-	createServer() {
-		if(this.enableHttp) {
-			this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
-		}
+    isEnabled() {
+        return this.enableHttp || this.enableHttps;
+    }
 
-		if(this.enableHttps) {
-			const options = {
-				cert	: fs.readFileSync(Config.contentServers.web.https.certPem),
-				key		: fs.readFileSync(Config.contentServers.web.https.keyPem),
-			};
+    createServer(cb) {
+        if(this.enableHttp) {
+            this.httpServer = http.createServer( (req, resp) => this.routeRequest(req, resp) );
+        }
 
-			//	additional options
-			Object.assign(options, Config.contentServers.web.https.options || {} );
+        const config = Config();
+        if(this.enableHttps) {
+            const options = {
+                cert    : fs.readFileSync(config.contentServers.web.https.certPem),
+                key     : fs.readFileSync(config.contentServers.web.https.keyPem),
+            };
 
-			this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );			
-		}
-	}
+            //  additional options
+            Object.assign(options, config.contentServers.web.https.options || {} );
 
-	listen() {
-		let ok = true;
+            this.httpsServer = https.createServer(options, (req, resp) => this.routeRequest(req, resp) );
+        }
 
-		[ 'http', 'https' ].forEach(service => {
-			const name = `${service}Server`;
-			if(this[name]) {
-				const port = parseInt(Config.contentServers.web[service].port);
-				if(isNaN(port)) {
-					ok = false;
-					return Log.warn( { port : Config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
-				}
-				return this[name].listen(port);
-			} 
-		});
+        return cb(null);
+    }
 
-		return ok;
-	}
+    listen(cb) {
+        const config = Config();
+        forEachSeries([ 'http', 'https' ], (service, nextService) => {
+            const name = `${service}Server`;
+            if(this[name]) {
+                const port = parseInt(config.contentServers.web[service].port);
+                if(isNaN(port)) {
+                    Log.warn( { port : config.contentServers.web[service].port, server : ModuleInfo.name }, `Invalid port (${service})` );
+                    return nextService(Errors.Invalid(`Invalid port: ${config.contentServers.web[service].port}`));
+                }
 
-	addRoute(route) {
-		route = new Route(route);
+                this[name].listen(port, config.contentServers.web[service].address, err => {
+                    return nextService(err);
+                });
+            } else {
+                return nextService(null);
+            }
+        },
+        err => {
+            return cb(err);
+        });
+    }
 
-		if(!route.isValid()) {
-			Log.warn( { route : route }, 'Cannot add route: missing or invalid required members' );
-			return false;
-		}
+    addRoute(route) {
+        route = new Route(route);
 
-		const routeKey = route.getRouteKey();
-		if(routeKey in this.routes) {
-			Log.warn( { route : route }, 'Cannot add route: duplicate method/path combination exists' );
-			return false;
-		}
+        if(!route.isValid()) {
+            Log.warn( { route : route }, 'Cannot add route: missing or invalid required members' );
+            return false;
+        }
 
-		this.routes[routeKey] = route;
-		return true;
-	}
+        const routeKey = route.getRouteKey();
+        if(routeKey in this.routes) {
+            Log.warn( { route : route, routeKey : routeKey }, 'Cannot add route: duplicate method/path combination exists' );
+            return false;
+        }
 
-	routeRequest(req, resp) {
-		const route = _.find(this.routes, r => r.matchesRequest(req) );
-		return route ? route.handler(req, resp) : this.accessDenied(resp);
-	}
+        this.routes[routeKey] = route;
+        return true;
+    }
 
-	respondWithError(resp, code, bodyText, title) {
-		const customErrorPage = paths.join(Config.contentServers.web.staticRoot, `${code}.html`);
+    routeRequest(req, resp) {
+        const route = _.find(this.routes, r => r.matchesRequest(req) );
 
-		fs.readFile(customErrorPage, 'utf8', (err, data) => {
-			resp.writeHead(code, { 'Content-Type' : 'text/html' } );
+        if(!route && '/' === req.url) {
+            return this.routeIndex(req, resp);
+        }
 
-			if(err) {
-				return resp.end(`<!doctype html>
-					<html lang="en">
-						<head>
-						<meta charset="utf-8">
-						<title>${title}</title>
-						<meta name="viewport" content="width=device-width, initial-scale=1">
-						</head>
-						<body>
-							<article>
-								<h2>${bodyText}</h2>
-							</article>
-						</body>
-					</html>`
-				);
-			}
+        return route ? route.handler(req, resp) : this.accessDenied(resp);
+    }
 
-			return resp.end(data);
-		});
-	}
+    respondWithError(resp, code, bodyText, title) {
+        const customErrorPage = paths.join(Config().contentServers.web.staticRoot, `${code}.html`);
 
-	accessDenied(resp) {
-		return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
-	}
+        fs.readFile(customErrorPage, 'utf8', (err, data) => {
+            resp.writeHead(code, { 'Content-Type' : 'text/html' } );
 
-	fileNotFound(resp) {
-		return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
-	}
+            if(err) {
+                return resp.end(`<!doctype html>
+                    <html lang="en">
+                        <head>
+                        <meta charset="utf-8">
+                        <title>${title}</title>
+                        <meta name="viewport" content="width=device-width, initial-scale=1">
+                        </head>
+                        <body>
+                            <article>
+                                <h2>${bodyText}</h2>
+                            </article>
+                        </body>
+                    </html>`
+                );
+            }
 
-	routeStaticFile(req, resp) {
-		const fileName = req.url.substr(req.url.indexOf('/', 1));
-		const filePath = paths.join(Config.contentServers.web.staticRoot, fileName);
-		const self = this;
+            return resp.end(data);
+        });
+    }
 
-		fs.stat(filePath, (err, stats) => {
-			if(err) {
-				return self.fileNotFound(resp);
-			}
+    accessDenied(resp) {
+        return this.respondWithError(resp, 401, 'Access denied.', 'Access Denied');
+    }
 
-			const headers = {
-				'Content-Type'		: mimeTypes.contentType(filePath) || mimeTypes.contentType('.bin'),
-				'Content-Length'	: stats.size,
-			};
+    fileNotFound(resp) {
+        return this.respondWithError(resp, 404, 'File not found.', 'File Not Found');
+    }
 
-			const readStream = fs.createReadStream(filePath);
-			resp.writeHead(200, headers);
-			return readStream.pipe(resp);
-		});
-	}
+    routeIndex(req, resp) {
+        const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
 
-	routeTemplateFilePage(templatePath, preprocessCallback, resp) {
-		const self = this;
+        return this.returnStaticPage(filePath, resp);
+    }
 
-		fs.readFile(templatePath, 'utf8', (err, templateData) => {
-			if(err) {
-				return self.fileNotFound(resp);
-			}
+    routeStaticFile(req, resp) {
+        const fileName = req.url.substr(req.url.indexOf('/', 1));
+        const filePath = paths.join(Config().contentServers.web.staticRoot, fileName);
 
-			preprocessCallback(templateData, (err, finalPage, contentType) => {
-				if(err || !finalPage) {
-					return self.respondWithError(resp, 500, 'Internal Server Error.', 'Internal Server Error');
-				}
+        return this.returnStaticPage(filePath, resp);
+    }
 
-				const headers = {
-					'Content-Type'		: contentType || mimeTypes.contentType('.html'),
-					'Content-Length'	: finalPage.length,
-				};
+    returnStaticPage(filePath, resp) {
+        const self = this;
 
-				resp.writeHead(200, headers);
-				return resp.end(finalPage);
-			});
-		});		
-	}
+        fs.stat(filePath, (err, stats) => {
+            if(err || !stats.isFile()) {
+                return self.fileNotFound(resp);
+            }
+
+            const headers = {
+                'Content-Type'      : mimeTypes.contentType(paths.basename(filePath)) || mimeTypes.contentType('.bin'),
+                'Content-Length'    : stats.size,
+            };
+
+            const readStream = fs.createReadStream(filePath);
+            resp.writeHead(200, headers);
+            return readStream.pipe(resp);
+        });
+    }
+
+    routeTemplateFilePage(templatePath, preprocessCallback, resp) {
+        const self = this;
+
+        fs.readFile(templatePath, 'utf8', (err, templateData) => {
+            if(err) {
+                return self.fileNotFound(resp);
+            }
+
+            preprocessCallback(templateData, (err, finalPage, contentType) => {
+                if(err || !finalPage) {
+                    return self.respondWithError(resp, 500, 'Internal Server Error.', 'Internal Server Error');
+                }
+
+                const headers = {
+                    'Content-Type'      : contentType || mimeTypes.contentType('.html'),
+                    'Content-Length'    : finalPage.length,
+                };
+
+                resp.writeHead(200, headers);
+                return resp.end(finalPage);
+            });
+        });
+    }
 };

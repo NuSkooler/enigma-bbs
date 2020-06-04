@@ -2,7 +2,13 @@
 *.pem
 
 #	Various directories
-logs/
+config/
 db/
-dropfiles/
+drop/
+file_base/
+logs/
+mail/
 node_modules/
+docs/_site/
+docs/.sass-cache/
+.vscode/

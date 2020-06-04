@@ -1,598 +1,846 @@
 /* jslint node: true */
 'use strict';
 
-const userDb		= require('./database.js').dbs.user;
-const Config		= require('./config.js').config;
-const userGroup		= require('./user_group.js');
-const Errors		= require('./enig_error.js').Errors;
+//  ENiGMA½
+const userDb        = require('./database.js').dbs.user;
+const Config        = require('./config.js').get;
+const userGroup     = require('./user_group.js');
+const {
+    Errors,
+    ErrorReasons
+}                   = require('./enig_error.js');
+const Events        = require('./events.js');
+const UserProps     = require('./user_property.js');
+const Log           = require('./logger.js').log;
+const StatLog       = require('./stat_log.js');
 
-//	deps
-const crypto		= require('crypto');
-const assert		= require('assert');
-const async			= require('async');
-const _				= require('lodash');
-const moment		= require('moment');
+//  deps
+const crypto            = require('crypto');
+const assert            = require('assert');
+const async             = require('async');
+const _                 = require('lodash');
+const moment            = require('moment');
+const sanatizeFilename  = require('sanitize-filename');
+const ssh2              = require('ssh2');
 
 exports.isRootUserId = function(id) { return 1 === id; };
 
 module.exports = class User {
-	constructor() {
-		this.userId		= 0;
-		this.username	= '';
-		this.properties	= {};	//	name:value
-		this.groups		= [];	//	group membership(s)
-	}
+    constructor() {
+        this.userId         = 0;
+        this.username       = '';
+        this.properties     = {};   //  name:value
+        this.groups         = [];   //  group membership(s)
+        this.authFactor     = User.AuthFactors.None;
+    }
 
-	//	static property accessors
-	static get RootUserID() {
-		return 1;
-	}
+    //  static property accessors
+    static get RootUserID() {
+        return 1;
+    }
 
-	static get PBKDF2() {
-		return {
-			iterations	: 1000,
-			keyLen		: 128,
-			saltLen		: 32,
-		};
-	}
+    static get AuthFactors() {
+        return {
+            None    : 0,    //  Not yet authenticated in any way
+            Factor1 : 1,    //  username + password/pubkey/etc. checked out
+            Factor2 : 2,    //  validated with 2FA of some sort such as OTP
+        };
+    }
 
-	static get StandardPropertyGroups() {
-		return {
-			password	: [ 'pw_pbkdf2_salt', 'pw_pbkdf2_dk' ],
-		};
-	}
+    static get PBKDF2() {
+        return {
+            iterations  : 1000,
+            keyLen      : 128,
+            saltLen     : 32,
+        };
+    }
 
-	static get AccountStatus() {
-		return {
-			disabled	: 0,
-			inactive	: 1,
-			active		: 2,
-		};
-	}
-	
-	isAuthenticated() {
-		return true === this.authenticated;
-	}
+    static get StandardPropertyGroups() {
+        return {
+            auth : [
+                UserProps.PassPbkdf2Salt, UserProps.PassPbkdf2Dk,
+                UserProps.AuthPubKey,
+            ],
+        };
+    }
 
-	isValid() {
-		if(this.userId <= 0 || this.username.length < Config.users.usernameMin) {
-			return false;
-		}
+    static get AccountStatus() {
+        return {
+            disabled    : 0,    //  +op disabled
+            inactive    : 1,    //  inactive, aka requires +op approval/activation
+            active      : 2,    //  standard, active
+            locked      : 3,    //  locked out (too many bad login attempts, etc.)
+        };
+    }
 
-		return this.hasValidPassword();
-	}
+    isAuthenticated() {
+        return true === this.authenticated;
+    }
 
-	hasValidPassword() {
-		if(!this.properties || !this.properties.pw_pbkdf2_salt || !this.properties.pw_pbkdf2_dk) {
-			return false;
-		}
+    isValid() {
+        if(this.userId <= 0 || this.username.length < Config().users.usernameMin) {
+            return false;
+        }
 
-		return this.properties.pw_pbkdf2_salt.length === User.PBKDF2.saltLen * 2 && this.prop_name.pw_pbkdf2_dk.length === User.PBKDF2.keyLen * 2;
-	}
+        return this.hasValidPasswordProperties();
+    }
 
-	isRoot() {
-		return User.isRootUserId(this.userId);
-	}
+    hasValidPasswordProperties() {
+        const salt  = this.getProperty(UserProps.PassPbkdf2Salt);
+        const dk    = this.getProperty(UserProps.PassPbkdf2Dk);
 
-	isSysOp() {	//	alias to isRoot()
-		return this.isRoot();
-	}
+        if(!salt || !dk ||
+            (salt.length !== User.PBKDF2.saltLen * 2) ||
+            (dk.length !== User.PBKDF2.keyLen * 2))
+        {
+            return false;
+        }
 
-	isGroupMember(groupNames) {
-		if(_.isString(groupNames)) {
-			groupNames = [ groupNames ];
-		}
+        return true;
+    }
 
-		const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn))); 
-		return isMember;
-	}
+    isRoot() {
+        return User.isRootUserId(this.userId);
+    }
 
-	getLegacySecurityLevel() {
-		if(this.isRoot() || this.isGroupMember('sysops')) {
-			return 100;
-		}
-		
-		if(this.isGroupMember('users')) {
-			return 30;
-		}
-		
-		return 10;	//	:TODO: Is this what we want?
-	}
+    isSysOp() { //  alias to isRoot()
+        return this.isRoot();
+    }
 
-	authenticate(username, password, cb) {
-		const self = this;
-		const cachedInfo = {};
+    isGroupMember(groupNames) {
+        if(_.isString(groupNames)) {
+            groupNames = [ groupNames ];
+        }
 
-		async.waterfall(
-			[
-				function fetchUserId(callback) {
-					//	get user ID
-					User.getUserIdAndName(username, (err, uid, un) => {
-						cachedInfo.userId	= uid;
-						cachedInfo.username	= un;
+        const isMember = groupNames.some(gn => (-1 !== this.groups.indexOf(gn)));
+        return isMember;
+    }
 
-						return callback(err);
-					});
-				},
-				function getRequiredAuthProperties(callback) {
-					//	fetch properties required for authentication
-					User.loadProperties(cachedInfo.userId, { names : User.StandardPropertyGroups.password }, (err, props) => {
-						return callback(err, props);
-					});
-				},
-				function getDkWithSalt(props, callback) {
-					//	get DK from stored salt and password provided
-					User.generatePasswordDerivedKey(password, props.pw_pbkdf2_salt, (err, dk) => {
-						return callback(err, dk, props.pw_pbkdf2_dk);
-					});
-				},
-				function validateAuth(passDk, propsDk, callback) {
-					//
-					//	Use constant time comparison here for security feel-goods
-					//
-					const passDkBuf		= new Buffer(passDk,	'hex');
-					const propsDkBuf	= new Buffer(propsDk,	'hex');
+    getSanitizedName(type='username') {
+        const name = 'real' === type ? this.getProperty(UserProps.RealName) : this.username;
+        return sanatizeFilename(name) || `user${this.userId.toString()}`;
+    }
 
-					if(passDkBuf.length !== propsDkBuf.length) {
-						return callback(Errors.AccessDenied('Invalid password'));
-					}
+    getLegacySecurityLevel() {
+        if(this.isRoot() || this.isGroupMember('sysops')) {
+            return 100;
+        }
 
-					let c = 0;
-					for(let i = 0; i < passDkBuf.length; i++) {
-						c |= passDkBuf[i] ^ propsDkBuf[i];
-					}
+        if(this.isGroupMember('users')) {
+            return 30;
+        }
 
-					return callback(0 === c ? null : Errors.AccessDenied('Invalid password'));
-				},
-				function initProps(callback) {
-					User.loadProperties(cachedInfo.userId, (err, allProps) => {
-						if(!err) {
-							cachedInfo.properties = allProps;
-						}
+        return 10;  //  :TODO: Is this what we want?
+    }
 
-						return callback(err);
-					});
-				},
-				function initGroups(callback) {
-					userGroup.getGroupsForUser(cachedInfo.userId, (err, groups) => {
-						if(!err) {
-							cachedInfo.groups = groups;
-						}
+    processFailedLogin(userId, cb) {
+        async.waterfall(
+            [
+                (callback) => {
+                    return User.getUser(userId, callback);
+                },
+                (tempUser, callback) => {
+                    return StatLog.incrementUserStat(
+                        tempUser,
+                        UserProps.FailedLoginAttempts,
+                        1,
+                        (err, failedAttempts) => {
+                            return callback(null, tempUser, failedAttempts);
+                        }
+                    );
+                },
+                (tempUser, failedAttempts, callback) => {
+                    const lockAccount = _.get(Config(), 'users.failedLogin.lockAccount');
+                    if(lockAccount > 0 && failedAttempts >= lockAccount) {
+                        const props = {
+                            [ UserProps.AccountStatus ]     : User.AccountStatus.locked,
+                            [ UserProps.AccountLockedTs ]   : StatLog.now,
+                        };
+                        if(!_.has(tempUser.properties, UserProps.AccountLockedPrevStatus)) {
+                            props[UserProps.AccountLockedPrevStatus] = tempUser.getProperty(UserProps.AccountStatus);
+                        }
+                        Log.info( { userId, failedAttempts }, '(Re)setting account to locked due to failed logins');
+                        return tempUser.persistProperties(props, callback);
+                    }
 
-						return callback(err);
-					});
-				}
-			],
-			err => {
-				if(!err) {
-					self.userId			= cachedInfo.userId;
-					self.username		= cachedInfo.username;
-					self.properties		= cachedInfo.properties;
-					self.groups			= cachedInfo.groups;
-					self.authenticated	= true;
-				}
+                    return cb(null);
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
 
-				return cb(err);
-			}
-		);
-	}
+    unlockAccount(cb) {
+        const prevStatus = this.getProperty(UserProps.AccountLockedPrevStatus);
+        if(!prevStatus) {
+            return cb(null);    //  nothing to do
+        }
 
-	create(password, cb) {
-		assert(0 === this.userId);
+        this.persistProperty(UserProps.AccountStatus, prevStatus, err => {
+            if(err) {
+                return cb(err);
+            }
 
-		if(this.username.length < Config.users.usernameMin || this.username.length > Config.users.usernameMax) {
-			return cb(Errors.Invalid('Invalid username length'));
-		}
+            return this.removeProperties( [ UserProps.AccountLockedPrevStatus, UserProps.AccountLockedTs ], cb);
+        });
+    }
 
-		const self = this;
+    static get AuthFactor1Types() {
+        return {
+            SSHPubKey   : 'sshPubKey',
+            Password    : 'password',
+            TLSClient   : 'tlsClientAuth',
+        };
+    }
 
-		//	:TODO: set various defaults, e.g. default activation status, etc.
-		self.properties.account_status = Config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
+    authenticateFactor1(authInfo, cb) {
+        const username = authInfo.username;
+        const self = this;
+        const tempAuthInfo = {};
 
-		async.series(
-			[
-				function beginTransaction(callback) {
-					userDb.run('BEGIN;', err => {
-						return callback(err);
-					});
-				},
-				function createUserRec(callback) {
-					userDb.run(
-						`INSERT INTO user (user_name)
-						VALUES (?);`,
-						[ self.username ],
-						function inserted(err) {	//	use classic function for |this|
-							if(err) {
-								return callback(err);
-							}
-							
-							self.userId = this.lastID;
+        const validatePassword = (props, callback) => {
+            User.generatePasswordDerivedKey(authInfo.password, props[UserProps.PassPbkdf2Salt], (err, dk) => {
+                if(err) {
+                    return callback(err);
+                }
 
-							//	Do not require activation for userId 1 (root/admin)
-							if(User.RootUserID === self.userId) {
-								self.properties.account_status = User.AccountStatus.active;
-							}
-							
-							return callback(null);
-						}
-					);
-				},
-				function genAuthCredentials(callback) {
-					User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
-						if(err) {
-							return callback(err);
-						}
-						
-						self.properties.pw_pbkdf2_salt	= info.salt;
-						self.properties.pw_pbkdf2_dk	= info.dk;
-						return callback(null);
-					});
-				},
-				function setInitialGroupMembership(callback) {
-					self.groups = Config.users.defaultGroups;
+                //
+                //  Use constant time comparison here for security feel-goods
+                //
+                const passDkBuf     = Buffer.from(dk, 'hex');
+                const propsDkBuf    = Buffer.from(props[UserProps.PassPbkdf2Dk], 'hex');
 
-					if(User.RootUserID === self.userId) {	//	root/SysOp?
-						self.groups.push('sysops');
-					}
+                return callback(crypto.timingSafeEqual(passDkBuf, propsDkBuf) ?
+                    null :
+                    Errors.AccessDenied('Invalid password')
+                );
+            });
+        };
 
-					return callback(null);
-				},
-				function saveAll(callback) {
-					self.persist(false, err => {
-						return callback(err);
-					});
-				}
-			],
-			err => {
-				if(err) {
-					const originalError = err;
-					userDb.run('ROLLBACK;', err => {
-						assert(!err);
-						return cb(originalError);
-					});
-				} else {
-					userDb.run('COMMIT;', err => {
-						return cb(err);
-					});
-				}
-			}
-		);
-	}
+        const validatePubKey = (props, callback) => {
+            const pubKeyActual = ssh2.utils.parseKey(props[UserProps.AuthPubKey]);
+            if(!pubKeyActual) {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
 
-	persist(useTransaction, cb) {
-		assert(this.userId > 0);
+            if(authInfo.pubKey.key.algo != pubKeyActual.type ||
+                !crypto.timingSafeEqual(authInfo.pubKey.key.data, pubKeyActual.getPublicSSH()))
+            {
+                return callback(Errors.AccessDenied('Invalid public key'));
+            }
 
-		const self = this;
+            return callback(null);
+        };
 
-		async.series(
-			[
-				function beginTransaction(callback) {
-					if(useTransaction) {
-						userDb.run('BEGIN;', err => {
-							return callback(err);
-						});
-					} else {
-						return callback(null);
-					}
-				},
-				function saveProps(callback) {
-					self.persistProperties(self.properties, err => {
-						return callback(err);
-					});
-				},
-				function saveGroups(callback) {
-					userGroup.addUserToGroups(self.userId, self.groups, err => {
-						return callback(err);
-					});
-				}
-			],
-			err => {
-				if(err) {
-					if(useTransaction) {
-						userDb.run('ROLLBACK;', err => {
-							return cb(err);
-						});
-					} else {
-						return cb(err);
-					}
-				} else {
-					if(useTransaction) {
-						userDb.run('COMMIT;', err => {
-							return cb(err);
-						});
-					} else {
-						return cb(null);
-					}
-				}
-			}
-		);
-	}
+        async.waterfall(
+            [
+                function fetchUserId(callback) {
+                    //  get user ID
+                    User.getUserIdAndName(username, (err, uid, un) => {
+                        tempAuthInfo.userId   = uid;
+                        tempAuthInfo.username = un;
 
-	persistProperty(propName, propValue, cb) {
-		//	update live props
-		this.properties[propName] = propValue;
+                        return callback(err);
+                    });
+                },
+                function getRequiredAuthProperties(callback) {
+                    //  fetch properties required for authentication
+                    User.loadProperties(tempAuthInfo.userId, { names : User.StandardPropertyGroups.auth }, (err, props) => {
+                        return callback(err, props);
+                    });
+                },
+                function validatePassOrPubKey(props, callback) {
+                    if(User.AuthFactor1Types.SSHPubKey === authInfo.type) {
+                        return validatePubKey(props, callback);
+                    }
+                    return validatePassword(props, callback);
+                },
+                function initProps(callback) {
+                    User.loadProperties(tempAuthInfo.userId, (err, allProps) => {
+                        if(!err) {
+                            tempAuthInfo.properties = allProps;
+                        }
 
-		userDb.run(
-			`REPLACE INTO user_property (user_id, prop_name, prop_value)
-			VALUES (?, ?, ?);`, 
-			[ this.userId, propName, propValue ], 
-			err => {
-				if(cb) {
-					return cb(err);
-				}
-			}
-		);
-	}
+                        return callback(err);
+                    });
+                },
+                function checkAccountStatus(callback) {
+                    const accountStatus = parseInt(tempAuthInfo.properties[UserProps.AccountStatus], 10);
+                    if(User.AccountStatus.disabled === accountStatus) {
+                        return callback(Errors.AccessDenied('Account disabled', ErrorReasons.Disabled));
+                    }
+                    if(User.AccountStatus.inactive === accountStatus) {
+                        return callback(Errors.AccessDenied('Account inactive', ErrorReasons.Inactive));
+                    }
 
-	removeProperty(propName, cb) {
-		//	update live
-		delete this.properties[propName];
+                    if(User.AccountStatus.locked === accountStatus) {
+                        const autoUnlockMinutes = _.get(Config(), 'users.failedLogin.autoUnlockMinutes');
+                        const lockedTs          = moment(tempAuthInfo.properties[UserProps.AccountLockedTs]);
+                        if(autoUnlockMinutes && lockedTs.isValid()) {
+                            const minutesSinceLocked = moment().diff(lockedTs, 'minutes');
+                            if(minutesSinceLocked >= autoUnlockMinutes) {
+                                //  allow the login - we will clear any lock there
+                                Log.info(
+                                    { username, userId : tempAuthInfo.userId, lockedAt : lockedTs.format() },
+                                    'Locked account will now be unlocked due to auto-unlock minutes policy'
+                                );
+                                return callback(null);
+                            }
+                        }
+                        return callback(Errors.AccessDenied('Account is locked', ErrorReasons.Locked));
+                    }
 
-		userDb.run(
-			`DELETE FROM user_property
-			WHERE user_id = ? AND prop_name = ?;`,
-			[ this.userId, propName ],
-			err => {
-				if(cb) {
-					return cb(err);
-				}
-			}
-		);
-	}
+                    //  anything else besides active is still not allowed
+                    if(User.AccountStatus.active !== accountStatus) {
+                        return callback(Errors.AccessDenied('Account is not active'));
+                    }
 
-	persistProperties(properties, cb) {
-		const self = this;
+                    return callback(null);
+                },
+                function initGroups(callback) {
+                    userGroup.getGroupsForUser(tempAuthInfo.userId, (err, groups) => {
+                        if(!err) {
+                            tempAuthInfo.groups = groups;
+                        }
 
-		//	update live props
-		_.merge(this.properties, properties);
+                        return callback(err);
+                    });
+                }
+            ],
+            err => {
+                if(err) {
+                    //
+                    //  If we failed login due to something besides an inactive or disabled account,
+                    //  we need to update failure status and possibly lock the account.
+                    //
+                    //  If locked already, update the lock timestamp -- ie, extend the lockout period.
+                    //
+                    if(![ErrorReasons.Disabled, ErrorReasons.Inactive].includes(err.reasonCode) && tempAuthInfo.userId) {
+                        self.processFailedLogin(tempAuthInfo.userId, persistErr => {
+                            if(persistErr) {
+                                Log.warn( { error : persistErr.message }, 'Failed to persist failed login information');
+                            }
+                            return cb(err); //  pass along original error
+                        });
+                    } else {
+                        return cb(err);
+                    }
+                } else {
+                    //  everything checks out - load up info
+                    self.userId         = tempAuthInfo.userId;
+                    self.username       = tempAuthInfo.username;
+                    self.properties     = tempAuthInfo.properties;
+                    self.groups         = tempAuthInfo.groups;
+                    self.authFactor      = User.AuthFactors.Factor1;
 
-		const stmt = userDb.prepare(
-			`REPLACE INTO user_property (user_id, prop_name, prop_value)
-			VALUES (?, ?, ?);`
-		);
+                    //
+                    //  If 2FA/OTP is required, this user is not quite authenticated yet.
+                    //
+                    self.authenticated = !(self.getProperty(UserProps.AuthFactor2OTP) ? true : false);
 
-		async.each(Object.keys(properties), (propName, nextProp) => {
-			stmt.run(self.userId, propName, properties[propName], err => {
-				return nextProp(err);
-			});
-		},
-		err => {
-			if(err) {
-				return cb(err);
-			}
-			
-			stmt.finalize( () => {
-				return cb(null);
-			});
-		});
-	}
+                    self.removeProperty(UserProps.FailedLoginAttempts);
 
-	setNewAuthCredentials(password, cb) {
-		User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
-			if(err) {
-				return cb(err);
-			}
-			
-			const newProperties = {
-				pw_pbkdf2_salt	: info.salt,
-				pw_pbkdf2_dk	: info.dk,
-			};
+                    //
+                    //  We need to *revert* any locked status back to
+                    //  the user's previous status & clean up props.
+                    //
+                    self.unlockAccount(unlockErr => {
+                        if(unlockErr) {
+                            Log.warn( { error : unlockErr.message }, 'Failed to unlock account');
+                        }
+                        return cb(null);
+                    });
+                }
+            }
+        );
+    }
 
-			this.persistProperties(newProperties, err => {
-				return cb(err);
-			});
-		});
-	}
+    create(createUserInfo , cb) {
+        assert(0 === this.userId);
+        const config = Config();
 
-	getAge() {
-		if(_.has(this.properties, 'birthdate')) {
-			return moment().diff(this.properties.birthdate, 'years');
-		}
-	}
+        if(this.username.length < config.users.usernameMin || this.username.length > config.users.usernameMax) {
+            return cb(Errors.Invalid('Invalid username length'));
+        }
 
-	static getUser(userId, cb) {
-		async.waterfall(
-			[
-				function fetchUserId(callback) {
-					User.getUserName(userId, (err, userName) => {
-						return callback(null, userName);
-					});
-				},
-				function initProps(userName, callback) {
-					User.loadProperties(userId, (err, properties) => {
-						return callback(err, userName, properties);
-					});
-				},
-				function initGroups(userName, properties, callback) {
-					userGroup.getGroupsForUser(userId, (err, groups) => {
-						return callback(null, userName, properties, groups);
-					});
-				}
-			],
-			(err, userName, properties, groups) => {
-				const user = new User();
-				user.userId			= userId;
-				user.username		= userName;
-				user.properties		= properties;
-				user.groups			= groups;
-				user.authenticated	= false;	//	this is NOT an authenticated user!
+        const self = this;
 
-				return cb(err, user);
-			}
-		);
-	}
-	
-	static isRootUserId(userId) {
-		return (User.RootUserID === userId);
-	}
+        //  :TODO: set various defaults, e.g. default activation status, etc.
+        self.properties[UserProps.AccountStatus] = config.users.requireActivation ? User.AccountStatus.inactive : User.AccountStatus.active;
 
-	static getUserIdAndName(username, cb) {
-		userDb.get(
-			`SELECT id, user_name
-			FROM user
-			WHERE user_name LIKE ?;`,
-			[ username ],
-			(err, row) => {
-				if(err) {
-					return cb(err);
-				}
+        async.waterfall(
+            [
+                function beginTransaction(callback) {
+                    return userDb.beginTransaction(callback);
+                },
+                function createUserRec(trans, callback) {
+                    trans.run(
+                        `INSERT INTO user (user_name)
+                        VALUES (?);`,
+                        [ self.username ],
+                        function inserted(err) {    //  use classic function for |this|
+                            if(err) {
+                                return callback(err);
+                            }
 
-				if(row) {
-					return cb(null, row.id, row.user_name);
-				}
-				
-				return cb(Errors.DoesNotExist('No matching username'));
-			}
-		);
-	}
+                            self.userId = this.lastID;
 
-	static getUserName(userId, cb) {
-		userDb.get(
-			`SELECT user_name
-			FROM user
-			WHERE id = ?;`,
-			[ userId ],
-			(err, row) => {
-				if(err) {
-					return cb(err);
-				}
-				
-				if(row) {
-					return cb(null, row.user_name);
-				}
-				
-				return cb(Errors.DoesNotExist('No matching user ID'));
-			}
-		);
-	}
+                            //  Do not require activation for userId 1 (root/admin)
+                            if(User.RootUserID === self.userId) {
+                                self.properties[UserProps.AccountStatus] = User.AccountStatus.active;
+                            }
 
-	static loadProperties(userId, options, cb) {
-		if(!cb && _.isFunction(options)) {
-			cb = options;
-			options = {};
-		}
+                            return callback(null, trans);
+                        }
+                    );
+                },
+                function genAuthCredentials(trans, callback) {
+                    User.generatePasswordDerivedKeyAndSalt(createUserInfo.password, (err, info) => {
+                        if(err) {
+                            return callback(err);
+                        }
 
-		let sql =
-			`SELECT prop_name, prop_value
-			FROM user_property
-			WHERE user_id = ?`;
+                        self.properties[UserProps.PassPbkdf2Salt]   = info.salt;
+                        self.properties[UserProps.PassPbkdf2Dk]     = info.dk;
+                        return callback(null, trans);
+                    });
+                },
+                function setInitialGroupMembership(trans, callback) {
+                    //  Assign initial groups. Must perform a clone: #235 - All users are sysops (and I can't un-sysop them)
+                    self.groups = [...config.users.defaultGroups];
 
-		if(options.names) {
-			sql += ` AND prop_name IN("${options.names.join('","')}");`;
-		} else {
-			sql += ';';
-		}
+                    if(User.RootUserID === self.userId) {   //  root/SysOp?
+                        self.groups.push('sysops');
+                    }
 
-		let properties = {};
-		userDb.each(sql, [ userId ], (err, row) => {
-			if(err) {
-				return cb(err);
-			}
-			properties[row.prop_name] = row.prop_value;			
-		}, (err) => {
-			return cb(err, err ? null : properties);
-		});
-	}
+                    return callback(null, trans);
+                },
+                function saveAll(trans, callback) {
+                    self.persistWithTransaction(trans, err => {
+                        return callback(err, trans);
+                    });
+                },
+                function sendEvent(trans, callback) {
+                    Events.emit(
+                        Events.getSystemEvents().NewUser,
+                        {
+                            user : Object.assign({}, self, { sessionId : createUserInfo.sessionId } )
+                        }
+                    );
+                    return callback(null, trans);
+                }
+            ],
+            (err, trans) => {
+                if(trans) {
+                    trans[err ? 'rollback' : 'commit'](transErr => {
+                        return cb(err ? err : transErr);
+                    });
+                } else {
+                    return cb(err);
+                }
+            }
+        );
+    }
 
-	//	:TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
-	static getUserIdsWithProperty(propName, propValue, cb) {
-		let userIds = [];
+    persistWithTransaction(trans, cb) {
+        assert(this.userId > 0);
 
-		userDb.each(
-			`SELECT user_id
-			FROM user_property
-			WHERE prop_name = ? AND prop_value = ?;`,
-			[ propName, propValue ], 
-			(err, row) => {
-				if(row) {
-					userIds.push(row.user_id);
-				}
-			}, 
-			() => {
-				return cb(null, userIds);
-			}
-		);
-	}
+        const self = this;
 
-	static getUserList(options, cb) {
-		let userList = [];
-		let orderClause = 'ORDER BY ' + (options.order || 'user_name');
+        async.series(
+            [
+                function saveProps(callback) {
+                    self.persistProperties(self.properties, trans, err => {
+                        return callback(err);
+                    });
+                },
+                function saveGroups(callback) {
+                    userGroup.addUserToGroups(self.userId, self.groups, trans, err => {
+                        return callback(err);
+                    });
+                }
+            ],
+            err => {
+                return cb(err);
+            }
+        );
+    }
 
-		userDb.each(
-			`SELECT id, user_name
-			FROM user
-			${orderClause};`,
-			(err, row) => {
-				if(row) {
-					userList.push({
-						userId		: row.id,
-						userName	: row.user_name,
-					});
-				}
-			},
-			() => {
-				options.properties = options.properties || [];
-				async.map(userList, (user, nextUser) => {
-					userDb.each(
-						`SELECT prop_name, prop_value
-						FROM user_property
-						WHERE user_id = ? AND prop_name IN ("${options.properties.join('","')}");`,
-						[ user.userId ],
-						(err, row) => {
-							if(row) {
-								user[row.prop_name] = row.prop_value;
-							}
-						},
-						err => {
-							return nextUser(err, user);
-						}
-					);
-				}, 
-				(err, transformed) => {
-					return cb(err, transformed);
-				});
-			}
-		);
-	}
+    static persistPropertyByUserId(userId, propName, propValue, cb) {
+        userDb.run(
+            `REPLACE INTO user_property (user_id, prop_name, prop_value)
+            VALUES (?, ?, ?);`,
+            [ userId, propName, propValue ],
+            err => {
+                if(cb) {
+                    return cb(err, propValue);
+                }
+            }
+        );
+    }
 
-	static generatePasswordDerivedKeyAndSalt(password, cb) {
-		async.waterfall(
-			[
-				function getSalt(callback) {
-					User.generatePasswordDerivedKeySalt( (err, salt) => {
-						return callback(err, salt);
-					});
-				},
-				function getDk(salt, callback) {
-					User.generatePasswordDerivedKey(password, salt, (err, dk) => {
-						return callback(err, salt, dk);
-					});
-				}
-			],
-			(err, salt, dk) => {
-				return cb(err, { salt : salt, dk : dk } );
-			}
-		);
-	}
+    setProperty(propName, propValue) {
+        this.properties[propName] = propValue;
+    }
 
-	static generatePasswordDerivedKeySalt(cb) {
-		crypto.randomBytes(User.PBKDF2.saltLen, (err, salt) => {
-			if(err) {
-				return cb(err);
-			}
-			return cb(null, salt.toString('hex'));
-		});
-	}
+    incrementProperty(propName, incrementBy) {
+        incrementBy = incrementBy || 1;
+        let newValue = parseInt(this.getProperty(propName));
+        if(newValue) {
+            newValue += incrementBy;
+        } else {
+            newValue = incrementBy;
+        }
+        this.setProperty(propName, newValue);
+        return newValue;
+    }
 
-	static generatePasswordDerivedKey(password, salt, cb) {	
-		password = new Buffer(password).toString('hex');
+    getProperty(propName) {
+        return this.properties[propName];
+    }
 
-		crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', (err, dk) => {
-			if(err) {
-				return cb(err);
-			}
-			
-			return cb(null, dk.toString('hex'));
-		});
-	}
+    getPropertyAsNumber(propName) {
+        return parseInt(this.getProperty(propName), 10);
+    }
+
+    persistProperty(propName, propValue, cb) {
+        //  update live props
+        this.properties[propName] = propValue;
+
+        return User.persistPropertyByUserId(this.userId, propName, propValue, cb);
+    }
+
+    removeProperty(propName, cb) {
+        //  update live
+        delete this.properties[propName];
+
+        userDb.run(
+            `DELETE FROM user_property
+            WHERE user_id = ? AND prop_name = ?;`,
+            [ this.userId, propName ],
+            err => {
+                if(cb) {
+                    return cb(err);
+                }
+            }
+        );
+    }
+
+    removeProperties(propNames, cb) {
+        async.each(propNames, (name, next) => {
+            return this.removeProperty(name, next);
+        },
+        err => {
+            if(cb) {
+                return cb(err);
+            }
+        });
+    }
+
+    persistProperties(properties, transOrDb, cb) {
+        if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
+            cb = transOrDb;
+            transOrDb = userDb;
+        }
+
+        const self = this;
+
+        //  update live props
+        _.merge(this.properties, properties);
+
+        const stmt = transOrDb.prepare(
+            `REPLACE INTO user_property (user_id, prop_name, prop_value)
+            VALUES (?, ?, ?);`
+        );
+
+        async.each(Object.keys(properties), (propName, nextProp) => {
+            stmt.run(self.userId, propName, properties[propName], err => {
+                return nextProp(err);
+            });
+        },
+        err => {
+            if(err) {
+                return cb(err);
+            }
+
+            stmt.finalize( () => {
+                return cb(null);
+            });
+        });
+    }
+
+    setNewAuthCredentials(password, cb) {
+        User.generatePasswordDerivedKeyAndSalt(password, (err, info) => {
+            if(err) {
+                return cb(err);
+            }
+
+            const newProperties = {
+                [ UserProps.PassPbkdf2Salt ]    : info.salt,
+                [ UserProps.PassPbkdf2Dk ]      : info.dk,
+            };
+
+            this.persistProperties(newProperties, err => {
+                return cb(err);
+            });
+        });
+    }
+
+    getAge() {
+        const birthdate = this.getProperty(UserProps.Birthdate);
+        if(birthdate) {
+            return moment().diff(birthdate, 'years');
+        }
+    }
+
+    static getUser(userId, cb) {
+        async.waterfall(
+            [
+                function fetchUserId(callback) {
+                    User.getUserName(userId, (err, userName) => {
+                        return callback(null, userName);
+                    });
+                },
+                function initProps(userName, callback) {
+                    User.loadProperties(userId, (err, properties) => {
+                        return callback(err, userName, properties);
+                    });
+                },
+                function initGroups(userName, properties, callback) {
+                    userGroup.getGroupsForUser(userId, (err, groups) => {
+                        return callback(null, userName, properties, groups);
+                    });
+                }
+            ],
+            (err, userName, properties, groups) => {
+                const user = new User();
+                user.userId         = userId;
+                user.username       = userName;
+                user.properties     = properties;
+                user.groups         = groups;
+
+                //  explicitly NOT an authenticated user!
+                user.authenticated  = false;
+                user.authFactor     = User.AuthFactors.None;
+
+                return cb(err, user);
+            }
+        );
+    }
+
+    static isRootUserId(userId) {
+        return (User.RootUserID === userId);
+    }
+
+    static getUserIdAndName(username, cb) {
+        userDb.get(
+            `SELECT id, user_name
+            FROM user
+            WHERE user_name LIKE ?;`,
+            [ username ],
+            (err, row) => {
+                if(err) {
+                    return cb(err);
+                }
+
+                if(row) {
+                    return cb(null, row.id, row.user_name);
+                }
+
+                return cb(Errors.DoesNotExist('No matching username'));
+            }
+        );
+    }
+
+    static getUserIdAndNameByRealName(realName, cb) {
+        userDb.get(
+            `SELECT id, user_name
+            FROM user
+            WHERE id = (
+                SELECT user_id
+                FROM user_property
+                WHERE prop_name='${UserProps.RealName}' AND prop_value LIKE ?
+            );`,
+            [ realName ],
+            (err, row) => {
+                if(err) {
+                    return cb(err);
+                }
+
+                if(row) {
+                    return cb(null, row.id, row.user_name);
+                }
+
+                return cb(Errors.DoesNotExist('No matching real name'));
+            }
+        );
+    }
+
+    static getUserIdAndNameByLookup(lookup, cb) {
+        User.getUserIdAndName(lookup, (err, userId, userName) => {
+            if(err) {
+                User.getUserIdAndNameByRealName(lookup, (err, userId, userName) => {
+                    return cb(err, userId, userName);
+                });
+            } else {
+                return cb(null, userId, userName);
+            }
+        });
+    }
+
+    static getUserName(userId, cb) {
+        userDb.get(
+            `SELECT user_name
+            FROM user
+            WHERE id = ?;`,
+            [ userId ],
+            (err, row) => {
+                if(err) {
+                    return cb(err);
+                }
+
+                if(row) {
+                    return cb(null, row.user_name);
+                }
+
+                return cb(Errors.DoesNotExist('No matching user ID'));
+            }
+        );
+    }
+
+    static loadProperties(userId, options, cb) {
+        if(!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+
+        let sql =
+            `SELECT prop_name, prop_value
+            FROM user_property
+            WHERE user_id = ?`;
+
+        if(options.names) {
+            sql += ` AND prop_name IN("${options.names.join('","')}");`;
+        } else {
+            sql += ';';
+        }
+
+        let properties = {};
+        userDb.each(sql, [ userId ], (err, row) => {
+            if(err) {
+                return cb(err);
+            }
+            properties[row.prop_name] = row.prop_value;
+        }, (err) => {
+            return cb(err, err ? null : properties);
+        });
+    }
+
+    //  :TODO: make this much more flexible - propValue should allow for case-insensitive compare, etc.
+    static getUserIdsWithProperty(propName, propValue, cb) {
+        let userIds = [];
+
+        userDb.each(
+            `SELECT user_id
+            FROM user_property
+            WHERE prop_name = ? AND prop_value = ?;`,
+            [ propName, propValue ],
+            (err, row) => {
+                if(row) {
+                    userIds.push(row.user_id);
+                }
+            },
+            () => {
+                return cb(null, userIds);
+            }
+        );
+    }
+
+    static getUserList(options, cb) {
+        const userList = [];
+        const orderClause = 'ORDER BY ' + (options.order || 'user_name');
+
+        userDb.each(
+            `SELECT id, user_name
+            FROM user
+            ${orderClause};`,
+            (err, row) => {
+                if(row) {
+                    userList.push({
+                        userId      : row.id,
+                        userName    : row.user_name,
+                    });
+                }
+            },
+            () => {
+                options.properties = options.properties || [];
+                async.map(userList, (user, nextUser) => {
+                    userDb.each(
+                        `SELECT prop_name, prop_value
+                        FROM user_property
+                        WHERE user_id = ? AND prop_name IN ("${options.properties.join('","')}");`,
+                        [ user.userId ],
+                        (err, row) => {
+                            if(row) {
+                                if(options.propsCamelCase) {
+                                    user[_.camelCase(row.prop_name)] = row.prop_value;
+                                } else {
+                                    user[row.prop_name] = row.prop_value;
+                                }
+                            }
+                        },
+                        err => {
+                            return nextUser(err, user);
+                        }
+                    );
+                },
+                (err, transformed) => {
+                    return cb(err, transformed);
+                });
+            }
+        );
+    }
+
+    static generatePasswordDerivedKeyAndSalt(password, cb) {
+        async.waterfall(
+            [
+                function getSalt(callback) {
+                    User.generatePasswordDerivedKeySalt( (err, salt) => {
+                        return callback(err, salt);
+                    });
+                },
+                function getDk(salt, callback) {
+                    User.generatePasswordDerivedKey(password, salt, (err, dk) => {
+                        return callback(err, salt, dk);
+                    });
+                }
+            ],
+            (err, salt, dk) => {
+                return cb(err, { salt : salt, dk : dk } );
+            }
+        );
+    }
+
+    static generatePasswordDerivedKeySalt(cb) {
+        crypto.randomBytes(User.PBKDF2.saltLen, (err, salt) => {
+            if(err) {
+                return cb(err);
+            }
+            return cb(null, salt.toString('hex'));
+        });
+    }
+
+    static generatePasswordDerivedKey(password, salt, cb) {
+        password = Buffer.from(password).toString('hex');
+
+        crypto.pbkdf2(password, salt, User.PBKDF2.iterations, User.PBKDF2.keyLen, 'sha1', (err, dk) => {
+            if(err) {
+                return cb(err);
+            }
+
+            return cb(null, dk.toString('hex'));
+        });
+    }
 };
