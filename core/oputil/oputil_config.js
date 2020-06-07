@@ -159,7 +159,7 @@ function askNewConfigQuestions(cb) {
             },
             function basic(callback) {
                 getAnswers(QUESTIONS.Basic, answers => {
-                    const defaultConfig	= require('../../core/config.js').getDefaultConfig();
+                    const defaultConfig = require('../../core/config_default')();
 
                     //  start by plopping in values we want directly from config.js
                     const template = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/config_template.in.hjson'), 'utf8'));
