@@ -6,11 +6,9 @@ title: Web Socket / Web Interface Server
 The WebSocket Login Server provides **secure** (wss://) as well as non-secure (ws://) WebSocket login access. This is often combined with a browser based WebSocket client such as VTX or fTelnet.
 
 # VTX Web Client
-ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at
-[Xibalba](https://l33t.codes/vtx/xibalba.html) and [fORCE9](https://bbs.force9.org/vtx/force9.html).
+ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at [Xibalba](https://xibalba.l33t.codes) and [fORCE9](https://bbs.force9.org/vtx/force9.html) amongst others.
 
 ## Before You Start
-
 There are a few things out of scope of this document:
 
  - You'll need a web server for hosting the files - this can be anywhere, but it obviously makes sense to host it
@@ -27,31 +25,31 @@ There are a few things out of scope of this document:
 1. Enable the websocket in ENiGMA, by adding `webSocket` configuration to the `loginServers` block in `config.hjson` (create it if you
 don't already have it defined).
 
-    ````hjson
-    loginServers: {
-            webSocket : {
-                    ws: {
-                        // non-secure ws://
-                        port: 8810
-                        enabled: true
+````hjson
+loginServers: {
+        webSocket : {
+                ws: {
+                    // non-secure ws://
+                    port: 8810
+                    enabled: true
 
-                        //  optional bind address
-                        address: 127.0.0.1
-                    }
-                    wss: {
-                        //  secure-over-tls wss://
-                        port: 8811
-                        enabled: true
-                        certPem: /path/to/https_cert.pem
-                        keyPem: /path/to/https_cert_key.pem
-                    }
-                    // set proxied to true to allow TLS-terminated proxied connections
-                    // containing the "X-Forwarded-Proto: https" header to be treated
-                    // as secure
-                    proxied: true
-            }
-    }
-    ````
+                    //  optional bind address
+                    address: 127.0.0.1
+                }
+                wss: {
+                    //  secure-over-tls wss://
+                    port: 8811
+                    enabled: true
+                    certPem: /path/to/https_cert.pem
+                    keyPem: /path/to/https_cert_key.pem
+                }
+                // set proxied to true to allow TLS-terminated proxied connections
+                // containing the "X-Forwarded-Proto: https" header to be treated
+                // as secure
+                proxied: true
+        }
+}
+````
 
 2. Restart ENiGMA and check the logs to ensure the websocket service starts successfully, you'll see something like the
 following:
