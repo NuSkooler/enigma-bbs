@@ -74,7 +74,7 @@ For `list` commands, the `entryMatch` key must be provided. This key should prov
 ```
 
 ## Archive Formats
-Archive formats can be defined such that ENiGMA½ can detect them by signature or extension, then utilize the correct *archiver* to process them. Formats are defined in the `archives:formats` key in `config.hjson`. Many differnet types come pre-configured (see `core/config.js`).
+Archive formats can be defined such that ENiGMA½ can detect them by signature or extension, then utilize the correct *archiver* to process them. Formats are defined in the `archives:formats` key in `config.hjson`. Many differnet types come pre-configured (see `core/config_default.js`).
 
 ### Example Archive Format Configuration
 ```
