@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const conf          = require('./config.js');
+const Config        = require('./config').get;
 const logger        = require('./logger.js');
 const ServerModule  = require('./server_module.js').ServerModule;
 const clientConns   = require('./client_connections.js');
@@ -28,7 +28,7 @@ module.exports = class LoginServerModule extends ServerModule {
         //
         //  Choose initial theme before we have user context
         //
-        const preLoginTheme = _.get(conf.config, 'theme.preLogin');
+        const preLoginTheme = _.get(Config(), 'theme.preLogin');
         if('*' === preLoginTheme) {
             client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
         } else {

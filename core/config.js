@@ -106,9 +106,7 @@ function mergeValidateAndFinalize(config, cb) {
                 return callback(null, mergedConfig);
             },
             function setIt(mergedConfig, callback) {
-                //  :TODO: .config property is to be deprecated once conversions are done
-                exports.config = currentConfiguration = mergedConfig;
-
+                currentConfiguration = mergedConfig;
                 exports.get = () => currentConfiguration;
                 return callback(null);
             }

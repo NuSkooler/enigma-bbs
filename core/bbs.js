@@ -175,10 +175,11 @@ function initialize(cb) {
     async.series(
         [
             function createMissingDirectories(callback) {
-                async.each(Object.keys(conf.config.paths), function entry(pathKey, next) {
-                    mkdirs(conf.config.paths[pathKey], function dirCreated(err) {
+                const Config = conf.get();
+                async.each(Object.keys(Config.paths), function entry(pathKey, next) {
+                    mkdirs(Config.paths[pathKey], function dirCreated(err) {
                         if(err) {
-                            console.error('Could not create path: ' + conf.config.paths[pathKey] + ': ' + err.toString());
+                            console.error('Could not create path: ' + Config.paths[pathKey] + ': ' + err.toString());
                         }
                         return next(err);
                     });

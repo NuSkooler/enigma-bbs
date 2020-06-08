@@ -433,9 +433,9 @@ function getThemeArt(options, cb) {
     const config = Config();
     if(!options.themeId && _.has(options, [ 'client', 'user', 'properties', UserProps.ThemeId ])) {
         options.themeId = options.client.user.properties[UserProps.ThemeId];
-    } else {
-        options.themeId = config.theme.default;
     }
+
+    options.themeId = options.themeId || config.theme.default;
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!
