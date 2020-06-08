@@ -58,7 +58,8 @@
     "uuid-parse": "1.1.0",
     "ws": "^7.3.0",
     "xxhash": "^0.3.0",
-    "yazl": "^2.5.1"
+    "yazl": "^2.5.1",
+    "deepdash" : "^5.1.1"
   },
   "devDependencies": {},
   "engines": {

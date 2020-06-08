@@ -8,11 +8,113 @@ const DefaultConfig = require('./config_default');
 //  deps
 const paths = require('path');
 const async = require('async');
-const _ = require('lodash');
 const assert = require('assert');
+
+const _ = require('lodash');
+const reduceDeep = require('deepdash/getReduceDeep')(_);
 
 exports.init                = init;
 exports.getDefaultPath      = getDefaultPath;
+
+class Configuration {
+    constructor(path, options) {
+        this.current = {};
+    }
+
+    static create(path, options, cb) {
+
+    }
+
+    get() {
+        return this.current;
+    }
+
+    _convertTo(value, type) {
+        switch (type) {
+            case 'bool' :
+            case 'boolean' :
+                value = 'true' === value.toLowerCase();
+                break;
+
+            case 'number' :
+                {
+                    const num = parseInt(value);
+                    if (!isNaN(num)) {
+                        value = num;
+                    }
+                }
+                break;
+
+            case 'object' :
+                try {
+                    value = JSON.parse(value);
+                } catch(e) { }
+                break;
+
+            case 'date' :
+            case 'time' :
+            case 'datetime' :
+            case 'timestamp' :
+                {
+                    const m = moment(value);
+                    if (m.isValid()) {
+                        value = m;
+                    }
+                }
+                break;
+
+            case 'regex' :
+                //	:TODO: What flags to use, etc.?
+                break;
+        }
+
+        return value;
+    }
+
+    _resolveEnvironmentVariable(spec) {
+        const [prefix, varName, type, array] = spec.split(':');
+        if (!varName) {
+            return;
+        }
+
+        let value = process.env[varName];
+        if (!value) {
+            return;
+        }
+
+        if ('array' === array) {
+            value = value.split(',').map(v => this._convertTo(v, type));
+        } else {
+            value = this._convertTo(value, type);
+        }
+
+        return value;
+    }
+
+    _resolveCurrent() {
+        reduceDeep(
+            this.current,
+            (acc, value, key, parent, ctx) => {
+                //	resolve self references; there may be a better way...
+                if (_.isString(value) && '@' === value.charAt(0)) {
+                    if (value.startsWith('@reference:')) {
+                        value = value.slice(11);
+                        const ref = _.get(acc, value);
+                        if (ref) {
+                            _.set(acc, ctx.path, ref);
+                        }
+                    } else if (value.startsWith('@environment:')) {
+                        value = this._resolveEnvironmentVariable(value);
+                        if (!_.isUndefined(value)) {
+                            _.set(acc, ctx.path, value);
+                        }
+                    }
+                }
+                return acc;
+            }
+        );
+    }
+};
 
 let currentConfiguration = {};
 

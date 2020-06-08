@@ -372,6 +372,14 @@ deep-extend@^0.6.0:
   resolved "https://registry.yarnpkg.com/deep-extend/-/deep-extend-0.6.0.tgz#c4fa7c95404a17a9c3e8ca7e1537312b736330ac"
   integrity sha512-LOHxIOaPYdHlJRtCQfDIVZtfw/ufM8+rVj649RIHzcm/vGwQRXFt6OPqIFWsm2XEMrNIEtWR64sY1LEKD2vAOA==
 
+deepdash@^5.1.1:
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/deepdash/-/deepdash-5.1.1.tgz#dcf68b9e15085b5df18bdb4011723790e0c40430"
+  integrity sha512-esz3pjQJaeYO4z74seqCMrOYUsAAdrhO3KJuEnGEaxTGbSy8VGOWn7jTU2J3nR5WDyNpS5/hse3m/hdM1/8ZWA==
+  dependencies:
+    lodash "^4.17.15"
+    lodash-es "^4.17.15"
+
 define-property@^0.2.5:
   version "0.2.5"
   resolved "https://registry.yarnpkg.com/define-property/-/define-property-0.2.5.tgz#c35b1ef918ec3c990f9a5bc57be04aacec5c8116"
@@ -977,6 +985,11 @@ later@1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/later/-/later-1.2.0.tgz#f2cf6c4dd7956dd2f520adf0329836e9876bad0f"
   integrity sha1-8s9sTdeVbdL1IK3wMpg26YdrrQ8=
+
+lodash-es@^4.17.15:
+  version "4.17.15"
+  resolved "https://registry.yarnpkg.com/lodash-es/-/lodash-es-4.17.15.tgz#21bd96839354412f23d7a10340e5eac6ee455d78"
+  integrity sha512-rlrc3yU3+JNOpZ9zj5pQtxnx2THmvRykwL4Xlxoa8I9lHBlVbbyPhgyPMioxVZ4NqyxaVVtaJnzsyOidQIhyyQ==
 
 lodash@^4.17.15:
   version "4.17.15"
