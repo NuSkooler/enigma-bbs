@@ -4,6 +4,7 @@
 //  ENiGMA½
 const Errors = require('./enig_error.js').Errors;
 const DefaultConfig = require('./config_default');
+const ConfigLoader = require('./config_loader');
 
 //  deps
 const paths = require('path');
@@ -11,108 +12,21 @@ const async = require('async');
 const assert = require('assert');
 
 const _ = require('lodash');
-const reduceDeep = require('deepdash/getReduceDeep')(_);
 
 exports.init                = init;
 exports.getDefaultPath      = getDefaultPath;
 
-class Configuration {
-    constructor(path, options) {
-        this.current = {};
+class Config extends ConfigLoader {
+    constructor(options) {
+        super(options);
     }
 
-    static create(path, options, cb) {
+    static create(basePath, options, cb) {
+        options.mergeCustomizer = (objValue, srcValue, key, object, source, stack) => {
+            console.log(key);
+        };
 
-    }
-
-    get() {
-        return this.current;
-    }
-
-    _convertTo(value, type) {
-        switch (type) {
-            case 'bool' :
-            case 'boolean' :
-                value = 'true' === value.toLowerCase();
-                break;
-
-            case 'number' :
-                {
-                    const num = parseInt(value);
-                    if (!isNaN(num)) {
-                        value = num;
-                    }
-                }
-                break;
-
-            case 'object' :
-                try {
-                    value = JSON.parse(value);
-                } catch(e) { }
-                break;
-
-            case 'date' :
-            case 'time' :
-            case 'datetime' :
-            case 'timestamp' :
-                {
-                    const m = moment(value);
-                    if (m.isValid()) {
-                        value = m;
-                    }
-                }
-                break;
-
-            case 'regex' :
-                //	:TODO: What flags to use, etc.?
-                break;
-        }
-
-        return value;
-    }
-
-    _resolveEnvironmentVariable(spec) {
-        const [prefix, varName, type, array] = spec.split(':');
-        if (!varName) {
-            return;
-        }
-
-        let value = process.env[varName];
-        if (!value) {
-            return;
-        }
-
-        if ('array' === array) {
-            value = value.split(',').map(v => this._convertTo(v, type));
-        } else {
-            value = this._convertTo(value, type);
-        }
-
-        return value;
-    }
-
-    _resolveCurrent() {
-        reduceDeep(
-            this.current,
-            (acc, value, key, parent, ctx) => {
-                //	resolve self references; there may be a better way...
-                if (_.isString(value) && '@' === value.charAt(0)) {
-                    if (value.startsWith('@reference:')) {
-                        value = value.slice(11);
-                        const ref = _.get(acc, value);
-                        if (ref) {
-                            _.set(acc, ctx.path, ref);
-                        }
-                    } else if (value.startsWith('@environment:')) {
-                        value = this._resolveEnvironmentVariable(value);
-                        if (!_.isUndefined(value)) {
-                            _.set(acc, ctx.path, value);
-                        }
-                    }
-                }
-                return acc;
-            }
-        );
+        return ConfigLoader.create(basePath, options, cb);
     }
 };
 
@@ -246,9 +160,9 @@ function init(configPath, options, cb) {
     const ConfigCache = require('./config_cache.js');
     const getConfigOptions = {
         filePath    : configPath,
-        noWatch     : options.noWatch,
+        hotReload   : options.hotReload,
     };
-    if(!options.noWatch) {
+    if(options.hotReload) {
         getConfigOptions.callback = changed;
     }
     ConfigCache.getConfigWithOptions(getConfigOptions, (err, config) => {
@@ -264,3 +178,5 @@ function getDefaultPath() {
     //  e.g. /enigma-bbs-install-path/config/
     return './config/';
 }
+
+exports.Config = Config;
