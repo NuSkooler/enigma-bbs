@@ -50,17 +50,17 @@ module.exports = class ArchiveUtil {
     }
 
     //  singleton access
-    static getInstance(noWatch = false) {
+    static getInstance(hotReload = true) {
         if(!archiveUtil) {
             archiveUtil = new ArchiveUtil();
-            archiveUtil.init(noWatch);
+            archiveUtil.init(hotReload);
         }
         return archiveUtil;
     }
 
-    init(noWatch = false) {
+    init(hotReload = true) {
         this.reloadConfig();
-        if(!noWatch) {
+        if(hotReload) {
             Events.on(Events.getSystemEvents().ConfigChanged, () => {
                 this.reloadConfig();
             });

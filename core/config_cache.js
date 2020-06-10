@@ -2,10 +2,11 @@
 'use strict';
 
 //  deps
-const paths             = require('path');
-const fs                = require('graceful-fs');
-const hjson             = require('hjson');
-const sane              = require('sane');
+const paths     = require('path');
+const fs        = require('graceful-fs');
+const hjson     = require('hjson');
+const sane      = require('sane');
+const _         = require('lodash');
 
 module.exports = new class ConfigCache
 {
@@ -14,12 +15,13 @@ module.exports = new class ConfigCache
     }
 
     getConfigWithOptions(options, cb) {
+        options.hotReload = _.get(options, 'hotReload', true);
         const cached = this.cache.has(options.filePath);
 
         if(options.forceReCache || !cached) {
             this.recacheConfigFromFile(options.filePath, (err, config) => {
                 if(!err && !cached) {
-                    if(!options.noWatch) {
+                    if(options.hotReload) {
                         const watcher = sane(
                             paths.dirname(options.filePath),
                             {
