@@ -73,6 +73,9 @@ function main() {
             },
             function initConfig(configPath, configPathSupplied, callback) {
                 const configFile = configPath + 'config.hjson';
+                conf.Config.create(configFile, {}, err => {
+                    console.log(err);
+                });
                 conf.init(resolvePath(configFile), function configInit(err) {
 
                     //

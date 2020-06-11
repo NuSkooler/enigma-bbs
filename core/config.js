@@ -22,8 +22,28 @@ class Config extends ConfigLoader {
     }
 
     static create(basePath, options, cb) {
-        options.mergeCustomizer = (objValue, srcValue, key, object, source, stack) => {
-            console.log(key);
+        const replacePaths = [
+            'loginServers.ssh.algorithms.kex',
+            'loginServers.ssh.algorithms.cipher',
+            'loginServers.ssh.algorithms.hmac',
+            'loginServers.ssh.algorithms.compress',
+        ];
+        const replaceKeys = [
+            'args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch',
+        ];
+
+        options.defaultConfig = DefaultConfig();
+
+        options.defaultsCustomizer = (defaultVal, configVal, key, path) => {
+            if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
+                if (replacePaths.includes(path) || replaceKeys.includes(key)) {
+                    //  full replacement using user config value
+                    return configVal;
+                } else {
+                    //  merge user config & default config; keep only unique
+                    _.uniq(defaultVal.concat(configVal));
+                }
+            }
         };
 
         return ConfigLoader.create(basePath, options, cb);
