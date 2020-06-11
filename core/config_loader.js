@@ -149,23 +149,26 @@ module.exports = class ConfigLoader {
                                     }
 
                                     const prev = stack[stack.length - 1];
+
                                     if (source === prev.source) {
                                         path = prev.path.concat(key);
                                         stack.push({source : configVal, path});
                                         break;
                                     }
+
                                     stack.pop();
                                 }
+
                                 path = path.join('.');
                                 return options.defaultsCustomizer(defaultVal, configVal, key, path);
                             }
                         );
+
                         return callback(null, mergedConfig);
-                    } else {
-                        //  :TODO: correct?
-                        _.defaultsDeep(config, options.defaultConfig);
-                        return callback(null, config);
                     }
+
+                    //  :TODO: correct?
+                    return callback(null, _.merge(options.defaultConfig, config));
                 },
                 (config, callback) => {
                     const configRoot = paths.dirname(basePath);
