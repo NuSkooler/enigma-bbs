@@ -35,7 +35,7 @@ module.exports = new class ConfigCache
                             this.recacheConfigFromFile(paths.join(fileRoot, fileName), err => {
                                 if(!err) {
                                     if(options.callback) {
-                                        options.callback( { fileName, fileRoot } );
+                                        options.callback( { fileName, fileRoot, configCache : this } );
                                     }
                                 }
                             });

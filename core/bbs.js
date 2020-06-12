@@ -69,15 +69,12 @@ function main() {
 
                 const configOverridePath = argv.config;
 
-                return callback(null, configOverridePath || conf.getDefaultPath(), _.isString(configOverridePath));
+                return callback(null, configOverridePath || conf.Config.getDefaultPath(), _.isString(configOverridePath));
             },
             function initConfig(configPath, configPathSupplied, callback) {
                 const configFile = configPath + 'config.hjson';
-                conf.Config.create(configFile, {}, err => {
-                    console.log(err);
-                });
-                conf.init(resolvePath(configFile), function configInit(err) {
 
+                conf.Config.create(resolvePath(configFile), err => {
                     //
                     //  If the user supplied a path and we can't read/parse it
                     //  then it's a fatal error

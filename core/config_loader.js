@@ -6,24 +6,97 @@ const _ = require('lodash');
 const reduceDeep = require('deepdash/getReduceDeep')(_);
 
 module.exports = class ConfigLoader {
-    constructor(options) {
+    constructor(
+        { hotReload = true, defaultConfig = {}, defaultsCustomizer = null } = { hotReload : true, defaultConfig : {}, defaultsCustomizer : null } )
+    {
         this.current = {};
-        this.hotReload = _.get(options, 'hotReload', true);
+
+        this.hotReload          = hotReload;
+        this.defaultConfig      = defaultConfig;
+        this.defaultsCustomizer = defaultsCustomizer;
     }
 
-    static create(basePath, options, cb) {
-        const config = new ConfigLoader(options);
-        config._init(
-            basePath,
-            options,
-            err => {
-                return cb(err, config);
-            }
-        );
+    init(baseConfigPath, cb) {
+        this.baseConfigPath = baseConfigPath;
+        return this._reload(baseConfigPath, cb);
     }
 
     get() {
         return this.current;
+    }
+
+    _reload(baseConfigPath, cb) {
+        let defaultConfig;
+        if (_.isFunction(this.defaultConfig)) {
+            defaultConfig = this.defaultConfig();
+        } else if (_.isObject(this.defaultConfig)) {
+            defaultConfig = this.defaultConfig;
+        } else {
+            defaultConfig = {};
+        }
+
+        //
+        //  1 - Fetch base configuration from |baseConfigPath|
+        //  2 - Merge with |defaultConfig|
+        //  3 - Resolve any includes
+        //  4 - Resolve @reference and @environment
+        //  5 - Perform any validation
+        //
+        async.waterfall(
+            [
+                (callback) => {
+                    return this._loadConfigFile(baseConfigPath, callback);
+                },
+                (config, callback) => {
+                    if (_.isFunction(this.defaultsCustomizer)) {
+                        const stack = [];
+                        const mergedConfig = _.mergeWith(
+                            defaultConfig,
+                            config,
+                            (defaultVal, configVal, key, target, source) => {
+                                var path;
+                                while (true) {
+                                    if (!stack.length) {
+                                        stack.push({source, path : []});
+                                    }
+
+                                    const prev = stack[stack.length - 1];
+
+                                    if (source === prev.source) {
+                                        path = prev.path.concat(key);
+                                        stack.push({source : configVal, path});
+                                        break;
+                                    }
+
+                                    stack.pop();
+                                }
+
+                                path = path.join('.');
+                                return this.defaultsCustomizer(defaultVal, configVal, key, path);
+                            }
+                        );
+
+                        return callback(null, mergedConfig);
+                    }
+
+                    return callback(null, _.merge(defaultConfig, config));
+                },
+                (config, callback) => {
+                    const configRoot = paths.dirname(baseConfigPath);
+                    return this._resolveIncludes(configRoot, config, callback);
+                },
+                (config, callback) => {
+                    config = this._resolveAtSpecs(config);
+                    return callback(null, config);
+                },
+            ],
+            (err, config) => {
+                if (!err) {
+                    this.current = config;
+                }
+                return cb(err);
+            }
+        );
     }
 
     _convertTo(value, type) {
@@ -102,90 +175,22 @@ module.exports = class ConfigLoader {
         });
     }
 
-    _configFileChanged({fileName, fileRoot}) {
+    _configFileChanged({fileName, fileRoot, configCache}) {
         const reCachedPath = paths.join(fileRoot, fileName);
-        ConfigCache.getConfig(reCachedPath, (err, config) => {
-            /*
-            if(!err) {
-                mergeValidateAndFinalize(config, err => {
-                    if(!err) {
+        configCache.getConfig(reCachedPath, (err, config) => {
+            if (err) {
+                return console.stdout(`Configuration ${reCachedPath} is invalid: ${err.message}`); //  eslint-disable-line no-console
+            }
+
+            if (this.configPaths.includes(reCachedPath)) {
+                this._reload(this.baseConfigPath, err => {
+                    if (!err) {
                         const Events = require('./events.js');
                         Events.emit(Events.getSystemEvents().ConfigChanged);
                     }
                 });
-            } else {
-                console.stdout(`Configuration ${reCachedPath} is invalid: ${err.message}`); //  eslint-disable-line no-console
             }
-            */
         });
-    }
-
-    _init(basePath, options, cb) {
-        options.defaultConfig = options.defaultConfig || {};
-
-        //
-        //  1 - Fetch base configuration from |basePath|
-        //  2 - Merge with |defaultConfig|, if any
-        //  3 - Resolve any includes
-        //  4 - Resolve @reference and @environment
-        //  5 - Perform any validation
-        //
-        async.waterfall(
-            [
-                (callback) => {
-                    return this._loadConfigFile(basePath, callback);
-                },
-                (config, callback) => {
-                    if (_.isFunction(options.defaultsCustomizer)) {
-                        const stack = [];
-                        const mergedConfig = _.mergeWith(
-                            options.defaultConfig,
-                            config,
-                            (defaultVal, configVal, key, target, source) => {
-                                var path;
-                                while (true) {
-                                    if (!stack.length) {
-                                        stack.push({source, path : []});
-                                    }
-
-                                    const prev = stack[stack.length - 1];
-
-                                    if (source === prev.source) {
-                                        path = prev.path.concat(key);
-                                        stack.push({source : configVal, path});
-                                        break;
-                                    }
-
-                                    stack.pop();
-                                }
-
-                                path = path.join('.');
-                                return options.defaultsCustomizer(defaultVal, configVal, key, path);
-                            }
-                        );
-
-                        return callback(null, mergedConfig);
-                    }
-
-                    //  :TODO: correct?
-                    return callback(null, _.merge(options.defaultConfig, config));
-                },
-                (config, callback) => {
-                    const configRoot = paths.dirname(basePath);
-                    return this._resolveIncludes(configRoot, config, callback);
-                },
-                (config, callback) => {
-                    config = this._resolveAtSpecs(config);
-                    return callback(null, config);
-                },
-            ],
-            (err, config) => {
-                if (!err) {
-                    this.current = config;
-                }
-                return cb(err);
-            }
-        );
     }
 
     _resolveIncludes(configRoot, config, cb) {
@@ -207,6 +212,7 @@ module.exports = class ConfigLoader {
             });
         },
         err => {
+            this.configPaths = [ this.baseConfigPath, ...includePaths ];
             return cb(err, config);
         });
     }
