@@ -3,7 +3,7 @@ const paths = require('path');
 const async = require('async');
 
 const _ = require('lodash');
-const reduceDeep = require('deepdash/getReduceDeep')(_);
+const mapValuesDeep = require('deepdash/getMapValuesDeep')(_);
 
 module.exports = class ConfigLoader {
     constructor(
@@ -218,26 +218,19 @@ module.exports = class ConfigLoader {
     }
 
     _resolveAtSpecs(config) {
-        //  :TODO: mapValuesDeep may be better here
-        return reduceDeep(
+        return mapValuesDeep(
             config,
-            (acc, value, key, parent, ctx) => {
-                //	resolve self references; there may be a better way...
+            value => {
                 if (_.isString(value) && '@' === value.charAt(0)) {
                     if (value.startsWith('@reference:')) {
-                        value = value.slice(11);
-                        const ref = _.get(acc, value);
-                        if (ref) {
-                            _.set(acc, ctx.path, ref);
-                        }
+                        const refPath = value.slice(11);
+                        value = _.get(config, refPath, value);
                     } else if (value.startsWith('@environment:')) {
-                        value = this._resolveEnvironmentVariable(value);
-                        if (!_.isUndefined(value)) {
-                            _.set(acc, ctx.path, value);
-                        }
+                        value = this._resolveEnvironmentVariable(value) || value;
                     }
                 }
-                return acc;
+
+                return value;
             }
         );
     }
