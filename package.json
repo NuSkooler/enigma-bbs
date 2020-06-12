@@ -26,6 +26,7 @@
     "binary-parser": "^1.6.2",
     "buffers": "github:NuSkooler/node-buffers",
     "bunyan": "^1.8.12",
+    "deepdash": "^5.1.1",
     "exiftool": "^0.0.3",
     "fs-extra": "9.0.1",
     "glob": "7.1.6",
@@ -58,10 +59,11 @@
     "uuid-parse": "1.1.0",
     "ws": "^7.3.0",
     "xxhash": "^0.3.0",
-    "yazl": "^2.5.1",
-    "deepdash" : "^5.1.1"
+    "yazl": "^2.5.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "eslint": "^7.2.0"
+  },
   "engines": {
     "node": ">=12"
   }
