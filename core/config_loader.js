@@ -1,6 +1,7 @@
 //  deps
 const paths = require('path');
 const async = require('async');
+const moment = require('moment');
 
 const _ = require('lodash');
 const mapValuesDeep = require('deepdash/getMapValuesDeep')(_);
@@ -55,7 +56,7 @@ module.exports = class ConfigLoader {
                             config,
                             (defaultVal, configVal, key, target, source) => {
                                 var path;
-                                while (true) {
+                                while (true) {  //  eslint-disable-line no-constant-condition
                                     if (!stack.length) {
                                         stack.push({source, path : []});
                                     }
@@ -118,7 +119,9 @@ module.exports = class ConfigLoader {
             case 'object' :
                 try {
                     value = JSON.parse(value);
-                } catch(e) { }
+                } catch(e) {
+                    //  ignored
+                }
                 break;
 
             case 'date' :
@@ -142,7 +145,7 @@ module.exports = class ConfigLoader {
     }
 
     _resolveEnvironmentVariable(spec) {
-        const [prefix, varName, type, array] = spec.split(':');
+        const [, varName, type, array] = spec.split(':');
         if (!varName) {
             return;
         }
@@ -175,22 +178,16 @@ module.exports = class ConfigLoader {
         });
     }
 
-    _configFileChanged({fileName, fileRoot, configCache}) {
+    _configFileChanged({fileName, fileRoot}) {
         const reCachedPath = paths.join(fileRoot, fileName);
-        configCache.getConfig(reCachedPath, (err, config) => {
-            if (err) {
-                return console.stdout(`Configuration ${reCachedPath} is invalid: ${err.message}`); //  eslint-disable-line no-console
-            }
-
-            if (this.configPaths.includes(reCachedPath)) {
-                this._reload(this.baseConfigPath, err => {
-                    if (!err) {
-                        const Events = require('./events.js');
-                        Events.emit(Events.getSystemEvents().ConfigChanged);
-                    }
-                });
-            }
-        });
+        if (this.configPaths.includes(reCachedPath)) {
+            this._reload(this.baseConfigPath, err => {
+                if (!err) {
+                    const Events = require('./events.js');
+                    Events.emit(Events.getSystemEvents().ConfigChanged);
+                }
+            });
+        }
     }
 
     _resolveIncludes(configRoot, config, cb) {
