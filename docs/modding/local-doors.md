@@ -28,9 +28,9 @@ Dropfile types specified by `dropFileType`:
 
 | Value | Description |
 |-------|-------------|
-| `DOOR` | [DOOR.SYS](http://goldfndr.home.mindspring.com/dropfile/doorsys.htm)
+| `DOOR` | [DOOR.SYS](https://web.archive.org/web/20160325192739/http://goldfndr.home.mindspring.com/dropfile/doorsys.htm)
 | `DOOR32` | [DOOR32.SYS](https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt)
-| `DORINFO` | [DORINFOx.DEF](http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm)
+| `DORINFO` | [DORINFOx.DEF](https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm)
 
 #### Argument Variables
 The following variables may be used in `args` entries:
