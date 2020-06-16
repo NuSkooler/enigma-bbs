@@ -178,7 +178,7 @@ const replaceCharInBuffer = (buffer, search, replace) => {
         buffer[i] = replace;
         ++i;
     }
-}
+};
 
 class QWKPacketReader extends EventEmitter {
     constructor(
@@ -269,7 +269,7 @@ class QWKPacketReader extends EventEmitter {
 
                                     case 'ID.MSG' :
                                         if (this.options.mode === QWKPacketReader.Modes.Guess) {
-                                            this.options.mode = Modes.REP;
+                                            this.options.mode = QWKPacketReader.Modes.REP;
                                         }
 
                                         if (this.options.mode === QWKPacketReader.Modes.REP) {
@@ -374,7 +374,7 @@ class QWKPacketReader extends EventEmitter {
             err => {
                 return cb(err);
             }
-        )
+        );
     }
 
     readControl(cb) {
@@ -458,7 +458,7 @@ class QWKPacketReader extends EventEmitter {
                 }
             }
 
-             return cb(null);
+            return cb(null);
         });
     }
 
@@ -576,41 +576,43 @@ class QWKPacketReader extends EventEmitter {
                     } else {
                         switch (state) {
                             case 'header' :
-                                const header = MessageHeaderParser.parse(buffer);
-                                encoding = encodingToSpec;  //  reset per message
+                                {
+                                    const header = MessageHeaderParser.parse(buffer);
+                                    encoding = encodingToSpec;  //  reset per message
 
-                                //  massage into something a little more sane (things we can't quite do in the parser directly)
-                                ['toName', 'fromName', 'subject'].forEach(field => {
-                                    //  note: always use to-spec encoding here
-                                    header[field] = iconv.decode(header[field], encodingToSpec).trim();
-                                });
+                                    //  massage into something a little more sane (things we can't quite do in the parser directly)
+                                    ['toName', 'fromName', 'subject'].forEach(field => {
+                                        //  note: always use to-spec encoding here
+                                        header[field] = iconv.decode(header[field], encodingToSpec).trim();
+                                    });
 
-                                header.timestamp = moment(header.timestamp, QWKHeaderTimestampFormat);
+                                    header.timestamp = moment(header.timestamp, QWKHeaderTimestampFormat);
 
-                                currMessage = {
-                                    header,
-                                    //  these may be overridden
-                                    toName      : header.toName,
-                                    fromName    : header.fromName,
-                                    subject     : header.subject,
-                                };
+                                    currMessage = {
+                                        header,
+                                        //  these may be overridden
+                                        toName      : header.toName,
+                                        fromName    : header.fromName,
+                                        subject     : header.subject,
+                                    };
 
-                                if (_.has(this.packetInfo, 'headers.ini')) {
-                                    //  Sections for a message in HEADERS.DAT are by current byte offset.
-                                    //  128 = first message header = 0x80 = section [80]
-                                    const headersSectionId = (blockCount * QWKMessageBlockSize).toString(16);
-                                    currMessage.headersExtension = this.packetInfo.headers.ini[headersSectionId];
+                                    if (_.has(this.packetInfo, 'headers.ini')) {
+                                        //  Sections for a message in HEADERS.DAT are by current byte offset.
+                                        //  128 = first message header = 0x80 = section [80]
+                                        const headersSectionId = (blockCount * QWKMessageBlockSize).toString(16);
+                                        currMessage.headersExtension = this.packetInfo.headers.ini[headersSectionId];
+                                    }
+
+                                    //  if we have HEADERS.DAT with a 'Utf8' override for this message,
+                                    //  the overridden to/from/subject/message fields are UTF-8
+                                    if (currMessage.headersExtension && 'true' === currMessage.headersExtension.Utf8.toLowerCase()) {
+                                        encoding = 'utf8';
+                                    }
+
+                                    //  remainder of blocks until the end of this message
+                                    messageBlocksRemain = header.numBlocks - 1;
+                                    state = 'message';
                                 }
-
-                                //  if we have HEADERS.DAT with a 'Utf8' override for this message,
-                                //  the overridden to/from/subject/message fields are UTF-8
-                                if (currMessage.headersExtension && 'true' === currMessage.headersExtension.Utf8.toLowerCase()) {
-                                    encoding = 'utf8';
-                                }
-
-                                //  remainder of blocks until the end of this message
-                                messageBlocksRemain = header.numBlocks - 1;
-                                state = 'message';
                                 break;
 
                             case 'message' :
@@ -819,7 +821,7 @@ class QWKPacketReader extends EventEmitter {
             readNextBlock();
         });
     }
-};
+}
 
 class QWKPacketWriter extends EventEmitter {
     constructor(
@@ -921,7 +923,7 @@ class QWKPacketWriter extends EventEmitter {
 
                             //  we can go up to 65535 for some things, but NDX files are limited to 9999
                             if (confNumber === 10000) { //  sanity...
-                                this.emit('warning', Errors.General(`To many conferences`));
+                                this.emit('warning', Errors.General('To many conferences (over 9999)'));
                             } else {
                                 this.areaTagConfMap[areaTag] = confNumber;
                                 ++confNumber;
@@ -959,7 +961,7 @@ class QWKPacketWriter extends EventEmitter {
 
                 this.emit('ready');
             }
-        )
+        );
     }
 
     makeMessageIdentifier(message) {
@@ -1010,7 +1012,7 @@ class QWKPacketWriter extends EventEmitter {
                 if (message.meta.QwkKludge) {
                     for (let [kludge, value] of Object.entries(message.meta.QwkKludge)) {
                         fullMessageBody += `${kludge}: ${value}\n`;
-                    };
+                    }
                 }
             } else {
                 fullMessageBody += `@MSGID: ${this.makeMessageIdentifier(message)}\n`;
@@ -1117,7 +1119,7 @@ class QWKPacketWriter extends EventEmitter {
             } else {
                 this.cachedCompareNames = [];
             }
-        };
+        }
 
         return this.cachedCompareNames.includes(message.toUserName.toLowerCase());
     }
@@ -1183,7 +1185,7 @@ class QWKPacketWriter extends EventEmitter {
 
                 this.emit('finished');
             }
-        )
+        );
     }
 
     _getNextAvailPacketFileName(packetDirectory, cb) {
@@ -1201,13 +1203,13 @@ class QWKPacketWriter extends EventEmitter {
             } else if (digits < 100) {
                 ext = `Q${digits}`;
             } else {
-                return callback(Errors.UnexpectedState(`Unable to choose a valid QWK output filename`));
+                return callback(Errors.UnexpectedState('Unable to choose a valid QWK output filename'));
             }
 
             ++digits;
 
             const filename = `${this.options.bbsID}.${ext}`;
-            fs.stat(paths.join(packetDirectory, filename), (err, stats) => {
+            fs.stat(paths.join(packetDirectory, filename), err => {
                 if (err && 'ENOENT' === err.code) {
                     return callback(null, filename);
                 } else {
@@ -1242,7 +1244,7 @@ class QWKPacketWriter extends EventEmitter {
                     packetPath,
                     files,
                     this.workDir,
-                    err => {
+                    () => {
                         fs.stat(packetPath, (err, stats) => {
                             if (stats) {
                                 this.emit('packet', { stats, path : packetPath } );
@@ -1535,4 +1537,4 @@ class QWKPacketWriter extends EventEmitter {
 module.exports = {
     QWKPacketReader,
     QWKPacketWriter,
-}
+};

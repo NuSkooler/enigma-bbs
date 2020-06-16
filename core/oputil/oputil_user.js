@@ -507,9 +507,10 @@ function listUsers() {
             },
             (userList, callback) => {
                 userList.forEach(user => {
-
                     console.info(`${user.userId}: ${user.userName}`);
                 });
+
+                return callback(null);
             },
         ],
         err => {

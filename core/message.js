@@ -887,7 +887,7 @@ module.exports = class Message {
         } else {
             const QUOTE_RE  = /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
             const quoted    = [];
-            const input     = _.trimEnd(this.message).replace(/\x08/g, '');
+            const input     = _.trimEnd(this.message).replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
 
             //  find *last* tearline
             let tearLinePos = this.getTearLinePosition(input);

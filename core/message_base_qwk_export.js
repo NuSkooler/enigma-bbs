@@ -365,7 +365,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
                     const sysDownloadPath = paths.join(sysTempDownloadDir, this.tempName);
                     fse.move(packetInfo.path, sysDownloadPath, err => {
-                        return callback(null, sysDownloadPath, packetInfo);
+                        return callback(err, sysDownloadPath, packetInfo);
                     });
                 },
                 (sysDownloadPath, packetInfo, callback) => {

@@ -382,7 +382,7 @@ class Achievements {
                             //                    ^---- we met here
                             //                         ^------------^ retroactive range
                             //
-                            async.eachSeries(achievement.matchKeys.slice(index), (k, nextKey) => {                                
+                            async.eachSeries(achievement.matchKeys.slice(index), (k, nextKey) => {
                                 const [ det, fld, val ] = achievement.getMatchDetails(k);
                                 if(!det) {
                                     return nextKey(null);
