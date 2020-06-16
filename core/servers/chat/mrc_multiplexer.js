@@ -17,7 +17,7 @@ const os                    = require('os');
 
 // MRC
 const protocolVersion   = '1.2.9';
-const lineDelimiter     = new RegExp('\r\n|\r|\n');
+const lineDelimiter     = new RegExp('\r\n|\r|\n'); //  eslint-disable-line no-control-regex
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'MRC',

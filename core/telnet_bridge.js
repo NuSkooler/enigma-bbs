@@ -44,7 +44,7 @@ exports.moduleInfo = {
 
 const IAC_DO_TERM_TYPE = TelnetSocket.commandBuffer(
     Commands.DO,
-    Options.TTYPE,
+    Options.TTYPE
 );
 
 class TelnetClientConnection extends EventEmitter {

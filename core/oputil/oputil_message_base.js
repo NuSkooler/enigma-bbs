@@ -480,9 +480,11 @@ function dumpQWKPacket() {
             }
         ],
         err => {
-
+            if (err) {
+                console.error(`QWK dump failed: ${err.message}`);
+            }
         }
-    )
+    );
 }
 
 function exportQWKPacket() {

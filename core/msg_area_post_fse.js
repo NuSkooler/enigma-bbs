@@ -8,7 +8,6 @@ const {
     hasMessageConfAndAreaWrite,
 }                               = require('./message_area.js');
 
-const _                         = require('lodash');
 const async                     = require('async');
 
 exports.moduleInfo = {
@@ -77,7 +76,7 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
 
             return this.gotoMenuOrShowMessage(
                 noAcsMenu,
-                'You do not have the proper access to post here!',
+                'You do not have the proper access to post here!'
             );
         }
 

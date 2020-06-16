@@ -400,7 +400,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 // normal message
                 formattedMessage = stringFormat(messageFormat, textFormatObj);
             } else {
-                // pm 
+                // pm
                 formattedMessage = stringFormat(privateMessageFormat, textFormatObj);
             }
 

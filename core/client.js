@@ -493,7 +493,7 @@ Client.prototype.stopIdleMonitor = function() {
 
 Client.prototype.explicitActivityTimeUpdate = function() {
     this.lastActivityTime = Date.now();
-}
+};
 
 Client.prototype.overrideIdleLogoutSeconds = function(seconds) {
     this.idleLogoutSecondsOverride = seconds;

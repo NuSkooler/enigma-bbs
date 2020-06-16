@@ -14,7 +14,6 @@ const WebSocketServer   = require('ws').Server;
 const http              = require('http');
 const https             = require('https');
 const fs                = require('graceful-fs');
-const Writable          = require('stream');
 const { Duplex } = require('stream');
 const forEachSeries     = require('async/forEachSeries');
 

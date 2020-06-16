@@ -3,6 +3,7 @@ const LoginServerModule = require('../../login_server_module');
 const { Client } = require('../../client');
 const Config = require('../../config').get;
 const { log: Log } = require('../../logger');
+const { Errors } = require('../../enig_error');
 
 //  deps
 const net = require('net');
@@ -173,7 +174,7 @@ class TelnetClient {
             return this.disconnect();
         });
 
-        this.socket.on('AYT', () => {
+        this.socket.on('AYT', command => {
             this.socket.write('\b');
             return this._logTrace(command, 'Are You There (AYT) - Replied');
         });
@@ -230,7 +231,7 @@ class TelnetClient {
         this.clientReadyHandled = true;
         this.emit('ready', { firstMenu : Config().loginServers.telnet.firstMenu } );
     }
-};
+}
 
 inherits(TelnetClient, Client);
 
