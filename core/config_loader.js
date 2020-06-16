@@ -200,6 +200,7 @@ module.exports = class ConfigLoader {
 
     _resolveIncludes(configRoot, config, cb) {
         if (!Array.isArray(config.includes)) {
+            this.configPaths = [ this.baseConfigPath ];
             return cb(null, config);
         }
 
