@@ -8,13 +8,26 @@ const mapValuesDeep = require('deepdash/getMapValuesDeep')(_);
 
 module.exports = class ConfigLoader {
     constructor(
-        { hotReload = true, defaultConfig = {}, defaultsCustomizer = null } = { hotReload : true, defaultConfig : {}, defaultsCustomizer : null } )
+        {
+            hotReload = true,
+            defaultConfig = {},
+            defaultsCustomizer = null,
+            onReload = null,
+        } =
+        {
+            hotReload : true,
+            defaultConfig : {},
+            defaultsCustomizer : null,
+            onReload : null,
+        }
+    )
     {
         this.current = {};
 
         this.hotReload          = hotReload;
         this.defaultConfig      = defaultConfig;
         this.defaultsCustomizer = defaultsCustomizer;
+        this.onReload           = onReload;
     }
 
     init(baseConfigPath, cb) {
@@ -135,10 +148,6 @@ module.exports = class ConfigLoader {
                     }
                 }
                 break;
-
-            case 'regex' :
-                //	:TODO: What flags to use, etc.?
-                break;
         }
 
         return value;
@@ -182,9 +191,8 @@ module.exports = class ConfigLoader {
         const reCachedPath = paths.join(fileRoot, fileName);
         if (this.configPaths.includes(reCachedPath)) {
             this._reload(this.baseConfigPath, err => {
-                if (!err) {
-                    const Events = require('./events.js');
-                    Events.emit(Events.getSystemEvents().ConfigChanged);
+                if (_.isFunction(this.onReload)) {
+                    this.onReload(err, reCachedPath);
                 }
             });
         }

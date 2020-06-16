@@ -37,6 +37,12 @@ exports.Config = class Config extends ConfigLoader {
                     }
                 }
             },
+            onReload : err => {
+                if (!err) {
+                    const Events = require('./events.js');
+                    Events.emit(Events.getSystemEvents().ConfigChanged);
+                }
+            },
         };
 
         systemConfigInstance = new Config(options);
