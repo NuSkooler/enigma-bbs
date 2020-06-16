@@ -39,9 +39,10 @@ The following are ACS codes available as of this writing:
 | AP<i>achievementPoints</i> | User has >= _achievementPoints_ achievement points |
 | AF<i>authFactor</i> | User's current *Authentication Factor* is >= _authFactor_. Authentication factor 1 refers to username + password (or PubKey) while factor 2 refers to 2FA such as One-Time-Password authentication. |
 | AR<i>authFactorReq</i> | Current user **requires** an Authentication Factor >= _authFactorReq_ |
+| PV[_name,_value_] | Checks that the property by _name_ for the current user is exactly _value_. This ACS allows arbitrary user property values to be checked. For example, `PV[message_conf,local]` checks that the user is currently in the "local" message conference.
 
 ## ACS Strings
-ACS strings are one or more ACS codes in addition to some basic language semantics. 
+ACS strings are one or more ACS codes in addition to some basic language semantics.
 
 The following logical operators are supported:
 * `!` NOT
