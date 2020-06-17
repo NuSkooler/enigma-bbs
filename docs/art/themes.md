@@ -38,7 +38,7 @@ The `customization` block in is itself broken up into major parts:
 |-------------|---------------------------------------------------|
 | `defaults` | Default values to use when this theme is active. These values override system defaults, but can still be overridden themselves in specific areas of your theme. |
 | `menus` | The bulk of what you theme in the system will be here. Any menu (that is, anything you find in `menu.hjson`) can be tweaked. |
-| `prompts` | Similar to `menus`, this file themes prompts found in `prompts.hjson`. |
+| `prompts` | Similar to `menus`, this section themes `prompts`. |
 
 #### Defaults
 | Item | Description                                              |
@@ -46,7 +46,7 @@ The `customization` block in is itself broken up into major parts:
 | `passwordChar` | Character to display in password fields. Defaults to `*` |
 | `dateFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for dates. |
 | `timeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for times. |
-| `dateTimeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for date/time combinations. | 
+| `dateTimeFormat` | Sets the [moment.js](https://momentjs.com/docs/#/displaying/) style `short` and/or `long` format for date/time combinations. |
 
 Example:
 ```hjson

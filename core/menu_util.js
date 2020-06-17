@@ -24,10 +24,11 @@ function getMenuConfig(client, name, cb) {
     async.waterfall(
         [
             function locateMenuConfig(callback) {
-                if(_.has(client.currentTheme, [ 'menus', name ])) {
-                    const menuConfig = client.currentTheme.menus[name];
+                const menuConfig = _.get(client.currentTheme, [ 'menus', name ]);
+                if (menuConfig) {
                     return callback(null, menuConfig);
                 }
+
                 return callback(Errors.DoesNotExist(`No menu entry for "${name}"`));
             },
             function locatePromptConfig(menuConfig, callback) {

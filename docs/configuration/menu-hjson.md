@@ -21,7 +21,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
 | `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
 | `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
-| `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in `prompt.hjson`. |
+| `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in the `prompts` section. See **Prompts** for more information. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
 | `module` | Sets the module name to use for this menu. See **Menu Modules** below. |
@@ -182,6 +182,9 @@ In the above entry, you'll notice `form`. This defines a form(s) object. In this
 * `VM1` is then setup to `submit` and start focused via `focus: true` as well as have some menu entries ("login", "apply", ...) defined. We provide an `argName` of `matrixSubmit` for this element view.
 * The `submit` object tells the system to attempt to apply provided match entries from any view ID (`*`).
 * Upon submit, the first match will be executed. For example, if the user selects "login", the first entry with a value of `{ matrixSubmit: 0 }` will match (due to 0 being the first index in the list and `matrixSubmit` being the arg name in question) causing `action` of `@menu:login` to be executed (go to `login` menu).
+
+## Prompts
+TODO: describe the "prompts" section, default setup, etc.
 
 ## ACS Checks
 Menu modules can check user ACS in order to restrict areas and perform flow control. See [ACS](acs.md) for available ACS syntax.

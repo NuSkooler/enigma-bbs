@@ -162,15 +162,14 @@ class Achievements {
             }
         };
 
-        const configOptions = {
+        this.config = new ConfigLoader({
             onReload : err => {
                 if (!err) {
                     configLoaded();
                 }
-            },
-        };
+            }
+        });
 
-        this.config = new ConfigLoader(configOptions);
         this.config.init(configPath, err => {
             if (err) {
                 return cb(err);

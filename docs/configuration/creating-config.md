@@ -10,5 +10,5 @@ Your initial configuration skeleton can be created using the `oputil.js` command
 ./oputil.js config new
 ```
 
-You will be asked a series of questions to create an initial configuration, which will be saved to `/enigma-bbs-install-path/config/config.hjson`. This will also produce `config/<bbsName>-menu.hjson` and `config/<bbsName>-prompt.hjson` files (where `<bbsName>` is replaced by the name you provided in the steps above). See [Menu HJSON](menu-hjson.md) and [Prompt HJSON](prompt-hjson.md) for more information.
+You will be asked a series of questions to create an initial configuration, which will be saved to `/enigma-bbs-install-path/config/config.hjson`. This will also produce `config/<bbsName>-menu.hjson` and `config/<bbsName>-prompt.hjson` files (where `<bbsName>` is replaced by the name you provided in the steps above). See [Menu HJSON](menu-hjson.md) for more information.
 

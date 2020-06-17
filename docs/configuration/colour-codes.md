@@ -2,9 +2,7 @@
 layout: page
 title: Colour Codes
 ---
-ENiGMA½ supports Renegade-style pipe colour codes for formatting strings. You'll see them used in [`config.hjson`](config-hjson),
-[`prompt.hjson`](prompt-hjson), [`menu.hjson`](menu-hjson), and can also be used in places like the oneliner, rumour mod,
-full screen editor etc.
+ENiGMA½ supports Renegade-style pipe colour codes for formatting strings. You'll see them used throughout your configuration, and can also be used in places like the oneliner, rumour mod, full screen editor etc.
 
 ## Usage
 When ENiGMA½ encounters colour codes in strings, they'll be processed in order and combined where possible.
@@ -18,8 +16,8 @@ For example:
 
 ## Colour Code Reference
 
-:warning: Colour codes |24 to |31 are considered "blinking" or "iCE" colour codes. On terminals that support them they'll 
+:warning: Colour codes |24 to |31 are considered "blinking" or "iCE" colour codes. On terminals that support them they'll
 be shown as the correct colours - for terminals that don't, or are that are set to "blinking" mode - they'll blink!
 
-![Regegade style colour codes](../assets/images/colour-codes.png "Colour Codes")
+![Renegade style colour codes](../assets/images/colour-codes.png "Colour Codes")
 
