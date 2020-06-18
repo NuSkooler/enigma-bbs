@@ -40,13 +40,13 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
     //  note that 'recycle' here is arbitrary;
     //  only 'menus' and 'prompts' is reserved at this level.
     recycle: {
-		prevMenu: [
-			{
-				keys: [ "escape" ]
-				action: @systemMethod:prevMenu
-			}
-		]
-	}
+        prevMenu: [
+            {
+                keys: [ "escape" ]
+                action: @systemMethod:prevMenu
+            }
+        ]
+    }
 
     menus: {
         someMenu: {
