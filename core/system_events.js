@@ -9,7 +9,6 @@ module.exports = {
     ThemeChanged            : 'codes.l33t.enigma.system.theme_changed',             //  (theme.hjson): { themeId }
     ConfigChanged           : 'codes.l33t.enigma.system.config_changed',            //  (config.hjson)
     MenusChanged            : 'codes.l33t.enigma.system.menus_changed',             //  (menu.hjson)
-    PromptsChanged          : 'codes.l33t.enigma.system.prompts_changed',           //  (prompt.hjson)
 
     //  User - includes { user, ...}
     NewUser                 : 'codes.l33t.enigma.system.user_new',                  //  { ... }
