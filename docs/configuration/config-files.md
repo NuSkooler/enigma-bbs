@@ -14,16 +14,25 @@ Most configuration files offer an `includes` directive that allows users to brea
 
 The `includes` directive may be used the top-level scope of a configuration file:
 ```hjson
+// menu.hjson
 {
-    //  menu.hjson
-
     includes: [
         message-base.hjson
         file-base.hjson
     ]
 
     menus: {
-        someMenu: {
+        someOtherMenu: {
+            // ...
+        }
+    }
+}
+```
+```hjson
+// message-base.hjson
+{
+    menus: {
+        someMessageMenu: {
             // ...
         }
     }
@@ -33,7 +42,7 @@ The `includes` directive may be used the top-level scope of a configuration file
 ### References
 Often times in a configuration you will find that you're repeating yourself quite a bit. ENiGMA½ provides an `@reference` that can help with this in the form of `@reference:dot.path.to.section`.
 
-Consider `actionKeys` in a menu. Often times you may show a screen and the user presses `Q` or `ESC` to fall back to the previous. Instead of repeating this in many menus, a generic recyclable block can be utilized:
+Consider `actionKeys` in a menu. Often times you may show a screen and the user presses `Q` or `ESC` to fall back to the previous. Instead of repeating this in many menus, a generic block can be referenced:
 
 ```hjson
 {
@@ -50,10 +59,8 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
 
     menus: {
         someMenu: {
-            // ...
             form: {
                 0: {
-                    // ...
                     actionKeys: @reference:recycle.prevMenu
                 }
             }
@@ -62,7 +69,7 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
 }
 ```
 
-:information_source: An unresolved @reference will be left intact.
+:information_source: An unresolved `@reference` will be left intact.
 
 ### Environment Variables
 Especially in a container environment such as [Docker](/docs/installation/docker.md), environment variable access in configuration files can become very handy. ENiGMA½ provides a flexible way to access variables using the `@environment` directive. The most basic form of `@environment:VAR_NAME` produces a string value. Additionally a `:type` suffix can be supplied to coerece the value to a particular type. Variables pointing to a comma separated list can be turned to arrays using an additional `:array` suffix.
@@ -91,7 +98,7 @@ Below is a table of the various forms:
 
 :information_source: `timestamp` values can be in any form that [moment can parse](https://momentjs.com/docs/#/parsing/).
 
-:information_source: An unresolved or invalid @environment will be left intact.
+:information_source: An unresolved or invalid `@environment` will be left intact.
 
 Consider the following fragment:
 ```hjson
