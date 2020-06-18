@@ -93,6 +93,24 @@ Below is a table of the various forms:
 
 :information_source: An unresolved or invalid @environment will be left intact.
 
+Consider the following fragment:
+```hjson
+{
+    foo: {
+        bar: @environment:BAR_VAR:number
+    }
+}
+```
+
+If the environment has `BAR_VAR=1337`, this would produce:
+```hjson
+{
+    foo: {
+        bar: 1337
+    }
+}
+```
+
 ## See Also
 * [System Configuration](config-hjson.md)
 * [Menu Configuration](menu-hjson.md)
