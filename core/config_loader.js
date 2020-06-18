@@ -117,7 +117,7 @@ module.exports = class ConfigLoader {
         switch (type) {
             case 'bool' :
             case 'boolean' :
-                value = 'true' === value.toLowerCase();
+                value = ('1' === value || 'true' === value.toLowerCase());
                 break;
 
             case 'number' :
@@ -137,9 +137,6 @@ module.exports = class ConfigLoader {
                 }
                 break;
 
-            case 'date' :
-            case 'time' :
-            case 'datetime' :
             case 'timestamp' :
                 {
                     const m = moment(value);
