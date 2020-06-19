@@ -180,6 +180,9 @@ module.exports = class ConfigLoader {
         };
 
         ConfigCache.getConfigWithOptions(options, (err, config) => {
+            if (err) {
+                err.configPath = options.filePath;
+            }
             return cb(err, config);
         });
     }
