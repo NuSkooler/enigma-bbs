@@ -163,7 +163,7 @@ exports.ThemeManager = class ThemeManager {
         }
 
         //  merge menu.hjson+theme.hjson/etc. to the final usable theme
-        this._finalizeTheme(themeConfig);
+        this._finalizeTheme(themeId, themeConfig);
 
         //  Theme is valid and enabled; update it in available themes
         this.availableThemes.set(themeId, themeConfig);
@@ -174,7 +174,7 @@ exports.ThemeManager = class ThemeManager {
         );
     }
 
-    _finalizeTheme(themeConfig) {
+    _finalizeTheme(themeId, themeConfig) {
         //  These TODOs are left over from the old system - decide what/if to do with them:
         //  :TODO: merge in defaults (customization.defaults{} )
         //  :TODO: apply generic stuff, e.g. "VM" (vs "VM1")
@@ -185,7 +185,7 @@ exports.ThemeManager = class ThemeManager {
         const theme = themeConfig.get();
 
         //  some data brought directly over
-        mergedTheme.info            = theme.info;
+        mergedTheme.info            = Object.assign({}, theme.info, { themeId });
         mergedTheme.achievements    = _.get(theme, 'customization.achievements');
 
         //  Create some helpers for this theme
