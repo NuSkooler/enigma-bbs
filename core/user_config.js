@@ -171,7 +171,7 @@ exports.getModule = class UserConfigModule extends MenuModule {
                     },
                     function prepareAvailableThemes(callback) {
                         self.availThemeInfo = _.sortBy([...theme.getAvailableThemes()].map(entry => {
-                            const theme = entry[1];
+                            const theme = entry[1].get();
                             return {
                                 themeId     : theme.info.themeId,
                                 name        : theme.info.name,
