@@ -64,7 +64,7 @@ function getDefaultConfigPath() {
 }
 
 function getConfigPath() {
-    const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
+    const baseConfigPath = argv.config ? argv.config : config.Config.getDefaultPath();
     return baseConfigPath + 'config.hjson';
 }
 
