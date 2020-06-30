@@ -37,7 +37,7 @@ function getMenuConfig(client, name, cb) {
                         menuConfig.promptConfig = client.currentTheme.prompts[menuConfig.prompt];
                         return callback(null, menuConfig);
                     }
-                    return callback(Error.DoesNotExist(`No prompt entry for "${menuConfig.prompt}"`));
+                    return callback(Errors.DoesNotExist(`No prompt entry for "${menuConfig.prompt}"`));
                 }
                 return callback(null, menuConfig);
             }
