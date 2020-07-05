@@ -227,29 +227,47 @@ function buildNewConfig() {
         if(err) {            return;
         }
 
-        const bn = sanatizeFilename(config.general.boardName)
+        const boardName = sanatizeFilename(config.general.boardName)
             .replace(/[^a-z0-9_-]/ig, '_')
             .replace(/_+/g, '_')
             .toLowerCase();
-        const menuFile = `${bn}-menu.hjson`;
-        copyFileSyncSilent(
-            paths.join(__dirname, '../../misc/menu_template.in.hjson'),
-            paths.join(__dirname, '../../config/', menuFile),
-            fs.constants.COPYFILE_EXCL
-        );
+        const menuFile = `menus/${boardName}-main.hjson`;
 
-        const promptFile = `${bn}-prompt.hjson`;
-        copyFileSyncSilent(
-            paths.join(__dirname, '../../misc/prompt_template.in.hjson'),
-            paths.join(__dirname, '../../config/', promptFile),
-            fs.constants.COPYFILE_EXCL
-        );
+        const mainTemplate = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'), 'utf8'));
 
-        config.general.menuFile     = menuFile;
-        config.general.promptFile   = promptFile;
+        const includeFiles = [
+            'message_base.in.hjson',
+            'private_mail.in.hjson',
+            'login.in.hjson',
+            'new_user.in.hjson',
+            'doors.in.hjson',
+            'file_base.in.hjson',
+        ];
 
-        if(writeConfig(config, configPath)) {
-            console.info('Configuration generated');
+        includeFiles.forEach(incFile => {
+            const outName = `${boardName}-${incFile.replace('.in', '')}`;
+            copyFileSyncSilent(
+                paths.join(__dirname, '../../misc/menu_templates', incFile),
+                paths.join(__dirname, '../../config/menus', outName),
+                fs.constants.COPYFILE_EXCL
+            );
+        });
+
+        mainTemplate.includes = includeFiles.map(incFile => {
+            return `${boardName}-${incFile.replace('.in', '')}`;
+        });
+
+        if (writeConfig(
+            mainTemplate,
+            paths.join(__dirname, '../../config/menus', `${boardName}-main.hjson`)))
+        {
+            config.general.menuFile = menuFile;
+
+            if(writeConfig(config, configPath)) {
+                console.info('Configuration generated');
+            } else {
+                console.error('Failed writing configuration');
+            }
         } else {
             console.error('Failed writing configuration');
         }
