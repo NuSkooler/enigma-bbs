@@ -3,7 +3,7 @@ layout: page
 title: Raspberry Pi
 ---
 
-All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with 
+All Raspberry Pi models work great with ENiGMA½! Keep in mind compiling the dependencies with
 `npm install` will take some time and *may* appear to hang. It's still working - just be patient and let it
 complete.
 
@@ -19,9 +19,9 @@ to get it written to an SD card.
     3. Expand the filesystem to use the entire SD card (option 7, option A1)
 
 3. Update & upgrade all packages: `apt-get update && apt-get upgrade`
-    
+
 4. Install required packages: `sudo apt install lrzsz p7zip-full`
 
-5. Follow the [installation instructions](/installation) to install ENiGMA½.
+5. Follow the [installation instructions](../installation/) to install ENiGMA½.
 
 6. Profit!
