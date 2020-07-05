@@ -6,7 +6,7 @@ title: TIC Support
 ENiGMA½ supports FidoNet-Style TIC file attachments by mapping TIC areas to local file areas.
 
 Under a given node defined in the `ftn_bso` config section in `config.hjson` (see
-[BSO Import/Export](../messageareas/bso-import-export)), TIC configuration may be supplied:
+[BSO Import/Export](../messageareas/bso-import-export.md)), TIC configuration may be supplied:
 
 ```hjson
 {

@@ -2,7 +2,7 @@
 layout: page
 title: Colour Codes
 ---
-ENiGMA½ supports Renegade-style pipe colour codes for formatting strings. You'll see them used throughout your configuration, and can also be used in places like the oneliner, rumour mod, full screen editor etc.
+ENiGMA½ supports Renegade-style pipe colour codes for formatting strings. You'll see them used throughout your configuration, and can also be used in places like onelinerz, rumourz, full screen editor etc.
 
 ## Usage
 When ENiGMA½ encounters colour codes in strings, they'll be processed in order and combined where possible.

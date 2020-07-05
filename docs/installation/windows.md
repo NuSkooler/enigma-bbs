@@ -22,7 +22,7 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 		npm-windows-upgrade
 		```
 
-		Note: Do not run `npm i -g npm`. Instead use `npm-windows-upgrade` to update npm going forward. 
+		Note: Do not run `npm i -g npm`. Instead use `npm-windows-upgrade` to update npm going forward.
 		Also if you run the NodeJS installer, it will replace the node version.
 
 	2. Install [windows-build-tools for npm](https://www.npmjs.com/package/windows-build-tools)
@@ -30,7 +30,7 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 		```Powershell
 		npm install --global --production windows-build-tools
 		```
-		
+
 
 2. Install [7zip](https://www.7-zip.org/download.html).
 
@@ -41,19 +41,19 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	4. Click `New` and paste the path to 7zip
 	5. Close your console window and reopen. You can type `7z` to make sure it's working.
 
-(Please see [Archivers](/docs/archivers.md) for additional archive utilities!)
+(Please see [Archivers](../configuration/archivers.md) for additional archive utilities!)
 
-3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/). 
+3. Install [Git](https://git-scm.com/downloads) and optionally [TortoiseGit](https://tortoisegit.org/download/).
 
-4. Clone ENiGMA½ - browse to the directory you want and run 
+4. Clone ENiGMA½ - browse to the directory you want and run
 	```Powershell
 	git clone "https://github.com/NuSkooler/enigma-bbs.git"
 	```
 	Optionally use the TortoiseGit by right clicking the directory and selecting `Git Clone`.
-    
+
 
 5. Install ENiGMA½.
-	1. In the enigma directory run 
+	1. In the enigma directory run
 	```Powershell
 	npm install
 	```
@@ -66,6 +66,6 @@ ENiGMA½ will run on both 32bit and 64bit Windows. If you want to run 16bit door
 	```Powershell
 		node .\main.js
 	```
-	
 
-6. Look at [Production Installation](/installation/production) for maintaining ENiGMA½ when you are ready to go live.
+
+6. Look at [Production Installation](production.md) for maintaining ENiGMA½ when you are ready to go live.
