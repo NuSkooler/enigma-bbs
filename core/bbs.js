@@ -125,6 +125,7 @@ function main() {
 
             if(err && !errorDisplayed) {
                 console.error('Error initializing: ' + util.inspect(err));
+                return process.exit();
             }
         }
     );
