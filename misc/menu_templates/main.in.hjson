@@ -72,9 +72,6 @@
     }
 
     menus: {
-        ///////////////////////////////////////////////////////////////////////
-        //  Main Menu
-        ///////////////////////////////////////////////////////////////////////
         mainMenu: {
             art: MMENU
             desc: Main Menu
@@ -84,10 +81,6 @@
                 interrupt: realtime
             }
             submit: [
-                {
-                    value: { command: "MSG" }
-                    action: @menu:nodeMessage
-                }
                 {
                     value: { command: "G" }
                     action: @menu:fullLogoffSequence
@@ -178,8 +171,8 @@
                     ]
                 }
                 {
-                    value: 1
-                    action: @menu:mainMenu
+                    value: { command: "MSG" }
+                    action: @menu:nodeMessage
                 }
             ]
         }
