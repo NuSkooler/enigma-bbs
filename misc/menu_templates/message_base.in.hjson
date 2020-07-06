@@ -245,7 +245,7 @@
                         VM1: {
                             focus: true
                             submit: true
-                            argName: message
+                            argName: messageIndex
                         }
                     }
                     submit: {
@@ -372,7 +372,7 @@
                         VM1: {
                             focus: true
                             submit: true
-                            argName: message
+                            argName: messageIndex
                         }
                         TL6: {
                             //  theme me!
@@ -421,7 +421,7 @@
                         VM1: {
                             focus: true
                             submit: true
-                            argName: message
+                            argName: messageIndex
                         }
                     }
                     submit: {

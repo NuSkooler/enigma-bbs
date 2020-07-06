@@ -145,7 +145,7 @@
             module: msg_list
             art: PRVMSGLIST
             config: {
-                menuViewPost: messageAreaViewPost
+                menuViewPost: messageBaseViewPost
                 messageAreaTag: private_mail
             }
             form: {
@@ -154,7 +154,7 @@
                         VM1: {
                             focus: true
                             submit: true
-                            argName: message
+                            argName: messageIndex
                         }
                     }
                     submit: {

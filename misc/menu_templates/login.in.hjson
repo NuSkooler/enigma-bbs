@@ -372,7 +372,7 @@
                         VM1: {
                             focus: true
                             submit: true
-                            argName: message
+                            argName: messageIndex
                         }
                         TL6: { }
                     }
