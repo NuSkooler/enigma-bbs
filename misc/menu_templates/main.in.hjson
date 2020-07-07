@@ -517,11 +517,11 @@
             module: msg_area_post_fse
             config: {
                 art: {
-                    header:             MSGEHDR
-                    body:               MSGBODY
-                    footerEditor:       MSGEFTR
-                    footerEditorMenu:   MSGEMFT
-                    help:               MSGEHLP
+                    header: MSGEHDR
+                    body: MSGBODY
+                    footerEditor: MSGEFTR
+                    footerEditorMenu: MSGEMFT
+                    help: MSGEHLP
                 },
                 editorMode: edit
                 editorType: email
