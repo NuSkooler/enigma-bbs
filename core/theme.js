@@ -121,7 +121,7 @@ exports.ThemeManager = class ThemeManager {
             onReload : err => {
                 if (!err) {
                     //  this particular theme has changed
-                    this._themeLoaded(themeId, err => {
+                    this._themeLoaded(themeId, themeConfig, err => {
                         if (!err) {
                             Events.emit(
                                 Events.getSystemEvents().ThemeChanged,

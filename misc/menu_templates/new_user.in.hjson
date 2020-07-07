@@ -1,0 +1,362 @@
+{
+	menus: {
+		//  A quick preamble - defaults to warning about broken terminals
+        newUserApplicationPre: {
+            art: NEWUSER1
+            next: newUserApplication
+            desc: Applying
+            config: {
+                pause: true
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        newUserApplication: {
+            module: nua
+            art: NUA
+            next: [
+                {
+                    //  Initial SysOp does not send feedback to themselves
+                    acs: ID1
+                    next: fullLoginSequenceLoginArt
+                }
+                {
+                    //  ...everyone else does
+                    next: newUserFeedbackToSysOpPreamble
+                }
+            ]
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            argName: username
+                            maxLength: @config:users.usernameMax
+                            validate: @systemMethod:validateUserNameAvail
+                        }
+                        ET2: {
+                            argName: realName
+                            maxLength: @config:users.realNameMax
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        MET3: {
+                            argName: birthdate
+                            maskPattern: "####/##/##"
+                            validate: @systemMethod:validateBirthdate
+                        }
+                        ME4: {
+                            argName: sex
+                            maskPattern: A
+                            textStyle: upper
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET5: {
+                            argName: location
+                            maxLength: @config:users.locationMax
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET6: {
+                            argName: affils
+                            maxLength: @config:users.affilsMax
+                        }
+                        ET7: {
+                            argName: email
+                            maxLength: @config:users.emailMax
+                            validate: @systemMethod:validateEmailAvail
+                        }
+                        ET8: {
+                            argName: web
+                            maxLength: @config:users.webMax
+                        }
+                        ET9: {
+                            argName: password
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            validate: @systemMethod:validatePasswordSpec
+                        }
+                        ET10: {
+                            argName: passwordConfirm
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            validate: @method:validatePassConfirmMatch
+                        }
+                        TM12: {
+                            argName: submission
+                            items: [ "apply", "cancel" ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { "submission" : 0 }
+                                action: @method:submitApplication
+                                extraArgs: {
+                                    inactive: userNeedsActivated
+                                    error: newUserCreateError
+                                }
+                            }
+                            {
+                                value: { "submission" : 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: @reference:common.escToPrev
+                }
+            }
+        }
+
+        //  A quick preamble - defaults to warning about broken terminals (SSH version)
+        newUserApplicationPreSsh: {
+            art: NEWUSER1
+            next: newUserApplicationSsh
+            desc: Applying
+            config: {
+                pause: true
+                cls: true
+                menuFlags: [ "noHistory" ]
+            }
+        }
+
+        //
+        //  SSH specialization of NUA
+        //  Canceling this form logs off vs falling back to matrix
+        //
+        newUserApplicationSsh: {
+            module: nua
+            art: NUA
+            fallback: logoff
+            next: newUserFeedbackToSysOpPreamble
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            argName: username
+                            maxLength: @config:users.usernameMax
+                            validate: @systemMethod:validateUserNameAvail
+                        }
+                        ET2: {
+                            argName: realName
+                            maxLength: @config:users.realNameMax
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        MET3: {
+                            argName: birthdate
+                            maskPattern: "####/##/##"
+                            validate: @systemMethod:validateBirthdate
+                        }
+                        ME4: {
+                            argName: sex
+                            maskPattern: A
+                            textStyle: upper
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET5: {
+                            argName: location
+                            maxLength: @config:users.locationMax
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET6: {
+                            argName: affils
+                            maxLength: @config:users.affilsMax
+                        }
+                        ET7: {
+                            argName: email
+                            maxLength: @config:users.emailMax
+                            validate: @systemMethod:validateEmailAvail
+                        }
+                        ET8: {
+                            argName: web
+                            maxLength: @config:users.webMax
+                        }
+                        ET9: {
+                            argName: password
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            validate: @systemMethod:validatePasswordSpec
+                        }
+                        ET10: {
+                            argName: passwordConfirm
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            validate: @method:validatePassConfirmMatch
+                        }
+                        TM12: {
+                            argName: submission
+                            items: [ "apply", "cancel" ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { "submission" : 0 }
+                                action: @method:submitApplication
+                                extraArgs: {
+                                    inactive: userNeedsActivated
+                                    error: newUserCreateError
+                                }
+                            }
+                            {
+                                value: { "submission" : 1 }
+                                action: @systemMethod:logoff
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+        newUserFeedbackToSysOpPreamble: {
+            art: LETTER
+            config: { pause: true }
+            next: newUserFeedbackToSysOp
+        }
+
+        newUserFeedbackToSysOp: {
+            desc: Feedback to SysOp
+            module: msg_area_post_fse
+            next: [
+                {
+                    acs: AS2
+                    next: fullLoginSequenceLoginArt
+                }
+                {
+                    next: newUserInactiveDone
+                }
+            ]
+            config: {
+                art: {
+                    header: MSGEHDR
+                    body: MSGBODY
+                    footerEditor: MSGEFTR
+                    footerEditorMenu: MSGEMFT
+                    help: MSGEHLP
+                },
+                editorMode: edit
+                editorType: email
+                messageAreaTag: private_mail
+                toUserId: 1 /* always to +op */
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName: from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            text: @sysStat:sysop_username
+                            maxLength: 36
+                            //  :TODO: readOnly: true
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            text: New user feedback
+                            validate: @systemMethod:validateMessageSubject
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 79
+                            argName: message
+                            mode: edit
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                        	{
+                        		value: message
+                        		action: @method:editModeEscPressed
+                        	}
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                },
+                2: {
+                    TLTL:  {
+                        mci: {
+                            TL1: {
+                                width: 5
+                            }
+                            TL2: {
+                                width: 4
+                            }
+                        }
+                    }
+                }
+                3: {
+                    HM: {
+                        mci: {
+                            HM1: {
+                                //  :TODO: clear
+                                items: [ "save", "help" ]
+                            }
+                        }
+                        submit: {
+                            *: [
+                                {
+                                    value: { 1: 0 }
+                                    action: @method:editModeMenuSave
+                                }
+                                {
+                                    value: { 1: 1 }
+                                    action: @method:editModeMenuHelp
+                                }
+                            ]
+                        }
+                        actionKeys: [
+                            {
+                                keys: [ "escape" ]
+                                action: @method:editModeEscPressed
+                            }
+                            {
+                                keys: [ "?" ]
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        newUserInactiveDone: {
+            desc: Finished with NUA
+            art: DONE
+            config: { pause: true }
+            next: @menu:logoff
+        }
+	}
+}

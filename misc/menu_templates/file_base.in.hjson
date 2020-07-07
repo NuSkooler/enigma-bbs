@@ -1,0 +1,918 @@
+{
+	menus: {
+		fileBaseMainMenu: {
+            desc: File Base
+            art: FMENU
+            prompt: fileMenuCommand
+            config: {
+                interrupt: realtime
+            }
+            submit: [
+                {
+                    value: { menuOption: "L" }
+                    action: @menu:fileBaseListEntries
+                }
+                {
+                    value: { menuOption: "B" }
+                    action: @menu:fileBaseBrowseByAreaSelect
+                }
+                {
+                    value: { menuOption: "F" }
+                    action: @menu:fileBaseFilterEditor
+                }
+                {
+                    value: { menuOption: "Q" }
+                    action: @systemMethod:prevMenu
+                }
+                {
+                    value: { menuOption: "G" }
+                    action: @menu:fullLogoffSequence
+                }
+                {
+                    value: { menuOption: "D" }
+                    action: @menu:fileBaseDownloadManager
+                }
+                {
+                    value: { menuOption: "W" }
+                    action: @menu:fileBaseWebDownloadManager
+                }
+                {
+                    value: { menuOption: "U" }
+                    action: @menu:fileBaseUploadFiles
+                }
+                {
+                    value: { menuOption: "S" }
+                    action: @menu:fileBaseSearch
+                }
+                {
+                    value: { menuOption: "P" }
+                    action: @menu:fileBaseSetNewScanDate
+                }
+                {
+                    value: { menuOption: "E" }
+                    action: @menu:fileBaseExportListFilter
+                }
+            ]
+        }
+
+        fileBaseListEntries: {
+            module: file_area_list
+            desc: Browsing Files
+            config: {
+                art: {
+                    browse: FBRWSE
+                    details: FDETAIL
+                    detailsGeneral: FDETGEN
+                    detailsNfo: FDETNFO
+                    detailsFileList: FDETLST
+                    help: FBHELP
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            mode: preview
+                        }
+
+                        HM2: {
+                            focus: true
+                            submit: true
+                            argName: navSelect
+                            items: [
+                                "prev", "next", "details", "toggle queue", "rate", "change filter", "help", "quit"
+                            ]
+                            focusItemIndex: 1
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:prevFile
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @method:nextFile
+                            }
+                            {
+                                value: { navSelect: 2 }
+                                action: @method:viewDetails
+                            }
+                            {
+                                value: { navSelect: 3 }
+                                action: @method:toggleQueue
+                            }
+                            {
+                                value: { navSelect: 4 }
+                                action: @menu:fileBaseGetRatingForSelectedEntry
+                            }
+                            {
+                                value: { navSelect: 5 }
+                                action: @menu:fileBaseFilterEditor
+                            }
+                            {
+                                value: { navSelect: 6 }
+                                action: @method:displayHelp
+                            }
+                            {
+                                value: { navSelect: 7 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "w", "shift + w" ]
+                            action: @method:showWebDownloadLink
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "t", "shift + t" ]
+                            action: @method:toggleQueue
+                        }
+                        {
+                            keys: [ "f", "shift + f" ]
+                            action: @menu:fileBaseFilterEditor
+                        }
+                        {
+                            keys: [ "v", "shift + v" ]
+                            action: @method:viewDetails
+                        }
+                        {
+                            keys: [ "r", "shift + r" ]
+                            action: @menu:fileBaseGetRatingForSelectedEntry
+                        }
+                        {
+                            keys: [ "?" ]
+                            action: @method:displayHelp
+                        }
+                    ]
+                }
+
+                1: {
+                    mci: {
+                        HM1: {
+                            focus: true
+                            submit: true
+                            argName: navSelect
+                            items: [
+                                "general", "nfo/readme", "file listing"
+                            ]
+                        }
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @method:detailsQuit
+                        }
+                    ]
+                }
+
+                2: {
+                    //  details - general
+                    mci: {}
+                }
+
+                3: {
+                    //  details - nfo/readme
+                    mci: {
+                        MT1: {
+                            mode: preview
+                        }
+                    }
+                }
+
+                4: {
+                    //  details - file listing
+                    mci: {
+                        VM1: {
+
+                        }
+                    }
+                }
+            }
+        }
+
+        fileBaseBrowseByAreaSelect: {
+            desc: Browsing File Areas
+            module: file_base_area_select
+            art: FAREASEL
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            argName: areaTag
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { areaTag: null }
+                                action: @method:selectArea
+                            }
+                        ]
+                    }
+
+                    actionKeys: @reference:common.quitToPrev
+                }
+            }
+        }
+
+        fileBaseFilterEditor: {
+            desc: File Filter Editor
+            module: file_area_filter_edit
+            art: FFILEDT
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: searchTerms
+                        }
+                        ET2: {
+                            maxLength: 64
+                            argName: tags
+                        }
+                        SM3: {
+                            maxLength: 64
+                            argName: areaIndex
+                        }
+                        SM4: {
+                            items: [
+                                "upload date",
+                                "uploaded by",
+                                "downloads",
+                                "rating",
+                                "estimated year",
+                                "size",
+                            ]
+                            argName: sortByIndex
+                        }
+                        SM5: {
+                            items: [
+                                "decending",
+                                "ascending"
+                            ]
+                            argName: orderByIndex
+                        }
+                        ET6: {
+                            maxLength: 64
+                            argName: name
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        HM7: {
+                            focus: true
+                            items: [
+                                "prev", "next", "make active", "save", "new", "delete"
+                            ]
+                            argName: navSelect
+                            focusItemIndex: 1
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:prevFilter
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @method:nextFilter
+                            }
+                            {
+                                value: { navSelect: 2 }
+                                action: @method:makeFilterActive
+                            }
+                            {
+                                value: { navSelect: 3 }
+                                action: @method:saveFilter
+                            }
+                            {
+                                value: { navSelect: 4 }
+                                action: @method:newFilter
+                            }
+                            {
+                                value: { navSelect: 5 }
+                                action: @method:deleteFilter
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        fileBaseDownloadManager: {
+            desc: Download Manager
+            module: file_base_download_manager
+            config: {
+                art: {
+                    queueManager: FDLMGR
+                    /*
+                    NYI
+                    details: FDLDET
+                    */
+                }
+                emptyQueueMenu: fileBaseDownloadManagerEmptyQueue
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            argName: queueItem
+                        }
+                        HM2: {
+                            focus: true
+                            items: [ "download all", "quit" ]
+                            argName: navSelect
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:downloadAll
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "a", "shift + a" ]
+                            action: @method:downloadAll
+                        }
+                        {
+                            keys: [ "delete", "r", "shift + r" ]
+                            action: @method:removeItem
+                        }
+                        {
+                            keys: [ "c", "shift + c" ]
+                            action: @method:clearQueue
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        fileBaseDownloadManagerEmptyQueue: {
+            desc: Empty Download Queue
+            art: FEMPTYQ
+            config: {
+                pause: true
+                menuFlags: [ "noHistory", "popParent" ]
+            }
+        }
+
+        fileBaseWebDownloadManager: {
+            desc: Web D/L Manager
+            module: file_base_web_download_manager
+            config: {
+                art: {
+                    queueManager: FWDLMGR
+                    batchList: BATDLINF
+                }
+                emptyQueueMenu: fileBaseDownloadManagerEmptyQueue
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            argName: queueItem
+                        }
+                        HM2: {
+                            focus: true
+                            items: [ "get batch link", "quit", "help" ]
+                            argName: navSelect
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:getBatchLink
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "b", "shift + b" ]
+                            action: @method:getBatchLink
+                        }
+                        {
+                            keys: [ "delete", "r", "shift + r" ]
+                            action: @method:removeItem
+                        }
+                        {
+                            keys: [ "c", "shift + c" ]
+                            action: @method:clearQueue
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        fileBaseUploadFiles: {
+            desc: Uploading
+            module: upload
+            config: {
+                interrupt: never
+                art: {
+                    options: ULOPTS
+                    fileDetails: ULDETAIL
+                    processing: ULCHECK
+                    dupes: ULDUPES
+                }
+            }
+
+            form: {
+                //  options
+                0: {
+                    mci: {
+                        SM1: {
+                            argName: areaSelect
+                            focus: true
+                        }
+                        TM2: {
+                            argName: uploadType
+                            items: [ "blind", "supply filename" ]
+                        }
+                        ET3: {
+                            argName: fileName
+                            maxLength: 255
+                            validate: @method:validateNonBlindFileName
+                        }
+                        HM4: {
+                            argName: navSelect
+                            items: [ "continue", "cancel" ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:optionsNavContinue
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    "actionKeys" : [
+                        {
+                            "keys"      : [ "escape" ],
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+
+                1: {
+                    mci: { }
+                }
+
+                //  file details entry
+                2: {
+                    mci: {
+                        MT1: {
+                            argName: shortDesc
+                            tabSwitchesView: true
+                            focus: true
+                        }
+
+                        ET2: {
+                            argName: tags
+                        }
+
+                        ME3: {
+                            argName: estYear
+                            maskPattern: "####"
+                        }
+
+                        BT4: {
+                            argName: continue
+                            text: continue
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { continue: null }
+                                action: @method:fileDetailsContinue
+                            }
+                        ]
+                    }
+                }
+
+                //  dupes
+                3: {
+                    mci: {
+                        VM1: {
+                            /*
+                            Use 'dupeInfoFormat' to custom format:
+
+                            areaDesc
+                            areaName
+                            areaTag
+                            desc
+                            descLong
+                            fileId
+                            fileName
+                            fileSha256
+                            storageTag
+                            uploadTimestamp
+
+                            */
+
+                            mode: preview
+                        }
+                    }
+                }
+            }
+        }
+
+        fileBaseSearch: {
+            module: file_base_search
+            desc: Searching Files
+            art: FSEARCH
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            argName: searchTerms
+                        }
+                        BT2: {
+                            argName: search
+                            text: search
+                            submit: true
+                        }
+                        ET3: {
+                            maxLength: 64
+                            argName: tags
+                        }
+                        SM4: {
+                            maxLength: 64
+                            argName: areaIndex
+                        }
+                        SM5: {
+                            items: [
+                                "upload date",
+                                "uploaded by",
+                                "downloads",
+                                "rating",
+                                "estimated year",
+                                "size",
+                                "filename",
+                            ]
+                            argName: sortByIndex
+                        }
+                        SM6: {
+                            items: [
+                                "decending",
+                                "ascending"
+                            ]
+                            argName: orderByIndex
+                        }
+                        BT7: {
+                            argName: advancedSearch
+                            text: advanced search
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { search: null }
+                                action: @method:search
+                            }
+                            {
+                                value: { advancedSearch: null }
+                                action: @method:search
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        fileBaseSetNewScanDate: {
+            module: set_newscan_date
+            desc: File Base
+            art: SETFNSDATE
+            config: {
+                target: file
+                scanDateFormat: YYYYMMDD
+            }
+            form: {
+                0: {
+                    mci: {
+                        ME1: {
+                            focus: true
+                            submit: true
+                            argName: scanDate
+                            maskPattern: "####/##/##"
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { scanDate: null }
+                                action: @method:scanDateSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: @reference:common.quitToPrev
+                }
+            }
+        }
+
+        fileBaseExportListFilter: {
+            module: file_base_search
+            art: FBLISTEXPSEARCH
+            config: {
+                fileBaseListEntriesMenu: fileBaseExportList
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            argName: searchTerms
+                        }
+                        BT2: {
+                            argName: search
+                            text: search
+                            submit: true
+                        }
+                        ET3: {
+                            maxLength: 64
+                            argName: tags
+                        }
+                        SM4: {
+                            maxLength: 64
+                            argName: areaIndex
+                        }
+                        SM5: {
+                            items: [
+                                "upload date",
+                                "uploaded by",
+                                "downloads",
+                                "rating",
+                                "estimated year",
+                                "size",
+                                "filename"
+                            ]
+                            argName: sortByIndex
+                        }
+                        SM6: {
+                            items: [
+                                "decending",
+                                "ascending"
+                            ]
+                            argName: orderByIndex
+                        }
+                        BT7: {
+                            argName: advancedSearch
+                            text: advanced search
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { search: null }
+                                action: @method:search
+                            }
+                            {
+                                value: { advancedSearch: null }
+                                action: @method:search
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        fileBaseExportList: {
+            module: file_base_user_list_export
+            art: FBLISTEXP
+            config: {
+                pause: true
+                templates: {
+                    entry: file_list_entry.asc
+                }
+            }
+            form: {
+                0: {
+                    mci:  {
+                        TL1: { }
+                        TL2: { }
+                    }
+                }
+            }
+        }
+
+        fileBaseExportListNoResults: {
+            desc: Browsing Files
+            art: FBNORES
+            config: {
+                pause: true
+                menuFlags: [ "noHistory", "popParent" ]
+            }
+        }
+
+        //	Referenced by various menus
+        fileBaseGetRatingForSelectedEntry: {
+            desc: Rating a File
+            prompt: fileBaseRateEntryPrompt
+            config: {
+                cls: true
+            }
+            submit: [
+            	//  :TODO: handle esc/q
+                {
+                    //  pass data back to caller
+                    value: { rating: null }
+                    action: @systemMethod:prevMenu
+                }
+            ]
+        }
+
+        //	default menu entry used by the 'file_area_list' module
+       	//	when there are no search results for the provided criteria
+        fileBaseListEntriesNoResults: {
+            desc: Browsing Files
+            art: FBNORES
+            config: {
+                pause: true
+                menuFlags: [ "noHistory", "popParent" ]
+            }
+        }
+
+        //	default menu entry used by the 'file_base_download_manager' module
+        //	for protocol selection
+        fileTransferProtocolSelection: {
+            desc: Protocol selection
+            module: file_transfer_protocol_select
+            art: FPROSEL
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            argName: protocol
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { protocol: null }
+                                action: @method:selectProtocol
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        //	default menu entry used by the 'upload' module for when
+        //	no areas are available for the user to upload to
+        fileBaseNoUploadAreasAvail: {
+            desc: File Base
+            art: ULNOAREA
+            config: {
+                pause: true
+                menuFlags: [ "noHistory", "popParent" ]
+            }
+        }
+
+        //	default menu entry used by the 'file_transfer_protocol_select' module
+        //	when performing user downloads
+        sendFilesToUser: {
+            desc: Downloading
+            module: file_transfer
+            config: {
+                //  defaults - generally use extraArgs
+                protocol: zmodem8kSexyz
+                direction: send
+            }
+        }
+
+        //	default menu entry used by the 'file_transfer_protocol_select' module
+        //	when performing user uploads
+        recvFilesFromUser: {
+            desc: Uploading
+            module: file_transfer
+            config: {
+                //  defaults - generally use extraArgs
+                protocol: zmodem8kSexyz
+                direction: recv
+            }
+        }
+	}
+
+	prompts: {
+		fileMenuCommand: {
+			art: FILPMPT
+			mci: {
+				TL1: {}
+				ET2: {
+					argName: menuOption
+					width: 20
+					maxLength: 20
+					textStyle: upper
+					focus: true
+				}
+			}
+		}
+
+		fileBaseRateEntryPrompt: {
+			art: RATEFILE
+			mci: {
+				SM1: {
+					argName: rating
+					items: [ "-----", "*----", "**---", "***--", "****-", "*****" ]
+				}
+			}
+
+			actionKeys: [
+				{
+					keys: [ "escape" ]
+					action: @systemMethod:prevMenu
+				}
+			]
+		}
+
+		fileBaseTagEntryPrompt: {
+			art: TAGFILE
+			mci: {
+				ET1: {
+					argName: tags
+				}
+			}
+		}
+	}
+}

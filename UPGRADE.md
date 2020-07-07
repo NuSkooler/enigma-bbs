@@ -2,29 +2,17 @@
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # Before Upgrading
-* Always back up your system!
+* Always back up your system! (See [Administration](/docs/admin/administration.md))
 * Seriously, always back up your system!
-* At least back up the `db` directory and your `menu.hjson` (or renamed equivalent)
 
 # General Notes
 ## Configuration File Updates
-In general, look at the `menu_template.in.hjson`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
+In general, look at template menu files in `misc/menu_templates`, and `config_template.in.hjson` as well as the default `luciano_blocktronics/theme.hjson` files when you update. These files may come with new sections you wish to merge into your system!
 
-### menu.hjson
-Upgrades often come with changes to the default `menu_template.in.hjson`. It is wise to use a *different* file name for your BBS's version of this file and point to it via `config.hjson`. For example:
+### Menus & Theme Updates
+Upgrades often come with changes to the default menu templates found in `misc/menu_tempaltes`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
 
-```hjson
-general: {
-	menuFile: my_bbs.hjson
-}
-```
-
-After updating code, use a program such as DiffMerge to merge in updates to
-`my_bbs.hjson` from the shipping `menu.hjson`.
-
-### theme.hjson
-Any custom themes you have created may now be missing features as well. Take a look at the default `luciano_blocktronics/theme.hjson` file. You can use missing sections in your `theme.hjson` (which will generally correspond to sections you've also merged in to your `menu.hjson`).
-
+See [Updating](/docs/admin/updating.md) for details on menu files/etc.
 
 # Upgrading the Code
 Upgrading from GitHub is easy:
@@ -33,7 +21,7 @@ Upgrading from GitHub is easy:
 cd /path/to/enigma-bbs
 git pull
 rm -rf npm_modules # do this any time you update Node.js itself
-npm install
+npm install # or simply 'yarn'
 ```
 
 # Problems
@@ -42,6 +30,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 # 0.0.11-beta to 0.0.12-beta
 * Be aware that `master` is now mainline! This means all `git pull`'s will yield the latest version. See [WHATSNEW](WHATSNEW.md) for more information.
+* There is no longer a `prompt.hjson` file. Prompts are simply part of the menu set in the `prompts` section.
 
 # 0.0.10-alpha to 0.0.11-beta
 * Node.js 12.x LTS is now in use. Follow standard Node.js upgrade procedures (e.g.: `nvm install 12 && nvm use 12`).

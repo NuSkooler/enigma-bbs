@@ -13,12 +13,14 @@ module.exports = class ConfigLoader {
             defaultConfig = {},
             defaultsCustomizer = null,
             onReload = null,
+            keepWsc = false,
         } =
         {
             hotReload : true,
             defaultConfig : {},
             defaultsCustomizer : null,
             onReload : null,
+            keepWsc : false,
         }
     )
     {
@@ -28,6 +30,7 @@ module.exports = class ConfigLoader {
         this.defaultConfig      = defaultConfig;
         this.defaultsCustomizer = defaultsCustomizer;
         this.onReload           = onReload;
+        this.keepWsc            = keepWsc;
     }
 
     init(baseConfigPath, cb) {
@@ -158,7 +161,8 @@ module.exports = class ConfigLoader {
 
         let value = process.env[varName];
         if (!value) {
-            return;
+            //  console is about as good as we can do here
+            return console.info(`WARNING: environment variable "${varName}" from spec "${spec}" not found!`);
         }
 
         if ('array' === array) {
@@ -176,6 +180,7 @@ module.exports = class ConfigLoader {
         const options = {
             filePath,
             hotReload   : this.hotReload,
+            keepWsc     : this.keepWsc,
             callback    : this._configFileChanged.bind(this),
         };
 

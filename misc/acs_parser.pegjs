@@ -211,6 +211,14 @@
 					}
 					const points = user.getPropertyAsNumber(UserProps.AchievementTotalPoints) || 0;
 					return !isNan(value) && points >= value;
+				},
+				PV	: function userPropValue() {
+					if (!user || !Array.isArray(value) || value.length !== 2) {
+						return false;
+					}
+					const [propName, propValue] = value;
+					const actualPropValue = user.getProperty(propName);
+					return actualPropValue === propValue;
 				}
 			}[acsCode](value);
 		} catch (e) {

@@ -60,13 +60,14 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
         this.menuMethods = {
             selectMessage : (formData, extraArgs, cb) => {
                 if(MciViewIds.allViews.msgList === formData.submitId) {
-                    this.initialFocusIndex = formData.value.message;
+                    //  'messageIndex' or older deprecated 'message' member
+                    this.initialFocusIndex = _.get(formData, 'value.messageIndex', formData.value.message);
 
                     const modOpts = {
                         extraArgs   : {
-                            messageAreaTag      : this.getSelectedAreaTag(formData.value.message),
+                            messageAreaTag      : this.getSelectedAreaTag(this.initialFocusIndex),
                             messageList         : this.config.messageList,
-                            messageIndex        : formData.value.message,
+                            messageIndex        : this.initialFocusIndex,
                             lastMessageNextExit : true,
                         }
                     };
@@ -107,7 +108,9 @@ exports.getModule = class MessageListModule extends MessageAreaConfTempSwitcher(
                 if(MciViewIds.allViews.msgList != formData.submitId) {
                     return cb(null);
                 }
-                const messageIndex = _.get(formData, 'value.message');
+
+                //  newer 'messageIndex' or older deprecated value
+                const messageIndex = _.get(formData, 'value.messageIndex', formData.value.message);
                 return this.promptDeleteMessageConfirm(messageIndex, cb);
             },
             deleteMessageYes : (formData, extraArgs, cb) => {

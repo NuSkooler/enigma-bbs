@@ -1,0 +1,132 @@
+{
+	menus: {
+		doorsMainMenu: {
+            desc: Doors Menu
+            art: DOORMNU
+            prompt: menuCommand
+            config: {
+                interrupt: realtime
+            }
+            submit: [
+                {
+                    value: { command: "G" }
+                    action: @menu:fullLogoffSequence
+                }
+                {
+                    value: { command: "Q" }
+                    action: @systemMethod:prevMenu
+                }
+                //
+                //  The system supports many ways of launching doors including
+                //  modules for DoorParty!, BBSLink, etc.
+                //
+                //  Below are some examples. See the documentation for more info.
+                //
+                {
+                    value: { command: "ABRACADABRA" }
+                    action: @menu:doorAbracadabraExample
+                }
+                {
+                    value: { command: "TWBBSLINK" }
+                    action: @menu:doorTradeWars2002BBSLinkExample
+                }
+                {
+                    value: { command: "DP" }
+                    action: @menu:doorPartyExample
+                }
+                {
+                    value: { command: "CN" }
+                    action: @menu:doorCombatNetExample
+                }
+                {
+                    value: { command: "EXODUS" }
+                    action: @menu:doorExodusCataclysm
+                }
+            ]
+        }
+
+        //
+        //  Local Door Example via abracadabra module
+        //
+        //  This example assumes launch_door.sh (which is passed args)
+        //  launches the door.
+        //
+        doorAbracadabraExample: {
+            desc: Abracadabra Example
+            module: abracadabra
+            config: {
+                name: Example Door
+                dropFileType: DORINFO
+                cmd: /home/enigma/DOS/scripts/launch_door.sh
+                args: [
+                    "{node}",
+                    "{dropFile}",
+                    "{srvPort}",
+                ],
+                nodeMax: 1
+                tooManyArt: DOORMANY
+                io: socket
+            }
+        }
+
+        //
+        //  BBSLink Example (TradeWars 2000)
+        //
+        //  Register @ https://bbslink.net/
+        //
+        doorTradeWars2002BBSLinkExample: {
+            desc: Playing TW 2002 (BBSLink)
+            module: bbs_link
+            config: {
+                sysCode: XXXXXXXX
+                authCode: XXXXXXXX
+                schemeCode: XXXXXXXX
+                door: tw
+            }
+        }
+
+        //
+        //  DoorParty! Example
+        //
+        //  Register @ http://throwbackbbs.com/
+        //
+        doorPartyExample: {
+            desc: Using DoorParty!
+            module: door_party
+            config: {
+                username: XXXXXXXX
+                password: XXXXXXXX
+                bbsTag: XX
+            }
+        }
+
+        //
+        //  CombatNet Example
+        //
+        //  Register @ http://combatnet.us/
+        //
+        doorCombatNetExample: {
+            desc: Using CombatNet
+            module: combatnet
+            config: {
+                bbsTag: CBNxxx
+                password: XXXXXXXXX
+            }
+        }
+
+        //
+        //  Exodus Example (cataclysm)
+        //  Register @ https://oddnetwork.org/exodus/
+        //
+        doorExodusCataclysm: {
+            desc: Cataclysm
+            module: exodus
+            config: {
+                rejectUnauthorized: false
+                board: XXX
+                key: XXXXXXXX
+                door: cataclysm
+            }
+        }
+	}
+}

@@ -64,14 +64,14 @@ function getDefaultConfigPath() {
 }
 
 function getConfigPath() {
-    const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
+    const baseConfigPath = argv.config ? argv.config : config.Config.getDefaultPath();
     return baseConfigPath + 'config.hjson';
 }
 
 function initConfig(cb) {
     const configPath = getConfigPath();
 
-    config.init(configPath, { keepWsc : true, hotReload : false }, cb);
+    config.Config.create(configPath, { keepWsc : true, hotReload : false }, cb);
 }
 
 function initConfigAndDatabases(cb) {
