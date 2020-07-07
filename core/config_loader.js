@@ -13,12 +13,14 @@ module.exports = class ConfigLoader {
             defaultConfig = {},
             defaultsCustomizer = null,
             onReload = null,
+            keepWsc = false,
         } =
         {
             hotReload : true,
             defaultConfig : {},
             defaultsCustomizer : null,
             onReload : null,
+            keepWsc : false,
         }
     )
     {
@@ -28,6 +30,7 @@ module.exports = class ConfigLoader {
         this.defaultConfig      = defaultConfig;
         this.defaultsCustomizer = defaultsCustomizer;
         this.onReload           = onReload;
+        this.keepWsc            = keepWsc;
     }
 
     init(baseConfigPath, cb) {
@@ -176,6 +179,7 @@ module.exports = class ConfigLoader {
         const options = {
             filePath,
             hotReload   : this.hotReload,
+            keepWsc     : this.keepWsc,
             callback    : this._configFileChanged.bind(this),
         };
 

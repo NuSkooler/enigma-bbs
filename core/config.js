@@ -12,7 +12,12 @@ exports.Config = class Config extends ConfigLoader {
         super(options);
     }
 
-    static create(baseConfigPath, cb) {
+    static create(baseConfigPath, options, cb) {
+        if (!cb && _.isFunction(options)) {
+            cb = options;
+            options = {};
+        }
+
         const replacePaths = [
             'loginServers.ssh.algorithms.kex',
             'loginServers.ssh.algorithms.cipher',
@@ -24,7 +29,7 @@ exports.Config = class Config extends ConfigLoader {
             'args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch',
         ];
 
-        const options = {
+        const configOptions = Object.assign({}, options, {
             defaultConfig       : DefaultConfig,
             defaultsCustomizer  : (defaultVal, configVal, key, path) => {
                 if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
@@ -43,9 +48,9 @@ exports.Config = class Config extends ConfigLoader {
                     Events.emit(Events.getSystemEvents().ConfigChanged);
                 }
             },
-        };
+        });
 
-        systemConfigInstance = new Config(options);
+        systemConfigInstance = new Config(configOptions);
         systemConfigInstance.init(baseConfigPath, err => {
             if (err) {
                 console.stdout(`Configuration ${baseConfigPath} error: ${err.message}`); //  eslint-disable-line no-console

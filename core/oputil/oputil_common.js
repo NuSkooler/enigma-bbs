@@ -71,7 +71,7 @@ function getConfigPath() {
 function initConfig(cb) {
     const configPath = getConfigPath();
 
-    config.init(configPath, { keepWsc : true, hotReload : false }, cb);
+    config.Config.create(configPath, { keepWsc : true, hotReload : false }, cb);
 }
 
 function initConfigAndDatabases(cb) {
