@@ -161,7 +161,8 @@ module.exports = class ConfigLoader {
 
         let value = process.env[varName];
         if (!value) {
-            return;
+            //  console is about as good as we can do here
+            return console.info(`WARNING: environment variable "${varName}" from spec "${spec}" not found!`);
         }
 
         if ('array' === array) {
