@@ -51,7 +51,7 @@
 
     //  You may include as many additional fragments as you like here.
     includes: [
-        XXXXXXXX
+        %INCLUDE_FILES%
     ]
 
     //  This section creates common fragments to use as @reference

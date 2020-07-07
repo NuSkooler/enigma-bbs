@@ -381,7 +381,7 @@
                     submit: {
                         *: [
                             {
-                                value: { message: null }
+                                value: { messageIndex: null }
                                 action: @method:selectMessage
                             }
                         ]
@@ -427,7 +427,7 @@
                     submit: {
                         *: [
                             {
-                                value: { message: null }
+                                value: { messageIndex: null }
                                 action: @method:selectMessage
                             }
                         ]

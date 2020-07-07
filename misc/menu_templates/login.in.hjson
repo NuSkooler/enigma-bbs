@@ -364,7 +364,7 @@
             module: msg_list
             art: NEWMSGS
             config: {
-                menuViewPost: messageBaseViewPost
+                menuViewPost: messageAreaViewPost
             }
             form: {
                 0: {
@@ -379,7 +379,7 @@
                     submit: {
                         *: [
                             {
-                                value: { message: null }
+                                value: { messageIndex: null }
                                 action: @method:selectMessage
                             }
                         ]

@@ -231,11 +231,8 @@ function buildNewConfig() {
             .replace(/[^a-z0-9_-]/ig, '_')
             .replace(/_+/g, '_')
             .toLowerCase();
-        const menuFile = `menus/${boardName}-main.hjson`;
 
-        const mainTemplate = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'), 'utf8'));
-
-        const includeFiles = [
+        const includeFilesIn = [
             'message_base.in.hjson',
             'private_mail.in.hjson',
             'login.in.hjson',
@@ -244,8 +241,11 @@ function buildNewConfig() {
             'file_base.in.hjson',
         ];
 
-        includeFiles.forEach(incFile => {
+        let includeFiles = [];
+        includeFilesIn.forEach(incFile => {
             const outName = `${boardName}-${incFile.replace('.in', '')}`;
+            includeFiles.push(outName);
+
             copyFileSyncSilent(
                 paths.join(__dirname, '../../misc/menu_templates', incFile),
                 paths.join(__dirname, '../../config/menus', outName),
@@ -253,21 +253,21 @@ function buildNewConfig() {
             );
         });
 
-        mainTemplate.includes = includeFiles.map(incFile => {
-            return `${boardName}-${incFile.replace('.in', '')}`;
-        });
+        //  We really only need includes to be replaced
+        const mainTemplate = fs.readFileSync(paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'), 'utf8')
+            .replace(/%INCLUDE_FILES%/g, includeFiles.join('\n\t\t'));  //  cheesy, but works!
 
-        if (writeConfig(
+        const menuFile = `${boardName}-main.hjson`;
+        fs.writeFileSync(
+            paths.join(__dirname, '../../config/menus', menuFile),
             mainTemplate,
-            paths.join(__dirname, '../../config/menus', `${boardName}-main.hjson`)))
-        {
-            config.general.menuFile = menuFile;
+            'utf8'
+        );
 
-            if(writeConfig(config, configPath)) {
-                console.info('Configuration generated');
-            } else {
-                console.error('Failed writing configuration');
-            }
+        config.general.menuFile = paths.join(__dirname, '../../config/menus/', menuFile);
+
+        if(writeConfig(config, configPath)) {
+            console.info('Configuration generated');
         } else {
             console.error('Failed writing configuration');
         }

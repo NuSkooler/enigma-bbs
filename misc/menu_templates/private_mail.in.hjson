@@ -145,7 +145,7 @@
             module: msg_list
             art: PRVMSGLIST
             config: {
-                menuViewPost: messageBaseViewPost
+                menuViewPost: messageAreaViewPost
                 messageAreaTag: private_mail
             }
             form: {
@@ -160,7 +160,7 @@
                     submit: {
                         *: [
                             {
-                                value: { message: null }
+                                value: { messageIndex: null }
                                 action: @method:selectMessage
                             }
                         ]
