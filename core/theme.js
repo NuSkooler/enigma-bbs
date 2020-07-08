@@ -265,7 +265,7 @@ exports.ThemeManager = class ThemeManager {
         };
 
         [ 'menus', 'prompts'].forEach(sectionName => {
-            if (!_.isObject(mergedTheme.sectionName)) {
+            if (!_.isObject(mergedTheme[sectionName])) {
                 return Log.error({sectionName}, 'Merged theme is missing section');
             }
 
