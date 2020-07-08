@@ -265,6 +265,10 @@ exports.ThemeManager = class ThemeManager {
         };
 
         [ 'menus', 'prompts'].forEach(sectionName => {
+            if (!_.isObject(mergedTheme.sectionName)) {
+                return Log.error({sectionName}, 'Merged theme is missing section');
+            }
+
             Object.keys(mergedTheme[sectionName]).forEach(entryName => {
                 let createdFormSection = false;
                 const mergedThemeMenu = mergedTheme[sectionName][entryName];
