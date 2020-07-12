@@ -67,6 +67,7 @@ exports.getModule = class DoorPartyModule extends MenuModule {
 
                             if(doorTracking) {
                                 trackDoorRunEnd(doorTracking);
+                                doorTracking = null;
                             }
                         }
                     };
@@ -101,6 +102,10 @@ exports.getModule = class DoorPartyModule extends MenuModule {
                             stream.on('data', d => {
                                 //  :TODO: we should just pipe this...
                                 self.client.term.rawWrite(d);
+                            });
+
+                            stream.on('end', () => {
+                                sshClient.end();
                             });
 
                             stream.on('close', () => {
