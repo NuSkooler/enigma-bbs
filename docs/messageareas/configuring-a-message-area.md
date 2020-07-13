@@ -1,14 +1,16 @@
 ---
 layout: page
-title: Configuring a Message Area
+title: Message Base
 ---
-## Message Conferences
-**Message Conferences** and **Areas** allow for grouping of message base topics.
+## General Information
+In ENiGMA½, a message base is divided into two logical grouping components: **Message Conferences** and **Areas**. Message conferences are top level containers while areas are for a specific topic. Messages are always stored internally with a area tag.
 
 ## Conferences
 Message Conferences are the top level container for *1:n* Message *Areas* via the `messageConferences` block in `config.hjson`. A common setup may include a local conference and one or more conferences each dedicated to a particular message network such as fsxNet, ArakNet, etc.
 
 Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
+
+:information_source: It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
 
 | Config Item | Required | Description |
 |-------------|----------|-------------|

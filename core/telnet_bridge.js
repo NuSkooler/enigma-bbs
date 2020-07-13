@@ -51,14 +51,22 @@ class TelnetClientConnection extends EventEmitter {
     constructor(client) {
         super();
 
-        this.client     = client;
+        this.client = client;
+
+        this.dataHits = 0;
     }
 
+    updateActivity() {
+        if (0 === (this.dataHits++ % 4)) {
+            this.client.explicitActivityTimeUpdate();
+        }
+    }
 
     restorePipe() {
         if(!this.pipeRestored) {
             this.pipeRestored = true;
-            this.client.dataPassthrough = false;
+
+            this.client.restoreDataHandler();
 
             //  client may have bailed
             if(null !== _.get(this, 'client.term.output', null)) {
@@ -75,11 +83,15 @@ class TelnetClientConnection extends EventEmitter {
             this.emit('connected');
 
             this.pipeRestored = false;
-            this.client.dataPassthrough = true;
-            this.client.term.output.pipe(this.bridgeConnection);
+            this.client.setTemporaryDirectDataHandler(data => {
+                this.updateActivity();
+                this.bridgeConnection.write(data);
+            });
         });
 
         this.bridgeConnection.on('data', data => {
+            this.updateActivity();
+
             this.client.term.rawWrite(data);
 
             //
