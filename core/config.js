@@ -53,7 +53,6 @@ exports.Config = class Config extends ConfigLoader {
         systemConfigInstance = new Config(configOptions);
         systemConfigInstance.init(baseConfigPath, err => {
             if (err) {
-                console.stdout(`Configuration ${baseConfigPath} error: ${err.message}`); //  eslint-disable-line no-console
                 return cb(err);
             }
 
@@ -61,7 +60,7 @@ exports.Config = class Config extends ConfigLoader {
             //  instance we just created
             exports.get = systemConfigInstance.get.bind(systemConfigInstance);
 
-            return cb(err);
+            return cb(null);
         });
     }
 

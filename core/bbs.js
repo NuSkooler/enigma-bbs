@@ -54,6 +54,8 @@ function printVersionAndExit() {
 }
 
 function main() {
+    let errorDisplayed = false;
+
     async.waterfall(
         [
             function processArgs(callback) {
@@ -87,7 +89,14 @@ function main() {
                                 configPathSupplied = null;  //  make non-fatal; we'll go with defaults
                             }
                         } else {
-                            console.error(err.message);
+                            errorDisplayed = true;
+                            console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
+                            if (err.hint) {
+                                console.error(`Hint: ${err.hint}`);
+                            }
+                            if (err.configPath) {
+                                console.error(`Note: ${err.configPath}`);
+                            }
                         }
                     }
                     return callback(err);
@@ -114,8 +123,9 @@ function main() {
                 });
             }
 
-            if(err) {
+            if(err && !errorDisplayed) {
                 console.error('Error initializing: ' + util.inspect(err));
+                return process.exit();
             }
         }
     );
