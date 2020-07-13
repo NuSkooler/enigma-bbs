@@ -30,7 +30,15 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 # 0.0.11-beta to 0.0.12-beta
 * Be aware that `master` is now mainline! This means all `git pull`'s will yield the latest version. See [WHATSNEW](WHATSNEW.md) for more information.
-* There is no longer a `prompt.hjson` file. Prompts are simply part of the menu set in the `prompts` section.
+* **BREAKING CHANGE** There is no longer a `prompt.hjson` file. Prompts are now simply part of the menu set in the `prompts` section. If you have an existing system you will need to add your `prompt.hjson` to your `menu.hjson`'s `includes` section at a minimum. Example:
+```hjson
+// menu.hjson
+{
+    includes: [
+        my-prompts.hjson // ref your old prompts here
+    ]
+}
+```
 
 # 0.0.10-alpha to 0.0.11-beta
 * Node.js 12.x LTS is now in use. Follow standard Node.js upgrade procedures (e.g.: `nvm install 12 && nvm use 12`).
