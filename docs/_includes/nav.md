@@ -13,10 +13,10 @@
   - Configuration
     - [Creating Config Files]({{ site.baseurl }}{% link configuration/creating-config.md %})
     - [SysOp Setup]({{ site.baseurl }}{% link configuration/sysop-setup.md %})
+    - [Configuration Files]({{ site.baseurl }}{% link configuration/config-files.md %})
     - [System Configuration]({{ site.baseurl }}{% link configuration/config-hjson.md %})
     - [HJSON Config Files]({{ site.baseurl }}{% link configuration/hjson.md %})
     - [Menus]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
-    - [Prompts]({{ site.baseurl }}{% link configuration/prompt-hjson.md %})
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
     - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})

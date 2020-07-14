@@ -369,7 +369,7 @@
         storageTags: {
             //
             //  Example storage tag: "super_l33t_warez":
-            //  super_l33t_warez: "/path/to/super/l33t/warez"
+            //  super_l33t_warez: /path/to/super/l33t/warez
             //
         }
 
@@ -377,10 +377,10 @@
             //
             //  Example area with the areaTag of "an_example_area":
             //  an_example_area: {
-            //      name: "Example File Area"
-            //      desc: "It's just an example, yo!"
+            //      name: Example File Area
+            //      desc: It's just an example, yo!
             //      storageTags: [
-            //          "super_l33t_warez"
+            //          super_l33t_warez
             //      ]
             //  }
             //

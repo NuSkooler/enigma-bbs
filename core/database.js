@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const conf          = require('./config.js');
+const conf = require('./config');
 
 //  deps
 const sqlite3       = require('sqlite3');
@@ -30,7 +30,8 @@ function getTransactionDatabase(db) {
 }
 
 function getDatabasePath(name) {
-    return paths.join(conf.config.paths.db, `${name}.sqlite3`);
+    const Config = conf.get();
+    return paths.join(Config.paths.db, `${name}.sqlite3`);
 }
 
 function getModDatabasePath(moduleInfo, suffix) {
@@ -53,7 +54,8 @@ function getModDatabasePath(moduleInfo, suffix) {
         (full.split('.').length > 1 && HOST_RE.test(full)),
         'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation');
 
-    return paths.join(conf.config.paths.modsDb, `${full}.sqlite3`);
+    const Config = conf.get();
+    return paths.join(Config.paths.modsDb, `${full}.sqlite3`);
 }
 
 function loadDatabaseForMod(modInfo, cb) {
@@ -162,9 +164,9 @@ const DB_INIT_TABLE = {
         enableForeignKeys(dbs.user);
 
         dbs.user.run(
-            `CREATE TABLE IF NOT EXISTS user ( 
+            `CREATE TABLE IF NOT EXISTS user (
                 id          INTEGER PRIMARY KEY,
-                user_name   VARCHAR NOT NULL, 
+                user_name   VARCHAR NOT NULL,
                 UNIQUE(user_name)
             );`
         );
@@ -177,13 +179,13 @@ const DB_INIT_TABLE = {
                 prop_name   VARCHAR NOT NULL,
                 prop_value  VARCHAR,
                 UNIQUE(user_id, prop_name),
-                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE 
+                FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
             );`
         );
 
         dbs.user.run(
-            `CREATE TABLE IF NOT EXISTS user_group_member ( 
-                group_name  VARCHAR NOT NULL, 
+            `CREATE TABLE IF NOT EXISTS user_group_member (
+                group_name  VARCHAR NOT NULL,
                 user_id     INTEGER NOT NULL,
                 UNIQUE(group_name, user_id)
             );`
@@ -227,9 +229,9 @@ const DB_INIT_TABLE = {
 
         dbs.message.run(
             `CREATE TABLE IF NOT EXISTS message (
-                message_id              INTEGER PRIMARY KEY, 
+                message_id              INTEGER PRIMARY KEY,
                 area_tag                VARCHAR NOT NULL,
-                message_uuid            VARCHAR(36) NOT NULL, 
+                message_uuid            VARCHAR(36) NOT NULL,
                 reply_to_message_id     INTEGER,
                 to_user_name            VARCHAR NOT NULL,
                 from_user_name          VARCHAR NOT NULL,
@@ -237,7 +239,7 @@ const DB_INIT_TABLE = {
                 message, /* FTS @ message_fts */
                 modified_timestamp      DATETIME NOT NULL,
                 view_count              INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(message_uuid) 
+                UNIQUE(message_uuid)
             );`
         );
 
@@ -284,7 +286,7 @@ const DB_INIT_TABLE = {
                 meta_category   INTEGER NOT NULL,
                 meta_name       VARCHAR NOT NULL,
                 meta_value      VARCHAR NOT NULL,
-                UNIQUE(message_id, meta_category, meta_name, meta_value), 
+                UNIQUE(message_id, meta_category, meta_name, meta_value),
                 FOREIGN KEY(message_id) REFERENCES message(message_id) ON DELETE CASCADE
             );`
         );
@@ -342,7 +344,7 @@ const DB_INIT_TABLE = {
                 file_name,          /* FTS @ file_fts */
                 storage_tag         VARCHAR NOT NULL,
                 desc,               /* FTS @ file_fts */
-                desc_long,          /* FTS @ file_fts */                
+                desc_long,          /* FTS @ file_fts */
                 upload_timestamp    DATETIME NOT NULL
             );`
         );
@@ -395,7 +397,7 @@ const DB_INIT_TABLE = {
                 file_id         INTEGER NOT NULL,
                 meta_name       VARCHAR NOT NULL,
                 meta_value      VARCHAR NOT NULL,
-                UNIQUE(file_id, meta_name, meta_value), 
+                UNIQUE(file_id, meta_name, meta_value),
                 FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );`
         );
@@ -404,7 +406,7 @@ const DB_INIT_TABLE = {
             `CREATE TABLE IF NOT EXISTS hash_tag (
                 hash_tag_id     INTEGER PRIMARY KEY,
                 hash_tag        VARCHAR NOT NULL,
-            
+
                 UNIQUE(hash_tag)
             );`
         );
@@ -413,7 +415,7 @@ const DB_INIT_TABLE = {
             `CREATE TABLE IF NOT EXISTS file_hash_tag (
                 hash_tag_id     INTEGER NOT NULL,
                 file_id         INTEGER NOT NULL,
-            
+
                 UNIQUE(hash_tag_id, file_id)
             );`
         );

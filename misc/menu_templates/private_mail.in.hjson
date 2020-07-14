@@ -1,0 +1,197 @@
+{
+    menus: {
+        privateMailMenu: {
+            art: MAILMNU
+            desc: Private Mail
+            prompt: menuCommand
+            config: {
+                interrupt: realtime
+            }
+            submit: [
+                {
+                    value: { command: "C" }
+                    action: @menu:privateMailMenuCreateMessage
+                }
+                {
+                    value: { command: "I" }
+                    action: @menu:privateMailMenuInbox
+                }
+                {
+                    value: { command: "Q" }
+                    action: @systemMethod:prevMenu
+                }
+                {
+                    value: { command: "G" }
+                    action: @menu:fullLogoffSequence
+                }
+            ]
+        }
+
+        privateMailMenuCreateMessage: {
+            desc: Mailing Someone
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: MSGEHDR
+                    body: MSGBODY
+                    footerEditor: MSGEFTR
+                    footerEditorMenu: MSGEMFT
+                    help: MSGEHLP
+                },
+                editorMode: edit
+                editorType: email
+                messageAreaTag: private_mail
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName:    from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            validate: @systemMethod:validateGeneralMailAddressedTo
+                            maxLength: 36
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateMessageSubject
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: @reference: common.escToPrev
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 79
+                            argName: message
+                            mode: edit
+                        }
+                    }
+
+                    submit: {
+                        *: [ { value: "message", action: "@method:editModeEscPressed" } ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                },
+                2: {
+                    TLTL:  {
+                        mci: {
+                            TL1: {
+                                width: 5
+                            }
+                            TL2: {
+                                width: 4
+                            }
+                        }
+                    }
+                }
+                3: {
+                    HM: {
+                        mci: {
+                            HM1: {
+                                //  :TODO: clear
+                                items: [ "save", "discard", "help" ]
+                            }
+                        }
+                        submit: {
+                            *: [
+                                {
+                                    value: { 1: 0 }
+                                    action: @method:editModeMenuSave
+                                }
+                                {
+                                    value: { 1: 1 }
+                                    action: @systemMethod:prevMenu
+                                }
+                                {
+                                    value: { 1: 2 }
+                                    action: @method:editModeMenuHelp
+                                }
+                            ]
+                        }
+                        actionKeys: [
+                            {
+                                keys: [ "escape" ]
+                                action: @method:editModeEscPressed
+                            }
+                            {
+                                keys: [ "?" ]
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        privateMailMenuInbox: {
+            module: msg_list
+            art: PRVMSGLIST
+            config: {
+                menuViewPost: messageAreaViewPost
+                messageAreaTag: private_mail
+            }
+            form: {
+                0: {    //  main list
+                    mci:  {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "delete", "d", "shift + d" ]
+                            action: @method:deleteSelected
+                        }
+                    ]
+                }
+                1: {    //  delete prompt form
+                    submit: {
+                        *: [
+                            {
+                                value: { promptValue: 0 }
+                                action: @method:deleteMessageYes
+                            }
+                            {
+                                value: { promptValue: 1 }
+                                action: @method:deleteMessageNo
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+    }
+}

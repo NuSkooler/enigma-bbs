@@ -83,7 +83,7 @@ function Client(/*input, output*/) {
     const self  = this;
 
     this.user               = new User();
-    this.currentTheme       = { info : { name : 'N/A', description : 'None' } };
+    this.currentThemeConfig   = { info : { name : 'N/A', description : 'None' } };
     this.lastActivityTime   = Date.now();
     this.menuStack          = new MenuStack(this);
     this.acs                = new ACS( { client : this, user : this.user } );
@@ -93,6 +93,26 @@ function Client(/*input, output*/) {
     this.clearMciCache = function() {
         this.mciCache = {};
     };
+
+    Object.defineProperty(this, 'currentTheme', {
+        get : () => {
+            if (this.currentThemeConfig) {
+                return this.currentThemeConfig.get();
+            } else {
+                return {
+                    info : {
+                        name : 'N/A',
+                        author : 'N/A',
+                        description : 'N/A',
+                        group : 'N/A',
+                    }
+                };
+            }
+        },
+        set : (theme) => {
+            this.currentThemeConfig = theme;
+        }
+    });
 
     Object.defineProperty(this, 'node', {
         get : function() {
@@ -120,7 +140,7 @@ function Client(/*input, output*/) {
 
     this.themeChangedListener = function( { themeId } ) {
         if(_.get(self.currentTheme, 'info.themeId') === themeId) {
-            self.currentTheme = require('./theme.js').getAvailableThemes().get(themeId);
+            self.currentThemeConfig = require('./theme.js').getAvailableThemes().get(themeId);
         }
     };
 

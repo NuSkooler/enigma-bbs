@@ -1,0 +1,607 @@
+{
+	menus: {
+		//
+        //  Send telnet connections to matrix where users can login, apply, etc.
+        //
+        telnetConnected: {
+            art: CONNECT
+            next: matrix
+            config: { nextTimeout: 1500 }
+        }
+
+        //
+        //  SSH connections are pre-authenticated via the SSH server itself.
+        //  Jump directly to either the 2FA/OTP auth or the login sequence
+        //  depending on user ACS.
+        //
+        sshConnected: {
+            art: CONNECT
+            next: [
+                {
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    next: fullLoginSequenceLoginArt
+                }
+            ]
+            config: { nextTimeout: 1500 }
+        }
+
+        //
+        //  Another SSH specialization: If the user logs in with a new user
+        //  name (e.g. "new", "apply", ...) they will be directed to the
+        //  application process.
+        //
+        sshConnectedNewUser: {
+            art: CONNECT
+            next: newUserApplicationPreSsh
+            config: { nextTimeout: 1500 }
+        }
+
+		//  Ye ol' standard matrix
+        matrix: {
+            art: matrix
+            form: {
+                0: {
+                    VM: {
+                        mci: {
+                            VM1:  {
+                                submit: true
+                                focus:  true
+                                argName: navSelect
+                                items: [
+                                    {
+                                        text: login
+                                        data: login
+                                    }
+                                    {
+                                        text: apply
+                                        data: apply
+                                    }
+
+                                    //
+                                    //  To enable the forgot password option, you'll need to have
+                                    //  the web server & email configured. Once that is in place,
+                                    //  uncomment the section below.
+                                    //
+                                    //  See docs for more information
+                                    //
+                                    /*
+                                    {
+                                        text: forgot pass
+                                        data: forgot
+                                    }
+                                    */
+                                    {
+                                        text: log off
+                                        data: logoff
+                                    }
+                                ]
+                            }
+                        }
+                        submit: {
+                            *: [
+                                {
+                                    value: { navSelect: "login" }
+                                    action: @menu:login
+                                }
+                                {
+                                    value: { navSelect: "apply" }
+                                    action: @menu:newUserApplicationPre
+                                }
+                                {
+                                    value: { navSelect: "forgot" }
+                                    action: @menu:forgotPassword
+                                }
+                                {
+                                    value: { navSelect: "logoff" }
+                                    action: @menu:logoff
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+		login: {
+            art: USERLOG
+            next: [
+                {
+                    //
+                    //  Users with 2FA/OTP enabled *must* go through
+                    //  an additional OTP authentication step
+                    //
+                    acs: AR2
+                    next: loginTwoFactorAuthOTPLoop
+                }
+                {
+                    //  ...everyone else can carry on as per usual
+                    next: fullLoginSequenceLoginArt
+                }
+            ]
+            config: {
+                tooNodeMenu: loginAttemptTooNode
+                inactive: loginAttemptAccountInactive
+                disabled: loginAttemptAccountDisabled
+                locked: loginAttemptAccountLocked
+            }
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            maxLength: @config:users.usernameMax
+                            argName: username
+                            focus: true
+                        }
+                        ET2: {
+                            password: true
+                            maxLength: @config:users.passwordMax
+                            argName: password
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { password: null }
+                                action: @systemMethod:login
+                            }
+                        ]
+                    }
+                    actionKeys: @reference:common.escToPrev
+                }
+            }
+        }
+
+        loginAttemptTooNode: {
+            art: TOONODE
+            config: {
+                cls: true
+                nextTimeout: 2000
+            }
+            next: logoff
+        }
+
+        loginAttemptAccountLocked: {
+            art: ACCOUNTLOCKED
+            config: {
+                cls: true
+                nextTimeout: 2000
+            }
+            next: logoff
+        }
+
+        loginAttemptAccountDisabled: {
+            art: ACCOUNTDISABLED
+            config: {
+                cls: true
+                nextTimeout: 2000
+            }
+            next: logoff
+        }
+
+        loginAttemptAccountInactive: {
+            art: ACCOUNTINACTIVE
+            config: {
+                cls: true
+                nextTimeout: 2000
+            }
+            next: logoff
+        }
+
+        forgotPassword: {
+            desc: Forgot password
+            prompt: forgotPasswordPrompt
+            submit: [
+                {
+                    value: { username: null }
+                    action: @systemMethod:sendForgotPasswordEmail
+                    extraArgs: { next: "forgotPasswordSubmitted" }
+                }
+            ]
+        }
+
+        forgotPasswordSubmitted: {
+            desc: Forgot password
+            art: FORGOTPWSENT
+            config: {
+                cls: true
+                pause: true
+            }
+            next: @systemMethod:logoff
+        }
+
+		fullLoginSequenceLoginArt: {
+            desc: Logging In
+            art: WELCOME
+            config: { pause: true }
+            next: fullLoginSequenceLastCallers
+        }
+
+        fullLoginSequenceLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: LASTCALL
+            config: {
+                pause: true
+                font: cp437
+            }
+            next: fullLoginSequenceWhosOnline
+        }
+
+        fullLoginSequenceWhosOnline: {
+            desc: Who's Online
+            module: whos_online
+            art: WHOSON
+            config: { pause: true }
+            next: fullLoginSequenceOnelinerz
+        }
+
+        fullLoginSequenceOnelinerz: {
+            desc: Viewing Onelinerz
+            module: onelinerz
+            next: [
+                {
+                    //  calls >= 2
+                    acs: NC2
+                    next: fullLoginSequenceNewScanConfirm
+                }
+                {
+                    // new users - skip new scan
+                    next: fullLoginSequenceUserStats
+                }
+            ]
+            config: {
+                cls: true
+                art: {
+                    view: ONELINER
+                    add: ONEADD
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: false
+                            height: 10
+                        }
+                        TM2: {
+                            argName: addOrExit
+                            items: [ "yeah!", "nah" ]
+                            "hotKeys"   : { "Y" : 0, "N" : 1, "Q" : 1 }
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrExit: 0 }
+                                action: @method:viewAddScreen
+                            }
+                            {
+                                value: { addOrExit: null }
+                                action: @systemMethod:nextMenu
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:nextMenu
+                        }
+                    ]
+                },
+                1: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            maxLength: 70
+                            argName: oneliner
+                        }
+                        TL2: {
+                            width: 60
+                        }
+                        TM3: {
+                            argName: addOrCancel
+                            items: [ "add", "cancel" ]
+                            "hotKeys"   : { "A" : 0, "C" : 1, "Q" : 1 }
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrCancel: 0 }
+                                action: @method:addEntry
+                            }
+                            {
+                                value: { addOrCancel: 1 }
+                                action: @method:cancelAdd
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:cancelAdd
+                        }
+                    ]
+                }
+            }
+        }
+
+        fullLoginSequenceNewScanConfirm: {
+            desc: Logging In
+            prompt: loginGlobalNewScan
+            submit: [
+                {
+                    value: { promptValue: 0 }
+                    action: @menu:fullLoginSequenceNewScan
+                }
+                {
+                    value: { promptValue: 1 }
+                    action: @menu:fullLoginSequenceUserStats
+                }
+            ]
+        }
+
+        fullLoginSequenceNewScan: {
+            desc: Performing New Scan
+            module: new_scan
+            art: NEWSCAN
+            next: fullLoginSequenceSysStats
+            config: {
+                messageListMenu: newScanMessageList
+            }
+        }
+
+        newScanMessageList: {
+            desc: New Messages
+            module: msg_list
+            art: NEWMSGS
+            config: {
+                menuViewPost: messageAreaViewPost
+            }
+            form: {
+                0: {
+                    mci:  {
+                        VM1: {
+                            focus: true
+                            submit: true
+                            argName: messageIndex
+                        }
+                        TL6: { }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { messageIndex: null }
+                                action: @method:selectMessage
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "x", "shift + x" ]
+                            action: @method:fullExit
+                        }
+                        {
+                            keys: [ "m", "shift + m" ]
+                            action: @method:markAllRead
+                        }
+                    ]
+                }
+            }
+        }
+
+        newScanFileBaseList: {
+            module: file_area_list
+            desc: New Files
+            config: {
+                art: {
+                    browse: FNEWBRWSE
+                    details: FDETAIL
+                    detailsGeneral: FDETGEN
+                    detailsNfo: FDETNFO
+                    detailsFileList: FDETLST
+                    help: FBHELP
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+                            mode: preview
+                            ansiView: true
+                        }
+
+                        HM2: {
+                            focus: true
+                            submit: true
+                            argName: navSelect
+                            items: [
+                                "prev", "next", "details", "toggle queue", "rate", "help", "quit"
+                            ]
+                            focusItemIndex: 1
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { navSelect: 0 }
+                                action: @method:prevFile
+                            }
+                            {
+                                value: { navSelect: 1 }
+                                action: @method:nextFile
+                            }
+                            {
+                                value: { navSelect: 2 }
+                                action: @method:viewDetails
+                            }
+                            {
+                                value: { navSelect: 3 }
+                                action: @method:toggleQueue
+                            }
+                            {
+                                value: { navSelect: 4 }
+                                action: @menu:fileBaseGetRatingForSelectedEntry
+                            }
+                            {
+                                value: { navSelect: 5 }
+                                action: @method:displayHelp
+                            }
+                            {
+                                value: { navSelect: 6 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "w", "shift + w" ]
+                            action: @method:showWebDownloadLink
+                        }
+                        {
+                            keys: [ "escape", "q", "shift + q" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "t", "shift + t" ]
+                            action: @method:toggleQueue
+                        }
+                        {
+                            keys: [ "v", "shift + v" ]
+                            action: @method:viewDetails
+                        }
+                        {
+                            keys: [ "r", "shift + r" ]
+                            action: @menu:fileBaseGetRatingForSelectedEntry
+                        }
+                        {
+                            keys: [ "?" ]
+                            action: @method:displayHelp
+                        }
+                    ]
+                }
+
+                1: {
+                    mci: {
+                        HM1: {
+                            focus: true
+                            submit: true
+                            argName: navSelect
+                            items: [
+                                "general", "nfo/readme", "file listing"
+                            ]
+                        }
+                    }
+
+                    actionKeys: @reference:common.quitToPrev
+                }
+
+                2: {
+                    //  details - general
+                    mci: { }
+                }
+
+                3: {
+                    //  details - nfo/readme
+                    mci: {
+                        MT1: {
+                            mode: preview
+                        }
+                    }
+                }
+
+                4: {
+                    //  details - file listing
+                    mci: {
+                        VM1: { }
+                    }
+                }
+            }
+        }
+
+        fullLoginSequenceSysStats: {
+            desc: System Stats
+            art: SYSSTAT
+            config: { pause: true }
+            next: fullLoginSequenceUserStats
+        }
+
+        fullLoginSequenceUserStats: {
+            desc: User Stats
+            art: STATUS
+            config: { pause: true }
+            next: mainMenu
+        }
+
+        //
+        //  Empty menu to catch us in a 2FA/OTP auth loop
+        //  until the user either authenticates successfully
+        //  or the system boots them.
+        //
+        loginTwoFactorAuthOTPLoop: {
+            next: loginTwoFactorAuthOTP
+        }
+
+        loginTwoFactorAuthOTP: {
+            art: 2FAOTP
+            next: fullLoginSequenceLoginArt
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: token
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { token: null }
+                                action: @systemMethod:login2FA_OTP
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            //  no turning back at this point...
+                            keys: [ "escape" ]
+                            action: @systemMethod:logoff
+                        }
+                    ]
+                }
+            }
+        }
+
+	}
+
+	prompts: {
+		loginGlobalNewScan: {
+			art: GNSPMPT
+			mci: {
+				TM1: {
+					argName: promptValue
+					items: [ "yes", "no" ]
+					focus: true
+					hotKeys: { Y: 0, N: 1 }
+					hotKeySubmit: true
+				}
+			}
+		}
+
+	}
+}

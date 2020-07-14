@@ -1,0 +1,1017 @@
+{
+    /*
+        ./\/\.' ENiGMA½ Menu Configuration -/--/-------- - --   -
+
+        _____________________   _____  ____________________    __________\_   /
+        \__   ____/\_ ____   \ /____/ /   _____ __         \  /   ______/ // /___jp!
+        //   __|___//   |    \//   |//   |    \//  |  |    \//        \ /___   /_____
+        /____       _____|      __________       ___|__|      ____|     \   /  _____  \
+        ---- \______\ -- |______\ ------ /______/ ---- |______\ - |______\ /__/ // ___/
+                                                                         /__   _\
+        <*>   ENiGMA½  // HTTPS://GITHUB.COM/NUSKOOLER/ENIGMA-BBS   <*>       /__/
+
+        *-----------------------------------------------------------------------------*
+
+        General Information
+        ------------------------------- -   -
+        This configuration is in HJSON (http://hjson.org/) format. Strict to-spec
+        JSON is also perfectly valid. Use 'hjson' from npm to convert to/from JSON.
+
+        See http://hjson.org/ for more information and syntax.
+
+        Various editors and IDEs such as Sublime Text 3, Visual Studio Code, and so
+        on have syntax highlighting for the HJSON format which are highly recommended.
+
+        ------------------------------- -- -    -
+        Menu Configuration
+        ------------------------------- -   -
+        ENiGMA½ makes no assumptions about specific menu types (main, doors, etc.),
+        but instead allows full customization of all menus throughout the system.
+        Some menus such as a main menu are considered "standard" while others are
+        backed by a specific module. SysOps can tweak various settings about these
+        modules (look & feel, keyboard interation, and so on) or even fully replace
+        the module with something else.
+
+        This file starts out as an example setup. Look at the examples, change
+        settings, menu ordering/flow, add/remove menus, implement ACS control,
+        etc.!
+
+        Remember you can *live edit* this file. That is, make a change and save
+        while you're logged into the system and it will take effect on the next
+        menu change or screen refresh.
+
+        Please see RTFM ...er, uh... see the documentation for more information, and
+        don't be shy to ask for help:
+
+        BBS     : Xibalba @ xibalba.l33t.codes
+        FTN     : BBS Discussion on fsxNet
+        IRC     : #enigma-bbs / FreeNode
+        Email   : bryan@l33t.codes
+    */
+
+    //  You may include as many additional fragments as you like here.
+    includes: [
+        %INCLUDE_FILES%
+    ]
+
+    //  This section creates common fragments to use as @reference
+    common: {
+        escToPrev: [
+            {
+                keys: [ "escape" ]
+                action: @systemMethod:prevMenu
+            }
+        ]
+
+        quitToPrev: [
+            {
+                keys: [ "escape", "q", "shift + q" ]
+                action: @systemMethod:prevMenu
+            }
+        ]
+    }
+
+    menus: {
+        mainMenu: {
+            art: MMENU
+            desc: Main Menu
+            prompt: menuCommand
+            config: {
+                font: cp437
+                interrupt: realtime
+            }
+            submit: [
+                {
+                    value: { command: "G" }
+                    action: @menu:fullLogoffSequence
+                }
+                {
+                    value: { command: "D" }
+                    action: @menu:doorsMainMenu
+                }
+                {
+                    value: { command: "F" }
+                    action: @menu:fileBaseMainMenu
+                }
+                {
+                    value: { command: "U" }
+                    action: @menu:mainMenuUserList
+                }
+                {
+                    value: { command: "L" }
+                    action: @menu:mainMenuLastCallers
+                }
+                {
+                    value: { command: "W" }
+                    action: @menu:mainMenuWhosOnline
+                }
+                {
+                    value: { command: "Y" }
+                    action: @menu:mainMenuUserStats
+                }
+                {
+                    value: { command: "M" }
+                    action: @menu:messageBaseMainMenu
+                }
+                {
+                    value: { command: "E" }
+                    action: @menu:privateMailMenu
+                }
+                {
+                    value: { command: "C" }
+                    action: @menu:mainMenuUserConfig
+                }
+                {
+                    value: { command: "S" }
+                    action: @menu:mainMenuSystemStats
+                }
+                {
+                    value: { command: "!" }
+                    action: @menu:mainMenuGlobalNewScan
+                }
+                {
+                    value: { command: "K" }
+                    action: @menu:mainMenuFeedbackToSysOp
+                }
+                {
+                    value: { command: "O" }
+                    action: @menu:mainMenuOnelinerz
+                }
+                {
+                    value: { command: "R" }
+                    action: @menu:mainMenuRumorz
+                }
+                {
+                    value: { command: "BBS"}
+                    action: @menu:bbsList
+                }
+                {
+                    value: { command: "UA" }
+                    action: @menu:mainMenuUserAchievementsEarned
+                }
+                {
+                    value: { command: "MRC" }
+                    action: @menu:mrc
+                }
+                {
+                    value: { command: "2FA" }
+                    action: [
+                        {
+                            //
+                            //  For security reasons, only allow 2FA/OTP to be
+                            //  configured over already secure (SSL, wss://, ...)
+                            //  connections. Not doing so risks leaking secrets!
+                            //
+                            acs: SC
+                            action: @menu:userTwoFactorAuthOTPConfig
+                        }
+                        {
+                            action: @menu:userTwoFactorAuthOTPSecConnRequired
+                        }
+                    ]
+                }
+                {
+                    value: { command: "MSG" }
+                    action: @menu:nodeMessage
+                }
+            ]
+        }
+
+        mainMenuUserAchievementsEarned: {
+            desc: Achievements
+            module: user_achievements_earned
+            art: USERACHIEV
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                        }
+                    }
+                    actionKeys: @reference:common.quitToPrev
+                }
+            }
+        }
+
+        mrc: {
+            desc: MRC Chat
+            module: mrc
+            art: MRC
+            config: {
+                cls: true
+
+                //  max lines kept in scrollback buffer
+                maxScrollbackLines: 500
+            }
+            form: {
+                0: {
+                    mci: {
+                        MT1: {
+							mode: preview
+							autoScroll: true
+						}
+                        ET2: {
+                            argName: inputArea
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            action: @method:movementKeyPressed
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { inputArea: null }
+                                action: @method:sendChatMessage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        userTwoFactorAuthOTPConfig: {
+            desc: 2FA/OTP Config
+            module: user_2fa_otp_config
+            art: 2FACONFSCR
+            form: {
+                0: {
+                    mci: {
+                        TM1: {
+                            argName: enableToggle
+                            focus: true
+                            items: [
+                                //  order is important here:
+                                "disable"
+                                "enable/reset"
+                            ]
+                        }
+                        SM2: {
+                            argName: otpType
+                            items: [
+                                //  order is important here:
+                                "Time-Based - TOTP"
+                                "HMAC-Based - HOTP"
+                                "Google Authenticator"
+                            ]
+                        }
+                        TM3: {
+                            argName: submit
+                            items: [
+                                "save"
+                                "cancel"
+                            ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { submit: 0 }
+                                action: @method:saveChanges
+                            }
+                            {
+                                value: { submit: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                        {
+                            keys: [ "q", "shift + q" ]
+                            action: @method:showQRCode
+                        }
+                        {
+                            keys: [ "s", "shift + s" ]
+                            action: @method:showSecret
+                        }
+                        {
+                            keys: [ "b", "shift + b" ]
+                            action: @method:showBackupCodes
+                        }
+                        {
+                            keys: [ "n", "shift + n" ]
+                            action: @method:generateNewBackupCodes
+                        }
+                    ]
+                }
+            }
+        }
+
+        userTwoFactorAuthOTPSecConnRequired: {
+            desc: Insecure Warning
+            art: 2FAOTPSECREQ
+            config: {
+                cls: true
+                pause: true
+            }
+        }
+
+        userTwoFactorAuthOTPConfigShowDetails: {
+            desc: 2FA/OTP Details
+            module: show_art
+            config: {
+                pause: true
+                method: extraArgs
+            }
+        }
+
+        nodeMessage: {
+            desc: Node Messaging
+            module: node_msg
+            art: NODEMSG
+            config: {
+                cls: true
+                art: {
+                    header: NODEMSGHDR
+                    footer: NODEMSGFTR
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        SM1: {
+                            argName: node
+                        }
+                        ET2: {
+                            argName: message
+                            submit: true
+                        }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                    submit: {
+                        *: [
+                            {
+                                value: { message: null }
+                                action: @method:sendMessage
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        mainMenuLastCallers: {
+            desc: Last Callers
+            module: last_callers
+            art: LASTCALL
+            config: { pause: true }
+        }
+
+        mainMenuWhosOnline: {
+            desc: Who's Online
+            module: whos_online
+            art: WHOSON
+            config: { pause: true }
+        }
+
+        mainMenuUserStats: {
+            desc: User Stats
+            art: STATUS
+            config: { pause: true }
+        }
+
+        mainMenuSystemStats: {
+            desc: System Stats
+            art: SYSSTAT
+            config: { pause: true }
+        }
+
+        mainMenuUserList: {
+            desc: User Listing
+            module: user_list
+            art: USERLST
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: true
+                            submit: true
+                        }
+                    }
+                    actionKeys: @reference:common.quitToPrev
+                }
+            }
+        }
+
+        mainMenuUserConfig: {
+            module: user_config
+            art: CONFSCR
+            form: {
+                0: {
+                    mci: {
+                        ET1: {
+                            argName: realName
+                            maxLength: @config:users.realNameMax
+                            validate: @systemMethod:validateNonEmpty
+                            focus: true
+                        }
+                        ME2: {
+                            argName: birthdate
+                            maskPattern: "####/##/##"
+                        }
+                        ME3: {
+                            argName: sex
+                            maskPattern: A
+                            textStyle: upper
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET4: {
+                            argName: location
+                            maxLength: @config:users.locationMax
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET5: {
+                            argName: affils
+                            maxLength: @config:users.affilsMax
+                        }
+                        ET6: {
+                            argName: email
+                            maxLength: @config:users.emailMax
+                            validate: @method:validateEmailAvail
+                        }
+                        ET7: {
+                            argName: web
+                            maxLength: @config:users.webMax
+                        }
+                        ME8: {
+                            maskPattern: "##"
+                            argName: termHeight
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        SM9: {
+                            argName: theme
+                        }
+                        ET10: {
+                            argName: password
+                            maxLength: @config:users.passwordMax
+                            password: true
+                            validate: @method:validatePassword
+                        }
+                        ET11: {
+                            argName: passwordConfirm
+                            maxLength: @config:users.passwordMax
+                            password: true
+                            validate: @method:validatePassConfirmMatch
+                        }
+                        TM25: {
+                            argName: submission
+                            items: [ "save", "cancel" ]
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { submission: 0 }
+                                action: @method:saveChanges
+                            }
+                            {
+                                value: { submission: 1 }
+                                action: @systemMethod:prevMenu
+                            }
+                        ]
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+            }
+        }
+
+        mainMenuGlobalNewScan: {
+            desc: Performing New Scan
+            module: new_scan
+            art: NEWSCAN
+            config: {
+                messageListMenu: newScanMessageList
+            }
+        }
+
+        mainMenuFeedbackToSysOp: {
+            desc: Feedback to SysOp
+            module: msg_area_post_fse
+            config: {
+                art: {
+                    header: MSGEHDR
+                    body: MSGBODY
+                    footerEditor: MSGEFTR
+                    footerEditorMenu: MSGEMFT
+                    help: MSGEHLP
+                },
+                editorMode: edit
+                editorType: email
+                messageAreaTag: private_mail
+                toUserId: 1 /* always to +op */
+            }
+            form: {
+                0: {
+                    mci: {
+                        TL1: {
+                            argName:    from
+                        }
+                        ET2: {
+                            argName: to
+                            focus: true
+                            text: @sysStat:sysop_username
+                            maxLength: 36
+                            //  :TODO: readOnly: true
+                        }
+                        ET3: {
+                            argName: subject
+                            maxLength: 72
+                            submit: true
+                            validate: @systemMethod:validateMessageSubject
+                        }
+                    }
+                    submit: {
+                        3: [
+                            {
+                                value: { subject: null }
+                                action: @method:headerSubmit
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        MT1: {
+                            width: 79
+                            argName: message
+                            mode: edit
+                        }
+                    }
+
+                    submit: {
+                        *: [ { value: "message", action: "@method:editModeEscPressed" } ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            viewId: 1
+                        }
+                    ]
+                },
+                2: {
+                    TLTL:  {
+                        mci: {
+                            TL1: {
+                                width: 5
+                            }
+                            TL2: {
+                                width: 4
+                            }
+                        }
+                    }
+                }
+                3: {
+                    HM: {
+                        mci: {
+                            HM1: {
+                                //  :TODO: clear
+                                items: [ "save", "discard", "help" ]
+                            }
+                        }
+                        submit: {
+                            *: [
+                                {
+                                    value: { 1: 0 }
+                                    action: @method:editModeMenuSave
+                                }
+                                {
+                                    value: { 1: 1 }
+                                    action: @systemMethod:prevMenu
+                                }
+                                {
+                                    value: { 1: 2 }
+                                    action: @method:editModeMenuHelp
+                                }
+                            ]
+                        }
+                        actionKeys: [
+                            {
+                                keys: [ "escape" ]
+                                action: @method:editModeEscPressed
+                            }
+                            {
+                                keys: [ "?" ]
+                                action: @method:editModeMenuHelp
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        mainMenuOnelinerz: {
+            desc: Viewing Onelinerz
+            module: onelinerz
+            config: {
+                cls: true
+                art: {
+                    view: ONELINER
+                    add: ONEADD
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: false
+                            height: 10
+                        }
+                        TM2: {
+                            argName: addOrExit
+                            items: [ "yeah!", "nah" ]
+                            "hotKeys"   : { "Y" : 0, "N" : 1, "Q" : 1 }
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrExit: 0 }
+                                action: @method:viewAddScreen
+                            }
+                            {
+                                value: { addOrExit: null }
+                                action: @systemMethod:nextMenu
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:nextMenu
+                        }
+                    ]
+                },
+                1: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            maxLength: 70
+                            argName: oneliner
+                        }
+                        TL2: {
+                            width: 60
+                        }
+                        TM3: {
+                            argName: addOrCancel
+                            items: [ "add", "cancel" ]
+                            "hotKeys"   : { "A" : 0, "C" : 1, "Q" : 1 }
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrCancel: 0 }
+                                action: @method:addEntry
+                            }
+                            {
+                                value: { addOrCancel: 1 }
+                                action: @method:cancelAdd
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:cancelAdd
+                        }
+                    ]
+                }
+            }
+        }
+
+        mainMenuRumorz: {
+            desc: Rumorz
+            module: rumorz
+            config: {
+                cls: true
+                art: {
+                    entries: RUMORS
+                    add: RUMORADD
+                }
+            }
+            form: {
+                0: {
+                    mci: {
+                        VM1: {
+                            focus: false
+                            height: 10
+                        }
+                        TM2: {
+                            argName: addOrExit
+                            items: [ "yeah!", "nah" ]
+                            "hotKeys"   : { "Y" : 0, "N" : 1, "Q" : 1 }
+                            submit: true
+                            focus: true
+                        }
+                    }
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrExit: 0 }
+                                action: @method:viewAddScreen
+                            }
+                            {
+                                value: { addOrExit: null }
+                                action: @systemMethod:nextMenu
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @systemMethod:nextMenu
+                        }
+                    ]
+                },
+                1: {
+                    mci: {
+                        ET1: {
+                            focus: true
+                            maxLength: 70
+                            argName: rumor
+                        }
+                        TL2: {
+                            width: 60
+                        }
+                        TM3: {
+                            argName: addOrCancel
+                            items: [ "add", "cancel" ]
+                            "hotKeys"   : { "A" : 0, "C" : 1, "Q" : 1 }
+                            submit: true
+                        }
+                    }
+
+                    submit: {
+                        *: [
+                            {
+                                value: { addOrCancel: 0 }
+                                action: @method:addEntry
+                            }
+                            {
+                                value: { addOrCancel: 1 }
+                                action: @method:cancelAdd
+                            }
+                        ]
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:cancelAdd
+                        }
+                    ]
+                }
+            }
+        }
+
+        bbsList: {
+            desc: Viewing BBS List
+            module: bbs_list
+            config: {
+                cls: true
+                art: {
+                    entries: BBSLIST
+                    add: BBSADD
+                }
+            }
+
+            form: {
+                0: {
+                    mci: {
+                        VM1: { maxLength: 32 }
+                        TL2: { maxLength: 32 }
+                        TL3: { maxLength: 32 }
+                        TL4: { maxLength: 32 }
+                        TL5: { maxLength: 32 }
+                        TL6: { maxLength: 32 }
+                        TL7: { maxLength: 32 }
+                        TL8: { maxLength: 32 }
+                        TL9: { maxLength: 32 }
+                    }
+                    actionKeys: [
+                        {
+                            keys: [ "a" ]
+                            action: @method:addBBS
+                        }
+                        {
+                            //  :TODO: add delete key
+                            keys: [ "d" ]
+                            action: @method:deleteBBS
+                        }
+                        {
+                            keys: [ "q", "escape" ]
+                            action: @systemMethod:prevMenu
+                        }
+                    ]
+                }
+                1: {
+                    mci: {
+                        ET1: {
+                            argName: name
+                            maxLength: 32
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET2: {
+                            argName: sysop
+                            maxLength: 32
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET3: {
+                            argName: telnet
+                            maxLength: 32
+                            validate: @systemMethod:validateNonEmpty
+                        }
+                        ET4: {
+                            argName: www
+                            maxLength: 32
+                        }
+                        ET5: {
+                            argName: location
+                            maxLength: 32
+                        }
+                        ET6: {
+                            argName: software
+                            maxLength: 32
+                        }
+                        ET7:  {
+                            argName: notes
+                            maxLength: 32
+                        }
+                        TM17: {
+                            argName: submission
+                            items: [ "save", "cancel" ]
+                            submit: true
+                        }
+                    }
+
+                    actionKeys: [
+                        {
+                            keys: [ "escape" ]
+                            action: @method:cancelSubmit
+                        }
+                    ]
+
+                    submit: {
+                        *: [
+                            {
+                                value: { "submission" : 0 }
+                                action: @method:submitBBS
+                            }
+                            {
+                                value: { "submission" : 1 }
+                                action: @method:cancelSubmit
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+
+        fullLogoffSequence: {
+            desc: Logging Off
+            prompt: logoffConfirmation
+            submit: [
+                {
+                    value: { promptValue: 0 }
+                    action: @menu:fullLogoffSequencePreAd
+                }
+                {
+                    value: { promptValue: 1 }
+                    action: @systemMethod:prevMenu
+                }
+            ]
+        }
+
+        fullLogoffSequencePreAd: {
+            art: PRELOGAD
+            desc: Logging Off
+            next: fullLogoffSequenceRandomBoardAd
+            config: {
+                cls: true
+                nextTimeout: 1500
+            }
+        }
+
+        fullLogoffSequenceRandomBoardAd: {
+            art: OTHRBBS
+            desc: Logging Off
+            next: logoff
+            config: {
+                baudRate: 57600
+                pause: true
+                cls: true
+            }
+        }
+
+        logoff: {
+            art: LOGOFF
+            desc: Logging Off
+            next: @systemMethod:logoff
+        }
+
+        ////////////////////////////////////////////////////////////////////////
+        //  These entries are required by the system and must exist.
+        //  You can still modify/theme them, however.
+        ////////////////////////////////////////////////////////////////////////
+        idleLogoff: {
+            art:    IDLELOG
+            next:   @systemMethod:logoff
+        }
+    }
+
+    prompts: {
+        menuCommand: {
+            art: MNUPRMT
+            mci:  {
+                TL1: { }
+                ET2: {
+                    argName: command
+                    width: 20
+                    maxLength: 20
+                    submit: true
+                    textStyle: upper
+                    focus: true
+                }
+            }
+        }
+
+        logoffConfirmation: {
+            art: LOGPMPT
+            mci: {
+                TM1: {
+                    argName: promptValue
+                    items: [ "yes", "no" ]
+                    focus: true
+                    hotKeys: { Y: 0, N: 1 }
+                    hotKeySubmit: true
+                }
+            }
+        }
+
+        forgotPasswordPrompt: {
+            art: FORGOTPW
+            mci: {
+                ET1: {
+                    argName: username
+                    maxLength: @config:users.usernameMax
+                    width: 32
+                    focus: true
+                }
+            }
+            actionKeys: [
+                {
+                    keys: [ "escape" ]
+                    action: @systemMethod:prevMenu
+                }
+            ]
+        }
+
+        ////////////////////////////////////////////////////////////////////////
+        //  These entries are required by the system and must exist.
+        //  You can still modify/theme them, however.
+        ////////////////////////////////////////////////////////////////////////
+        pause: {
+            art: pause
+            config: {
+                trailingLF: no
+            }
+        }
+    }
+}

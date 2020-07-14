@@ -3,7 +3,7 @@ For :bug: bug reports, please fill out the information below plus any additional
 **Short problem description**
 
 **Environment**
-- [ ] I am using Node.js v10.x LTS or higher
+- [ ] I am using Node.js v12.x LTS or higher
 - [ ] `npm install` or `yarn` reports success
 - Actual Node.js version (`node --version`):
 - Operating system (`uname -a` on *nix systems):

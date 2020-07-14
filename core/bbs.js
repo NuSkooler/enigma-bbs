@@ -54,6 +54,8 @@ function printVersionAndExit() {
 }
 
 function main() {
+    let errorDisplayed = false;
+
     async.waterfall(
         [
             function processArgs(callback) {
@@ -69,12 +71,12 @@ function main() {
 
                 const configOverridePath = argv.config;
 
-                return callback(null, configOverridePath || conf.getDefaultPath(), _.isString(configOverridePath));
+                return callback(null, configOverridePath || conf.Config.getDefaultPath(), _.isString(configOverridePath));
             },
             function initConfig(configPath, configPathSupplied, callback) {
                 const configFile = configPath + 'config.hjson';
-                conf.init(resolvePath(configFile), function configInit(err) {
 
+                conf.Config.create(resolvePath(configFile), err => {
                     //
                     //  If the user supplied a path and we can't read/parse it
                     //  then it's a fatal error
@@ -87,7 +89,14 @@ function main() {
                                 configPathSupplied = null;  //  make non-fatal; we'll go with defaults
                             }
                         } else {
-                            console.error(err.message);
+                            errorDisplayed = true;
+                            console.error(`Configuration error: ${err.message}`); //  eslint-disable-line no-console
+                            if (err.hint) {
+                                console.error(`Hint: ${err.hint}`);
+                            }
+                            if (err.configPath) {
+                                console.error(`Note: ${err.configPath}`);
+                            }
                         }
                     }
                     return callback(err);
@@ -114,8 +123,9 @@ function main() {
                 });
             }
 
-            if(err) {
+            if(err && !errorDisplayed) {
                 console.error('Error initializing: ' + util.inspect(err));
+                return process.exit();
             }
         }
     );
@@ -175,10 +185,11 @@ function initialize(cb) {
     async.series(
         [
             function createMissingDirectories(callback) {
-                async.each(Object.keys(conf.config.paths), function entry(pathKey, next) {
-                    mkdirs(conf.config.paths[pathKey], function dirCreated(err) {
+                const Config = conf.get();
+                async.each(Object.keys(Config.paths), function entry(pathKey, next) {
+                    mkdirs(Config.paths[pathKey], function dirCreated(err) {
                         if(err) {
-                            console.error('Could not create path: ' + conf.config.paths[pathKey] + ': ' + err.toString());
+                            console.error('Could not create path: ' + Config.paths[pathKey] + ': ' + err.toString());
                         }
                         return next(err);
                     });
@@ -211,15 +222,9 @@ function initialize(cb) {
             function initStatLog(callback) {
                 return require('./stat_log.js').init(callback);
             },
-            function initConfigs(callback) {
-                return require('./config_util.js').init(callback);
-            },
-            function initThemes(callback) {
-                //  Have to pull in here so it's after Config init
-                require('./theme.js').initAvailableThemes( (err, themeCount) => {
-                    logger.log.info({ themeCount }, 'Themes initialized');
-                    return callback(err);
-                });
+            function initMenusAndThemes(callback) {
+                const { ThemeManager } = require('./theme');
+                return ThemeManager.create(callback);
             },
             function loadSysOpInformation(callback) {
                 //

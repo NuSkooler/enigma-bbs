@@ -28,12 +28,12 @@ For protocols of type `external` the following members may be defined:
 * `sendCmd`: Required for protocols that can send (allow user downloads); The command/binary to execute.
 * `sendArgs`: Required if using `sendCmd`; An array of arguments. A placeholder of `{fileListPath}` may be used to supply a path to a **file containing** a list of files to send, or `{filePaths}` to supply *1:n* individual file paths to send.
 * `recvCmd`: Required for protocols that can receive (allow user uploads); The command/binary to execute.
-* `recvArgs`: Required if using `recvCmd` and supporting **batch** uploads; An array of arguments. A placeholder of `{uploadDir}` may be used to supply the system provided upload directory. If `{uploadDir}` is not present, the system expects uploaded files to be placed in CWD which will be set to the upload directory. 
+* `recvArgs`: Required if using `recvCmd` and supporting **batch** uploads; An array of arguments. A placeholder of `{uploadDir}` may be used to supply the system provided upload directory. If `{uploadDir}` is not present, the system expects uploaded files to be placed in CWD which will be set to the upload directory.
 * `recvArgsNonBatch`: Required if using `recvCmd` and supporting non-batch (single file) uploads; A placeholder of `{fileName}` may be supplied to indicate to the protocol what the uploaded file should be named (this will be collected from the user before the upload starts).
 * `escapeTelnet`: Optional; If set to `true`, escape all internal Telnet related codes such as IAC's. This option is required for external protocol handlers such as `sz` and `rz` that do not escape themselves.
 
 ### Adding Your Own
-Take a look a the example below as well as [core/config.js](/core/config.js).
+Take a look a the example below as well as [core/config_default.js](/core/config_default.js).
 
 #### Example File Transfer Protocol Configuration
 ```

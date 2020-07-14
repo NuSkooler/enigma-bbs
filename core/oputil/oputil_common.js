@@ -64,14 +64,14 @@ function getDefaultConfigPath() {
 }
 
 function getConfigPath() {
-    const baseConfigPath = argv.config ? argv.config : config.getDefaultPath();
+    const baseConfigPath = argv.config ? argv.config : config.Config.getDefaultPath();
     return baseConfigPath + 'config.hjson';
 }
 
 function initConfig(cb) {
     const configPath = getConfigPath();
 
-    config.init(configPath, { keepWsc : true, noWatch : true }, cb);
+    config.Config.create(configPath, { keepWsc : true, hotReload : false }, cb);
 }
 
 function initConfigAndDatabases(cb) {
@@ -85,7 +85,7 @@ function initConfigAndDatabases(cb) {
             },
             function initArchiveUtil(callback) {
                 //  ensure we init ArchiveUtil without events
-                require('../../core/archive_util').getInstance(true);  //  true=noWatch
+                require('../../core/archive_util').getInstance(false);  //  false=hotReload
                 return callback(null);
             }
         ],

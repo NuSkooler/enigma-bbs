@@ -5,15 +5,15 @@ const Config            = require('./config.js').get;
 const art               = require('./art.js');
 const ansi              = require('./ansi_term.js');
 const Log               = require('./logger.js').log;
-const ConfigCache       = require('./config_cache.js');
-const getFullConfig     = require('./config_util.js').getFullConfig;
 const asset             = require('./asset.js');
 const ViewController    = require('./view_controller.js').ViewController;
 const Errors            = require('./enig_error.js').Errors;
-const ErrorReasons      = require('./enig_error.js').ErrorReasons;
 const Events            = require('./events.js');
 const AnsiPrep          = require('./ansi_prep.js');
 const UserProps         = require('./user_property.js');
+
+const ConfigLoader      = require('./config_loader');
+const { getConfigPath } = require('./config_util');
 
 //  deps
 const fs                = require('graceful-fs');
@@ -26,213 +26,266 @@ exports.getThemeArt             = getThemeArt;
 exports.getAvailableThemes      = getAvailableThemes;
 exports.getRandomTheme          = getRandomTheme;
 exports.setClientTheme          = setClientTheme;
-exports.initAvailableThemes     = initAvailableThemes;
 exports.displayPreparedArt      = displayPreparedArt;
 exports.displayThemeArt         = displayThemeArt;
 exports.displayThemedPause      = displayThemedPause;
 exports.displayThemedPrompt     = displayThemedPrompt;
 exports.displayThemedAsset      = displayThemedAsset;
 
-function refreshThemeHelpers(theme) {
-    //
-    //  Create some handy helpers
-    //
-    theme.helpers = {
-        getPasswordChar : function() {
-            let pwChar = _.get(
-                theme,
-                'customization.defaults.passwordChar',
-                Config().theme.passwordChar
-            );
+//  global instance of ThemeManager; see ThemeManager.create()
+let themeManagerInstance;
 
-            if(_.isString(pwChar)) {
-                pwChar = pwChar.substr(0, 1);
-            } else if(_.isNumber(pwChar)) {
-                pwChar = String.fromCharCode(pwChar);
+exports.ThemeManager = class ThemeManager {
+    constructor() {
+        this.availableThemes = new Map();
+    }
+
+    static create(cb) {
+        themeManagerInstance = new ThemeManager();
+        themeManagerInstance.init(err => {
+            if (!err) {
+                themeManagerInstance.getAvailableThemes().forEach( (themeConfig, themeId) => {
+                    const { name, author, group } = themeConfig.get().info;
+                    Log.info(
+                        { themeId, themeName : name, author, group },
+                        'Theme loaded'
+                    );
+                });
             }
 
-            return pwChar;
-        },
-        getDateFormat : function(style = 'short') {
-            const format = Config().theme.dateFormat[style] || 'MM/DD/YYYY';
-            return _.get(theme, `customization.defaults.dateFormat.${style}`, format);
-        },
-        getTimeFormat : function(style = 'short') {
-            const format = Config().theme.timeFormat[style] || 'h:mm a';
-            return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
-        },
-        getDateTimeFormat : function(style = 'short') {
-            const format = Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
-            return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
-        }
-    };
-}
-
-function loadTheme(themeId, cb) {
-    const path = paths.join(Config().paths.themes, themeId, 'theme.hjson');
-
-    const changed = ( { fileName, fileRoot } ) => {
-        const reCachedPath = paths.join(fileRoot, fileName);
-        if(reCachedPath === path) {
-            reloadTheme(themeId);
-        }
-    };
-
-    const getOpts = {
-        filePath        : path,
-        forceReCache    : true,
-        callback        : changed,
-    };
-
-    ConfigCache.getConfigWithOptions(getOpts, (err, theme) => {
-        if(err) {
             return cb(err);
-        }
+        });
+    }
 
+    getAvailableThemes() {
+        return this.availableThemes;
+    }
+
+    init(cb) {
+        this.menuConfig = new ConfigLoader({
+            onReload : err => {
+                if (!err) {
+                    //  menu.hjson/includes have changed; this could affect
+                    //  all themes, so they must be reloaded
+                    Events.emit(Events.getSystemEvents().MenusChanged);
+
+                    this._reloadAllThemes();
+                }
+            },
+        });
+
+        this.menuConfig.init(getConfigPath(Config().general.menuFile), err => {
+            if (err) {
+                return cb(err);
+            }
+
+            return this._loadThemes(cb);
+        });
+    }
+
+    _loadThemes(cb) {
+        const themeDir = Config().paths.themes;
+
+        fs.readdir(themeDir, (err, files) => {
+            if (err) {
+                return cb(err);
+            }
+
+            async.filter(files, (filename, nextFilename) => {
+                const fullPath = paths.join(themeDir, filename);
+                fs.stat(fullPath, (err, stats) => {
+                    if (err) {
+                        return nextFilename(err);
+                    }
+
+                    return nextFilename(null, stats.isDirectory());
+                });
+            },
+            (err, themeIds) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                async.each(themeIds, (themeId, nextThemeId) => {
+                    return this._loadTheme(themeId, nextThemeId);
+                },
+                err => {
+                    return cb(err);
+                });
+            });
+        });
+    }
+
+    _loadTheme(themeId, cb) {
+        const themeConfig = new ConfigLoader({
+            onReload : err => {
+                if (!err) {
+                    //  this particular theme has changed
+                    this._themeLoaded(themeId, themeConfig, err => {
+                        if (!err) {
+                            Events.emit(
+                                Events.getSystemEvents().ThemeChanged,
+                                { themeId }
+                            );
+                        }
+                    });
+                }
+            }
+        });
+
+        const themeConfigPath = paths.join(Config().paths.themes, themeId, 'theme.hjson');
+
+        themeConfig.init(themeConfigPath, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            this._themeLoaded(themeId, themeConfig);
+            return cb(null);
+        });
+    }
+
+    _themeLoaded(themeId, themeConfig) {
+        const theme = themeConfig.get();
+
+        //  do some basic validation
+        //  :TODO: schema validation here
         if(!_.isObject(theme.info) ||
             !_.isString(theme.info.name) ||
             !_.isString(theme.info.author))
         {
-            return cb(Errors.Invalid('Invalid or missing "info" section'));
+            return Log.warn({ themeId }, 'Theme contains invalid or missing "info" section');
         }
 
         if(false === _.get(theme, 'info.enabled')) {
-            return cb(Errors.General('Theme is not enabled', ErrorReasons.ErrNotEnabled));
+            Log.info({ themeId }, 'Theme is disabled');
+            return this.availableThemes.delete(themeId);
         }
 
-        refreshThemeHelpers(theme);
+        //  merge menu.hjson+theme.hjson/etc. to the final usable theme
+        this._finalizeTheme(themeId, themeConfig);
 
-        return cb(null, theme, path);
-    });
-}
+        //  Theme is valid and enabled; update it in available themes
+        this.availableThemes.set(themeId, themeConfig);
 
-const availableThemes = new Map();
-
-const IMMUTABLE_MCI_PROPERTIES = [
-    'maxLength', 'argName', 'submit', 'validate'
-];
-
-function getMergedTheme(menuConfig, promptConfig, theme) {
-    assert(_.isObject(menuConfig));
-    assert(_.isObject(theme));
-
-    //  :TODO: merge in defaults (customization.defaults{} )
-    //  :TODO: apply generic stuff, e.g. "VM" (vs "VM1")
-
-    //
-    //  Create a *clone* of menuConfig (menu.hjson) then bring in
-    //  promptConfig (prompt.hjson)
-    //
-    const mergedTheme = _.cloneDeep(menuConfig);
-
-    if(_.isObject(promptConfig.prompts)) {
-        mergedTheme.prompts = _.cloneDeep(promptConfig.prompts);
+        Events.emit(
+            Events.getSystemEvents().ThemeChanged,
+            { themeId }
+        );
     }
 
-    //
-    //  Add in data we won't be altering directly from the theme
-    //
-    mergedTheme.info            = theme.info;
-    mergedTheme.helpers         = theme.helpers;
-    mergedTheme.achievements    = _.get(theme, 'customization.achievements');
+    _finalizeTheme(themeId, themeConfig) {
+        //  These TODOs are left over from the old system - decide what/if to do with them:
+        //  :TODO: merge in defaults (customization.defaults{} )
+        //  :TODO: apply generic stuff, e.g. "VM" (vs "VM1")
 
-    //
-    //  merge customizer to disallow immutable MCI properties
-    //
-    const mciCustomizer = function(objVal, srcVal, key) {
-        return IMMUTABLE_MCI_PROPERTIES.indexOf(key) > -1 ? objVal : srcVal;
-    };
+        //  start out with menu.hjson
+        const mergedTheme = _.cloneDeep(this.menuConfig.get());
 
-    function getFormKeys(fromObj) {
-        //  remove all non-numbers
-        return _.remove(_.keys(fromObj), k => !isNaN(k));
-    }
+        const theme = themeConfig.get();
 
-    function mergeMciProperties(dest, src) {
-        Object.keys(src).forEach(mci => {
-            if(dest[mci]) {
-                _.mergeWith(dest[mci], src[mci], mciCustomizer);
-            } else {
-                //  theme contains MCI not in menu; bring in as-is
-                dest[mci] = src[mci];
-            }
-        });
-    }
+        //  some data brought directly over
+        mergedTheme.info            = Object.assign({}, theme.info, { themeId });
+        mergedTheme.achievements    = _.get(theme, 'customization.achievements');
 
-    function applyThemeMciBlock(dest, src, formKey) {
-        if(_.isObject(src.mci)) {
-            mergeMciProperties(dest, src.mci);
-        } else {
-            if(_.has(src, [ formKey, 'mci' ])) {
-                mergeMciProperties(dest, src[formKey].mci);
-            }
-        }
-    }
+        //  Create some helpers for this theme
+        this._setThemeHelpers(mergedTheme);
 
-    //
-    //  menu.hjson can have a couple different structures:
-    //  1)  Explicit declaration of expected MCI code(s) under 'form:<id>' before a 'mci' block
-    //      (this allows multiple layout types defined by one menu for example)
-    //
-    //  2)  Non-explicit declaration: 'mci' directly under 'form:<id>'
-    //
-    //  theme.hjson has it's own mix:
-    //  1)  Explicit: Form ID before 'mci' (generally used where there are > 1 forms)
-    //
-    //  2)  Non-explicit: 'mci' directly under an entry
-    //
-    //  Additionally, #1 or #2 may be under an explicit key of MCI code(s) to match up
-    //  with menu.hjson in #1.
-    //
-    //  *   When theming an explicit menu.hjson entry (1), we will use a matching explicit
-    //      entry with a matching MCI code(s) key in theme.hjson (e.g. menu="ETVM"/theme="ETVM"
-    //      and fall back to generic if a match is not found.
-    //
-    //  *   If theme.hjson provides form ID's, use them. Otherwise, we'll apply directly assuming
-    //      there is a generic 'mci' block.
-    //
-    function applyToForm(form, menuTheme, formKey) {
-        if(_.isObject(form.mci)) {
-            //   non-explicit: no MCI code(s) key assumed since we found 'mci' directly under form ID
-            applyThemeMciBlock(form.mci, menuTheme, formKey);
-        } else {
-            //  remove anything not uppercase
-            const menuMciCodeKeys = _.remove(_.keys(form), k => k === k.toUpperCase());
+        //  merge customizer to disallow immutable MCI properties
+        const ImmutableMCIProperties = [
+            'maxLength', 'argName', 'submit', 'validate'
+        ];
 
-            menuMciCodeKeys.forEach(function mciKeyEntry(mciKey) {
-                let applyFrom;
-                if(_.has(menuTheme, [ mciKey, 'mci' ])) {
-                    applyFrom = menuTheme[mciKey];
+        const mciCustomizer = (objVal, srcVal, key) => {
+            return ImmutableMCIProperties.indexOf(key) > -1 ? objVal : srcVal;
+        };
+
+        const getFormKeys = (obj) => {
+            //  remove all non-numbers
+            return _.remove(Object.keys(obj), k => !isNaN(k));
+        };
+
+        const mergeMciProperties = (dst, src) => {
+            Object.keys(src).forEach(mci => {
+                if (dst[mci]) {
+                    _.mergeWith(dst[mci], src[mci], mciCustomizer);
                 } else {
-                    applyFrom = menuTheme;
+                    //  theme contains a MCI that's not found in menu
+                    dst[mci] = src[mci];
                 }
-
-                applyThemeMciBlock(form[mciKey].mci, applyFrom, formKey);
             });
-        }
-    }
+        };
 
-    [ 'menus', 'prompts' ].forEach(function areaEntry(sectionName) {
-        _.keys(mergedTheme[sectionName]).forEach(function menuEntry(menuName) {
-            let createdFormSection = false;
-            const mergedThemeMenu = mergedTheme[sectionName][menuName];
+        const applyThemeMciBlock = (dst, src, formKey) => {
+            if(_.isObject(src.mci)) {
+                mergeMciProperties(dst, src.mci);
+            } else if (_.has(src, [ formKey, 'mci' ])) {
+                mergeMciProperties(dst, src[formKey].mci);
+            }
+        };
 
-            if(_.has(theme, [ 'customization', sectionName, menuName ])) {
-                const menuTheme = theme.customization[sectionName][menuName];
+        //
+        //  menu.hjson can have a couple different structures:
+        //  1)  Explicit declaration of expected MCI code(s) under 'form:<id>' before a 'mci' block
+        //      (this allows multiple layout types defined by one menu for example)
+        //
+        //  2)  Non-explicit declaration: 'mci' directly under 'form:<id>'
+        //
+        //  theme.hjson has it's own mix:
+        //  1)  Explicit: Form ID before 'mci' (generally used where there are > 1 forms)
+        //
+        //  2)  Non-explicit: 'mci' directly under an entry
+        //
+        //  Additionally, #1 or #2 may be under an explicit key of MCI code(s) to match up
+        //  with menu.hjson in #1.
+        //
+        //  *   When theming an explicit menu.hjson entry (1), we will use a matching explicit
+        //      entry with a matching MCI code(s) key in theme.hjson (e.g. menu="ETVM"/theme="ETVM"
+        //      and fall back to generic if a match is not found.
+        //
+        //  *   If theme.hjson provides form ID's, use them. Otherwise, we'll apply directly assuming
+        //      there is a generic 'mci' block.
+        //
+        const applyToForm = (form, menuTheme, formKey) => {
+            if (_.isObject(form.mci)) {
+                //   non-explicit: no MCI code(s) key assumed since we found 'mci' directly under form ID
+                applyThemeMciBlock(form.mci, menuTheme, formKey);
+            } else {
+                //  remove anything not uppercase
+                const menuMciCodeKeys = _.remove(_.keys(form), k => k === k.toUpperCase());
 
-                //  config block is direct assign/overwrite
-                //  :TODO: should probably be _.merge()
-                if(menuTheme.config) {
-                    mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
-                }
+                menuMciCodeKeys.forEach(mciKey => {
+                    const src = _.has(menuTheme, [ mciKey, 'mci' ]) ?
+                        menuTheme[mciKey] :
+                        menuTheme;
 
-                if('menus' === sectionName) {
-                    if(_.isObject(mergedThemeMenu.form)) {
-                        getFormKeys(mergedThemeMenu.form).forEach(function formKeyEntry(formKey) {
-                            applyToForm(mergedThemeMenu.form[formKey], menuTheme, formKey);
-                        });
-                    } else {
-                        if(_.isObject(menuTheme.mci)) {
+                    applyThemeMciBlock(form[mciKey].mci, src, formKey);
+                });
+            }
+        };
+
+        [ 'menus', 'prompts'].forEach(sectionName => {
+            if (!_.isObject(mergedTheme[sectionName])) {
+                return Log.error({sectionName}, 'Merged theme is missing section');
+            }
+
+            Object.keys(mergedTheme[sectionName]).forEach(entryName => {
+                let createdFormSection = false;
+                const mergedThemeMenu = mergedTheme[sectionName][entryName];
+
+                const menuTheme = _.get(theme, [ 'customization', sectionName, entryName ]);
+                if (menuTheme) {
+                    if (menuTheme.config) {
+                        //  :TODO: should this be _.merge() ?
+                        mergedThemeMenu.config = _.assign(mergedThemeMenu.config || {}, menuTheme.config);
+                    }
+
+                    if('menus' === sectionName) {
+                        if(_.isObject(mergedThemeMenu.form)) {
+                            getFormKeys(mergedThemeMenu.form).forEach(formKey => {
+                                applyToForm(mergedThemeMenu.form[formKey], menuTheme, formKey);
+                            });
+                        } else if(_.isObject(menuTheme.mci)) {
                             //
                             //  Not specified at menu level means we apply anything from the
                             //  theme to form.0.mci{}
@@ -241,158 +294,84 @@ function getMergedTheme(menuConfig, promptConfig, theme) {
                             mergeMciProperties(mergedThemeMenu.form[0], menuTheme);
                             createdFormSection = true;
                         }
+                    } else if('prompts' === sectionName) {
+                        //  no 'form' or form keys for prompts -- direct to mci
+                        applyToForm(mergedThemeMenu, menuTheme);
                     }
-                } else if('prompts' === sectionName) {
-                    //  no 'form' or form keys for prompts -- direct to mci
-                    applyToForm(mergedThemeMenu, menuTheme);
                 }
-            }
 
-            //
-            //  Finished merging for this menu/prompt
-            //
-            //  If the following conditions are true, set runtime.autoNext to true:
-            //  *   This is a menu
-            //  *   There is/was no explicit 'form' section
-            //  *   There is no 'prompt' specified
-            //
-            if('menus' === sectionName && !_.isString(mergedThemeMenu.prompt) &&
-                (createdFormSection || !_.isObject(mergedThemeMenu.form)))
-            {
-                mergedThemeMenu.runtime = _.merge(mergedThemeMenu.runtime || {}, { autoNext : true } );
-            }
+                //
+                //  Finished merging for this menu/prompt
+                //
+                //  If the following conditions are true, set runtime.autoNext to true:
+                //  *   This is a menu
+                //  *   There is/was no explicit 'form' section
+                //  *   There is no 'prompt' specified
+                //
+                if('menus' === sectionName &&
+                    !_.isString(mergedThemeMenu.prompt) &&
+                    (createdFormSection || !_.isObject(mergedThemeMenu.form)))
+                {
+                    mergedThemeMenu.runtime = _.merge(mergedThemeMenu.runtime || {}, { autoNext : true } );
+                }
+            });
         });
-    });
 
+        themeConfig.current = mergedTheme;
+    }
 
-    return mergedTheme;
-}
+    _setThemeHelpers(theme) {
+        theme.helpers = {
+            getPasswordChar : function() {
+                let pwChar = _.get(
+                    theme,
+                    'customization.defaults.passwordChar',
+                    Config().theme.passwordChar
+                );
 
-function reloadTheme(themeId) {
-    const config = Config();
-    async.waterfall(
-        [
-            function loadMenuConfig(callback) {
-                getFullConfig(config.general.menuFile, (err, menuConfig) => {
-                    return callback(err, menuConfig);
-                });
+                if(_.isString(pwChar)) {
+                    pwChar = pwChar.substr(0, 1);
+                } else if(_.isNumber(pwChar)) {
+                    pwChar = String.fromCharCode(pwChar);
+                }
+
+                return pwChar;
             },
-            function loadPromptConfig(menuConfig, callback) {
-                getFullConfig(config.general.promptFile, (err, promptConfig) => {
-                    return callback(err, menuConfig, promptConfig);
-                });
+            getDateFormat : function(style = 'short') {
+                const format = Config().theme.dateFormat[style] || 'MM/DD/YYYY';
+                return _.get(theme, `customization.defaults.dateFormat.${style}`, format);
             },
-            function loadIt(menuConfig, promptConfig, callback) {
-                loadTheme(themeId, (err, theme) => {
-                    if(err) {
-                        if(ErrorReasons.NotEnabled !== err.reasonCode) {
-                            Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
-                            return;
-                        }
-                        return callback(err);
-                    }
-
-                    Object.assign(theme.info, { themeId } );
-                    availableThemes.set(themeId, getMergedTheme(menuConfig, promptConfig, theme));
-
-                    Events.emit(
-                        Events.getSystemEvents().ThemeChanged,
-                        { themeId }
-                    );
-
-                    return callback(null, theme);
-                });
+            getTimeFormat : function(style = 'short') {
+                const format = Config().theme.timeFormat[style] || 'h:mm a';
+                return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
+            },
+            getDateTimeFormat : function(style = 'short') {
+                const format = Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+                return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
             }
-        ],
-        (err, theme) => {
-            if(err) {
-                Log.warn( { themeId, error : err.message }, 'Failed to reload theme');
-            } else {
-                Log.debug( { info : theme.info }, 'Theme recached' );
-            }
-        }
-    );
-}
+        };
+    }
 
-function reloadAllThemes()
-{
-    async.each([ ...availableThemes.keys() ], themeId => reloadTheme(themeId));
-}
-
-function initAvailableThemes(cb) {
-    const config = Config();
-    async.waterfall(
-        [
-            function loadMenuConfig(callback) {
-                getFullConfig(config.general.menuFile, (err, menuConfig) => {
-                    return callback(err, menuConfig);
-                });
-            },
-            function loadPromptConfig(menuConfig, callback) {
-                getFullConfig(config.general.promptFile, (err, promptConfig) => {
-                    return callback(err, menuConfig, promptConfig);
-                });
-            },
-            function getThemeDirectories(menuConfig, promptConfig, callback) {
-                fs.readdir(config.paths.themes, (err, files) =>  {
-                    if(err) {
-                        return callback(err);
-                    }
-
-                    return callback(
-                        null,
-                        menuConfig,
-                        promptConfig,
-                        files.filter( f => {
-                            //  sync normally not allowed -- initAvailableThemes() is a startup-only method, however
-                            return fs.statSync(paths.join(config.paths.themes, f)).isDirectory();
-                        })
-                    );
-                });
-            },
-            function populateAvailable(menuConfig, promptConfig, themeDirectories, callback) {
-                async.each(themeDirectories, (themeId, nextThemeDir) => {   //  theme dir = theme ID
-                    loadTheme(themeId, (err, theme) => {
-                        if(err) {
-                            if(ErrorReasons.NotEnabled !== err.reasonCode) {
-                                Log.warn( { themeId : themeId, err : err.message }, 'Failed loading theme');
-                            }
-
-                            return nextThemeDir(null);  //  try next
-                        }
-
-                        Object.assign(theme.info, { themeId } );
-                        availableThemes.set(themeId, getMergedTheme(menuConfig, promptConfig, theme));
-                        return nextThemeDir(null);
-                    });
-                }, err => {
-                    return callback(err);
-                });
-            },
-            function initEvents(callback) {
-                Events.on(Events.getSystemEvents().MenusChanged, () => {
-                    return reloadAllThemes();
-                });
-                Events.on(Events.getSystemEvents().PromptsChanged, () => {
-                    return reloadAllThemes();
-                });
-
-                return callback(null);
-            }
-        ],
-        err => {
-            return cb(err, availableThemes.size);
-        }
-    );
-}
+    _reloadAllThemes() {
+        async.each([ ...this.availableThemes.keys() ], (themeId, nextThemeId) => {
+            this._loadTheme(themeId, err => {
+                if (!err) {
+                    Log.info({ themeId }, 'Theme reloaded');
+                }
+                return nextThemeId(null);   //  always proceed
+            });
+        });
+    }
+};
 
 function getAvailableThemes() {
-    return availableThemes;
+    return themeManagerInstance.getAvailableThemes();
 }
 
 function getRandomTheme() {
-    if(availableThemes.size > 0) {
-        const themeIds = [ ...availableThemes.keys() ];
+    const avail = getAvailableThemes();
+    if(avail.size > 0) {
+        const themeIds = [ ...avail.keys() ];
         return themeIds[Math.floor(Math.random() * themeIds.length)];
     }
 }
@@ -433,9 +412,9 @@ function getThemeArt(options, cb) {
     const config = Config();
     if(!options.themeId && _.has(options, [ 'client', 'user', 'properties', UserProps.ThemeId ])) {
         options.themeId = options.client.user.properties[UserProps.ThemeId];
-    } else {
-        options.themeId = config.theme.default;
     }
+
+    options.themeId = options.themeId || config.theme.default;
 
     //  :TODO: replace asAnsi stuff with something like retrieveAs = 'ansi' | 'pipe' | ...
     //  :TODO: Some of these options should only be set if not provided!

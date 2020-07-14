@@ -4,10 +4,8 @@
 //  ENiGMA½
 const Events                = require('./events.js');
 const Config                = require('./config.js').get;
-const {
-    getConfigPath,
-    getFullConfig,
-}                           = require('./config_util.js');
+const ConfigLoader          = require('./config_loader');
+const { getConfigPath }     = require('./config_util');
 const UserDb                = require('./database.js').dbs.user;
 const {
     getISOTimestampString
@@ -29,13 +27,11 @@ const {
 const stringFormat          = require('./string_format.js');
 const StatLog               = require('./stat_log.js');
 const Log                   = require('./logger.js').log;
-const ConfigCache           = require('./config_cache.js');
 
 //  deps
 const _             = require('lodash');
 const async         = require('async');
 const moment        = require('moment');
-const paths         = require('path');
 
 exports.getAchievementsEarnedByUser  = getAchievementsEarnedByUser;
 
@@ -136,63 +132,60 @@ class UserStatAchievement extends Achievement {
 class Achievements {
     constructor(events) {
         this.events = events;
+        this.enabled = false;
     }
 
     getAchievementByTag(tag) {
-        return this.achievementConfig.achievements[tag];
+        return this.config.get().achievements[tag];
     }
 
     isEnabled() {
-        return !_.isUndefined(this.achievementConfig);
+        return this.enabled;
     }
 
     init(cb) {
-        let achievementConfigPath = _.get(Config(), 'general.achievementFile');
-        if(!achievementConfigPath) {
+        const configPath = this._getConfigPath();
+        if (!configPath) {
             Log.info('Achievements are not configured');
             return cb(null);
         }
-        achievementConfigPath = getConfigPath(achievementConfigPath);   //  qualify
 
-        const configLoaded = (achievementConfig) => {
-            if(true !== achievementConfig.enabled) {
+        const configLoaded = () => {
+            if(true !== this.config.get().enabled) {
                 Log.info('Achievements are not enabled');
+                this.enabled = false;
                 this.stopMonitoringUserStatEvents();
-                delete this.achievementConfig;
             } else {
                 Log.info('Achievements are enabled');
-                this.achievementConfig = achievementConfig;
+                this.enabled = true;
                 this.monitorUserStatEvents();
             }
         };
 
-        const changed = ( { fileName, fileRoot } ) => {
-            const reCachedPath = paths.join(fileRoot, fileName);
-            if(reCachedPath === achievementConfigPath) {
-                getFullConfig(achievementConfigPath, (err, achievementConfig) => {
-                    if(err) {
-                        return Log.error( { error : err.message }, 'Failed to reload achievement config from cache');
-                    }
-                    configLoaded(achievementConfig);
-                });
-            }
-        };
-
-        ConfigCache.getConfigWithOptions(
-            {
-                filePath        : achievementConfigPath,
-                forceReCache    : true,
-                callback        : changed,
-            },
-            (err, achievementConfig) => {
-                if(err) {
-                    return cb(err);
+        this.config = new ConfigLoader({
+            onReload : err => {
+                if (!err) {
+                    configLoaded();
                 }
-
-                configLoaded(achievementConfig);
-                return cb(null);
             }
-        );
+        });
+
+        this.config.init(configPath, err => {
+            if (err) {
+                return cb(err);
+            }
+
+            configLoaded();
+            return cb(null);
+        });
+    }
+
+    _getConfigPath() {
+        const path = _.get(Config(), 'general.achievementFile');
+        if(!path) {
+            return;
+        }
+        return getConfigPath(path);   //  qualify
     }
 
     loadAchievementHitCount(user, achievementTag, field, cb) {
@@ -298,7 +291,7 @@ class Achievements {
 
             //  :TODO: Make this code generic - find + return factory created object
             const achievementTags = Object.keys(_.pickBy(
-                _.get(this.achievementConfig, 'achievements', {}),
+                _.get(this.config.get(), 'achievements', {}),
                 achievement => {
                     if(false === achievement.enabled) {
                         return false;
@@ -498,7 +491,7 @@ class Achievements {
             const spec =
                 _.get(info.details, `art.${name}`) ||
                 _.get(info.achievement, `art.${name}`) ||
-                _.get(this.achievementConfig, `art.${name}`);
+                _.get(this.config.get(), `art.${name}`);
             if(!spec) {
                 return callback(null);
             }

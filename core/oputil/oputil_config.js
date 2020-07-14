@@ -159,7 +159,7 @@ function askNewConfigQuestions(cb) {
             },
             function basic(callback) {
                 getAnswers(QUESTIONS.Basic, answers => {
-                    const defaultConfig	= require('../../core/config.js').getDefaultConfig();
+                    const defaultConfig = require('../../core/config_default')();
 
                     //  start by plopping in values we want directly from config.js
                     const template = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/config_template.in.hjson'), 'utf8'));
@@ -227,26 +227,44 @@ function buildNewConfig() {
         if(err) {            return;
         }
 
-        const bn = sanatizeFilename(config.general.boardName)
+        const boardName = sanatizeFilename(config.general.boardName)
             .replace(/[^a-z0-9_-]/ig, '_')
             .replace(/_+/g, '_')
             .toLowerCase();
-        const menuFile = `${bn}-menu.hjson`;
-        copyFileSyncSilent(
-            paths.join(__dirname, '../../misc/menu_template.in.hjson'),
-            paths.join(__dirname, '../../config/', menuFile),
-            fs.constants.COPYFILE_EXCL
+
+        const includeFilesIn = [
+            'message_base.in.hjson',
+            'private_mail.in.hjson',
+            'login.in.hjson',
+            'new_user.in.hjson',
+            'doors.in.hjson',
+            'file_base.in.hjson',
+        ];
+
+        let includeFiles = [];
+        includeFilesIn.forEach(incFile => {
+            const outName = `${boardName}-${incFile.replace('.in', '')}`;
+            includeFiles.push(outName);
+
+            copyFileSyncSilent(
+                paths.join(__dirname, '../../misc/menu_templates', incFile),
+                paths.join(__dirname, '../../config/menus', outName),
+                fs.constants.COPYFILE_EXCL
+            );
+        });
+
+        //  We really only need includes to be replaced
+        const mainTemplate = fs.readFileSync(paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'), 'utf8')
+            .replace(/%INCLUDE_FILES%/g, includeFiles.join('\n\t\t'));  //  cheesy, but works!
+
+        const menuFile = `${boardName}-main.hjson`;
+        fs.writeFileSync(
+            paths.join(__dirname, '../../config/menus', menuFile),
+            mainTemplate,
+            'utf8'
         );
 
-        const promptFile = `${bn}-prompt.hjson`;
-        copyFileSyncSilent(
-            paths.join(__dirname, '../../misc/prompt_template.in.hjson'),
-            paths.join(__dirname, '../../config/', promptFile),
-            fs.constants.COPYFILE_EXCL
-        );
-
-        config.general.menuFile     = menuFile;
-        config.general.promptFile   = promptFile;
+        config.general.menuFile = paths.join(__dirname, '../../config/menus/', menuFile);
 
         if(writeConfig(config, configPath)) {
             console.info('Configuration generated');
