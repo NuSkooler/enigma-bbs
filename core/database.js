@@ -184,6 +184,11 @@ const DB_INIT_TABLE = {
         );
 
         dbs.user.run(
+            `CREATE INDEX IF NOT EXISTS user_property_id_and_name_index0
+            ON user_property (user_id, prop_name);`
+        );
+
+        dbs.user.run(
             `CREATE TABLE IF NOT EXISTS user_group_member (
                 group_name  VARCHAR NOT NULL,
                 user_id     INTEGER NOT NULL,
