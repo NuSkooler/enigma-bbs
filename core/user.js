@@ -760,45 +760,30 @@ module.exports = class User {
 
     static getUserList(options, cb) {
         const userList = [];
-        const orderClause = 'ORDER BY ' + (options.order || 'user_name');
+
+        options.properties = options.properties || [ UserProps.RealName ];
+
+        const asList = [];
+        const joinList = [];
+        for (let i = 0; i < options.properties.length; ++i) {
+            const dbProp = options.properties[i];
+            const propName = options.propsCamelCase ? _.camelCase(dbProp) : dbProp;
+            asList.push(`p${i}.prop_value AS ${propName}`);
+            joinList.push(`LEFT OUTER JOIN user_property p${i} ON p${i}.user_id = u.id AND p${i}.prop_name = '${dbProp}'`);
+        }
 
         userDb.each(
-            `SELECT id, user_name
-            FROM user
-            ${orderClause};`,
+            `SELECT u.id as userId, u.user_name as userName, ${asList.join(', ')}
+            FROM user u ${joinList.join(' ')}
+            ORDER BY u.user_name;`,
             (err, row) => {
-                if(row) {
-                    userList.push({
-                        userId      : row.id,
-                        userName    : row.user_name,
-                    });
+                if (err) {
+                    return cb(err);
                 }
+                userList.push(row);
             },
-            () => {
-                options.properties = options.properties || [];
-                async.map(userList, (user, nextUser) => {
-                    userDb.each(
-                        `SELECT prop_name, prop_value
-                        FROM user_property
-                        WHERE user_id = ? AND prop_name IN ("${options.properties.join('","')}");`,
-                        [ user.userId ],
-                        (err, row) => {
-                            if(row) {
-                                if(options.propsCamelCase) {
-                                    user[_.camelCase(row.prop_name)] = row.prop_value;
-                                } else {
-                                    user[row.prop_name] = row.prop_value;
-                                }
-                            }
-                        },
-                        err => {
-                            return nextUser(err, user);
-                        }
-                    );
-                },
-                (err, transformed) => {
-                    return cb(err, transformed);
-                });
+            err => {
+                return cb(err, userList);
             }
         );
     }
