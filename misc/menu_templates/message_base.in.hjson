@@ -251,7 +251,7 @@
                     submit: {
                         *: [
                             {
-                                value: { message: null }
+                                value: { messageIndex: null }
                                 action: @method:selectMessage
                             }
                         ]
@@ -799,7 +799,7 @@
             }
         },
 
-        //  default prompt entry used by the 'msg_lsit' module
+        //  default prompt entry used by the 'msg_list' module
         deleteMessageFromListPrompt: {
             art: MSGDELPMPT
             mci: {
