@@ -55,6 +55,7 @@ Message Areas are topic specific containers for messages that live within a part
 | `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
 | `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
 | `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
+| `realNames` | :-1:      | Set to `true` to use real names in this area. |
 
 ### ACS
 An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
