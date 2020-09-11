@@ -66,7 +66,7 @@ enigma_install_needs_python() {
         echo " Found!"
     else
         echo ""
-        fatal_error "ENiGMA½ requires '$1' for node-gyp to build binaries. Please see https://www.npmjs.com/package/node-gyp for details."
+        fatal_error "ENiGMA½ requires Python for node-gyp to build binaries. Please see https://www.npmjs.com/package/node-gyp for details."
     fi
 }
 
