@@ -4,7 +4,6 @@
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
-
 ## Features Available Now
  * Multi platform: Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Unlimited multi node support (for all those BBS "callers"!)
@@ -39,10 +38,10 @@ curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/inst
 
 Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
 
-## Known Issues
-As of now this is considered **beta** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. With that said, the code is actually quite stable and is used by a number of boards.
+## Donating
+If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSkooler/donate)<br/>
 
-See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more information.
+<a href="https://liberapay.com/NuSkooler/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
 
 ## Support
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
