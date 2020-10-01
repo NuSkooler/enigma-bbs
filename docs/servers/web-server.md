@@ -54,6 +54,8 @@ Entries available under `contentServers.web.https`:
 
 If you don't have a TLS certificate for your domain, a good source for a certificate can be [LetsEncrypt](https://letsencrypt.org/) who supplies free and trusted TLS certificates.
 
+Keep in mind that the SSL certificate provided by Let's Encrypt's Certbot is by default stored in a privileged location; if your ENIGMA instance is not running as root (which it should not be!), you'll need to copy the SSL certificate somewhere else in order for ENIGMA to use it.
+
 ## Static Routes
 
 Static files live relative to the `contentServers.web.staticRoot` path which defaults to `enigma-bbs/www`.
