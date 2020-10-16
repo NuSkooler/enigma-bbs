@@ -319,7 +319,7 @@ module.exports = class ArchiveUtil {
         }
 
         let output = '';
-        proc.on('data', data => {
+        proc.onData(data => {
             //  :TODO: hack for: execvp(3) failed.: No such file or directory
 
             output += data;

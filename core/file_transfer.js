@@ -426,7 +426,7 @@ exports.getModule = class TransferFileModule extends MenuModule {
             }
         });
 
-        externalProc.on('data', data => {
+        externalProc.onData(data => {
             updateActivity();
 
             //  needed for things like sz/rz
