@@ -56,7 +56,7 @@ function stringToNullPaddedBuffer(s, bufLen) {
 //
 //  Convert a FTN style DateTime string to a Date object
 //
-//  :TODO: Name the next couple methods better - for FTN *packets*
+//  :TODO: Name the next couple methods better - for FTN *packets* e.g. parsePacketDateTime()
 function getDateFromFtnDateTime(dateTime) {
     //
     //  Examples seen in the wild (Working):
@@ -66,7 +66,6 @@ function getDateFromFtnDateTime(dateTime) {
     //
     //  :TODO: Use moment.js here
     return moment(Date.parse(dateTime));    //  Date.parse() allows funky formats
-//  return (new Date(Date.parse(dateTime))).toISOString();
 }
 
 function getDateTimeString(m) {
