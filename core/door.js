@@ -152,9 +152,10 @@ module.exports = class Door {
                 this.doorPty.kill();
             }
 
-            if(this.client.term.output) {
-                this.client.term.output.unpipe(piped);
-                this.client.term.output.resume();
+            const output = this.client.term.output;
+            if(output) {
+                output.unpipe(piped);
+                output.resume();
             }
             this.restored = true;
         }
