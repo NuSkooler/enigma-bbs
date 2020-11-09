@@ -4,7 +4,6 @@
 
 ENiGMA½ is a modern BBS software with a nostalgic flair!
 
-
 ## Features Available Now
  * Multi platform: Anywhere [Node.js](https://nodejs.org/) runs likely works (known to work under Linux, FreeBSD, OpenBSD, OS X and Windows)
  * Unlimited multi node support (for all those BBS "callers"!)
@@ -26,16 +25,23 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * ANSI support in the Full Screen Editor (FSE), file descriptions, etc.
  * A built in achievement system. BBSing gamified!
 
+ ...and much much more. Please check out [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features!
+
 ## Documentation
 [Browse the docs online](https://nuskooler.github.io/enigma-bbs/). Be sure to checkout the [/docs/](/docs/) folder as well for the latest and greatest documentation.
 
-## In the Works
-Many more features are in the pipeline. Checkout the [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) and feel free to request features (or contribute!) features.
+## Installation
+On most *nix systems simply run the following from your terminal:
+```
+curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
+```
 
-## Known Issues
-As of now this is considered **beta** code! Please **expect bugs** :bug: -- and when you find them, log issues and/or submit pull requests. With that said, the code is actually quite stable and is used by a number of boards.
+Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
 
-See [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues) for more information.
+## Donating
+If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSkooler/donate)<br/>
+
+<a href="https://liberapay.com/NuSkooler/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
 
 ## Support
 * Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
@@ -60,14 +66,6 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
 * [Goblin Studio](https://goblin.strangled.net): (**ssh://goblin.strangled.net:8889**)
 
-## Installation
-On *nix type systems:
-```
-curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
-```
-
-Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/installation/installation-methods.html) for Windows, Docker, and so on...
-
 ## Special Thanks
 * [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
@@ -83,6 +81,10 @@ Please see [Installation Methods](https://nuskooler.github.io/enigma-bbs/install
 * [nail/blocktronics](http://blocktronics.org/tag/nail/) for the [sickmade Xibalba logo](http://pc.textmod.es/pack/blocktronics-420/n-xbalba.ans)!
 * [Whazzit/blocktronics](http://blocktronics.org/tag/whazzit/) for the amazing Mayan ANSI pieces scattered about Xibalba BBS!
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
+* Al's Geek Lab for the [installation video](https://youtu.be/WnN-ucVi3ZU)!
+* Alpha for the [FTN-style configuration guide](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d)!
+
+...and so many others! This project would be nothing without the BBS and artscene communities!
 
 ## License
 Released under the [BSD 2-clause](https://opensource.org/licenses/BSD-2-Clause) license:

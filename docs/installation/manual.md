@@ -6,17 +6,16 @@ For Linux environments it's recommended you run the [install script](install-scr
 do things manually, read on...
 
 ## Prerequisites
-* [Node.js](https://nodejs.org/) version **v10.x LTS or higher** (Note that 8.x LTS *probably* works but is unsupported).
-  * :information_source: It is **highly** recommended to use [nvm](https://github.com/creationix/nvm) to manage your
-  Node.js installation if you're on a Linux/Unix environment.
+* [Node.js](https://nodejs.org/) version **v12.x LTS or higher** (Other versions may work but are not supported).
+  * :information_source: It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
 
-* [Python](https://www.python.org/downloads/) 2.7.x for compiling Node.js packages with native extensions.
+* [Python](https://www.python.org/downloads/) for compiling Node.js packages with native extensions via `node-gyp`.
 
 * A compiler such as Clang or GCC for Linux/UNIX systems or a recent copy of Visual Studio
 ([Visual Studio Express](https://www.visualstudio.com/en-us/products/visual-studio-express-vs.aspx) editions
 are OK) for Windows users. Note that you **should only need the Visual C++ component**.
 
-* [git](https://git-scm.com/downloads) to check out the ENiGMA source code.  
+* [Git](https://git-scm.com/downloads) to check out the ENiGMA source code.
 
 ## Node.js
 ### With NVM
@@ -29,9 +28,9 @@ curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | 
 
 Next, install Node.js with NVM:
 ```bash
-nvm install 10
-nvm use 10
-nvm alias default 10
+nvm install 12
+nvm use 12
+nvm alias default 12
 ```
 
 If the above steps completed without errors, you should now have `nvm`, `node`, and `npm` installed and in your environment.
@@ -63,6 +62,8 @@ ENiGMA BBS makes use of a few packages for archive and legacy protocol support. 
 | sexyz      | SexyZ protocol support               | [sexyz](https://l33t.codes/outgoing/sexyz) | [sexyz](https://l33t.codes/outgoing/sexyz)        | Available with [Synchronet](http://wiki.synchro.net/install:win) |
 | exiftool   | [ExifTool](https://www.sno.phy.queensu.ca/~phil/exiftool/)    | libimage-exiftool-perl | perl-Image-ExifTool | Unknown
 | xdms  | Unpack/view Amiga DMS | [xdms](http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html)  | xdms | Unknown
+
+:information_source: Please see also [Archivers](/docs/configuration/archivers.md) and [File Transfer Protocols](/docs/configuration/file-transfer-protocols.md) for additional recommended binaries and configuration.
 
 ## Config Files
 You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](../configuration/) for more information.

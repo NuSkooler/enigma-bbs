@@ -6,6 +6,8 @@ title: FidoNet-Style Networks (FTN)
 ## FidoNet-Style Networks (FTN)
 [FidoNet](https://en.wikipedia.org/wiki/FidoNet) proper and other FidoNet-Style networks are supported by ENiGMA½. A bit of configuration and you'll be up and running in no time!
 
+:scroll: Before proceeding you may wish to check [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha. An excellent guide detailing some of the setup described here!
+
 ### Configuration
 Getting a fully running FTN enabled system requires a few configuration points:
 

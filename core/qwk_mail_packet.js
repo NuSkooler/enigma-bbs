@@ -1089,7 +1089,7 @@ class QWKPacketWriter extends EventEmitter {
         //  indicator such as FTN-style CHRS, try to use that.
         encoding = _.get(message.meta, 'FtnKludge.CHRS');
         if (encoding) {
-            //  convert from CHRS to something standard
+            //  Convert from CHRS to something standard
             encoding = getEncodingFromCharacterSetIdentifier(encoding);
             if (encoding) {
                 return encoding;

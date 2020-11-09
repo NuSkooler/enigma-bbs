@@ -224,8 +224,12 @@ const copyFileSyncSilent = (to, from, flags) => {
 
 function buildNewConfig() {
     askNewConfigQuestions( (err, configPath, config) => {
-        if(err) {            return;
+        if(err) {
+            return err;
         }
+
+        //  ensure 'menus' exists
+        mkdirsSync(paths.join(__dirname, '../../config/menus'));
 
         const boardName = sanatizeFilename(config.general.boardName)
             .replace(/[^a-z0-9_-]/ig, '_')

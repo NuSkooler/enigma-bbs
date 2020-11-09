@@ -375,14 +375,8 @@ function getCharacterSetIdentifierByEncoding(encodingName) {
     return value ? `${value[0]} ${value[1]}` : encodingName.toUpperCase();
 }
 
-//  http://ftsc.org/docs/fts-5003.001
-//  http://www.unicode.org/L2/L1999/99325-N.htm
-function getEncodingFromCharacterSetIdentifier(chrs) {
-    const ident = chrs.split(' ')[0].toUpperCase();
-
-    //  :TODO: fill in the rest!!!
-    return {
-        //  level 1
+const CHRSToEncodingTable = {
+    Level1 : {
         'ASCII'     : 'ascii',      // ISO-646-1
         'DUTCH'     : 'ascii',      // ISO-646
         'FINNISH'   : 'ascii',      // ISO-646-10
@@ -397,8 +391,8 @@ function getEncodingFromCharacterSetIdentifier(chrs) {
         'SWISS'     : 'ascii',      // ISO-646
         'UK'        : 'ascii',      // ISO-646
         'ISO-10'    : 'ascii',      // ISO-646-10
-
-        //  level 2
+    },
+    Level2 : {
         'CP437'     : 'cp437',
         'CP850'     : 'cp850',
         'CP852'     : 'cp852',
@@ -412,15 +406,52 @@ function getEncodingFromCharacterSetIdentifier(chrs) {
         'LATIN-2'   : 'iso-8859-2',
         'LATIN-5'   : 'iso-8859-9',
         'LATIN-9'   : 'iso-8859-15',
+    },
 
-        //  level 4
+    Level4 : {
         'UTF-8'     : 'utf8',
+    },
 
-        //  deprecated stuff
+    DeprecatedMisc : {
         'IBMPC'     : 'cp1250',     //  :TODO: validate
         '+7_FIDO'   : 'cp866',
         '+7'        : 'cp866',
         'MAC'       : 'macroman',   //  :TODO: validate
+    }
+};
 
-    }[ident];
+//  Given 1:N CHRS kludge IDs, try to pick the best encoding we can
+//  http://ftsc.org/docs/fts-5003.001
+//  http://www.unicode.org/L2/L1999/99325-N.htm
+function getEncodingFromCharacterSetIdentifier(chrs) {
+    if (!Array.isArray(chrs)) {
+        chrs = [ chrs ];
+    }
+
+    const encLevel = (ident, table, level) => {
+        const enc = table[ident];
+        if (enc) {
+            return { enc, level };
+        }
+    };
+
+    const mapping = [];
+    chrs.forEach(c => {
+        const ident = c.split(' ')[0].toUpperCase();
+        const mapped =
+            encLevel(ident, CHRSToEncodingTable.Level1, 2) ||
+            encLevel(ident, CHRSToEncodingTable.Level2, 1) ||
+            encLevel(ident, CHRSToEncodingTable.Level4, 0) ||
+            encLevel(ident, CHRSToEncodingTable.DeprecatedMisc, 3);
+
+        if (mapped) {
+            mapping.push(mapped);
+        }
+    });
+
+    mapping.sort( (l, r) => {
+        return l.level - r.level;
+    });
+
+    return mapping[0] && mapping[0].enc;
 }

@@ -12,7 +12,7 @@ WAIT_BEFORE_INSTALL=10
 enigma_header() {
     clear
     cat << EndOfMessage
-                                                                     ______
+                                                                 ______
 _____________________   _____  ____________________    __________\\_   /
 \\__   ____/\\_ ____   \\ /____/ /   _____ __         \\  /   ______/ // /___jp!
  //   __|___//   |    \\//   |//   |    \\//  |  |    \\//        \\ /___   /_____
@@ -21,14 +21,24 @@ _____________________   _____  ____________________    __________\\_   /
                                                                        /__   _\\
        <*> ENiGMA½ // https://github.com/NuSkooler/enigma-bbs <*>        /__/
 
-ENiGMA½ will be installed to ${ENIGMA_INSTALL_DIR}, from source ${ENIGMA_SOURCE}, branch ${ENIGMA_BRANCH}.
 
-ENiGMA½ requires Node.js. Version ${ENIGMA_NODE_VERSION}.x current will be installed via nvm. If you already have nvm installed, this install script will update it to the latest version.
+Installing ENiGMA½:
+  Source     : ${ENIGMA_SOURCE} (${ENIGMA_BRANCH} branch)
+  Destination: ${ENIGMA_INSTALL_DIR}
+  Node.js    : ${ENIGMA_NODE_VERSION}.x via NVM (If you have NVM it will be updated to the latest version)
 
-If this isn't what you were expecting, hit CTRL-C now. Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
+>> If this isn't what you were expecting, hit CTRL-C now!
+>> Installation will continue in ${WAIT_BEFORE_INSTALL} seconds...
 
 EndOfMessage
-    sleep ${WAIT_BEFORE_INSTALL}
+
+    SECS=10
+    while [ $SECS -gt 0 ]; do
+        echo -ne "${SECS}... "
+        sleep 1
+        ((SECS --))
+    done
+    echo ""
 }
 
 fatal_error() {
@@ -36,9 +46,32 @@ fatal_error() {
     exit 1
 }
 
+check_exists() {
+    command -v $1 >/dev/null 2>&1 ;
+}
+
+enigma_install_needs_ex() {
+    echo -ne "Checking for '$1'..."
+    if check_exists $1 ; then
+        echo " Found!"
+    else
+        echo ""
+        fatal_error "ENiGMA½ requires '$1' but it was not found. Please install it and/or make sure it is in your path then restart the installer.\n\n$2"
+    fi
+}
+
+enigma_install_needs_python() {
+    echo -ne "Checking for a suitable Python installation..."
+    if check_exists "python" || check_exists "python7" || check_exists "python3" ; then
+        echo " Found!"
+    else
+        echo ""
+        fatal_error "ENiGMA½ requires Python for node-gyp to build binaries. Please see https://www.npmjs.com/package/node-gyp for details."
+    fi
+}
+
 enigma_install_needs() {
-    echo "Checking $1 installation"
-    command -v $1 >/dev/null 2>&1 || fatal_error "ENiGMA½ requires $1 but it's not installed. Please install it and restart the installer."
+    enigma_install_needs_ex $1 "Examples:\n  sudo apt install $1 # Debian/Ubuntu\n  sudo yum install $1 # CentOS"
 }
 
 log()  {
@@ -48,7 +81,8 @@ log()  {
 enigma_install_init() {
     enigma_install_needs git
     enigma_install_needs curl
-    enigma_install_needs python
+    enigma_install_needs_python
+    enigma_install_needs_ex make "Examples:\n  sudo apt install build-essential # Debian/Ubuntu\n  sudo yum groupinstall 'Development Tools' # CentOS"
     enigma_install_needs make
     enigma_install_needs gcc
 }
@@ -114,14 +148,21 @@ install_node_packages() {
 
 enigma_footer() {
     log "ENiGMA½ installation complete!"
-    echo -e "\e[33m"
+    echo -e "\e[1;33m"
     cat << EndOfMessage
-If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration. To do so, run the following commands (note: if you did not already have node.js installed, you may need to log out/back in to refresh your path):
+
+ADDITIONAL ACTIONS ARE REQUIRED!
+--------------------------------
+
+1 - If you did not have Node.js and/or NVM installed previous to this please open a new shell/terminal now!
+  (!) Not doing so will prevent 'nvm' or 'node' commands from functioning!
+
+2 - If this is the first time you've installed ENiGMA½, you now need to generate a minimal configuration:
 
   cd ${ENIGMA_INSTALL_DIR}
   ./oputil.js config new
 
-Additionally, the following support binaires are recommended:
+3 - Additionally, a minimum of the following support binaires are recommended:
   7zip: Archive support
     Debian/Ubuntu : apt-get install p7zip
     CentOS        : yum install p7zip
@@ -136,7 +177,7 @@ Additionally, the following support binaires are recommended:
     Debian/Ubuntu : apt-get install lrzsz
     CentOS        : yum install lrzsz
 
-  See docs for more information!
+  See docs for more information including other useful binaries!
 
 EndOfMessage
     echo -e "\e[39m"
