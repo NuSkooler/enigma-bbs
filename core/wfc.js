@@ -1,6 +1,13 @@
 //  ENiGMA½
 const { MenuModule } = require('./menu_module');
 
+const { getActiveConnectionList } = require('./client_connections');
+const StatLog = require('./stat_log');
+const SysProps = require('./system_property');
+const {
+    formatByteSize, formatByteSizeAbbr,
+} = require('./string_util');
+
 //  deps
 const async = require('async');
 const _ = require('lodash');
@@ -17,8 +24,8 @@ const FormIds = {
 
 const MciViewIds = {
     main : {
-        nodeStatus          : 0,
-        quickLogView        : 1,
+        nodeStatus          : 1,
+        quickLogView        : 2,
 
         customRangeStart    : 10,
     }
@@ -35,7 +42,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         this.config.acs = this.config.acs || DefaultACS;
         if (!this.config.acs.includes('SC')) {
-            this.config.acs = 'SC' + this.config.acs;    //  secure connection at the very, very least
+            this.config.acs = 'SC' + this.config.acs;    //  secure connection at the very least
         }
     }
 
@@ -56,12 +63,66 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         // return this.validateMCIByViewIds('main', requiredCodes, callback);
                         return callback(null);
                     },
+                    (callback) => {
+                        return this._refreshNodeStatus(callback);
+                    }
                 ],
                 err => {
                     return cb(err);
                 }
             );
         });
+    }
+
+    _refreshStats(cb) {
+        const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
+        const totalFiles        = fileAreaStats.totalFiles || 0;
+        const totalFileBytes    = fileAreaStats.totalBytes || 0;
+
+        this.stats = {
+            //  Totals
+            totalCalls          : StatLog.getFriendlySystemStat(SysProps.LoginCount, 0),
+            totalPosts          : StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0),
+            //totalUsers  :
+            totalFiles          : totalFiles.toLocaleString(),
+            totalFileBytes      : formatByteSize(totalFileBytes, false),
+            totalFileBytesAbbr  : formatByteSizeAbbr(totalFileBytes),
+            //  :TODO: date, time - formatted as per config.dateTimeFormat and such
+            //  :TODO: Most/All current user status should be predefined MCI
+            //  :TODO: lastCaller
+            //  :TODO: totalMemoryBytes, freeMemoryBytes
+            //  :TODO: CPU info/averages/load
+            //  :TODO: processUptime
+            //  :TODO: 24 HOUR stats -
+            //  calls24Hour, posts24Hour, uploadBytes24Hour, downloadBytes24Hour, ...
+            //  :TODO: totals - most avail from MCI
+        };
+
+        return cb(null);
+    }
+
+    _refreshNodeStatus(cb) {
+        const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+        if (!nodeStatusView) {
+            return cb(null);
+        }
+
+        const nodeStatusItems = getActiveConnectionList(false).slice(0, nodeStatusView.height).map(ac => {
+            //  Handle pre-authenticated
+            if (!ac.authenticated) {
+                ac.text     = ac.username = 'Pre Auth';
+                ac.action   = 'Logging In';
+            }
+
+            return Object.assign(ac, {
+                timeOn : _.upperFirst(ac.timeOn.humanize()),    //  make friendly
+            });
+        });
+
+        nodeStatusView.setItems(nodeStatusItems);
+        nodeStatusView.redraw();
+
+        return cb(null);
     }
 };
 

@@ -109,6 +109,10 @@ class StatLog {
 
     getSystemStat(statName) { return this.systemStats[statName]; }
 
+    getFriendlySystemStat(statName, defaultValue) {
+        return (this.getSystemStat(statName) || defaultValue).toLocaleString();
+    }
+
     getSystemStatNum(statName) {
         return parseInt(this.getSystemStat(statName)) || 0;
     }
@@ -220,7 +224,7 @@ class StatLog {
                         sysDb.run(
                             `DELETE FROM system_event_log
                             WHERE id IN(
-                                SELECT id 
+                                SELECT id
                                 FROM system_event_log
                                 WHERE log_name = ?
                                 ORDER BY id DESC

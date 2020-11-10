@@ -41,12 +41,15 @@ function getActiveConnectionList(authUsersOnly) {
             authenticated   : ac.user.isAuthenticated(),
             userId          : ac.user.userId,
             action          : _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown'),
+            serverName      : ac.session.serverName,
+            isSecure        : ac.session.isSecure,
         };
 
         //
         //  There may be a connection, but not a logged in user as of yet
         //
         if(ac.user.isAuthenticated()) {
+            entry.text      = ac.user.username;
             entry.userName  = ac.user.username;
             entry.realName  = ac.user.properties[UserProps.RealName];
             entry.location  = ac.user.properties[UserProps.Location];
