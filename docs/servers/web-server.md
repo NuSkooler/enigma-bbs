@@ -22,6 +22,7 @@ contentServers: {
 ```
 
 The following is a table of all configuration keys available under `contentServers.web`:
+
 | Key | Required | Description |
 |------|----------|-------------|
 | `domain` | :+1: | Sets the domain, e.g. `bbs.yourdomain.com`. |
