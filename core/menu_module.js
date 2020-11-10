@@ -689,4 +689,20 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         return cb(good ? null : Errors.Invalid(`Invalid or missing config option "${firstBadKey}" (${badReason})`));
     }
+
+    //  Various common helpers
+    getDateFormat(defaultStyle='short') {
+        return this.config.dateFormat ||
+            this.client.currentTheme.helpers.getDateFormat(defaultStyle);
+    }
+
+    getTimeFormat(defaultStyle='short') {
+        return this.config.timeFormat ||
+            this.client.currentTheme.helpers.getTimeFormat(defaultStyle);
+    }
+
+    getDateTimeFormat(defaultStyle='short') {
+        return this.config.dateTimeFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat(defaultStyle);
+    }
 };

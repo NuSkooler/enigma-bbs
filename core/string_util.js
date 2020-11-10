@@ -337,7 +337,7 @@ function formatByteSizeAbbr(byteSize) {
 
 function formatByteSize(byteSize, withAbbr = false, decimals = 2) {
     const i     = 0 === byteSize ? byteSize : Math.floor(Math.log(byteSize) / Math.log(1024));
-    let result  = parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals));
+    let result  = parseFloat((byteSize / Math.pow(1024, i)).toFixed(decimals)).toString();
     if(withAbbr) {
         result += ` ${BYTE_SIZE_ABBRS[i]}`;
     }

@@ -11,6 +11,8 @@ const {
 //  deps
 const async = require('async');
 const _ = require('lodash');
+const moment = require('moment');
+const SysInfo = require('systeminformation');
 
 exports.moduleInfo = {
     name        : 'WFC',
@@ -64,6 +66,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         return callback(null);
                     },
                     (callback) => {
+                        return this._refreshStats(callback);
+                    },
+                    (callback) => {
                         return this._refreshNodeStatus(callback);
                     }
                 ],
@@ -79,7 +84,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const totalFiles        = fileAreaStats.totalFiles || 0;
         const totalFileBytes    = fileAreaStats.totalBytes || 0;
 
+        //  Some stats we can just fill right away
         this.stats = {
+            //  Date/Time
+            date                : moment().format(this.getDateFormat()),
+            time                : moment().format(this.getTimeFormat()),
+            dateTime            : moment().format(this.getDateTimeFormat()),
+
+            //  Current process (our Node.js service)
+            processUptime       : moment.duration(process.uptime(), 'seconds').humanize(),
+
             //  Totals
             totalCalls          : StatLog.getFriendlySystemStat(SysProps.LoginCount, 0),
             totalPosts          : StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0),
@@ -87,18 +101,36 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             totalFiles          : totalFiles.toLocaleString(),
             totalFileBytes      : formatByteSize(totalFileBytes, false),
             totalFileBytesAbbr  : formatByteSizeAbbr(totalFileBytes),
-            //  :TODO: date, time - formatted as per config.dateTimeFormat and such
             //  :TODO: Most/All current user status should be predefined MCI
             //  :TODO: lastCaller
             //  :TODO: totalMemoryBytes, freeMemoryBytes
             //  :TODO: CPU info/averages/load
             //  :TODO: processUptime
             //  :TODO: 24 HOUR stats -
-            //  calls24Hour, posts24Hour, uploadBytes24Hour, downloadBytes24Hour, ...
-            //  :TODO: totals - most avail from MCI
+            //  callsToday, postsToday, uploadsToday, uploadBytesToday, ...
+
         };
 
-        return cb(null);
+        //  Some async work required...
+        const basicSysInfo = {
+            mem         : 'total, free',
+            currentLoad : 'avgload, currentLoad',
+        };
+
+        SysInfo.get(basicSysInfo)
+            .then(sysInfo => {
+                this.stats.totalMemoryBytes     = formatByteSize(sysInfo.mem.total, false);
+                this.stats.totalMemoryBytesAbbr = formatByteSizeAbbr(sysInfo.mem.total);
+                this.stats.freeMemoryBytes      = formatByteSize(sysInfo.mem.free, false);
+                this.stats.freeMemoryBytesAbbr  = formatByteSizeAbbr(sysInfo.mem.free);
+
+                //  Not avail on BSD, yet.
+                this.stats.systemAvgLoad        = _.get(sysInfo, 'currentLoad.avgload', 0).toString();
+                this.stats.systemCurrentLoad    = _.get(sysInfo, 'currentLoad.currentLoad', 0).toString();
+            })
+            .catch(err => {
+                return cb(err);
+            });
     }
 
     _refreshNodeStatus(cb) {

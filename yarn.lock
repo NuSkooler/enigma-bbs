@@ -2306,6 +2306,11 @@ supports-color@^7.1.0:
   dependencies:
     has-flag "^4.0.0"
 
+systeminformation@^4.27.5:
+  version "4.29.3"
+  resolved "https://registry.yarnpkg.com/systeminformation/-/systeminformation-4.29.3.tgz#6dac4ff96479f1dd5df50582a965afb4c76178f2"
+  integrity sha512-C5+o6hit4BQpFdZKxXwRqgDpAkXCjxAUi5pB3UznjYPl3XQugwo1V46XltUt+53EaphlHA6j41mh++ksdOuBMA==
+
 table@^5.2.3:
   version "5.4.6"
   resolved "https://registry.yarnpkg.com/table/-/table-5.4.6.tgz#1292d19500ce3f86053b05f0e8e7e4a3bb21079e"

@@ -59,7 +59,8 @@
     "uuid-parse": "1.1.0",
     "ws": "^7.3.0",
     "xxhash": "^0.3.0",
-    "yazl": "^2.5.1"
+    "yazl": "^2.5.1",
+    "systeminformation" : "^4.27.5"
   },
   "devDependencies": {
     "eslint": "^7.2.0"

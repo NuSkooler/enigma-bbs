@@ -267,6 +267,7 @@ const PREDEFINED_MCI_GENERATORS = {
     //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
     //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
+    //  :TODO: ?? - Total users on system
 
 
     //
