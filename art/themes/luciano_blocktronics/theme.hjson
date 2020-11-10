@@ -17,7 +17,7 @@
 			passwordChar: *
 
 			dateTimeFormat: {
-				short: MMM Do h:mm a
+				short: MMM Do hh:mm a
 			}
 		}
 
@@ -91,7 +91,7 @@
 
 			fullLoginSequenceOnelinerz: {
 				config: {
-					dateTimeFormat: ddd h:mma
+					dateTimeFormat: ddd hh:mma
 				}
 				0: {
 					mci: {
@@ -118,7 +118,7 @@
 
 			mainMenuUserAchievementsEarned: {
 				config: {
-					dateTimeFormat: MMM Do h:mma
+					dateTimeFormat: MMM Do hh:mma
 					achievementsInfoFormat10: "|00|07\"|11{title}|07\""
 					achievementsInfoFormat11: "|00|03{text}"
 				}
@@ -170,7 +170,7 @@
 
 			mainMenuLastCallers: {
 				config: {
-					dateTimeFormat: MMM Do h:mma
+					dateTimeFormat: MMM Do hh:mma
 				}
 				mci: {
 					VM1: {
@@ -183,7 +183,7 @@
 
 			mainMenuUserList: {
 				config: {
-					dateTimeFormat: MMM Do h:mma
+					dateTimeFormat: MMM Do hh:mma
 				}
 				mci: {
 					VM1: {
@@ -222,7 +222,7 @@
 
 			mainMenuOnelinerz: {
 				config: {
-					dateTimeFormat: ddd h:mma
+					dateTimeFormat: ddd hh:mma
 				}
 				0: {
 					mci: {
@@ -609,7 +609,7 @@
 
 			fullLoginSequenceLastCallers: {
 				config: {
-					dateTimeFormat: MMM Do h:mma
+					dateTimeFormat: MMM Do hh:mma
 				}
 				mci: {
 					VM1: {

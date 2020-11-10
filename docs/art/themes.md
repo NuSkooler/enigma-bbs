@@ -41,6 +41,8 @@ The `customization` block in is itself broken up into major parts:
 | `prompts` | Similar to `menus`, this section themes `prompts`. |
 
 #### Defaults
+Override system defaults.
+
 | Item | Description                                              |
 |-------------|---------------------------------------------------|
 | `passwordChar` | Character to display in password fields. Defaults to `*` |
