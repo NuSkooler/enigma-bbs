@@ -160,7 +160,7 @@ ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
 };
 
 ClientTerminal.prototype.rawWrite = function(s, cb) {
-    if(this.output) {
+    if(this.output && this.output.writable) {
         this.output.write(s, err => {
             if(cb) {
                 return cb(err);
