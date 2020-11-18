@@ -30,6 +30,10 @@ function initAndGetUser(userName, cb) {
                 const User = require('../../core/user.js');
                 User.getUserIdAndName(userName, (err, userId) => {
                     if(err) {
+                        //  try user ID if number was supplied
+                        if (_.isNumber(userName)) {
+                            return User.getUser(parseInt(userName), callback);
+                        }
                         return callback(err);
                     }
                     return User.getUser(userId, callback);
@@ -329,12 +333,17 @@ function showUserInfo(user) {
         return user.properties[p] || 'N/A';
     };
 
+    const currentTheme = () => {
+        return user.properties[UserProps.ThemeId];
+    };
+
     const stdInfo = `User information:
 Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
 Real name    : ${propOrNA(UserProps.RealName)}
 ID           : ${user.userId}
 Status       : ${statusDesc()}
 Groups       : ${user.groups.join(', ')}
+Theme ID     : ${currentTheme()}
 Created      : ${created()}
 Last login   : ${lastLogin()}
 Login count  : ${propOrNA(UserProps.LoginCount)}
