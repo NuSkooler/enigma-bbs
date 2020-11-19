@@ -33,7 +33,7 @@
     "graceful-fs": "^4.2.4",
     "hashids": "2.2.2",
     "hjson": "3.2.2",
-    "iconv-lite": "0.5.1",
+    "iconv-lite": "^0.6.2",
     "ini-config-parser": "^1.0.4",
     "inquirer": "7.3.3",
     "later": "1.2.0",
