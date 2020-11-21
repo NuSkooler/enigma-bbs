@@ -293,7 +293,7 @@ newUserPassword: {
                     {
                         // anything else will result in going to the badNewUserPassword menu
                         value: { nup: null }
-                        action: @systemMethod:badNewUserPassword
+                        action: @menu:badNewUserPassword
                     }
                 ]
             }
