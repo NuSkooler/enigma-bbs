@@ -13,6 +13,15 @@ Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each en
 
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 
+Below is a very basic menu entry called `showSomeArt` that displays some art then returns to the previous menu after the user hits a key:
+```hjson
+showSomeArt: {
+  art: someart.ans
+  config: { pause: true }
+}
+```
+As you can see a menu can be very simple. 
+
 :information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
 
 ## Common Menu Entry Members
