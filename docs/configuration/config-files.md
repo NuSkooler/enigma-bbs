@@ -75,6 +75,7 @@ Consider `actionKeys` in a menu. Often times you may show a screen and the user 
 Especially in a container environment such as [Docker](/docs/installation/docker.md), environment variable access in configuration files can become very handy. ENiGMA½ provides a flexible way to access variables using the `@environment` directive. The most basic form of `@environment:VAR_NAME` produces a string value. Additionally a `:type` suffix can be supplied to coerece the value to a particular type. Variables pointing to a comma separated list can be turned to arrays using an additional `:array` suffix.
 
 Below is a table of the various forms:
+
 | Form | Variable Value | Produces |
 |------|----------------|----------|
 | `@environment:SOME_VAR` | "Foo" | `"Foo"` (without quotes) |
