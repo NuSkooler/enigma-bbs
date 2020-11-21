@@ -9,7 +9,7 @@ Under most Linux/UNIX like environments (Linux, BSD, OS X, ...)  new users can s
 curl -o- https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh | bash
 ```
 
-:information_source: You may wish to review the [installation script](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh)
+:heavy_check_mark: You may wish to review the [installation script](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/install.sh)
 on GitHub before running it!
 
 The script will install `nvm`, Node.js and grab the latest ENiGMA BBS from GitHub. It will also guide you through creating a basic configuration file, and recommend some packages to install.

@@ -8,6 +8,8 @@ ENiGMA½ configuration files such as the [system config](config-hjson.md), [menu
 ## Hot-Reload
 Nearly all of ENiGMA½'s configuration can be hot-reloaded. That is, a live system can have it's configuration modified and it will be loaded in place.
 
+:bulb: [Monitoring live logs](/docs/troubleshooting/monitoring-logs.md) is useful when making live changes. The system will complain if something is wrong!
+
 ## Common Directives
 ### Includes
 Most configuration files offer an `includes` directive that allows users to break up large configuration files into smaller and organized parts. For example, consider a system with many menus/screens. Instead of a single `menu.hjson`, the SysOp may break this into `message-base.hjson`, `file-base.hjson`, etc.
@@ -95,9 +97,9 @@ Below is a table of the various forms:
 | `@environment:SOME_VAR:timestamp` | "2020-01-05" | A [moment](https://momentjs.com/) object representing 2020-01-05 |
 | `@environment:SOME_VAR:timestamp:array` | "2020-01-05,2016-05-16T01:15:37'" | An array of [moment](https://momentjs.com/) objects representing 2020-01-05 and 2016-05-16T01:15:37 |
 
-:information_source: `bool` may be used as an alias to `boolean`.
+:bulb: `bool` may be used as an alias to `boolean`.
 
-:information_source: `timestamp` values can be in any form that [moment can parse](https://momentjs.com/docs/#/parsing/).
+:bulb: `timestamp` values can be in any form that [moment can parse](https://momentjs.com/docs/#/parsing/).
 
 :information_source: An unresolved or invalid `@environment` will be left intact.
 

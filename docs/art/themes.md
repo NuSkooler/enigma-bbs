@@ -11,7 +11,7 @@ Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directo
 ## Art
 For information on art files, see [General Art Information](general.md). TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
 
-:information_source: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:note: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
 
 ## Theme Sections
 Themes are some important sections to be aware of:

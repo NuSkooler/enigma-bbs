@@ -70,7 +70,7 @@ Example:
 }
 ```
 
-:information_source: You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](/docs/admin/oputil.md)!
+:note: You can import `AREAS.BBS` or FTN style `.NA` files using [oputil](/docs/admin/oputil.md)!
 
 #### A More Complete Example
 Below is a more complete *example* illustrating some of the concepts above:
