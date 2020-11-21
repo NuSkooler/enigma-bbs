@@ -258,7 +258,7 @@ someMenu: {
 }
 ```
 
-### Case Study: Adding a New User Password (NUP)
+## Case Study: Adding a New User Password (NUP)
 You've got a super 31337 board and want to prevent lamerz! Let's run through adding a NUP to your application flow.
 
 Given the default menu system, two "pre" new user application menus exist due to the way Telnet vs SSH logins occur. We'll focus only on Telnet here. This menu is `newUserApplicationPre`. Let's say you want to display this preamble, but then ask for the NUP. If the user gets the password wrong, show them a `LAMER.ANS` and boot 'em.
