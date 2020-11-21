@@ -23,7 +23,7 @@ storageTags: {
 }
 ```
 
-:note: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
+:memo: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
 
 :warning: Remember that paths are case sensitive on most non-Windows systems!
 
