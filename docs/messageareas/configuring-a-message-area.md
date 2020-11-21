@@ -10,7 +10,7 @@ Message Conferences are the top level container for *1:n* Message *Areas* via th
 
 Each conference is represented by a entry under `messageConferences`. Each entries top level key is it's *conference tag*.
 
-:information_source: It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
+:bulb: It is **highly** recommended to use snake_case style message *conference tags* and *area tags*!
 
 | Config Item | Required | Description |
 |-------------|----------|-------------|

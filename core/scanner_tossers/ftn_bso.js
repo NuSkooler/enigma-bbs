@@ -1879,6 +1879,8 @@ function FTNMessageScanTossModule() {
                             localInfo.fileEntry.fileName = paths.basename(finalPath);
                         }
 
+                        localInfo.newPath = dst;
+
                         localInfo.fileEntry.persist(isUpdate, err => {
                             return callback(err, localInfo);
                         });
@@ -1892,6 +1894,12 @@ function FTNMessageScanTossModule() {
 
                     const oldStorageDir = getAreaStorageDirectoryByTag(localInfo.oldStorageTag);
                     const oldPath       = paths.join(oldStorageDir, localInfo.oldFileName);
+
+                    //  if we updated a file in place, don't delete it!
+                    if (localInfo.newPath === oldPath) {
+                        Log.trace({path : oldPath}, 'TIC file replaced in place. Nothing to remove.');
+                        return callback(null, localInfo);
+                    }
 
                     fs.unlink(oldPath, err => {
                         if(err) {

@@ -23,9 +23,9 @@ storageTags: {
 }
 ```
 
-:information_source: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
+:memo: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
 
-:information_source: Remember that paths are case sensitive on most non-Windows systems!
+:warning: Remember that paths are case sensitive on most non-Windows systems!
 
 ### Areas
 File base *Areas* are configured using the `fileBase.areas` configuration block in `config.hjson`. Each entry's block starts with an *area tag*. Valid members for an area are as follows:

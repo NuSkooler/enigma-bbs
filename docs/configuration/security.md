@@ -26,7 +26,7 @@ Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in 
 
 :warning: Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
 
-:information_source: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](/docs/admin/oputil.md), but this is generally discouraged.
+:memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](/docs/admin/oputil.md), but this is generally discouraged.
 
 #### Recovery
 In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:

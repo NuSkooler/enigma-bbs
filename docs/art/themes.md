@@ -11,7 +11,7 @@ Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directo
 ## Art
 For information on art files, see [General Art Information](general.md). TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
 
-:information_source: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:memo: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
 
 ## Theme Sections
 Themes are some important sections to be aware of:
@@ -53,9 +53,9 @@ Override system defaults.
 Example:
 ```hjson
 defaults: {
-  dateTimeFormat: {
-    short:  MMM Do h:mm a
-  }
+    dateTimeFormat: {
+        short:  MMM Do h:mm a
+    }
 }
 ```
 
@@ -73,30 +73,30 @@ Two formats for `mci` blocks are allowed:
 Example: Verbose `mci` with form IDs:
 ```hjson
 newUserFeedbackToSysOp: {
-  0: {
-    mci: {
-      TL1: { width: 19, textOverflow: "..." }
-      ET2: { width: 19, textOverflow: "..." }
-      ET3: { width: 19, textOverflow: "..." }
+    0: {
+        mci: {
+            TL1: { width: 19, textOverflow: "..." }
+            ET2: { width: 19, textOverflow: "..." }
+            ET3: { width: 19, textOverflow: "..." }
+        }
     }
-  }
-  1: {
-    mci: {
-      MT1: { height: 14 }
+    1: {
+        mci: {
+            MT1: { height: 14 }
+        }
     }
-  }
 }
 ```
 
 Example: Shorthand `mci` format:
 ```hjson
 matrix: {
-  mci: {
-    VM1: {
-      itemFormat: "|03{text}"
-      focusItemFormat: "|11{text!styleFirstLower}"
+    mci: {
+        VM1: {
+            itemFormat: "|03{text}"
+            focusItemFormat: "|11{text!styleFirstLower}"
+        }
     }
-  }
 }
 ```
 
@@ -105,9 +105,9 @@ Many modules support "custom range" MCI items. These are MCI codes that are left
 
 ```hjson
 messageAreaChangeCurrentArea: {
-  config: {
-    areaListInfoFormat10: "|15{name}|07: |03{desc}"
-  }
+    config: {
+        areaListInfoFormat10: "|15{name}|07: |03{desc}"
+    }
 }
 ```
 
@@ -117,18 +117,18 @@ messageAreaChangeCurrentArea: {
 1. Copy `/art/themes/luciano_blocktronics` to `art/themes/your_board_theme`
 2. Update the `info` block at the top of the theme.hjson file:
 ``` hjson
-    info: {
-      name: Awesome Theme
-      author: Cool Artist
-      group: Sick Group
-      enabled: true // default
-    }
+info: {
+    name: Awesome Theme
+    author: Cool Artist
+    group: Sick Group
+    enabled: true // default
+}
 ```
 
 3. If desired, you may make this the default system theme in `config.hjson` via `theme.default`. `theme.preLogin` may be set if you want this theme used for pre-authenticated users. Both of these values also accept `*` if you want the system to radomly pick.
 ``` hjson
-  theme: {
+theme: {
     default: your_board_theme
     preLogin: *
-  }
+}
 ```
