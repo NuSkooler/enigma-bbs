@@ -266,7 +266,7 @@ Given the default menu system, two "pre" new user application menus exist due to
 First, let's create a new menu for the NUP:
 ```hjson
 newUserPassword: {
-    art: nup.ans
+    art: NUP.ANS
     next: newUserApplication
     desc: NUP!
 
@@ -306,7 +306,7 @@ Looks like we'll need a `badNewUserPassword` menu as well! Let's create a very b
 
 ```hjson
 badNewUserPassword: {
-    art: badnup.ans
+    art: LAMER.ANS
     // here we use a built in system method to boot them.
     next: @systemMethod:logoff
     config: {
