@@ -3,7 +3,7 @@ layout: page
 title: Menu HSJON
 ---
 ## Menu HJSON
-The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
+The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determines the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
 
 Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 
@@ -22,7 +22,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 |--------|--------------|
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
 | `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
-| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
+| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. Note that special built in methods such as `@systemMethod:logoff` can also be utilized here. |
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in the `prompts` section. See **Prompts** for more information. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
@@ -255,5 +255,73 @@ someMenu: {
             art: EVERYONEELSE
         }
     ]
+}
+```
+
+### Case Study: Adding a New User Password (NUP)
+You've got a super 31337 board and want to prevent lamerz! Let's run through adding a NUP to your application flow.
+
+Given the default menu system, two "pre" new user application menus exist due to the way Telnet vs SSH logins occur. We'll focus only on Telnet here. This menu is `newUserApplicationPre`. Let's say you want to display this preamble, but then ask for the NUP. If the user gets the password wrong, show them a `LAMER.ANS` and boot 'em.
+
+First, let's create a new menu for the NUP:
+```hjson
+newUserPassword: {
+    art: nup.ans
+    next: newUserApplication
+    desc: NUP!
+
+    form: {
+        0: {
+            mci: {
+                ET1: {
+                    // here we create an argument/variable of "nup"
+                    argName: nup
+                    focus: true
+                    submit: true
+                }
+            }
+            submit: {
+                *: [
+                    {
+                        // if the user submits "nup" with the correct
+                        // value of "nolamerz" action will send
+                        // them to the next menu defined above --
+                        // in our case: newUserApplication
+                        value: { nup: "nolamerz" }
+                        action: @systemMethod:nextMenu
+                    }
+                    {
+                        // anything else will result in going to the badNewUserPassword menu
+                        value: { nup: null }
+                        action: @systemMethod:badNewUserPassword
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+
+Looks like we'll need a `badNewUserPassword` menu as well! Let's create a very basic menu to show art then disconnect the user.
+
+```hjson
+badNewUserPassword: {
+    art: badnup.ans
+    // here we use a built in system method to boot them.
+    next: @systemMethod:logoff
+    config: {
+        //  wait 2s after showing the art before kicking them
+        nextTimeout: 2000
+    }
+}
+```
+
+Great, we have a couple new menus. Now let's just point to them. Remember the existing `newUserApplicationPre` menu? All that is left to do is point it's `next` to our `newUserPassword` menu:
+
+```hjson
+newUserApplicationPre: {
+    //  easy! Just tell the system where to go next
+    next: newUserPassword
+    // note that the rest of this menu is omitted for clarity
 }
 ```
