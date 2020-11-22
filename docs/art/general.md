@@ -5,15 +5,20 @@ title: General Art Information
 ## General Art Information
 One of the most basic elements of BBS customization is through it's artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
 
+### Art File Locations
 As a general rule, art files live in one of two places:
 
 1. The `art/general` directory. This is where you place common/non-themed art files.
 2. Within a _theme_ such as `art/themes/super_fancy_theme`.
 
-### Art in Menus
-While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms.
+### MCI Codes
+All art can contain [MCI Codes](mci.md).
 
-**Form 1**: A "standard" entry where a single `art` spec is utilized:
+### Art in Menus
+While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms:
+
+#### Standard
+A "standard" entry where a single `art` spec is utilized:
 ```hjson
 {
     mainMenu: {
@@ -22,7 +27,8 @@ While art can be displayed programmatically such as from a custom module, the mo
 }
 ```
 
-**Form 2**: An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
+#### Module Specific / Multiple Art
+An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
 ```hjson
 {
     nodeMessage: {
