@@ -24,12 +24,22 @@ const packageJson           = require('../package.json');
 const os                    = require('os');
 const _                     = require('lodash');
 const moment                = require('moment');
+const async                 = require('async');
 
 exports.getPredefinedMCIValue   = getPredefinedMCIValue;
 exports.init                    = init;
 
 function init(cb) {
-    setNextRandomRumor(cb);
+    async.series(
+        [
+            (callback) => {
+                return setNextRandomRumor(callback);
+            },
+        ],
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function setNextRandomRumor(cb) {
@@ -63,10 +73,6 @@ function toNumberWithCommas(x) {
 function userStatAsCountString(client, statName, defaultValue) {
     const value = StatLog.getUserStatNum(client.user, statName) || defaultValue;
     return toNumberWithCommas(value);
-}
-
-function sysStatAsString(statName, defaultValue) {
-    return (StatLog.getSystemStat(statName) || defaultValue).toLocaleString();
 }
 
 const PREDEFINED_MCI_GENERATORS = {
@@ -212,11 +218,14 @@ const PREDEFINED_MCI_GENERATORS = {
             .trim();
     },
 
+    //  :TODO: use new live stat
+    MB  : function totalMemoryBytes() { return getTotalMemoryBytes(); },
+    MF  : function totalMemoryFreeBytes() { return getTotalMemoryFreeBytes(); },
+
     //  :TODO: MCI for core count, e.g. os.cpus().length
 
     //  :TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
     NV  : function nodeVersion() { return process.version; },
-
     AN  : function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
     TC  : function totalCalls() { return StatLog.getSystemStat(SysProps.LoginCount).toLocaleString(); },
@@ -236,12 +245,12 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  :TODO: DD - Today's # of downloads (iNiQUiTY)
     //
-    SD  : function systemNumDownloads() { return sysStatAsString(SysProps.FileDlTotalCount, 0); },
+    SD  : function systemNumDownloads() { return StatLog.getFriendlySystemStat(SysProps.FileDlTotalCount, 0); },
     SO  : function systemByteDownload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
-    SU  : function systemNumUploads() { return sysStatAsString(SysProps.FileUlTotalCount, 0); },
+    SU  : function systemNumUploads() { return StatLog.getFriendlySystemStat(SysProps.FileUlTotalCount, 0); },
     SP  : function systemByteUpload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
@@ -256,10 +265,10 @@ const PREDEFINED_MCI_GENERATORS = {
         return formatByteSize(totalBytes, true);    //  true=withAbbr
     },
     PT  : function messagesPostedToday() {  //  Obv/2
-        return sysStatAsString(SysProps.MessagesToday, 0);
+        return StatLog.getFriendlySystemStat(SysProps.MessagesToday, 0);
     },
     TP  : function totalMessagesOnSystem() {    //  Obv/2
-        return sysStatAsString(SysProps.MessageTotalCount, 0);
+        return StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0);
     },
 
     //  :TODO: NT - New users today (Obv/2)

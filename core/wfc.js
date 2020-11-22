@@ -4,9 +4,6 @@ const { MenuModule } = require('./menu_module');
 const { getActiveConnectionList } = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
-const {
-    formatByteSize, formatByteSizeAbbr,
-} = require('./string_util');
 
 //  deps
 const async = require('async');
@@ -80,35 +77,47 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshStats(cb) {
-        const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
-        const totalFiles        = fileAreaStats.totalFiles || 0;
-        const totalFileBytes    = fileAreaStats.totalBytes || 0;
+        const fileAreaStats = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
 
         //  Some stats we can just fill right away
         this.stats = {
             //  Date/Time
-            date                : moment().format(this.getDateFormat()),
-            time                : moment().format(this.getTimeFormat()),
-            dateTime            : moment().format(this.getDateTimeFormat()),
+            date                    : moment().format(this.getDateFormat()),
+            time                    : moment().format(this.getTimeFormat()),
+            dateTime                : moment().format(this.getDateTimeFormat()),
 
             //  Current process (our Node.js service)
-            processUptime       : moment.duration(process.uptime(), 'seconds').humanize(),
+            processUptimeSeconds    : process.uptime(),
+//            processUptime           : moment.duration(process.uptime(), 'seconds').humanize(),
 
             //  Totals
-            totalCalls          : StatLog.getFriendlySystemStat(SysProps.LoginCount, 0),
-            totalPosts          : StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0),
+            totalCalls              : StatLog.getSystemStatNum(SysProps.LoginCount),
+            totalPosts              : StatLog.getSystemStatNum(SysProps.MessageTotalCount),
             //totalUsers  :
-            totalFiles          : totalFiles.toLocaleString(),
-            totalFileBytes      : formatByteSize(totalFileBytes, false),
-            totalFileBytesAbbr  : formatByteSizeAbbr(totalFileBytes),
-            //  :TODO: Most/All current user status should be predefined MCI
+            totalFiles              : fileAreaStats.totalFiles || 0,
+            totalFileBytes          : fileAreaStats.totalFileBytes || 0,
+
+            // totalUploads            :
+            // totalUploadBytes        :
+            // totalDownloads          :
+            // totalDownloadBytes      :
+
             //  :TODO: lastCaller
             //  :TODO: totalMemoryBytes, freeMemoryBytes
             //  :TODO: CPU info/averages/load
-            //  :TODO: processUptime
-            //  :TODO: 24 HOUR stats -
-            //  callsToday, postsToday, uploadsToday, uploadBytesToday, ...
 
+            //  Today's Stats
+            callsToday              : StatLog.getSystemStatNum(SysProps.LoginsToday),
+            postsToday              : StatLog.getSystemStatNum(SysProps.MessagesToday),
+            // uploadsToday            :
+            // uploadBytesToday        :
+            // downloadsToday          :
+            // downloadBytesToday      :
+
+            //  Current
+            // lastCaller             :
+            // lastCallerDate
+            // lastCallerTime
         };
 
         //  Some async work required...
@@ -119,14 +128,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         SysInfo.get(basicSysInfo)
             .then(sysInfo => {
-                this.stats.totalMemoryBytes     = formatByteSize(sysInfo.mem.total, false);
-                this.stats.totalMemoryBytesAbbr = formatByteSizeAbbr(sysInfo.mem.total);
-                this.stats.freeMemoryBytes      = formatByteSize(sysInfo.mem.free, false);
-                this.stats.freeMemoryBytesAbbr  = formatByteSizeAbbr(sysInfo.mem.free);
+                this.stats.totalMemoryBytes     = sysInfo.mem.total;
+                this.stats.freeMemoryBytes      = sysInfo.mem.free;
 
                 //  Not avail on BSD, yet.
-                this.stats.systemAvgLoad        = _.get(sysInfo, 'currentLoad.avgload', 0).toString();
-                this.stats.systemCurrentLoad    = _.get(sysInfo, 'currentLoad.currentLoad', 0).toString();
+                this.stats.systemAvgLoad        = _.get(sysInfo, 'currentLoad.avgload', 0);
+                this.stats.systemCurrentLoad    = _.get(sysInfo, 'currentLoad.currentLoad', 0);
             })
             .catch(err => {
                 return cb(err);
