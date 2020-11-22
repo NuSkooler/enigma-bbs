@@ -11,7 +11,8 @@ MCI codes are composed of two characters and are prefixed with a percent (%) sym
 :information_source: To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
 
 :information_source: Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
-<font color="red">%BN1</font><font color="bright red">%BN1</font>
+
+![Example](../assets/images/mci-example1.png "MCI Colors")
 
 Some MCI codes have additional options that may be set directly from the code itself while others -- and more advanced options -- are controlled via the current theme.
 
