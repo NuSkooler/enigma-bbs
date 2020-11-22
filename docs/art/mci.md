@@ -208,6 +208,8 @@ Additional text styles are available for numbers:
 
 
 #### Examples
-Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as "<font color="red">eVIL cURRENT</font> <font color="grey">-</font> <font color="magenta">Razor 1911</font>".
+Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as this:
 
-Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
+![Example](../assets/images/text-format-example1.png "Text Format")
+
+:bulb: Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
