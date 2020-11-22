@@ -34,7 +34,7 @@ Example:
 ```
 
 ### oputil
-The `oputil.js` utility can export packet files, dump the messages of a packet to stdout, etc. See [the oputil documentation](/docs/admin/oputil.md) for more information.
+The `oputil.js` utility can export packet files, dump the messages of a packet to stdout, etc. See [the oputil documentation](../admin/oputil.md) for more information.
 
 ### Offline Readers
 A few of the offline readers that have been tested with QWK packet files produced by ENiGMA½:

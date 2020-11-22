@@ -19,10 +19,10 @@ Each conference is represented by a entry under `messageConferences`. Each entri
 | `sort`      | :-1: | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1: | Specify `true` to make this the default conference (e.g. assigned to new users) |
 | `areas`     | :+1: | Container of 1:n areas described below |
-| `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
+| `acs`       | :-1: | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
 
 ### ACS
-An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
+An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
 * `read`: ACS required to read (see) this conference. Defaults to `GM[users]`.
 * `write`: ACS required to write (post) to this conference. Defaults to `GM[users]`.
 
@@ -53,12 +53,12 @@ Message Areas are topic specific containers for messages that live within a part
 | `desc`      | :+1:     | Friendly area description. |
 | `sort`      | :-1:     | Set to a number to override the default alpha-numeric sort order based on the `name` field. |
 | `default`   | :-1:     | Specify `true` to make this the default area (e.g. assigned to new users) |
-| `acs`       | :-1: | A standard [ACS](/docs/configuration/acs.md) block. See **ACS** below. |
+| `acs`       | :-1: | A standard [ACS](../configuration/acs.md) block. See **ACS** below. |
 | `autoSignatures` | :-1: | Set to `false` to disable auto-signatures in this area. |
 | `realNames` | :-1:      | Set to `true` to use real names in this area. |
 
 ### ACS
-An optional standard [ACS](/docs/configuration/acs.md) block can be supplied with the following rules:
+An optional standard [ACS](../configuration/acs.md) block can be supplied with the following rules:
 * `read`: ACS required to read (see) this area. Defaults to `GM[users]`.
 * `write`: ACS required to write (post) to this area. Defaults to `GM[users]`.
 
@@ -85,4 +85,4 @@ messageConferences: {
 ```
 
 ## Importing
-FidoNet style `.na` files as well as legacy `AREAS.BBS` files in common formats can be imported using `oputil.js mb import-areas`. See [The oputil CLI](/docs/admin/oputil.md) for more information and usage.
+FidoNet style `.na` files as well as legacy `AREAS.BBS` files in common formats can be imported using `oputil.js mb import-areas`. See [The oputil CLI](../admin/oputil.md) for more information and usage.

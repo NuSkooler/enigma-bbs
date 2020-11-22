@@ -20,8 +20,8 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 + `oputil.js user rename USERNAME NEWNAME`
 + `my_messages.js` module (defaulted to "m" at the message menu) to list public messages addressed to the currently logged in user. Takes into account their username and `real_name` property.
 + SSH Public Key Authentication has been added. The system uses a OpenSSH style public key set on the `ssh_public_key` user property.
-+ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used. See [Security](/docs/configuration/security.md) for more info!
-* New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](/docs/configuration/acs.md) for details.
++ 2-Factor (2FA) authentication is now available using [RFC-4266 - HOTP: HMAC-Based One-Time Password Algorithm)](https://tools.ietf.org/html/rfc4226), [RFC-6238 - TOTP: Time-Based One-Time Password Algorithm](https://tools.ietf.org/html/rfc6238), or [Google Authenticator](http://google-authenticator.com/). QR codes for activation are available as well. One-time backup aka recovery codes can also be used. See [Security](./docs/configuration/security.md) for more info!
+* New ACS codes for new 2FA/OTP: `AR` and `AF`. See [ACS](./docs/configuration/acs.md) for details.
 + `oputil.js user 2fa USERNAME TYPE` enables 2-factor authentication for a user.
 * `oputil.js user info USERNAME --security` can now display additional security information such as 2FA/OTP.
 * `oputil.js fb scan --quick` is now the default. Override with `--full`.
@@ -84,8 +84,8 @@ submit: [
 * `install.sh` will now attempt to use NPM's `--build-from-source` option when ARM is detected.
 * `oputil.js config new` will now generate a much more complete configuration file with comments, examples, etc. `oputil.js config cat` dumps your current config to stdout.
 * Handling of failed login attempts is now fully in. Disconnect clients, lock out accounts, ability to auto or unlock at (email-driven) password reset, etc. See `users.failedLogin` in `config.hjson`.
-* NNTP support! See [NNTP docs](/docs/servers/nntp.md) for more information.
-* `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](/docs/admin/oputil.md).
+* NNTP support! See [NNTP docs](./docs/servers/nntp.md) for more information.
+* `oputil.js user rm` and `oputil.js user info` are in! See [oputil CLI](./docs/admin/oputil.md).
 * Performing a file scan/import using `oputil.js fb scan` now recognizes various `FILES.BBS` formats.
 * Usernames found in the `config.users.badUserNames` are now not only disallowed from applying, but disconnected at any login attempt.
 * Total minutes online is now tracked for users. Of course, it only starts after you get the update :)

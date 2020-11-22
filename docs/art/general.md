@@ -64,7 +64,7 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 4. In the `art/general` directory.
 
 #### ACS-Driven Conditionals
-The [ACS](/docs/configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
+The [ACS](../configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
 ```hjson
 {
     fancyMenu: {
@@ -153,4 +153,4 @@ fullLogoffSequenceRandomBoardAd: {
 ```
 
 ### See Also
-See also the [Show Art Module](/docs/modding/show-art.md) for more advanced art display!
+See also the [Show Art Module](../modding/show-art.md) for more advanced art display!

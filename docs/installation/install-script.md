@@ -15,6 +15,6 @@ on GitHub before running it!
 The script will install `nvm`, Node.js and grab the latest ENiGMA BBS from GitHub. It will also guide you through creating a basic configuration file, and recommend some packages to install.
 
 :information_source: After installing:
-* Read [External Binaries](/docs/configuration/external-binaries.md)
-* Read [Updating](/docs/admin/updating.md)
+* Read [External Binaries](../configuration/external-binaries.md)
+* Read [Updating](../admin/updating.md)
 

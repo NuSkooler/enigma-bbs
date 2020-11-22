@@ -6,7 +6,7 @@ title: External Support Binaries
 ## External Support Binaries
 ENiGMA½ relies on various external binaries in order to perform common tasks such as processing file archives and extracting information from uploads/file imports, some legacy transfer protocols, etc.
 
-:correct: Before using features such as the [File Base](/docs/filebase/index.md) or [File Transfer Protocols](/docs/configuration/file-transfer-protocols.md) it is highly recommended to install support binaries!
+:correct: Before using features such as the [File Base](../filebase/index.md) or [File Transfer Protocols](../configuration/file-transfer-protocols.md) it is highly recommended to install support binaries!
 
 ## Archivers
 Below is a table of pre-configured archivers. Remember that you can override settings or add new handlers! See [Archivers](archivers.md).

@@ -11,9 +11,9 @@ Unlike in the golden era of BBSing, modern Internet-connected systems are prone 
 
 ## Two-Factor Authentication via One-Time Password
 Enabling Two-Factor Authentication via One-Time-Password (2FA/OTP) on an account adds an extra layer of security ("_something a user has_") in addition to their password ("_something a user knows_"). Providing 2FA/OTP to your users has some prerequisites:
-* [A configured email gateway](/docs/configuration/email.md) such that the system can send out emails.
-* One or more secure servers enabled such as [SSH](/docs/servers/ssh.md) or secure [WebSockets](/docs/servers/websocket.md) (that is, WebSockets over a secure connection such as TLS).
-* The [web server](/docs/servers/web-server.md) enabled and exposed over TLS (HTTPS).
+* [A configured email gateway](../configuration/email.md) such that the system can send out emails.
+* One or more secure servers enabled such as [SSH](../servers/ssh.md) or secure [WebSockets](../servers/websocket.md) (that is, WebSockets over a secure connection such as TLS).
+* The [web server](../servers/web-server.md) enabled and exposed over TLS (HTTPS).
 
 :information_source: For WebSockets and the web server, ENiGMA½ _may_ listen on insecure channels if behind a secure web proxy.
 
@@ -26,7 +26,7 @@ Due to the nature of 2FA/OTP, even if enabled on your system, users must opt-in 
 
 :warning: Serving 2FA/OTP registration links over insecure (HTTP) can expose secrets intended for the user and is **highly** discouraged!
 
-:memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](/docs/admin/oputil.md), but this is generally discouraged.
+:memo: +ops can also manually enable or disable 2FA/OTP for a user using [oputil](../admin/oputil.md), but this is generally discouraged.
 
 #### Recovery
 In the situation that a user loses their 2FA/OTP device (such as a lost phone with Google Auth), there are some options:
@@ -36,11 +36,11 @@ In the situation that a user loses their 2FA/OTP device (such as a lost phone wi
 :warning: There is no way for a user to disable 2FA/OTP without first fully logging in! This is by design as a security measure.
 
 ### ACS Checks
-Various places throughout the system that implement [ACS](/docs/configuration/acs.md) can make 2FA specific checks:
+Various places throughout the system that implement [ACS](../configuration/acs.md) can make 2FA specific checks:
 * `AR#`: Current users **required** authentication factor. `AR2` for example means 2FA/OTP is required for this user.
 * `AF#`: Current users **active** authentication factor. `AF2` means the user is authenticated with some sort of 2FA (such as One-Time-Password).
 
-See [ACS](/docs/configuration/acs.md) for more information.
+See [ACS](../configuration/acs.md) for more information.
 
 #### Example
 The following example illustrates using an `AR` ACS check to require applicable users to go through an additional 2FA/OTP process during login:

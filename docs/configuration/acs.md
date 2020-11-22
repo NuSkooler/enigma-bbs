@@ -73,8 +73,8 @@ All `users` can read (see) the area, `sysops` and `co-ops` can write (upload), a
 ## ACS Touch Points
 The following touch points exist in the system. Many more are planned:
 
-* [Message conferences and areas](/docs/messageareas/configuring-a-message-area.md)
-* [File base areas](/docs/filebase/first-file-area.md) and [Uploads](/docs/filebase/uploads.md)
+* [Message conferences and areas](../messageareas/configuring-a-message-area.md)
+* [File base areas](../filebase/first-file-area.md) and [Uploads](../filebase/uploads.md)
 * Menus within [Menu HJSON (menu.hjson)](menu-hjson.md)
 
 See the specific areas documentation for information on available ACS checks.
