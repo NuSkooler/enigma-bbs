@@ -106,7 +106,17 @@ The most common fonts are probably as follows:
 * `microknight`
 * `topaz`
 
-Other fonts fonts also available:
+...and some examples:
+
+ ![cp437](../assets/images/cp437.png "cp437")<br>
+ ![pot_noodle](../assets/images/pot_noodle.png "pot_noodle")<br>
+ ![mo_soul](../assets/images/mo_soul.png "mo_soul")<br>
+ ![microknight_plus](../assets/images/microknight_plus.png "microknight_plus")<br>
+ ![topaz_plus](../assets/images/topaz_plus.png "topaz_plus")<br>
+ ![microknight](../assets/images/microknight.png "microknight")<br>
+ ![topaz](../assets/images/topaz.png "topaz")<br>
+
+Other "fonts" also available:
 * `cp1251`
 * `koi8_r`
 * `iso8859_2`
@@ -139,10 +149,12 @@ Other fonts fonts also available:
 * `iso8859_1`
 * `cp1131`
 
-See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 #### SyncTERM Style Baud Rates
-The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.  See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.
+
+:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 ### Common Example
 ```hjson
