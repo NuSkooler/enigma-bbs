@@ -5,7 +5,7 @@ title: BSO Import / Export
 ## BSO Import / Export
 The scanner/tosser module `ftn_bso` provides **B**inkley **S**tyle **O**utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in `config.hjson` under `scannerTossers.ftn_bso`.
 
-:information_source: ENiGMA½'s `ftn_bso` module is not a mailer and **makes no attempts to perform packet transport**! An external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd) is required for this task.
+:information_source: ENiGMA½'s `ftn_bso` module is not a mailer and **makes no attempts to perform packet transport**! An external [mailer](http://www.filegate.net/bbsmailers.htm) such as [Binkd](https://github.com/pgul/binkd) is required for this task!
 
 ### Configuration
 Let's look at some of the basic configuration:
@@ -134,7 +134,68 @@ scannerTossers: {
 ```
 
 ## Binkd
-Since Binkd is a very common mailer, a few tips on integrating it with ENiGMA½:
+Since Binkd is a very common mailer, a few tips on integrating it with ENiGMA½.
+
+### Example Binkd Configuration
+Below is an **example** Binkd configuration file that may help serve as a reference.
+
+```bash
+# Number @ end is the root zone
+# Note that fsxNet is our *default* FTN so we use "outbound" here!
+domain fsxnet /home/enigma/enigma-bbs/mail/ftn_out/outbound 21
+domain araknet /home/enigma/enigma-bbs/mail/ftn_out/araknet 10
+
+# Our assigned addresses
+address 21:1/1234@fsxnet
+address 10:101/1234@araknet
+
+# Info about our board/op
+sysname "My BBS"
+location "Somewhere Out There"
+sysop "SysOp"
+
+nodeinfo 115200,TCP,BINKP
+try 10
+hold 600
+send-if-pwd
+
+log /var/log/binkd/binkd.log
+loglevel 4
+conlog 4
+
+percents
+printq
+backresolv
+
+inbound /home/enigma/enigma-bbs/mail/ftn_in
+temp-inbound /home/enigma/enigma-bbs/mail/ftn_in_temp
+
+minfree 2048
+minfree-nonsecure 2048
+
+kill-dup-partial-files
+kill-old-partial-files 86400
+
+prescan
+
+# fsxNet - Agency HUB
+node 21:1/100@fsxnet -md agency.bbs.nz:24556 SOMEPASS c
+
+# ArakNet
+node 10:101/0@araknet -md whq.araknet.xyz:24556 SOMEPASS c
+
+# our listening port (default=24554)
+iport 54554
+
+pid-file /var/run/binkd/binkd.pid
+
+# touch a watch file when files are received to kick of toss
+# ENiGMA can monitor this (see @watch information above)
+flag /home/enigma/enigma-bbs/mail/ftn_in/toss!.now *.su? *.mo? *.tu? *.we? *.th? *.fr? *.sa? *.pkt *.tic
+
+# nuke old .bsy/.csy files after 24 hours
+kill-old-bsy 43200
+```
 
 ### Scheduling Polls
 Binkd does not have it's own scheduler. Instead, you'll need to set up an Event Scheduler entry or perhaps a cron job:
@@ -163,4 +224,5 @@ eventScheduler: {
 ```
 
 ## Additional Resources
-[Blog entry on setting up ENiGMA + Binkd on CentOS7](https://l33t.codes/enigma-12-binkd-on-centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` references!
+* [Blog entry on setting up ENiGMA + Binkd on CentOS7](https://l33t.codes/enigma-12-binkd-on-centos-7/). Note that this references an **older version**, so be wary of the `config.hjson` references!
+* [Setting up FTN-style message networks with ENiGMA½ BBS](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d) by Alpha.
