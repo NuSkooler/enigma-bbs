@@ -8,7 +8,7 @@ ENiGMA½ configuration files such as the [system config](config-hjson.md), [menu
 ## Hot-Reload
 Nearly all of ENiGMA½'s configuration can be hot-reloaded. That is, a live system can have it's configuration modified and it will be loaded in place.
 
-:bulb: [Monitoring live logs](.../troubleshooting/monitoring-logs.md) is useful when making live changes. The system will complain if something is wrong!
+:bulb: [Monitoring live logs](../troubleshooting/monitoring-logs.md) is useful when making live changes. The system will complain if something is wrong!
 
 ## Common Directives
 ### Includes
