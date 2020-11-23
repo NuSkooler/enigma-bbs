@@ -121,6 +121,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         };
 
         //  Some async work required...
+        //  :TODO: replace with stat log stats
         const basicSysInfo = {
             mem         : 'total, free',
             currentLoad : 'avgload, currentLoad',

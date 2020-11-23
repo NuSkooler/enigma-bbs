@@ -80,6 +80,12 @@ for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, et
 | `TB` | Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.) |
 | `TP` | Total messages posted/imported to the system *currently* |
 | `PT` | Total messages posted/imported to the system *today* |
+| `MB` | System memory |
+| `MF` | System _free_ memory |
+| `LA` | System load average (e.g. 0.25)<br>(Not available for all platforms) |
+| `CL` | System current load percentage<br>(Not available for all platforms) |
+| `UU` | System uptime in friendly format |
+
 
 Some additional special case codes also exist:
 

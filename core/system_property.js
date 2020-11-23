@@ -32,10 +32,7 @@ module.exports = {
     NextRandomRumor     : 'random_rumor',
 
     //  begin system stat non-persistent...
-    TotalMemoryBytes    : 'sys_total_memory_bytes',
-    FreeMemoryBytes     : 'sys_free_memory_bytes',
-    AverageLoad         : 'sys_average_load',
-    CurrentLoad         : 'sys_current_load',
-
+    SystemMemoryStats   : 'system_memory_stats',    // object { totalBytes, freeBytes }
+    SystemLoadStats     : 'system_load_stats',      // object { average, current }
     //  end system stat non persistent
 };

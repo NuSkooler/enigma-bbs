@@ -6,10 +6,12 @@ const {
     getISOTimestampString
 }               = require('./database.js');
 const Errors    = require('./enig_error.js');
+const SysProps  = require('./system_property.js');
 
 //  deps
 const _         = require('lodash');
 const moment    = require('moment');
+const SysInfo   = require('systeminformation');
 
 /*
     System Event Log & Stats
@@ -26,6 +28,7 @@ const moment    = require('moment');
 class StatLog {
     constructor() {
         this.systemStats = {};
+        this.lastSysInfoStatsRefresh = 0;
     }
 
     init(cb) {
@@ -107,7 +110,15 @@ class StatLog {
         );
     }
 
-    getSystemStat(statName) { return this.systemStats[statName]; }
+    getSystemStat(statName) {
+        const stat = this.systemStats[statName];
+
+        //  Some stats are refreshed periodically when they are
+        //  being accessed (e.g. "looked at"). This is handled async.
+        this._refreshSystemStat(statName);
+
+        return stat;
+    }
 
     getFriendlySystemStat(statName, defaultValue) {
         return (this.getSystemStat(statName) || defaultValue).toLocaleString();
@@ -376,6 +387,49 @@ class StatLog {
         const systemEventUserLogInit = require('./sys_event_user_log.js');
         systemEventUserLogInit(this);
         return cb(null);
+    }
+
+    _refreshSystemStat(statName) {
+        switch (statName) {
+            case SysProps.SystemLoadStats :
+            case SysProps.SystemMemoryStats :
+                return this._refreshSysInfoStats();
+        }
+    }
+
+    _refreshSysInfoStats() {
+        const now = Math.floor(Date.now() / 1000);
+        if (now < this.lastSysInfoStatsRefresh + 5) {
+            return;
+        }
+
+        this.lastSysInfoStatsRefresh = now;
+
+        const basicSysInfo = {
+            mem         : 'total, free',
+            currentLoad : 'avgload, currentLoad',
+        };
+
+        SysInfo.get(basicSysInfo)
+            .then(sysInfo => {
+                const memStats = {
+                    totalBytes    : sysInfo.mem.total,
+                    freeBytes     : sysInfo.mem.free,
+                };
+
+                this.setNonPersistentSystemStat(SysProps.SystemMemoryStats, memStats);
+
+                const loadStats = {
+                    //  Not avail on BSD, yet.
+                    average : _.get(sysInfo, 'currentLoad.avgload', 0),
+                    current : _.get(sysInfo, 'currentLoad.currentLoad', 0),
+                };
+
+                this.setNonPersistentSystemStat(SysProps.SystemLoadStats, loadStats);
+            })
+            .catch(err => {
+                //  :TODO: log me
+            });
     }
 }
 

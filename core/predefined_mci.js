@@ -35,6 +35,11 @@ function init(cb) {
             (callback) => {
                 return setNextRandomRumor(callback);
             },
+            (callback) => {
+                //  by fetching a memory or load we'll force a refresh now
+                StatLog.getSystemStat(SysProps.SystemMemoryStats);
+                return callback(null);
+            }
         ],
         err => {
             return cb(err);
@@ -42,6 +47,7 @@ function init(cb) {
     );
 }
 
+//  :TODO: move this to stat_log.js like system memory is handled
 function setNextRandomRumor(cb) {
     StatLog.getSystemLogEntries(SysLogKeys.UserAddedRumorz, StatLog.Order.Random, 1, (err, entry) => {
         if(entry) {
@@ -218,9 +224,25 @@ const PREDEFINED_MCI_GENERATORS = {
             .trim();
     },
 
-    //  :TODO: use new live stat
-    MB  : function totalMemoryBytes() { return getTotalMemoryBytes(); },
-    MF  : function totalMemoryFreeBytes() { return getTotalMemoryFreeBytes(); },
+    MB  : function totalMemoryBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || { totalBytes : 0 };
+        return formatByteSize(stats.totalBytes, true); //  true=withAbbr
+    },
+    MF  : function totalMemoryFreeBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || { freeBytes : 0 };
+        return formatByteSize(stats.freeBytes, true);   //  true=withAbbr
+    },
+    LA  : function systemLoadAverage() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { average : 0.0 };
+        return stats.average.toLocaleString();
+    },
+    CL  : function systemCurrentLoad() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { current : 0 };
+        return `${stats.current}%`;
+    },
+    UU  : function systemUptime() {
+        return moment.duration(process.uptime(), 'seconds').humanize();
+    },
 
     //  :TODO: MCI for core count, e.g. os.cpus().length
 
