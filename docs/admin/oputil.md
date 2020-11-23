@@ -107,7 +107,7 @@ info arguments:
 | `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser -derp`   | N/A    |
 
 #### Manage 2FA/OTP
-While `oputil.js` can be used to manage a user's 2FA/OTP, it is highly recommended to require users to opt-in themselves. See [Security](/docs/configuration/security.md) for details.
+While `oputil.js` can be used to manage a user's 2FA/OTP, it is highly recommended to require users to opt-in themselves. See [Security](../configuration/security.md) for details.
 
 ## Configuration
 The `config` command allows sysops to perform various system configuration and maintenance tasks.

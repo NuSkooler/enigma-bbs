@@ -9,7 +9,7 @@ title: Administration
 See [Updating](updating.md).
 
 ## Viewing Logs
-See [Monitoring Logs](/docs/troubleshooting/monitoring-logs.md).
+See [Monitoring Logs](../troubleshooting/monitoring-logs.md).
 
 ## Managing Users
 User management is currently handled via the [oputil CLI](oputil.md).

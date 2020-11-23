@@ -98,4 +98,4 @@ ticAreas: {
 ```
 
 ## See Also
-[Message Networks](/docs/messageareas/message-networks.md)
+[Message Networks](../messageareas/message-networks.md)

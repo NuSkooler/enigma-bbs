@@ -43,8 +43,8 @@ Below is a list of various configuration sections. There are many more, but this
 * [Archivers](archivers.md): Set up external archive utilities for handling things like ZIP, ARJ, RAR, and so on.
 * [Email](email.md): System email support.
 * [Event Scheduler](event-scheduler.md): Set up events as you see fit!
-* [File Base](/docs/filebase/index.md)
+* [File Base](../filebase/index.md)
 * [File Transfer Protocols](file-transfer-protocols.md): Oldschool file transfer protocols such as X/Y/Z-Modem!
-* [Message Areas](/docs/messageareas/configuring-a-message-area.md), [Networks](/docs/messageareas/message-networks.md), [NetMail](/docs/messageareas/netmail.md), etc.
+* [Message Areas](../messageareas/configuring-a-message-area.md), [Networks](../messageareas/message-networks.md), [NetMail](../messageareas/netmail.md), etc.
 * ...and a **lot** more! Explore the docs! If you can't find something, please contact us!
 

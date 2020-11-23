@@ -2,7 +2,7 @@
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # Before Upgrading
-* Always back up your system! (See [Administration](/docs/admin/administration.md))
+* Always back up your system! (See [Administration](./docs/admin/administration.md))
 * Seriously, always back up your system!
 
 # General Notes
@@ -12,7 +12,7 @@ In general, look at template menu files in `misc/menu_templates`, and `config_te
 ### Menus & Theme Updates
 Upgrades often come with changes to the default menu templates found in `misc/menu_tempaltes`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
 
-See [Updating](/docs/admin/updating.md) for details on menu files/etc.
+See [Updating](./docs/admin/updating.md) for details on menu files/etc.
 
 # Upgrading the Code
 Upgrading from GitHub is easy:

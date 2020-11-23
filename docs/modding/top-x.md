@@ -57,4 +57,4 @@ Generally `mciMap` entries will point to a Vertical List View Menu (`%VM1`, `%VM
 * `affils` or `affiliation`: Users affiliations.
 * `position`: Rank position (numeric).
 
-Remember that string format rules apply, so for example, if displaying top uploaded bytes (`ul_file_bytes`), a `itemFormat` may be `{userName} - {value!sizeWithAbbr}` yielding something like "TopDude - 4 GB". See [MCI](/docs/art/mci.md) for additional information.
+Remember that string format rules apply, so for example, if displaying top uploaded bytes (`ul_file_bytes`), a `itemFormat` may be `{userName} - {value!sizeWithAbbr}` yielding something like "TopDude - 4 GB". See [MCI](../art/mci.md) for additional information.

@@ -18,6 +18,7 @@
     - [HJSON Config Files]({{ site.baseurl }}{% link configuration/hjson.md %})
     - [Menus]({{ site.baseurl }}{% link configuration/menu-hjson.md %})
     - [Directory Structure]({{ site.baseurl }}{% link configuration/directory-structure.md %})
+    - [External Binaries]({{ site.baseurl }}{% link configuration/external-binaries.md %})
     - [Archivers]({{ site.baseurl }}{% link configuration/archivers.md %})
     - [File Transfer Protocols]({{ site.baseurl }}{% link configuration/file-transfer-protocols.md %})
     - [Email]({{ site.baseurl }}{% link configuration/email.md %})
