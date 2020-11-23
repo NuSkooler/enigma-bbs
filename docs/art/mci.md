@@ -107,7 +107,7 @@ Some additional special case codes also exist:
 the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
 for a full listing.
 
-:note: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+:memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 
 ## Views
