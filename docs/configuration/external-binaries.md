@@ -31,8 +31,8 @@ Handlers for legacy file transfer protocols such as Z-Modem and Y-Modem.
 
 | Handler (Key) | Protocol | More Info | Debian/Ubuntu (apt/dep) | Red Hat (yum/rpm) | Windows |
 |----------|---------|-----------|-------------------------|-------------------|---------|
-| `xmodemSexyz`<br>`ymodemSexyz`<br>`zmodem8kSexyz` | X-Modem, Y-Modem and Z-Modem SEXYZ | [SEXYZ](http://www.synchro.net/docs/sexyz.txt) | [x86_64 Binary](https://l33t.codes/outgoing/sexyz) | [x86_64 Binary](https://l33t.codes/outgoing/sexyz) | Build from source |
-| `zmodem8kSz` | Z-Modem 8K | [Wikipedia](https://en.wikipedia.org/wiki/ZMODEM) | `lrzsz` | `lrzsz` | Unknown
+| `xmodemSexyz`<br>`ymodemSexyz`<br>`zmodem8kSexyz` | X-Modem, Y-Modem and Z-Modem SEXYZ | [SEXYZ](http://www.synchro.net/docs/sexyz.txt) | [x86_64 Binary](https://l33t.codes/outgoing/sexyz) | [x86_64 Binary](https://l33t.codes/outgoing/sexyz) | [Synchronet FTP](ftp://ftp.synchro.net/) |
+| `zmodem8kSz` | Z-Modem 8K | [Wikipedia](https://en.wikipedia.org/wiki/ZMODEM) | `lrzsz` | `lrzsz` | Unknown |
 
 
 ## Information Extractors
