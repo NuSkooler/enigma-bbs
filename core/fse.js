@@ -853,7 +853,11 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         this.setHeaderText(MciViewIds.header.from,          this.message.fromUserName);
         this.setHeaderText(MciViewIds.header.to,            this.message.toUserName);
         this.setHeaderText(MciViewIds.header.subject,       this.message.subject);
-        this.setHeaderText(MciViewIds.header.modTimestamp,  moment(this.message.modTimestamp).format(this.client.currentTheme.helpers.getDateTimeFormat()));
+
+        this.setHeaderText(MciViewIds.header.modTimestamp, moment(this.message.modTimestamp).format(
+            this.menuConfig.config.modTimestampFormat || this.client.currentTheme.helpers.getDateTimeFormat())
+        );
+
         this.setHeaderText(MciViewIds.header.msgNum,        (this.messageIndex + 1).toString());
         this.setHeaderText(MciViewIds.header.msgTotal,      this.messageTotal.toString());
 
