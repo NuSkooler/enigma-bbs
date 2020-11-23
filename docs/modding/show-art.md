@@ -1,6 +1,6 @@
 ---
 layout: page
-title: User List
+title: The Show Art Module
 ---
 ## The Show Art Module
 The built in `show_art` module add some advanced ways in which you can configure your system to display art assets beyond what a standard menu entry can provide. For example, based on user selection of a file or message base area.
