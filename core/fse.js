@@ -988,8 +988,8 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 (callback) => {
-                    const artSpec = this.menuConfig.config.art.dlQueueAdd ||
-                        Buffer.from('Exported message added to download queue');
+                    const artSpec = this.menuConfig.config.art.expToDlQueue ||
+                        Buffer.from('Exported message has been added to your download queue!');
                     this.displayAsset(
                         artSpec,
                         { clearScreen : true },

@@ -477,10 +477,11 @@
             module: msg_area_view_fse
             config: {
                 art: {
-                    header:     MSGVHDR
-                    body:       MSGBODY
+                    header: MSGVHDR
+                    body: MSGBODY
                     footerView: MSGVFTR
-                    help:       MSGVHLP
+                    help: MSGVHLP
+                    expToDlQueue: mb_export_dl_queue
                 },
                 editorMode: view
                 editorType: area
@@ -525,7 +526,7 @@
                     mci: {
                         HM1: {
                             //  :TODO: (#)Jump/(L)Index (msg list)/Last
-                            items: [ "prev", "next", "reply", "quit", "help" ]
+                            items: [ "prev", "next", "reply", "quit", "download", "help" ]
                             focusItemIndex: 1
                         }
                     }
@@ -552,6 +553,10 @@
                             }
                             {
                                 value: { 1: 4 }
+                                action: @method:addToDownloadQueue
+                            }
+                            {
+                                value: { 1: 5 }
                                 action: @method:viewModeMenuHelp
                             }
                         ]
