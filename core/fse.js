@@ -26,12 +26,19 @@ const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
 const UserProps                 = require('./user_property.js');
 const SysProps                  = require('./system_property.js');
+const FileArea                  = require('./file_base_area.js');
+const FileEntry                 = require('./file_entry.js');
+const DownloadQueue             = require('./download_queue.js');
 
 //  deps
 const async                     = require('async');
 const assert                    = require('assert');
 const _                         = require('lodash');
 const moment                    = require('moment');
+const fse                       = require('fs-extra');
+const fs                        = require('graceful-fs');
+const paths                     = require('path');
+const sanatizeFilename          = require('sanitize-filename');
 
 exports.moduleInfo = {
     name    : 'Full Screen Editor (FSE)',
@@ -255,7 +262,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
             viewModeMenuHelp : function(formData, extraArgs, cb) {
                 self.viewControllers.footerView.setFocus(false);
                 return self.displayHelp(cb);
-            }
+            },
+
+            addToDownloadQueue : (formData, extraArgs, cb) => {
+                this.viewControllers.footerView.setFocus(false);
+                return this.addToDownloadQueue(cb);
+            },
         };
     }
 
@@ -901,6 +913,82 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         return cb(null);
                     });
                 });
+            }
+        );
+    }
+
+    addToDownloadQueue(cb) {
+        this.client.term.rawWrite(ansi.resetScreen());
+
+        const sysTempDownloadArea   = FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
+        const sysTempDownloadDir    = FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
+
+        const msgInfo = this.getHeaderFormatObj();
+
+        const outputFileName = paths.join(
+            sysTempDownloadDir,
+            sanatizeFilename(
+                `(${msgInfo.messageId}) ${msgInfo.subject}_(${this.message.modTimestamp.format('YYYY-MM-DD')}).txt`)
+        );
+
+        async.waterfall(
+            [
+                (callback) => {
+                    const messageBody = this.viewControllers.body
+                        .getView(MciViewIds.body.message)
+                        .getData( { forceLineTerms : true } );
+
+                    fse.mkdirs(sysTempDownloadDir, err => {
+                        return callback(err, messageBody);
+                    });
+                },
+                (messageBody, callback) => {
+                    return fs.writeFile(outputFileName, messageBody, 'utf8', callback);
+                },
+                (callback) => {
+                    fs.stat(outputFileName, (err, stats) => {
+                        return callback(err, stats.size);
+                    });
+                },
+                (fileSize, callback) => {
+                    const newEntry = new FileEntry({
+                        areaTag     : sysTempDownloadArea.areaTag,
+                        fileName    : paths.basename(outputFileName),
+                        storageTag  : sysTempDownloadArea.storageTags[0],
+                        meta        : {
+                            upload_by_username  : this.client.user.username,
+                            upload_by_user_id   : this.client.user.userId,
+                            byte_size           : fileSize,
+                            session_temp_dl     : 1,    //  download is valid until session is over
+                        }
+                    });
+
+                    newEntry.desc = `${msgInfo.messageId} - ${msgInfo.subject}`;
+
+                    newEntry.persist(err => {
+                        if(!err) {
+                            //  queue it!
+                            DownloadQueue.get(this.client).addTemporaryDownload(newEntry);
+                        }
+                        return callback(err);
+                    });
+                },
+                (callback) => {
+                    theme.displayThemeArt(
+                        { name : this.menuConfig.config.art.dlQueueAdd || 'msg_add_dl_queue', client : this.client },
+                        () => {
+                            this.client.waitForKeyPress( () => {
+                                this.redrawScreen( () => {
+                                    this.viewControllers[this.getFooterName()].setFocus(true);
+                                    return callback(null);
+                                });
+                            });
+                        }
+                    );
+                }
+            ],
+            err => {
+                return cb(err);
             }
         );
     }
