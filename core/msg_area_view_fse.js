@@ -102,10 +102,9 @@ exports.getModule = class AreaViewFSEModule extends FullScreenEditorModule {
 
                 self.client.log(extraArgs, 'Missing extraArgs.menu');
                 return cb(null);
-            }
+            },
         });
     }
-
 
     loadMessageByUuid(uuid, cb) {
         const msg = new Message();
