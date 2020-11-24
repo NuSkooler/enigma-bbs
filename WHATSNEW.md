@@ -8,7 +8,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * An explicit prompt file previously specified by `general.promptFile` in `config.hjson` is no longer necessary. Instead, this now simply part of the `prompts` section in `menu.hjson`. The default setup still creates a separate prompt HJSON file, but it is `includes`ed in `menu.hjson`. With the removal of prompts the `PromptsChanged` event will no longer be fired.
 * New `PV` ACS check for arbitrary user properties. See [ACS](./docs/configuration/acs.md) for details.
 * The `message` arg used by `msg_list` has been deprecated. Please starting using `messageIndex` for this purpose. Support for `message` will be removed in the future.
-* Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options for details on adding to your system!
+* Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options (`@method:addToDownloadQueue`, etc.) for details on adding to your system!
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
