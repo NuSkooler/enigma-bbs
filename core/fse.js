@@ -21,6 +21,7 @@ const {
     isAnsi, stripAnsiControlCodes,
     insert
 }                               = require('./string_util.js');
+const { stripMciColorCodes }    = require('./color_codes.js');
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
@@ -918,8 +919,6 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     addToDownloadQueue(cb) {
-        this.client.term.rawWrite(ansi.resetScreen());
-
         const sysTempDownloadArea   = FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
         const sysTempDownloadDir    = FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
 
@@ -934,16 +933,31 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         async.waterfall(
             [
                 (callback) => {
-                    const messageBody = this.viewControllers.body
+                    const header =
+                        `+${'-'.repeat(79)}
+| To      : ${msgInfo.toUserName}
+| From    : ${msgInfo.fromUserName}
+| When    : ${moment(this.message.modTimestamp).format('dddd, MMMM Do YYYY, h:mm:ss a (UTCZ)')}
+| Subject : ${msgInfo.subject}
+| ID      : ${this.message.messageUuid} (${msgInfo.messageId})
++${'-'.repeat(79)}
+`;
+                    const body = this.viewControllers.body
                         .getView(MciViewIds.body.message)
                         .getData( { forceLineTerms : true } );
 
+                    const cleanBody = stripMciColorCodes(
+                        stripAnsiControlCodes(body, { all : true } )
+                    );
+
+                    const exportedMessage = `${header}\r\n${cleanBody}`;
+
                     fse.mkdirs(sysTempDownloadDir, err => {
-                        return callback(err, messageBody);
+                        return callback(err, exportedMessage);
                     });
                 },
-                (messageBody, callback) => {
-                    return fs.writeFile(outputFileName, messageBody, 'utf8', callback);
+                (exportedMessage, callback) => {
+                    return fs.writeFile(outputFileName, exportedMessage, 'utf8', callback);
                 },
                 (callback) => {
                     fs.stat(outputFileName, (err, stats) => {
@@ -974,8 +988,11 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 (callback) => {
-                    theme.displayThemeArt(
-                        { name : this.menuConfig.config.art.dlQueueAdd || 'msg_add_dl_queue', client : this.client },
+                    const artSpec = this.menuConfig.config.art.dlQueueAdd ||
+                        Buffer.from('Exported message added to download queue');
+                    this.displayAsset(
+                        artSpec,
+                        { clearScreen : true },
                         () => {
                             this.client.waitForKeyPress( () => {
                                 this.redrawScreen( () => {
