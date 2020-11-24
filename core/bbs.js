@@ -209,7 +209,7 @@ function initialize(cb) {
 
                 process.on('SIGINT', shutdownSystem);
 
-                require('later').date.localTime();  //  use local times for later.js/scheduling
+                require('@breejs/later').date.localTime();  //  use local times for later.js/scheduling
 
                 return callback(null);
             },
