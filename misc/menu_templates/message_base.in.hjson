@@ -582,6 +582,10 @@
                             action: @systemMethod:prevMenu
                         }
                         {
+							keys: [ "d", "shift + d" ]
+							action: @method:addToDownloadQueue
+						}
+                        {
                             keys: [ "?" ]
                             action: @method:viewModeMenuHelp
                         }
