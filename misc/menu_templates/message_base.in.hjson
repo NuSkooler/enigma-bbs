@@ -582,9 +582,9 @@
                             action: @systemMethod:prevMenu
                         }
                         {
-							keys: [ "d", "shift + d" ]
-							action: @method:addToDownloadQueue
-						}
+                            keys: [ "d", "shift + d" ]
+                            action: @method:addToDownloadQueue
+                        }
                         {
                             keys: [ "?" ]
                             action: @method:viewModeMenuHelp
