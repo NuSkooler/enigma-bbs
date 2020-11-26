@@ -292,10 +292,22 @@ const PREDEFINED_MCI_GENERATORS = {
     TP  : function totalMessagesOnSystem() {    //  Obv/2
         return StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0);
     },
+    FT  : function totalUploadsToday() {    //  Obv/2
+        return StatLog.getFriendlySystemStat(SysProps.FileUlTodayCount, 0);
+    },
+    FB  : function totalUploadBytesToday() {
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTodayBytes);
+        return formatByteSize(byteSize, true);  //  true=withAbbr
+    },
+    DD  : function totalDownloadsToday() {  //  iNiQUiTY
+        return StatLog.getFriendlySystemStat(SysProps.FileDlTodayCount, 0);
+    },
+    DB  : function totalDownloadBytesToday() {
+        const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTodayBytes);
+        return formatByteSize(byteSize, true);  //  true=withAbbr
+    },
 
     //  :TODO: NT - New users today (Obv/2)
-    //  :TODO: FT - Files uploaded/added *today* (Obv/2)
-    //  :TODO: DD - Files downloaded *today* (iNiQUiTY)
     //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
     //  :TODO: ?? - Total users on system

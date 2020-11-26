@@ -17,6 +17,11 @@ module.exports = {
     FileDlTotalCount    : 'dl_total_count',
     FileDlTotalBytes    : 'dl_total_bytes',
 
+    FileUlTodayCount    : 'ul_today_count', //  non-persistent
+    FileUlTodayBytes    : 'ul_today_bytes', //  non-persistent
+    FileDlTodayCount    : 'dl_today_count', //  non-persistent
+    FileDlTodayBytes    : 'dl_today_bytes', //  non-persistent
+
     MessageTotalCount   : 'message_post_total_count',   //  total non-private messages on the system; non-persistent
     MessagesToday       : 'message_post_today',         //  non-private messages posted/imported today; non-persistent
 

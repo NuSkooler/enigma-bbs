@@ -544,6 +544,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
             StatLog.incrementSystemStat(SysProps.FileDlTotalCount, downloadCount);
             StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, downloadBytes);
 
+            StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayCount, downloadCount);
+            StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayBytes, downloadBytes);
+
             fileIds.forEach(fileId => {
                 FileEntry.incrementAndPersistMetaValue(fileId, 'dl_count', 1);
             });
@@ -574,6 +577,9 @@ exports.getModule = class TransferFileModule extends MenuModule {
 
             StatLog.incrementSystemStat(SysProps.FileUlTotalCount, uploadCount);
             StatLog.incrementSystemStat(SysProps.FileUlTotalBytes, uploadBytes);
+
+            StatLog.incrementNonPersistentSystemStat(SysProps.FileUlTodayCount, uploadCount);
+            StatLog.incrementNonPersistentSystemStat(SysProps.FileUlTodayBytes, uploadBytes);
 
             return cb(null);
         });

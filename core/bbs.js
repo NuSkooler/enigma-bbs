@@ -13,6 +13,7 @@ const resolvePath   = require('./misc_util.js').resolvePath;
 const UserProps     = require('./user_property.js');
 const SysProps      = require('./system_property.js');
 const SysLogKeys    = require('./system_log.js');
+const UserLogNames  = require('./user_log_name');
 
 //  deps
 const async         = require('async');
@@ -209,7 +210,7 @@ function initialize(cb) {
 
                 process.on('SIGINT', shutdownSystem);
 
-                require('later').date.localTime();  //  use local times for later.js/scheduling
+                require('@breejs/later').date.localTime();  //  use local times for later.js/scheduling
 
                 return callback(null);
             },
@@ -284,6 +285,42 @@ function initialize(cb) {
                     if(!err) {
                         StatLog.setNonPersistentSystemStat(SysProps.LoginsToday, callsToday);
                     }
+                    return callback(null);
+                });
+            },
+            function initUserTransferStats(callback) {
+                const StatLog = require('./stat_log');
+
+                const entries = [
+                    [ UserLogNames.UlFiles,       [ SysProps.FileUlTodayCount, 'count' ] ],
+                    [ UserLogNames.UlFileBytes,   [ SysProps.FileUlTodayBytes, 'obj' ] ],
+                    [ UserLogNames.DlFiles,       [ SysProps.FileDlTodayCount, 'count' ] ],
+                    [ UserLogNames.DlFileBytes,   [ SysProps.FileDlTodayBytes, 'obj' ] ],
+                ];
+
+                async.each(entries, (entry, nextEntry) => {
+                    const [ logName, [sysPropName, resultType] ] = entry;
+
+                    const filter = {
+                        logName,
+                        resultType,
+                        date        : moment(),
+                    };
+
+                    filter.logName = logName;
+
+                    StatLog.findUserLogEntries(filter, (err, stat) => {
+                        if (!err) {
+                            if (resultType === 'obj') {
+                                stat = stat.reduce( (bytes, entry) => bytes + parseInt(entry.log_value) || 0, 0);
+                            }
+
+                            StatLog.setNonPersistentSystemStat(sysPropName, stat);
+                        }
+                        return nextEntry(null);
+                    });
+                },
+                () => {
                     return callback(null);
                 });
             },

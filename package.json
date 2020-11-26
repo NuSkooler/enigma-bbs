@@ -36,7 +36,7 @@
     "iconv-lite": "^0.6.2",
     "ini-config-parser": "^1.0.4",
     "inquirer": "7.3.3",
-    "later": "1.2.0",
+    "@breejs/later" : "^4.0.2",
     "lodash": "4.17.20",
     "lru-cache": "^5.1.1",
     "mime-types": "2.1.27",

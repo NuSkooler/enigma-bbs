@@ -634,7 +634,9 @@ module.exports = class Message {
                             self.fromUserName   = msgRow.from_user_name;
                             self.subject        = msgRow.subject;
                             self.message        = msgRow.message;
-                            self.modTimestamp   = moment(msgRow.modified_timestamp);
+
+                            //  We use parseZone() to *preserve* the time zone information
+                            self.modTimestamp   = moment.parseZone(msgRow.modified_timestamp);
 
                             return callback(err);
                         }

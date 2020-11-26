@@ -9,6 +9,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * New `PV` ACS check for arbitrary user properties. See [ACS](./docs/configuration/acs.md) for details.
 * The `message` arg used by `msg_list` has been deprecated. Please starting using `messageIndex` for this purpose. Support for `message` will be removed in the future.
 * A number of new MCI codes (see [MCI](./docs/art/mci.md))
+* Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options (`@method:addToDownloadQueue`, etc.) for details on adding to your system!
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!

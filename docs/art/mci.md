@@ -88,9 +88,13 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `SU` | Total uploads, system wide |
 | `SP` | Total uploaded amount, system wide (formatted to appropriate bytes/megs/etc.) |
 | `TF` | Total number of files on the system |
-| `TB` | Total amount of files on the system (formatted to appropriate bytes/megs/gigs/etc.) |
+| `TB` | Total file base size (formatted to appropriate bytes/megs/gigs/etc.) |
 | `TP` | Total messages posted/imported to the system *currently* |
 | `PT` | Total messages posted/imported to the system *today* |
+| `FT` | Total number of uploads to the system *today* |
+| `FB` | Total upload amount *today* (formatted to appropriate bytes/megs/etc. ) |
+| `DD` | Total number of downloads from the system *today* |
+| `DB` | Total download amount *today* (formatted to appropriate bytes/megs/etc. ) |
 | `MB` | System memory |
 | `MF` | System _free_ memory |
 | `LA` | System load average (e.g. 0.25)<br>(Not available for all platforms) |
@@ -113,31 +117,52 @@ Some additional special case codes also exist:
 the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
 for a full listing.
 
-:note: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+:memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
 
 
 ## Views
 A **View** is a control placed on a **form** that can display variable data or collect input. One example of a View is
 a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu.
 
-| Code | Name                 | Description      |
-|------|----------------------|------------------|
-| `TL` | Text Label           | Displays text       |
-| `ET` | Edit Text            | Collect user input  |
-| `ME` | Masked Edit Text     | Collect user input using a *mask* |
-| `MT` | Multi Line Text Edit | Multi line edit control |
-| `BT` | Button               | A button |
-| `VM` | Vertical Menu        | A vertical menu aka a vertical lightbar |
-| `HM` | Horizontal Menu      | A horizontal menu aka a horizontal lightbar |
-| `SM` | Spinner Menu         | A spinner input control |
-| `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input |
-| `KE` | Key Entry            | A *single* key input control |
+| Code | Name                 | Description      | Notes |
+|------|----------------------|------------------|-------|
+| `TL` | Text Label           | Displays text | Static content |
+| `ET` | Edit Text            | Collect user input | Single line entry |
+| `ME` | Masked Edit Text     | Collect user input using a *mask* | See **Mask Edits** below |
+| `MT` | Multi Line Text Edit | Multi line edit control | Used for FSE, display of FILE_ID.DIZ, etc. |
+| `BT` | Button               | A button | ...it's a button |
+| `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists |
+| `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar |
+| `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options |
+| `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input |
+| `KE` | Key Entry            | A *single* key input control | Think hotkeys |
 
-:information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to
-see additional information.
+:information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
+
+### Mask Edits
+Mask Edits (`%ME`) use the special `maskPattern` property to control a _mask_. This can be useful for gathering dates, phone numbers, so on.
+
+`maskPattern`'s can be composed of the following characters:
+* `#`: Numeric 0-9
+* `A`: Alpha a-z, A-Z
+* `@`: Alphanumeric (combination of the previous patterns)
+* `&`: Any "printable" character
+
+Any other characters are literals.
+
+An example of a mask for a date may look like this: `##/##/####`.
+
+Additionally, the following theme stylers can be applied:
+* `styleSGR1`: Controls literal character colors for non-focused controls
+* `styleSGR2`: Controls literal character colors for focused controls
+* `styleSGR3`: Controls fill colors (characters that have not yet received input).
+
+All of the style properties can take pipe codes such as `|00|08`.
 
 ### View Identifiers
 As mentioned above, MCI codes can (and often should) be explicitly tied to a *View Identifier*. Simply speaking this is a number representing the particular view. These can be useful to reference in code, apply themes, etc.
+
+A view ID is tied to a MCI code by specifying it after the code. For example: `%VM1` or `%SM10`.
 
 ## Properties & Theming
 Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`. See [Themes](themes.md) for more information on this subject.

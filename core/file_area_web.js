@@ -478,6 +478,9 @@ class FileAreaWebAccess {
                     StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
                     StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, dlBytes);
 
+                    StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayCount, 1);
+                    StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayBytes, dlBytes);
+
                     return callback(null, user);
                 },
                 function sendEvent(user, callback) {

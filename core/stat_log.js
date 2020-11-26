@@ -259,75 +259,18 @@ class StatLog {
         );
     }
 
-    /*
-        Find System Log entries by |filter|:
-
-        filter.logName (required)
-        filter.resultType = (obj) | count
-            where obj contains timestamp and log_value
-        filter.limit
-        filter.date - exact date to filter against
-        filter.order = (timestamp) | timestamp_asc | timestamp_desc | random
-    */
+    //
+    //  Find System Log entry(s) by |filter|:
+    //
+    //  - logName: Name of log (required)
+    //  - resultType: 'obj' | 'count' (default='obj')
+    //  - limit: Limit returned results
+    //  - date: exact date to filter against
+    //  - order: 'timestamp' | 'timestamp_asc' | 'timestamp_desc' | 'random'
+    //           (default='timestamp')
+    //
     findSystemLogEntries(filter, cb) {
-        filter = filter || {};
-        if(!_.isString(filter.logName)) {
-            return cb(Errors.MissingParam('filter.logName is required'));
-        }
-
-        filter.resultType   = filter.resultType || 'obj';
-        filter.order        = filter.order || 'timestamp';
-
-        let sql;
-        if('count' === filter.resultType) {
-            sql =
-                `SELECT COUNT() AS count
-                FROM system_event_log`;
-        } else {
-            sql =
-                `SELECT timestamp, log_value
-                FROM system_event_log`;
-        }
-
-        sql += ' WHERE log_name = ?';
-
-        if(filter.date) {
-            filter.date = moment(filter.date);
-            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`;
-        }
-
-        if('count' !== filter.resultType) {
-            switch(filter.order) {
-                case 'timestamp' :
-                case 'timestamp_asc' :
-                    sql += ' ORDER BY timestamp ASC';
-                    break;
-
-                case 'timestamp_desc' :
-                    sql += ' ORDER BY timestamp DESC';
-                    break;
-
-                case 'random'   :
-                    sql += ' ORDER BY RANDOM()';
-                    break;
-            }
-        }
-
-        if(_.isNumber(filter.limit) && 0 !== filter.limit) {
-            sql += ` LIMIT ${filter.limit}`;
-        }
-
-        sql += ';';
-
-        if('count' === filter.resultType) {
-            sysDb.get(sql, [ filter.logName ], (err, row) => {
-                return cb(err, row ? row.count : 0);
-            });
-        } else {
-            sysDb.all(sql, [ filter.logName ], (err, rows) => {
-                return cb(err, rows);
-            });
-        }
+        return this._findLogEntries('system_event_log', filter, cb);
     }
 
     getSystemLogEntries(logName, order, limit, cb) {
@@ -389,6 +332,22 @@ class StatLog {
         return cb(null);
     }
 
+    //
+    //  Find User Log entry(s) by |filter|:
+    //
+    //  - logName: Name of log (required)
+    //  - userId: User ID in which to restrict entries to (missing=all)
+    //  - sessionId: Session ID in which to restrict entries to (missing=any)
+    //  - resultType: 'obj' | 'count' (default='obj')
+    //  - limit: Limit returned results
+    //  - date: exact date to filter against
+    //  - order: 'timestamp' | 'timestamp_asc' | 'timestamp_desc' | 'random'
+    //           (default='timestamp')
+    //
+    findUserLogEntries(filter, cb) {
+        return this._findLogEntries('user_event_log', filter, cb);
+    }
+
     _refreshSystemStat(statName) {
         switch (statName) {
             case SysProps.SystemLoadStats :
@@ -430,6 +389,75 @@ class StatLog {
             .catch(err => {
                 //  :TODO: log me
             });
+    }
+
+    _findLogEntries(logTable, filter, cb) {
+        filter = filter || {};
+        if(!_.isString(filter.logName)) {
+            return cb(Errors.MissingParam('filter.logName is required'));
+        }
+
+        filter.resultType   = filter.resultType || 'obj';
+        filter.order        = filter.order || 'timestamp';
+
+        let sql;
+        if('count' === filter.resultType) {
+            sql =
+                `SELECT COUNT() AS count
+                FROM ${logTable}`;
+        } else {
+            sql =
+                `SELECT timestamp, log_value
+                FROM ${logTable}`;
+        }
+
+        sql += ' WHERE log_name = ?';
+
+        if (_.isNumber(filter.userId)) {
+            sql += ` AND user_id = ${filter.userId}`;
+        }
+
+        if (filter.sessionId) {
+            sql += ` AND session_id = ${filter.sessionId}`;
+        }
+
+        if(filter.date) {
+            filter.date = moment(filter.date);
+            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`;
+        }
+
+        if('count' !== filter.resultType) {
+            switch(filter.order) {
+                case 'timestamp' :
+                case 'timestamp_asc' :
+                    sql += ' ORDER BY timestamp ASC';
+                    break;
+
+                case 'timestamp_desc' :
+                    sql += ' ORDER BY timestamp DESC';
+                    break;
+
+                case 'random'   :
+                    sql += ' ORDER BY RANDOM()';
+                    break;
+            }
+        }
+
+        if(_.isNumber(filter.limit) && 0 !== filter.limit) {
+            sql += ` LIMIT ${filter.limit}`;
+        }
+
+        sql += ';';
+
+        if('count' === filter.resultType) {
+            sysDb.get(sql, [ filter.logName ], (err, row) => {
+                return cb(err, row ? row.count : 0);
+            });
+        } else {
+            sysDb.all(sql, [ filter.logName ], (err, rows) => {
+                return cb(err, rows);
+            });
+        }
     }
 }
 

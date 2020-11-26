@@ -6,6 +6,6 @@
 //
 module.exports = {
     UserAddedRumorz     : 'system_rumorz',
-    UserLoginHistory    : 'user_login_history',
+    UserLoginHistory    : 'user_login_history',     //  JSON object
 };
 
