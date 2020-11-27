@@ -263,7 +263,7 @@ module.exports = () => {
                 port            : 8070,
                 publicHostname  : 'another-fine-enigma-bbs.org',
                 publicPort      : 8070, //  adjust if behind NAT/etc.
-                bannerFile      : 'gopher_banner.asc',
+                staticRoot      : paths.join(__dirname, './../gopher'),
 
                 //
                 //  Set messageConferences{} to maps of confTag -> [ areaTag1, areaTag2, ... ]
