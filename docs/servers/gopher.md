@@ -31,6 +31,8 @@ ENiGMA will pre-process `gophermap` files replacing in following variables:
 
 :information_source: See [Wikipedia](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) for more information on the `gophermap` format.
 
+:information_source: See [RFC 1436](https://tools.ietf.org/html/rfc1436) for the original Gopher spec.
+
 :bulb: Tools such as [gfu](https://rawtext.club/~sloum/gfu.html) may help you with `gophermap`'s
 
 ### Example Gophermap
