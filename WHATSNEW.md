@@ -9,6 +9,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * New `PV` ACS check for arbitrary user properties. See [ACS](./docs/configuration/acs.md) for details.
 * The `message` arg used by `msg_list` has been deprecated. Please starting using `messageIndex` for this purpose. Support for `message` will be removed in the future.
 * Added ability to export/download messages. This is enabled in the default menu. See `messageAreaViewPost` in [the default message base template](./misc/menu_templates/message_base.in.hjson) and look for the download options (`@method:addToDownloadQueue`, etc.) for details on adding to your system!
+* The Gopher server has had a revamp! Standard `gophermap` files are now served along with any other content you configure for your Gopher Hole! A default [gophermap](https://en.wikipedia.org/wiki/Gopher_(protocol)#Source_code_of_a_menu) can be found [in the misc directory](./misc/gophermap) that behaves like the previous implementation. See [Gopher docs](./docs/servers/gopher.md) for more information.
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
