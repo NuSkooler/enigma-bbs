@@ -100,7 +100,9 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `LA` | System load average (e.g. 0.25)<br>(Not available for all platforms) |
 | `CL` | System current load percentage<br>(Not available for all platforms) |
 | `UU` | System uptime in friendly format |
-
+| `LC` | Last caller to the system (username) |
+| `LT` | Time of last caller |
+| `LD` | Date of last caller |
 
 Some additional special case codes also exist:
 

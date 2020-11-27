@@ -10,6 +10,7 @@
 module.exports = {
     LoginCount          : 'login_count',
     LoginsToday         : 'logins_today',   //  non-persistent
+    LastLogin           : 'last_login',     //  object { userId, sessionId, userName, userRealName, timestamp }; non-persistent
 
     FileBaseAreaStats   : 'file_base_area_stats',   //  object - see file_base_area.js::getAreaStats
     FileUlTotalCount    : 'ul_total_count',
@@ -25,19 +26,15 @@ module.exports = {
     MessageTotalCount   : 'message_post_total_count',   //  total non-private messages on the system; non-persistent
     MessagesToday       : 'message_post_today',         //  non-private messages posted/imported today; non-persistent
 
-    //  begin +op non-persistent...
-    SysOpUsername       : 'sysop_username',
-    SysOpRealName       : 'sysop_real_name',
-    SysOpLocation       : 'sysop_location',
-    SysOpAffiliations   : 'sysop_affiliation',
-    SysOpSex            : 'sysop_sex',
-    SysOpEmailAddress   : 'sysop_email_address',
-    //  end +op non-persistent
+    SysOpUsername       : 'sysop_username',         //  non-persistent
+    SysOpRealName       : 'sysop_real_name',        //  non-persistent
+    SysOpLocation       : 'sysop_location',         //  non-persistent
+    SysOpAffiliations   : 'sysop_affiliation',      //  non-persistent
+    SysOpSex            : 'sysop_sex',              //  non-persistent
+    SysOpEmailAddress   : 'sysop_email_address',    //  non-persistent
 
     NextRandomRumor     : 'random_rumor',
 
-    //  begin system stat non-persistent...
-    SystemMemoryStats   : 'system_memory_stats',    // object { totalBytes, freeBytes }
-    SystemLoadStats     : 'system_load_stats',      // object { average, current }
-    //  end system stat non persistent
+    SystemMemoryStats   : 'system_memory_stats',    // object { totalBytes, freeBytes }; non-persistent
+    SystemLoadStats     : 'system_load_stats',      // object { average, current }; non-persistent
 };

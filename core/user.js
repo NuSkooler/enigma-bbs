@@ -630,6 +630,41 @@ module.exports = class User {
         );
     }
 
+    static getUserInfo(userId, propsList, cb) {
+        if (!cb && _.isFunction(propsList)) {
+            cb = propsList;
+            propsList = [
+                UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
+                UserProps.Location, UserProps.Affiliations,
+            ];
+        }
+
+        async.waterfall(
+            [
+                (callback) => {
+                    return User.getUserName(userId, callback);
+                },
+                (userName, callback) => {
+                    User.loadProperties(userId, { names : propsList }, (err, props) => {
+                        return callback(err, Object.assign({}, props, { user_name : userName }));
+                    });
+                }
+            ],
+            (err, userProps) => {
+                if (err) {
+                    return cb(err);
+                }
+
+                const userInfo = {};
+                Object.keys(userProps).forEach(key => {
+                    userInfo[_.camelCase(key)] = userProps[key] || 'N/A';
+                });
+
+                return cb(null, userInfo);
+            }
+        );
+    }
+
     static isRootUserId(userId) {
         return (User.RootUserID === userId);
     }

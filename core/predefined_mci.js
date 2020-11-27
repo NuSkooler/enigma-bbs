@@ -98,7 +98,6 @@ const PREDEFINED_MCI_GENERATORS = {
     SA  : function opAffils() { return StatLog.getSystemStat(SysProps.SysOpAffiliations); },
     SS  : function opSex() { return StatLog.getSystemStat(SysProps.SysOpSex); },
     SE  : function opEmail() { return StatLog.getSystemStat(SysProps.SysOpEmailAddress); },
-    //  :TODO: op age, web, ?????
 
     //
     //  Current user / session
@@ -243,10 +242,6 @@ const PREDEFINED_MCI_GENERATORS = {
     UU  : function systemUptime() {
         return moment.duration(process.uptime(), 'seconds').humanize();
     },
-
-    //  :TODO: MCI for core count, e.g. os.cpus().length
-
-    //  :TODO: cpu load average (over N seconds): http://stackoverflow.com/questions/9565912/convert-the-output-of-os-cpus-in-node-js-to-percentage
     NV  : function nodeVersion() { return process.version; },
     AN  : function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
 
@@ -264,8 +259,6 @@ const PREDEFINED_MCI_GENERATORS = {
 
     //
     //  System File Base, Up/Download Info
-    //
-    //  :TODO: DD - Today's # of downloads (iNiQUiTY)
     //
     SD  : function systemNumDownloads() { return StatLog.getFriendlySystemStat(SysProps.FileDlTotalCount, 0); },
     SO  : function systemByteDownload() {
@@ -308,10 +301,27 @@ const PREDEFINED_MCI_GENERATORS = {
     },
 
     //  :TODO: NT - New users today (Obv/2)
-    //  :TODO: LC - name of last caller to system (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
     //  :TODO: ?? - Total users on system
 
+    LC  : function lastCallerUserName() {   //  Obv/2
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        return lastLogin.userName || 'N/A';
+    },
+    LD  : function lastCallerDate(client) {
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        if (!lastLogin.timestamp) {
+            return 'N/A';
+        }
+        return lastLogin.timestamp.format(client.currentTheme.helpers.getDateFormat());
+    },
+    LT  : function lastCallerTime(client) {
+        const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
+        if (!lastLogin.timestamp) {
+            return 'N/A';
+        }
+        return lastLogin.timestamp.format(client.currentTheme.helpers.getTimeFormat());
+    },
 
     //
     //  Special handling for XY

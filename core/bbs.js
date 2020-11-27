@@ -236,6 +236,8 @@ function initialize(cb) {
                 //
                 const User = require('./user.js');
 
+                //  :TODO: use User.getUserInfo() for this!
+
                 const propLoadOpts = {
                     names   : [
                         UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
@@ -246,7 +248,7 @@ function initialize(cb) {
                 async.waterfall(
                     [
                         function getOpUserName(next) {
-                            return User.getUserName(1, next);
+                            return User.getUserName(User.RootUserID, next);
                         },
                         function getOpProps(opUserName, next) {
                             User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
@@ -273,8 +275,9 @@ function initialize(cb) {
                     }
                 );
             },
-            function initCallsToday(callback) {
+            function initSystemLogStats(callback) {
                 const StatLog = require('./stat_log.js');
+
                 const filter = {
                     logName     : SysLogKeys.UserLoginHistory,
                     resultType  : 'count',
@@ -288,7 +291,7 @@ function initialize(cb) {
                     return callback(null);
                 });
             },
-            function initUserTransferStats(callback) {
+            function initUserLogStats(callback) {
                 const StatLog = require('./stat_log');
 
                 const entries = [
@@ -322,6 +325,33 @@ function initialize(cb) {
                 },
                 () => {
                     return callback(null);
+                });
+            },
+            function initLastLogin(callback) {
+                const StatLog = require('./stat_log');
+                StatLog.getSystemLogEntries(SysLogKeys.UserLoginHistory, 'timestamp_desc', 1, (err, lastLogin) => {
+                    if (err) {
+                        return callback(null);
+                    }
+
+                    let loginObj;
+                    try
+                    {
+                        loginObj = JSON.parse(lastLogin[0].log_value);
+                        loginObj.timestamp = moment(lastLogin[0].timestamp);
+                    }
+                    catch (e)
+                    {
+                        return callback(null);
+                    }
+
+                    //  For live stats we want to resolve user ID -> name, etc.
+                    const User = require('./user');
+                    User.getUserInfo(loginObj.userId, (err, props) => {
+                        const stat = Object.assign({}, props, loginObj);
+                        StatLog.setNonPersistentSystemStat(SysProps.LastLogin, stat);
+                        return callback(null);
+                    });
                 });
             },
             function initMessageStats(callback) {

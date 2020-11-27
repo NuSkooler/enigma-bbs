@@ -30,6 +30,7 @@ const {
 const async             = require('async');
 const _                 = require('lodash');
 const assert            = require('assert');
+const moment            = require('moment');
 
 exports.userLogin             = userLogin;
 exports.recordLogin           = recordLogin;
@@ -176,6 +177,8 @@ function recordLogin(client, cb) {
     assert(client.user.authenticated);  //  don't get in situations where this isn't true
 
     const user = client.user;
+    const loginTimestamp = StatLog.now;
+
     async.parallel(
         [
             (callback) => {
@@ -183,7 +186,7 @@ function recordLogin(client, cb) {
                 return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
             },
             (callback) => {
-                return StatLog.setUserStat(user, UserProps.LastLoginTs, StatLog.now, callback);
+                return StatLog.setUserStat(user, UserProps.LastLoginTs, loginTimestamp, callback);
             },
             (callback) => {
                 return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
@@ -202,6 +205,24 @@ function recordLogin(client, cb) {
                     StatLog.KeepType.Max,
                     callback
                 );
+            },
+            (callback) => {
+                //  Update live last login information which includes additional
+                //  (pre-resolved) information such as user name/etc.
+                const lastLogin = {
+                    userId          : user.userId,
+                    sessionId       : user.sessionId,
+                    userName        : user.username,
+                    realName        : user.getProperty(UserProps.RealName),
+                    affiliation     : user.getProperty(UserProps.Affiliations),
+                    emailAddress    : user.getProperty(UserProps.EmailAddress),
+                    sex             : user.getProperty(UserProps.Sex),
+                    location        : user.getProperty(UserProps.Location),
+                    timestamp       : moment(loginTimestamp),
+                };
+
+                StatLog.setNonPersistentSystemStat(SysProps.LastLogin, lastLogin);
+                return callback(null);
             }
         ],
         err => {
