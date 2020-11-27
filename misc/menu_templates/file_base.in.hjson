@@ -73,6 +73,7 @@
                     mci: {
                         MT1: {
                             mode: preview
+                            acceptsFocus: false
                         }
 
                         HM2: {
@@ -151,6 +152,10 @@
                         {
                             keys: [ "?" ]
                             action: @method:displayHelp
+                        }
+                        {
+                            keys: [ "down arrow", "up arrow", "page up", "page down" ]
+                            action: @method:movementKeyPressed
                         }
                     ]
                 }

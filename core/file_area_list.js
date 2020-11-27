@@ -144,7 +144,10 @@ exports.getModule = class FileAreaList extends MenuModule {
             },
             displayHelp : (formData, extraArgs, cb) => {
                 return this.displayHelpPage(cb);
-            }
+            },
+            movementKeyPressed : (formData, extraArgs, cb) => {
+                return this._handleMovementKeyPress(_.get(formData, 'key.name'), cb);
+            },
         };
     }
 
@@ -503,6 +506,23 @@ exports.getModule = class FileAreaList extends MenuModule {
                 });
             }
         );
+    }
+
+    _handleMovementKeyPress(keyName, cb) {
+        const descView  = this.viewControllers.browse.getView(MciViewIds.browse.desc);
+        if (!descView) {
+            return cb(null);
+        }
+
+        switch (keyName) {
+            case 'down arrow'   : descView.scrollDocumentUp(); break;
+            case 'up arrow'     : descView.scrollDocumentDown(); break;
+            case 'page up'      : descView.keyPressPageUp(); break;
+            case 'page down'    : descView.keyPressPageDown(); break;
+        }
+
+        this.viewControllers.browse.switchFocus(MciViewIds.browse.navMenu);
+        return cb(null);
     }
 
     fetchAndDisplayWebDownloadLink(cb) {
