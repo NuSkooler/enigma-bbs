@@ -36,11 +36,19 @@ function getActiveConnectionList(authUsersOnly) {
     const now = moment();
 
     return _.map(getActiveConnections(authUsersOnly), ac => {
+        let action;
+        try {
+            //  attempting to fetch a bad menu stack item can blow up/assert
+            action = _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown');
+        } catch(e) {
+            action = 'Unknown';
+        }
+
         const entry = {
             node            : ac.node,
             authenticated   : ac.user.isAuthenticated(),
             userId          : ac.user.userId,
-            action          : _.get(ac, 'currentMenuModule.menuConfig.desc', 'Unknown'),
+            action          : action,
             serverName      : ac.session.serverName,
             isSecure        : ac.session.isSecure,
         };

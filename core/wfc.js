@@ -103,6 +103,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     leave() {
+        _.remove(Log.log.streams, stream => {
+            return stream.name === 'wfc-ringbuffer';
+        });
+
         this._stopRefreshing();
 
         super.leave();
