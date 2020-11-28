@@ -246,6 +246,34 @@
 				}
 			}
 
+			mainMenuWaitingForCaller: {
+				config: {
+					quickLogLevel: warn
+					quickLogLevelIndicators: {
+						trace : |00|02T
+						debug: |00|03D
+						info: |00|15I
+						warn: |00|14W
+						error: |00|12E
+						fatal: |00|28F
+					}
+				}
+				0: {
+					mci: {
+						VM1: {
+							height: 5
+							widht: 37
+							itemFormat: "|00|11{node:<3.2} |10{userName:>13} |08> |04{action:<14.13} |14{serverName}"
+						}
+						VM2: {
+							height: 5
+							width: 73
+							itemFormat: "{levelIndicator} |15{timestamp} |07{message}"
+						}
+					}
+				}
+			}
+
 			messageBaseMessageList: {
 				config: {
 					dateTimeFormat: ddd MMM Do

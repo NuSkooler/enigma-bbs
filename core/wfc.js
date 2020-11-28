@@ -4,12 +4,15 @@ const { MenuModule } = require('./menu_module');
 const { getActiveConnectionList } = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
+const Log = require('./logger');
+const Config = require('./config.js').get;
 
 //  deps
 const async = require('async');
 const _ = require('lodash');
 const moment = require('moment');
 const SysInfo = require('systeminformation');
+const bunyan = require('bunyan');
 
 exports.moduleInfo = {
     name        : 'WFC',
@@ -63,6 +66,26 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         return callback(null);
                     },
                     (callback) => {
+                        const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
+                        if (!quickLogView) {
+                            return callback(null);
+                        }
+
+                        const logLevel = this.config.quickLogLevel ||
+                            _.get(Config(), 'logging.rotatingFile.level') ||
+                            'info';
+
+                        this.logRingBuffer = new bunyan.RingBuffer({ limit : quickLogView.dimens.height || 24 });
+                        Log.log.addStream({
+                            name    : 'wfc-ringbuffer',
+                            type    : 'raw',
+                            level   : logLevel,
+                            stream  : this.logRingBuffer
+                        });
+
+                        return callback(null);
+                    },
+                    (callback) => {
                         return this._refreshStats(callback);
                     },
                     (callback) => {
@@ -70,14 +93,59 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     }
                 ],
                 err => {
+                    if (!err) {
+                        this._startRefreshing();
+                    }
                     return cb(err);
                 }
             );
         });
     }
 
+    leave() {
+        this._stopRefreshing();
+
+        super.leave();
+    }
+
+    _startRefreshing() {
+        this.mainRefreshTimer = setInterval( () => {
+            this._refreshAll();
+        }, 5000);
+    }
+
+    _stopRefreshing() {
+        if (this.mainRefreshTimer) {
+            clearInterval(this.mainRefreshTimer);
+            delete this.mainRefreshTimer;
+        }
+    }
+
+    _refreshAll(cb) {
+        async.series(
+            [
+                (callback) => {
+                    return this._refreshStats(callback);
+                },
+                (callback) => {
+                    return this._refreshNodeStatus(callback);
+                },
+                (callback) => {
+                    return this._refreshQuickLog(callback);
+                }
+            ],
+            err => {
+                if (cb) {
+                    return cb(err);
+                }
+            }
+        );
+    }
+
     _refreshStats(cb) {
         const fileAreaStats = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
+        const sysMemStats   = StatLog.getSystemStat(SysProps.SystemMemoryStats);
+        const sysLoadStats  = StatLog.getSystemStat(SysProps.SystemLoadStats);
 
         //  Some stats we can just fill right away
         this.stats = {
@@ -118,27 +186,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             // lastCaller             :
             // lastCallerDate
             // lastCallerTime
+
+            totalMemoryBytes        : sysMemStats.totalBytes,
+            freeMemoryBytes         : sysMemStats.freeBytes,
+            systemAvgLoad           : sysLoadStats.average,
+            systemCurrentLoad       : sysLoadStats.current,
         };
 
-        //  Some async work required...
-        //  :TODO: replace with stat log stats
-        const basicSysInfo = {
-            mem         : 'total, free',
-            currentLoad : 'avgload, currentLoad',
-        };
-
-        SysInfo.get(basicSysInfo)
-            .then(sysInfo => {
-                this.stats.totalMemoryBytes     = sysInfo.mem.total;
-                this.stats.freeMemoryBytes      = sysInfo.mem.free;
-
-                //  Not avail on BSD, yet.
-                this.stats.systemAvgLoad        = _.get(sysInfo, 'currentLoad.avgload', 0);
-                this.stats.systemCurrentLoad    = _.get(sysInfo, 'currentLoad.currentLoad', 0);
-            })
-            .catch(err => {
-                return cb(err);
-            });
+        return cb(null);
     }
 
     _refreshNodeStatus(cb) {
@@ -147,20 +202,72 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        const nodeStatusItems = getActiveConnectionList(false).slice(0, nodeStatusView.height).map(ac => {
+        const nodeStatusItems = getActiveConnectionList(false).slice(0, nodeStatusView.dimens.height).map(ac => {
             //  Handle pre-authenticated
             if (!ac.authenticated) {
-                ac.text     = ac.username = 'Pre Auth';
+                ac.text     = ac.userName = 'Pre Auth';
                 ac.action   = 'Logging In';
             }
 
             return Object.assign(ac, {
-                timeOn : _.upperFirst(ac.timeOn.humanize()),    //  make friendly
+                timeOn : _.upperFirst((ac.timeOn || moment.duration(0)).humanize()),    //  make friendly
             });
         });
 
         nodeStatusView.setItems(nodeStatusItems);
         nodeStatusView.redraw();
+
+        return cb(null);
+    }
+
+    _refreshQuickLog(cb) {
+        const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
+        if (!quickLogView) {
+            return cb(null);
+        }
+
+        const records = this.logRingBuffer.records;
+        if (records.length === 0) {
+            return cb(null);
+        }
+
+        const hasChanged = this.lastLogTime !== records[records.length - 1].time;
+        this.lastLogTime = records[records.length - 1].time;
+
+        if (!hasChanged) {
+            return cb(null);
+        }
+
+        const quickLogTimestampFormat = this.config.quickLogTimestampFormat ||
+            this.getDateTimeFormat('short');
+
+        const levelIndicators = this.config.quickLogLevelIndicators ||
+            {
+                trace   : 'T',
+                debug   : 'D',
+                info    : 'I',
+                warn    : 'W',
+                error   : 'E',
+                fatal   : 'F',
+            };
+
+        const makeLevelIndicator = (level) => {
+            return levelIndicators[bunyan.nameFromLevel[level]] || '?';
+        };
+
+        const logItems = records.map(rec => {
+            return {
+                timestamp       : moment(rec.time).format(quickLogTimestampFormat),
+                level           : rec.level,
+                levelIndicator  : makeLevelIndicator(rec.level),
+                nodeId          : rec.nodeId,
+                sessionId       : rec.sessionId || '',
+                message         : rec.msg,
+            };
+        });
+
+        quickLogView.setItems(logItems);
+        quickLogView.redraw();
 
         return cb(null);
     }

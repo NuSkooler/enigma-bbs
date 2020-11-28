@@ -254,9 +254,7 @@ function ViewController(options) {
             const view = self.getView(viewId);
 
             if(!view) {
-                self.client.log.warn( { viewId : viewId }, 'Cannot find view');
-                nextItem(null);
-                return;
+                return nextItem(null);
             }
 
             const mciConf = config.mci[mci];
@@ -276,11 +274,9 @@ function ViewController(options) {
         err => {
             //  default to highest ID if no 'submit' entry present
             if(!submitId) {
-                var highestIdView = self.getView(highestId);
+                const highestIdView = self.getView(highestId);
                 if(highestIdView) {
                     highestIdView.submit = true;
-                } else {
-                    self.client.log.warn( { highestId : highestId }, 'View does not exist');
                 }
             }
 
