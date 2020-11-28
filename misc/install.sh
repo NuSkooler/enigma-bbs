@@ -146,6 +146,12 @@ install_node_packages() {
     fi
 }
 
+copy_template_files() {
+    if [[ ! -f "./gopher/gophermap" ]]; then
+        cp "./misc/gophermap" "./gopher/gophermap"
+    fi
+}
+
 enigma_footer() {
     log "ENiGMA½ installation complete!"
     echo -e "\e[1;33m"
@@ -189,6 +195,7 @@ install_nvm
 configure_nvm
 download_enigma_source
 install_node_packages
+copy_template_files
 enigma_footer
 
 } # this ensures the entire script is downloaded before execution

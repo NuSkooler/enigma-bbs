@@ -215,19 +215,21 @@ exports.getModule = class WebServerModule extends ServerModule {
 
     routeIndex(req, resp) {
         const filePath = paths.join(Config().contentServers.web.staticRoot, 'index.html');
-
         return this.returnStaticPage(filePath, resp);
     }
 
     routeStaticFile(req, resp) {
         const fileName = req.url.substr(req.url.indexOf('/', 1));
-        const filePath = paths.join(Config().contentServers.web.staticRoot, fileName);
-
+        const filePath = this.resolveStaticPath(fileName);
         return this.returnStaticPage(filePath, resp);
     }
 
     returnStaticPage(filePath, resp) {
         const self = this;
+
+        if (!filePath) {
+            return this.fileNotFound(resp);
+        }
 
         fs.stat(filePath, (err, stats) => {
             if(err || !stats.isFile()) {
@@ -243,6 +245,14 @@ exports.getModule = class WebServerModule extends ServerModule {
             resp.writeHead(200, headers);
             return readStream.pipe(resp);
         });
+    }
+
+    resolveStaticPath(requestPath) {
+        const staticRoot = _.get(Config(), 'contentServers.web.staticRoot');
+        const path = paths.resolve(staticRoot, `.${requestPath}`);
+        if (path.startsWith(staticRoot)) {
+            return path;
+        }
     }
 
     routeTemplateFilePage(templatePath, preprocessCallback, resp) {
