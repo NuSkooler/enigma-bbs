@@ -457,6 +457,16 @@ module.exports = class FileEntry {
         );
     }
 
+    //
+    //  Find file(s) by |filter|
+    //
+    //  - sort: sort results by any well known name, file_id, or user_rating
+    //  - terms: one or more search terms to search within filenames as well
+    //    as short and long descriptions. We attempt to use the FTS ability when
+    //    possible, but want to allow users to search for wildcard matches in
+    //    which some cases we'll use multiple LIKE queries.
+    //    See _normalizeFileSearchTerms()
+    //
     static findFiles(filter, cb) {
         filter = filter || {};
 
@@ -500,8 +510,8 @@ module.exports = class FileEntry {
                 if('user_rating' === filter.sort) {
                     sql =
                         `SELECT DISTINCT f.file_id,
-                            (SELECT IFNULL(AVG(rating), 0) rating 
-                            FROM file_user_rating 
+                            (SELECT IFNULL(AVG(rating), 0) rating
+                            FROM file_user_rating
                             WHERE file_id = f.file_id)
                             AS avg_rating
                         FROM file f`;
@@ -540,16 +550,16 @@ module.exports = class FileEntry {
                     mp.value = mp.value.replace(/\*/g, '%').replace(/\?/g, '_');
                     appendWhereClause(
                         `f.file_id IN (
-                            SELECT file_id 
-                            FROM file_meta 
+                            SELECT file_id
+                            FROM file_meta
                             WHERE meta_name = "${mp.name}" AND meta_value LIKE "${mp.value}"
                         )`
                     );
                 } else {
                     appendWhereClause(
                         `f.file_id IN (
-                            SELECT file_id 
-                            FROM file_meta 
+                            SELECT file_id
+                            FROM file_meta
                             WHERE meta_name = "${mp.name}" AND meta_value = "${mp.value}"
                         )`
                     );
@@ -562,14 +572,29 @@ module.exports = class FileEntry {
         }
 
         if(filter.terms && filter.terms.length > 0) {
-            //  note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
-            appendWhereClause(
-                `f.file_id IN (
-                    SELECT rowid
-                    FROM file_fts
-                    WHERE file_fts MATCH ":${sanitizeString(filter.terms)}"
-                )`
-            );
+            const [terms, queryType] = FileEntry._normalizeFileSearchTerms(filter.terms);
+
+            if ('fts_match' === queryType) {
+                //  note the ':' in MATCH expr., see https://www.sqlite.org/cvstrac/wiki?p=FullTextIndex
+                appendWhereClause(
+                    `f.file_id IN (
+                        SELECT rowid
+                        FROM file_fts
+                        WHERE file_fts MATCH ":${terms}"
+                    )`
+                );
+            } else {
+                appendWhereClause(
+                    `(f.file_name LIKE "${terms}" OR
+                    f.desc LIKE "${terms}" OR
+                    f.desc_long LIKE "${terms}")`
+                );
+            }
+        }
+
+        //  handle e.g. 1998 -> "1998"
+        if (_.isNumber(filter.tags)) {
+            filter.tags = filter.tags.toString();
         }
 
         if(filter.tags && filter.tags.length > 0) {
@@ -692,5 +717,47 @@ module.exports = class FileEntry {
                 return cb(err);
             }
         );
+    }
+
+    static _normalizeFileSearchTerms(terms) {
+        //  ensure we have reasonable input to start with
+        terms = sanitizeString(terms.toString());
+
+        //	No wildcards?
+        const hasSingleCharWC = terms.indexOf('?') > -1;
+        if (terms.indexOf('*') === -1 && !hasSingleCharWC) {
+            return [ terms, 'fts_match' ];
+        }
+
+        const prepareLike = () => {
+            //	Convert * and ? to SQL LIKE style
+            terms = terms.replace(/\*/g, '%').replace(/\?/g, '_');
+            return terms;
+        };
+
+        //	Any ? wildcards?
+        if (hasSingleCharWC) {
+            return [ prepareLike(terms), 'like' ];
+        }
+
+        const split = terms.replace(/\s+/g, ' ').split(' ');
+        const useLike = split.some(term => {
+            if (term.indexOf('?') > -1) {
+                return true;
+            }
+
+            const wcPos = term.indexOf('*');
+            if (wcPos > -1 && wcPos !== term.length - 1) {
+                return true;
+            }
+
+            return false;
+        });
+
+        if (useLike) {
+            return [ prepareLike(terms), 'like' ];
+        }
+
+        return [ terms, 'fts_match' ];
     }
 };
