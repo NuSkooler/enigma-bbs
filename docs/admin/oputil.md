@@ -76,7 +76,16 @@ Actions:
 
   lock USERNAME                Set a user's status to "locked"
 
-  group USERNAME [+|-]GROUP    Adds (+) or removes (-) user from a group
+  group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
+
+  list [FILTER]                List users with optional FILTER.
+
+  Valid filters:
+    all      : All users (default).
+    disabled : Disabled users.
+    inactive : Inactive users.
+    active   : Active (regular) users.
+    locked   : Locked users.
 
 info arguments:
   --security                   Include security information in output
@@ -104,7 +113,7 @@ info arguments:
 | `deactivate`    | Deactivates user  | `./oputil.js user deactivate joeuser` | N/A   |
 | `disable`   | Disables user (user will not be able to login)    | `./oputil.js user disable joeuser`    | N/A   |
 | `lock` | Locks the user account (prevents logins) | `./oputil.js user lock joeuser` | N/A |
-| `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser -derp`   | N/A    |
+| `group`   | Modifies users group membership   | Add to group: `./oputil.js user group joeuser +derp`<br/>Remove from group: `./oputil.js user group joeuser ~derp`   | N/A    |
 
 #### Manage 2FA/OTP
 While `oputil.js` can be used to manage a user's 2FA/OTP, it is highly recommended to require users to opt-in themselves. See [Security](../configuration/security.md) for details.
