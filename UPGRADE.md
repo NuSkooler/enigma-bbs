@@ -39,6 +39,13 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
     ]
 }
 ```
+* A set of database fixes were made that cause some records to be properly cleaned up when e.g. deleting a file. Existing `file.db` databases will need to be updated **manually**. Note that this applies to users upgrading within 0.0.12-beta as well:
+1. **Make a backup of your file.db!**
+2. Shut down ENiGMA.
+3. From the enigma-bbs directory:
+```
+sqlite3 db/file.sqlite3 < ./misc/update/tables_update_2020-11-29.sql
+```
 
 # 0.0.10-alpha to 0.0.11-beta
 * Node.js 12.x LTS is now in use. Follow standard Node.js upgrade procedures (e.g.: `nvm install 12 && nvm use 12`).
