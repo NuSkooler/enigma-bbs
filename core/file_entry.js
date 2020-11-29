@@ -243,6 +243,15 @@ module.exports = class FileEntry {
         );
     }
 
+    static removeUserRatings(userId, cb) {
+        return fileDb.run(
+            `DELETE FROM file_user_rating
+            WHERE user_id = ?;`,
+            [ userId ],
+            cb
+        );
+    }
+
     static persistMetaValue(fileId, name, value, transOrDb, cb) {
         if(!_.isFunction(cb) && _.isFunction(transOrDb)) {
             cb = transOrDb;
