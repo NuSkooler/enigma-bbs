@@ -13,6 +13,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Default file browser up/down/pageUp/pageDown scrolls description (e.g. FILE_ID.DIZ). If you want to expose this on an existing system see the `fileBaseListEntries` in the default `file_base.in.hjson` template.
 * File base search has had an improvement to search term handling.
 * `./oputil user group -group` to now accepts `~group` removing the need for special handling of the "-" character. #331
+* A fix has been made to clean up old `file.db` entries when a file is removed. Previously stale records could be left or even recycled into new entries. Please see [UPGRADE.md](UPGRADE.md) for details on applying this fix (look for `tables_update_2020-11-29.sql`).
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!

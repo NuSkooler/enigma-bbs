@@ -172,6 +172,7 @@ function removeUser(user) {
                     message : [ 'user_message_area_last_read' ],
                     system  : [ 'user_event_log', ],
                     user    : [ 'user_group_member', 'user' ],
+                    file    : [ 'file_user_rating']
                 };
 
                 async.eachSeries(Object.keys(DeleteFrom), (dbName, nextDbName) => {
