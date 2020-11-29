@@ -204,7 +204,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                 },
                 function display(callback) {
                     return self.displayBrowsePage(false, err => {
-                        if(err && 'NORESULTS' === err.reasonCode) {
+                        if(err) {
                             self.gotoMenu(self.menuConfig.config.noResultsMenu || 'fileBaseListEntriesNoResults');
                         }
                         return callback(err);
@@ -740,7 +740,7 @@ exports.getModule = class FileAreaList extends MenuModule {
             }
 
             FileEntry.findFiles(filterCriteria, (err, fileIds) => {
-                this.fileList = fileIds;
+                this.fileList = fileIds || [];
                 return cb(err);
             });
         }
