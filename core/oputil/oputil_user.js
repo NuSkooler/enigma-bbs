@@ -275,7 +275,7 @@ function modUserGroups(user) {
     let groupName = argv._[argv._.length - 1].toString().replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
     let action = groupName[0];	//	+ or -
 
-    if('-' === action || '+' === action) {
+    if('-' === action || '+' === action || '~' === action) {
         groupName = groupName.substr(1);
     }
 
@@ -286,7 +286,7 @@ function modUserGroups(user) {
     }
 
     //
-    //	Groups are currently arbritary, so do a slight validation
+    //	Groups are currently arbitrary, so do a slight validation
     //
     if(!/[A-Za-z0-9]+/.test(groupName)) {
         process.exitCode = ExitCodes.BAD_ARGS;
@@ -303,7 +303,7 @@ function modUserGroups(user) {
     }
 
     const UserGroup = require('../../core/user_group.js');
-    if('-' === action) {
+    if('-' === action || '~' === action) {
         UserGroup.removeUserFromGroup(user.userId, groupName, done);
     } else {
         UserGroup.addUserToGroup(user.userId, groupName, done);
