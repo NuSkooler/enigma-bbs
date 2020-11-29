@@ -421,7 +421,8 @@ const DB_INIT_TABLE = {
                 hash_tag_id     INTEGER NOT NULL,
                 file_id         INTEGER NOT NULL,
 
-                UNIQUE(hash_tag_id, file_id)
+                UNIQUE(hash_tag_id, file_id),
+                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );`
         );
 
