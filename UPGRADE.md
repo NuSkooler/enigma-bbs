@@ -2,7 +2,7 @@
 This document covers basic upgrade notes for major ENiGMA½ version updates.
 
 # Before Upgrading
-* Always back up your system! (See [Administration](/docs/admin/administration.md))
+* Always back up your system! (See [Administration](./docs/admin/administration.md))
 * Seriously, always back up your system!
 
 # General Notes
@@ -12,7 +12,7 @@ In general, look at template menu files in `misc/menu_templates`, and `config_te
 ### Menus & Theme Updates
 Upgrades often come with changes to the default menu templates found in `misc/menu_tempaltes`. You can use these as references for changes and additions to the default menu sets. This also applies to the default `luciano_blocktronics` theme and it's `theme.hjson` file.
 
-See [Updating](/docs/admin/updating.md) for details on menu files/etc.
+See [Updating](./docs/admin/updating.md) for details on menu files/etc.
 
 # Upgrading the Code
 Upgrading from GitHub is easy:
@@ -38,6 +38,13 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
         my-prompts.hjson // ref your old prompts here
     ]
 }
+```
+* A set of database fixes were made that cause some records to be properly cleaned up when e.g. deleting a file. Existing `file.db` databases will need to be updated **manually**. Note that this applies to users upgrading within 0.0.12-beta as well:
+1. **Make a backup of your file.db!**
+2. Shut down ENiGMA.
+3. From the enigma-bbs directory:
+```
+sqlite3 db/file.sqlite3 < ./misc/update/tables_update_2020-11-29.sql
 ```
 
 # 0.0.10-alpha to 0.0.11-beta

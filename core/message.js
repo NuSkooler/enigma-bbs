@@ -134,7 +134,7 @@ module.exports = class Message {
             modTimestamp = moment(modTimestamp);
         }
 
-        this.modTimestamp   = modTimestamp;
+        this.modTimestamp = modTimestamp || moment();
 
         this.meta = {};
         _.defaultsDeep(this.meta, { System : {} }, meta);
@@ -634,7 +634,9 @@ module.exports = class Message {
                             self.fromUserName   = msgRow.from_user_name;
                             self.subject        = msgRow.subject;
                             self.message        = msgRow.message;
-                            self.modTimestamp   = moment(msgRow.modified_timestamp);
+
+                            //  We use parseZone() to *preserve* the time zone information
+                            self.modTimestamp   = moment.parseZone(msgRow.modified_timestamp);
 
                             return callback(err);
                         }
@@ -695,11 +697,10 @@ module.exports = class Message {
                 },
                 function storeMessage(trans, callback) {
                     //  generate a UUID for this message if required (general case)
-                    const msgTimestamp = moment();
                     if(!self.messageUuid) {
                         self.messageUuid = Message.createMessageUUID(
                             self.areaTag,
-                            msgTimestamp,
+                            self.modTimestamp,
                             self.subject,
                             self.message
                         );
@@ -710,7 +711,7 @@ module.exports = class Message {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
                         [
                             self.areaTag, self.messageUuid, self.replyToMsgId, self.toUserName,
-                            self.fromUserName, self.subject, self.message, getISOTimestampString(msgTimestamp)
+                            self.fromUserName, self.subject, self.message, getISOTimestampString(self.modTimestamp)
                         ],
                         function inserted(err) {    //  use non-arrow function for 'this' scope
                             if(!err) {

@@ -6,6 +6,7 @@ title: NNTP Server
 The NNTP *content server* provides access to publicly exposed message conferences and areas over either **secure** NNTPS (NNTP over TLS or nttps://) and/or non-secure NNTP (nntp://).
 
 ## Configuration
+
 | Item | Required | Description |
 |------|----------|-------------|
 | `nntp` | :-1: | Configuration block for non-secure NNTP. See Non-Secure NNTP Configuration below. |

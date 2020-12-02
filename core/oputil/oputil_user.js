@@ -30,6 +30,10 @@ function initAndGetUser(userName, cb) {
                 const User = require('../../core/user.js');
                 User.getUserIdAndName(userName, (err, userId) => {
                     if(err) {
+                        //  try user ID if number was supplied
+                        if (_.isNumber(userName)) {
+                            return User.getUser(parseInt(userName), callback);
+                        }
                         return callback(err);
                     }
                     return User.getUser(userId, callback);
@@ -168,6 +172,7 @@ function removeUser(user) {
                     message : [ 'user_message_area_last_read' ],
                     system  : [ 'user_event_log', ],
                     user    : [ 'user_group_member', 'user' ],
+                    file    : [ 'file_user_rating']
                 };
 
                 async.eachSeries(Object.keys(DeleteFrom), (dbName, nextDbName) => {
@@ -271,7 +276,7 @@ function modUserGroups(user) {
     let groupName = argv._[argv._.length - 1].toString().replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
     let action = groupName[0];	//	+ or -
 
-    if('-' === action || '+' === action) {
+    if('-' === action || '+' === action || '~' === action) {
         groupName = groupName.substr(1);
     }
 
@@ -282,7 +287,7 @@ function modUserGroups(user) {
     }
 
     //
-    //	Groups are currently arbritary, so do a slight validation
+    //	Groups are currently arbitrary, so do a slight validation
     //
     if(!/[A-Za-z0-9]+/.test(groupName)) {
         process.exitCode = ExitCodes.BAD_ARGS;
@@ -299,7 +304,7 @@ function modUserGroups(user) {
     }
 
     const UserGroup = require('../../core/user_group.js');
-    if('-' === action) {
+    if('-' === action || '~' === action) {
         UserGroup.removeUserFromGroup(user.userId, groupName, done);
     } else {
         UserGroup.addUserToGroup(user.userId, groupName, done);
@@ -329,12 +334,17 @@ function showUserInfo(user) {
         return user.properties[p] || 'N/A';
     };
 
+    const currentTheme = () => {
+        return user.properties[UserProps.ThemeId];
+    };
+
     const stdInfo = `User information:
 Username     : ${user.username}${user.isRoot() ? ' (root/SysOp)' : ''}
 Real name    : ${propOrNA(UserProps.RealName)}
 ID           : ${user.userId}
 Status       : ${statusDesc()}
 Groups       : ${user.groups.join(', ')}
+Theme ID     : ${currentTheme()}
 Created      : ${created()}
 Last login   : ${lastLogin()}
 Login count  : ${propOrNA(UserProps.LoginCount)}

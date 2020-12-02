@@ -3,9 +3,11 @@ layout: page
 title: System Configuration
 ---
 ## System Configuration
-The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. The default path is `/enigma-bbs-install-path/config/config.hjson` though you can override the `config.hjson` location with the `--config` parameter when invoking `main.js`. Values found in `core/config_default.js` may be overridden by simply providing the object members you wish replace.
+The main system configuration file, `config.hjson` both overrides defaults and provides additional configuration such as message areas. Defaults lived in `core/config_default.js`.
 
-See also [HJSON General Information](hjson.md) for more information on the HJSON format.
+The default path is `/enigma-bbs/config/config.hjson` though this can be overridden using the `--config` parameter when invoking `main.js`.
+
+:information_source: See also [Configuration Files](config-files.md). Additionally [HJSON General Information](hjson.md) may be helpful for more information on the HJSON format.
 
 ### Creating a Configuration
 Your initial configuration skeleton should be created using the `oputil.js` command line utility. From your enigma-bbs root directory:
@@ -41,8 +43,8 @@ Below is a list of various configuration sections. There are many more, but this
 * [Archivers](archivers.md): Set up external archive utilities for handling things like ZIP, ARJ, RAR, and so on.
 * [Email](email.md): System email support.
 * [Event Scheduler](event-scheduler.md): Set up events as you see fit!
-* [File Base](/docs/filebase/index.md)
+* [File Base](../filebase/index.md)
 * [File Transfer Protocols](file-transfer-protocols.md): Oldschool file transfer protocols such as X/Y/Z-Modem!
-* [Message Areas](/docs/messageareas/configuring-a-message-area.md), [Networks](/docs/messageareas/message-networks.md), [NetMail](/docs/messageareas/netmail.md), etc.
+* [Message Areas](../messageareas/configuring-a-message-area.md), [Networks](../messageareas/message-networks.md), [NetMail](../messageareas/netmail.md), etc.
 * ...and a **lot** more! Explore the docs! If you can't find something, please contact us!
 

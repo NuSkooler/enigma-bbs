@@ -16,7 +16,7 @@ ENiGMA½ is a modern BBS software with a nostalgic flair!
  * [CP437](http://www.ascii-codes.com/) and UTF-8 output
  * [SyncTERM](http://syncterm.bbsdev.net/) style font and baud emulation support. Display PC/DOS and Amiga style artwork as it's intended! In general, ANSI-BBS / [cterm.txt](http://cvs.synchro.net/cgi-bin/viewcvs.cgi/*checkout*/src/conio/cterm.txt?content-type=text%2Fplain&revision=HEAD) / [bansi.txt](http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt) are followed for expected BBS behavior.
  * Full [SAUCE](http://www.acid.org/info/sauce/sauce.htm) support.
- * Renegade style [pipe color codes](/docs/configuration/colour-codes.md).
+ * Renegade style [pipe color codes](./configuration/colour-codes.md).
  * [SQLite](http://sqlite.org/) storage of users, message areas, etc.
  * Strong [PBKDF2](https://en.wikipedia.org/wiki/PBKDF2) backed password encryption.
  * Support for 2-Factor Authentication with One-Time-Passwords

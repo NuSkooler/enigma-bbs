@@ -3,7 +3,7 @@ layout: page
 title: Menu HSJON
 ---
 ## Menu HJSON
-The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determines the menus (or screens) a user can see, the order they come in and how they interact with each other, ACS configuration, etc. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
+The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determines the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
 
 Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
 
@@ -13,6 +13,15 @@ Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each en
 
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 
+Below is a very basic menu entry called `showSomeArt` that displays some art then returns to the previous menu after the user hits a key:
+```hjson
+showSomeArt: {
+  art: someart.ans
+  config: { pause: true }
+}
+```
+As you can see a menu can be very simple.
+
 :information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
 
 ## Common Menu Entry Members
@@ -21,8 +30,8 @@ Below is a table of **common** menu entry members. These members apply to most e
 | Item   | Description  |
 |--------|--------------|
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
-| `art` | An art file *spec*. See [General Art Information](/docs/art/general.md). |
-| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. |
+| `art` | An art file *spec*. See [General Art Information](../art/general.md). |
+| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. Note that special built in methods such as `@systemMethod:logoff` can also be utilized here. |
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in the `prompts` section. See **Prompts** for more information. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
@@ -32,7 +41,7 @@ Below is a table of **common** menu entry members. These members apply to most e
 ### Menu Modules
 A given menu entry is backed by a *menu module*. That is, the code behind it. Menus are considered "standard" if the `module` member is not specified (and therefore backed by `core/standard_menu.js`).
 
-See [Menu Modules](/docs/modding/menu-modules.md) for more information.
+See [Menu Modules](../modding/menu-modules.md) for more information.
 
 ### Config Block
 The `config` block for a menu entry can contain common members as well as a per-module (when `module` is used) settings.
@@ -42,8 +51,8 @@ The `config` block for a menu entry can contain common members as well as a per-
 | `cls` | If `true` the screen will be cleared before showing this menu. |
 | `pause` | If `true` a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens. |
 | `nextTimeout` | Sets the number of **milliseconds** before the system will automatically advanced to the `next` menu. |
-| `baudRate` | See baud rate information in [General Art Information](/docs/art/general.md). |
-| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](/docs/art/general.md). |
+| `baudRate` | See baud rate information in [General Art Information](../art/general.md). |
+| `font` | Sets a SyncTERM style font to use when displaying this menus `art`. See font listing in [General Art Information](../art/general.md). |
 | `menuFlags` | An array of menu flag(s) controlling menu behavior. See **Menu Flags** below.
 
 #### Menu Flags
@@ -61,7 +70,7 @@ ENiGMA½ uses a concept of *forms* in menus. A form is a collection of associate
 
 Menus may also support more than one layout type by using a *MCI key*. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (`VM` key) while another uses a horizontal (`HM` key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in `menu.hjson`.
 
-For more information on views and associated MCI codes, see [MCI Codes](/docs/art/mci.md).
+For more information on views and associated MCI codes, see [MCI Codes](../art/mci.md).
 
 ## Submit Handlers
 When a form is submitted, it's data is matched against a *submit handler*. When a match is found, it's *action* is performed.
@@ -126,7 +135,7 @@ telnetConnected: {
 ```
 
 The above entry `telnetConnected` is set as the Telnet server's first menu entry (set by `firstMenu` in the Telnet server's config). The entry sets up a few things:
-* A `art` spec of `CONNECT`. (See [General Art Information](/docs/art/general.md)).
+* A `art` spec of `CONNECT`. (See [General Art Information](../art/general.md)).
 * A `next` entry up the next menu, by name, in the stack (`matrix`) that we'll go to after `telnetConnected`.
 * An `config` block containing a single `nextTimeout` field telling the system to proceed to the `next` (`matrix`) entry automatically after 1500ms.
 
@@ -255,5 +264,73 @@ someMenu: {
             art: EVERYONEELSE
         }
     ]
+}
+```
+
+## Case Study: Adding a New User Password (NUP)
+You've got a super 31337 board and want to prevent lamerz! Let's run through adding a NUP to your application flow.
+
+Given the default menu system, two "pre" new user application menus exist due to the way Telnet vs SSH logins occur. We'll focus only on Telnet here. This menu is `newUserApplicationPre`. Let's say you want to display this preamble, but then ask for the NUP. If the user gets the password wrong, show them a `LAMER.ANS` and boot 'em.
+
+First, let's create a new menu for the NUP:
+```hjson
+newUserPassword: {
+    art: NUP.ANS
+    next: newUserApplication
+    desc: NUP!
+
+    form: {
+        0: {
+            mci: {
+                ET1: {
+                    // here we create an argument/variable of "nup"
+                    argName: nup
+                    focus: true
+                    submit: true
+                }
+            }
+            submit: {
+                *: [
+                    {
+                        // if the user submits "nup" with the correct
+                        // value of "nolamerz" action will send
+                        // them to the next menu defined above --
+                        // in our case: newUserApplication
+                        value: { nup: "nolamerz" }
+                        action: @systemMethod:nextMenu
+                    }
+                    {
+                        // anything else will result in going to the badNewUserPassword menu
+                        value: { nup: null }
+                        action: @menu:badNewUserPassword
+                    }
+                ]
+            }
+        }
+    }
+}
+```
+
+Looks like we'll need a `badNewUserPassword` menu as well! Let's create a very basic menu to show art then disconnect the user.
+
+```hjson
+badNewUserPassword: {
+    art: LAMER.ANS
+    // here we use a built in system method to boot them.
+    next: @systemMethod:logoff
+    config: {
+        //  wait 2s after showing the art before kicking them
+        nextTimeout: 2000
+    }
+}
+```
+
+Great, we have a couple new menus. Now let's just point to them. Remember the existing `newUserApplicationPre` menu? All that is left to do is point it's `next` to our `newUserPassword` menu:
+
+```hjson
+newUserApplicationPre: {
+    //  easy! Just tell the system where to go next
+    next: newUserPassword
+    // note that the rest of this menu is omitted for clarity
 }
 ```

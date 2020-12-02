@@ -421,7 +421,8 @@ const DB_INIT_TABLE = {
                 hash_tag_id     INTEGER NOT NULL,
                 file_id         INTEGER NOT NULL,
 
-                UNIQUE(hash_tag_id, file_id)
+                UNIQUE(hash_tag_id, file_id),
+                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );`
         );
 
@@ -431,7 +432,10 @@ const DB_INIT_TABLE = {
                 user_id         INTEGER NOT NULL,
                 rating          INTEGER NOT NULL,
 
-                UNIQUE(file_id, user_id)
+                UNIQUE(file_id, user_id),
+                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
+                -- Note that we cannot CASCADE if user_id is removed from user.db
+                -- See processing in oputil's removeUser()
             );`
         );
 
@@ -447,7 +451,8 @@ const DB_INIT_TABLE = {
                 hash_id     VARCHAR NOT NULL,
                 file_id     INTEGER NOT NULL,
 
-                UNIQUE(hash_id, file_id)
+                UNIQUE(hash_id, file_id),
+                FOREIGN KEY(file_id) REFERENCES file(file_id) ON DELETE CASCADE
             );`
         );
 

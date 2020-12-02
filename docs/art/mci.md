@@ -2,16 +2,27 @@
 layout: page
 title: MCI Codes
 ---
-ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce information about the current user, system,
-or other statistics while others are used to instantiate a **View**. MCI codes are two characters in length and are
-prefixed with a percent (%) symbol. Some MCI codes have additional options that may be set directly from the code itself
-while others -- and more advanced options -- are controlled via the current theme. Standard (non-focus) and focus colors
-are set by placing duplicate codes back to back in art files.
+## MCI Codes
+ENiGMA½ supports a variety of MCI codes. Some **predefined** codes produce information about the current user, system, or other statistics while others are used to instantiate a **View**.
 
-## Predefined MCI Codes
-There are many predefined MCI codes that can be used anywhere on the system (placed in any art file). More are added all
-the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
-for a full listing. Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+## General Information
+MCI codes are composed of two characters and are prefixed with a percent (%) symbol.
+
+:information_source: To explicitly tie a MCI to a specific View ID, suffix the MCI code with a number. For example: `%BN1`.
+
+:information_source: Standard (non-focus) and focus colors are set by placing duplicate codes back to back in art files:
+
+![Example](../assets/images/mci-example1.png "MCI Colors")
+
+Some MCI codes have additional options that may be set directly from the code itself while others -- and more advanced options -- are controlled via the current theme.
+
+## Relationship with Menus, Art, and Themes
+A MCI code that appears in a `menu.hjson` entry corresponds to that found in it's associated art file. This same MCI code can be referenced in the `theme.hjson` in order to apply a theme.
+
+See [Menus](../docs/configuration/menu-hjson.md) and [Themes](themes.md) for more information.
+
+## Predefined Codes
+There are many predefined MCI codes that can be used anywhere on the system (placed in any art file).
 
 | Code | Description  |
 |------|--------------|
@@ -92,27 +103,56 @@ Some additional special case codes also exist:
 | `XY`   | A special code that may be utilized for placement identification when creating menus or to extend an otherwise empty space in an art file down the screen. |
 
 
+:information_source: More are added all
+the time so also check out [core/predefined_mci.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js)
+for a full listing.
+
+:memo: Many codes attempt to pay homage to Oblivion/2, iNiQUiTY, etc.
+
+
 ## Views
 A **View** is a control placed on a **form** that can display variable data or collect input. One example of a View is
 a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu.
 
-| Code | Name                 | Description      |
-|------|----------------------|------------------|
-| `TL` | Text Label           | Displays text       |
-| `ET` | Edit Text            | Collect user input  |
-| `ME` | Masked Edit Text     | Collect user input using a *mask* |
-| `MT` | Multi Line Text Edit | Multi line edit control |
-| `BT` | Button               | A button |
-| `VM` | Vertical Menu        | A vertical menu aka a vertical lightbar |
-| `HM` | Horizontal Menu      | A horizontal menu aka a horizontal lightbar |
-| `SM` | Spinner Menu         | A spinner input control |
-| `TM` | Toggle Menu          | A toggle menu commonly used for Yes/No style input |
-| `KE` | Key Entry            | A *single* key input control |
+| Code | Name                 | Description      | Notes |
+|------|----------------------|------------------|-------|
+| `TL` | Text Label           | Displays text | Static content |
+| `ET` | Edit Text            | Collect user input | Single line entry |
+| `ME` | Masked Edit Text     | Collect user input using a *mask* | See **Mask Edits** below |
+| `MT` | Multi Line Text Edit | Multi line edit control | Used for FSE, display of FILE_ID.DIZ, etc. |
+| `BT` | Button               | A button | ...it's a button |
+| `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists |
+| `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar |
+| `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options |
+| `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input |
+| `KE` | Key Entry            | A *single* key input control | Think hotkeys |
 
+:information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.
 
-Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to
-see additional information.
+### Mask Edits
+Mask Edits (`%ME`) use the special `maskPattern` property to control a _mask_. This can be useful for gathering dates, phone numbers, so on.
 
+`maskPattern`'s can be composed of the following characters:
+* `#`: Numeric 0-9
+* `A`: Alpha a-z, A-Z
+* `@`: Alphanumeric (combination of the previous patterns)
+* `&`: Any "printable" character
+
+Any other characters are literals.
+
+An example of a mask for a date may look like this: `##/##/####`.
+
+Additionally, the following theme stylers can be applied:
+* `styleSGR1`: Controls literal character colors for non-focused controls
+* `styleSGR2`: Controls literal character colors for focused controls
+* `styleSGR3`: Controls fill colors (characters that have not yet received input).
+
+All of the style properties can take pipe codes such as `|00|08`.
+
+### View Identifiers
+As mentioned above, MCI codes can (and often should) be explicitly tied to a *View Identifier*. Simply speaking this is a number representing the particular view. These can be useful to reference in code, apply themes, etc.
+
+A view ID is tied to a MCI code by specifying it after the code. For example: `%VM1` or `%SM10`.
 
 ## Properties & Theming
 Predefined MCI codes and other Views can have properties set via `menu.hjson` and further *themed* via `theme.hjson`. See [Themes](themes.md) for more information on this subject.
@@ -132,8 +172,7 @@ Predefined MCI codes and other Views can have properties set via `menu.hjson` an
 | `itemFormat` | Sets the format for a list entry. See **Entry Formatting** below |
 | `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** below |
 
-These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default
-`menu.hjson` and `theme.hjson` files!
+These are just a few of the properties set on various views. *Use the source Luke*, as well as taking a look at the default `menu.hjson` and `theme.hjson` files!
 
 ### Custom Properties
 Often a module will provide custom properties that receive format objects (See **Entry Formatting** below). Custom property formatting can be declared in the `config` block. For example, `browseInfoFormat10`..._N_ (where _N_ is up to 99) in the `file_area_list` module received a fairly extensive format object that contains `{fileName}`, `{estReleaseYear}`, etc.
@@ -190,6 +229,8 @@ Additional text styles are available for numbers:
 
 
 #### Examples
-Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as "<font color="red">eVIL cURRENT</font> <font color="grey">-</font> <font color="magenta">Razor 1911</font>".
+Suppose a format object contains the following elements: `userName` and `affils`. We could create a `itemFormat` entry that builds a item to our specifications: `|04{userName!styleFirstLower} |08- |13{affils}`. This may produce a string such as this:
 
-Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".
+![Example](../assets/images/text-format-example1.png "Text Format")
+
+:bulb: Remember that a Python [string format mini language](https://docs.python.org/3/library/string.html#format-specification-mini-language) style syntax is available for widths, alignment, number prevision, etc. as well. A number can be made to be more human readable for example: `{byteSize:,}` may yield "1,123,456".

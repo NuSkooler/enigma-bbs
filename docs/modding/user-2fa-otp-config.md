@@ -3,7 +3,7 @@ layout: page
 title: TopX
 ---
 ## The 2FA/OTP Config Module
-The `user_2fa_otp_config` module provides opt-in, configuration, and viewing of Two-Factor Authentication via One-Time-Password (2FA/OTP) settings. In order to allow users access to 2FA/OTP, the system must be properly configured. See [Security](/docs/configuration/security.md) for more information.
+The `user_2fa_otp_config` module provides opt-in, configuration, and viewing of Two-Factor Authentication via One-Time-Password (2FA/OTP) settings. In order to allow users access to 2FA/OTP, the system must be properly configured. See [Security](../configuration/security.md) for more information.
 
 :information_source: By default, the 2FA/OTP configuration menu may only be accessed by users connected securely (ACS `SC`). It is highly recommended to leave this default as accessing these settings over a plain-text connection could expose private secrets!
 

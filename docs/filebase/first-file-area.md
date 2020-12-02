@@ -23,9 +23,9 @@ storageTags: {
 }
 ```
 
-:information_source: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
+:memo: On their own, storage tags don't do anything — they are simply pointers to storage locations on your system.
 
-:information_source: Remember that paths are case sensitive on most non-Windows systems!
+:warning: Remember that paths are case sensitive on most non-Windows systems!
 
 ### Areas
 File base *Areas* are configured using the `fileBase.areas` configuration block in `config.hjson`. Each entry's block starts with an *area tag*. Valid members for an area are as follows:
@@ -84,16 +84,16 @@ fileBase: {
 ```
 
 ## Importing Areas
-Areas can also be imported using [oputil](/docs/admin/oputil.md) using proper FileGate "RAID" aka `FILEBONE.NA` style files. After importing areas, you may wish to tweak configuration such as better `desc` fields, ACS, or sorting.
+Areas can also be imported using [oputil](../admin/oputil.md) using proper FileGate "RAID" aka `FILEBONE.NA` style files. After importing areas, you may wish to tweak configuration such as better `desc` fields, ACS, or sorting.
 
 ## Importing Files (Scan For New Files)
-A common task is to *import* existing files to area(s). Consider a collection of retro BBS files in the area "Retro PC" (tag: `retro_pc` above) under the storage tag of `retro_pc_bbs`. You might choose to scan for new files in this area (and thus import new entries) as follows with [oputil](/docs/admin/oputil.md)'s `fb scan`:
+A common task is to *import* existing files to area(s). Consider a collection of retro BBS files in the area "Retro PC" (tag: `retro_pc` above) under the storage tag of `retro_pc_bbs`. You might choose to scan for new files in this area (and thus import new entries) as follows with [oputil](../admin/oputil.md)'s `fb scan`:
 
 ```bash
 ./oputil.js fb scan --quick --tags retro,bbs,pc retro_pc@retro_pc_bbs
 ```
 
-Here we have asked [oputil](/docs/admin/oputil.md) to scan the file base area by it's tag `retro_pc` and only include the storage tag of `retro_pc_bbs`. Note that the storage tag could be omitted, and if so, all of `retro_pc` would be scanned. We have also indicated to #hashtag new entries with the tags "retro", "bbs", and "pc".
+Here we have asked [oputil](../admin/oputil.md) to scan the file base area by it's tag `retro_pc` and only include the storage tag of `retro_pc_bbs`. Note that the storage tag could be omitted, and if so, all of `retro_pc` would be scanned. We have also indicated to #hashtag new entries with the tags "retro", "bbs", and "pc".
 
-Please see [oputil](/docs/admin/oputil.md) for more information.
+Please see [oputil](../admin/oputil.md) for more information.
 

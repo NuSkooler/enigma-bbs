@@ -242,8 +242,8 @@
             port: XXXXX
             enabled: false
 
-            //  bannerFile path in misc/ by default. Full paths allowed.
-            bannerFile: XXXXX
+            //  The root directory to serve gophermaps and other content
+            staticRoot: XXXXX
 
             //
             //  The Gopher Content Server can export message base

@@ -10,7 +10,7 @@ The `telnet_bridge` module allows "bridged" Telnet connections from your board t
 Available `config` entries:
 * `host`: Hostname or IP address to connect to.
 * `port`: Port to connect to. Defaults to the standard Telnet port of `23`.
-* `font`: A SyncTERM style font. Useful for example if you would like to connect form a "DOS" style BBS to an Amiga. See [the general art documentation on SyncTERM Style Fonts](/docs/art/general.md).
+* `font`: A SyncTERM style font. Useful for example if you would like to connect form a "DOS" style BBS to an Amiga. See [the general art documentation on SyncTERM Style Fonts](../art/general.md).
 
 ### Example
 Below is an example `menu.hjson` entry that would connect to [Xibalba](https://xibalba.l33t.codes):

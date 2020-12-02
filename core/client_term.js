@@ -132,6 +132,9 @@ ClientTerminal.prototype.isANSI = function() {
     //
     //  Reports from various terminals
     //
+    //  NetRunner v2.00beta 20
+    //      * This version adds 256 colors and reports as "ansi-256color"
+    //
     //  syncterm:
     //      * SyncTERM
     //
@@ -150,7 +153,7 @@ ClientTerminal.prototype.isANSI = function() {
     //  linux:
     //      * JuiceSSH (note: TERM=linux also)
     //
-    return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm' ].includes(this.termType);
+    return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color' ].includes(this.termType);
 };
 
 //  :TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
@@ -160,7 +163,7 @@ ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
 };
 
 ClientTerminal.prototype.rawWrite = function(s, cb) {
-    if(this.output) {
+    if(this.output && this.output.writable) {
         this.output.write(s, err => {
             if(cb) {
                 return cb(err);

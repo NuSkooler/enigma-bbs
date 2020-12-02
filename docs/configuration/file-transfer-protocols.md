@@ -8,8 +8,7 @@ ENiGMA½ currently relies on external executable binaries for "legacy" file tran
 File transfer protocols are managed via the `fileTransferProtocols` configuration block of `config.hjson`. Each entry defines an **external** protocol handler that can be used for uploads (recv), downloads (send), or both. Depending on the protocol and handler, batch receiving of files (uploads) may also be available.
 
 ### Predefined File Transfer Protocols
-The following file transfer protocols are pre-configured in ENiGMA½ as of this writing. System operators may override or extend this list. PRs are welcome for pre-configured additions!
-
+Please see [External Binaries](external-binaries.md) for a table of built in / predefined protocol handlers. You will need to have the binaries in ENiGMA's PATH.
 #### SEXYZ
 [SEXYZ from Synchronet](http://wiki.synchro.net/util:sexyz) offers a nice X, Y, and ZModem implementation including ZModem-8k & works under *nix and Windows based systems. As of this writing, ENiGMA½ is pre-configured to support ZModem-8k, XModem, and YModem using SEXYZ. An x86_64 Linux binary, and hopefully more in the future, [can be downloaded here](https://l33t.codes/bbs-linux-binaries/).
 

@@ -6,12 +6,14 @@ title: Themes
 ENiGMA½ comes with an advanced theming system allowing system operators to highly customize the look and feel of their boards. A given installation can have as many themes as you like for your users to choose from.
 
 ## General Information
-Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directory within the `themes` directory. The theme itself is simply a collection of art files, and a `theme.hjson` file that further defines layout, colors & formatting, etc. ENiGMA½ comes with a default theme by [Luciano Ayres](http://blocktronics.org/tag/luciano-ayres/) of [Blocktronics](http://blocktronics.org/) called Mystery Skull. This theme is in `art/themes/luciano_blocktronics`, and thus it's *theme ID* is `luciano_blocktronics`.
+Themes live in `art/themes/`. Each theme (and thus it's *theme ID*) is a directory within the `themes` directory. The theme itself is simply a collection of art files, and a `theme.hjson` file that further defines layout, colors & formatting, etc.
+
+ENiGMA½ comes with a default theme by [Luciano Ayres](http://blocktronics.org/tag/luciano-ayres/) of [Blocktronics](http://blocktronics.org/) called Mystery Skull. This theme is in `art/themes/luciano_blocktronics`, and thus it's *theme ID* is `luciano_blocktronics`.
 
 ## Art
-For information on art files, see [General Art Information](general.md). TL;DR: In general, to theme a piece of art, create a version of it in your themes directory.
+For information on art files, see [General Art Information](general.md). In general, to theme a piece of art, create a version of it in your themes directory.
 
-:information_source: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
+:memo: Remember that by default, the system will allow for randomly selecting art (in one of the directories mentioned above) by numbering it: `FOO1.ANS`, `FOO2.ANS`, etc.!
 
 ## Theme Sections
 Themes are some important sections to be aware of:
@@ -41,6 +43,8 @@ The `customization` block in is itself broken up into major parts:
 | `prompts` | Similar to `menus`, this section themes `prompts`. |
 
 #### Defaults
+Override system defaults.
+
 | Item | Description                                              |
 |-------------|---------------------------------------------------|
 | `passwordChar` | Character to display in password fields. Defaults to `*` |
@@ -51,9 +55,9 @@ The `customization` block in is itself broken up into major parts:
 Example:
 ```hjson
 defaults: {
-  dateTimeFormat: {
-    short:  MMM Do h:mm a
-  }
+    dateTimeFormat: {
+        short:  MMM Do h:mm a
+    }
 }
 ```
 
@@ -65,36 +69,36 @@ Major areas to override/theme:
 * `mci`: Set per-MCI code properties such as `height`, `width`, text styles, etc. See [MCI Codes](mci.md) for a more information.
 
 Two formats for `mci` blocks are allowed:
-* Verbose where a form ID(s) are supplied.
 * Shorthand if only a single/first form is needed.
-
-Example: Verbose `mci` with form IDs:
-```hjson
-newUserFeedbackToSysOp: {
-  0: {
-    mci: {
-      TL1: { width: 19, textOverflow: "..." }
-      ET2: { width: 19, textOverflow: "..." }
-      ET3: { width: 19, textOverflow: "..." }
-    }
-  }
-  1: {
-    mci: {
-      MT1: { height: 14 }
-    }
-  }
-}
-```
+* Verbose where a form ID(s) are supplied (required if multiple forms are used)
 
 Example: Shorthand `mci` format:
 ```hjson
 matrix: {
-  mci: {
-    VM1: {
-      itemFormat: "|03{text}"
-      focusItemFormat: "|11{text!styleFirstLower}"
+    mci: {
+        VM1: {
+            itemFormat: "|03{text}"
+            focusItemFormat: "|11{text!styleFirstLower}"
+        }
     }
-  }
+}
+```
+
+Example: Verbose `mci` with form IDs:
+```hjson
+newUserFeedbackToSysOp: {
+    0: {
+        mci: {
+            TL1: { width: 19, textOverflow: "..." }
+            ET2: { width: 19, textOverflow: "..." }
+            ET3: { width: 19, textOverflow: "..." }
+        }
+    }
+    1: {
+        mci: {
+            MT1: { height: 14 }
+        }
+    }
 }
 ```
 
@@ -103,30 +107,61 @@ Many modules support "custom range" MCI items. These are MCI codes that are left
 
 ```hjson
 messageAreaChangeCurrentArea: {
-  config: {
-    areaListInfoFormat10: "|15{name}|07: |03{desc}"
-  }
+    config: {
+        areaListInfoFormat10: "|15{name}|07: |03{desc}"
+    }
 }
 ```
 
 ## Creating Your Own
-:warning: ***IMPORTANT!*** It is recommended you don't make any customisations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
+:warning: ***IMPORTANT!*** Do not make any customizations to the included `luciano_blocktronics' theme. Instead, create your own and make changes to that instead:
 
 1. Copy `/art/themes/luciano_blocktronics` to `art/themes/your_board_theme`
 2. Update the `info` block at the top of the theme.hjson file:
 ``` hjson
-    info: {
-      name: Awesome Theme
-      author: Cool Artist
-      group: Sick Group
-      enabled: true // default
-    }
+info: {
+    name: Awesome Theme
+    author: Cool Artist
+    group: Sick Group
+    enabled: true // default
+}
 ```
 
-3. If desired, you may make this the default system theme in `config.hjson` via `theme.default`. `theme.preLogin` may be set if you want this theme used for pre-authenticated users. Both of these values also accept `*` if you want the system to radomly pick.
+3. If desired, you may make this the default system theme in `config.hjson` via `theme.default`. `theme.preLogin` may be set if you want this theme used for pre-authenticated users. Both of these values also accept `*` if you want the system to randomly pick.
 ``` hjson
-  theme: {
+theme: {
     default: your_board_theme
     preLogin: *
-  }
+}
+```
+
+## Theming Example
+Let's run through an example!
+
+Consider the following `menu.hjson` entry:
+```hjson
+superFancyMenu: {
+    art: FANCY.ANS
+    // ...some other stuff...
+}
+```
+
+With a file of `FANCY.ANS` in `art/themes/fancy_theme` containing the following MCI codes:
+* TL1 (Generic text label)
+* BN2 (Predefined: Board Name)
+
+An entry in your `theme.hjson` could look like this:
+```hjson
+superFancyMenu: {
+    mci: {
+        TL1: {
+            //  supply the full format of the TL1 View
+            text: |02ENiGMA|10½ |08v|03|VN
+        }
+        BN2: {
+            //  Make Board Name l33t style
+            style: l33t
+        }
+    }
+}
 ```

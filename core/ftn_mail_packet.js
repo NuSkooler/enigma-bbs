@@ -678,11 +678,28 @@ function Packet(options) {
             }
 
             //
-            //  If we have a UTC offset kludge (e.g. TZUTC) then update
-            //  modDateTime with it
+            //  Attempt to handle FTN time zone kludges of 'TZUTC' and
+            //  'TZUTCINFO'.
             //
-            if(_.isString(msg.meta.FtnKludge.TZUTC) && msg.meta.FtnKludge.TZUTC.length > 0) {
-                msg.modDateTime = msg.modTimestamp.utcOffset(msg.meta.FtnKludge.TZUTC);
+            //  See http://ftsc.org/docs/frl-1004.002
+            //
+            const tzKludge = msg.meta.FtnKludge.TZUTC || msg.meta.FtnKludge.TZUTCINFO;
+            const tzMatch = /([+-]?)([0-9]{2})([0-9]{2})/.exec(tzKludge);
+            if (tzMatch) {
+                //
+                //  - Both kludges should provide a offset in hhmm format
+                //  - Negative offsets must proceed with '-'
+                //  - Positive offsets must not (to spec) proceed with '+', but
+                //    we'll allow it.
+                //
+                const [, sign, hours, minutes ] = tzMatch;
+
+                //  convert to a [+|-]hh:mm format.
+                //  example: 1300 -> +13:00
+                const utcOffset = `${sign||'+'}${hours}:${minutes}`;
+
+                //  finally, update our modTimestamp
+                msg.modTimestamp = msg.modTimestamp.utcOffset(utcOffset);
             }
 
             //  :TODO: Parser should give is this info:

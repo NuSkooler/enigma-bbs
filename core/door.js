@@ -3,12 +3,14 @@
 
 const stringFormat      = require('./string_format.js');
 const { Errors }        = require('./enig_error.js');
+const Events            = require('./events');
 
 //  deps
 const pty               = require('node-pty');
 const decode            = require('iconv-lite').decode;
 const createServer      = require('net').createServer;
 const paths             = require('path');
+const _                 = require('lodash');
 
 module.exports = class Door {
     constructor(client) {
@@ -87,6 +89,19 @@ module.exports = class Door {
             return cb(e);
         }
 
+        //
+        //  PID is launched. Make sure it's killed off if the user disconnects.
+        //
+        Events.once(Events.getSystemEvents().ClientDisconnected, evt => {
+            if (this.doorPty && this.client.session.uniqueId === _.get(evt, 'client.session.uniqueId')) {
+                this.client.log.info(
+                    { pid : this.doorPty.pid },
+                    'User has disconnected; Killing door process.'
+                );
+                this.doorPty.kill();
+            }
+        });
+
         this.client.log.debug(
             { processId : this.doorPty.pid }, 'External door process spawned'
         );
@@ -96,7 +111,7 @@ module.exports = class Door {
 
             this.client.term.output.pipe(this.doorPty);
 
-            this.doorPty.on('data', this.doorDataHandler.bind(this));
+            this.doorPty.onData(this.doorDataHandler.bind(this));
 
             this.doorPty.once('close', () => {
                 return this.restoreIo(this.doorPty);
@@ -137,9 +152,10 @@ module.exports = class Door {
                 this.doorPty.kill();
             }
 
-            if(this.client.term.output) {
-                this.client.term.output.unpipe(piped);
-                this.client.term.output.resume();
+            const output = this.client.term.output;
+            if(output) {
+                output.unpipe(piped);
+                output.resume();
             }
             this.restored = true;
         }

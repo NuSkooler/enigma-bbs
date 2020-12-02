@@ -12,9 +12,9 @@ Download and run the ENiGMA½ BBS image:
       -p 8888:8888 \
       davestephens/enigma-bbs:latest
 
-:information_source: This is a **very basic** example! As no config has been supplied the container will use a basic one so that it starts successfully. Note that as no persistence directory has been supplied, once the container stops any changes made will be lost!
+:warning: This is a **very basic** example! As no config has been supplied the container will use a basic one so that it starts successfully. Note that as no persistence directory has been supplied, once the container stops any changes made will be lost!
 
-:information_source: [Volumes](https://docs.docker.com/storage/volumes/) may be used for things such as your configuration and database path.
+:bulb: [Volumes](https://docs.docker.com/storage/volumes/) may be used for things such as your configuration and database path.
 
 ## Customized Docker Setup
 TBC using Docker Compose

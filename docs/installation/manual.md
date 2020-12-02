@@ -7,7 +7,7 @@ do things manually, read on...
 
 ## Prerequisites
 * [Node.js](https://nodejs.org/) version **v12.x LTS or higher** (Other versions may work but are not supported).
-  * :information_source: It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
+  * :bulb: It is **highly** recommended to use [Node Version Manager (NVM)](https://github.com/creationix/nvm) to manage your Node.js installation if you're on a Linux/Unix environment.
 
 * [Python](https://www.python.org/downloads/) for compiling Node.js packages with native extensions via `node-gyp`.
 
@@ -50,23 +50,14 @@ npm install # yarn also works
 ```
 
 ## Other Recommended Packages
-ENiGMA BBS makes use of a few packages for archive and legacy protocol support. They're not pre-requisites for running ENiGMA, but without them you'll miss certain functionality. Once installed, they should be made available on your system path.
+ENiGMA BBS makes use of a few packages for archive and legacy protocol support. They're not pre-requisites for running ENiGMA, but without them you'll miss certain functionality. Once installed, they should be made available on your systems `PATH`.
 
-| Package    | Description | Debian/Ubuntu Package (APT/DEP) | Red Hat Package (YUM/RPM) | Windows Package                                                  |
-|------------|-----------------------------------|--------------------------------------------|---------------------------------------------------|------------------------------------------------------------------|
-| arj        | Unpacking arj archives            | `arj`                                      | n/a, binaries [here](http://arj.sourceforge.net/) | [ARJ](http://arj.sourceforge.net/)                               |
-| 7zip       | Unpacking zip, rar, archives  | `p7zip-full`                               | `p7zip-full`                                      | [7-zip](http://www.7-zip.org/)                                   |
-| lha        | Unpacking lha archives  | `lhasa`                               | n/a, source [here](https://web.archive.org/web/20200301124852/http://www2m.biglobe.ne.jp/~dolphin/lha/lha.htm)                                      | Unknown                                   |
-| Rar        | Unpacking rar archives  | `unrar`                               | n/a, binaries [here](https://www.rarlab.com/download.htm)                                      | Unknown                                   |
-| lrzsz      | sz/rz: X/Y/Z protocol support        | `lrzsz`                                    | `lrzsz`                                           | Unknown                                                          |
-| sexyz      | SexyZ protocol support               | [sexyz](https://l33t.codes/outgoing/sexyz) | [sexyz](https://l33t.codes/outgoing/sexyz)        | Available with [Synchronet](http://wiki.synchro.net/install:win) |
-| exiftool   | [ExifTool](https://www.sno.phy.queensu.ca/~phil/exiftool/)    | libimage-exiftool-perl | perl-Image-ExifTool | Unknown
-| xdms  | Unpack/view Amiga DMS | [xdms](http://manpages.ubuntu.com/manpages/trusty/man1/xdms.1.html)  | xdms | Unknown
+:information_source: Please see [External Binaries](../configuration/external-binaries.md) for information on setting these up.
 
-:information_source: Please see also [Archivers](/docs/configuration/archivers.md) and [File Transfer Protocols](/docs/configuration/file-transfer-protocols.md) for additional recommended binaries and configuration.
+:information_source: Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
 
 ## Config Files
-You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compiliant JSON is also OK). See [Configuration](../configuration/) for more information.
+You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compliant JSON is also OK). See [Configuration](../configuration/) for more information.
 
 Use `oputil.js` to generate your **initial** configuration:
 

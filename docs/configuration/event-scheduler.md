@@ -6,7 +6,7 @@ title: Event Scheduler
 The ENiGMA½ scheduler allows system operators to configure arbitrary events that can can fire based on date and/or time, or by watching for changes in a file. Events can kick off internal handlers, custom modules, or binaries & scripts.
 
 ## Scheduling Events
-To create a scheduled event, create a new configuration block in `config.hjson` under `eventScheduler.events`. 
+To create a scheduled event, create a new configuration block in `config.hjson` under `eventScheduler.events`.
 
 Events can have the following members:
 
@@ -17,7 +17,7 @@ Events can have the following members:
 | `args` | :-1: | An array of arguments to pass along to the method or binary specified in `action`. |
 
 ### Schedules
-As mentioned above, `schedule` may contain a [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string and/or an `@watch` clause. 
+As mentioned above, `schedule` may contain a [Later style](https://bunkat.github.io/later/parsers.html#text) parsable schedule string and/or an `@watch` clause.
 
 `schedule` examples:
 * `every 2 hours`
@@ -26,7 +26,7 @@ As mentioned above, `schedule` may contain a [Later style](https://bunkat.github
 
 An `@watch` clause monitors a specified file for changes and takes the following form: `@watch:<path>` where `<path>` is a fully qualified path.
 
-:information_source: If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and seperated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
+:bulb: If you would like to have a schedule **and** watch a file for changes, place the `@watch` clause second and separated with the word `or`. For example: `every 24 hours or @watch:/path/to/somefile.txt`.
 
 ### Actions
 Events can kick off actions by calling a method (function) provided by the system or custom module in addition to executing arbritary binaries or scripts.

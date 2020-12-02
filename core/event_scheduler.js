@@ -8,7 +8,7 @@ const Log                   = require('./logger.js').log;
 const { Errors }            = require('./enig_error.js');
 
 const _                     = require('lodash');
-const later                 = require('later');
+const later                 = require('@breejs/later');
 const path                  = require('path');
 const pty                   = require('node-pty');
 const sane                  = require('sane');

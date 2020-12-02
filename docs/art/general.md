@@ -5,15 +5,20 @@ title: General Art Information
 ## General Art Information
 One of the most basic elements of BBS customization is through it's artwork. ENiGMA½ supports a variety of ways to select, display, and manage art.
 
+### Art File Locations
 As a general rule, art files live in one of two places:
 
 1. The `art/general` directory. This is where you place common/non-themed art files.
 2. Within a _theme_ such as `art/themes/super_fancy_theme`.
 
-### Art in Menus
-While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms.
+### MCI Codes
+All art can contain [MCI Codes](mci.md).
 
-**Form 1**: A "standard" entry where a single `art` spec is utilized:
+### Art in Menus
+While art can be displayed programmatically such as from a custom module, the most basic and common form is via `menu.hjson` entries. This usually falls into one of two forms:
+
+#### Standard
+A "standard" entry where a single `art` spec is utilized:
 ```hjson
 {
     mainMenu: {
@@ -22,7 +27,8 @@ While art can be displayed programmatically such as from a custom module, the mo
 }
 ```
 
-**Form 2**: An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
+#### Module Specific / Multiple Art
+An entry for a custom module where multiple pieces are declared and used. The second style usually takes the form of a `config.art` block with two or more entries:
 ```hjson
 {
     nodeMessage: {
@@ -64,7 +70,7 @@ ENiGMA½ uses a fallback system for art selection. When a menu entry calls for a
 4. In the `art/general` directory.
 
 #### ACS-Driven Conditionals
-The [ACS](/docs/configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
+The [ACS](../configuration/acs.md) system can be used to make conditional art selection choices. To do this, provide an array of possible values in your art spec. As an example:
 ```hjson
 {
     fancyMenu: {
@@ -100,7 +106,17 @@ The most common fonts are probably as follows:
 * `microknight`
 * `topaz`
 
-Other fonts fonts also available:
+...and some examples:
+
+ ![cp437](../assets/images/cp437.png "cp437")<br>
+ ![pot_noodle](../assets/images/pot_noodle.png "pot_noodle")<br>
+ ![mo_soul](../assets/images/mo_soul.png "mo_soul")<br>
+ ![microknight_plus](../assets/images/microknight_plus.png "microknight_plus")<br>
+ ![topaz_plus](../assets/images/topaz_plus.png "topaz_plus")<br>
+ ![microknight](../assets/images/microknight.png "microknight")<br>
+ ![topaz](../assets/images/topaz.png "topaz")<br>
+
+Other "fonts" also available:
 * `cp1251`
 * `koi8_r`
 * `iso8859_2`
@@ -133,10 +149,12 @@ Other fonts fonts also available:
 * `iso8859_1`
 * `cp1131`
 
-See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 #### SyncTERM Style Baud Rates
-The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.  See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
+The `baudRate` member can set a [SyncTERM](http://syncterm.bbsdev.net/) style emulated baud rate. May be `300`, `600`, `1200`, `2400`, `4800`, `9600`, `19200`, `38400`, `57600`, `76800`, or `115200`. A value of `ulimited`, `off`, or `0` resets (disables) the rate.
+
+:information_source: See [this specification](https://github.com/protomouse/synchronet/blob/master/src/conio/cterm.txt) for more information.
 
 ### Common Example
 ```hjson
@@ -153,4 +171,4 @@ fullLogoffSequenceRandomBoardAd: {
 ```
 
 ### See Also
-See also the [Show Art Module](/docs/modding/show-art.md) for more advanced art display!
+See also the [Show Art Module](../modding/show-art.md) for more advanced art display!
