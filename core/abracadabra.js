@@ -199,7 +199,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                 '\r\n\r\n'
             );
 
-            this.prevMenu();
+            this.autoNextMenu();
         });
     }
 
