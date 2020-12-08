@@ -248,7 +248,16 @@
 
 			mainMenuWaitingForCaller: {
 				config: {
-					quickLogLevel: warn
+					nowDateTimeFormat: "|00|11dddd|08, |11MMMM Do YYYY |08/ |11h|08:|11mm|08:|11ss|03a"
+					lastLoginDateTimeFormat: "|00|11ddd h|08:|11mm|03a"
+
+					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03mail|08: "
+					mainInfoFormat11: "|00|10{callsToday:>5}"
+					mainInfoFormat12: "|00|10{postsToday:>5}"
+
+					mainInfoFormat19: "|00|10{lastLoginUserName:<19} |02{lastLogin}"
+
+					quickLogLevel: info
 					quickLogLevelIndicators: {
 						trace : |00|02T
 						debug: |00|03D

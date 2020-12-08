@@ -4,6 +4,7 @@ const { MenuModule } = require('./menu_module');
 const { getActiveConnectionList } = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
+const UserProps = require('./user_property');
 const Log = require('./logger');
 const Config = require('./config.js').get;
 
@@ -71,9 +72,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                             return callback(null);
                         }
 
-                        const logLevel = this.config.quickLogLevel ||
-                            _.get(Config(), 'logging.rotatingFile.level') ||
-                            'info';
+                        const logLevel = this.config.quickLogLevel ||           //  WFC specific
+                            _.get(Config(), 'logging.rotatingFile.level') ||    //  ...or system setting
+                            'info';                                             //  ...or default to info
 
                         this.logRingBuffer = new bunyan.RingBuffer({ limit : quickLogView.dimens.height || 24 });
                         Log.log.addStream({
@@ -86,10 +87,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         return callback(null);
                     },
                     (callback) => {
-                        return this._refreshStats(callback);
-                    },
-                    (callback) => {
-                        return this._refreshNodeStatus(callback);
+                        return this._refreshAll(callback);
                     }
                 ],
                 err => {
@@ -136,6 +134,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 },
                 (callback) => {
                     return this._refreshQuickLog(callback);
+                },
+                (callback) => {
+                    this.updateCustomViewTextsWithFilter(
+                        'main',
+                        MciViewIds.main.customRangeStart,
+                        this.stats
+                    );
+                    return callback(null);
                 }
             ],
             err => {
@@ -147,20 +153,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshStats(cb) {
-        const fileAreaStats = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
-        const sysMemStats   = StatLog.getSystemStat(SysProps.SystemMemoryStats);
-        const sysLoadStats  = StatLog.getSystemStat(SysProps.SystemLoadStats);
+        const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
+        const sysMemStats       = StatLog.getSystemStat(SysProps.SystemMemoryStats);
+        const sysLoadStats      = StatLog.getSystemStat(SysProps.SystemLoadStats);
+        const lastLoginStats    = StatLog.getSystemStat(SysProps.LastLogin);
+
+        const now = moment();
 
         //  Some stats we can just fill right away
         this.stats = {
             //  Date/Time
-            date                    : moment().format(this.getDateFormat()),
-            time                    : moment().format(this.getTimeFormat()),
-            dateTime                : moment().format(this.getDateTimeFormat()),
+            nowDate                 : now.format(this.getDateFormat()),
+            nowTime                 : now.format(this.getTimeFormat()),
+            now                     : now.format(this._dateTimeFormat('now')),
 
             //  Current process (our Node.js service)
             processUptimeSeconds    : process.uptime(),
-//            processUptime           : moment.duration(process.uptime(), 'seconds').humanize(),
 
             //  Totals
             totalCalls              : StatLog.getSystemStatNum(SysProps.LoginCount),
@@ -174,22 +182,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             // totalDownloads          :
             // totalDownloadBytes      :
 
-            //  :TODO: lastCaller
-            //  :TODO: totalMemoryBytes, freeMemoryBytes
-            //  :TODO: CPU info/averages/load
-
             //  Today's Stats
             callsToday              : StatLog.getSystemStatNum(SysProps.LoginsToday),
             postsToday              : StatLog.getSystemStatNum(SysProps.MessagesToday),
-            // uploadsToday            :
-            // uploadBytesToday        :
-            // downloadsToday          :
-            // downloadBytesToday      :
+            uploadsToday            : StatLog.getSystemStatNum(SysProps.FileUlTodayCount),
+            uploadBytesToday        : StatLog.getSystemStatNum(SysProps.FileUlTodayBytes),
+            downloadsToday          : StatLog.getSystemStatNum(SysProps.FileDlTodayCount),
+            downloadsBytesToday     : StatLog.getSystemStatNum(SysProps.FileDlTodayBytes),
 
             //  Current
-            // lastCaller             :
-            // lastCallerDate
-            // lastCallerTime
+            currentUserName         : this.client.user.username,
+            currentUserRealName     : this.client.user.getProperty(UserProps.RealName) || this.client.user.username,
+            lastLoginUserName       : lastLoginStats.userName,
+            lastLoginRealName       : lastLoginStats.realName,
+            lastLoginDate           : moment(lastLoginStats.timestamp).format(this.getDateFormat()),
+            lastLoginTime           : moment(lastLoginStats.timestamp).format(this.getTimeFormat()),
+            lastLogin               : moment(lastLoginStats.timestamp).format(this._dateTimeFormat('lastLogin')),
 
             totalMemoryBytes        : sysMemStats.totalBytes,
             freeMemoryBytes         : sysMemStats.freeBytes,
@@ -274,6 +282,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         quickLogView.redraw();
 
         return cb(null);
+    }
+
+    _dateTimeFormat(element) {
+        const format = this.config[`${element}DateTimeFormat`];
+        return format || this.getDateFormat();
     }
 };
 
