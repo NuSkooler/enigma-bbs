@@ -14,6 +14,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * File base search has had an improvement to search term handling.
 * `./oputil user group -group` to now accepts `~group` removing the need for special handling of the "-" character. #331
 * A fix has been made to clean up old `file.db` entries when a file is removed. Previously stale records could be left or even recycled into new entries. Please see [UPGRADE.md](UPGRADE.md) for details on applying this fix (look for `tables_update_2020-11-29.sql`).
+* The [./docs/modding/onelinerz.md](onelinerz) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!
