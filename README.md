@@ -44,7 +44,7 @@ If you feel the urge to donate, [you can do so here](https://liberapay.com/NuSko
 <a href="https://liberapay.com/NuSkooler/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
 
 ## Support
-* Use [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
+* See [Discussions](https://github.com/NuSkooler/enigma-bbs/discussions) and [the issue tracker](https://github.com/NuSkooler/enigma-bbs/issues)
 * **Discussion on a ENiGMA BBS!** (see Boards below)
 * IRC: **#enigma-bbs** on **chat.freenode.net** ([webchat](https://webchat.freenode.net/?channels=enigma-bbs))
 * FSX_ENG on [fsxNet](http://bbs.geek.nz/#fsxNet) or ARK_ENIG on [ArakNet](https://www.araknet.xyz/) available on many fine boards
