@@ -12,7 +12,6 @@ const Config = require('./config.js').get;
 const async = require('async');
 const _ = require('lodash');
 const moment = require('moment');
-const SysInfo = require('systeminformation');
 const bunyan = require('bunyan');
 
 exports.moduleInfo = {
@@ -160,7 +159,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
         const now = moment();
 
-        //  Some stats we can just fill right away
         this.stats = {
             //  Date/Time
             nowDate                 : now.format(this.getDateFormat()),
