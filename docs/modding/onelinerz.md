@@ -9,6 +9,7 @@ The built in `onelinerz` module provides a retro onelinerz system.
 ### Config Block
 Available `config` block entries:
 * `dateTimeFormat`: [moment.js](https://momentjs.com) style format. Defaults to current theme → system `short` date format.
+* `dbSuffix`: Provide a suffix that will be appended to the DB name to use onelinerz for more than one purpose (separate lists).
 
 ### Theming
 The following `itemFormat` object is provided to MCI 1 (ie: `%VM1`):
