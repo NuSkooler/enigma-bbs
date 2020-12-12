@@ -153,6 +153,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
     function updateTags(fe) {
         if(Array.isArray(options.tags)) {
             fe.hashTags = new Set(options.tags);
+        } else if (areaInfo.hashTags) { //  no explicit tags; merge in defaults, if any
+            fe.hashTags = areaInfo.hashTags;
         }
     }
 
@@ -227,7 +229,8 @@ function scanFileAreaForChanges(areaInfo, options, cb) {
                                                 fullPath,
                                                 {
                                                     areaTag		: areaInfo.areaTag,
-                                                    storageTag	: storageLoc.storageTag
+                                                    storageTag	: storageLoc.storageTag,
+                                                    hashTags    : areaInfo.hashTags,
                                                 },
                                                 (stepInfo, next) => {
                                                     if(argv.verbose) {

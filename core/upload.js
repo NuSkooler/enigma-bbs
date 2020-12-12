@@ -332,6 +332,7 @@ exports.getModule = class UploadModule extends MenuModule {
             const scanOpts = {
                 areaTag     : self.areaInfo.areaTag,
                 storageTag  : self.areaInfo.storageTags[0],
+                hashTags    : self.areaInfo.hashTags,
             };
 
             function handleScanStep(stepInfo, nextScanStep) {
