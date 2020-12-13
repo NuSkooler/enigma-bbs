@@ -173,6 +173,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             dropFile        : this.dropFile.fileName,
             dropFilePath    : this.dropFile.fullPath,
             node            : this.client.node,
+            env             : this.config.env,
         };
 
         const doorTracking = trackDoorRunBegin(this.client, this.config.name);

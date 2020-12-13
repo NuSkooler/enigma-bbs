@@ -18,6 +18,7 @@ The `abracadabra` `config` block can contain the following members:
 | `cmd` | :+1: | Path to executable to launch. |
 | `args` | :-1: | Array of argument(s) to pass to `cmd`. See **Argument Variables** below for information on variables that can be used here.
 | `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. |
+| `env` | :-1: | Sets the environment. Supplied in the form of an map: `{ SOME_VAR: "value" }`
 | `nodeMax` | :-1: | Max number of nodes that can access this door at once. Uses `name` as a tracking key. |
 | `tooManyArt` | :-1: | Art spec to display if too many instances are already in use. |
 | `io` | :-1: | How to process input/output (I/O). Can be `stdio` or `socket`. When using `stdio`, I/O is handled via standard stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected back to. The server listens on localhost on `{srvPort}` (See **Argument Variables** below for more information). Default value is `stdio`. |
