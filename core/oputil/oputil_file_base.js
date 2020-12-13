@@ -552,7 +552,7 @@ function scanFileAreas() {
                     console.info(`Processing area "${areaInfo.name}":`);
 
                     scanFileAreaForChanges(areaInfo, options, err => {
-                        return callback(err);
+                        return nextAreaTag(err);
                     });
                 }, err => {
                     return callback(err);
