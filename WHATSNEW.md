@@ -17,6 +17,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * The [./docs/modding/onelinerz.md](onelinerz) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
 * Default hash tags can now be set in file areas. Simply supply an array or list of values in a file area block via `hashTags`.
 * Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./docs/modding/local-doors.md]).
+* `dropFileType` is now optional when launching doors with `abracadabra`. It can also be explicitly set to `none`.
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!

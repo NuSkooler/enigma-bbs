@@ -14,7 +14,7 @@ The `abracadabra` `config` block can contain the following members:
 | Item | Required | Description |
 |------|----------|-------------|
 | `name` | :+1: | Used as a key for tracking number of clients using a particular door. |
-| `dropFileType` | :+1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). |
+| `dropFileType` | :-1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). Can be omitted or set to `none`. |
 | `cmd` | :+1: | Path to executable to launch. |
 | `args` | :-1: | Array of argument(s) to pass to `cmd`. See **Argument Variables** below for information on variables that can be used here.
 | `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. |
