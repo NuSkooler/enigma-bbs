@@ -538,6 +538,13 @@
 
 			//	The 'msg_list' module looks for this entry by default
 			messageAreaViewPost: {
+				config: {
+					quoteStyleLevel1: [
+						"|00|11",
+						"|00|08",
+					]
+				}
+
 				0: {
 					mci: {
 						TL1: {

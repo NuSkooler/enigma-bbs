@@ -18,6 +18,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * Default hash tags can now be set in file areas. Simply supply an array or list of values in a file area block via `hashTags`.
 * Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./docs/modding/local-doors.md]).
 * `dropFileType` is now optional when launching doors with `abracadabra`. It can also be explicitly set to `none`.
+* FSE in *view* mode can now stylize quote indicators. Supply `quoteStyleLevel1` in the `config` block. This can be a single string or an array of two strings (one to style the quotee's initials and the next for the '>' character). See the `messageAreaViewPost` menu `config` block in the default `luciano_blocktronics` `theme.hjson` file for an example. An additional level style (e.g. for nested quotes) may be added in the future.
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!

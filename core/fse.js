@@ -21,7 +21,10 @@ const {
     isAnsi, stripAnsiControlCodes,
     insert
 }                               = require('./string_util.js');
-const { stripMciColorCodes }    = require('./color_codes.js');
+const {
+    stripMciColorCodes,
+    pipeToAnsi,
+}    = require('./color_codes.js');
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
@@ -418,7 +421,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //
                         //  Find tearline - we want to color it differently.
                         //
-                        const tearLinePos = this.message.getTearLinePosition(msg);
+                        const tearLinePos = Message.getTearLinePosition(msg);
 
                         if(tearLinePos > -1) {
                             msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
@@ -432,7 +435,33 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             }
                         );
                     } else {
-                        bodyMessageView.setText(stripAnsiControlCodes(msg));
+                        msg = stripAnsiControlCodes(msg);   //  start clean
+
+                        //
+                        //  In *View* mode, if enabled, do a little prep work so we can stylize:
+                        //  - Quote indicators
+                        //  - Tear lines
+                        //  - Origins
+                        //
+                        if (this.menuConfig.config.quoteStyleLevel1) {
+                            let quoteStyleLevel1 = this.menuConfig.config.quoteStyleLevel1;
+                            //  can be a single style to cover XX> or an array to cover XX and >
+                            if (!Array.isArray(quoteStyleLevel1)) {
+                                quoteStyleLevel1 = [ quoteStyleLevel1 ];
+                            }
+                            if (quoteStyleLevel1.length < 2) {
+                                quoteStyleLevel1.push(quoteStyleLevel1);
+                            }
+
+                            const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)/gm;
+                            msg = msg.replace(QuoteRegex, (m, initials, spc) => {
+                                return pipeToAnsi(
+                                    ` ${quoteStyleLevel1[0]}${initials}${quoteStyleLevel1[1]}>${bodyMessageView.styleSGR1}${spc}`
+                                );
+                            });
+                        }
+
+                        bodyMessageView.setText(msg);
                     }
                 }
             }

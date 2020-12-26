@@ -265,11 +265,10 @@ function MultiLineEditTextView(options) {
 
     this.getRenderText = function(index) {
         let text        = self.getVisibleText(index);
-        const remain    = self.dimens.width - text.length;
+        const remain    = self.dimens.width - strUtil.renderStringLength(text);
 
         if(remain > 0) {
-            text += ' '.repeat(remain + 1);
-            //          text += new Array(remain + 1).join(' ');
+            text += ' '.repeat(remain);// + 1);
         }
 
         return text;
