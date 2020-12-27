@@ -444,19 +444,19 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //  - Origins
                         //
                         if (this.menuConfig.config.quoteStyleLevel1) {
-                            let quoteStyleLevel1 = this.menuConfig.config.quoteStyleLevel1;
-                            //  can be a single style to cover XX> or an array to cover XX and >
-                            if (!Array.isArray(quoteStyleLevel1)) {
-                                quoteStyleLevel1 = [ quoteStyleLevel1 ];
+                            let styleL1 = this.menuConfig.config.quoteStyleLevel1;
+                            //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            if (!Array.isArray(styleL1)) {
+                                styleL1 = [ styleL1 ];
                             }
-                            if (quoteStyleLevel1.length < 2) {
-                                quoteStyleLevel1.push(quoteStyleLevel1);
+                            while (styleL1.length < 3) {
+                                styleL1.push(styleL1);
                             }
 
-                            const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)/gm;
-                            msg = msg.replace(QuoteRegex, (m, initials, spc) => {
+                            const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(QuoteRegex, (m, initials, spc, text) => {
                                 return pipeToAnsi(
-                                    ` ${quoteStyleLevel1[0]}${initials}${quoteStyleLevel1[1]}>${bodyMessageView.styleSGR1}${spc}`
+                                    ` ${styleL1[0]}${initials}${styleL1[1]}>${spc}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`
                                 );
                             });
                         }
