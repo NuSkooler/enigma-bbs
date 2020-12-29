@@ -437,6 +437,16 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     } else {
                         msg = stripAnsiControlCodes(msg);   //  start clean
 
+                        const styleToArray = (style, len) => {
+                            if (!Array.isArray(style)) {
+                                style = [ style ];
+                            }
+                            while (style.length < len) {
+                                style.push(style);
+                            }
+                            return style;
+                        };
+
                         //
                         //  In *View* mode, if enabled, do a little prep work so we can stylize:
                         //  - Quote indicators
@@ -444,19 +454,36 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //  - Origins
                         //
                         if (this.menuConfig.config.quoteStyleLevel1) {
-                            let styleL1 = this.menuConfig.config.quoteStyleLevel1;
                             //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
-                            if (!Array.isArray(styleL1)) {
-                                styleL1 = [ styleL1 ];
-                            }
-                            while (styleL1.length < 3) {
-                                styleL1.push(styleL1);
-                            }
+                            const styleL1 = styleToArray(this.menuConfig.config.quoteStyleLevel1, 3);
 
                             const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)([^\r\n]*\r?\n)/gm;
                             msg = msg.replace(QuoteRegex, (m, initials, spc, text) => {
                                 return pipeToAnsi(
                                     ` ${styleL1[0]}${initials}${styleL1[1]}>${spc}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`
+                                );
+                            });
+                        }
+
+                        if (this.menuConfig.config.tearLineStyle) {
+                            //  '---' and TEXT
+                            const style = styleToArray(this.menuConfig.config.tearLineStyle, 2);
+
+                            const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
+                            msg = msg.replace(TearLineRegex, (m, text) => {
+                                return pipeToAnsi(
+                                    `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`
+                                );
+                            });
+                        }
+
+                        if (this.menuConfig.config.originStyle) {
+                            const style = styleToArray(this.menuConfig.config.originStyle, 3);
+
+                            const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
+                            msg = msg.replace(OriginRegex, (m, spc, text) => {
+                                return pipeToAnsi(
+                                    `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`
                                 );
                             });
                         }
