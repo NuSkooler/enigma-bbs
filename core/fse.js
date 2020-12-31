@@ -23,7 +23,7 @@ const {
 }                               = require('./string_util.js');
 const {
     stripMciColorCodes,
-    pipeToAnsi,
+    controlCodesToAnsi,
 }    = require('./color_codes.js');
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
@@ -459,9 +459,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
                             const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)([^\r\n]*\r?\n)/gm;
                             msg = msg.replace(QuoteRegex, (m, initials, spc, text) => {
-                                return pipeToAnsi(
-                                    ` ${styleL1[0]}${initials}${styleL1[1]}>${spc}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`
-                                );
+                                return ` ${styleL1[0]}${initials}${styleL1[1]}>${spc}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
                             });
                         }
 
@@ -471,9 +469,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
                             const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
                             msg = msg.replace(TearLineRegex, (m, text) => {
-                                return pipeToAnsi(
-                                    `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`
-                                );
+                                return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
                             });
                         }
 
@@ -482,13 +478,11 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
                             const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
                             msg = msg.replace(OriginRegex, (m, spc, text) => {
-                                return pipeToAnsi(
-                                    `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`
-                                );
+                                return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
                             });
                         }
 
-                        bodyMessageView.setText(msg);
+                        bodyMessageView.setText(controlCodesToAnsi(msg));
                     }
                 }
             }
