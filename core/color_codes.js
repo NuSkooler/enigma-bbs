@@ -126,7 +126,7 @@ function renegadeToAnsi(s, client) {
 
 //
 //  Converts various control codes popular in BBS packages
-//  to ANSI escape sequences. Additionaly supports ENiGMA style
+//  to ANSI escape sequences. Additionally supports ENiGMA style
 //  MCI codes.
 //
 //  Supported control code formats:
@@ -134,16 +134,17 @@ function renegadeToAnsi(s, client) {
 //  * PCBoard       : @X## where the first number/char is BG color, and second is FG
 //  * WildCat!      : @##@ the same as PCBoard without the X prefix, but with a @ suffix
 //  * WWIV          : ^#
-//  * CNET Y-Style  : 0x19## where ## is a specific set of codes -- this is the older format
-//  * CNET Q-style  : 0x11##} where ## is a specific set of codes -- this is the newer format
+//  * CNET Control-Y: AKA Y-Style -- 0x19## where ## is a specific set of codes (older format)
+//  * CNET Control-Q: AKA Q-style -- 0x11##} where ## is a specific set of codes (newer format)
 //
 //  TODO: Add Synchronet and Celerity format support
 //
 //  Resources:
 //  * http://wiki.synchro.net/custom:colors
+//  * https://archive.org/stream/C-Net_Pro_3.0_1994_Perspective_Software/C-Net_Pro_3.0_1994_Perspective_Software_djvu.txt
 //
 function controlCodesToAnsi(s, client) {
-    const RE = /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)|(\x19(c[0-9a-f]|z[0-7]|n1|f1)|\x19)|(\x11(c[0-9a-f]|z[0-7]|n1|f1)}|\x11)/g;    //  eslint-disable-line no-control-regex
+    const RE = /(\|([A-Z0-9]{2})|\|)|(@X([0-9A-F]{2}))|(@([0-9A-F]{2})@)|(\x03[0-9]|\x03)|(\x19(c[0-9a-f]|z[0-7]|n1|f1|q1)|\x19)|(\x11(c[0-9a-f]|z[0-7]|n1|f1|q1)}|\x11)/g;    //  eslint-disable-line no-control-regex
 
     let m;
     let result      = '';

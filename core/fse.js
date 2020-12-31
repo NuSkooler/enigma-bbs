@@ -455,11 +455,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //
                         if (this.menuConfig.config.quoteStyleLevel1) {
                             //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
                             const styleL1 = styleToArray(this.menuConfig.config.quoteStyleLevel1, 3);
 
-                            const QuoteRegex = /^ ([A-Za-z0-9]{1,2})>([ ]+)([^\r\n]*\r?\n)/gm;
-                            msg = msg.replace(QuoteRegex, (m, initials, spc, text) => {
-                                return ` ${styleL1[0]}${initials}${styleL1[1]}>${spc}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
+                            const QuoteRegex = /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(QuoteRegex, (m, spc1, initials, spc2, text) => {
+                                return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
                             });
                         }
 
