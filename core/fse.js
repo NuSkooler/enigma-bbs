@@ -442,7 +442,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                                 style = [ style ];
                             }
                             while (style.length < len) {
-                                style.push(style);
+                                style.push(style[0]);
                             }
                             return style;
                         };
