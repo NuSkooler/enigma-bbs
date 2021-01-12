@@ -62,7 +62,7 @@ following:
 3. Download the [VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer/archive/master.zip) to your
 webserver, and unpack it to a temporary directory.
 
-4. Download the example [VTX client HTML file](../misc/vtx/vtx.html) and save it to your webserver root.
+4. Download the example [VTX client HTML file](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/vtx/vtx.html) and save it to your webserver root.
 
 5. Create an `assets/vtx` directory within your webserver root, so you have a structure like the following:
 
