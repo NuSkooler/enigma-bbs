@@ -153,7 +153,7 @@ ClientTerminal.prototype.isANSI = function() {
     //  linux:
     //      * JuiceSSH (note: TERM=linux also)
     //
-    return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color' ].includes(this.termType);
+    return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color', 'ansi-256color-rgb' ].includes(this.termType);
 };
 
 //  :TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
