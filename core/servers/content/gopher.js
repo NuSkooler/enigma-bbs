@@ -89,7 +89,7 @@ exports.getModule = class GopherModule extends ServerModule {
 
             socket.on('data', data => {
                 //  sanitize a bit - bots like to inject garbage
-                data = data.replace(/[^ -~]/g, '');
+                data = data.replace(/[^ -~\t\r\n]/g, '');
                 if (data) {
                     this.routeRequest(data, socket);
                 } else {
