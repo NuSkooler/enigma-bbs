@@ -3,6 +3,7 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
 * The default configuration has been moved to [config_default.js](/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.
 * An explicit prompt file previously specified by `general.promptFile` in `config.hjson` is no longer necessary. Instead, this now simply part of the `prompts` section in `menu.hjson`. The default setup still creates a separate prompt HJSON file, but it is `includes`ed in `menu.hjson`. With the removal of prompts the `PromptsChanged` event will no longer be fired.
