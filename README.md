@@ -64,7 +64,6 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [fORCE9](http://bbs.force9.org/): (**telnet://bbs.force9.org**)
 * [Undercurrents](https://undercurrents.io): (**ssh://undercurrents.io**)
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
-* [Goblin Studio](https://goblin.strangled.net): (**ssh://goblin.strangled.net:8889**)
 
 ## Special Thanks
 * [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
