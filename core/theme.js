@@ -560,9 +560,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 //
                 const dispOptions = Object.assign( {}, options, promptConfig.config );
                 //  :TODO: We can use term detection to do nifty things like avoid this kind of kludge:
-                if(!options.clearScreen) {
-                    dispOptions.font = 'not_really_a_font!';    //  kludge :)
-                }
+                // if(!options.clearScreen) {
+                //     dispOptions.font = 'not_really_a_font!';    //  kludge :)
+                // }
 
                 displayThemedAsset(
                     promptConfig.art,
