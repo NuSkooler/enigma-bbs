@@ -1,6 +1,6 @@
 FROM node:lts-buster-slim
 
-MAINTAINER Dave Stephens <dave@force9.org>
+LABEL maintainer="dave@force9.org"
 
 ENV NVM_DIR /root/.nvm
 ENV DEBIAN_FRONTEND noninteractive
