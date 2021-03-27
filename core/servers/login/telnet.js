@@ -109,8 +109,10 @@ class TelnetClient {
 
                         //  get a value from vars with fallback of user vars
                         const getValue = (name) => {
-                            return command.optionData.vars.find(nv => nv.name === name) ||
-                                command.optionData.userVars.find(nv => nv.name === name);
+                            return command.optionData.vars &&
+                                (command.optionData.vars.find(nv => nv.name === name) ||
+                                command.optionData.userVars.find(nv => nv.name === name)
+                                );
                         };
 
                         if ('unknown' === this.term.termType) {
