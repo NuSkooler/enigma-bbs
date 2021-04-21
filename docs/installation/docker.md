@@ -3,20 +3,47 @@ layout: page
 title: Docker
 ---
 **You'll need Docker installed before going any further. How to do so are out of scope of these docs, but you can find full instructions
-for every operating system on the [Docker website](https://docs.docker.com/engine/installation/).**
+for every operating system on the [Docker website](https://docs.docker.com/engine/install/).**
 
 ## Quick Start
-Download and run the ENiGMA½ BBS image:
 
-    docker run -d \
-      -p 8888:8888 \
-      davestephens/enigma-bbs:latest
+- Generate some config for your BBS:
+  ```
+  docker run -it -v "${HOME}/engima-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest oputil.js config new
+  ```
 
-:warning: This is a **very basic** example! As no config has been supplied the container will use a basic one so that it starts successfully. Note that as no persistence directory has been supplied, once the container stops any changes made will be lost!
+- Run it:
+  ```
+  docker run -p 8888:8888 -v "${HOME}/engima-bbs/config:/enigma-bbs/config enigmabbs/enigma-bbs:latest
+  ```
 
-:bulb: [Volumes](https://docs.docker.com/storage/volumes/) may be used for things such as your configuration and database path.
+:bulb: Configuration will be stored in `${HOME}/engima-bbs/config`.
 
-## Customized Docker Setup
-TBC using Docker Compose
+:bulb: Windows users - you'll need to switch out `${HOME}/engima-bbs/config` for a Windows-style path.
 
-:pencil: This area is looking for contributors!
+## Volumes
+
+Containers by their nature are ephermeral. Meaning, stuff you want to keep (config, database, mail) needs 
+to be stored outside of the running container. As such, the following volumes are mountable:
+
+| Volume                  | Usage                                                                |
+|:------------------------|:---------------------------------------------------------------------|
+| /enigma-bbs/art         | Art, themes, etc                                                     |
+| /enigma-bbs/config      | Config such as config.hjson, menu.hjson, prompt.hjson, SSL certs etc |
+| /enigma-bbs/db          | ENiGMA databases                                                     |
+| /enigma-bbs/filebase    | Filebase                                                             |
+| /enigma-bbs/logs        | Logs                                                                 |
+| /enigma-bbs/mods        | ENiGMA mods                                                          |
+| /mail                   | FTN mail (for use with an external mailer)                           |
+
+
+## Building your own image
+
+Customising the Docker image is easy!
+
+1. Clone the ENiGMA-BBS source.
+2. Build the image
+
+   ```
+   docker build -f ./docker/Dockerfile .
+   ```
