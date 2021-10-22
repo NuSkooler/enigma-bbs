@@ -103,7 +103,7 @@ class TelnetClient {
                 case Options.NEW_ENVIRON :
                     {
                         this._logDebug(
-                            { vars : command.optionData.vars, userVars : command.optionData.userVars },
+                            { vars : command.optionData.vars, uservars : command.optionData.uservars },
                             'New environment received'
                         );
 
@@ -111,7 +111,7 @@ class TelnetClient {
                         const getValue = (name) => {
                             return command.optionData.vars &&
                                 (command.optionData.vars.find(nv => nv.name === name) ||
-                                command.optionData.userVars.find(nv => nv.name === name)
+                                command.optionData.uservars.find(nv => nv.name === name)
                                 );
                         };
 
