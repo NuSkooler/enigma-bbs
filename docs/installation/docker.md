@@ -14,7 +14,7 @@ for every operating system on the [Docker website](https://docs.docker.com/engin
 
 - Run it:
   ```
-  docker run -p 8888:8888 -v "${HOME}/engima-bbs/config:/enigma-bbs/config enigmabbs/enigma-bbs:latest
+  docker run -p 8888:8888 -v "${HOME}/engima-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest
   ```
 
 :bulb: Configuration will be stored in `${HOME}/engima-bbs/config`.
