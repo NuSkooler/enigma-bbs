@@ -36,6 +36,7 @@ File base *Areas* are configured using the `fileBase.areas` configuration block 
 | `desc` | :-1: | Friendly area description. |
 | `storageTags` | :+1: | An array of storage tags for physical storage backing of the files in this area. If uploads are enabled for this area, **first** storage tag location is utilized! |
 | `sort` | :-1: | If present, provides the sort key for ordering. `name` is used otherwise. |
+| `hashTags` | :-1: | Set to an array of strings or comma separated list to provide _default_ hash tags for this area. |
 
 Example areas section:
 
@@ -45,6 +46,7 @@ areas: {
 		name: Retro PC
 		desc: Oldschool PC/DOS
 		storageTags: [ "retro_pc_dos", "retro_pc_bbs" ]
+		hashTags: ["retro", "pc", "dos" ]
 	}
 }
 ```

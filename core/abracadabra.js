@@ -11,12 +11,14 @@ const {
     trackDoorRunBegin,
     trackDoorRunEnd
 }                       = require('./door_util.js');
+const Log               = require('./logger').log;
 
 //  deps
 const async             = require('async');
 const assert            = require('assert');
 const _                 = require('lodash');
 const paths             = require('path');
+const fs                = require('graceful-fs');
 
 const activeDoorNodeInstances = {};
 
@@ -70,19 +72,11 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         //  :TODO: MenuModule.validateConfig(cb) -- validate config section gracefully instead of asserts! -- { key : type, key2 : type2, ... }
         //  ..  and/or EnigAssert
         assert(_.isString(this.config.name,         'Config \'name\' is required'));
-        assert(_.isString(this.config.dropFileType, 'Config \'dropFileType\' is required'));
         assert(_.isString(this.config.cmd,          'Config \'cmd\' is required'));
 
         this.config.nodeMax     = this.config.nodeMax || 0;
         this.config.args        = this.config.args || [];
     }
-
-    /*
-        :TODO:
-        * disconnecting while door is open leaves dosemu
-        * http://bbslink.net/sysop.php support
-        * Font support ala all other menus... or does this just work?
-    */
 
     incrementActiveDoorNodeInstances() {
         if(activeDoorNodeInstances[this.config.name]) {
@@ -141,11 +135,15 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                     return self.doorInstance.prepare(self.config.io || 'stdio', callback);
                 },
                 function generateDropfile(callback) {
-                    const dropFileOpts = {
-                        fileType            : self.config.dropFileType,
-                    };
+                    if (!self.config.dropFileType || self.config.dropFileType.toLowerCase() === 'none') {
+                        return callback(null);
+                    }
 
-                    self.dropFile = new DropFile(self.client, dropFileOpts);
+                    self.dropFile = new DropFile(
+                        self.client,
+                        { fileType : self.config.dropFileType }
+                    );
+
                     return self.dropFile.createFile(callback);
                 }
             ],
@@ -170,16 +168,29 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             args            : this.config.args,
             io              : this.config.io || 'stdio',
             encoding        : this.config.encoding || 'cp437',
-            dropFile        : this.dropFile.fileName,
-            dropFilePath    : this.dropFile.fullPath,
             node            : this.client.node,
+            env             : this.config.env,
         };
+
+        if (this.dropFile) {
+            exeInfo.dropFile        = this.dropFile.fileName;
+            exeInfo.dropFilePath    = this.dropFile.fullPath;
+        }
 
         const doorTracking = trackDoorRunBegin(this.client, this.config.name);
 
         this.doorInstance.run(exeInfo, () => {
             trackDoorRunEnd(doorTracking);
             this.decrementActiveDoorNodeInstances();
+
+            //  Clean up dropfile, if any
+            if (exeInfo.dropFilePath) {
+                fs.unlink(exeInfo.dropFilePath, err => {
+                    if (err) {
+                        Log.warn({ error : err, path : exeInfo.dropFilePath }, 'Failed to remove drop file.');
+                    }
+                });
+            }
 
             //  client may have disconnected while process was active -
             //  we're done here if so.
@@ -199,7 +210,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                 '\r\n\r\n'
             );
 
-            this.prevMenu();
+            this.autoNextMenu();
         });
     }
 

@@ -6,7 +6,7 @@ title: Web Socket / Web Interface Server
 The WebSocket Login Server provides **secure** (wss://) as well as non-secure (ws://) WebSocket login access. This is often combined with a browser based WebSocket client such as VTX or fTelnet.
 
 # VTX Web Client
-ENiGMA supports the VTX websocket client for connecting to your BBS from a web page. Example usage can be found at [Xibalba](https://xibalba.l33t.codes) and [fORCE9](https://bbs.force9.org/vtx/force9.html) amongst others.
+ENiGMA supports the VTX WebSocket client for connecting to your BBS from a web page. Example usage can be found at [Xibalba](https://xibalba.l33t.codes) and [fORCE9](https://bbs.force9.org/vtx/force9.html) amongst others.
 
 ## Before You Start
 There are a few things out of scope of this document:
@@ -62,7 +62,7 @@ following:
 3. Download the [VTX_ClientServer](https://github.com/codewar65/VTX_ClientServer/archive/master.zip) to your
 webserver, and unpack it to a temporary directory.
 
-4. Download the example [VTX client HTML file](/misc/vtx/vtx.html) and save it to your webserver root.
+4. Download the example [VTX client HTML file](https://raw.githubusercontent.com/NuSkooler/enigma-bbs/master/misc/vtx/vtx.html) and save it to your webserver root.
 
 5. Create an `assets/vtx` directory within your webserver root, so you have a structure like the following:
 

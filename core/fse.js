@@ -21,7 +21,10 @@ const {
     isAnsi, stripAnsiControlCodes,
     insert
 }                               = require('./string_util.js');
-const { stripMciColorCodes }    = require('./color_codes.js');
+const {
+    stripMciColorCodes,
+    controlCodesToAnsi,
+}    = require('./color_codes.js');
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
@@ -418,7 +421,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //
                         //  Find tearline - we want to color it differently.
                         //
-                        const tearLinePos = this.message.getTearLinePosition(msg);
+                        const tearLinePos = Message.getTearLinePosition(msg);
 
                         if(tearLinePos > -1) {
                             msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
@@ -432,7 +435,55 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             }
                         );
                     } else {
-                        bodyMessageView.setText(stripAnsiControlCodes(msg));
+                        msg = stripAnsiControlCodes(msg);   //  start clean
+
+                        const styleToArray = (style, len) => {
+                            if (!Array.isArray(style)) {
+                                style = [ style ];
+                            }
+                            while (style.length < len) {
+                                style.push(style[0]);
+                            }
+                            return style;
+                        };
+
+                        //
+                        //  In *View* mode, if enabled, do a little prep work so we can stylize:
+                        //  - Quote indicators
+                        //  - Tear lines
+                        //  - Origins
+                        //
+                        if (this.menuConfig.config.quoteStyleLevel1) {
+                            //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
+                            const styleL1 = styleToArray(this.menuConfig.config.quoteStyleLevel1, 3);
+
+                            const QuoteRegex = /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(QuoteRegex, (m, spc1, initials, spc2, text) => {
+                                return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.tearLineStyle) {
+                            //  '---' and TEXT
+                            const style = styleToArray(this.menuConfig.config.tearLineStyle, 2);
+
+                            const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
+                            msg = msg.replace(TearLineRegex, (m, text) => {
+                                return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.originStyle) {
+                            const style = styleToArray(this.menuConfig.config.originStyle, 3);
+
+                            const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
+                            msg = msg.replace(OriginRegex, (m, spc, text) => {
+                                return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        bodyMessageView.setText(controlCodesToAnsi(msg));
                     }
                 }
             }

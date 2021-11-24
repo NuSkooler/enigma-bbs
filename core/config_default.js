@@ -492,7 +492,7 @@ module.exports = () => {
                     },
                     decompress      : {
                         cmd         : '7za',
-                        args        : [ 'e', '-o{extractPath}', '{archivePath}' ]   //  :TODO: should be 'x'?
+                        args        : [ 'e', '-y', '-o{extractPath}', '{archivePath}' ]   //  :TODO: should be 'x'?
                     },
                     list            : {
                         cmd         : '7za',
@@ -501,7 +501,7 @@ module.exports = () => {
                     },
                     extract         : {
                         cmd         : '7za',
-                        args        : [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+                        args        : [ 'e', '-y', '-o{extractPath}', '{archivePath}', '{fileList}' ],
                     },
                 },
 

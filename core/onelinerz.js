@@ -135,7 +135,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     self.db.each(
                         `SELECT *
                         FROM (
-                            SELECT * 
+                            SELECT *
                             FROM onelinerz
                             ORDER BY timestamp DESC
                             LIMIT ${limit}
@@ -248,8 +248,9 @@ exports.getModule = class OnelinerzModule extends MenuModule {
         async.series(
             [
                 function openDatabase(callback) {
+                    const dbSuffix = self.menuConfig.config.dbSuffix;
                     self.db = getTransactionDatabase(new sqlite3.Database(
-                        getModDatabasePath(exports.moduleInfo),
+                        getModDatabasePath(exports.moduleInfo, dbSuffix),
                         err => {
                             return callback(err);
                         }
@@ -260,7 +261,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         `CREATE TABLE IF NOT EXISTS onelinerz (
                             id              INTEGER PRIMARY KEY,
                             user_id         INTEGER_NOT NULL,
-                            user_name       VARCHAR NOT NULL,                               
+                            user_name       VARCHAR NOT NULL,
                             oneliner        VARCHAR NOT NULL,
                             timestamp       DATETIME NOT NULL
                         );`

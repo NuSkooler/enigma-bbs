@@ -3,13 +3,15 @@ layout: page
 title: Menu HSJON
 ---
 ## Menu HJSON
-The core of a ENiGMA½ based BBS is `menu.hjson`. Note that when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determines the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format. See [HJSON General Information](hjson.md) for more information.
+The core of a ENiGMA½ based BBS is it's menus driven by what will be referred to as `menu.hjson`. Throughout ENiGMA½ documentation, when `menu.hjson` is referenced, we're actually talking about `config/menus/yourboardname-*.hjson`. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in [HJSON](https://hjson.org/) format.
 
-Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
+:information_source: See also [HJSON General Information](hjson.md) for more information on the HJSON file format.
 
-* Classical Main, Messages, and File menus
-* Art file display
-* Module driven menus such as door launchers and other custom mods
+:bulb: Entries in `menu.hjson` are often referred to as *blocks* or *sections*. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:
+
+* Classical navigation and menus such as Main, Messages, and Files.
+* Art file display.
+* Module driven menus such as [door launchers](../modding/local-doors.md), [Onelinerz](../modding/onelinzerz.md), and other custom mods.
 
 Menu entries live under the `menus` section of `menu.hjson`. The *key* for a menu is it's name that can be referenced by other menus and areas of the system.
 
@@ -25,23 +27,24 @@ As you can see a menu can be very simple.
 :information_source: Remember that the top level menu may include additional files using the `includes` directive. See [Configuration Files](config-files.md) for more information on this.
 
 ## Common Menu Entry Members
-Below is a table of **common** menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: `module: bbs_list`) may differ. See documentation for the module in question for particulars.
+Below is a table of **common** menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: `module: bbs_list`) may differ. Menus that use their own module contain a `module` declaration:
+
+```hjson
+module: some_fancy_module
+```
+
+See documentation for the module in question for particulars.
 
 | Item   | Description  |
 |--------|--------------|
 | `desc` | A friendly description that can be found in places such as "Who's Online" or wherever the `%MD` MCI code is used. |
 | `art` | An art file *spec*. See [General Art Information](../art/general.md). |
-| `next` | Specifies the next menu entry to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. Note that special built in methods such as `@systemMethod:logoff` can also be utilized here. |
+| `next` | Specifies the menu to go to next. Can be explicit or an array of possibilities dependent on ACS. See **Flow Control** in the **ACS Checks** section below. If `next` is not supplied, the next menu is this menus parent. Note that special built in methods such as `@systemMethod:logoff` can also be utilized here. |
 | `prompt` | Specifies a prompt, by name, to use along with this menu. Prompts are configured in the `prompts` section. See **Prompts** for more information. |
 | `submit` | Defines a submit handler when using `prompt`.
 | `form` | An object defining one or more *forms* available on this menu. |
-| `module` | Sets the module name to use for this menu. See **Menu Modules** below. |
+| `module` | Sets the module name to use for this menu. The system ships with many build in modules or you can build your own! |
 | `config` | An object containing additional configuration. See **Config Block** below. |
-
-### Menu Modules
-A given menu entry is backed by a *menu module*. That is, the code behind it. Menus are considered "standard" if the `module` member is not specified (and therefore backed by `core/standard_menu.js`).
-
-See [Menu Modules](../modding/menu-modules.md) for more information.
 
 ### Config Block
 The `config` block for a menu entry can contain common members as well as a per-module (when `module` is used) settings.
@@ -266,6 +269,31 @@ someMenu: {
     ]
 }
 ```
+
+## Case Study: Adding a Sub Menu to Main
+A very common task: You want to add a new menu accessible from "Main". First, let's create a new menu called "Snazzy Town"! Perhaps under the `mainMenu` entry somewhere, create a new menu:
+
+```hjson
+snazzyTown: {
+    desc: Snazzy Town
+    art: snazzy
+    config: {
+        cls: true
+        pause: true
+    }
+}
+```
+
+Now let's make it accessible by "S" from the main menu. By default the main menu entry is named `mainMenu`. Within the `mainMenu`'s `submit` block you will see some existing action matches to "command". Simply add a new one pointing to `snazzyTown`:
+
+```hjson
+{
+    value: { command: "S" }
+    action: @menu:snazzyTown
+}
+```
+
+That's it! When users type "S" at the main menu, they'll be  sent to the Snazzy Town menu. Since we did not supply additional flow logic when they exit, they will fall back to main.
 
 ## Case Study: Adding a New User Password (NUP)
 You've got a super 31337 board and want to prevent lamerz! Let's run through adding a NUP to your application flow.

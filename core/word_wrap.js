@@ -1,7 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-const renderStringLength    = require('./string_util.js').renderStringLength;
+const {
+    ansiRenderStringLength,
+} = require('./string_util');
 
 //  deps
 const assert                = require('assert');
@@ -28,7 +30,7 @@ function wordWrapText(text, options) {
 
     //const REGEXP_GOBBLE = new RegExp(`.{0,${options.width}}`, 'g');
     //
-    //  For a given word, match 0->options.width chars -- alwasy include a full trailing ESC
+    //  For a given word, match 0->options.width chars -- always include a full trailing ESC
     //  sequence if present!
     //
     //  :TODO: Need to create ansi.getMatchRegex or something - this is used all over
@@ -49,7 +51,7 @@ function wordWrapText(text, options) {
 
     function appendWord() {
         word.match(REGEXP_GOBBLE).forEach( w => {
-            renderLen = renderStringLength(w);
+            renderLen = ansiRenderStringLength(w);
 
             if(result.renderLen[i] + renderLen > options.width) {
                 if(0 === i) {
@@ -70,7 +72,7 @@ function wordWrapText(text, options) {
     //
     //  *   Sublime Text 3 for example considers spaces after a word
     //      part of said word. For example, "word    " would be wraped
-    //      in it's entirity.
+    //      in it's entirety.
     //
     //  *   Tabs in Sublime Text 3 are also treated as a word, so, e.g.
     //      "\t" may resolve to "      " and must fit within the space.

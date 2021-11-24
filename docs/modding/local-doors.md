@@ -5,6 +5,8 @@ title: Local Doors
 ## Local Doors
 ENiGMA½ has many ways to add doors to your system. In addition to the [many built in door server modules](door-servers.md), local doors are of course also supported using the ! The `abracadabra` module!
 
+:information_source: See also [Let’s add a DOS door to Enigma½ BBS](https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c) by Robbie Whiting for a great writeup on adding doors!
+
 ## The abracadabra Module
 The `abracadabra` module provides a generic and flexible solution for many door types. Through this module you can execute native processes & scripts directly, and perform I/O through standard I/O (stdio) or a temporary TCP server.
 
@@ -14,10 +16,11 @@ The `abracadabra` `config` block can contain the following members:
 | Item | Required | Description |
 |------|----------|-------------|
 | `name` | :+1: | Used as a key for tracking number of clients using a particular door. |
-| `dropFileType` | :+1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). |
+| `dropFileType` | :-1: | Specifies the type of dropfile to generate (See **Dropfile Types** below). Can be omitted or set to `none`. |
 | `cmd` | :+1: | Path to executable to launch. |
 | `args` | :-1: | Array of argument(s) to pass to `cmd`. See **Argument Variables** below for information on variables that can be used here.
 | `cwd` | :-1: | Sets the Current Working Directory (CWD) for `cmd`. Defaults to the directory of `cmd`. |
+| `env` | :-1: | Sets the environment. Supplied in the form of an map: `{ SOME_VAR: "value" }`
 | `nodeMax` | :-1: | Max number of nodes that can access this door at once. Uses `name` as a tracking key. |
 | `tooManyArt` | :-1: | Art spec to display if too many instances are already in use. |
 | `io` | :-1: | How to process input/output (I/O). Can be `stdio` or `socket`. When using `stdio`, I/O is handled via standard stdin/stdout. When using `socket` a temporary socket server is spawned that can be connected back to. The server listens on localhost on `{srvPort}` (See **Argument Variables** below for more information). Default value is `stdio`. |

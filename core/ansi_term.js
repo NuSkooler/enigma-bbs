@@ -309,7 +309,8 @@ const FONT_ALIAS_TO_SYNCTERM_MAP = {
 
     'mo_soul'               : 'mo_soul',
     'mosoul'                : 'mo_soul',
-    'mO\'sOul'              : 'mo_soul',
+    'mo\'soul'              : 'mo_soul',
+    'amiga_mosoul'          : 'mo_soul',
 
     'amiga_microknight'     : 'microknight',
     'amiga_microknight+'    : 'microknight_plus',

@@ -45,7 +45,7 @@ exports.getFileAreasByTagWildcardRule   = getFileAreasByTagWildcardRule;
 exports.getFileEntryPath                = getFileEntryPath;
 exports.changeFileAreaWithOptions       = changeFileAreaWithOptions;
 exports.scanFile                        = scanFile;
-exports.scanFileAreaForChanges          = scanFileAreaForChanges;
+//exports.scanFileAreaForChanges          = scanFileAreaForChanges;
 exports.getDescFromFileName             = getDescFromFileName;
 exports.getAreaStats                    = getAreaStats;
 exports.cleanUpTempSessionItems         = cleanUpTempSessionItems;
@@ -139,7 +139,14 @@ function getDefaultFileAreaTag(client, disableAcsCheck) {
 function getFileAreaByTag(areaTag) {
     const areaInfo = Config().fileBase.areas[areaTag];
     if(areaInfo) {
-        areaInfo.areaTag    = areaTag;  //  convienence!
+        //  normalize |hashTags|
+        if (_.isString(areaInfo.hashTags)) {
+            areaInfo.hashTags = areaInfo.hashTags.trim().split(',');
+        }
+        if (Array.isArray(areaInfo.hashTags)) {
+            areaInfo.hashTags = new Set(areaInfo.hashTags.map(t => t.trim()));
+        }
+        areaInfo.areaTag    = areaTag;  //  convenience!
         areaInfo.storage    = getAreaStorageLocations(areaInfo);
         return areaInfo;
     }
@@ -794,7 +801,7 @@ function scanFile(filePath, options, iterator, cb) {
                             stepInfo.calcHashPercent    = Math.round(((stepInfo.bytesProcessed / stepInfo.byteSize) * 100));
 
                             //
-                            //  Only send 'hash_update' step update if we have a noticable percentage change in progress
+                            //  Only send 'hash_update' step update if we have a noticeable percentage change in progress
                             //
                             const data = bytesRead < chunkSize ? buffer.slice(0, bytesRead) : buffer;
                             if(!iterator || stepInfo.calcHashPercent === lastCalcHashPercent) {
@@ -871,90 +878,91 @@ function scanFile(filePath, options, iterator, cb) {
     );
 }
 
-function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
-    if(3 === arguments.length && _.isFunction(iterator)) {
-        cb          = iterator;
-        iterator    = null;
-    } else if(2 === arguments.length && _.isFunction(options)) {
-        cb          = options;
-        iterator    = null;
-        options     = {};
-    }
+//  :TODO: this stuff needs cleaned up
+// function scanFileAreaForChanges(areaInfo, options, iterator, cb) {
+//     if(3 === arguments.length && _.isFunction(iterator)) {
+//         cb          = iterator;
+//         iterator    = null;
+//     } else if(2 === arguments.length && _.isFunction(options)) {
+//         cb          = options;
+//         iterator    = null;
+//         options     = {};
+//     }
 
-    const storageLocations = getAreaStorageLocations(areaInfo);
+//     const storageLocations = getAreaStorageLocations(areaInfo);
 
-    async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
-        async.series(
-            [
-                function scanPhysFiles(callback) {
-                    const physDir = storageLoc.dir;
+//     async.eachSeries(storageLocations, (storageLoc, nextLocation) => {
+//         async.series(
+//             [
+//                 function scanPhysFiles(callback) {
+//                     const physDir = storageLoc.dir;
 
-                    fs.readdir(physDir, (err, files) => {
-                        if(err) {
-                            return callback(err);
-                        }
+//                     fs.readdir(physDir, (err, files) => {
+//                         if(err) {
+//                             return callback(err);
+//                         }
 
-                        async.eachSeries(files, (fileName, nextFile) => {
-                            const fullPath = paths.join(physDir, fileName);
+//                         async.eachSeries(files, (fileName, nextFile) => {
+//                             const fullPath = paths.join(physDir, fileName);
 
-                            fs.stat(fullPath, (err, stats) => {
-                                if(err) {
-                                    //  :TODO: Log me!
-                                    return nextFile(null);  //  always try next file
-                                }
+//                             fs.stat(fullPath, (err, stats) => {
+//                                 if(err) {
+//                                     //  :TODO: Log me!
+//                                     return nextFile(null);  //  always try next file
+//                                 }
 
-                                if(!stats.isFile()) {
-                                    return nextFile(null);
-                                }
+//                                 if(!stats.isFile()) {
+//                                     return nextFile(null);
+//                                 }
 
-                                scanFile(
-                                    fullPath,
-                                    {
-                                        areaTag     : areaInfo.areaTag,
-                                        storageTag  : storageLoc.storageTag
-                                    },
-                                    iterator,
-                                    (err, fileEntry, dupeEntries) => {
-                                        if(err) {
-                                            //  :TODO: Log me!!!
-                                            return nextFile(null);  //  try next anyway
-                                        }
+//                                 scanFile(
+//                                     fullPath,
+//                                     {
+//                                         areaTag     : areaInfo.areaTag,
+//                                         storageTag  : storageLoc.storageTag
+//                                     },
+//                                     iterator,
+//                                     (err, fileEntry, dupeEntries) => {
+//                                         if(err) {
+//                                             //  :TODO: Log me!!!
+//                                             return nextFile(null);  //  try next anyway
+//                                         }
 
-                                        if(dupeEntries.length > 0) {
-                                            //  :TODO: Handle duplidates -- what to do here???
-                                        } else {
-                                            if(Array.isArray(options.tags)) {
-                                                options.tags.forEach(tag => {
-                                                    fileEntry.hashTags.add(tag);
-                                                });
-                                            }
-                                            addNewFileEntry(fileEntry, fullPath, err => {
-                                                //  pass along error; we failed to insert a record in our DB or something else bad
-                                                return nextFile(err);
-                                            });
-                                        }
-                                    }
-                                );
-                            });
-                        }, err => {
-                            return callback(err);
-                        });
-                    });
-                },
-                function scanDbEntries(callback) {
-                    //  :TODO: Look @ db entries for area that were *not* processed above
-                    return callback(null);
-                }
-            ],
-            err => {
-                return nextLocation(err);
-            }
-        );
-    },
-    err => {
-        return cb(err);
-    });
-}
+//                                         if(dupeEntries.length > 0) {
+//                                             //  :TODO: Handle duplicates -- what to do here???
+//                                         } else {
+//                                             if(Array.isArray(options.tags)) {
+//                                                 options.tags.forEach(tag => {
+//                                                     fileEntry.hashTags.add(tag);
+//                                                 });
+//                                             }
+//                                             addNewFileEntry(fileEntry, fullPath, err => {
+//                                                 //  pass along error; we failed to insert a record in our DB or something else bad
+//                                                 return nextFile(err);
+//                                             });
+//                                         }
+//                                     }
+//                                 );
+//                             });
+//                         }, err => {
+//                             return callback(err);
+//                         });
+//                     });
+//                 },
+//                 function scanDbEntries(callback) {
+//                     //  :TODO: Look @ db entries for area that were *not* processed above
+//                     return callback(null);
+//                 }
+//             ],
+//             err => {
+//                 return nextLocation(err);
+//             }
+//         );
+//     },
+//     err => {
+//         return cb(err);
+//     });
+// }
 
 function getDescFromFileName(fileName) {
     //

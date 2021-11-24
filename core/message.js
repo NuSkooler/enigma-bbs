@@ -790,7 +790,7 @@ module.exports = class Message {
         return ftnUtil.getQuotePrefix(this[source]);
     }
 
-    getTearLinePosition(input) {
+    static getTearLinePosition(input) {
         const m = input.match(/^--- .+$(?![\s\S]*^--- .+$)/m);
         return m ? m.index : -1;
     }
@@ -886,12 +886,12 @@ module.exports = class Message {
                 }
             );
         } else {
-            const QUOTE_RE  = /^ ((?:[A-Za-z0-9]{2}> )+(?:[A-Za-z0-9]{2}>)*) */;
+            const QUOTE_RE  = /^ ((?:[A-Za-z0-9]{1,2}> )+(?:[A-Za-z0-9]{1,2}>)*) */;
             const quoted    = [];
             const input     = _.trimEnd(this.message).replace(/\x08/g, ''); //  eslint-disable-line no-control-regex
 
             //  find *last* tearline
-            let tearLinePos = this.getTearLinePosition(input);
+            let tearLinePos = Message.getTearLinePosition(input);
             tearLinePos = -1 === tearLinePos ? input.length : tearLinePos;  //  we just want the index or the entire string
 
             input.slice(0, tearLinePos).split(/\r\n\r\n|\n\n/).forEach(paragraph => {
@@ -910,7 +910,7 @@ module.exports = class Message {
 
                 if(quoted.length > 0) {
                     //
-                    //  Preserve paragraph seperation.
+                    //  Preserve paragraph separation.
                     //
                     //  FSC-0032 states something about leaving blank lines fully blank
                     //  (without a prefix) but it seems nicer (and more consistent with other systems)
