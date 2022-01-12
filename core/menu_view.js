@@ -38,7 +38,8 @@ function MenuView(options) {
     this.focusedItemIndex = options.focusedItemIndex || 0;
     this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
-    this.itemSpacing    = _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
+    this.itemSpacing      = _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
+    this.itemHorizSpacing = _.isNumber(options.itemHorizSpacing) ? options.itemHorizSpacing : 0;
 
     //  :TODO: probably just replace this with owner draw / pipe codes / etc. more control, less specialization
     this.focusPrefix    = options.focusPrefix || '';
@@ -253,9 +254,18 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
     this.positionCacheExpired   = true;
 };
 
+MenuView.prototype.setItemHorizSpacing = function(itemHorizSpacing) {
+    itemSpacing = parseInt(itemHorizSpacing);
+    assert(_.isNumber(itemHorizSpacing));
+
+    this.itemHorizSpacing       = itemHorizSpacing;
+    this.positionCacheExpired   = true;
+};
+
 MenuView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
         case 'itemSpacing'      : this.setItemSpacing(value); break;
+        case 'itemHorizSpacing' : this.setItemHorizSpacing(value); break;
         case 'items'            : this.setItems(value); break;
         case 'focusItems'       : this.setFocusItems(value); break;
         case 'hotKeys'          : this.setHotKeys(value); break;
