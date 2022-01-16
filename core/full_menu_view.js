@@ -21,7 +21,14 @@ function FullMenuView(options) {
 
   MenuView.call(this, options);
 
+
+  // Initialize paging
+  this.pages = [];
+  this.currentPage = 0;
+
   this.initDefaultWidth();
+
+
 
   const self = this;
 
@@ -39,48 +46,111 @@ function FullMenuView(options) {
       this.dimens.height = Math.min(this.dimens.height, this.client.term.termHeight - this.position.row);
     }
 
-    // Calculate number of items visible after adjusting height
-    this.itemsPerRow = Math.floor(this.dimens.height / (this.itemSpacing + 1));
-    // handle case where one can fit at the end
-    if (this.dimens.height > (this.itemsPerRow * (this.itemSpacing + 1))) {
-      this.itemsPerRow++;
-    }
-
-    // Final check to make sure we don't try to display more than we have
-    if (this.itemsPerRow > this.items.length) {
-      this.itemsPerRow = this.items.length;
-    }
-
+    this.positionCacheExpired = true;
   };
 
   this.autoAdjustHeightIfEnabled();
 
+
+
   this.getSpacer = function() {
     return new Array(self.itemHorizSpacing + 1).join(this.fillChar);
+  }
+
+
+  this.clearPage = function() {
+    for (var i = 0; i < this.itemsPerRow; i++) {
+      let text = `${strUtil.pad(' ', this.dimens.width, this.fillChar, 'left')}`;
+      self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${text}`);
+    }
   }
 
   this.cachePositions = function() {
     if (this.positionCacheExpired) {
       this.autoAdjustHeightIfEnabled();
 
-      var col = self.position.col;
-      var row = self.position.row;
-      var spacer = self.getSpacer();
+      this.pages = []; // reset
+
+      // Calculate number of items visible per column
+      this.itemsPerRow = Math.floor(this.dimens.height / (this.itemSpacing + 1));
+      // handle case where one can fit at the end
+      if (this.dimens.height > (this.itemsPerRow * (this.itemSpacing + 1))) {
+        this.itemsPerRow++;
+      }
+
+      // Final check to make sure we don't try to display more than we have
+      if (this.itemsPerRow > this.items.length) {
+        this.itemsPerRow = this.items.length;
+      }
+
+      var col = this.position.col;
+      var row = this.position.row;
+      var spacer = this.getSpacer();
 
       var itemInRow = 0;
 
-      for (var i = 0; i < self.items.length; ++i) {
+      this.viewWindow = {
+        start: this.focusedItemIndex,
+        end: this.items.length - 1, // this may be adjusted later
+      };
+
+      var pageStart = 0;
+
+      for (var i = 0; i < this.items.length; ++i) {
         itemInRow++;
-        self.items[i].row = row;
-        self.items[i].col = col;
+        this.items[i].row = row;
+        this.items[i].col = col;
 
         row += this.itemSpacing + 1;
 
-        // handle going to next column
-        if (itemInRow == this.itemsPerRow) {
+        // have to calculate the max length on the last entry
+        if (i == this.items.length - 1) {
+          var maxLength = 0;
+          for (var j = 0; j < this.itemsPerRow; j++) {
+            if (this.items[i - j].col != this.items[i].col) {
+              break;
+            }
+            var itemLength = this.items[i - j].text.length;
+            if (itemLength > maxLength) {
+              maxLength = itemLength;
+            }
+          }
+
+          // set length on each item in the column
+          for (var j = 0; j < this.itemsPerRow; j++) {
+            if (this.items[i - j].col != this.items[i].col) {
+              break;
+            }
+            this.items[i - j].fixedLength = maxLength;
+          }
+
+
+          // Check if we have room for this column
+          if (col + maxLength + spacer.length + 1 > this.position.col + this.dimens.width) {
+            // save previous page
+            this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
+
+            // fix the last column processed
+            for (var j = 0; j < this.itemsPerRow; j++) {
+              if (this.items[i - j].col != col) {
+                break;
+              }
+              this.items[i - j].col = this.position.col;
+              pageStart = i - j;
+            }
+
+          }
+
+          // Since this is the last page, save the current page as well
+          this.pages.push({ start: pageStart, end: i });
+
+        }
+        // also handle going to next column
+        else if (itemInRow == this.itemsPerRow) {
           itemInRow = 0;
 
-          row = self.position.row;
+          // restart row for next column
+          row = this.position.row;
           var maxLength = 0;
           for (var j = 0; j < this.itemsPerRow; j++) {
             // TODO: handle complex items
@@ -92,34 +162,37 @@ function FullMenuView(options) {
 
           // set length on each item in the column
           for (var j = 0; j < this.itemsPerRow; j++) {
-            self.items[i - j].fixedLength = maxLength;
+            this.items[i - j].fixedLength = maxLength;
+          }
+
+          // Check if we have room for this column in the current page
+          if (col + maxLength > this.position.col + this.dimens.width) {
+            // save previous page
+            this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
+
+            // restart page start for next page
+            pageStart = i - this.itemsPerRow + 1;
+
+            // reset
+            col = this.position.col;
+            itemInRow = 0;
+
+            // fix the last column processed
+            for (var j = 0; j < this.itemsPerRow; j++) {
+              this.items[i - j].col = col;
+            }
+
+
           }
 
           // increment the column
           col += maxLength + spacer.length + 1;
         }
 
-        // also have to calculate the max length on the last column
-        else if (i == self.items.length - 1) {
-          var maxLength = 0;
-          for (var j = 0; j < this.itemsPerRow; j++) {
-            if (self.items[i - j].col != self.items[i].col) {
-              break;
-            }
-            var itemLength = this.items[i - j].text.length;
-            if (itemLength > maxLength) {
-              maxLength = itemLength;
-            }
-          }
 
-          // set length on each item in the column
-          for (var j = 0; j < this.itemsPerRow; j++) {
-            if (self.items[i - j].col != self.items[i].col) {
-              break;
-            }
-            self.items[i - j].fixedLength = maxLength;
-          }
-
+        // Set the current page if the current item is focused.
+        if (this.focusedItemIndex === i) {
+          this.currentPage = this.pages.length;
         }
       }
     }
@@ -128,32 +201,32 @@ function FullMenuView(options) {
   };
 
   this.drawItem = function(index) {
-    const item = self.items[index];
+    const item = this.items[index];
     if (!item) {
       return;
     }
 
     const cached = this.getRenderCacheItem(index, item.focused);
     if (cached) {
-      return self.client.term.write(`${ansi.goto(item.row, item.col)}${cached}`);
+      return this.client.term.write(`${ansi.goto(item.row, item.col)}${cached}`);
     }
 
     let text;
     let sgr;
-    if (item.focused && self.hasFocusItems()) {
-      const focusItem = self.focusItems[index];
+    if (item.focused && this.hasFocusItems()) {
+      const focusItem = this.focusItems[index];
       text = focusItem ? focusItem.text : item.text;
       sgr = '';
     } else if (this.complexItems) {
       text = pipeToAnsi(formatString(item.focused && this.focusItemFormat ? this.focusItemFormat : this.itemFormat, item));
-      sgr = this.focusItemFormat ? '' : (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
+      sgr = this.focusItemFormat ? '' : (index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
     } else {
-      text = strUtil.stylizeString(item.text, item.focused ? self.focusTextStyle : self.textStyle);
-      sgr = (index === self.focusedItemIndex ? self.getFocusSGR() : self.getSGR());
+      text = strUtil.stylizeString(item.text, item.focused ? this.focusTextStyle : this.textStyle);
+      sgr = (index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
     }
 
-    text = `${sgr}${strUtil.pad(text, this.dimens.width, this.fillChar, this.justify)}`;
-    self.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
+    text = `${sgr}${strUtil.pad(text, this.fixedLength, this.fillChar, this.justify)}`;
+    this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
     this.setRenderCacheItem(index, text, item.focused);
   };
 }
@@ -166,11 +239,6 @@ FullMenuView.prototype.redraw = function() {
 
   this.cachePositions();
 
-  //  :TODO: rename positionCacheExpired to something that makese sense; combine methods for such
-  if (this.positionCacheExpired) {
-    this.autoAdjustHeightIfEnabled();
-    this.positionCacheExpired = false;
-  }
 
   //  erase old items
   //  :TODO: optimize this: only needed if a item is removed or new max width < old.
@@ -189,7 +257,7 @@ FullMenuView.prototype.redraw = function() {
   }
 
   if (this.items.length) {
-    for (let i = 0; i < this.items.length; ++i) {
+    for (let i = this.pages[this.currentPage].start; i <= this.pages[this.currentPage].end; ++i) {
       this.items[i].focused = this.focusedItemIndex === i;
       this.drawItem(i);
     }
@@ -201,6 +269,12 @@ FullMenuView.prototype.setHeight = function(height) {
 
   this.positionCacheExpired = true;
   this.autoAdjustHeight = false;
+};
+
+FullMenuView.prototype.setWidth = function(width) {
+  FullMenuView.super_.prototype.setWidth.call(this, width);
+
+  this.positionCacheExpired = true;
 };
 
 FullMenuView.prototype.setPosition = function(pos) {
@@ -273,11 +347,16 @@ FullMenuView.prototype.removeItem = function(index) {
 
 FullMenuView.prototype.focusNext = function() {
   if (this.items.length - 1 === this.focusedItemIndex) {
+    this.clearPage();
     this.focusedItemIndex = 0;
-
-  } else {
+    this.currentPage = 0;
+  }
+  else {
     this.focusedItemIndex++;
-
+    if (this.focusedItemIndex > this.pages[this.currentPage].end) {
+      this.clearPage();
+      this.currentPage++;
+    }
   }
 
   this.redraw();
@@ -288,10 +367,14 @@ FullMenuView.prototype.focusNext = function() {
 FullMenuView.prototype.focusPrevious = function() {
   if (0 === this.focusedItemIndex) {
     this.focusedItemIndex = this.items.length - 1;
-
-
-  } else {
+    this.currentPage = this.pages.length - 1;
+  }
+  else {
+    this.clearPage();
     this.focusedItemIndex--;
+    if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+      this.currentPage--;
+    }
   }
 
   this.redraw();
@@ -303,8 +386,17 @@ FullMenuView.prototype.focusPreviousColumn = function() {
 
   this.focusedItemIndex = this.focusedItemIndex - this.itemsPerRow;
   if (this.focusedItemIndex < 0) {
+    this.clearPage();
     // add the negative index to the end of the list
     this.focusedItemIndex = this.items.length + this.focusedItemIndex;
+    // set to last page
+    this.currentPage = this.pages.length - 1;
+  }
+  else {
+    if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+      this.clearPage();
+      this.currentPage--;
+    }
   }
 
   this.redraw();
@@ -319,6 +411,12 @@ FullMenuView.prototype.focusNextColumn = function() {
   if (this.focusedItemIndex > this.items.length - 1) {
     // add the overflow to the beginning of the list
     this.focusedItemIndex = this.focusedItemIndex - this.items.length;
+    this.currentPage = 0;
+    this.clearPage();
+  }
+  else if (this.focusedItemIndex > this.pages[this.currentPage].end) {
+    this.clearPage();
+    this.currentPage++;
   }
 
   this.redraw();
