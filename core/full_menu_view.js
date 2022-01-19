@@ -59,7 +59,7 @@ function FullMenuView(options) {
 
 
   this.clearPage = function() {
-    for (var i = 0; i < this.itemsPerRow; i++) {
+    for (var i = 0; i < this.dimens.height; i++) {
       let text = `${strUtil.pad(' ', this.dimens.width, this.fillChar, 'left')}`;
       self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${text}`);
     }
@@ -88,11 +88,7 @@ function FullMenuView(options) {
       var spacer = this.getSpacer();
 
       var itemInRow = 0;
-
-      this.viewWindow = {
-        start: this.focusedItemIndex,
-        end: this.items.length - 1, // this may be adjusted later
-      };
+      var itemInCol = 0;
 
       var pageStart = 0;
 
@@ -100,6 +96,7 @@ function FullMenuView(options) {
         itemInRow++;
         this.items[i].row = row;
         this.items[i].col = col;
+        this.items[i].itemInRow = itemInRow;
 
         row += this.itemSpacing + 1;
 
@@ -126,7 +123,8 @@ function FullMenuView(options) {
 
 
           // Check if we have room for this column
-          if (col + maxLength + spacer.length + 1 > this.position.col + this.dimens.width) {
+          // skip for column 0, we need at least one
+          if (itemInCol != 0 && (col + maxLength + spacer.length + 1 > this.position.col + this.dimens.width)) {
             // save previous page
             this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
 
@@ -166,7 +164,8 @@ function FullMenuView(options) {
           }
 
           // Check if we have room for this column in the current page
-          if (col + maxLength > this.position.col + this.dimens.width) {
+          // skip for first column, we need at least one
+          if (itemInCol != 0 && (col + maxLength > this.position.col + this.dimens.width)) {
             // save previous page
             this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
 
@@ -183,10 +182,14 @@ function FullMenuView(options) {
             }
 
 
+
+
+
           }
 
           // increment the column
           col += maxLength + spacer.length + 1;
+          itemInCol++;
         }
 
 
@@ -223,6 +226,11 @@ function FullMenuView(options) {
     } else {
       text = strUtil.stylizeString(item.text, item.focused ? this.focusTextStyle : this.textStyle);
       sgr = (index === this.focusedItemIndex ? this.getFocusSGR() : this.getSGR());
+    }
+
+    let renderLength = strUtil.renderStringLength(text);
+    if (this.hasTextOverflow() && (item.col + renderLength) > this.dimens.width) {
+      text = strUtil.renderSubstr(text, 0, this.dimens.width - (item.col + this.textOverflow.length)) + this.textOverflow;
     }
 
     text = `${sgr}${strUtil.pad(text, this.fixedLength, this.fillChar, this.justify)}`;
@@ -276,6 +284,13 @@ FullMenuView.prototype.setWidth = function(width) {
 
   this.positionCacheExpired = true;
 };
+
+FullMenuView.prototype.setTextOverflow = function(overflow) {
+  FullMenuView.super_.prototype.setTextOverflow.call(this, overflow);
+
+  this.positionCacheExpired = true;
+
+}
 
 FullMenuView.prototype.setPosition = function(pos) {
   FullMenuView.super_.prototype.setPosition.call(this, pos);
@@ -366,13 +381,14 @@ FullMenuView.prototype.focusNext = function() {
 
 FullMenuView.prototype.focusPrevious = function() {
   if (0 === this.focusedItemIndex) {
+    this.clearPage();
     this.focusedItemIndex = this.items.length - 1;
     this.currentPage = this.pages.length - 1;
   }
   else {
-    this.clearPage();
     this.focusedItemIndex--;
     if (this.focusedItemIndex < this.pages[this.currentPage].start) {
+      this.clearPage();
       this.currentPage--;
     }
   }
@@ -384,11 +400,20 @@ FullMenuView.prototype.focusPrevious = function() {
 
 FullMenuView.prototype.focusPreviousColumn = function() {
 
+  var currentRow = this.items[this.focusedItemIndex].itemInRow;
   this.focusedItemIndex = this.focusedItemIndex - this.itemsPerRow;
   if (this.focusedItemIndex < 0) {
     this.clearPage();
+    var lastItemRow = this.items[this.items.length - 1].itemInRow;
+    if (lastItemRow > currentRow) {
+      this.focusedItemIndex = this.items.length - (lastItemRow - currentRow) - 1;
+    }
+    else {
+      // can't go to same column, so go to last item
+      this.focusedItemIndex = this.items.length - 1;
+    }
     // add the negative index to the end of the list
-    this.focusedItemIndex = this.items.length + this.focusedItemIndex;
+    //    this.focusedItemIndex = this.items.length + this.focusedItemIndex;
     // set to last page
     this.currentPage = this.pages.length - 1;
   }
@@ -407,10 +432,10 @@ FullMenuView.prototype.focusPreviousColumn = function() {
 
 FullMenuView.prototype.focusNextColumn = function() {
 
+  var currentRow = this.items[this.focusedItemIndex].itemInRow;
   this.focusedItemIndex = this.focusedItemIndex + this.itemsPerRow;
   if (this.focusedItemIndex > this.items.length - 1) {
-    // add the overflow to the beginning of the list
-    this.focusedItemIndex = this.focusedItemIndex - this.items.length;
+    this.focusedItemIndex = currentRow - 1;
     this.currentPage = 0;
     this.clearPage();
   }

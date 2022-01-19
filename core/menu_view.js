@@ -69,6 +69,15 @@ function MenuView(options) {
 
 util.inherits(MenuView, View);
 
+MenuView.prototype.setTextOverflow = function(overflow) {
+  this.textOverflow = overflow;
+  this.invalidateRenderCache();
+}
+
+MenuView.prototype.hasTextOverflow = function() {
+  return this.textOverflow !== undefined;
+}
+
 MenuView.prototype.setItems = function(items) {
   if (Array.isArray(items)) {
     this.sorted = false;
@@ -269,6 +278,7 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
     case 'items': this.setItems(value); break;
     case 'focusItems': this.setFocusItems(value); break;
     case 'hotKeys': this.setHotKeys(value); break;
+    case 'textOverflow': this.setTextOverflow(value); break;
     case 'hotKeySubmit': this.hotKeySubmit = value; break;
     case 'justify': this.justify = value; break;
     case 'focusItemIndex': this.focusedItemIndex = value; break;
