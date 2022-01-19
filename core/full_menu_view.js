@@ -124,9 +124,9 @@ function FullMenuView(options) {
 
           // Check if we have room for this column
           // skip for column 0, we need at least one
-          if (itemInCol != 0 && (col + maxLength + spacer.length + 1 > this.position.col + this.dimens.width)) {
+          if (itemInCol != 0 && (col + maxLength > this.dimens.width)) {
             // save previous page
-            this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
+            this.pages.push({ start: pageStart, end: i - itemInRow });
 
             // fix the last column processed
             for (var j = 0; j < this.itemsPerRow; j++) {
@@ -165,7 +165,7 @@ function FullMenuView(options) {
 
           // Check if we have room for this column in the current page
           // skip for first column, we need at least one
-          if (itemInCol != 0 && (col + maxLength > this.position.col + this.dimens.width)) {
+          if (itemInCol != 0 && (col + maxLength > this.dimens.width)) {
             // save previous page
             this.pages.push({ start: pageStart, end: i - this.itemsPerRow });
 
@@ -180,10 +180,6 @@ function FullMenuView(options) {
             for (var j = 0; j < this.itemsPerRow; j++) {
               this.items[i - j].col = col;
             }
-
-
-
-
 
           }
 
@@ -233,7 +229,9 @@ function FullMenuView(options) {
       text = strUtil.renderSubstr(text, 0, this.dimens.width - (item.col + this.textOverflow.length)) + this.textOverflow;
     }
 
-    text = `${sgr}${strUtil.pad(text, this.fixedLength, this.fillChar, this.justify)}`;
+    let padLength = Math.min(item.fixedLength + 1, this.dimens.width);
+
+    text = `${sgr}${strUtil.pad(text, padLength, this.fillChar, this.justify)}`;
     this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
     this.setRenderCacheItem(index, text, item.focused);
   };
@@ -507,6 +505,12 @@ FullMenuView.prototype.setItemSpacing = function(itemSpacing) {
 
   this.positionCacheExpired = true;
 };
+
+FullMenuView.prototype.setJustify = function(justify) {
+  FullMenuView.super_.prototype.setJustify.call(this, justify);
+  this.positionCacheExpired = true;
+};
+
 
 FullMenuView.prototype.setItemHorizSpacing = function(itemHorizSpacing) {
   FullMenuView.super_.prototype.setItemHorizSpacing.call(this, itemHorizSpacing);

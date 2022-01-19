@@ -46,7 +46,6 @@ function MenuView(options) {
   this.focusSuffix = options.focusSuffix || '';
 
   this.fillChar = miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
-  this.justify = options.justify || 'none';
 
   this.hasFocusItems = function() {
     return !_.isUndefined(self.focusItems);
@@ -280,7 +279,7 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
     case 'hotKeys': this.setHotKeys(value); break;
     case 'textOverflow': this.setTextOverflow(value); break;
     case 'hotKeySubmit': this.hotKeySubmit = value; break;
-    case 'justify': this.justify = value; break;
+    case 'justify': this.setJustify(value); break;
     case 'focusItemIndex': this.focusedItemIndex = value; break;
 
     case 'itemFormat':
@@ -294,6 +293,12 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
   }
 
   MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
+};
+
+MenuView.prototype.setJustify = function(justify) {
+  this.justify = justify;
+  this.invalidateRenderCache();
+  this.positionCacheExpired = true;
 };
 
 MenuView.prototype.setHotKeys = function(hotKeys) {
