@@ -59,8 +59,9 @@ function FullMenuView(options) {
 
 
   this.clearPage = function() {
+    console.log("Clear page called with f: ~%s~, h: %d, w: %d, r: %d, c: %d", this.fillChar, this.dimens.height, this.dimens.width, this.position.row, this.position.col);
     for (var i = 0; i < this.dimens.height; i++) {
-      let text = `${strUtil.pad(' ', this.dimens.width, this.fillChar, 'left')}`;
+      let text = `${strUtil.pad(this.fillChar, this.dimens.width, this.fillChar, 'left')}`;
       self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${text}`);
     }
   }
@@ -184,7 +185,7 @@ function FullMenuView(options) {
           }
 
           // increment the column
-          col += maxLength + spacer.length + 1;
+          col += maxLength + spacer.length;
           itemInCol++;
         }
 
@@ -231,8 +232,9 @@ function FullMenuView(options) {
 
     let padLength = Math.min(item.fixedLength + 1, this.dimens.width);
 
-    text = `${sgr}${strUtil.pad(text, padLength, this.fillChar, this.justify)}`;
+    text = `${sgr}${strUtil.pad(text, padLength, this.fillChar, this.justify)}${this.getSGR()}`;
     this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
+    //    this.client.term.write(`${ansi.goto(item.row, item.col)}${text}${this.getSpacer()}`);
     this.setRenderCacheItem(index, text, item.focused);
   };
 }
@@ -275,6 +277,7 @@ FullMenuView.prototype.setHeight = function(height) {
 
   this.positionCacheExpired = true;
   this.autoAdjustHeight = false;
+  this.clearPage();
 };
 
 FullMenuView.prototype.setWidth = function(width) {
@@ -294,6 +297,13 @@ FullMenuView.prototype.setPosition = function(pos) {
   FullMenuView.super_.prototype.setPosition.call(this, pos);
 
   this.positionCacheExpired = true;
+};
+
+FullMenuView.prototype.setFillChar = function(fillChar) {
+  FullMenuView.super_.prototype.setFillChar.call(this, fillChar);
+
+  this.clearPage();
+  this.redraw();
 };
 
 FullMenuView.prototype.setFocus = function(focused) {
@@ -354,6 +364,7 @@ FullMenuView.prototype.removeItem = function(index) {
   }
 
   FullMenuView.super_.prototype.removeItem.call(this, index);
+  this.positionCacheExpired = true;
 };
 
 //  :TODO: Apply draw optimizaitons when only two items need drawn vs entire view!

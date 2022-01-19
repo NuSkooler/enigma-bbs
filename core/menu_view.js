@@ -263,7 +263,7 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
 };
 
 MenuView.prototype.setItemHorizSpacing = function(itemHorizSpacing) {
-  itemSpacing = parseInt(itemHorizSpacing);
+  itemHorizSpacing = parseInt(itemHorizSpacing);
   assert(_.isNumber(itemHorizSpacing));
 
   this.itemHorizSpacing = itemHorizSpacing;
@@ -280,6 +280,7 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
     case 'textOverflow': this.setTextOverflow(value); break;
     case 'hotKeySubmit': this.hotKeySubmit = value; break;
     case 'justify': this.setJustify(value); break;
+    case 'fillChar': this.setFillChar(value); break;
     case 'focusItemIndex': this.focusedItemIndex = value; break;
 
     case 'itemFormat':
@@ -294,6 +295,11 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 
   MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
+
+MenuView.prototype.setFillChar = function(fillChar) {
+  this.fillChar = miscUtil.valueWithDefault(fillChar, ' ').substr(0, 1);
+  this.invalidateRenderCache();
+}
 
 MenuView.prototype.setJustify = function(justify) {
   this.justify = justify;
