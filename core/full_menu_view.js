@@ -59,15 +59,26 @@ function FullMenuView(options) {
 
 
   this.clearPage = function() {
-    console.log("Clear page called with f: ~%s~, h: %d, w: %d, r: %d, c: %d", this.fillChar, this.dimens.height, this.dimens.width, this.position.row, this.position.col);
+    var width = this.dimens.width;
+    if (this.oldDimens) {
+      if (this.oldDimens.width > width) {
+        width = this.oldDimens.width;
+      }
+      delete this.oldDimens;
+    }
+
     for (var i = 0; i < this.dimens.height; i++) {
-      let text = `${strUtil.pad(this.fillChar, this.dimens.width, this.fillChar, 'left')}`;
-      self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${text}`);
+      let text = `${strUtil.pad(this.fillChar, width, this.fillChar, 'left')}`;
+      self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${this.getSGR()}${text}`);
     }
   }
 
   this.cachePositions = function() {
     if (this.positionCacheExpired) {
+      // first, clear the page
+      this.clearPage();
+
+
       this.autoAdjustHeightIfEnabled();
 
       this.pages = []; // reset
@@ -234,7 +245,6 @@ function FullMenuView(options) {
 
     text = `${sgr}${strUtil.pad(text, padLength, this.fillChar, this.justify)}${this.getSGR()}`;
     this.client.term.write(`${ansi.goto(item.row, item.col)}${text}`);
-    //    this.client.term.write(`${ansi.goto(item.row, item.col)}${text}${this.getSpacer()}`);
     this.setRenderCacheItem(index, text, item.focused);
   };
 }
@@ -242,27 +252,19 @@ function FullMenuView(options) {
 util.inherits(FullMenuView, MenuView);
 
 
+//TODO: FIXME
+function debugLine(message) {
+  let e = new Error();
+  let frame = e.stack.split("\n")[3]; // change to 3 for grandparent func
+  let lineNumber = frame.split(":").reverse()[1];
+  let functionName = frame.split(" ")[5];
+  return functionName + ":" + lineNumber + " " + message;
+}
+
 FullMenuView.prototype.redraw = function() {
   FullMenuView.super_.prototype.redraw.call(this);
 
   this.cachePositions();
-
-
-  //  erase old items
-  //  :TODO: optimize this: only needed if a item is removed or new max width < old.
-  if (this.oldDimens) {
-    const blank = new Array(Math.max(this.oldDimens.width, this.dimens.width)).join(' ');
-    let seq = ansi.goto(this.position.row, this.position.col) + this.getSGR() + blank;
-    let row = this.position.row + 1;
-    const endRow = (row + this.oldDimens.height) - 2;
-
-    while (row <= endRow) {
-      seq += ansi.goto(row, this.position.col) + blank;
-      row += 1;
-    }
-    this.client.term.write(seq);
-    delete this.oldDimens;
-  }
 
   if (this.items.length) {
     for (let i = this.pages[this.currentPage].start; i <= this.pages[this.currentPage].end; ++i) {
@@ -273,14 +275,17 @@ FullMenuView.prototype.redraw = function() {
 };
 
 FullMenuView.prototype.setHeight = function(height) {
+  this.oldDimens = Object.assign({}, this.dimens);
+
   FullMenuView.super_.prototype.setHeight.call(this, height);
 
   this.positionCacheExpired = true;
   this.autoAdjustHeight = false;
-  this.clearPage();
 };
 
 FullMenuView.prototype.setWidth = function(width) {
+  this.oldDimens = Object.assign({}, this.dimens);
+
   FullMenuView.super_.prototype.setWidth.call(this, width);
 
   this.positionCacheExpired = true;
@@ -299,23 +304,16 @@ FullMenuView.prototype.setPosition = function(pos) {
   this.positionCacheExpired = true;
 };
 
-FullMenuView.prototype.setFillChar = function(fillChar) {
-  FullMenuView.super_.prototype.setFillChar.call(this, fillChar);
-
-  this.clearPage();
-  this.redraw();
-};
-
 FullMenuView.prototype.setFocus = function(focused) {
   FullMenuView.super_.prototype.setFocus.call(this, focused);
+  this.positionCacheExpired = true;
+  this.autoAdjustHeight = false;
 
   this.redraw();
 };
 
 FullMenuView.prototype.setFocusItemIndex = function(index) {
   FullMenuView.super_.prototype.setFocusItemIndex.call(this, index);  //  sets this.focusedItemIndex
-
-  this.redraw();
 };
 
 FullMenuView.prototype.onKeyPress = function(ch, key) {
@@ -421,8 +419,6 @@ FullMenuView.prototype.focusPreviousColumn = function() {
       // can't go to same column, so go to last item
       this.focusedItemIndex = this.items.length - 1;
     }
-    // add the negative index to the end of the list
-    //    this.focusedItemIndex = this.items.length + this.focusedItemIndex;
     // set to last page
     this.currentPage = this.pages.length - 1;
   }
@@ -458,7 +454,6 @@ FullMenuView.prototype.focusNextColumn = function() {
   // TODO: This isn't specific to Next, may want to replace in the future
   FullMenuView.super_.prototype.focusNext.call(this);
 };
-
 
 FullMenuView.prototype.focusPreviousPageItem = function() {
   //
