@@ -251,16 +251,6 @@ function FullMenuView(options) {
 
 util.inherits(FullMenuView, MenuView);
 
-
-//TODO: FIXME
-function debugLine(message) {
-  let e = new Error();
-  let frame = e.stack.split("\n")[3]; // change to 3 for grandparent func
-  let lineNumber = frame.split(":").reverse()[1];
-  let functionName = frame.split(" ")[5];
-  return functionName + ":" + lineNumber + " " + message;
-}
-
 FullMenuView.prototype.redraw = function() {
   FullMenuView.super_.prototype.redraw.call(this);
 
@@ -365,8 +355,6 @@ FullMenuView.prototype.removeItem = function(index) {
   this.positionCacheExpired = true;
 };
 
-//  :TODO: Apply draw optimizaitons when only two items need drawn vs entire view!
-
 FullMenuView.prototype.focusNext = function() {
   if (this.items.length - 1 === this.focusedItemIndex) {
     this.clearPage();
@@ -456,47 +444,56 @@ FullMenuView.prototype.focusNextColumn = function() {
 };
 
 FullMenuView.prototype.focusPreviousPageItem = function() {
-  //
-  //  Jump to current - up to page size or top
-  //  If already at the top, jump to bottom
-  //
-  if (0 === this.focusedItemIndex) {
-    return this.focusPrevious();    //  will jump to bottom
+
+  // handle first page
+  if (this.currentPage == 0) {
+    // Do nothing, page up shouldn't go down on last page
+    return;
   }
 
-  const index = Math.max(this.focusedItemIndex - this.dimens.height, 0);
+  this.currentPage--;
+  this.focusedItemIndex = this.pages[this.currentPage].start;
+  this.clearPage();
 
-  this.setFocusItemIndex(index);
+  this.redraw();
 
   return FullMenuView.super_.prototype.focusPreviousPageItem.call(this);
 };
 
 FullMenuView.prototype.focusNextPageItem = function() {
-  //
-  //  Jump to current + up to page size or bottom
-  //  If already at the bottom, jump to top
-  //
-  if (this.items.length - 1 === this.focusedItemIndex) {
-    return this.focusNext();    //  will jump to top
+
+  // handle last page
+  if (this.currentPage == this.pages.length - 1) {
+    // Do nothing, page up shouldn't go down on last page
+    return;
   }
 
-  const index = Math.min(this.focusedItemIndex + this.maxVisibleItems, this.items.length - 1);
+  this.currentPage++;
+  this.focusedItemIndex = this.pages[this.currentPage].start;
+  this.clearPage();
 
-  this.setFocusItemIndex(index);
+  this.redraw();
 
   return FullMenuView.super_.prototype.focusNextPageItem.call(this);
 };
 
 FullMenuView.prototype.focusFirst = function() {
-  this.setFocusItemIndex(0);
+
+  this.currentPage = 0;
+  this.focusedItemIndex = 0;
+  this.clearPage();
+
+  this.redraw();
   return FullMenuView.super_.prototype.focusFirst.call(this);
 };
 
 FullMenuView.prototype.focusLast = function() {
-  const index = this.items.length - 1;
 
-  this.setFocusItemIndex(index);
+  this.currentPage = this.pages.length - 1;
+  this.focusedItemIndex = this.pages[this.currentPage].end;
+  this.clearPage();
 
+  this.redraw();
   return FullMenuView.super_.prototype.focusLast.call(this);
 };
 
