@@ -227,5 +227,5 @@ FM1: {
 
 #### Example
 
-![Example](../assets/images/text-format-example1.png "Text Format")
+![Example](../../assets/images/full_menu_view_example3.gif "Multi column menu")
 
