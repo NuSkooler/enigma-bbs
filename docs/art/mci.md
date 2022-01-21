@@ -123,6 +123,7 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `BT` | Button               | A button | ...it's a button |
 | `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists |
 | `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar |
+| `FM` | Full Menu      | A menu that can go both vertical and horizontal. See [Full Menu](views/full_menu_view.md) |
 | `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options |
 | `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input |
 | `KE` | Key Entry            | A *single* key input control | Think hotkeys |
