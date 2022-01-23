@@ -80,7 +80,10 @@ The `textOverflow` option is used to specify what happens when a text string is 
 
 ### A simple vertical menu - similar to VM
 
-#### Configuration fragment
+![Example](../../assets/images/full_menu_view_example1.gif "Vertical menu")
+
+<details>
+<summary>Configuration fragment (expand to view)</summary>
 
 ```
 FM1: {
@@ -108,14 +111,14 @@ FM1: {
 }
 
 ```
-
-#### Example
-
-![Example](../assets/images/text-format-example1.png "Text Format")
+</details>
 
 ### A simple horizontal menu - similar to HM
 
-#### Configuration fragment
+![Example](../../assets/images/full_menu_view_example2.gif "Horizontal menu")
+
+<details>
+<summary>Configuration fragment (expand to view)</summary>
 
 ```
 FM2: {
@@ -129,15 +132,15 @@ FM2: {
   ]
 }
 ```
-
-#### Example
-
-![Example](../assets/images/text-format-example1.png "Text Format")
+</details>
 
 ### A multi-column navigation menu with hotkeys
 
 
-#### Configuration fragment
+![Example](../../assets/images/full_menu_view_example3.gif "Multi column menu")
+
+<details>
+<summary>Configuration fragment (expand to view)</summary>
 
 ```
 FM1: {
@@ -224,8 +227,5 @@ FM1: {
   ]
 }
 ```
-
-#### Example
-
-![Example](../../assets/images/full_menu_view_example3.gif "Multi column menu")
+</details>
 
