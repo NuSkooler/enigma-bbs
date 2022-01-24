@@ -49,6 +49,8 @@
     - [General]({{ site.baseurl }}{% link art/general.md %})
     - [Themes]({{ site.baseurl }}{% link art/themes.md %})
     - [MCI Codes]({{ site.baseurl }}{% link art/mci.md %})
+    - Views
+      - [Full Menu]({{ site.baseurl }}{% link art/views/full_menu_view.md %})
 
   - Servers
     - Login Servers

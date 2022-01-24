@@ -8,6 +8,7 @@ const EditTextView          = require('./edit_text_view.js').EditTextView;
 const ButtonView            = require('./button_view.js').ButtonView;
 const VerticalMenuView      = require('./vertical_menu_view.js').VerticalMenuView;
 const HorizontalMenuView    = require('./horizontal_menu_view.js').HorizontalMenuView;
+const FullMenuView          = require('./full_menu_view.js').FullMenuView;
 const SpinnerMenuView       = require('./spinner_menu_view.js').SpinnerMenuView;
 const ToggleMenuView        = require('./toggle_menu_view.js').ToggleMenuView;
 const MaskEditTextView      = require('./mask_edit_text_view.js').MaskEditTextView;
@@ -27,7 +28,7 @@ function MCIViewFactory(client) {
 }
 
 MCIViewFactory.UserViewCodes = [
-    'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'SM', 'TM', 'KE',
+    'TL', 'ET', 'ME', 'MT', 'PL', 'BT', 'VM', 'HM', 'FM', 'SM', 'TM', 'KE',
 
     //
     //  XY is a special MCI code that allows finding positions
@@ -162,6 +163,18 @@ MCIViewFactory.prototype.createFromMCI = function(mci) {
             setFocusOption(0,   'focusTextStyle');
 
             view = new HorizontalMenuView(options);
+            break;
+
+            //  Full Menu
+        case 'FM' :
+            setOption(0,        'itemSpacing');
+            setOption(1,        'itemHorizSpacing');
+            setOption(2,        'justify');
+            setOption(3,        'textStyle');
+
+            setFocusOption(0,   'focusTextStyle');
+
+            view = new FullMenuView(options);
             break;
 
         case 'SM' :

@@ -186,7 +186,7 @@ View.prototype.setPropertyValue = function(propName, value) {
 
         case 'height'   : this.setHeight(value); break;
         case 'width'    : this.setWidth(value); break;
-        case 'focus'    : this.setFocus(value); break;
+        case 'focus'    : this.setFocusProperty(value); break;
 
         case 'text'     :
             if('setText' in this) {
@@ -252,10 +252,16 @@ View.prototype.redraw = function() {
     this.client.term.write(ansi.goto(this.position.row, this.position.col));
 };
 
-View.prototype.setFocus = function(focused) {
-    enigAssert(this.acceptsFocus, 'View does not accept focus');
-
+View.prototype.setFocusProperty = function(focused) {
+    // Either this should accept focus, or the focus should be false
+    enigAssert(this.acceptsFocus || !focused, 'View does not accept focus');
     this.hasFocus = focused;
+};
+
+View.prototype.setFocus = function(focused) {
+    // Call separate method to differentiate between a value set as a 
+    // property vs focus programmatically called.
+    this.setFocusProperty(focused);
     this.restoreCursor();
 };
 
