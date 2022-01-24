@@ -59,7 +59,7 @@ function FullMenuView(options) {
 
 
   this.clearPage = function() {
-    var width = this.dimens.width;
+    let width = this.dimens.width;
     if (this.oldDimens) {
       if (this.oldDimens.width > width) {
         width = this.oldDimens.width;
@@ -67,8 +67,8 @@ function FullMenuView(options) {
       delete this.oldDimens;
     }
 
-    for (var i = 0; i < this.dimens.height; i++) {
-      let text = `${strUtil.pad(this.fillChar, width, this.fillChar, 'left')}`;
+    for (let i = 0; i < this.dimens.height; i++) {
+      const text = `${strUtil.pad(this.fillChar, width, this.fillChar, 'left')}`;
       self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${this.getSGR()}${text}`);
     }
   }
@@ -95,16 +95,16 @@ function FullMenuView(options) {
         this.itemsPerRow = this.items.length;
       }
 
-      var col = this.position.col;
-      var row = this.position.row;
-      var spacer = this.getSpacer();
+      let col = this.position.col;
+      let row = this.position.row;
+      const spacer = this.getSpacer();
 
-      var itemInRow = 0;
-      var itemInCol = 0;
+      let itemInRow = 0;
+      let itemInCol = 0;
 
-      var pageStart = 0;
+      let pageStart = 0;
 
-      for (var i = 0; i < this.items.length; ++i) {
+      for (let i = 0; i < this.items.length; ++i) {
         itemInRow++;
         this.items[i].row = row;
         this.items[i].col = col;
@@ -114,19 +114,19 @@ function FullMenuView(options) {
 
         // have to calculate the max length on the last entry
         if (i == this.items.length - 1) {
-          var maxLength = 0;
-          for (var j = 0; j < this.itemsPerRow; j++) {
+          let maxLength = 0;
+          for (let j = 0; j < this.itemsPerRow; j++) {
             if (this.items[i - j].col != this.items[i].col) {
               break;
             }
-            var itemLength = this.items[i - j].text.length;
+            const itemLength = this.items[i - j].text.length;
             if (itemLength > maxLength) {
               maxLength = itemLength;
             }
           }
 
           // set length on each item in the column
-          for (var j = 0; j < this.itemsPerRow; j++) {
+          for (let j = 0; j < this.itemsPerRow; j++) {
             if (this.items[i - j].col != this.items[i].col) {
               break;
             }
@@ -141,7 +141,7 @@ function FullMenuView(options) {
             this.pages.push({ start: pageStart, end: i - itemInRow });
 
             // fix the last column processed
-            for (var j = 0; j < this.itemsPerRow; j++) {
+            for (let j = 0; j < this.itemsPerRow; j++) {
               if (this.items[i - j].col != col) {
                 break;
               }
@@ -161,17 +161,17 @@ function FullMenuView(options) {
 
           // restart row for next column
           row = this.position.row;
-          var maxLength = 0;
-          for (var j = 0; j < this.itemsPerRow; j++) {
+          let maxLength = 0;
+          for (let j = 0; j < this.itemsPerRow; j++) {
             // TODO: handle complex items
-            var itemLength = this.items[i - j].text.length;
+            let itemLength = this.items[i - j].text.length;
             if (itemLength > maxLength) {
               maxLength = itemLength;
             }
           }
 
           // set length on each item in the column
-          for (var j = 0; j < this.itemsPerRow; j++) {
+          for (let j = 0; j < this.itemsPerRow; j++) {
             this.items[i - j].fixedLength = maxLength;
           }
 
@@ -189,7 +189,7 @@ function FullMenuView(options) {
             itemInRow = 0;
 
             // fix the last column processed
-            for (var j = 0; j < this.itemsPerRow; j++) {
+            for (let j = 0; j < this.itemsPerRow; j++) {
               this.items[i - j].col = col;
             }
 
@@ -395,11 +395,11 @@ FullMenuView.prototype.focusPrevious = function() {
 
 FullMenuView.prototype.focusPreviousColumn = function() {
 
-  var currentRow = this.items[this.focusedItemIndex].itemInRow;
+  const currentRow = this.items[this.focusedItemIndex].itemInRow;
   this.focusedItemIndex = this.focusedItemIndex - this.itemsPerRow;
   if (this.focusedItemIndex < 0) {
     this.clearPage();
-    var lastItemRow = this.items[this.items.length - 1].itemInRow;
+    const lastItemRow = this.items[this.items.length - 1].itemInRow;
     if (lastItemRow > currentRow) {
       this.focusedItemIndex = this.items.length - (lastItemRow - currentRow) - 1;
     }
@@ -425,7 +425,7 @@ FullMenuView.prototype.focusPreviousColumn = function() {
 
 FullMenuView.prototype.focusNextColumn = function() {
 
-  var currentRow = this.items[this.focusedItemIndex].itemInRow;
+  const currentRow = this.items[this.focusedItemIndex].itemInRow;
   this.focusedItemIndex = this.focusedItemIndex + this.itemsPerRow;
   if (this.focusedItemIndex > this.items.length - 1) {
     this.focusedItemIndex = currentRow - 1;
