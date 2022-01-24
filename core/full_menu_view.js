@@ -28,10 +28,6 @@ function FullMenuView(options) {
 
   this.initDefaultWidth();
 
-
-
-  const self = this;
-
   //  we want page up/page down by default
   if (!_.isObject(options.specialKeyMap)) {
     Object.assign(this.specialKeyMap, {
@@ -51,14 +47,7 @@ function FullMenuView(options) {
 
   this.autoAdjustHeightIfEnabled();
 
-
-
-  this.getSpacer = function() {
-    return new Array(self.itemHorizSpacing + 1).join(this.fillChar);
-  }
-
-
-  this.clearPage = function() {
+  this.clearPage = () => {
     let width = this.dimens.width;
     if (this.oldDimens) {
       if (this.oldDimens.width > width) {
@@ -69,11 +58,11 @@ function FullMenuView(options) {
 
     for (let i = 0; i < this.dimens.height; i++) {
       const text = `${strUtil.pad(this.fillChar, width, this.fillChar, 'left')}`;
-      self.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${this.getSGR()}${text}`);
+      this.client.term.write(`${ansi.goto(this.position.row + i, this.position.col)}${this.getSGR()}${text}`);
     }
   }
 
-  this.cachePositions = function() {
+  this.cachePositions = () => {
     if (this.positionCacheExpired) {
       // first, clear the page
       this.clearPage();
@@ -97,7 +86,7 @@ function FullMenuView(options) {
 
       let col = this.position.col;
       let row = this.position.row;
-      const spacer = this.getSpacer();
+      const spacer = new Array(this.itemHorizSpacing + 1).join(this.fillChar);
 
       let itemInRow = 0;
       let itemInCol = 0;
