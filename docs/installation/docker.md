@@ -9,17 +9,17 @@ for every operating system on the [Docker website](https://docs.docker.com/engin
 
 - Generate some config for your BBS:
   ```
-  docker run -it -v "${HOME}/engima-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest oputil.js config new
+  docker run -it -v "${HOME}/enigma-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest oputil.js config new
   ```
 
 - Run it:
   ```
-  docker run -p 8888:8888 -v "${HOME}/engima-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest
+  docker run -p 8888:8888 -v "${HOME}/enigma-bbs/config:/enigma-bbs/config" enigmabbs/enigma-bbs:latest
   ```
 
-:bulb: Configuration will be stored in `${HOME}/engima-bbs/config`.
+:bulb: Configuration will be stored in `${HOME}/enigma-bbs/config`.
 
-:bulb: Windows users - you'll need to switch out `${HOME}/engima-bbs/config` for a Windows-style path.
+:bulb: Windows users - you'll need to switch out `${HOME}/enigma-bbs/config` for a Windows-style path.
 
 ## Volumes
 
