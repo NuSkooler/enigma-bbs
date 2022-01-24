@@ -5,6 +5,15 @@ LABEL maintainer="dave@force9.org"
 ENV NVM_DIR /root/.nvm
 ENV DEBIAN_FRONTEND noninteractive
 
+# enigma storage mounts
+VOLUME /enigma-bbs/art
+VOLUME /enigma-bbs/config
+VOLUME /enigma-bbs/db
+VOLUME /enigma-bbs/filebase
+VOLUME /enigma-bbs/logs
+VOLUME /enigma-bbs/mods
+VOLUME /mail
+
 COPY . /enigma-bbs
 
 # Do some installing!
@@ -27,15 +36,6 @@ RUN apt-get update && apt-get install -y \
 
 # sexyz
 COPY docker/bin/sexyz /usr/local/bin
-
-# enigma storage mounts
-VOLUME /enigma-bbs/art
-VOLUME /enigma-bbs/config
-VOLUME /enigma-bbs/db
-VOLUME /enigma-bbs/filebase
-VOLUME /enigma-bbs/logs
-VOLUME /enigma-bbs/mods
-VOLUME /mail
 
 # Enigma default port
 EXPOSE 8888
