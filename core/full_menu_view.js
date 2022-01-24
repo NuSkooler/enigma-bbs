@@ -36,7 +36,7 @@ function FullMenuView(options) {
     });
   }
 
-  this.autoAdjustHeightIfEnabled = function() {
+  this.autoAdjustHeightIfEnabled = () => {
     if (this.autoAdjustHeight) {
       this.dimens.height = (this.items.length * (this.itemSpacing + 1)) - (this.itemSpacing);
       this.dimens.height = Math.min(this.dimens.height, this.client.term.termHeight - this.position.row);
@@ -200,7 +200,7 @@ function FullMenuView(options) {
     this.positionCacheExpired = false;
   };
 
-  this.drawItem = function(index) {
+  this.drawItem = (index) => {
     const item = this.items[index];
     if (!item) {
       return;
