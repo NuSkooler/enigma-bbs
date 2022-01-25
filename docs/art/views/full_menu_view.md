@@ -66,6 +66,12 @@ items: [
 ]
 ```
 
+If the list is for display only (there is no form action associated with it) you can omit the data element, and include the items as a simple list:
+
+```
+["First item", "Second item", "Third Item"]
+```
+
 ### Text Overflow
 
 The `textOverflow` option is used to specify what happens when a text string is too long to fit in the `width` defined. Note, because columns are automatically calculated, this can only occur when the text is too long to fit the `width` using a single column.

@@ -3,7 +3,7 @@ layout: page
 title: Spinner Menu View
 ---
 ## Spinner Menu View
-A spinner menu view supports displaying a list of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.
+A spinner menu view supports displaying a set of times on a screen as a list, with one item displayed at a time. This is generally used to pick one option from a list. Some examples could include selecting from a list of states, themes, etc.
 
 ## General Information
 
@@ -46,7 +46,7 @@ This would select and submit the first item if `A` is typed, second if `B`, etc.
 
 ### Items
 
-A full menu, similar to other menus, take a list of items to display in the menu. For example:
+A spinner menu, similar to other menus, take a list of items to display in the menu. For example:
 
 
 ```
@@ -60,6 +60,12 @@ items: [
       data: second
   }
 ]
+```
+
+If the list is for display only (there is no form action associated with it) you can omit the data element, and include the items as a simple list:
+
+```
+["First item", "Second item", "Third Item"]
 ```
 
 ## Example
