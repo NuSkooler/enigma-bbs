@@ -13,7 +13,6 @@ RUN apt-get update \
     git \
     curl \
     build-essential \
-    python3 \
     python \
     libssl-dev \
     lrzsz \
@@ -37,6 +36,7 @@ RUN apt-get update \
 
 # sexyz
 COPY docker/bin/sexyz /usr/local/bin
+RUN chmod +x /enigma-bbs/docker/bin/docker-entrypoint.sh
 
 # enigma storage mounts
 VOLUME /enigma-bbs/art

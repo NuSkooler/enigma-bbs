@@ -19,7 +19,7 @@ docker run -it --rm -p 8888:8888 \
 -v "$(pwd)/art:/enigma-bbs/art" \
 -v "$(pwd)/mods:/enigma-bbs/mods" \
 -v "$(pwd)/mail:/mail" \
-enigmabbs:latest
+enigmabbs/enigmabbs:latest
 ```
 - Run it: \
 you can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
@@ -33,8 +33,8 @@ docker run -d --rm -p 8888:8888 \
 -v "$(pwd)/art:/enigma-bbs/art" \
 -v "$(pwd)/mods:/enigma-bbs/mods" \
 -v "$(pwd)/mail:/mail" \
-enigmabbs:latest
-```
+enigmabbs/enigmabbs:latest
+````
 
 :bulb: Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 
