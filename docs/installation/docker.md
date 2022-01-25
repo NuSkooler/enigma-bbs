@@ -10,7 +10,7 @@ prepare a folder where you are going to save your bbs files.
 - Generate some config for your BBS: \
 you can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest
 ```
-docker run -it --rm -p 8888:8888 \
+docker run -it -p 8888:8888 \
 --name "EnigmaBBS" \
 -v "$(pwd)/config:/enigma-bbs/config" \
 -v "$(pwd)/db:/enigma-bbs/db" \
@@ -24,7 +24,7 @@ enigmabbs/enigmabbs:latest
 - Run it: \
 you can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
 ````
-docker run -d --rm -p 8888:8888 \
+docker run -d -p 8888:8888 \
 --name "EnigmaBBS" \
 -v "$(pwd)/config:/enigma-bbs/config" \
 -v "$(pwd)/db:/enigma-bbs/db" \
