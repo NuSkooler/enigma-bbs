@@ -51,6 +51,9 @@
     - [MCI Codes]({{ site.baseurl }}{% link art/mci.md %})
     - Views
       - [Full Menu]({{ site.baseurl }}{% link art/views/full_menu_view.md %})
+      - [Horizontal Menu]({{ site.baseurl }}{% link art/views/horizontal_menu_view.md %})
+      - [Spinner Menu]({{ site.baseurl }}{% link art/views/spinner_menu_view.md %})
+      - [Vertical Menu]({{ site.baseurl }}{% link art/views/vertical_menu_view.md %})
 
   - Servers
     - Login Servers
