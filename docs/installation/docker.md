@@ -35,6 +35,10 @@ docker run -d -p 8888:8888 \
 -v "$(pwd)/mail:/mail" \
 enigmabbs/enigmabbs:latest
 ````
+- Restarting and Making changes\
+if you make any changes to your host config folder they will persist, and you can just restart EnigmaBBS container to load any changes you've made.
+
+```docker restart EnigmaBBS```
 
 :bulb: Configuration will be stored in `$(pwd)/enigma-bbs/config`.
 
