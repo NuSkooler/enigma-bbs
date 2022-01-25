@@ -11,14 +11,14 @@ Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, a
 
 :information_source: A full menu view is defined with a percent (%) and the characters FM, followed by the view number. For example: `%FM1`
 
-:information_source: See [Art](../art.md) for general information on how to use views and common configuration properties available for them.
+:information_source: See [Art](../general.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
 | Property    | Description  |
 |-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../art.md) |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** in [Art](../art.md)|
+| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
+| `focusTextStyle` | Sets focus text style. See **Text Styles** in [Art](../general.md)|
 | `itemSpacing` | Used to separate items vertically in the menu |
 | `itemHorizSpacing` | Used to separate items horizontally in the menu |
 | `height` | Sets the height of views to display multiple items vertically (default 1) |
@@ -29,11 +29,11 @@ Items can be selected on a menu via the cursor keys, Page Up, Page Down, Home, a
 | `hotKeySubmit` | Set to submit a form on hotkey selection |
 | `argName` | Sets the argument name for this selection in the form |
 | `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
-| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** in [Art](../art.md) |
+| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** in [Art](../general.md) |
 | `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
 | `textOverflow` | If a single column cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
 | `items` | List of items to show in the menu. See **Items** below.
-| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [Art](../art.md) |
+| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [Art](../general.md) |
 
 
 ### Hot Keys
@@ -84,7 +84,7 @@ The `textOverflow` option is used to specify what happens when a text string is 
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-
+<div markdown="1">
 ```
 FM1: {
   submit: true
@@ -111,6 +111,7 @@ FM1: {
 }
 
 ```
+</div>
 </details>
 
 ### A simple horizontal menu - similar to HM
@@ -119,7 +120,7 @@ FM1: {
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-
+<div markdown="1">
 ```
 FM2: {
   focus: true
@@ -132,6 +133,7 @@ FM2: {
   ]
 }
 ```
+</div>
 </details>
 
 ### A multi-column navigation menu with hotkeys
@@ -141,7 +143,7 @@ FM2: {
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
-
+<div markdown="1">
 ```
 FM1: {
   focus: true
@@ -227,5 +229,6 @@ FM1: {
   ]
 }
 ```
+</div>
 </details>
 
