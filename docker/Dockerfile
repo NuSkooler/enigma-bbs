@@ -30,7 +30,7 @@ RUN apt-get update \
     && cp -rp art/* ../enigma-bbs-pre/art/ \
     && cp -rp mods/* ../enigma-bbs-pre/mods/ \
     && cp -rp config/* ../enigma-bbs-pre/config/ \
-    && apt-get remove build-essential python libssl-dev git curl -y \
+    && apt-get remove build-essential python python3 libssl-dev git curl -y \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && apt-get clean
