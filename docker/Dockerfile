@@ -14,7 +14,7 @@ RUN apt-get update \
     curl \
     build-essential \
     python \
-    python 3 \
+    python3 \
     libssl-dev \
     lrzsz \
     arj \
