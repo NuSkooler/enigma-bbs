@@ -25,7 +25,7 @@ An edit text view supports editing form values on a screen. This can be for new 
 
 ## Example
 
-![Example](../../assets/images/edit_text_view_example1.png "Text label")
+![Example](../../assets/images/edit_text_view_example1.gif "Edit Text View")
 
 <details>
 <summary>Configuration fragment (expand to view)</summary>
