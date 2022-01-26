@@ -1,8 +1,8 @@
 ---
 layout: page
-title: Full Menu View
+title: Text View
 ---
-## Full Menu View
+## Text View
 A text label view supports displaying simple text on a screen.
 
 ## General Information
@@ -15,13 +15,12 @@ A text label view supports displaying simple text on a screen.
 
 | Property    | Description  |
 |-------------|--------------|
-| `text` | Sets the text to display on the button |
+| `text` | Sets the text to display on the label |
 | `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
-| `width` | Sets the width of a view to display one or more columns horizontally (default 15)|
-| `argName` | Sets the argument name for this selection in the form - *Not normally used for text labels* |
-| `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
-| `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
-| `textOverflow` | If a single column cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
+| `width` | Sets the width of a view to display horizontally (default 15)|
+| `justify` | Sets the justification of the text in the view. Options: left (default), right, center |
+| `fillChar` | Specifies a character to fill extra space in the view with. Defaults to an empty space |
+| `textOverflow` | Set overflow characters to display in case the text length is less than the width. See **Text Overflow** below |
 
 ### Text Overflow
 

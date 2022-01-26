@@ -1,8 +1,8 @@
 ---
 layout: page
-title: Full Menu View
+title: Predefined Label View
 ---
-## Full Menu View
+## Predefined Label View
 A predefined label view supports displaying a predefined MCI label on a screen.
 
 ## General Information
@@ -18,10 +18,10 @@ A predefined label view supports displaying a predefined MCI label on a screen.
 | Property    | Description  |
 |-------------|--------------|
 | `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
-| `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
-| `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
+| `justify` | Sets the justification of the MCI value text. Options: left (default), right, center |
+| `fillChar` | Specifies a character to fill extra space in the view. Defaults to an empty space |
 | `width` | Specifies the width that the value should be displayed in (default 3) |
-| `textOverflow` | If a single column cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
+| `textOverflow` | If the MCI is wider than width, set overflow characters. See **Text Overflow** below |
 
 ### Text Overflow
 

@@ -23,8 +23,8 @@ A button view supports displaying a button on a screen.
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
 | `argName` | Sets the argument name for this selection in the form |
 | `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
-| `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
-| `textOverflow` | If a single column cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
+| `fillChar` | Specifies a character to fill extra space longer than the text length. Defaults to an empty space |
+| `textOverflow` | If the button text cannot be displayed due to `width`, set overflow characters. See **Text Overflow** below |
 
 ### Text Overflow
 
