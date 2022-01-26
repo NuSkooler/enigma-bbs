@@ -22,9 +22,9 @@ RUN apt-get update \
     unrar-free \
     p7zip-full \
     && npm install -g pm2 \
-    &&  cd /enigma-bbs && npm install --only=production \
+    && cd /enigma-bbs && npm install --only=production \
     && pm2 start main.js \
-    &&  mkdir -p /enigma-bbs-pre/art \
+    && mkdir -p /enigma-bbs-pre/art \
     && mkdir /enigma-bbs-pre/mods \
     && mkdir /enigma-bbs-pre/config \
     && cp -rp art/* ../enigma-bbs-pre/art/ \
