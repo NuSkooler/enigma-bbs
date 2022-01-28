@@ -9,14 +9,14 @@ A text label view supports displaying simple text on a screen.
 
 :information_source: A text label view is defined with a percent (%) and the characters TL, followed by the view number. For example: `%TL1`
 
-:information_source: See [Art](../general.md) for general information on how to use views and common configuration properties available for them.
+:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
 | Property    | Description  |
 |-------------|--------------|
 | `text` | Sets the text to display on the label |
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
+| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `width` | Sets the width of a view to display horizontally (default 15)|
 | `justify` | Sets the justification of the text in the view. Options: left (default), right, center |
 | `fillChar` | Specifies a character to fill extra space in the view with. Defaults to an empty space |

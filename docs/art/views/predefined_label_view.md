@@ -11,13 +11,13 @@ A predefined label view supports displaying a predefined MCI label on a screen.
 
 :information_source: See *Predefined Codes* in [MCI](../mci.md) for the list of available MCI codes.
 
-:information_source: See [Art](../general.md) for general information on how to use views and common configuration properties available for them.
+:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
 | Property    | Description  |
 |-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
+| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
 | `justify` | Sets the justification of the MCI value text. Options: left (default), right, center |
 | `fillChar` | Specifies a character to fill extra space in the view. Defaults to an empty space |
 | `width` | Specifies the width that the value should be displayed in (default 3) |

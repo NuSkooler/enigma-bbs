@@ -9,15 +9,15 @@ A button view supports displaying a button on a screen.
 
 :information_source: A button view is defined with a percent (%) and the characters BT, followed by the view number. For example: `%BT1`
 
-:information_source: See [Art](../general.md) for general information on how to use views and common configuration properties available for them.
+:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
 | Property    | Description  |
 |-------------|--------------|
 | `text` | Sets the text to display on the button |
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** in [Art](../general.md)|
+| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
+| `focusTextStyle` | Sets focus text style. See **Text Styles** in [MCI](../mci.md)|
 | `width` | Sets the width of a view to display one or more columns horizontally (default 15)|
 | `focus` | If set to `true`, establishes initial focus |
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |

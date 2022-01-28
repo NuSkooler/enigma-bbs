@@ -11,14 +11,14 @@ Items can be selected on a menu via the cursor keys or by selecting them via a `
 
 :information_source: A spinner menu view is defined with a percent (%) and the characters SM, followed by the view number (if used.) For example: `%SM1`
 
-:information_source: See [Art](../general.md) for general information on how to use views and common configuration properties available for them.
+:information_source: See [MCI](../mci.md) for general information on how to use views and common configuration properties available for them.
 
 ### Properties
 
 | Property    | Description  |
 |-------------|--------------|
-| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [Art](../general.md) |
-| `focusTextStyle` | Sets focus text style. See **Text Styles** in [Art](../general.md)|
+| `textStyle` | Sets the standard (non-focus) text style. See **Text Styles** in [MCI](../mci.md) |
+| `focusTextStyle` | Sets focus text style. See **Text Styles** in [MCI](../mci.md)|
 | `focus` | If set to `true`, establishes initial focus |
 | `width` | Sets the width of a view on the display (default 15)|
 | `submit` | If set to `true` any `accept` action upon this view will submit the encompassing **form** |
@@ -26,10 +26,10 @@ Items can be selected on a menu via the cursor keys or by selecting them via a `
 | `hotKeySubmit` | Set to submit a form on hotkey selection |
 | `argName` | Sets the argument name for this selection in the form |
 | `justify` | Sets the justification of each item in the list. Options: left (default), right, center |
-| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** in [Art](../general.md) |
+| `itemFormat` | Sets the format for a list entry. See **Entry Formatting** in [MCI](../mci.md) |
 | `fillChar` | Specifies a character to fill extra space in the menu with. Defaults to an empty space |
 | `items` | List of items to show in the menu. See **Items** below.
-| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [Art](../general.md) |
+| `focusItemFormat` | Sets the format for a focused list entry. See **Entry Formatting** in [MCI](../mci.md) |
 
 
 ### Hot Keys
