@@ -132,7 +132,7 @@ MaskEditTextView.prototype.onKeyPress = function(ch, key) {
                     this.text = this.text.substr(0, this.text.length - 1);
                     this.clientBackspace();
                 } else {
-                    while(this.patternArrayPos > 0) {
+                    while(this.patternArrayPos >= 0) {
                         if(_.isRegExp(this.patternArray[this.patternArrayPos])) {
                             this.text = this.text.substr(0, this.text.length - 1);
                             this.client.term.write(ansi.goto(this.position.row, this.getEndOfTextColumn() + 1));
