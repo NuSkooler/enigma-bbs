@@ -44,49 +44,6 @@ function TextView(options) {
         this.textMaskChar = options.textMaskChar;
     }
 
-    /*
-    this.drawText = function(s) {
-
-        //
-        //                     |<- this.maxLength
-        //   ABCDEFGHIJK
-        //  |ABCDEFG|  ^_ this.text.length
-        //          ^-- this.dimens.width
-        //
-        let textToDraw = _.isString(this.textMaskChar) ?
-            new Array(s.length + 1).join(this.textMaskChar) :
-            stylizeString(s, this.hasFocus ? this.focusTextStyle : this.textStyle);
-
-        if(textToDraw.length > this.dimens.width) {
-            if(this.hasFocus) {
-                if(this.horizScroll) {
-                    textToDraw = textToDraw.substr(textToDraw.length - this.dimens.width, textToDraw.length);
-                }
-            } else {
-                if(textToDraw.length > this.dimens.width) {
-                    if(this.textOverflow &&
-                        this.dimens.width > this.textOverflow.length &&
-                        textToDraw.length - this.textOverflow.length >= this.textOverflow.length)
-                    {
-                        textToDraw = textToDraw.substr(0, this.dimens.width - this.textOverflow.length) + this.textOverflow;
-                    } else {
-                        textToDraw = textToDraw.substr(0, this.dimens.width);
-                    }
-                }
-            }
-        }
-
-        this.client.term.write(padStr(
-            textToDraw,
-            this.dimens.width + 1,
-            this.fillChar,
-            this.justify,
-            this.hasFocus ? this.getFocusSGR() : this.getSGR(),
-            this.getStyleSGR(1) || this.getSGR()
-            ), false);
-    };
-*/
-
     this.drawText = function(s) {
 
         //
@@ -125,7 +82,7 @@ function TextView(options) {
         this.client.term.write(
             padStr(
                 textToDraw,
-                this.dimens.width + 1,
+                this.dimens.width,
                 renderedFillChar, //this.fillChar,
                 this.justify,
                 this.hasFocus ? this.getFocusSGR() : this.getSGR(),
