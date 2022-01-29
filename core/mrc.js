@@ -325,8 +325,10 @@ exports.getModule = class mrcModule extends MenuModule {
                     }
 
                     default:
-                        this.addMessageToChatLog(message.body);
-                        break;
+                        if(!message.body.includes("MRC_Watchdog")) {
+                            this.addMessageToChatLog(message.body);
+                            break;
+                    }
                 }
 
             } else {
