@@ -426,7 +426,8 @@ exports.getModule = class mrcModule extends MenuModule {
 
         switch (cmd[0]) {
             case 'pm':
-                this.processOutgoingMessage(cmd[2], cmd[1]);
+                const newmsg = cmd.slice(2).join(' ');
+                this.processOutgoingMessage(newmsg, cmd[1]);
                 break;
 
             case 'rainbow': {
