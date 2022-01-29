@@ -15,7 +15,7 @@ if [[ ! -f $BBS_ROOT/config/$CONFIG_NAME ]]; then
             cp -rp $BBS_STG_P/$DIR/* $BBS_ROOT/$DIR/
         else
             printf "WARN: skipped $BBS_ROOT/$DIR: Volume not empty or not a new setup; Files required to run ENiGMA 1/2 may be missing.\n Possible bad state\n"
-            printf "INFO:you have mounted folders with existing data - but no existing config json.\n\nPossible solutions:\n1. Make sure all volumes are set correctly specifically config volume... \n2. Check your configuration name if non-default\n\n\n" 
+            printf "INFO: You have mounted folders with existing data - but no existing config json.\n\nPossible solutions:\n1. Make sure all volumes are set correctly specifically config volume... \n2. Check your configuration name if non-default\n\n\n" 
         fi
     done
     ./oputil.js config new
