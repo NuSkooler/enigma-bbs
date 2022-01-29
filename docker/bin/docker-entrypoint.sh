@@ -9,12 +9,12 @@ CONFIG_NAME=config.hjson # This is the default name, this script is intended for
 
 # Setup happens when there is no existing config file
 if [[ ! -f $BBS_ROOT_DIR/config/$CONFIG_NAME ]]; then
-    for DIR in "${PRE_POPULATED_VOLUMES[@]}"
+    for VOLUME in "${PRE_POPULATED_VOLUMES[@]}"
     do
-        if [ -n "$(find "$BBS_ROOT_DIR/$DIR" -maxdepth 0 -type d -empty 2>/dev/null)" ]; then
-            cp -rp $BBS_STAGING_PATH/$DIR/* $BBS_ROOT_DIR/$DIR/
+        if [ -n "$(find "$BBS_ROOT_DIR/$VOLUME" -maxdepth 0 -type d -empty 2>/dev/null)" ]; then
+            cp -rp $BBS_STAGING_PATH/$VOLUME/* $BBS_ROOT_DIR/$VOLUME/
         else
-            printf "WARN: skipped $BBS_ROOT_DIR/$DIR: Volume not empty or not a new setup; Files required to run ENiGMA 1/2 may be missing.\n Possible bad state\n"
+            printf "WARN: skipped $BBS_ROOT_DIR/$VOLUME: Volume not empty or not a new setup; Files required to run ENiGMA 1/2 may be missing.\n Possible bad state\n"
             printf "INFO: You have mounted folders with existing data - but no existing config json.\n\nPossible solutions:\n1. Make sure all volumes are set correctly specifically config volume... \n2. Check your configuration name if non-default\n\n\n" 
         fi
     done
