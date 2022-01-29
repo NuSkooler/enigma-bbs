@@ -2,10 +2,10 @@
 set -e
 
 # Set some vars
-PRE_POP_VOLS=("config" "mods" "art") # these are folders which contain runtime needed files, and need to be represented in the host
-BBS_ROOT=/enigma-bbs # install location
-BBS_STG_P=/enigma-bbs-pre # staging location for pre populated volumes (PRE_POP_VOLS)
-CONFIG_NAME=config.hjson # this is the default name, this script is intended for easy get-go - make changes as needed
+PRE_POP_VOLS=("config" "mods" "art") # These are folders which contain runtime needed files, and need to be represented in the host
+BBS_ROOT=/enigma-bbs # Install location
+BBS_STG_P=/enigma-bbs-pre # Staging location for pre populated volumes (PRE_POP_VOLS)
+CONFIG_NAME=config.hjson # This is the default name, this script is intended for easy get-go - make changes as needed
 
 # Setup happens when there is no existing config file
 if [[ ! -f $BBS_ROOT/config/$CONFIG_NAME ]]; then
@@ -20,7 +20,7 @@ if [[ ! -f $BBS_ROOT/config/$CONFIG_NAME ]]; then
     done
     ./oputil.js config new
 fi
-if [[ ! -f $BBS_ROOT/config/$CONFIG_NAME ]]; then #make sure once more, otherwise pm2-runtime will loop if missing the config
+if [[ ! -f $BBS_ROOT/config/$CONFIG_NAME ]]; then # Make sure once more, otherwise pm2-runtime will loop if missing the config
   printf "ERROR: Missing configuration - ENiGMA 1/2 will not work. please run config\n"
   
   exit 1
