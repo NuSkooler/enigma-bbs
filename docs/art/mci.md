@@ -116,16 +116,17 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 
 | Code | Name                 | Description      | Notes |
 |------|----------------------|------------------|-------|
-| `TL` | Text Label           | Displays text | Static content |
-| `ET` | Edit Text            | Collect user input | Single line entry |
-| `ME` | Masked Edit Text     | Collect user input using a *mask* | See **Mask Edits** below |
-| `MT` | Multi Line Text Edit | Multi line edit control | Used for FSE, display of FILE_ID.DIZ, etc. |
-| `BT` | Button               | A button | ...it's a button |
-| `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists |
-| `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar |
-| `FM` | Full Menu      | A menu that can go both vertical and horizontal. See [Full Menu](views/full_menu_view.md) |
-| `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options |
-| `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input |
+| `TL` | Text Label           | Displays text | Static content. See [Text View](views/text_view.md) |
+| `ET` | Edit Text            | Collect user input | Single line entry. See [Edit Text](views/edit_text_view.md) |
+| `ME` | Masked Edit Text     | Collect user input using a *mask* | See [Masked Edit](views/mask_edit_text_view.md) and **Mask Edits** below. |
+| `MT` | Multi Line Text Edit | Multi line edit control | Used for FSE, display of FILE_ID.DIZ, etc. See [Multiline Text Edit](views/multi_line_edit_text_view.md) |
+| `BT` | Button               | A button | ...it's a button. See [Button](views/button_view.md) |
+| `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists. See [Vertical Menu](views/vertical_menu_view.md) |
+| `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar. See [Horizontal Menu](views/horizontal_menu_view.md) |
+| `FM` | Full Menu      | A menu that can go both vertical and horizontal. | See [Full Menu](views/full_menu_view.md) | 
+| `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options. See [Spinner Menu](views/spinner_menu_view.md) |
+| `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input. See [Toggle Menu](views/toggle_menu_view.md)|
+| `PL` | Predefined Label    | Show environment information | See [Predefined Label](views/predefined_label_view.md)|
 | `KE` | Key Entry            | A *single* key input control | Think hotkeys |
 
 :information_source: Peek at [/core/mci_view_factory.js](https://github.com/NuSkooler/enigma-bbs/blob/master/core/mci_view_factory.js) to see additional information.

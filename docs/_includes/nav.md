@@ -50,7 +50,16 @@
     - [Themes]({{ site.baseurl }}{% link art/themes.md %})
     - [MCI Codes]({{ site.baseurl }}{% link art/mci.md %})
     - Views
+      - [Button]({{ site.baseurl }}{% link art/views/button_view.md %})
+      - [Edit Text]({{ site.baseurl }}{% link art/views/edit_text_view.md %})
       - [Full Menu]({{ site.baseurl }}{% link art/views/full_menu_view.md %})
+      - [Horizontal Menu]({{ site.baseurl }}{% link art/views/horizontal_menu_view.md %})
+      - [Mask Edit Text]({{ site.baseurl }}{% link art/views/mask_edit_text_view.md %})
+      - [Predefined Label]({{ site.baseurl }}{% link art/views/predefined_label_view.md %})
+      - [Spinner Menu]({{ site.baseurl }}{% link art/views/spinner_menu_view.md %})
+      - [Text]({{ site.baseurl }}{% link art/views/text_view.md %})
+      - [Toggle Menu]({{ site.baseurl }}{% link art/views/toggle_menu_view.md %})
+      - [Vertical Menu]({{ site.baseurl }}{% link art/views/vertical_menu_view.md %})
 
   - Servers
     - Login Servers
