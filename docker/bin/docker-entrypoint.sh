@@ -25,5 +25,5 @@ if [[ ! -f $BBS_ROOT_DIR/config/$CONFIG_NAME ]]; then # Make sure once more, oth
   
   exit 1
 else
-   exec pm2-runtime main.js
+   exec pm2-runtime main.js 
 fi
