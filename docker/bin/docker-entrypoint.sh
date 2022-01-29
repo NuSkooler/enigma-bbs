@@ -11,7 +11,7 @@ if [[ ! -f $bbspath/config/$configname ]]; then
     for dir in "${prepopvols[@]}"
     do
         if [ -n "$(find "$bbspath/$dir" -maxdepth 0 -type d -empty 2>/dev/null)" ]; then
-            cp -rpn $bbsstgp/$dir/* $bbspath/$dir/
+            cp -rp $bbsstgp/$dir/* $bbspath/$dir/
         else
             echo "WARN skipped $bbspath/$dir - vol Not empty/not a new setup - possible bad state"
         fi
