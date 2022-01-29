@@ -1,8 +1,8 @@
 ---
 layout: page
-title: Full Menu View
+title: Button View
 ---
-## Full Menu View
+## Button View
 A button view supports displaying a button on a screen.
 
 ## General Information
