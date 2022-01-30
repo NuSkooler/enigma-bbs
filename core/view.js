@@ -154,7 +154,7 @@ View.prototype.setHeight = function(height) {
 
 View.prototype.setWidth = function(width) {
     width   = parseInt(width) || 1;
-    width   = Math.min(width, this.client.term.termWidth);
+    width   = Math.min(width, this.client.term.termWidth - this.position.col);
 
     this.dimens.width = width;
 };

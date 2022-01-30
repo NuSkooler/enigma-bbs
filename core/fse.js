@@ -791,10 +791,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 function prepareViewStates(callback) {
-                    var header = self.viewControllers.header;
-                    var from = header.getView(MciViewIds.header.from);
-                    from.acceptsFocus = false;
-                    //from.setText(self.client.user.username);
+                    let from = self.viewControllers.header.getView(MciViewIds.header.from);
+                    if (from) {
+                        from.acceptsFocus = false;
+                    }
 
                     //  :TODO: make this a method
                     var body = self.viewControllers.body.getView(MciViewIds.body.message);
@@ -825,10 +825,13 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             {
                                 const fromView = self.viewControllers.header.getView(MciViewIds.header.from);
                                 const area = getMessageAreaByTag(self.messageAreaTag);
-                                if(area && area.realNames) {
-                                    fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
-                                } else {
-                                    fromView.setText(self.client.user.username);
+
+				if(fromView !== undefined) {
+                                    if(area && area.realNames) {
+                                        fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
+                                    } else {
+                                        fromView.setText(self.client.user.username);
+                                    }
                                 }
 
                                 if(self.replyToMessage) {
@@ -914,7 +917,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     initHeaderViewMode() {
-        this.setHeaderText(MciViewIds.header.from,          this.message.fromUserName);
+        // Only set header text for from view if it is on the form
+        if (this.viewControllers.header.getView(MciViewIds.header.from) !== undefined) {
+            this.setHeaderText(MciViewIds.header.from, this.message.fromUserName);
+        }
         this.setHeaderText(MciViewIds.header.to,            this.message.toUserName);
         this.setHeaderText(MciViewIds.header.subject,       this.message.subject);
 
