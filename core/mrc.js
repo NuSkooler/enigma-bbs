@@ -432,6 +432,12 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.processOutgoingMessage(newmsg, cmd[1]);
                 break;
 
+            case 'me':
+                const memsg = cmd.slice(1).join(' ');
+                const handle = this.state.alias;
+                this.sendMessageToMultiplexer("", "", this.state.room, "|15* |13"+handle+" "+stripMciColorCodes(memsg));
+                break;
+
             case 'rainbow': {
                 // this is brutal, but i love it
                 const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
