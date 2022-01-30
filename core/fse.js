@@ -792,7 +792,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                 },
                 function prepareViewStates(callback) {
                     let from = self.viewControllers.header.getView(MciViewIds.header.from);
-                    if (from !== undefined) {
+                    if (from) {
                         from.acceptsFocus = false;
                     }
 
@@ -918,7 +918,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
     initHeaderViewMode() {
         // Only set header text for from view if it is on the form
-        if (self.viewControllers.header.getView(MciViewIds.header.from) !== undefined) {
+        if (this.viewControllers.header.getView(MciViewIds.header.from) !== undefined) {
             this.setHeaderText(MciViewIds.header.from, this.message.fromUserName);
         }
         this.setHeaderText(MciViewIds.header.to,            this.message.toUserName);

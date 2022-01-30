@@ -21,8 +21,7 @@ function ButtonView(options) {
 util.inherits(ButtonView, TextView);
 
 ButtonView.prototype.onKeyPress = function(ch, key) {
-    let actionForKeyName = key ? key.name : ch;
-    if(this.isKeyMapped('accept', actionForKeyName) || ' ' === ch) {
+    if(this.isKeyMapped('accept', (key ? key.name : ch)) || ' ' === ch) {
         this.submitData = 'accept';
         this.emit('action', 'accept');
         delete this.submitData;
