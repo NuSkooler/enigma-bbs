@@ -435,7 +435,7 @@ exports.getModule = class mrcModule extends MenuModule {
             case 'me':
                 const memsg = cmd.slice(1).join(' ');
                 const handle = this.state.alias;
-                this.sendMessageToMultiplexer("", "", this.state.room, "|15* |13"+handle+" "+stripMciColorCodes(memsg));
+                this.sendMessageToMultiplexer("", "", this.state.room, `|15* |13${handle} ${stripMciColorCodes(memsg)}`);
                 break;
 
             case 'rainbow': {
