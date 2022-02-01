@@ -283,10 +283,10 @@ binary-parser@1.6.2:
   resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-1.6.2.tgz#8410a82ffd9403271ec182bd91e63a09cee88cbe"
   integrity sha512-cYAhKB51A9T/uylDvMK7uAYaPLWLwlferNOpnQ0E0fuO73yPi7kWaWiOm22BvuKxCbggmkiFN0VkuLg6gc+KQQ==
 
-binary-parser@1.7.0:
-  version "1.7.0"
-  resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-1.7.0.tgz#117dbfb071dde44a4910ea072a8d32e1549e8e12"
-  integrity sha512-lIWQLmiEJtx2ZAUPbZWLA/0bgxYdWkySU9pZq5dNRcyzliZCBIwbgLeyydu57GFskGcZDbirMjPSgVcUgZpbdg==
+binary-parser@2.0.2:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/binary-parser/-/binary-parser-2.0.2.tgz#e494f9a0ebb2a4ec7d2b09df47cdeffa23df1563"
+  integrity sha512-F2JeaLmExQ0vOEbS5ERzkxePKWTPqJPV6Z04/owaXMQLlW1Kt9v2gUz3SocR40JQGtrUeZu3j6prZDeuEG8Dng==
 
 brace-expansion@^1.1.7:
   version "1.1.11"

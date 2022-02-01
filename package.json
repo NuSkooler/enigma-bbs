@@ -24,7 +24,7 @@
   "dependencies": {
     "@breejs/later": "4.1.0",
     "async": "3.2.3",
-    "binary-parser": "1.7.0",
+    "binary-parser": "2.0.2",
     "buffers": "github:NuSkooler/node-buffers",
     "bunyan": "1.8.15",
     "deepdash": "5.3.9",
