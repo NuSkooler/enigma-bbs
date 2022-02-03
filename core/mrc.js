@@ -438,6 +438,15 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendMessageToMultiplexer("", "", this.state.room, `|15* |13${handle} ${stripMciColorCodes(memsg)}`);
                 break;
 
+            case 'trout': {
+                const troutFromUser = this.state.alias;
+                const troutMessage = cmd.slice(1).join(' ');
+                const trout = "|12<''),))><  |15whaaaPish|07";
+                const outMessage = `|15* |13${troutFromUser} |14troutslaps |13${troutMessage}: ${trout}`;
+                this.sendMessageToMultiplexer("", "", this.state.room, outMessage);
+                break;
+            }
+
             case 'rainbow': {
                 // this is brutal, but i love it
                 const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
