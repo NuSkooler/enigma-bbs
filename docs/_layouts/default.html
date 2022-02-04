@@ -17,7 +17,7 @@
         <div class="sidebar" id="sidebar">
         <hr class="mobile-divide" />
             <div class="container">
-          <a href="{{ site.baseurl }}{% link index.md %}"><img src="{{ '/assets/images/enigma-logo.png' | relative_url }}" class="logo" alt="Enigma logo" /></a>
+          <a href="{% link index.md %}"><img src="{{ '/assets/images/enigma-logo.png' | relative_url }}" class="logo" alt="Enigma logo" /></a>
             </div>
             {% capture nav_include %}{% include nav.html %}{% endcapture %}
             {{ nav_include | markdownify }}
