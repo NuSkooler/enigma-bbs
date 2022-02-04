@@ -30,6 +30,12 @@ exclude:
  - .idea
 
 
+# New documents that are not included below under order will display at the
+# end of the list. Section names for directories and subdirectories are
+# setup in _data/sections.yml. Change there in order to update the name of
+# one of the subdirectories or to add a new one.
+
+
 collections:
   docs:
     output: true
@@ -39,9 +45,8 @@ collections:
       - installation/install-script.md
       - installation/docker.md
       - installation/manual.md
-      - installation/os-hardware.md
-      - installation/rpi.md
-      - installation/windows.md
+      - installation/hardware/rpi.md
+      - installation/hardware/windows.md
       - installation/network.md
       - installation/testing.md
       - installation/production.md
@@ -88,12 +93,12 @@ collections:
       - art/views/text_view.md
       - art/views/toggle_menu_view.md
       - art/views/vertical_menu_view.md
-      - servers/telnet.md
-      - servers/ssh.md
-      - servers/websocket.md
-      - servers/web-server.md
-      - servers/gopher.md
-      - servers/nntp.md
+      - servers/loginservers/telnet.md
+      - servers/loginservers/ssh.md
+      - servers/loginservers/websocket.md
+      - servers/contentservers/web-server.md
+      - servers/contentservers/gopher.md
+      - servers/contentservers/nntp.md
       - modding/local-doors.md
       - modding/door-servers.md
       - modding/telnet-bridge.md

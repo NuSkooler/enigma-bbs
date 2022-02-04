@@ -20,3 +20,9 @@ misc:
     title: Miscellaneous
 views:
     title: Views
+hardware:
+    title: OS / Hardware Specific
+loginservers:
+    title: Login Servers
+contentservers:
+    title: Content Servers

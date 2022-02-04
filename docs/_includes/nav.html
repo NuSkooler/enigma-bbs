@@ -44,17 +44,16 @@
   <li>{{section}}</li>
   <ul>
 
-  {% else %}
+  {% endif %}
 
-    {% if subdir != prevsubdir %}
+    {% if subdir != "NONE" and subdir != prevsubdir %}
       <li>{{subsection}}</li>
       <ul>
     {% endif %}
 
-  {% endif %}
 
     {% if doc.url != page.url %}
-      <li><a href="{{site.baseurl}}{{doc.url}}">{{doc.title}}</a></li>
+    <li><a href="{{site.baseurl}}{{doc.url}}">{{doc.title}}</a></li>
     {% else %}
       <li class="active-nav">{{doc.title}}</li>
     {% endif %}
