@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Home
+include-banner: true
 ---
 ![ENiGMA½ BBS](assets/images/enigma-bbs.png "ENiGMA½ BBS")
 
