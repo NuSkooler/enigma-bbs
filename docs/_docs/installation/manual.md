@@ -57,7 +57,7 @@ ENiGMA BBS makes use of a few packages for archive and legacy protocol support. 
 :information_source: Additional information in [Archivers](../configuration/archivers.md) and [File Transfer Protocols](../configuration/file-transfer-protocols.md)
 
 ## Config Files
-You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compliant JSON is also OK). See [Configuration](../configuration/) for more information.
+You'll need a basic configuration to get started. The main system configuration is handled via `config/config.hjson`. This is an [HJSON](http://hjson.org/) file (compliant JSON is also OK). See [Configuration](../configuration/hjson.md) for more information.
 
 Use `oputil.js` to generate your **initial** configuration:
 
