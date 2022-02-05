@@ -11,7 +11,7 @@ prepare a folder where you are going to save your bbs files.
 you can perform this step from anywhere - but make sure to consistently run it from the same place to retain your config inside the docker guest
 ```
 docker run -it -p 8888:8888 \
---name " ENiGMABBS" \
+--name "ENiGMABBS" \
 -v "$(pwd)/config:/enigma-bbs/config" \
 -v "$(pwd)/db:/enigma-bbs/db" \
 -v "$(pwd)/logs:/enigma-bbs/logs" \
@@ -19,7 +19,7 @@ docker run -it -p 8888:8888 \
 -v "$(pwd)/art:/enigma-bbs/art" \
 -v "$(pwd)/mods:/enigma-bbs/mods" \
 -v "$(pwd)/mail:/mail" \
-enigmabbs/enigmabbs:latest
+enigmabbs/enigma-bbs:latest
 ```
 - Run it: \
 you can use the same command as above, just daemonize and drop interactiveness (we needed it for config but most of the time docker will run in the background)
@@ -33,7 +33,7 @@ docker run -d -p 8888:8888 \
 -v "$(pwd)/art:/enigma-bbs/art" \
 -v "$(pwd)/mods:/enigma-bbs/mods" \
 -v "$(pwd)/mail:/mail" \
-enigmabbs/enigmabbs:latest
+enigmabbs/enigma-bbs:latest
 ````
 - Restarting and Making changes\
 if you make any changes to your host config folder they will persist, and you can just restart ENiGMABBS container to load any changes you've made.
