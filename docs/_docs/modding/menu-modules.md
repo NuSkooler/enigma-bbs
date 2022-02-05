@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Local Doors
+title: Menu Modules
 ---
 ## Menu Modules
 Menu entries found within `menu.hjson` are backed by *menu modules*.

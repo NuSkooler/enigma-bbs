@@ -9,12 +9,16 @@ logo: /assets/images/enigma-logo.png
 markdown: kramdown
 theme: jekyll-theme-hacker
 plugins:
-  - jekyll-feed
   - jekyll-seo-tag
+  - jekyll-relative-links
   - jekyll-sitemap
   - jemoji
 
 baseurl: /enigma-bbs
+
+relative_links:
+  enabled: true
+  collections: true
 
 # Exclude from processing.
 # The following items will not be processed, by default. Create a custom list
@@ -28,3 +32,102 @@ exclude:
  - vendor/gems/
  - vendor/ruby/
  - .idea
+
+
+# New documents that are not included below under order will display at the
+# end of the list. Section names for directories and subdirectories are
+# setup in _data/sections.yml. Change there in order to update the name of
+# one of the subdirectories or to add a new one.
+
+
+collections:
+  docs:
+    output: true
+    permalink: /:path:output_ext
+    order:
+      - installation/installation-methods.md
+      - installation/install-script.md
+      - installation/docker.md
+      - installation/manual.md
+      - installation/hardware/rpi.md
+      - installation/hardware/windows.md
+      - installation/network.md
+      - installation/testing.md
+      - installation/production.md
+      - configuration/creating-config.md
+      - configuration/sysop-setup.md
+      - configuration/config-files.md
+      - configuration/config-hjson.md
+      - configuration/hjson.md
+      - configuration/menu-hjson.md
+      - configuration/directory-structure.md
+      - configuration/external-binaries.md
+      - configuration/archivers.md
+      - configuration/file-transfer-protocols.md
+      - configuration/email.md
+      - configuration/colour-codes.md
+      - configuration/event-scheduler.md
+      - configuration/acs.md
+      - configuration/security.md
+      - misc/user-interrupt.md
+      - filebase/index.md
+      - filebase/first-file-area.md
+      - filebase/acs.md
+      - filebase/uploads.md
+      - filebase/web-access.md
+      - filebase/tic-support.md
+      - filebase/network-mounts-and-symlinks.md
+      - messageareas/configuring-a-message-area.md
+      - messageareas/message-networks.md
+      - messageareas/bso-import-export.md
+      - messageareas/netmail.md
+      - messageareas/qwk.md
+      - messageareas/ftn.md
+      - art/general.md
+      - art/themes.md
+      - art/mci.md
+      - art/views/button_view.md
+      - art/views/edit_text_view.md
+      - art/views/full_menu_view.md
+      - art/views/horizontal_menu_view.md
+      - art/views/mask_edit_text_view.md
+      - art/views/multi_line_edit_text_view.md
+      - art/views/predefined_label_view.md
+      - art/views/spinner_menu_view.md
+      - art/views/text_view.md
+      - art/views/toggle_menu_view.md
+      - art/views/vertical_menu_view.md
+      - servers/loginservers/telnet.md
+      - servers/loginservers/ssh.md
+      - servers/loginservers/websocket.md
+      - servers/contentservers/web-server.md
+      - servers/contentservers/gopher.md
+      - servers/contentservers/nntp.md
+      - modding/local-doors.md
+      - modding/door-servers.md
+      - modding/telnet-bridge.md
+      - modding/existing-mods.md
+      - modding/file-area-list.md
+      - modding/last-callers.md
+      - modding/whos-online.md
+      - modding/user-list.md
+      - modding/msg-conf-list.md
+      - modding/msg-area-list.md
+      - modding/bbs-list.md
+      - modding/rumorz.md
+      - modding/file-transfer-protocol-select.md
+      - modding/onelinerz.md
+      - modding/show-art.md
+      - modding/file-base-download-manager.md
+      - modding/file-base-web-download-manager.md
+      - modding/set-newscan-date.md
+      - modding/node-msg.md
+      - modding/top-x.md
+      - modding/user-2fa-otp-config.md
+      - modding/autosig-edit.md
+      - modding/menu-modules.md
+      - admin/administration.md
+      - admin/oputil.md
+      - admin/updating.md
+      - troubleshooting/monitoring-logs.md
+

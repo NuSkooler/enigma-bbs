@@ -3,7 +3,7 @@ layout: page
 title: Email
 ---
 ## Email Support
-ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid [Nodemailer](https://nodemailer.com/about/) compatible `email` block in your [config.hjson]({{ site.baseurl }}{% link configuration/config-hjson.md %}). Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The `transport` block within `email` must be Nodemailer compatible.
+ENiGMA½ uses email to send password reset information to users. For it to work, you need to provide valid [Nodemailer](https://nodemailer.com/about/) compatible `email` block in your [config.hjson](config-hjson.md). Nodemailer supports SMTP in addition to many pre-defined services for ease of use. The `transport` block within `email` must be Nodemailer compatible.
 
 Additional email support will come in the near future.
 
