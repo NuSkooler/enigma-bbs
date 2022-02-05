@@ -1,0 +1,2642 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Local Doors | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Local Doors" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!" />
+<meta property="og:description" content="Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!" />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-02-05T06:30:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Local Doors" />
+<script type="application/ld+json">
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"Local Doors ENiGMA½ has many ways to add doors to your system. In addition to the many built in door server modules, local doors are of course also supported using the ! The abracadabra module!","url":"/enigma-bbs/modding/local-doors.html","@type":"BlogPosting","headline":"Local Doors","dateModified":"2022-02-05T06:30:26+00:00","datePublished":"2022-02-05T06:30:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/local-doors.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide">
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/predefined_label_view.html">Predefined Label View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+      <li class="active-nav">Local Doors</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/nntp.html">« NNTP Server</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/door-servers.html">Door Servers »</a>
+              
+              <br clear="both">
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">Local Doors</h1>
+    <h2 id="local-doors">Local Doors</h2>
+<p>ENiGMA½ has many ways to add doors to your system. In addition to the <a href="/enigma-bbs/modding/door-servers.html">many built in door server modules</a>, local doors are of course also supported using the ! The <code class="language-plaintext highlighter-rouge">abracadabra</code> module!</p>
+
+<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See also <a href="https://medium.com/retro-future/lets-add-a-dos-game-to-enigma-1-2-41f257deaa3c">Let’s add a DOS door to Enigma½ BBS</a> by Robbie Whiting for a great writeup on adding doors!</p>
+
+<h2 id="the-abracadabra-module">The abracadabra Module</h2>
+<p>The <code class="language-plaintext highlighter-rouge">abracadabra</code> module provides a generic and flexible solution for many door types. Through this module you can execute native processes &amp; scripts directly, and perform I/O through standard I/O (stdio) or a temporary TCP server.</p>
+
+<h3 id="configuration">Configuration</h3>
+<p>The <code class="language-plaintext highlighter-rouge">abracadabra</code> <code class="language-plaintext highlighter-rouge">config</code> block can contain the following members:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">name</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Used as a key for tracking number of clients using a particular door.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">dropFileType</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Specifies the type of dropfile to generate (See <strong>Dropfile Types</strong> below). Can be omitted or set to <code class="language-plaintext highlighter-rouge">none</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cmd</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Path to executable to launch.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">args</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Array of argument(s) to pass to <code class="language-plaintext highlighter-rouge">cmd</code>. See <strong>Argument Variables</strong> below for information on variables that can be used here.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cwd</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Sets the Current Working Directory (CWD) for <code class="language-plaintext highlighter-rouge">cmd</code>. Defaults to the directory of <code class="language-plaintext highlighter-rouge">cmd</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">env</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Sets the environment. Supplied in the form of an map: <code class="language-plaintext highlighter-rouge">{ SOME_VAR: "value" }</code>
+</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nodeMax</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Max number of nodes that can access this door at once. Uses <code class="language-plaintext highlighter-rouge">name</code> as a tracking key.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tooManyArt</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Art spec to display if too many instances are already in use.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">io</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>How to process input/output (I/O). Can be <code class="language-plaintext highlighter-rouge">stdio</code> or <code class="language-plaintext highlighter-rouge">socket</code>. When using <code class="language-plaintext highlighter-rouge">stdio</code>, I/O is handled via standard stdin/stdout. When using <code class="language-plaintext highlighter-rouge">socket</code> a temporary socket server is spawned that can be connected back to. The server listens on localhost on <code class="language-plaintext highlighter-rouge">{srvPort}</code> (See <strong>Argument Variables</strong> below for more information). Default value is <code class="language-plaintext highlighter-rouge">stdio</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">encoding</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Sets the <strong>door’s</strong> encoding. Defaults to <code class="language-plaintext highlighter-rouge">cp437</code>. Linux binaries often produce <code class="language-plaintext highlighter-rouge">utf8</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="dropfile-types">Dropfile Types</h4>
+<p>Dropfile types specified by <code class="language-plaintext highlighter-rouge">dropFileType</code>:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Value</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DOOR</code></td>
+      <td><a href="https://web.archive.org/web/20160325192739/http://goldfndr.home.mindspring.com/dropfile/doorsys.htm">DOOR.SYS</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DOOR32</code></td>
+      <td><a href="https://raw.githubusercontent.com/NuSkooler/ansi-bbs/master/docs/dropfile_formats/door32_sys.txt">DOOR32.SYS</a></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DORINFO</code></td>
+      <td><a href="https://web.archive.org/web/20160321190038/http://goldfndr.home.mindspring.com/dropfile/dorinfo.htm">DORINFOx.DEF</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="argument-variables">Argument Variables</h4>
+<p>The following variables may be used in <code class="language-plaintext highlighter-rouge">args</code> entries:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Description</th>
+      <th>Example</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{node}</code></td>
+      <td>Current node number.</td>
+      <td><code class="language-plaintext highlighter-rouge">1</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{dropFile}</code></td>
+      <td>Dropfile <em>filename</em> only.</td>
+      <td><code class="language-plaintext highlighter-rouge">DOOR.SYS</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{dropFilePath}</code></td>
+      <td>Full path to generated dropfile. The system places dropfiles in the path set by <code class="language-plaintext highlighter-rouge">paths.dropFiles</code> in <code class="language-plaintext highlighter-rouge">config.hjson</code>.</td>
+      <td><code class="language-plaintext highlighter-rouge">C:\enigma-bbs\drop\node1\DOOR.SYS</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userId}</code></td>
+      <td>Current user ID.</td>
+      <td><code class="language-plaintext highlighter-rouge">420</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userName}</code></td>
+      <td>
+<a href="https://www.npmjs.com/package/sanitize-filename">Sanitized</a> username. Safe for filenames, etc. If the full username is sanitized away, this will resolve to something like “user_1234”.</td>
+      <td><code class="language-plaintext highlighter-rouge">izard</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{userNameRaw}</code></td>
+      <td>
+<em>Raw</em> username. May not be safe for filenames!</td>
+      <td><code class="language-plaintext highlighter-rouge">\/\/izard</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{srvPort}</code></td>
+      <td>Temporary server port when <code class="language-plaintext highlighter-rouge">io</code> is set to <code class="language-plaintext highlighter-rouge">socket</code>.</td>
+      <td><code class="language-plaintext highlighter-rouge">1234</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">{cwd}</code></td>
+      <td>Current Working Directory.</td>
+      <td><code class="language-plaintext highlighter-rouge">/home/enigma-bbs/doors/foo/</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Example <code class="language-plaintext highlighter-rouge">args</code> member using some variables described above:</p>
+<pre><code class="language-hjson">args: [
+    "-D", "{dropFilePath}",
+    "-N", "{node}"
+    "-U", "{userId}"
+]
+</code></pre>
+
+<h3 id="dosemu-with-abracadabra">DOSEMU with abracadabra</h3>
+<p><a href="http://www.dosemu.org/">DOSEMU</a> can provide a good solution for running legacy DOS doors when running on Linux systems. For this, we will create a virtual serial port (COM1) that communicates via stdio.</p>
+
+<p>As an example, here are the steps for setting up Pimp Wars:</p>
+
+<p>First, create a <code class="language-plaintext highlighter-rouge">dosemu.conf</code> file with the following contents:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$_cpu = "80486"
+$_cpu_emu = "vm86"
+$_external_char_set = "utf8"
+$_internal_char_set = "cp437"
+$_term_updfreq = (8)
+$_layout = "us"
+$_rawkeyboard = (0)
+$_com1 = "virtual"
+</code></pre></div></div>
+
+<p>The line <code class="language-plaintext highlighter-rouge">$_com1 = "virtual"</code> tells DOSEMU to use <code class="language-plaintext highlighter-rouge">stdio</code> as a virtual serial port on COM1.</p>
+
+<p>Next, we create a virtual <strong>X</strong> drive for Pimp Wars to live such as <code class="language-plaintext highlighter-rouge">/enigma-bbs/DOS/X/PW</code> and map it with a custom <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> file within DOSEMU:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>@echo off
+path d:\bin;d:\gnu;d:\dosemu
+set TEMP=c:\tmp
+prompt $P$G
+REM http://www.pcmicro.com/bnu/
+C:\BNU\BNU.COM /L0:57600,8N1 /F
+lredir.com x: linux\fs\enigma-bbs\DOS\X
+unix -e
+</code></pre></div></div>
+
+<p>Note that we also have the <a href="http://www.pcmicro.com/bnu/">BNU</a> FOSSIL driver installed at <code class="language-plaintext highlighter-rouge">C:\BNU\\</code>. Another option would be to install this to X: somewhere as well.</p>
+
+<p>Finally, let’s create a <code class="language-plaintext highlighter-rouge">menu.hjson</code> entry to launch the game:</p>
+<pre><code class="language-hjson">doorPimpWars: {
+    desc: Playing PimpWars
+    module: abracadabra
+    config: {
+        name: PimpWars
+        dropFileType: DORINFO
+        cmd: /usr/bin/dosemu
+        args: [
+            "-quiet",
+            "-f",
+            "/path/to/dosemu.conf",
+            "X:\\PW\\START.BAT {dropFile} {node}"
+        ],
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: stdio
+    }
+}
+</code></pre>
+
+<h3 id="shared-socket-descriptors">Shared Socket Descriptors</h3>
+<p>Due to Node.js limitations, ENiGMA½ does not <em>directly</em> support <code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> style socket descriptor sharing (other <code class="language-plaintext highlighter-rouge">DOOR32.SYS</code> features are fully supported). However, a separate binary called <a href="https://github.com/NuSkooler/bivrost">bivrost!</a> can be used. bivrost! is available for Windows and Linux x86/i686 and x86_64/AMD64. Other platforms where <a href="https://www.rust-lang.org/">Rust</a> builds are likely to work as well.</p>
+
+<h4 id="example-configuration">Example configuration</h4>
+<p>Below is an example <code class="language-plaintext highlighter-rouge">menu.hjson</code> entry using bivrost! to launch a door:</p>
+
+<pre><code class="language-hjson">doorWithBivrost: {
+    desc: Bivrost Example
+    module: abracadabra
+    config: {
+        name: BivrostExample
+        dropFileType: DOOR32
+        cmd: "C:\\enigma-bbs\\utils\\bivrost.exe"
+        args: [
+            "--port", "{srvPort}",          //  bivrost! will connect this port on localhost
+            "--dropfile", "{dropFilePath}", //  ...and read this DOOR32.SYS produced by ENiGMA½
+            "--out", "C:\\doors\\jezebel",  //  ...and produce a NEW DOOR32.SYS here.
+
+            //
+            //  Note that the final &lt;target&gt; params bivrost! will use to
+            //  launch the door are grouped here. The {fd} variable could
+            //  also be supplied here if needed.
+            //
+            "C:\\door\\door.exe C:\\door\\door32.sys"
+        ],
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: socket
+    }
+}
+</code></pre>
+
+<p>Please see the <a href="https://github.com/NuSkooler/bivrost">bivrost!</a> documentation for more information.</p>
+
+<h4 id="phenom-productions-releases">Phenom Productions Releases</h4>
+<p>Pre-built binaries of bivrost! have been released under <a href="https://www.phenomprod.com/">Phenom Productions</a> and can be found on various boards.</p>
+
+<h4 id="alternative-workarounds">Alternative Workarounds</h4>
+<p>Alternative workarounds include <a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge module</a> to hook up Telnet-accessible (including local) door servers – It may also be possible bridge via <a href="http://pcmicro.com/netfoss/guide/net2bbs.html">NET2BBS</a>.</p>
+
+<h3 id="qemu-with-abracadabra">QEMU with abracadabra</h3>
+<p><a href="http://wiki.qemu.org/Main_Page">QEMU</a> provides a robust, cross platform solution for launching doors under many platforms (likely anywhere Node.js is supported and ENiGMA½ can run). Note however that there is an important and major caveat: <strong>Multiple instances of a particular door/OS image should not be run at once!</strong> Being more flexible means being a bit more complex. Let’s look at an example for running L.O.R.D. under a UNIX like system such as Linux or FreeBSD.</p>
+
+<p>Basically we’ll be creating a bootstrap shell script that generates a temporary node specific <code class="language-plaintext highlighter-rouge">GO.BAT</code> to launch our door. This will be called from <code class="language-plaintext highlighter-rouge">AUTOEXEC.BAT</code> within our QEMU FreeDOS partition.</p>
+
+<h4 id="step-1-create-a-freedos-image">Step 1: Create a FreeDOS image</h4>
+<p><a href="http://www.freedos.org/">FreeDOS</a> is a free mostly MS-DOS compatible DOS package that works well for running 16bit doors. Follow the <a href="https://en.wikibooks.org/wiki/QEMU/FreeDOS">QEMU/FreeDOS</a> guide for creating an <code class="language-plaintext highlighter-rouge">freedos_c.img</code>. This will contain FreeDOS itself and installed BBS doors.</p>
+
+<p>After this is complete, copy LORD to C:\DOORS\LORD within FreeDOS. An easy way to tranfer files from host to DOS is to use QEMU’s vfat as a drive. For example:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>qemu-system-i386 <span class="nt">-localtime</span> /home/enigma/dos/images/freedos_c.img <span class="nt">-hdb</span> fat:/path/to/downloads
+</code></pre></div></div>
+
+<p>With the above you can now copy files from D: to C: within FreeDOS and add the following to it’s <code class="language-plaintext highlighter-rouge">autoexec.bat</code>:</p>
+<div class="language-bat highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">CALL</span> <span class="kd">E</span>:\GO.BAT
+</code></pre></div></div>
+
+<h4 id="step-2-create-a-bootstrap-script">Step 2: Create a bootstrap script</h4>
+<p>Our bootstrap script will prepare <code class="language-plaintext highlighter-rouge">GO.BAT</code> and launch FreeDOS. Below is an example:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+
+<span class="nv">NODE</span><span class="o">=</span><span class="nv">$1</span>
+<span class="nv">DROPFILE</span><span class="o">=</span>D:<span class="se">\\</span><span class="nv">$2</span>
+<span class="nv">SRVPORT</span><span class="o">=</span><span class="nv">$3</span>
+
+<span class="nb">mkdir</span> <span class="nt">-p</span> /home/enigma/dos/go/node<span class="nv">$NODE</span>
+
+<span class="nb">cat</span> <span class="o">&gt;</span> /home/enigma/dos/go/node<span class="nv">$NODE</span>/GO.BAT <span class="o">&lt;&lt;</span><span class="no">EOF</span><span class="sh">
+C:
+CD </span><span class="se">\F</span><span class="sh">OSSIL</span><span class="se">\B</span><span class="sh">NU
+BNU.COM
+CD </span><span class="se">\D</span><span class="sh">OORS</span><span class="se">\L</span><span class="sh">ORD
+COPY /Y </span><span class="nv">$DROPFILE</span><span class="sh">
+CALL START.BAT </span><span class="nv">$NODE</span><span class="sh">
+FDAPM POWEROFF
+</span><span class="no">EOF
+
+</span>unix2dos /home/enigma/dos/go/node<span class="nv">$NODE</span>/GO.BAT
+
+qemu-system-i386 <span class="nt">-localtime</span> /home/enigma/dos/images/freedos_c.img <span class="nt">-chardev</span> socket,port<span class="o">=</span><span class="nv">$SRVPORT</span>,nowait,host<span class="o">=</span>localhost,id<span class="o">=</span>s0 <span class="nt">-device</span> isa-serial,chardev<span class="o">=</span>s0 <span class="nt">-hdb</span> fat:/home/enigma/xibalba/dropfiles/node<span class="nv">$NODE</span> <span class="nt">-hdc</span> fat:/home/enigma/dos/go/node<span class="nv">$NODE</span> <span class="nt">-nographic</span>
+</code></pre></div></div>
+
+<p>Note the <code class="language-plaintext highlighter-rouge">qemu-system-i386</code> line. We’re telling QEMU to launch and use localtime for the clock, create a character device that connects to our temporary server port on localhost and map that to a serial device. The <code class="language-plaintext highlighter-rouge">-hdb</code> entry will represent the D: drive where our dropfile is generated, while <code class="language-plaintext highlighter-rouge">-hdc</code> is the path that <code class="language-plaintext highlighter-rouge">GO.BAT</code> is generated in (<code class="language-plaintext highlighter-rouge">E:\GO.BAT</code>). Finally we specify <code class="language-plaintext highlighter-rouge">-nographic</code> to run headless.</p>
+
+<p>For doors that do not <em>require</em> a FOSSIL driver, it is recommended to not load or use one unless you are having issues.</p>
+
+<h5 id="step-3-create-a-menu-entry">Step 3: Create a menu entry</h5>
+<p>Finally we can create a <code class="language-plaintext highlighter-rouge">menu.hjson</code> entry using the <code class="language-plaintext highlighter-rouge">abracadabra</code> module:</p>
+<pre><code class="language-hjson">doorLORD: {
+    desc: Playing L.O.R.D.
+    module: abracadabra
+    config: {
+        name: LORD
+        dropFileType: DOOR
+        cmd: /home/enigma/dos/scripts/lord.sh
+        args: [
+            "{node}",
+            "{dropFile}",
+            "{srvPort}",
+        ],
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: socket
+    }
+}
+</code></pre>
+
+<h2 id="see-also">See Also</h2>
+<ul>
+  <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+  <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+</ul>
+
+<h2 id="additional-resources">Additional Resources</h2>
+<h3 id="dos-emulation">DOS Emulation</h3>
+<ul>
+  <li><a href="http://www.dosemu.org/">DOSEMU</a></li>
+  <li><a href="https://github.com/joncampbell123/dosbox-x">DOSBox-X</a></li>
+</ul>
+
+<h3 id="door-downloads--support-sites">Door Downloads &amp; Support Sites</h3>
+<h4 id="general">General</h4>
+<ul>
+  <li>http://bbsfiles.com/</li>
+  <li>http://bbstorrents.bbses.info/</li>
+</ul>
+
+<h4 id="lord">L.O.R.D.</h4>
+<ul>
+  <li>http://lord.lordlegacy.com/</li>
+</ul>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/servers/contentservers/nntp.html">« NNTP Server</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/door-servers.html">Door Servers »</a>
+              
+              <br clear="both">
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>

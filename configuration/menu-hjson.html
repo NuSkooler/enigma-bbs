@@ -1,0 +1,2778 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Menu HSJON | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="Menu HSJON" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
+<meta property="og:description" content="Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-02-05T06:30:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Menu HSJON" />
+<script type="application/ld+json">
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"Menu HJSON The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as menu.hjson. Throughout ENiGMA½ documentation, when menu.hjson is referenced, we’re actually talking about config/menus/yourboardname-*.hjson. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in HJSON format.","url":"/enigma-bbs/configuration/menu-hjson.html","@type":"BlogPosting","headline":"Menu HSJON","dateModified":"2022-02-05T06:30:26+00:00","datePublished":"2022-02-05T06:30:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/configuration/menu-hjson.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide">
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">Menu HSJON</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/predefined_label_view.html">Predefined Label View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/hjson.html">« HJSON Config Files</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/directory-structure.html">Directory Structure »</a>
+              
+              <br clear="both">
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">Menu HSJON</h1>
+    <h2 id="menu-hjson">Menu HJSON</h2>
+<p>The core of a ENiGMA½ based BBS is it’s menus driven by what will be referred to as <code class="language-plaintext highlighter-rouge">menu.hjson</code>. Throughout ENiGMA½ documentation, when <code class="language-plaintext highlighter-rouge">menu.hjson</code> is referenced, we’re actually talking about <code class="language-plaintext highlighter-rouge">config/menus/yourboardname-*.hjson</code>. These files determine the menus (or screens) a user can see, the order they come in, how they interact with each other, ACS configuration, and so on. Like all configuration within ENiGMA½, menu configuration is done in <a href="https://hjson.org/">HJSON</a> format.</p>
+
+<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> See also <a href="/enigma-bbs/configuration/hjson.html">HJSON General Information</a> for more information on the HJSON file format.</p>
+
+<p><img class="emoji" title=":bulb:" alt=":bulb:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f4a1.png" height="20" width="20"> Entries in <code class="language-plaintext highlighter-rouge">menu.hjson</code> are often referred to as <em>blocks</em> or <em>sections</em>. Each entry defines a menu. A menu in this sense is something the user can see or visit. Examples include but are not limited to:</p>
+
+<ul>
+  <li>Classical navigation and menus such as Main, Messages, and Files.</li>
+  <li>Art file display.</li>
+  <li>Module driven menus such as <a href="/enigma-bbs/modding/local-doors.html">door launchers</a>, <a href="../modding/onelinzerz.md">Onelinerz</a>, and other custom mods.</li>
+</ul>
+
+<p>Menu entries live under the <code class="language-plaintext highlighter-rouge">menus</code> section of <code class="language-plaintext highlighter-rouge">menu.hjson</code>. The <em>key</em> for a menu is it’s name that can be referenced by other menus and areas of the system.</p>
+
+<p>Below is a very basic menu entry called <code class="language-plaintext highlighter-rouge">showSomeArt</code> that displays some art then returns to the previous menu after the user hits a key:</p>
+<pre><code class="language-hjson">showSomeArt: {
+  art: someart.ans
+  config: { pause: true }
+}
+</code></pre>
+<p>As you can see a menu can be very simple.</p>
+
+<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> Remember that the top level menu may include additional files using the <code class="language-plaintext highlighter-rouge">includes</code> directive. See <a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a> for more information on this.</p>
+
+<h2 id="common-menu-entry-members">Common Menu Entry Members</h2>
+<p>Below is a table of <strong>common</strong> menu entry members. These members apply to most entries, though entries that are backed by a specialized module (ie: <code class="language-plaintext highlighter-rouge">module: bbs_list</code>) may differ. Menus that use their own module contain a <code class="language-plaintext highlighter-rouge">module</code> declaration:</p>
+
+<pre><code class="language-hjson">module: some_fancy_module
+</code></pre>
+
+<p>See documentation for the module in question for particulars.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">desc</code></td>
+      <td>A friendly description that can be found in places such as “Who’s Online” or wherever the <code class="language-plaintext highlighter-rouge">%MD</code> MCI code is used.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">art</code></td>
+      <td>An art file <em>spec</em>. See <a href="/enigma-bbs/art/general.html">General Art Information</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">next</code></td>
+      <td>Specifies the menu to go to next. Can be explicit or an array of possibilities dependent on ACS. See <strong>Flow Control</strong> in the <strong>ACS Checks</strong> section below. If <code class="language-plaintext highlighter-rouge">next</code> is not supplied, the next menu is this menus parent. Note that special built in methods such as <code class="language-plaintext highlighter-rouge">@systemMethod:logoff</code> can also be utilized here.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prompt</code></td>
+      <td>Specifies a prompt, by name, to use along with this menu. Prompts are configured in the <code class="language-plaintext highlighter-rouge">prompts</code> section. See <strong>Prompts</strong> for more information.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">submit</code></td>
+      <td>Defines a submit handler when using <code class="language-plaintext highlighter-rouge">prompt</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">form</code></td>
+      <td>An object defining one or more <em>forms</em> available on this menu.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">module</code></td>
+      <td>Sets the module name to use for this menu. The system ships with many build in modules or you can build your own!</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">config</code></td>
+      <td>An object containing additional configuration. See <strong>Config Block</strong> below.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="config-block">Config Block</h3>
+<p>The <code class="language-plaintext highlighter-rouge">config</code> block for a menu entry can contain common members as well as a per-module (when <code class="language-plaintext highlighter-rouge">module</code> is used) settings.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cls</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">true</code> the screen will be cleared before showing this menu.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pause</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">true</code> a pause will occur after showing this menu. Useful for simple menus such as displaying art or status screens.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nextTimeout</code></td>
+      <td>Sets the number of <strong>milliseconds</strong> before the system will automatically advanced to the <code class="language-plaintext highlighter-rouge">next</code> menu.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">baudRate</code></td>
+      <td>See baud rate information in <a href="/enigma-bbs/art/general.html">General Art Information</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">font</code></td>
+      <td>Sets a SyncTERM style font to use when displaying this menus <code class="language-plaintext highlighter-rouge">art</code>. See font listing in <a href="/enigma-bbs/art/general.html">General Art Information</a>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">menuFlags</code></td>
+      <td>An array of menu flag(s) controlling menu behavior. See <strong>Menu Flags</strong> below.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="menu-flags">Menu Flags</h4>
+<p>The <code class="language-plaintext highlighter-rouge">menuFlags</code> field of a <code class="language-plaintext highlighter-rouge">config</code> block can change default behavior of a particular menu.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Flag</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">noHistory</code></td>
+      <td>Prevents the menu from remaining in the menu stack / history. When this flag is set, when the <strong>next</strong> menu falls back, this menu will be skipped and the previous menu again displayed instead. Example: menuA -&gt; menuB(noHistory) -&gt; menuC: Exiting menuC returns the user to menuA.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">popParent</code></td>
+      <td>When <em>this</em> menu is exited, fall back beyond the parent as well. Often used in combination with <code class="language-plaintext highlighter-rouge">noHistory</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">forwardArgs</code></td>
+      <td>If set, when the next menu is entered, forward any <code class="language-plaintext highlighter-rouge">extraArgs</code> arguments to <em>this</em> menu on to it.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="forms">Forms</h2>
+<p>ENiGMA½ uses a concept of <em>forms</em> in menus. A form is a collection of associated <em>views</em>. Consider a New User Application using the <code class="language-plaintext highlighter-rouge">nua</code> module: The default implementation utilizes a single form with multiple EditTextView views, a submit button, etc. Forms are identified by number starting with <code class="language-plaintext highlighter-rouge">0</code>. A given menu may have mutiple forms (often associated with different states or screens within the menu).</p>
+
+<p>Menus may also support more than one layout type by using a <em>MCI key</em>. A MCI key is a alpha-numerically sorted key made from 1:n MCI codes. This lets the system choose the appropriate set of form(s) based on theme or random art. An example of this may be a matrix menu: Perhaps one style of your matrix uses a vertical light bar (<code class="language-plaintext highlighter-rouge">VM</code> key) while another uses a horizontal (<code class="language-plaintext highlighter-rouge">HM</code> key). The system can discover the correct form to use by matching MCI codes found in the art to that of the available forms defined in <code class="language-plaintext highlighter-rouge">menu.hjson</code>.</p>
+
+<p>For more information on views and associated MCI codes, see <a href="/enigma-bbs/art/mci.html">MCI Codes</a>.</p>
+
+<h2 id="submit-handlers">Submit Handlers</h2>
+<p>When a form is submitted, it’s data is matched against a <em>submit handler</em>. When a match is found, it’s <em>action</em> is performed.</p>
+
+<h3 id="submit-actions">Submit Actions</h3>
+<p>Submit actions are declared using the <code class="language-plaintext highlighter-rouge">action</code> member of a submit handler block. Actions can be kick off system/global or local-to-module methods, launch other menus, etc.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@menu:menuName</code></td>
+      <td>Takes the user to the <em>menuName</em> menu</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@systemMethod:methodName</code></td>
+      <td>Executes the system/global method <em>methodName</em>. See <strong>System Methods</strong> below.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@method:methodName</code></td>
+      <td>Executes <em>methodName</em> local to the calling module. That is, the module set by the <code class="language-plaintext highlighter-rouge">module</code> member of a menu entry.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@method:/path/to/some_module.js:methodName</code></td>
+      <td>Executes <em>methodName</em> exported by the module at <em>/path/to/some_module.js</em>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="advanced-action-handling">Advanced Action Handling</h4>
+<p>In addition to simple simple actions, <code class="language-plaintext highlighter-rouge">action</code> may also be:</p>
+<ul>
+  <li>An array of objects containing ACS checks and a sub <code class="language-plaintext highlighter-rouge">action</code> if that ACS is matched. See <strong>Action Matches</strong> in the ACS documentation below for details.</li>
+  <li>An array of actions. In this case a random selection will be made. Example:
+    <pre><code class="language-hjson">submit: [
+  {
+      value: { command: "FOO" }
+      action: [
+          // one of the following actions will be matched:
+          "@menu:menuStyle1"
+          "@menu:menuStyle2"
+      ]
+  }
+]
+</code></pre>
+  </li>
+</ul>
+
+<h4 id="method-signature">Method Signature</h4>
+<p>Methods executed using <code class="language-plaintext highlighter-rouge">@method</code>, or <code class="language-plaintext highlighter-rouge">@systemMethod</code> have the following signature:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(callingMenu, formData, extraArgs, callback)
+</code></pre></div></div>
+
+<h4 id="system-methods">System Methods</h4>
+<p>Many built in global/system methods exist. Below are a few. See <a href="/core/system_menu_method.js">system_menu_method</a> for more information.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">login</code></td>
+      <td>Performs a standard login.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">login2FA_OTP</code></td>
+      <td>Performs a 2-Factor Authentication (2FA) One-Time Password (OTP) check, if configured for the user.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">logoff</code></td>
+      <td>Performs a standard system logoff.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prevMenu</code></td>
+      <td>Goes to the previous menu.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nextMenu</code></td>
+      <td>Goes to the next menu (as set by <code class="language-plaintext highlighter-rouge">next</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prevConf</code></td>
+      <td>Sets the users message conference to the previous available.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nextConf</code></td>
+      <td>Sets the users message conference to the next available.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">prevArea</code></td>
+      <td>Sets the users message area to the previous available.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nextArea</code></td>
+      <td>Sets the users message area to the next available.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="example">Example</h2>
+<p>Let’s look a couple basic menu entries:</p>
+
+<pre><code class="language-hjson">telnetConnected: {
+    art: CONNECT
+    next: matrix
+    config: { nextTimeout: 1500 }
+}
+</code></pre>
+
+<p>The above entry <code class="language-plaintext highlighter-rouge">telnetConnected</code> is set as the Telnet server’s first menu entry (set by <code class="language-plaintext highlighter-rouge">firstMenu</code> in the Telnet server’s config). The entry sets up a few things:</p>
+<ul>
+  <li>A <code class="language-plaintext highlighter-rouge">art</code> spec of <code class="language-plaintext highlighter-rouge">CONNECT</code>. (See <a href="/enigma-bbs/art/general.html">General Art Information</a>).</li>
+  <li>A <code class="language-plaintext highlighter-rouge">next</code> entry up the next menu, by name, in the stack (<code class="language-plaintext highlighter-rouge">matrix</code>) that we’ll go to after <code class="language-plaintext highlighter-rouge">telnetConnected</code>.</li>
+  <li>An <code class="language-plaintext highlighter-rouge">config</code> block containing a single <code class="language-plaintext highlighter-rouge">nextTimeout</code> field telling the system to proceed to the <code class="language-plaintext highlighter-rouge">next</code> (<code class="language-plaintext highlighter-rouge">matrix</code>) entry automatically after 1500ms.</li>
+</ul>
+
+<p>Now let’s look at <code class="language-plaintext highlighter-rouge">matrix</code>, the <code class="language-plaintext highlighter-rouge">next</code> entry from <code class="language-plaintext highlighter-rouge">telnetConnected</code>:</p>
+
+<pre><code class="language-hjson">matrix: {
+    art: MATRIX
+    desc: Login Matrix
+    form: {
+        0: {
+            //
+            //  Here we have a MCI key of "VM". In this case we could
+            //  omit this level since no other keys are present.
+            //
+            VM: {
+                mci: {
+                    VM1:  {
+                        submit: true
+                        focus:  true
+                        items: [ "login", "apply", "log off" ]
+                        argName: matrixSubmit
+                    }
+                }
+                submit: {
+                    *: [
+                        {
+                            value: { matrixSubmit: 0 }
+                            action: @menu:login
+                        }
+                        {
+                            value: { matrixSubmit: 1 },
+                            action: @menu:newUserApplication
+                        }
+                        {
+                            value: { matrixSubmit: 2 },
+                            action: @menu:logoff
+                        }
+                    ]
+                }
+            }
+
+            //
+            //  If we wanted, we could declare a "HM" MCI key block here.
+            //  This would allow a horizontal matrix style when the matrix art
+            //  loaded contained a %HM code.
+            //
+        }
+    }
+}
+</code></pre>
+
+<p>In the above entry, you’ll notice <code class="language-plaintext highlighter-rouge">form</code>. This defines a form(s) object. In this case, a single form by ID of <code class="language-plaintext highlighter-rouge">0</code>. The system is then told to use a block only when the resulting art provides a <code class="language-plaintext highlighter-rouge">VM</code> (<em>VerticalMenuView</em>) MCI entry. Some other bits about the form:</p>
+
+<ul>
+  <li>
+<code class="language-plaintext highlighter-rouge">VM1</code> is then setup to <code class="language-plaintext highlighter-rouge">submit</code> and start focused via <code class="language-plaintext highlighter-rouge">focus: true</code> as well as have some menu entries (“login”, “apply”, …) defined. We provide an <code class="language-plaintext highlighter-rouge">argName</code> of <code class="language-plaintext highlighter-rouge">matrixSubmit</code> for this element view.</li>
+  <li>The <code class="language-plaintext highlighter-rouge">submit</code> object tells the system to attempt to apply provided match entries from any view ID (<code class="language-plaintext highlighter-rouge">*</code>).</li>
+  <li>Upon submit, the first match will be executed. For example, if the user selects “login”, the first entry with a value of <code class="language-plaintext highlighter-rouge">{ matrixSubmit: 0 }</code> will match (due to 0 being the first index in the list and <code class="language-plaintext highlighter-rouge">matrixSubmit</code> being the arg name in question) causing <code class="language-plaintext highlighter-rouge">action</code> of <code class="language-plaintext highlighter-rouge">@menu:login</code> to be executed (go to <code class="language-plaintext highlighter-rouge">login</code> menu).</li>
+</ul>
+
+<h2 id="prompts">Prompts</h2>
+<p>Prompts are found in the <code class="language-plaintext highlighter-rouge">prompts</code> section of menu files. Prompts allow for quick user input and shorthand form requirements for menus. Additionally, prompts are often used for for multiple menus. Consider a pause prompt or menu command input for example.</p>
+
+<p>TODO: additional prompt docs</p>
+
+<h2 id="acs-checks">ACS Checks</h2>
+<p>Menu modules can check user ACS in order to restrict areas and perform flow control. See <a href="/enigma-bbs/configuration/acs.html">ACS</a> for available ACS syntax.</p>
+
+<h3 id="menu-access">Menu Access</h3>
+<p>To restrict menu access add an <code class="language-plaintext highlighter-rouge">acs</code> key to <code class="language-plaintext highlighter-rouge">config</code>. Example:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>opOnlyMenu: {
+    desc: Ops Only!
+    config: {
+        acs: ID1
+    }
+}
+</code></pre></div></div>
+
+<h3 id="action-matches">Action Matches</h3>
+<p>Action blocks (<code class="language-plaintext highlighter-rouge">action</code>) can perform ACS checks:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>// ...
+{
+    action: [
+        {
+            acs: SC1
+            action: @menu:secureMenu
+        }
+        {
+            action: @menu:nonSecureMenu
+        }
+    ]
+}
+</code></pre></div></div>
+
+<h3 id="flow-control">Flow Control</h3>
+<p>The <code class="language-plaintext highlighter-rouge">next</code> member of a menu may be an array of objects containing an <code class="language-plaintext highlighter-rouge">acs</code> check as well as the destination. Depending on the current user’s ACS, the system will pick the appropriate target. The last element in an array without an <code class="language-plaintext highlighter-rouge">acs</code> can be used as a catch all. Example:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>login: {
+    desc: Logging In
+    next: [
+        {
+            //	&gt;= 2 calls else you get the full login
+            acs: NC2
+            next: loginSequenceLoginFlavorSelect
+        }
+        {
+            next: fullLoginSequenceLoginArt
+        }
+    ]
+}
+</code></pre></div></div>
+
+<h3 id="art-asset-selection">Art Asset Selection</h3>
+<p>Another area in which you can apply ACS in a menu is art asset specs.</p>
+
+<pre><code class="language-hjson">someMenu: {
+    desc: Neato Dorito
+    art: [
+        {
+            acs: GM[couriers]
+            art: COURIERINFO
+        }
+        {
+            //  show ie: EVERYONEELSE.ANS to everyone else
+            art: EVERYONEELSE
+        }
+    ]
+}
+</code></pre>
+
+<h2 id="case-study-adding-a-sub-menu-to-main">Case Study: Adding a Sub Menu to Main</h2>
+<p>A very common task: You want to add a new menu accessible from “Main”. First, let’s create a new menu called “Snazzy Town”! Perhaps under the <code class="language-plaintext highlighter-rouge">mainMenu</code> entry somewhere, create a new menu:</p>
+
+<pre><code class="language-hjson">snazzyTown: {
+    desc: Snazzy Town
+    art: snazzy
+    config: {
+        cls: true
+        pause: true
+    }
+}
+</code></pre>
+
+<p>Now let’s make it accessible by “S” from the main menu. By default the main menu entry is named <code class="language-plaintext highlighter-rouge">mainMenu</code>. Within the <code class="language-plaintext highlighter-rouge">mainMenu</code>’s <code class="language-plaintext highlighter-rouge">submit</code> block you will see some existing action matches to “command”. Simply add a new one pointing to <code class="language-plaintext highlighter-rouge">snazzyTown</code>:</p>
+
+<pre><code class="language-hjson">{
+    value: { command: "S" }
+    action: @menu:snazzyTown
+}
+</code></pre>
+
+<p>That’s it! When users type “S” at the main menu, they’ll be  sent to the Snazzy Town menu. Since we did not supply additional flow logic when they exit, they will fall back to main.</p>
+
+<h2 id="case-study-adding-a-new-user-password-nup">Case Study: Adding a New User Password (NUP)</h2>
+<p>You’ve got a super 31337 board and want to prevent lamerz! Let’s run through adding a NUP to your application flow.</p>
+
+<p>Given the default menu system, two “pre” new user application menus exist due to the way Telnet vs SSH logins occur. We’ll focus only on Telnet here. This menu is <code class="language-plaintext highlighter-rouge">newUserApplicationPre</code>. Let’s say you want to display this preamble, but then ask for the NUP. If the user gets the password wrong, show them a <code class="language-plaintext highlighter-rouge">LAMER.ANS</code> and boot ‘em.</p>
+
+<p>First, let’s create a new menu for the NUP:</p>
+<pre><code class="language-hjson">newUserPassword: {
+    art: NUP.ANS
+    next: newUserApplication
+    desc: NUP!
+
+    form: {
+        0: {
+            mci: {
+                ET1: {
+                    // here we create an argument/variable of "nup"
+                    argName: nup
+                    focus: true
+                    submit: true
+                }
+            }
+            submit: {
+                *: [
+                    {
+                        // if the user submits "nup" with the correct
+                        // value of "nolamerz" action will send
+                        // them to the next menu defined above --
+                        // in our case: newUserApplication
+                        value: { nup: "nolamerz" }
+                        action: @systemMethod:nextMenu
+                    }
+                    {
+                        // anything else will result in going to the badNewUserPassword menu
+                        value: { nup: null }
+                        action: @menu:badNewUserPassword
+                    }
+                ]
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>Looks like we’ll need a <code class="language-plaintext highlighter-rouge">badNewUserPassword</code> menu as well! Let’s create a very basic menu to show art then disconnect the user.</p>
+
+<pre><code class="language-hjson">badNewUserPassword: {
+    art: LAMER.ANS
+    // here we use a built in system method to boot them.
+    next: @systemMethod:logoff
+    config: {
+        //  wait 2s after showing the art before kicking them
+        nextTimeout: 2000
+    }
+}
+</code></pre>
+
+<p>Great, we have a couple new menus. Now let’s just point to them. Remember the existing <code class="language-plaintext highlighter-rouge">newUserApplicationPre</code> menu? All that is left to do is point it’s <code class="language-plaintext highlighter-rouge">next</code> to our <code class="language-plaintext highlighter-rouge">newUserPassword</code> menu:</p>
+
+<pre><code class="language-hjson">newUserApplicationPre: {
+    //  easy! Just tell the system where to go next
+    next: newUserPassword
+    // note that the rest of this menu is omitted for clarity
+}
+</code></pre>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/configuration/hjson.html">« HJSON Config Files</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/configuration/directory-structure.html">Directory Structure »</a>
+              
+              <br clear="both">
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>

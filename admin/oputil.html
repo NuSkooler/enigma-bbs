@@ -1,0 +1,2733 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>oputil | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="oputil" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration." />
+<meta property="og:description" content="The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-02-05T06:30:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="oputil" />
+<script type="application/ld+json">
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"The oputil CLI ENiGMA½ comes with oputil.js henceforth known as oputil, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.","url":"/enigma-bbs/admin/oputil.html","@type":"BlogPosting","headline":"oputil","dateModified":"2022-02-05T06:30:26+00:00","datePublished":"2022-02-05T06:30:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/admin/oputil.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide" />
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/predefined_label_view.html">Predefined Label View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">oputil</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">&laquo; Administration</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/updating.html">Updating &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">oputil</h1>
+    <h2 id="the-oputil-cli">The oputil CLI</h2>
+<p>ENiGMA½ comes with <code class="language-plaintext highlighter-rouge">oputil.js</code> henceforth known as <code class="language-plaintext highlighter-rouge">oputil</code>, a command line interface (CLI) tool for sysops to perform general system and user administration. You likely used oputil to do the initial ENiGMA configuration.</p>
+
+<p>Let’s look the main help output as per this writing:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>usage: oputil.js [--version] [--help]
+                  &lt;command&gt; [&lt;arguments&gt;]
+
+Global arguments:
+  -c, --config PATH         Specify config path (default is ./config/)
+  -n, --no-prompt           Assume defaults (don't prompt for input where possible)
+  --verbose                 Verbose output, where applicable
+
+Commands:
+  user                      User management
+  config                    Configuration management
+  fb                        File base management
+  mb                        Message base management
+</code></pre></div></div>
+
+<p>Commands break up operations by groups:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Command</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user</code></td>
+      <td>User management</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">config</code></td>
+      <td>System configuration and maintenance</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fb</code></td>
+      <td>File base configuration and management</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mb</code></td>
+      <td>Message base configuration and management</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Global arguments apply to most commands and actions:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">--config</code>: Specify configuration directory if it is not the default of <code class="language-plaintext highlighter-rouge">./config/</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">--no-prompt</code>: Assume defaults and do not prompt when posisible.</li>
+</ul>
+
+<p>Type <code class="language-plaintext highlighter-rouge">./oputil.js &lt;command&gt; --help</code> for additional help on a particular command. The following sections will describe them.</p>
+
+<h2 id="user">User</h2>
+<p>The <code class="language-plaintext highlighter-rouge">user</code> command covers various user operations.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>usage: oputil.js user &lt;action&gt; [&lt;arguments&gt;]
+
+Actions:
+  info USERNAME                Display information about a user
+
+  pw USERNAME PASSWORD         Set a user's password
+  (passwd|password)
+
+  rm USERNAME                  Permanently removes user from system
+  (del|delete|remove)
+
+  rename USERNAME NEWNAME      Rename a user
+  (mv)
+
+  2fa-otp USERNAME SPEC        Enable 2FA/OTP for the user
+  (otp)
+
+  The system supports various implementations of Two Factor Authentication (2FA)
+  One Time Password (OTP) authentication.
+
+  Valid specs:
+    disable : Removes 2FA/OTP from the user
+    google  : Google Authenticator
+    hotp    : HMAC-Based One-Time Password Algorithm (RFC-4266)
+    totp    : Time-Based One-Time Password Algorithm (RFC-6238)
+
+  activate USERNAME            Set a user's status to "active"
+
+  deactivate USERNAME          Set a user's status to "inactive"
+
+  disable USERNAME             Set a user's status to "disabled"
+
+  lock USERNAME                Set a user's status to "locked"
+
+  group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
+
+  list [FILTER]                List users with optional FILTER.
+
+  Valid filters:
+    all      : All users (default).
+    disabled : Disabled users.
+    inactive : Inactive users.
+    active   : Active (regular) users.
+    locked   : Locked users.
+
+info arguments:
+  --security                   Include security information in output
+
+2fa-otp arguments:
+  --qr-type TYPE               Specify QR code type
+
+  Valid QR types:
+    ascii : Plain ASCII (default)
+    data  : HTML data URL
+    img   : HTML image tag
+    svg   : SVG image
+
+  --out PATH                   Path to write QR code to. defaults to stdout
+</code></pre></div></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Description</th>
+      <th>Examples</th>
+      <th>Aliases</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">info</code></td>
+      <td>Display user information</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user info joeuser</code></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pw</code></td>
+      <td>Set password</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user pw joeuser s3cr37</code></td>
+      <td><code class="language-plaintext highlighter-rouge">passwd</code>, <code class="language-plaintext highlighter-rouge">password</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rm</code></td>
+      <td>Removes user</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user del joeuser</code></td>
+      <td><code class="language-plaintext highlighter-rouge">remove</code>, <code class="language-plaintext highlighter-rouge">del</code>, <code class="language-plaintext highlighter-rouge">delete</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rename</code></td>
+      <td>Renames a user</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user rename joeuser joe</code></td>
+      <td><code class="language-plaintext highlighter-rouge">mv</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">2fa-otp</code></td>
+      <td>Manage 2FA/OTP for a user</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user 2fa-otp joeuser googleAuth</code></td>
+      <td><code class="language-plaintext highlighter-rouge">otp</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">activate</code></td>
+      <td>Activates user</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user activate joeuser</code></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">deactivate</code></td>
+      <td>Deactivates user</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user deactivate joeuser</code></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">disable</code></td>
+      <td>Disables user (user will not be able to login)</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user disable joeuser</code></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">lock</code></td>
+      <td>Locks the user account (prevents logins)</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js user lock joeuser</code></td>
+      <td>N/A</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">group</code></td>
+      <td>Modifies users group membership</td>
+      <td>Add to group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser +derp</code><br />Remove from group: <code class="language-plaintext highlighter-rouge">./oputil.js user group joeuser ~derp</code></td>
+      <td>N/A</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="manage-2faotp">Manage 2FA/OTP</h4>
+<p>While <code class="language-plaintext highlighter-rouge">oputil.js</code> can be used to manage a user’s 2FA/OTP, it is highly recommended to require users to opt-in themselves. See <a href="/enigma-bbs/configuration/security.html">Security</a> for details.</p>
+
+<h2 id="configuration">Configuration</h2>
+<p>The <code class="language-plaintext highlighter-rouge">config</code> command allows sysops to perform various system configuration and maintenance tasks.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>usage: oputil.js config &lt;action&gt; [&lt;arguments&gt;]
+
+Actions:
+  new                      Generate a new / default configuration
+
+  cat                      Write current configuration to stdout
+
+cat arguments:
+  --no-color               Disable color
+  --no-comments            Strip any comments
+</code></pre></div></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Description</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">new</code></td>
+      <td>Generates a new/initial configuration</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js config new</code> (follow the prompts)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cat</code></td>
+      <td>Pretty prints current <code class="language-plaintext highlighter-rouge">config.hjson</code> configuration to stdout.</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js config cat</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="file-base-management">File Base Management</h2>
+<p>The <code class="language-plaintext highlighter-rouge">fb</code> command provides a powerful file base management interface.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>usage: oputil.js fb &lt;action&gt; [&lt;arguments&gt;]
+
+Actions:
+  scan AREA_TAG[@STORAGE_TAG]  Scan specified area
+
+  May contain optional GLOB as last parameter.
+  Example: ./oputil.js fb scan d0pew4r3z *.zip
+
+  info CRITERIA                Display information about areas and/or files
+
+  mv SRC [SRC...] DST          Move matching entry(s)
+  (move)
+
+  Source may be any of the following:
+    - Filename including '*' wildcards
+    - SHA-1
+    - File ID
+    - Area tag with optional @storageTag suffix
+  Destination is area tag with optional @storageTag suffix
+
+  rm SRC [SRC...]              Remove entry(s) from the system
+  (del|delete|remove)
+
+  Source may be any of the following:
+    - Filename including '*' wildcards
+    - SHA-1
+    - File ID
+    - Area tag with optional @storageTag suffix
+
+  desc CRITERIA                Updates an file base entry's description
+
+  Launches an external editor using $VISUAL, $EDITOR, or vim/notepad.
+
+  import-areas FILEGATE.ZXX    Import file base areas using FileGate RAID type format
+
+scan arguments:
+  --tags TAG1,TAG2,...         Specify hashtag(s) to assign to discovered entries
+
+  --desc-file [PATH]           Prefer file descriptions from supplied input file
+
+  If a file description can be found in the supplied input file, prefer that description
+  over other sources such related FILE_ID.DIZ. Path must point to a valid FILES.BBS or
+  DESCRIPT.ION file.
+
+  --update                     Attempt to update information for existing entries
+  --full                       Perform a full scan (default is quick)
+
+info arguments:
+  --show-desc                  Display short description, if any
+
+remove arguments:
+  --phys-file                  Also remove underlying physical file
+
+import-areas arguments:
+  --type TYPE                  Sets import areas type
+
+  Valid types are are "zxx" or "na".
+
+  --create-dirs                Also create backing storage directories
+
+General Information:
+  Generally an area tag can also include an optional storage tag. For example, the
+  area of 'bbswarez' stored using 'bbswarez_main': bbswarez@bbswarez_main
+
+  When performing an initial import of a large area or storage backing, --full
+  is the best option. If re-scanning an area for updates a standard / quick scan is
+  generally good enough.
+
+  File ID's are those found in file.sqlite3.
+</code></pre></div></div>
+
+<h4 id="scan-file-area">Scan File Area</h4>
+<p>The <code class="language-plaintext highlighter-rouge">scan</code> action can (re)scan a file area for new entries as well as update (<code class="language-plaintext highlighter-rouge">--update</code>) existing entry records (description, etc.). When scanning, a valid area tag must be specified. Optionally, storage tag may also be supplied in order to scan a specific filesystem location using the <code class="language-plaintext highlighter-rouge">@the_storage_tag</code> syntax. If a <a href="http://man7.org/linux/man-pages/man7/glob.7.html">GLOB</a> is supplied as the last argument, only file entries with filenames matching will be processed.</p>
+
+<h5 id="examples">Examples</h5>
+<p>Performing a quick scan of a specific area’s storage location (“retro_warez”, “retro_warez_games) matching only *.zip extensions:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># note that we must quote the wildcard to prevent shell expansion</span>
+<span class="nv">$ </span>./oputil.js fb scan <span class="nt">--quick</span> retro_warez@retro_warez_games <span class="s2">"*.zip"</span><span class="sb">`</span>
+</code></pre></div></div>
+
+<p>Update all entries in the “artscene” area supplying the file tags “artscene”, and “textmode”.</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nv">$ </span>./oputil.js fb scan <span class="nt">--update</span> <span class="nt">--quick</span> <span class="nt">--tags</span> artscene,textmode artscene<span class="sb">`</span>
+</code></pre></div></div>
+
+<p>Scan “oldschoolbbs” area using the description file at “/path/to/DESCRIPT.ION”:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ./oputil.js fb scan --desc-file /path/to/DESCRIPT.ION oldschoolbbs
+</code></pre></div></div>
+
+<h4 id="retrieve-information">Retrieve Information</h4>
+<p>The <code class="language-plaintext highlighter-rouge">info</code> action can retrieve information about an area or file entry(s).</p>
+
+<h5 id="examples-1">Examples</h5>
+<p>Information about a particular area:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js fb info retro_pc
+areaTag: retro_pc
+name: Retro PC
+desc: Oldschool / retro PC
+storageTag: retro_pc_tdc_1990 <span class="o">=&gt;</span> /file_base/dos/tdc/1990
+storageTag: retro_pc_tdc_1991 <span class="o">=&gt;</span> /file_base/dos/tdc/1991
+storageTag: retro_pc_tdc_1992 <span class="o">=&gt;</span> /file_base/dos/tdc/1992
+storageTag: retro_pc_tdc_1993 <span class="o">=&gt;</span> /file_base/dos/tdc/1993
+</code></pre></div></div>
+
+<p>Perhaps we want to fetch some information about a file in which we know piece of the filename:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js fb info <span class="s2">"impulse*"</span>
+file_id: 143
+sha_256: 547299301254ccd73eba4c0ec9cd6ab8c5929fbb655e72c4cc842f11332792d4
+area_tag: impulse_project
+storage_tag: impulse_project
+path: /file_base/impulse_project/impulseproject01.tar.gz
+hashTags: impulse.project,8bit.music,cid
+uploaded: 2018-03-10T11:36:41-07:00
+dl_count: 23
+archive_type: application/gzip
+byte_size: 114313
+est_release_year: 2015
+file_crc32: fc6655d
+file_md5: 3455f74bbbf9539e69bd38f45e039a4e
+file_sha1: 558fab3b49a8ac302486e023a3c2a86bd4e4b948
+</code></pre></div></div>
+
+<h3 id="importing-filegate-raid-style-areas">Importing FileGate RAID Style Areas</h3>
+<p>Given a FileGate “RAID” style <code class="language-plaintext highlighter-rouge">FILEGATE.ZXX</code> file, one can import areas. This format also often comes in FTN-style info packs in the form of a <code class="language-plaintext highlighter-rouge">.NA</code> file i.e.: <code class="language-plaintext highlighter-rouge">FILEBONE.NA</code>.</p>
+
+<h4 id="example">Example</h4>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>./oputil.js fb import-areas FILEGATE.ZXX <span class="nt">--create-dirs</span>
+</code></pre></div></div>
+
+<p>-or-</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># fsxNet info packs contain a FSX_FILE.NA file</span>
+./oputil.js fb import-areas FSX_FILE.NA <span class="nt">--create-dirs</span> <span class="nt">--type</span> NA
+</code></pre></div></div>
+
+<p>The above command will process FILEGATE.ZXX creating areas and backing directories. Directories created are relative to the <code class="language-plaintext highlighter-rouge">fileBase.areaStoragePrefix</code> <code class="language-plaintext highlighter-rouge">config.hjson</code> setting.</p>
+
+<h2 id="message-base-management">Message Base Management</h2>
+<p>The <code class="language-plaintext highlighter-rouge">mb</code> command provides various Message Base related tools:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>usage: oputil.js mb &lt;action&gt; [&lt;arguments&gt;]
+
+Actions:
+  areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
+
+  NetMail is sent to supplied address  with the supplied command(s). Multi-part commands
+  such as "%COMPRESS ZIP" should be quoted.
+
+  import-areas PATH           Import areas using FidoNet *.NA or AREAS.BBS file
+
+  qwk-dump PATH               Dumps a QWK packet to stdout.
+  qwk-export [AREA_TAGS] PATH Exports one or more configured message area to a QWK
+                              packet in the directory specified by PATH. The QWK
+                              BBS ID will be obtained by the final component of PATH.
+
+import-areas arguments:
+  --conf CONF_TAG             Conference tag in which to import areas
+  --network NETWORK           Network name/key to associate FTN areas
+  --uplinks UL1,UL2,...       One or more uplinks (comma separated)
+  --type TYPE                 Area import type
+
+  Valid types are "bbs" and "na".
+
+qwk-export arguments:
+  --user USER                 User in which to export for. Defaults to the SysOp.
+  --after TIMESTAMP           Export only messages with a timestamp later than
+                              TIMESTAMP.
+  --no-qwke                   Disable QWKE extensions.
+  --no-synchronet             Disable Synchronet style extensions.
+</code></pre></div></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Description</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">import-areas</code></td>
+      <td>Imports areas using a FidoNet style *.NA or AREAS.BBS formatted file. Optionally maps areas to FTN networks.</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js config import-areas /some/path/l33tnet.na</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">areafix</code></td>
+      <td>Utility for sending AreaFix mails without logging into the system</td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">qwk-dump</code></td>
+      <td>Dump a QWK packet to stdout</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js mb qwk-dump /path/to/XIBALBA.QWK</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">qwk-export</code></td>
+      <td>Export messages to a QWK packet</td>
+      <td><code class="language-plaintext highlighter-rouge">./oputil.js mb qwk-export /path/to/XIBALBA.QWK</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When using the <code class="language-plaintext highlighter-rouge">import-areas</code> action, you will be prompted for any missing additional arguments described in “import-areas args”.</p>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/admin/administration.html">&laquo; Administration</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/admin/updating.html">Updating &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>

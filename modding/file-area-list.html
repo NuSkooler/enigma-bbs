@@ -1,0 +1,2405 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>File Area List | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="File Area List" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The File Area List Module The built in file_area_list module provides a very flexible file listing UI." />
+<meta property="og:description" content="The File Area List Module The built in file_area_list module provides a very flexible file listing UI." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-02-05T06:30:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="File Area List" />
+<script type="application/ld+json">
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"The File Area List Module The built in file_area_list module provides a very flexible file listing UI.","url":"/enigma-bbs/modding/file-area-list.html","@type":"BlogPosting","headline":"File Area List","dateModified":"2022-02-05T06:30:26+00:00","datePublished":"2022-02-05T06:30:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/modding/file-area-list.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide" />
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo" /></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/bso-import-export.html">BSO Import / Export</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/predefined_label_view.html">Predefined Label View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">File Area List</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/existing-mods.html">&laquo; Existing Mods</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/last-callers.html">Last Callers &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">File Area List</h1>
+    <h2 id="the-file-area-list-module">The File Area List Module</h2>
+<p>The built in <code class="language-plaintext highlighter-rouge">file_area_list</code> module provides a very flexible file listing UI.</p>
+
+<h2 id="configuration">Configuration</h2>
+<h3 id="config-block">Config Block</h3>
+<p>Available <code class="language-plaintext highlighter-rouge">config</code> block entries:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">art</code>: Sub-configuration block used to establish art files used for file browsing:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">browse</code>: The main browse screen.</li>
+      <li><code class="language-plaintext highlighter-rouge">details</code>: The main file details screen.</li>
+      <li><code class="language-plaintext highlighter-rouge">detailsGeneral</code>: The “general” tab of the details page.</li>
+      <li><code class="language-plaintext highlighter-rouge">detailsNfo</code>: The “NFO” viewer tab of the detials page.</li>
+      <li><code class="language-plaintext highlighter-rouge">detailsFileList</code>: The file listing tab of the details page (ie: used for listing archive contents).</li>
+      <li><code class="language-plaintext highlighter-rouge">help</code>: The help page.</li>
+    </ul>
+  </li>
+  <li><code class="language-plaintext highlighter-rouge">hashTagsSep</code>: Separator for hash entries. Defaults to “, “.</li>
+  <li><code class="language-plaintext highlighter-rouge">isQueuedIndicator</code>: Indicator for items that are in the users download queue. Defaults to “Y”.</li>
+  <li><code class="language-plaintext highlighter-rouge">isNotQueuedIndicator</code>: Indicator for items that are <em>not</em> in the users download queue. Defaults to “N”.</li>
+  <li><code class="language-plaintext highlighter-rouge">userRatingTicked</code>: Indicator for a items current <em>n</em>/5 “star” rating. Defaults to “*”. <code class="language-plaintext highlighter-rouge">userRatingTicked</code> and <code class="language-plaintext highlighter-rouge">userRatingUnticked</code> are combined to build strings such as “***–” for 3/5 rating.</li>
+  <li><code class="language-plaintext highlighter-rouge">userRatingUnticked</code>: Indicator for missing “stars” in a items <em>n</em>/5 rating. Defaults to “-“. <code class="language-plaintext highlighter-rouge">userRatingTicked</code> and <code class="language-plaintext highlighter-rouge">userRatingUnticked</code> are combined to build strings such as “***–” for 3/5 rating.</li>
+  <li><code class="language-plaintext highlighter-rouge">webDlExpireTimeFormat</code>: Presents the expiration time of a web download URL. Defaults to current theme → system <code class="language-plaintext highlighter-rouge">short</code> date/time format.</li>
+  <li><code class="language-plaintext highlighter-rouge">webDlLinkNeedsGenerated</code>: Text to present when no web download link is yet generated. Defaults to “Not yet generated”.</li>
+  <li><code class="language-plaintext highlighter-rouge">webDlLinkNoWebserver</code>: Text to present when no web download is available (ie: webserver not enabled). Defaults to “Web server is not enabled”.</li>
+  <li><code class="language-plaintext highlighter-rouge">notAnArchiveFormat</code>: Presents text for the “archive type” field for non-archives. Defaults to “Not an archive”.</li>
+  <li><code class="language-plaintext highlighter-rouge">uploadTimestampFormat</code>: Timestamp format for <code class="language-plaintext highlighter-rouge">xxxxxxInfoFormat##</code>. Defaults to current theme → system <code class="language-plaintext highlighter-rouge">short</code> date format. See also <strong>Custom Info Formats</strong> below.</li>
+</ul>
+
+<p>Remember that entries such as <code class="language-plaintext highlighter-rouge">isQueuedIndicator</code> and <code class="language-plaintext highlighter-rouge">userRatingTicked</code> may contain pipe color codes!</p>
+
+<h2 id="custom-info-formats">Custom Info Formats</h2>
+<p>Additional <code class="language-plaintext highlighter-rouge">config</code> block entries can set <code class="language-plaintext highlighter-rouge">xxxxxxInfoFormat##</code> formatting (where xxxxxx is the page name and ## is 10…99 such as <code class="language-plaintext highlighter-rouge">browseInfoFormat10</code>) for the various available pages:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">browseInfoFormat##</code> for the <code class="language-plaintext highlighter-rouge">browse</code> page. See <strong>Browse Page</strong> below.</li>
+  <li><code class="language-plaintext highlighter-rouge">detailsInfoFormat##</code> for the <code class="language-plaintext highlighter-rouge">details</code> page. See <strong>Details Page</strong> below.</li>
+  <li><code class="language-plaintext highlighter-rouge">detailsGeneralInfoFormat##</code> for the <code class="language-plaintext highlighter-rouge">detailsGeneral</code> tab. See <strong>Details Page - General Tab</strong> below.</li>
+  <li><code class="language-plaintext highlighter-rouge">detailsNfoInfoFormat##</code> for the <code class="language-plaintext highlighter-rouge">detialsNfo</code> tab. See <strong>Details Page - NFO/README Viewer Tab</strong> below.</li>
+  <li><code class="language-plaintext highlighter-rouge">detailsFileListInfoFormat##</code> for the <code class="language-plaintext highlighter-rouge">detailsFileList</code> tab. See <strong>Details Page - Archive/File Listing Tab</strong> below.</li>
+</ul>
+
+<h2 id="theming">Theming</h2>
+<h3 id="browse-page">Browse Page</h3>
+<p>The browse page uses the <code class="language-plaintext highlighter-rouge">browse</code> art described above. The following MCI codes are available:</p>
+<ul>
+  <li>MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%MT1</code>): File’s short description (user entered, FILE_ID.DIZ, etc.).</li>
+  <li>MCI 2 (ie: <code class="language-plaintext highlighter-rouge">%HM2</code>): Navigation menu.</li>
+  <li>MCI 10…99: Custom entires with the following format members:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">{fileId}</code>: File identifier.</li>
+      <li><code class="language-plaintext highlighter-rouge">{fileName}</code>: File name (long).</li>
+      <li><code class="language-plaintext highlighter-rouge">{desc}</code>: File short description (user entered, FILE_ID.DIZ, etc.).</li>
+      <li><code class="language-plaintext highlighter-rouge">{descLong}</code>: File’s long description (README.TXT, SOMEGROUP.NFO, etc.).</li>
+      <li><code class="language-plaintext highlighter-rouge">{uploadByUserName}</code>: User name of user that uploaded this file, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{uploadByUserId}</code>: User ID of user that uploaded this file, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{userRating}</code>: User rating of file as a number.</li>
+      <li><code class="language-plaintext highlighter-rouge">{userRatingString}</code>: User rating of this file as a string formatted with <code class="language-plaintext highlighter-rouge">userRatingTicked</code> and <code class="language-plaintext highlighter-rouge">userRatingUnticked</code> described above.</li>
+      <li><code class="language-plaintext highlighter-rouge">{areaTag}</code>: Area tag.</li>
+      <li><code class="language-plaintext highlighter-rouge">{areaName}</code>: Area name or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{areaDesc}</code>: Area description or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{fileSha256}</code>: File’s SHA-256 value in hex.</li>
+      <li><code class="language-plaintext highlighter-rouge">{fileMd5}</code>: File’s MD5 value in hex.</li>
+      <li><code class="language-plaintext highlighter-rouge">{fileSha1}</code>: File’s SHA1 value in hex.</li>
+      <li><code class="language-plaintext highlighter-rouge">{fileCrc32}</code>: File’s CRC-32 value in hex.</li>
+      <li><code class="language-plaintext highlighter-rouge">{estReleaseYear}</code>: Estimated release year of this file.</li>
+      <li><code class="language-plaintext highlighter-rouge">{dlCount}</code>: Number of times this file has been downloaded.</li>
+      <li><code class="language-plaintext highlighter-rouge">{byteSize}</code>: Size of this file in bytes.</li>
+      <li><code class="language-plaintext highlighter-rouge">{archiveType}</code>: Archive type of this file determined by system mappings, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{archiveTypeDesc}</code>: A more descriptive archive type based on system mappings, file extention, etc. or “N/A” if it cannot be determined.</li>
+      <li><code class="language-plaintext highlighter-rouge">{shortFileName}</code>: Short DOS style 8.3 name available for some scenarios such as TIC import, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{ticOrigin}</code>: Origin from TIC imported files “Origin” field, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{ticDesc}</code>: Description from TIC imported files “Desc” field, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{ticLDesc}</code>: Long description from TIC imported files “LDesc” field joined by a line feed, or “N/A”.</li>
+      <li><code class="language-plaintext highlighter-rouge">{uploadTimestamp}</code>: Upload timestamp formatted with <code class="language-plaintext highlighter-rouge">browseUploadTimestampFormat</code>.</li>
+      <li><code class="language-plaintext highlighter-rouge">{hashTags}</code>: A string of hash tags(s) separated by <code class="language-plaintext highlighter-rouge">hashTagsSep</code> described above. “(none)” if there are no tags.</li>
+      <li><code class="language-plaintext highlighter-rouge">{isQueued}</code>: Indicates if a item is currently in the user’s download queue presented as <code class="language-plaintext highlighter-rouge">isQueuedIndicator</code> or <code class="language-plaintext highlighter-rouge">isNotQueuedIndicator</code> described above.</li>
+      <li><code class="language-plaintext highlighter-rouge">{webDlLink}</code>: Web download link if generated else <code class="language-plaintext highlighter-rouge">webDlLinkNeedsGenerated</code> or <code class="language-plaintext highlighter-rouge">webDlLinkNoWebserver</code> described above.</li>
+      <li><code class="language-plaintext highlighter-rouge">{webDlExpire}</code>: Web download link expiration using <code class="language-plaintext highlighter-rouge">webDlExpireTimeFormat</code> described above.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="details-page">Details Page</h3>
+<p>The details page uses the <code class="language-plaintext highlighter-rouge">details</code> art described above. The following MCI codes are available:</p>
+<ul>
+  <li>MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%HM1</code>): Navigation menu</li>
+  <li><code class="language-plaintext highlighter-rouge">%XY2</code>: Info area’s top X,Y position.</li>
+  <li><code class="language-plaintext highlighter-rouge">%XY3</code>: Info area’s bottom X,Y position.</li>
+  <li>MCI 10…99: Custom entries with the format options described above in <strong>Browse Page</strong> via the <code class="language-plaintext highlighter-rouge">detailsInfoFormat##</code> <code class="language-plaintext highlighter-rouge">config</code> block entry.</li>
+</ul>
+
+<h3 id="details-page---general-tab">Details Page - General Tab</h3>
+<p>The details page general tab uses the <code class="language-plaintext highlighter-rouge">detailsGeneral</code> art described above. The following MCI codes are available:</p>
+<ul>
+  <li>MCI 10…99: Custom entries with the format options described above in <strong>Browse Page</strong> via the <code class="language-plaintext highlighter-rouge">detailsGeneralInfoFormat##</code> <code class="language-plaintext highlighter-rouge">config</code> block entry.</li>
+</ul>
+
+<h3 id="details-page---nforeadme-viewer-tab">Details Page - NFO/README Viewer Tab</h3>
+<p>The details page nfo tab uses the <code class="language-plaintext highlighter-rouge">detailsNfo</code> art described above. The following MCI codes are available:</p>
+<ul>
+  <li>MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%MT1</code>): NFO/README viewer using the entries <code class="language-plaintext highlighter-rouge">longDesc</code>.</li>
+  <li>MCI 10…99: Custom entries with the format options described above in <strong>Browse Page</strong> via the <code class="language-plaintext highlighter-rouge">detailsNfoInfoFormat##</code> <code class="language-plaintext highlighter-rouge">config</code> block entry.</li>
+</ul>
+
+<h3 id="details-page---archivefile-listing-tab">Details Page - Archive/File Listing Tab</h3>
+<p>The details page file list tab uses the <code class="language-plaintext highlighter-rouge">detailsFileList</code> art described above. The following MCI codes are available:</p>
+<ul>
+  <li>MCI 1 (ie: <code class="language-plaintext highlighter-rouge">%VM1</code>): List of entries in archive. Entries are formatted using the standard <code class="language-plaintext highlighter-rouge">itemFormat</code> and <code class="language-plaintext highlighter-rouge">focusItemFormat</code> properties of the view and have all of the format options described above in <strong>Browse Page</strong>.</li>
+  <li>MCI 10…99: Custom entries with the format options described above in <strong>Browse Page</strong> via the <code class="language-plaintext highlighter-rouge">detailsFileListInfoFormat##</code> <code class="language-plaintext highlighter-rouge">config</code> block entry.</li>
+</ul>
+
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/modding/existing-mods.html">&laquo; Existing Mods</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/modding/last-callers.html">Last Callers &raquo;</a>
+              
+              <br clear="both" />
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>

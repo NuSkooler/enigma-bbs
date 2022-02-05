@@ -1,0 +1,2615 @@
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" sizes="16x16" href="/enigma-bbs/assets/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/enigma-bbs/assets/images/favicon-32x32.png">
+    <link rel="stylesheet" href="/enigma-bbs/assets/css/style.css?v=">
+    <!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>BSO Import / Export | ENiGMA½ BBS Software</title>
+<meta name="generator" content="Jekyll v4.2.1" />
+<meta property="og:title" content="BSO Import / Export" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="BSO Import / Export The scanner/tosser module ftn_bso provides Binkley Style Outbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in config.hjson under scannerTossers.ftn_bso." />
+<meta property="og:description" content="BSO Import / Export The scanner/tosser module ftn_bso provides Binkley Style Outbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in config.hjson under scannerTossers.ftn_bso." />
+<meta property="og:site_name" content="ENiGMA½ BBS Software" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2022-02-05T06:30:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="BSO Import / Export" />
+<script type="application/ld+json">
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"BSO Import / Export The scanner/tosser module ftn_bso provides Binkley Style Outbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in config.hjson under scannerTossers.ftn_bso.","url":"/enigma-bbs/messageareas/bso-import-export.html","@type":"BlogPosting","headline":"BSO Import / Export","dateModified":"2022-02-05T06:30:26+00:00","datePublished":"2022-02-05T06:30:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/messageareas/bso-import-export.html"},"@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+  </head>
+
+  <body>
+    
+    <div id="container">
+        <div class="sidebar" id="sidebar">
+        <hr class="mobile-divide">
+            <div class="container">
+          <a href="/enigma-bbs/"><img src="/enigma-bbs/assets/images/enigma-logo.png" class="logo" alt="Enigma logo"></a>
+            </div>
+            
+            <ul>
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+  <li>Installation</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/installation-methods.html">Installation Methods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/install-script.html">Install Script</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/docker.html">Docker</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/manual.html">Manual Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>OS / Hardware Specific</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/rpi.html">Raspberry Pi</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/hardware/windows.html">Installation Under Windows</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/network.html">Network Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/testing.html">Testing Your Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/installation/production.html">Production Installation</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Configuration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/creating-config.html">Creating Initial Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/sysop-setup.html">SysOp Setup</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-files.html">Configuration Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/config-hjson.html">System Configuration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/hjson.html">HJSON Config Files</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/menu-hjson.html">Menu HSJON</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/directory-structure.html">Directory Structure</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/external-binaries.html">External Support Binaries</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/archivers.html">Archivers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/file-transfer-protocols.html">File Transfer Protocols</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/email.html">Email</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/colour-codes.html">Colour Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/event-scheduler.html">Event Scheduler</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/acs.html">Access Condition System (ACS)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/configuration/security.html">Security</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Miscellaneous</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/misc/user-interrupt.html">User Interruptions</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>File Base</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/index.html">About File Areas</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/first-file-area.html">Configuring a File Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/acs.html">ACS</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/uploads.html">Uploads</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/web-access.html">Web Access</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/tic-support.html">TIC Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/filebase/network-mounts-and-symlinks.html">Network Mounts &amp; Symlinks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Message Areas</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/configuring-a-message-area.html">Message Base</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/message-networks.html">Message Networks</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+      <li class="active-nav">BSO Import / Export</li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/netmail.html">Netmail</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/qwk.html">QWK Support</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/messageareas/ftn.html">FidoNet-Style Networks (FTN)</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Art</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/general.html">General Art Information</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/themes.html">Themes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/mci.html">MCI Codes</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+      <li>Views</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/button_view.html">Button View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/edit_text_view.html">Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/full_menu_view.html">Full Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/horizontal_menu_view.html">Horizontal Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/mask_edit_text_view.html">Mask Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/multi_line_edit_text_view.html">Multi Line Edit Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/predefined_label_view.html">Predefined Label View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/spinner_menu_view.html">Spinner Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/text_view.html">Text View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/toggle_menu_view.html">Toggle Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/art/views/vertical_menu_view.html">Vertical Menu View</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Servers</li>
+  <ul>
+
+  
+
+    
+      <li>Login Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/telnet.html">Telnet Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/ssh.html">SSH Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/loginservers/websocket.html">Web Socket / Web Interface Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+
+    
+      <li>Content Servers</li>
+      <ul>
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/web-server.html">Web Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/gopher.html">Gopher Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/servers/contentservers/nntp.html">NNTP Server</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+    </ul>
+  
+
+  
+    
+      </ul>
+    
+  <li>Modding</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/local-doors.html">Local Doors</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/door-servers.html">Door Servers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/telnet-bridge.html">Telnet Bridge</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/existing-mods.html">Existing Mods</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-area-list.html">File Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/last-callers.html">Last Callers</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/whos-online.html">Who's Online</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-list.html">User List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-conf-list.html">Message Conference List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/msg-area-list.html">Message Area List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/bbs-list.html">BBS List</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/rumorz.html">Rumorz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-transfer-protocol-select.html">File Transfer Protocol Select</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/onelinerz.html">Onelinerz</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/show-art.html">The Show Art Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-download-manager.html">File Base Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/file-base-web-download-manager.html">File Base Web Download Manager</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/set-newscan-date.html">Set Newscan Date Module</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/node-msg.html">Node to Node Messaging</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/top-x.html">TopX</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/user-2fa-otp-config.html">2FA/OTP Config</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/autosig-edit.html">Auto Signature Editor</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/modding/menu-modules.html">Menu Modules</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Administration</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/administration.html">Administration</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/oputil.html">oputil</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/admin/updating.html">Updating</a></li>
+    
+
+
+  
+  
+
+  
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+    
+      </ul>
+    
+  <li>Troubleshooting</li>
+  <ul>
+
+  
+
+    
+
+
+    
+    <li><a href="/enigma-bbs/troubleshooting/monitoring-logs.html">Monitoring Logs</a></li>
+    
+
+
+  
+  
+    </ul>
+    
+  
+
+</ul>
+
+        </div>
+        <div class="main_area">
+          <div class="container">
+            <section id="main_content">
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/message-networks.html">« Message Networks</a>
+              
+              <a href="#sidebar" class="btn menu_button">MENU</a>
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/netmail.html">Netmail »</a>
+              
+              <br clear="both">
+              </div>
+
+                <div class="page">
+    <h1 class="page-title">BSO Import / Export</h1>
+    <h2 id="bso-import--export">BSO Import / Export</h2>
+<p>The scanner/tosser module <code class="language-plaintext highlighter-rouge">ftn_bso</code> provides <strong>B</strong>inkley <strong>S</strong>tyle <strong>O</strong>utbound (BSO) import/toss and scan/export of messages EchoMail and NetMail messages. Configuration is supplied in <code class="language-plaintext highlighter-rouge">config.hjson</code> under <code class="language-plaintext highlighter-rouge">scannerTossers.ftn_bso</code>.</p>
+
+<p><img class="emoji" title=":information_source:" alt=":information_source:" src="https://github.githubassets.com/images/icons/emoji/unicode/2139.png" height="20" width="20"> ENiGMA½’s <code class="language-plaintext highlighter-rouge">ftn_bso</code> module is not a mailer and <strong>makes no attempts to perform packet transport</strong>! An external <a href="http://www.filegate.net/bbsmailers.htm">mailer</a> such as <a href="https://github.com/pgul/binkd">Binkd</a> is required for this task!</p>
+
+<h3 id="configuration">Configuration</h3>
+<p>Let’s look at some of the basic configuration:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Config Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">schedule</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Sets <code class="language-plaintext highlighter-rouge">import</code> and <code class="language-plaintext highlighter-rouge">export</code> schedules. <a href="https://bunkat.github.io/later/parsers.html#text">Later style text parsing</a> supported. <code class="language-plaintext highlighter-rouge">import</code> also can utilize a <code class="language-plaintext highlighter-rouge">@watch:&lt;path/to/file&gt;</code> syntax while <code class="language-plaintext highlighter-rouge">export</code> additionally supports <code class="language-plaintext highlighter-rouge">@immediate</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">packetMsgEncoding</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Override default <code class="language-plaintext highlighter-rouge">utf8</code> encoding.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">defaultNetwork</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Explicitly set default network (by tag found within <code class="language-plaintext highlighter-rouge">messageNetworks.ftn.networks</code>). If not set, the first found is used.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nodes</code></td>
+      <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
+      <td>Per-node settings. Entries (keys) here support wildcards for a portion of the FTN-style address (e.g.: <code class="language-plaintext highlighter-rouge">21:1/*</code>). See <strong>Nodes</strong> below.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">paths</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>An optional configuration block that can set a additional paths or override defaults. See <strong>Paths</strong> below.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">packetTargetByteSize</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Overrides the system <em>target</em> packet (.pkt) size of 512000 bytes (512k)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">bundleTargetByteSize</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Overrides the system <em>target</em> ArcMail bundle size of 2048000 bytes (2M)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="nodes">Nodes</h4>
+<p>The <code class="language-plaintext highlighter-rouge">nodes</code> section defines how to export messages for one or more uplinks.</p>
+
+<p>A node entry starts with a <a href="http://ftsc.org/docs/old/fsp-1028.001">FTN address</a> (up to 5D) <strong>as a key</strong> in <code class="language-plaintext highlighter-rouge">config.hjson</code>. This key may contain wildcard(s) for net/zone/node/point/domain.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Config Item</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">packetType</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>
+<code class="language-plaintext highlighter-rouge">2</code>, <code class="language-plaintext highlighter-rouge">2.2</code>, or <code class="language-plaintext highlighter-rouge">2+</code>. Defaults to <code class="language-plaintext highlighter-rouge">2+</code> for modern mailer compatibility.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">packetPassword</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Optional password for the packet</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">encoding</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Encoding to use for message bodies; Defaults to <code class="language-plaintext highlighter-rouge">utf-8</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">archiveType</code></td>
+      <td><img class="emoji" title=":-1:" alt=":-1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44e.png" height="20" width="20"></td>
+      <td>Specifies the archive type (by extension or MIME type) for ArcMail bundles. This should be <code class="language-plaintext highlighter-rouge">zip</code> (or <code class="language-plaintext highlighter-rouge">application/zip</code>) for most setups. Other valid examples include <code class="language-plaintext highlighter-rouge">arc</code>, <code class="language-plaintext highlighter-rouge">arj</code>, <code class="language-plaintext highlighter-rouge">lhz</code>, <code class="language-plaintext highlighter-rouge">pak</code>, <code class="language-plaintext highlighter-rouge">sqz</code>, or <code class="language-plaintext highlighter-rouge">zoo</code>. See <a href="/enigma-bbs/configuration/archivers.html">Archivers</a> for more information.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Example</strong>:</p>
+<pre><code class="language-hjson">{
+  scannerTossers: {
+    ftn_bso: {
+      nodes: {
+        "21:*": { // wildcard address
+          packetType: 2+
+          packetPassword: D@TP4SS
+          encoding: cp437
+          archiveType: zip
+        }
+      }
+    }
+  }
+}
+</code></pre>
+
+<h4 id="paths">Paths</h4>
+<p>Paths for packet files work out of the box and are relative to your install directory. If you want to configure <code class="language-plaintext highlighter-rouge">reject</code> or <code class="language-plaintext highlighter-rouge">retain</code> to keep rejected/imported packet files respectively, set those values. You may override defaults as well.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">outbound</code></td>
+      <td>
+<em>Base</em> path to write outbound (exported) packet files and bundles.</td>
+      <td><code class="language-plaintext highlighter-rouge">enigma-bbs/mail/ftn_out/</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inbound</code></td>
+      <td>
+<em>Base</em> path to write inbound (ie: those written by an external mailer) packet files an bundles.</td>
+      <td><code class="language-plaintext highlighter-rouge">enigma-bbs/mail/ftn_in/</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">secInbound</code></td>
+      <td>
+<em>Base</em> path to write <strong>secure</strong> inbound packet files and bundles.</td>
+      <td><code class="language-plaintext highlighter-rouge">enigma-bbs/mail/ftn_secin/</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">reject</code></td>
+      <td>Path in which to write rejected packet files.</td>
+      <td>No default</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">retain</code></td>
+      <td>Path in which to write imported packet files. Useful for debugging or if you wish to archive the raw .pkt files.</td>
+      <td>No default</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="scheduling">Scheduling</h3>
+<p>Schedules can be defined for importing and exporting via <code class="language-plaintext highlighter-rouge">import</code> and <code class="language-plaintext highlighter-rouge">export</code> under <code class="language-plaintext highlighter-rouge">schedule</code>. Each entry is allowed a “free form” text and/or special indicators for immediate export or watch file triggers.</p>
+
+<ul>
+  <li>
+<code class="language-plaintext highlighter-rouge">@immediate</code>: A message will be immediately exported if this trigger is defined in a schedule. Only used for <code class="language-plaintext highlighter-rouge">export</code>.</li>
+  <li>
+<code class="language-plaintext highlighter-rouge">@watch:/path/to/file</code>: This trigger watches the path specified for changes and will trigger an import or export when such events occur. Only used for <code class="language-plaintext highlighter-rouge">import</code>.</li>
+  <li>Free form <a href="https://bunkat.github.io/later/parsers.html#text">Later style</a> text — can be things like <code class="language-plaintext highlighter-rouge">at 5:00 pm</code> or <code class="language-plaintext highlighter-rouge">every 2 hours</code>.</li>
+</ul>
+
+<p>See <a href="http://bunkat.github.io/later/parsers.html#text">Later text parsing documentation</a> for more information.</p>
+
+<h4 id="example-schedule-configuration">Example Schedule Configuration</h4>
+
+<pre><code class="language-hjson">{
+  scannerTossers: {
+    ftn_bso: {
+      schedule: {
+        import: every 1 hours or @watch:/path/to/watchfile.ext
+        export: every 1 hours or @immediate
+      }
+    }
+  }
+}
+</code></pre>
+
+<h3 id="a-more-complete-example">A More Complete Example</h3>
+<p>Below is a more complete example showing the sections described above.</p>
+
+<pre><code class="language-hjson">scannerTossers: {
+  ftn_bso: {
+    schedule: {
+      //  Check every 30m, or whenever the "toss!.now" file is touched (ie: by Binkd)
+      import: every 30 minutes or @watch:/enigma-bbs/mail/ftn_in/toss!.now
+
+      //  Export immediately, but also check every 15m to be sure
+      export: every 15 minutes or @immediate
+    }
+
+    // optional
+    paths: {
+      reject: /path/to/store/bad/packets/
+      retain: /path/to/store/good/packets/
+    }
+
+    //  Override default FTN/BSO packet encoding. Defaults to 'utf8'
+    packetMsgEncoding: utf8
+
+    defaultNetwork: fsxnet
+
+    nodes: {
+      "21:1/100" : {            //  May also contain wildcards, ie: "21:1/*"
+        archiveType: ZIP        //  By-ext archive type: ZIP, ARJ, ..., optional.
+        encoding: utf8          //  Encoding for exported messages
+        packetPassword: MUHPA55 //  FTN .PKT password, optional
+
+        tic: {
+          //  See TIC docs
+        }
+      }
+    }
+
+    netMail: {
+      //  See NetMail docs
+    }
+
+    ticAreas: {
+      //  See TIC docs
+    }
+  }
+}
+</code></pre>
+
+<h2 id="binkd">Binkd</h2>
+<p>Since Binkd is a very common mailer, a few tips on integrating it with ENiGMA½.</p>
+
+<h3 id="example-binkd-configuration">Example Binkd Configuration</h3>
+<p>Below is an <strong>example</strong> Binkd configuration file that may help serve as a reference.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Number @ end is the root zone</span>
+<span class="c"># Note that fsxNet is our *default* FTN so we use "outbound" here!</span>
+domain fsxnet /home/enigma/enigma-bbs/mail/ftn_out/outbound 21
+domain araknet /home/enigma/enigma-bbs/mail/ftn_out/araknet 10
+
+<span class="c"># Our assigned addresses</span>
+address 21:1/1234@fsxnet
+address 10:101/1234@araknet
+
+<span class="c"># Info about our board/op</span>
+sysname <span class="s2">"My BBS"</span>
+location <span class="s2">"Somewhere Out There"</span>
+sysop <span class="s2">"SysOp"</span>
+
+nodeinfo 115200,TCP,BINKP
+try 10
+hold 600
+send-if-pwd
+
+log /var/log/binkd/binkd.log
+loglevel 4
+conlog 4
+
+percents
+printq
+backresolv
+
+inbound /home/enigma/enigma-bbs/mail/ftn_in
+temp-inbound /home/enigma/enigma-bbs/mail/ftn_in_temp
+
+minfree 2048
+minfree-nonsecure 2048
+
+kill-dup-partial-files
+kill-old-partial-files 86400
+
+prescan
+
+<span class="c"># fsxNet - Agency HUB</span>
+node 21:1/100@fsxnet <span class="nt">-md</span> agency.bbs.nz:24556 SOMEPASS c
+
+<span class="c"># ArakNet</span>
+node 10:101/0@araknet <span class="nt">-md</span> whq.araknet.xyz:24556 SOMEPASS c
+
+<span class="c"># our listening port (default=24554)</span>
+iport 54554
+
+pid-file /var/run/binkd/binkd.pid
+
+<span class="c"># touch a watch file when files are received to kick of toss</span>
+<span class="c"># ENiGMA can monitor this (see @watch information above)</span>
+flag /home/enigma/enigma-bbs/mail/ftn_in/toss!.now <span class="k">*</span>.su? <span class="k">*</span>.mo? <span class="k">*</span>.tu? <span class="k">*</span>.we? <span class="k">*</span>.th? <span class="k">*</span>.fr? <span class="k">*</span>.sa? <span class="k">*</span>.pkt <span class="k">*</span>.tic
+
+<span class="c"># nuke old .bsy/.csy files after 24 hours</span>
+kill-old-bsy 43200
+</code></pre></div></div>
+
+<h3 id="scheduling-polls">Scheduling Polls</h3>
+<p>Binkd does not have it’s own scheduler. Instead, you’ll need to set up an Event Scheduler entry or perhaps a cron job:</p>
+
+<p>First, create a script that runs through all of your uplinks. For example:</p>
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#!/bin/bash</span>
+<span class="nv">UPLINKS</span><span class="o">=(</span><span class="s2">"21:1/100@fsxnet"</span> <span class="s2">"80:774/1@retronet"</span> <span class="s2">"10:101/0@araknet"</span><span class="o">)</span>
+<span class="k">for </span>uplink <span class="k">in</span> <span class="s2">"</span><span class="k">${</span><span class="nv">UPLINKS</span><span class="p">[@]</span><span class="k">}</span><span class="s2">"</span>
+<span class="k">do</span>
+	/usr/local/sbin/binkd <span class="nt">-p</span> <span class="nt">-P</span> <span class="nv">$uplink</span> /home/enigma/xibalba/misc/binkd_xibalba.conf
+<span class="k">done</span>
+</code></pre></div></div>
+
+<p>Now, create an Event Scheduler entry in your <code class="language-plaintext highlighter-rouge">config.hjson</code>. As an example:</p>
+<pre><code class="language-hjson">eventScheduler: {
+  events: {
+    pollWithBink: {
+      //  execute the script above very 1 hours
+      schedule: every 1 hours
+      action: @execute:/path/to/poll_bink.sh
+    }
+  }
+}
+</code></pre>
+
+<h2 id="additional-resources">Additional Resources</h2>
+<ul>
+  <li>
+<a href="https://l33t.codes/enigma-12-binkd-on-centos-7/">Blog entry on setting up ENiGMA + Binkd on CentOS7</a>. Note that this references an <strong>older version</strong>, so be wary of the <code class="language-plaintext highlighter-rouge">config.hjson</code> references!</li>
+  <li>
+<a href="https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d">Setting up FTN-style message networks with ENiGMA½ BBS</a> by Alpha.</li>
+</ul>
+
+</div>
+
+              <div class="PageNavigation">
+              
+              <a class="btn" style="float:left;margin-right: 20px;" href="/enigma-bbs/messageareas/message-networks.html">« Message Networks</a>
+              
+              
+              <a class="btn" style="float: right;margin-left: 20px" href="/enigma-bbs/messageareas/netmail.html">Netmail »</a>
+              
+              <br clear="both">
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+    
+  </body>
+</html>
