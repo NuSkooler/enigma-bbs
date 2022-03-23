@@ -4,57 +4,13 @@
 //  ENiGMA½
 const ansi          = require('./ansi_term.js');
 const Events        = require('./events.js');
+const Config        = require('./config.js').get;
 const { Errors }    = require('./enig_error.js');
 
 //  deps
 const async     = require('async');
 
 exports.connectEntry    = connectEntry;
-
-function ansiDiscoverHomePosition(client, cb) {
-    //
-    //  We want to find the home position. ANSI-BBS and most terminals
-    //  utilize 1,1 as home. However, some terminals such as ConnectBot
-    //  think of home as 0,0. If this is the case, we need to offset
-    //  our positioning to accommodate for such.
-    //
-    const done = (err) => {
-        client.removeListener('cursor position report', cprListener);
-        clearTimeout(giveUpTimer);
-        return cb(err);
-    };
-
-    const cprListener = function(pos) {
-        const h = pos[0];
-        const w = pos[1];
-
-        //
-        //  We expect either 0,0, or 1,1. Anything else will be filed as bad data
-        //
-        if(h > 1 || w > 1) {
-            client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
-            return done(Errors.UnexpectedState('Home position CPR expected to be 0,0, or 1,1'));
-        }
-
-        if(0 === h & 0 === w) {
-            //
-            //  Store a CPR offset in the client. All CPR's from this point on will offset by this amount
-            //
-            client.log.info('Setting CPR offset to 1');
-            client.cprOffset = 1;
-        }
-
-        return done(null);
-    };
-
-    client.once('cursor position report', cprListener);
-
-    const giveUpTimer = setTimeout( () => {
-        return done(Errors.General('Giving up on home position CPR'));
-    }, 3000);   //  3s
-
-    client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
-}
 
 function ansiAttemptDetectUTF8(client, cb) {
     //
@@ -68,8 +24,9 @@ function ansiAttemptDetectUTF8(client, cb) {
     //
     //  We currently only do this if the term hasn't already been ID'd as a
     //  "*nix" terminal -- that is, xterm, etc.
-    //
-    if(!client.term.isNixTerm()) {
+    //  Also skip this check if checkUtf8Encoding is disabled in the config
+
+    if(!client.term.isNixTerm() || !Config().term.checkUtf8Encoding) {
         return cb(null);
     }
 
@@ -118,6 +75,8 @@ function ansiAttemptDetectUTF8(client, cb) {
     giveUpTimer = setTimeout( () => {
         return giveUp();
     }, 2000);
+
+
 
     client.once('cursor position report', cprListener);
     client.term.rawWrite(ansi.goHome() + ansi.queryPos());
@@ -213,12 +172,6 @@ function connectEntry(client, nextMenu) {
             function basicPrepWork(callback) {
                 term.rawWrite(ansi.queryDeviceAttributes(0));
                 return callback(null);
-            },
-            function discoverHomePosition(callback) {
-                ansiDiscoverHomePosition(client, () => {
-                    //  :TODO: If CPR for home fully fails, we should bail out on the connection with an error, e.g. ANSI support required
-                    return callback(null);  //  we try to continue anyway
-                });
             },
             function queryTermSizeByNonStandardAnsi(callback) {
                 ansiQueryTermSizeIfNeeded(client, err => {

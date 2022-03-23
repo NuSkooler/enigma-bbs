@@ -190,10 +190,11 @@ function ANSIEscapeParser(options) {
 
 
                 self.emit('mci', {
-                    mci     : mciCode,
-                    id      : id ? parseInt(id, 10) : null,
-                    args    : args,
-                    SGR     : ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
+                    position : [self.row, self.column],
+                    mci      : mciCode,
+                    id       : id ? parseInt(id, 10) : null,
+                    args     : args,
+                    SGR      : ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
                 });
 
                 if(self.mciReplaceChar.length > 0) {

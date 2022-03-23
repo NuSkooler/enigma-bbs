@@ -17,6 +17,18 @@ module.exports = () => {
             achievementFile : 'achievements.hjson',
         },
 
+        term : {
+            // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
+            // Using this with a terminal that does not support cursor position reports results in a 2 second delay
+            // during the connect process, but provides better autoconfiguration of utf-8
+            checkUtf8Encoding : true,
+
+            // List of terms that should be assumed to use cp437 encoding
+            cp437TermList     : ['ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color', 'ansi-256color-rgb'],
+            // List of terms that should be assumed to use utf8 encoding
+            utf8TermList      : ['xterm', 'linux', 'screen', 'dumb', 'rxvt', 'konsole', 'gnome', 'x11 terminal emulator'],
+        },
+
         users : {
             usernameMin         : 2,
             usernameMax         : 16,   //  Note that FidoNet wants 36 max

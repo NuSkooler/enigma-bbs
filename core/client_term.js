@@ -4,10 +4,11 @@
 //  ENiGMA½
 var Log             = require('./logger.js').log;
 var renegadeToAnsi  = require('./color_codes.js').renegadeToAnsi;
-
+const Config        = require('./config.js').get;
 var iconv           = require('iconv-lite');
 var assert          = require('assert');
 var _               = require('lodash');
+
 
 exports.ClientTerminal  = ClientTerminal;
 
@@ -115,7 +116,8 @@ ClientTerminal.prototype.isNixTerm = function() {
         return true;
     }
 
-    return [ 'xterm', 'linux', 'screen', 'dumb', 'rxvt', 'konsole', 'gnome', 'x11 terminal emulator' ].includes(this.termType);
+    const utf8TermList = Config().term.utf8TermList;
+    return utf8TermList.includes(this.termType);
 };
 
 ClientTerminal.prototype.isANSI = function() {
@@ -153,7 +155,8 @@ ClientTerminal.prototype.isANSI = function() {
     //  linux:
     //      * JuiceSSH (note: TERM=linux also)
     //
-    return [ 'ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color', 'ansi-256color-rgb' ].includes(this.termType);
+    const cp437TermList = Config().term.cp437TermList;
+    return cp437TermList.includes(this.termType);
 };
 
 //  :TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)

@@ -272,16 +272,12 @@ function display(client, art, options, cb) {
     });
 
     let parseComplete = false;
-    let cprListener;
     let mciMap;
     const mciCprQueue = [];
     let artHash;
     let mciMapFromCache;
 
     function completed() {
-        if(cprListener) {
-            client.removeListener('cursor position report', cprListener);
-        }
 
         if(!options.disableMciCache && !mciMapFromCache) {
             //  cache our MCI findings...
@@ -314,18 +310,6 @@ function display(client, art, options, cb) {
         //  no cached MCI info
         mciMap = {};
 
-        cprListener = function(pos) {
-            if(mciCprQueue.length > 0) {
-                mciMap[mciCprQueue.shift()].position = pos;
-
-                if(parseComplete && 0 === mciCprQueue.length) {
-                    return completed();
-                }
-            }
-        };
-
-        client.on('cursor position report', cprListener);
-
         let generatedId = 100;
 
         ansiParser.on('mci', mciInfo => {
@@ -339,18 +323,19 @@ function display(client, art, options, cb) {
                 mapEntry.focusArgs  = mciInfo.args;
             } else {
                 mciMap[mapKey] = {
-                    args    : mciInfo.args,
-                    SGR     : mciInfo.SGR,
-                    code    : mciInfo.mci,
-                    id      : id,
+                    position : mciInfo.position,
+                    args     : mciInfo.args,
+                    SGR      : mciInfo.SGR,
+                    code     : mciInfo.mci,
+                    id       : id,
                 };
 
                 if(!mciInfo.id) {
                     ++generatedId;
                 }
 
-                mciCprQueue.push(mapKey);
-                client.term.rawWrite(ansi.queryPos());
+                // mciCprQueue.push(mapKey);
+                // client.term.rawWrite(ansi.queryPos());
             }
 
         });
