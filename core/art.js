@@ -333,9 +333,6 @@ function display(client, art, options, cb) {
                 if(!mciInfo.id) {
                     ++generatedId;
                 }
-
-                // mciCprQueue.push(mapKey);
-                // client.term.rawWrite(ansi.queryPos());
             }
 
         });
