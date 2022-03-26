@@ -738,7 +738,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     theme.displayThemedAsset(
                         art.body,
                         self.client,
-                        { font : self.menuConfig.font, startRow: artInfo.height },
+                        { font : self.menuConfig.font, startRow: artInfo.height + 1 },
                         function displayed(err, artInfo) {
                             if(artInfo) {
                                 mciData['body'] = artInfo;
@@ -848,8 +848,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             {
                                 const fromView = self.viewControllers.header.getView(MciViewIds.header.from);
                                 const area = getMessageAreaByTag(self.messageAreaTag);
-
-				if(fromView !== undefined) {
+                                if(fromView !== undefined) {
                                     if(area && area.realNames) {
                                         fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
                                     } else {
