@@ -63,7 +63,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 (Array.isArray(self.menuConfig.art) && _.has(self.menuConfig.art[0], 'acs'));
         };
 
-        async.series(
+        async.waterfall(
             [
                 function beforeArtInterrupt(callback) {
                     return self.displayQueuedInterruptions(callback);
@@ -73,7 +73,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 },
                 function displayMenuArt(callback) {
                     if(!hasArt()) {
-                        return callback(null);
+                        return callback(null, null);
                     }
 
                     self.displayAsset(
@@ -84,15 +84,17 @@ exports.MenuModule = class MenuModule extends PluginModule {
                                 self.client.log.trace('Could not display art', { art : self.menuConfig.art, reason : err.message } );
                             } else {
                                 mciData.menu = artData.mciMap;
+                            }
+
+                            if(artData) {
                                 pausePosition.row = artData.height + 1;
                             }
 
-
-                            return callback(null);  //  any errors are non-fatal
+                            return callback(null, artData);  //  any errors are non-fatal
                         }
                     );
                 },
-                function displayPromptArt(callback) {
+                function displayPromptArt(artData, callback) {
                     if(!_.isString(self.menuConfig.prompt)) {
                         return callback(null);
                     }
@@ -101,17 +103,21 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(Errors.MissingConfig('Prompt specified but no "promptConfig" block found'));
                     }
 
+                    const options = self.menuConfig.config;
+
+                    if(artData != null && artData.height != null) {
+                        options.startRow = artData.height + 1;
+                    }
 
                     self.displayAsset(
                         self.menuConfig.promptConfig.art,
-                        self.menuConfig.config,
-                        (err, promptArtData) => {
-                            if(promptArtData) {
-                                mciData.prompt = promptArtData.mciMap;
+                        options,
+                        (err, artData) => {
+                            if(artData) {
+                                mciData.prompt = artData.mciMap;
+                                pausePosition.row = artData.height + 1;
                             }
-                            if(promptArtData.height != null) {
-                                pausePosition.row = pausePosition.row + promptArtData.height;
-                            }
+
                             return callback(err);   //  pass err here; prompts *must* have art
                         }
                     );
@@ -131,7 +137,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                     return self.pausePrompt(pausePosition, callback);
                 },
-                function finishAndNext(callback) {
+                function finishAndNext(artInfo, callback) {
                     self.finishedLoading();
                     self.realTimeInterrupt = 'allowed';
                     return self.autoNextMenu(callback);
