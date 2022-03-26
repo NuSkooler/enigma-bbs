@@ -269,6 +269,7 @@ function display(client, art, options, cb) {
         termHeight      : client.term.termHeight,
         termWidth       : client.term.termWidth,
         trailingLF      : options.trailingLF,
+        startRow        : options.startRow,
     });
 
     let parseComplete = false;

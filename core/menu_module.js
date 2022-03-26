@@ -124,6 +124,11 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(null);
                     }
 
+                    if(self.client.term.termHeight > 0 && pausePosition.row > self.client.termHeight) {
+                        // If this scrolled, the prompt will go to the bottom of the screen
+                        pausePosition.row = self.client.termHeight;
+                    }
+
                     return self.pausePrompt(pausePosition, callback);
                 },
                 function finishAndNext(callback) {

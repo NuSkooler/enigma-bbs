@@ -603,7 +603,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     theme.displayThemedAsset(
                         footerArt,
                         self.client,
-                        { font : self.menuConfig.font },
+                        { font : self.menuConfig.font, startRow: self.header.height + self.body.height },
                         function displayed(err, artData) {
                             callback(err, artData);
                         }
@@ -626,19 +626,34 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         async.series(
             [
                 function displayHeaderAndBody(callback) {
-                    async.eachSeries( comps, function dispArt(n, next) {
-                        theme.displayThemedAsset(
-                            art[n],
-                            self.client,
-                            { font : self.menuConfig.font },
-                            function displayed(err) {
-                                next(err);
+                    async.waterfall(
+                        [
+                            function displayHeader(callback) {
+                                theme.displayThemedAsset(
+                                    art['header'],
+                                    self.client,
+                                    { font : self.menuConfig.font },
+                                    function displayed(err, artInfo) {
+                                        return callback(err, artInfo);
+                                    }
+                                );
+                            },
+                            function displayBody(artInfo, callback) {
+                                theme.displayThemedAsset(
+                                    art['header'],
+                                    self.client,
+                                    { font : self.menuConfig.font, startRow: artInfo.height + 1 },
+                                    function displayed(err, artInfo) {
+                                        return callback(err, artInfo);
+                                    }
+                                );
                             }
-                        );
-                    }, function complete(err) {
-                        //self.body.height = self.client.term.termHeight - self.header.height - 1;
-                        callback(err);
-                    });
+                        ],
+                        function complete(err) {
+                            //self.body.height = self.client.term.termHeight - self.header.height - 1;
+                            callback(err);
+                        }
+                    );
                 },
                 function displayFooter(callback) {
                     //  we have to treat the footer special
@@ -700,31 +715,39 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
         assert(_.isObject(art));
 
-        async.series(
+        async.waterfall(
             [
                 function beforeDisplayArt(callback) {
                     self.beforeArt(callback);
                 },
-                function displayHeaderAndBodyArt(callback) {
-                    async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
-                        theme.displayThemedAsset(
-                            art[n],
-                            self.client,
-                            { font : self.menuConfig.font },
-                            function displayed(err, artData) {
-                                if(artData) {
-                                    mciData[n] = artData;
-                                    self[n] = { height : artData.height };
-                                }
-
-                                next(err);
+                function displayHeader(callback) {
+                    theme.displayThemedAsset(
+                        art.header,
+                        self.client,
+                        { font : self.menuConfig.font },
+                        function displayed(err, artInfo) {
+                            if(artInfo) {
+                                mciData['header'] = artInfo;
+                                self.header = {height: artInfo.height};
                             }
-                        );
-                    }, function complete(err) {
-                        callback(err);
-                    });
+                            return callback(err, artInfo);
+                        }
+                    );
                 },
-                function displayFooter(callback) {
+                function displayBody(artInfo, callback) {
+                    theme.displayThemedAsset(
+                        art.body,
+                        self.client,
+                        { font : self.menuConfig.font, startRow: artInfo.height },
+                        function displayed(err, artInfo) {
+                            if(artInfo) {
+                                mciData['body'] = artInfo;
+                                self.body = {height: artInfo.height - self.header.height};
+                            }
+                            return callback(err, artInfo);
+                        });
+                },
+                function displayFooter(artInfo, callback) {
                     self.setInitialFooterMode();
 
                     var footerName = self.getFooterName();

@@ -21,9 +21,15 @@ function ANSIEscapeParser(options) {
     events.EventEmitter.call(this);
 
     this.column             = 1;
-    this.row                = 1;
     this.scrollBack         = 0;
     this.graphicRendition   = {};
+
+    if(options.startRow != null) {
+        this.row = options.startRow;
+    }
+    else {
+        this.row = 1;
+    }
 
     this.parseState = {
         re  : /(?:\x1b\x5b)([?=;0-9]*?)([ABCDHJKfhlmnpsu])/g,   //  eslint-disable-line no-control-regex

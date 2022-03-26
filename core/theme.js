@@ -495,6 +495,7 @@ function displayPreparedArt(options, artInfo, cb) {
         sauce       : artInfo.sauce,
         font        : options.font,
         trailingLF  : options.trailingLF,
+        startRow    : options.startRow,
     };
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
         return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
@@ -585,7 +586,11 @@ function displayThemedPrompt(name, client, options, cb) {
                 }
 
                 if(options.row != null) {
-                    artInfo.startRow = options.row - artInfo.height;
+                    artInfo.startRow = options.row;
+                    if(client.term.termHeight > 0 && artInfo.startRow + artInfo.height > client.term.termHeight) {
+                        // in this case, we will have scrolled
+                        artInfo.startRow = client.term.termHeight - artInfo.height;
+                    }
                 }
 
                 return callback(null, promptConfig, artInfo);
@@ -614,7 +619,7 @@ function displayThemedPrompt(name, client, options, cb) {
                 });
             },
             function clearPauseArt(artInfo, assocViewController, callback) {
-                // Only clear with height if clearPrompt is true and if we were able 
+                // Only clear with height if clearPrompt is true and if we were able
                 // to determine the row
                 if(options.clearPrompt && artInfo.startRow) {
                     if(artInfo.startRow && artInfo.height) {
