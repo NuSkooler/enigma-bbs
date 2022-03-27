@@ -52,7 +52,7 @@
     "sanitize-filename": "^1.6.3",
     "sqlite3": "^4.2.0",
     "sqlite3-trans": "^1.2.2",
-    "ssh2": "0.8.9",
+    "ssh2": "1.4.0",
     "telnet-socket": "^0.2.3",
     "temptmp": "^1.1.0",
     "uuid": "8.3.2",
