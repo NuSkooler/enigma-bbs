@@ -2,3 +2,45 @@
 ---
 
 @import 'jekyll-theme-hacker';
+
+.active-nav {
+  font-weight: bolder;
+}
+
+@media (max-width: 767px) {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  .mobile-divide {
+    border-top: 1px dashed #b5e853;
+  }
+
+  .sidebar {
+    order: 2;
+    float: none;
+    width: 100%;
+    position: relative !important;
+  }
+
+  .main_area {
+    padding-left: 0px !important;
+  }
+
+  #container {
+    display: flex;
+    flex-direction: column;
+    display:flex;
+  }
+
+}
+
+@media (min-width: 768px) {
+  .menu_button {
+    display: none;
+  }
+
+  .mobile-divide {
+    display: none;
+  }
+}
