@@ -12,6 +12,58 @@ const async     = require('async');
 
 exports.connectEntry    = connectEntry;
 
+function ansiDiscoverHomePosition(client, cb) {
+    //
+    //  We want to find the home position. ANSI-BBS and most terminals
+    //  utilize 1,1 as home. However, some terminals such as ConnectBot
+    //  think of home as 0,0. If this is the case, we need to offset
+    //  our positioning to accommodate for such.
+    //
+
+
+    if( !Config().term.checkAnsiHomePosition ) {
+        // Skip (and assume 1,1) if the home position check is disabled.
+        return cb(null);
+    }
+
+    const done = (err) => {
+        client.removeListener('cursor position report', cprListener);
+        clearTimeout(giveUpTimer);
+        return cb(err);
+    };
+
+    const cprListener = function(pos) {
+        const h = pos[0];
+        const w = pos[1];
+
+        //
+        //  We expect either 0,0, or 1,1. Anything else will be filed as bad data
+        //
+        if(h > 1 || w > 1) {
+            client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
+            return done(Errors.UnexpectedState('Home position CPR expected to be 0,0, or 1,1'));
+        }
+
+        if(0 === h & 0 === w) {
+            //
+            //  Store a CPR offset in the client. All CPR's from this point on will offset by this amount
+            //
+            client.log.info('Setting CPR offset to 1');
+            client.cprOffset = 1;
+        }
+
+        return done(null);
+    };
+
+    client.once('cursor position report', cprListener);
+
+    const giveUpTimer = setTimeout( () => {
+        return done(Errors.General('Giving up on home position CPR'));
+    }, 3000);   //  3s
+
+    client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
+}
+
 function ansiAttemptDetectUTF8(client, cb) {
     //
     //  Trick to attempt and detect UTF-8. While there is a lot more than
@@ -172,6 +224,11 @@ function connectEntry(client, nextMenu) {
             function basicPrepWork(callback) {
                 term.rawWrite(ansi.queryDeviceAttributes(0));
                 return callback(null);
+            },
+            function discoverHomePosition(callback) {
+                ansiDiscoverHomePosition(client, () => {
+                    return callback(null);  //  we try to continue anyway
+                });
             },
             function queryTermSizeByNonStandardAnsi(callback) {
                 ansiQueryTermSizeIfNeeded(client, err => {

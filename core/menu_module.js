@@ -105,7 +105,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                     const options = self.menuConfig.config;
 
-                    if(artData != null && artData.height != null) {
+                    if(!_.isNil(artData) && _.isNumber(artData.height)) {
                         options.startRow = artData.height + 1;
                     }
 
@@ -127,7 +127,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 },
                 function displayPauseIfRequested(callback) {
                     if(!self.shouldPause()) {
-                        return callback(null);
+                        return callback(null, null);
                     }
 
                     if(self.client.term.termHeight > 0 && pausePosition.row > self.client.termHeight) {
