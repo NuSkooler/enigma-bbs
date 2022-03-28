@@ -24,7 +24,7 @@ function ANSIEscapeParser(options) {
     this.scrollBack         = 0;
     this.graphicRendition   = {};
 
-    if(!_.isNil(options.startRow)) {
+    if(!_.isNil(options?.startRow)) {
         this.row = options.startRow;
     }
     else {

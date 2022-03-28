@@ -105,7 +105,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                     const options = self.menuConfig.config;
 
-                    if(!_.isNil(artData) && _.isNumber(artData.height)) {
+                    if(_.isNumber(artData?.height)) {
                         options.startRow = artData.height + 1;
                     }
 
