@@ -509,7 +509,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         this.optionalMoveToPosition(position);
 
-        return theme.displayThemedPause(this.client, position, cb);
+        return theme.displayThemedPause(this.client, {position}, cb);
     }
 
     promptForInput( { formName, formId, promptName, prevFormName, position } = {}, options, cb) {
