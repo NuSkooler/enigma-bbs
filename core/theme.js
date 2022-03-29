@@ -585,7 +585,7 @@ function displayThemedPrompt(name, client, options, cb) {
                     return callback(null, promptConfig, artInfo);
                 }
 
-                if(!_.isNil(options?.position?.row)) {
+                if(_.isNumber(options?.position?.row)) {
                     artInfo.startRow = options.position.row;
                     if(client.term.termHeight > 0 && artInfo.startRow + artInfo.height > client.term.termHeight) {
                         // in this case, we will have scrolled
