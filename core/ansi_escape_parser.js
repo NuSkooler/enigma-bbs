@@ -215,6 +215,9 @@ function ANSIEscapeParser(options) {
     }
 
     self.reset = function(input) {
+        self.column = 1;
+        self.row = Math.min(options?.startRow ?? 1, self.termHeight);
+
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer  : input.split(String.fromCharCode(0x1a), 1)[0],

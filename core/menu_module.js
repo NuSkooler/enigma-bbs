@@ -103,7 +103,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(Errors.MissingConfig('Prompt specified but no "promptConfig" block found'));
                     }
 
-                    const options = self.menuConfig.config;
+                    const options = Object.assign({}, self.menuConfig.config);
 
                     if(_.isNumber(artData?.height)) {
                         options.startRow = artData.height + 1;
