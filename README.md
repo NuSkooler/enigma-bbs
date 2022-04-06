@@ -66,6 +66,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [PlaneT Afr0](https://planetafr0.org/): (**ssh://planetafr0.org:8889**)
 
 ## Special Thanks
+(in no particular order)
 * [Dave Stephens aka RiPuk](https://github.com/davestephens) for the awesome [ENiGMA website](https://enigma-bbs.github.io/) and [KICK ASS documentation](https://nuskooler.github.io/enigma-bbs/), code contributions, etc.
 * [Daniel Mecklenburg Jr.](https://github.com/codewar65) for the awesome VTX terminal and general coding talk
 * [M. Brutman](http://www.brutman.com/), author of [mTCP](http://www.brutman.com/mTCP/mTCP.html) (Interwebs for DOS!)
@@ -82,6 +83,7 @@ ENiGMA has been tested with many terminals. However, the following are suggested
 * [Smooth](https://16colo.rs/tags/artist/smooth)/[fUEL](https://fuel.wtf/) for lots of dope art. Why not [snag a T-Shirt](https://www.redbubble.com/people/araknet/works/39126831-enigma-1-2-software-logo-design-by-smooth-of-fuel?p=t-shirt)?
 * Al's Geek Lab for the [installation video](https://youtu.be/WnN-ucVi3ZU) and of course the [Back to the BBS - Part one: The return to being online](https://www.youtube.com/watch?reload=9&v=n0OwGSX2IiQ) documentary!
 * Alpha for the [FTN-style configuration guide](https://medium.com/@alpha_11845/setting-up-ftn-style-message-networks-with-enigma%C2%BD-bbs-709b22a1ae0d)!
+* Huge shout out to [cognitivegears ](https://github.com/cognitivegears) for the various fixes, improvements, and **removing the need for cursor position reports** providing a much better terminal experience!
 
 ...and so many others! This project would be nothing without the BBS and artscene communities!
 
