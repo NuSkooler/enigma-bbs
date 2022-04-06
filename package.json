@@ -38,7 +38,7 @@
     "ini-config-parser": "^1.0.4",
     "inquirer": "^8.2.2",
     "lodash": "4.17.21",
-    "lru-cache": "6.0.0",
+    "lru-cache": "^7.7.3",
     "mime-types": "^2.1.35",
     "minimist": "^1.2.6",
     "moment": "^2.29.2",

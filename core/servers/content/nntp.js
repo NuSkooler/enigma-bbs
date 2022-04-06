@@ -125,7 +125,7 @@ class NNTPServer extends NNTPServerBase {
         const config = Config();
         this.groupCache = new LRU({
             max     : _.get(config, 'contentServers.nntp.cache.maxItems', 200),
-            maxAge  : _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 30), //  default=30s
+            ttl     : _.get(config, 'contentServers.nntp.cache.maxAge', 1000 * 30), //  default=30s
         });
     }
 
