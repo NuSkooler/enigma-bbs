@@ -359,7 +359,7 @@ exports.getModule = class SSHServerModule extends LoginServerModule {
         //
         ssh2.Server.KEEPALIVE_INTERVAL = 0;
 
-        this.server = ssh2.Server(serverConf);
+        this.server = new ssh2.Server(serverConf);
         this.server.on('connection', (conn, info) => {
             Log.info(info, 'New SSH connection');
             this.handleNewClient(new SSHClient(conn), conn._sock, ModuleInfo);
