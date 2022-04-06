@@ -1,6 +1,6 @@
 {
   "name": "enigma-bbs",
-  "version": "0.0.12-beta",
+  "version": "0.0.13-beta",
   "description": "ENiGMA½ Bulletin Board System",
   "author": "Bryan Ashby <bryan@l33t.codes>",
   "license": "BSD-2-Clause",
@@ -62,9 +62,9 @@
     "yazl": "^2.5.1"
   },
   "devDependencies": {
-    "eslint": "7.19.0"
+    "eslint": "8.12.0"
   },
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   }
 }

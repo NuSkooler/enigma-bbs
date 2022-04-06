@@ -21,8 +21,6 @@ function ANSIEscapeParser(options) {
     events.EventEmitter.call(this);
 
     this.column             = 1;
-    this.row                = 1;
-    this.scrollBack         = 0;
     this.graphicRendition   = {};
 
     this.parseState = {
@@ -36,10 +34,14 @@ function ANSIEscapeParser(options) {
         trailingLF          : 'default',    //  default|omit|no|yes, ...
     });
 
+
     this.mciReplaceChar     = miscUtil.valueWithDefault(options.mciReplaceChar, '');
     this.termHeight         = miscUtil.valueWithDefault(options.termHeight, 25);
     this.termWidth          = miscUtil.valueWithDefault(options.termWidth, 80);
     this.trailingLF         = miscUtil.valueWithDefault(options.trailingLF, 'default');
+
+
+    this.row = Math.min(options?.startRow ?? 1, this.termHeight);
 
     self.moveCursor = function(cols, rows) {
         self.column += cols;
@@ -69,14 +71,11 @@ function ANSIEscapeParser(options) {
     };
 
     self.clearScreen = function() {
-        //  :TODO: should be doing something with row/column?
+        self.column = 1;
+        self.row    = 1;
         self.emit('clear screen');
     };
 
-    /*
-    self.rowUpdated = function() {
-        self.emit('row update', self.row + self.scrollBack);
-    };*/
 
     self.positionUpdated = function() {
         self.emit('position update', self.row, self.column);
@@ -190,10 +189,11 @@ function ANSIEscapeParser(options) {
 
 
                 self.emit('mci', {
-                    mci     : mciCode,
-                    id      : id ? parseInt(id, 10) : null,
-                    args    : args,
-                    SGR     : ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
+                    position : [self.row, self.column],
+                    mci      : mciCode,
+                    id       : id ? parseInt(id, 10) : null,
+                    args     : args,
+                    SGR      : ansi.getSGRFromGraphicRendition(self.graphicRendition, true)
                 });
 
                 if(self.mciReplaceChar.length > 0) {
@@ -215,6 +215,9 @@ function ANSIEscapeParser(options) {
     }
 
     self.reset = function(input) {
+        self.column = 1;
+        self.row = Math.min(options?.startRow ?? 1, self.termHeight);
+
         self.parseState = {
             //  ignore anything past EOF marker, if any
             buffer  : input.split(String.fromCharCode(0x1a), 1)[0],

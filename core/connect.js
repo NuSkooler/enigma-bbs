@@ -4,6 +4,7 @@
 //  ENiGMA½
 const ansi          = require('./ansi_term.js');
 const Events        = require('./events.js');
+const Config        = require('./config.js').get;
 const { Errors }    = require('./enig_error.js');
 
 //  deps
@@ -18,6 +19,13 @@ function ansiDiscoverHomePosition(client, cb) {
     //  think of home as 0,0. If this is the case, we need to offset
     //  our positioning to accommodate for such.
     //
+
+
+    if( !Config().term.checkAnsiHomePosition ) {
+        // Skip (and assume 1,1) if the home position check is disabled.
+        return cb(null);
+    }
+
     const done = (err) => {
         client.removeListener('cursor position report', cprListener);
         clearTimeout(giveUpTimer);
@@ -68,8 +76,9 @@ function ansiAttemptDetectUTF8(client, cb) {
     //
     //  We currently only do this if the term hasn't already been ID'd as a
     //  "*nix" terminal -- that is, xterm, etc.
-    //
-    if(!client.term.isNixTerm()) {
+    //  Also skip this check if checkUtf8Encoding is disabled in the config
+
+    if(!client.term.isNixTerm() || !Config().term.checkUtf8Encoding) {
         return cb(null);
     }
 
@@ -118,6 +127,8 @@ function ansiAttemptDetectUTF8(client, cb) {
     giveUpTimer = setTimeout( () => {
         return giveUp();
     }, 2000);
+
+
 
     client.once('cursor position report', cprListener);
     client.term.rawWrite(ansi.goHome() + ansi.queryPos());
@@ -216,7 +227,6 @@ function connectEntry(client, nextMenu) {
             },
             function discoverHomePosition(callback) {
                 ansiDiscoverHomePosition(client, () => {
-                    //  :TODO: If CPR for home fully fails, we should bail out on the connection with an error, e.g. ANSI support required
                     return callback(null);  //  we try to continue anyway
                 });
             },
