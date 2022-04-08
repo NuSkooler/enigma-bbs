@@ -38,14 +38,14 @@ function MenuView(options) {
     this.focusedItemIndex = options.focusedItemIndex || 0;
     this.focusedItemIndex = this.items.length >= this.focusedItemIndex ? this.focusedItemIndex : 0;
 
-    this.itemSpacing    = _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
+    this.itemSpacing      = _.isNumber(options.itemSpacing) ? options.itemSpacing : 0;
+    this.itemHorizSpacing = _.isNumber(options.itemHorizSpacing) ? options.itemHorizSpacing : 0;
 
     //  :TODO: probably just replace this with owner draw / pipe codes / etc. more control, less specialization
     this.focusPrefix    = options.focusPrefix || '';
     this.focusSuffix    = options.focusSuffix || '';
 
     this.fillChar       = miscUtil.valueWithDefault(options.fillChar, ' ').substr(0, 1);
-    this.justify        = options.justify || 'none';
 
     this.hasFocusItems = function() {
         return !_.isUndefined(self.focusItems);
@@ -67,6 +67,15 @@ function MenuView(options) {
 }
 
 util.inherits(MenuView, View);
+
+MenuView.prototype.setTextOverflow = function(overflow) {
+  this.textOverflow = overflow;
+  this.invalidateRenderCache();
+}
+
+MenuView.prototype.hasTextOverflow = function() {
+  return this.textOverflow != undefined;
+}
 
 MenuView.prototype.setItems = function(items) {
     if(Array.isArray(items)) {
@@ -253,19 +262,32 @@ MenuView.prototype.setItemSpacing = function(itemSpacing) {
     this.positionCacheExpired   = true;
 };
 
+MenuView.prototype.setItemHorizSpacing = function(itemHorizSpacing) {
+    itemHorizSpacing = parseInt(itemHorizSpacing);
+    assert(_.isNumber(itemHorizSpacing));
+
+    this.itemHorizSpacing       = itemHorizSpacing;
+    this.positionCacheExpired   = true;
+};
+
 MenuView.prototype.setPropertyValue = function(propName, value) {
     switch(propName) {
         case 'itemSpacing'      : this.setItemSpacing(value); break;
+        case 'itemHorizSpacing' : this.setItemHorizSpacing(value); break;
         case 'items'            : this.setItems(value); break;
         case 'focusItems'       : this.setFocusItems(value); break;
         case 'hotKeys'          : this.setHotKeys(value); break;
+        case 'textOverflow'     : this.setTextOverflow(value); break;
         case 'hotKeySubmit'     : this.hotKeySubmit = value; break;
-        case 'justify'          : this.justify = value; break;
+        case 'justify'          : this.setJustify(value); break;
+        case 'fillChar'         : this.setFillChar(value); break;
         case 'focusItemIndex'   : this.focusedItemIndex = value; break;
 
         case 'itemFormat' :
         case 'focusItemFormat' :
             this[propName] = value;
+            // if there is a cache currently, invalidate it
+            this.invalidateRenderCache();
             break;
 
         case 'sort'             : this.setSort(value); break;
@@ -273,6 +295,17 @@ MenuView.prototype.setPropertyValue = function(propName, value) {
 
     MenuView.super_.prototype.setPropertyValue.call(this, propName, value);
 };
+
+MenuView.prototype.setFillChar = function(fillChar) {
+  this.fillChar = miscUtil.valueWithDefault(fillChar, ' ').substr(0, 1);
+  this.invalidateRenderCache();
+}
+
+MenuView.prototype.setJustify = function(justify) {
+  this.justify = justify;
+  this.invalidateRenderCache();
+  this.positionCacheExpired = true;
+}
 
 MenuView.prototype.setHotKeys = function(hotKeys) {
     if(_.isObject(hotKeys)) {

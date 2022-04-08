@@ -56,14 +56,14 @@ exports.MenuModule = class MenuModule extends PluginModule {
     initSequence() {
         const self      = this;
         const mciData   = {};
-        let pausePosition;
+        let pausePosition = {row: 0, column: 0};
 
         const hasArt = () => {
             return _.isString(self.menuConfig.art) ||
                 (Array.isArray(self.menuConfig.art) && _.has(self.menuConfig.art[0], 'acs'));
         };
 
-        async.series(
+        async.waterfall(
             [
                 function beforeArtInterrupt(callback) {
                     return self.displayQueuedInterruptions(callback);
@@ -73,7 +73,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
                 },
                 function displayMenuArt(callback) {
                     if(!hasArt()) {
-                        return callback(null);
+                        return callback(null, null);
                     }
 
                     self.displayAsset(
@@ -86,18 +86,15 @@ exports.MenuModule = class MenuModule extends PluginModule {
                                 mciData.menu = artData.mciMap;
                             }
 
-                            return callback(null);  //  any errors are non-fatal
+                            if(artData) {
+                                pausePosition.row = artData.height + 1;
+                            }
+
+                            return callback(null, artData);  //  any errors are non-fatal
                         }
                     );
                 },
-                function moveToPromptLocation(callback) {
-                    if(self.menuConfig.prompt) {
-                        //  :TODO: fetch and move cursor to prompt location, if supplied. See notes/etc. on placements
-                    }
-
-                    return callback(null);
-                },
-                function displayPromptArt(callback) {
+                function displayPromptArt(artData, callback) {
                     if(!_.isString(self.menuConfig.prompt)) {
                         return callback(null);
                     }
@@ -106,41 +103,41 @@ exports.MenuModule = class MenuModule extends PluginModule {
                         return callback(Errors.MissingConfig('Prompt specified but no "promptConfig" block found'));
                     }
 
+                    const options = Object.assign({}, self.menuConfig.config);
+
+                    if(_.isNumber(artData?.height)) {
+                        options.startRow = artData.height + 1;
+                    }
+
                     self.displayAsset(
                         self.menuConfig.promptConfig.art,
-                        self.menuConfig.config,
+                        options,
                         (err, artData) => {
                             if(artData) {
                                 mciData.prompt = artData.mciMap;
+                                pausePosition.row = artData.height + 1;
                             }
+
                             return callback(err);   //  pass err here; prompts *must* have art
                         }
                     );
-                },
-                function recordCursorPosition(callback) {
-                    if(!self.shouldPause()) {
-                        return callback(null);  //  cursor position not needed
-                    }
-
-                    self.client.once('cursor position report', pos => {
-                        pausePosition = { row : pos[0], col : 1 };
-                        self.client.log.trace('After art position recorded', pausePosition );
-                        return callback(null);
-                    });
-
-                    self.client.term.rawWrite(ansi.queryPos());
                 },
                 function afterArtDisplayed(callback) {
                     return self.mciReady(mciData, callback);
                 },
                 function displayPauseIfRequested(callback) {
                     if(!self.shouldPause()) {
-                        return callback(null);
+                        return callback(null, null);
+                    }
+
+                    if(self.client.term.termHeight > 0 && pausePosition.row > self.client.termHeight) {
+                        // If this scrolled, the prompt will go to the bottom of the screen
+                        pausePosition.row = self.client.termHeight;
                     }
 
                     return self.pausePrompt(pausePosition, callback);
                 },
-                function finishAndNext(callback) {
+                function finishAndNext(artInfo, callback) {
                     self.finishedLoading();
                     self.realTimeInterrupt = 'allowed';
                     return self.autoNextMenu(callback);
@@ -512,7 +509,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         this.optionalMoveToPosition(position);
 
-        return theme.displayThemedPause(this.client, cb);
+        return theme.displayThemedPause(this.client, {position}, cb);
     }
 
     promptForInput( { formName, formId, promptName, prevFormName, position } = {}, options, cb) {

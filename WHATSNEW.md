@@ -1,8 +1,15 @@
 # Whats New
 This document attempts to track **major** changes and additions in ENiGMA½. For details, see GitHub.
 
+## 0.0.13-beta
+* Removed terminal `cursor position reports` from most locations in the code. This should greatly increase the number of terminal programs that work with Enigma 1/2. For more information, see [Issue #222](https://github.com/NuSkooler/enigma-bbs/issues/222). This may also resolve other issues, such as [Issue #365](https://github.com/NuSkooler/enigma-bbs/issues/365), and [Issue #320](https://github.com/NuSkooler/enigma-bbs/issues/320). Anyone that previously had terminal incompatibilities please re-check and let us know!
+* Bumped up the minimum [Node.js](https://nodejs.org/en/) version to V14. This will allow more expressive Javascript programming syntax with ECMAScript 2020 to improve the development experience.
+* Added new configuration options for `term.checkUtf8Encoding`, `term.checkAnsiHomePostion`, `term.cp437TermList`, and `term.utf8TermList`. More information on these options is available in `UPGRADE.md`
+* Many additional backward-compatible bug fixes since the first release of 0.0.12-beta. See the [project repository](https://github.com/NuSkooler/enigma-bbs) for more information.
+
 ## 0.0.12-beta
 * The `master` branch has become mainline. What this means to users is `git pull` will always give you the latest and greatest. Make sure to read [Updating](./docs/admin/updating.md) and keep an eye on `WHATSNEW.md` (this file) and [UPGRADE](UPGRADE.md)! See also [ticket #276](https://github.com/NuSkooler/enigma-bbs/issues/276).
+* Development now occurs against [Node.js 14 LTS](https://github.com/nodejs/node/blob/master/doc/changelogs/CHANGELOG_V14.md).
 * The default configuration has been moved to [config_default.js](/core/config_default.js).
 * A full configuration revamp has taken place. Configuration files such as `config.hjson`, `menu.hjson`, and `theme.hjson` can now utilize includes via the `includes` directive, reference 'self' sections using `@reference:` and import environment variables with `@environment`.
 * An explicit prompt file previously specified by `general.promptFile` in `config.hjson` is no longer necessary. Instead, this now simply part of the `prompts` section in `menu.hjson`. The default setup still creates a separate prompt HJSON file, but it is `includes`ed in `menu.hjson`. With the removal of prompts the `PromptsChanged` event will no longer be fired.
@@ -16,6 +23,11 @@ This document attempts to track **major** changes and additions in ENiGMA½. For
 * `./oputil user group -group` to now accepts `~group` removing the need for special handling of the "-" character. #331
 * A fix has been made to clean up old `file.db` entries when a file is removed. Previously stale records could be left or even recycled into new entries. Please see [UPGRADE.md](UPGRADE.md) for details on applying this fix (look for `tables_update_2020-11-29.sql`).
 * The [./docs/modding/onelinerz.md](onelinerz) module can have `dbSuffix` set in it's `config` block to specify a separate DB file. For example to use as a requests list.
+* Default hash tags can now be set in file areas. Simply supply an array or list of values in a file area block via `hashTags`.
+* Added ability to pass an `env` value (map) to `abracadabra` doors. See [Local Doors](./docs/modding/local-doors.md]).
+* `dropFileType` is now optional when launching doors with `abracadabra`. It can also be explicitly set to `none`.
+* FSE in *view* mode can now stylize quote indicators. Supply `quoteStyleLevel1` in the `config` block. This can be a single string or an array of two strings (one to style the quotee's initials, the next for the '>' character, and finally the quoted text). See the `messageAreaViewPost` menu `config` block in the default `luciano_blocktronics` `theme.hjson` file for an example. An additional level style (e.g. for nested quotes) may be added in the future.
+* FSE in *view* mode can now stylize tear lines and origin lines via `tearLineStyle` and `originStyle` `config` values in the same manor as `quoteStyleLevel`.
 
 ## 0.0.11-beta
 * Upgraded from `alpha` to `beta` -- The software is far along and mature enough at this point!

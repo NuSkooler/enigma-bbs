@@ -17,6 +17,24 @@ module.exports = () => {
             achievementFile : 'achievements.hjson',
         },
 
+        term : {
+            // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
+            // Using this with a terminal that does not support cursor position reports results in a 2 second delay
+            // during the connect process, but provides better autoconfiguration of utf-8
+            checkUtf8Encoding : true,
+
+            // Checking the ANSI home position also requires the use of cursor position reports, which are not
+            // supported on all terminals. Using this with a terminal that does not support cursor position reports
+            // results in a 3 second delay during the connect process, but works around positioning problems with
+            // non-standard terminals.
+            checkAnsiHomePosition: true,
+
+            // List of terms that should be assumed to use cp437 encoding
+            cp437TermList     : ['ansi', 'pcansi', 'pc-ansi', 'ansi-bbs', 'qansi', 'scoansi', 'syncterm', 'ansi-256color', 'ansi-256color-rgb'],
+            // List of terms that should be assumed to use utf8 encoding
+            utf8TermList      : ['xterm', 'linux', 'screen', 'dumb', 'rxvt', 'konsole', 'gnome', 'x11 terminal emulator'],
+        },
+
         users : {
             usernameMin         : 2,
             usernameMax         : 16,   //  Note that FidoNet wants 36 max
@@ -166,10 +184,11 @@ module.exports = () => {
                         'ecdh-sha2-nistp256',
                         'ecdh-sha2-nistp384',
                         'ecdh-sha2-nistp521',
-                        'diffie-hellman-group-exchange-sha256',
                         'diffie-hellman-group14-sha1',
-                        'diffie-hellman-group-exchange-sha1',
                         'diffie-hellman-group1-sha1',
+                        //  Group exchange not currnetly supported
+                        //  'diffie-hellman-group-exchange-sha256',
+                        //  'diffie-hellman-group-exchange-sha1',
                     ],
                     cipher : [
                         'aes128-ctr',
@@ -492,7 +511,7 @@ module.exports = () => {
                     },
                     decompress      : {
                         cmd         : '7za',
-                        args        : [ 'e', '-o{extractPath}', '{archivePath}' ]   //  :TODO: should be 'x'?
+                        args        : [ 'e', '-y', '-o{extractPath}', '{archivePath}' ]   //  :TODO: should be 'x'?
                     },
                     list            : {
                         cmd         : '7za',
@@ -501,7 +520,7 @@ module.exports = () => {
                     },
                     extract         : {
                         cmd         : '7za',
-                        args        : [ 'e', '-o{extractPath}', '{archivePath}', '{fileList}' ],
+                        args        : [ 'e', '-y', '-o{extractPath}', '{archivePath}', '{fileList}' ],
                     },
                 },
 

@@ -1,0 +1,28 @@
+installation:
+    title: Installation
+configuration:
+    title: Configuration
+filebase:
+    title: File Base
+messageareas:
+    title: Message Areas
+art:
+    title: Art
+servers:
+    title: Servers
+modding:
+    title: Modding
+admin:
+    title: Administration
+troubleshooting:
+    title: Troubleshooting
+misc:
+    title: Miscellaneous
+views:
+    title: Views
+hardware:
+    title: OS / Hardware Specific
+loginservers:
+    title: Login Servers
+contentservers:
+    title: Content Servers

@@ -27,7 +27,6 @@ const _                     = require('lodash');
 const fs                    = require('graceful-fs');
 const paths                 = require('path');
 const moment                = require('moment');
-const async                 = require('async');
 
 const ModuleInfo = exports.moduleInfo = {
     name        : 'Gopher',
@@ -89,7 +88,15 @@ exports.getModule = class GopherModule extends ServerModule {
             socket.setEncoding('ascii');
 
             socket.on('data', data => {
-                this.routeRequest(data, socket);
+                //  sanitize a bit - bots like to inject garbage
+                data = data.replace(/[^ -~\t\r\n]/g, '');
+                if (data) {
+                    this.routeRequest(data, socket);
+                } else {
+                    this.notFoundGenerator('**invalid selector**', res => {
+                        return socket.end(`${res}`);
+                    });
+                }
             });
 
             socket.on('error', err => {

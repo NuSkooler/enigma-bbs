@@ -171,21 +171,14 @@ exports.getModule = class ShowArtModule extends MenuModule {
                                 return callback(err);
                             }
                             const mciData = { menu : artData.mciMap };
-                            return callback(null, mciData);
+                            if(self.client.term.termHeight > 0 && artData.height > self.client.term.termHeight) {
+                                // We must have scrolled, adjust the positioning for pause
+                                artData.height = self.client.term.termHeight;
+                            }
+                            const pausePosition = { row: artData.height + 1, col: 1};
+                            return callback(null, mciData, pausePosition);
                         }
                     );
-                },
-                function recordCursorPosition(mciData, callback) {
-                    if(!options.pause) {
-                        return callback(null, mciData, null);   //  cursor position not needed
-                    }
-
-                    self.client.once('cursor position report', pos => {
-                        const pausePosition = { row : pos[0], col : 1 };
-                        return callback(null, mciData, pausePosition);
-                    });
-
-                    self.client.term.rawWrite(ANSI.queryPos());
                 },
                 function afterArtDisplayed(mciData, pausePosition, callback) {
                     self.mciReady(mciData, err => {

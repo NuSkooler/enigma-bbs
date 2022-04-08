@@ -28,5 +28,8 @@
         ],
         "comma-dangle": 0,
         "no-trailing-spaces" :"warn"
+    },
+    "parserOptions": {
+        "ecmaVersion": 2020
     }
 }
