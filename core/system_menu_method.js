@@ -26,6 +26,7 @@ exports.nextConf                = nextConf;
 exports.prevArea                = prevArea;
 exports.nextArea                = nextArea;
 exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
+exports.optimizeDatabases       = optimizeDatabases;
 
 const handleAuthFailures = (callingMenu, err, cb) => {
     //  already logged in with this user?
@@ -204,4 +205,26 @@ function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
 
         return logoff(callingMenu, formData, extraArgs, cb);
     });
+}
+
+function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
+    const dbs = require('./database').dbs;
+    const client = callingMenu.client;
+
+    client.term.write('\r\n\r\n');
+
+    Object.keys(dbs).forEach(dbName => {
+        client.log.info({ dbName }, 'Optimizing database');
+
+        client.term.write(`Optimizing ${dbName}. Please wait...\r\n`);
+
+        //  https://www.sqlite.org/pragma.html#pragma_optimize
+        dbs[dbName].run('PRAGMA optimize;', err => {
+            if (err) {
+                client.log.error({ error : err, dbName }, 'Error attempting to optimize database');
+            }
+        });
+    });
+
+    return callingMenu.prevMenu(cb);
 }

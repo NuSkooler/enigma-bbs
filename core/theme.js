@@ -495,6 +495,7 @@ function displayPreparedArt(options, artInfo, cb) {
         sauce       : artInfo.sauce,
         font        : options.font,
         trailingLF  : options.trailingLF,
+        startRow    : options.startRow,
     };
     art.display(options.client, artInfo.data, displayOpts, (err, mciMap, extraInfo) => {
         return cb(err, { mciMap : mciMap, artInfo : artInfo, extraInfo : extraInfo } );
@@ -551,6 +552,7 @@ function displayThemedPrompt(name, client, options, cb) {
 
                 if(options.clearScreen) {
                     client.term.rawWrite(ansi.resetScreen());
+                    options.position = {row: 1, column: 1};
                 }
 
                 //
@@ -560,9 +562,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 //
                 const dispOptions = Object.assign( {}, options, promptConfig.config );
                 //  :TODO: We can use term detection to do nifty things like avoid this kind of kludge:
-                if(!options.clearScreen) {
-                    dispOptions.font = 'not_really_a_font!';    //  kludge :)
-                }
+                // if(!options.clearScreen) {
+                //     dispOptions.font = 'not_really_a_font!';    //  kludge :)
+                // }
 
                 displayThemedAsset(
                     promptConfig.art,
@@ -583,12 +585,15 @@ function displayThemedPrompt(name, client, options, cb) {
                     return callback(null, promptConfig, artInfo);
                 }
 
-                client.once('cursor position report', pos => {
-                    artInfo.startRow = pos[0] - artInfo.height;
-                    return callback(null, promptConfig, artInfo);
-                });
+                if(_.isNumber(options?.position?.row)) {
+                    artInfo.startRow = options.position.row;
+                    if(client.term.termHeight > 0 && artInfo.startRow + artInfo.height > client.term.termHeight) {
+                        // in this case, we will have scrolled
+                        artInfo.startRow = client.term.termHeight - artInfo.height;
+                    }
+                }
 
-                client.term.rawWrite(ansi.queryPos());
+                return callback(null, promptConfig, artInfo);
             },
             function createMCIViews(promptConfig, artInfo, callback) {
                 const assocViewController = usingTempViewController ? new ViewController( { client : client } ) : options.viewController;
@@ -614,7 +619,9 @@ function displayThemedPrompt(name, client, options, cb) {
                 });
             },
             function clearPauseArt(artInfo, assocViewController, callback) {
-                if(options.clearPrompt) {
+                // Only clear with height if clearPrompt is true and if we were able
+                // to determine the row
+                if(options.clearPrompt && artInfo.startRow) {
                     if(artInfo.startRow && artInfo.height) {
                         client.term.rawWrite(ansi.goto(artInfo.startRow, 1));
 

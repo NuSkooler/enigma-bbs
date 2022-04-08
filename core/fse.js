@@ -21,7 +21,10 @@ const {
     isAnsi, stripAnsiControlCodes,
     insert
 }                               = require('./string_util.js');
-const { stripMciColorCodes }    = require('./color_codes.js');
+const {
+    stripMciColorCodes,
+    controlCodesToAnsi,
+}    = require('./color_codes.js');
 const Config                    = require('./config.js').get;
 const { getAddressedToInfo }    = require('./mail_util.js');
 const Events                    = require('./events.js');
@@ -418,7 +421,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                         //
                         //  Find tearline - we want to color it differently.
                         //
-                        const tearLinePos = this.message.getTearLinePosition(msg);
+                        const tearLinePos = Message.getTearLinePosition(msg);
 
                         if(tearLinePos > -1) {
                             msg = insert(msg, tearLinePos, bodyMessageView.getSGRFor('text'));
@@ -432,7 +435,55 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             }
                         );
                     } else {
-                        bodyMessageView.setText(stripAnsiControlCodes(msg));
+                        msg = stripAnsiControlCodes(msg);   //  start clean
+
+                        const styleToArray = (style, len) => {
+                            if (!Array.isArray(style)) {
+                                style = [ style ];
+                            }
+                            while (style.length < len) {
+                                style.push(style[0]);
+                            }
+                            return style;
+                        };
+
+                        //
+                        //  In *View* mode, if enabled, do a little prep work so we can stylize:
+                        //  - Quote indicators
+                        //  - Tear lines
+                        //  - Origins
+                        //
+                        if (this.menuConfig.config.quoteStyleLevel1) {
+                            //  can be a single style to cover 'XX> TEXT' or an array to cover 'XX', '>', and TEXT
+                            //  Non-standard (as for BBSes) single > TEXT, omitting space before XX, etc. are allowed
+                            const styleL1 = styleToArray(this.menuConfig.config.quoteStyleLevel1, 3);
+
+                            const QuoteRegex = /^([ ]?)([!-~]{0,2})>([ ]*)([^\r\n]*\r?\n)/gm;
+                            msg = msg.replace(QuoteRegex, (m, spc1, initials, spc2, text) => {
+                                return `${spc1}${styleL1[0]}${initials}${styleL1[1]}>${spc2}${styleL1[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.tearLineStyle) {
+                            //  '---' and TEXT
+                            const style = styleToArray(this.menuConfig.config.tearLineStyle, 2);
+
+                            const TearLineRegex = /^--- (.+)$(?![\s\S]*^--- .+$)/m;
+                            msg = msg.replace(TearLineRegex, (m, text) => {
+                                return `${style[0]}--- ${style[1]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        if (this.menuConfig.config.originStyle) {
+                            const style = styleToArray(this.menuConfig.config.originStyle, 3);
+
+                            const OriginRegex = /^([ ]{1,2})\* Origin: (.+)$/m;
+                            msg = msg.replace(OriginRegex, (m, spc, text) => {
+                                return `${spc}${style[0]}* ${style[1]}Origin: ${style[2]}${text}${bodyMessageView.styleSGR1}`;
+                            });
+                        }
+
+                        bodyMessageView.setText(controlCodesToAnsi(msg));
                     }
                 }
             }
@@ -552,7 +603,7 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     theme.displayThemedAsset(
                         footerArt,
                         self.client,
-                        { font : self.menuConfig.font },
+                        { font : self.menuConfig.font, startRow: self.header.height + self.body.height },
                         function displayed(err, artData) {
                             callback(err, artData);
                         }
@@ -575,19 +626,34 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
         async.series(
             [
                 function displayHeaderAndBody(callback) {
-                    async.eachSeries( comps, function dispArt(n, next) {
-                        theme.displayThemedAsset(
-                            art[n],
-                            self.client,
-                            { font : self.menuConfig.font },
-                            function displayed(err) {
-                                next(err);
+                    async.waterfall(
+                        [
+                            function displayHeader(callback) {
+                                theme.displayThemedAsset(
+                                    art['header'],
+                                    self.client,
+                                    { font : self.menuConfig.font },
+                                    function displayed(err, artInfo) {
+                                        return callback(err, artInfo);
+                                    }
+                                );
+                            },
+                            function displayBody(artInfo, callback) {
+                                theme.displayThemedAsset(
+                                    art['header'],
+                                    self.client,
+                                    { font : self.menuConfig.font, startRow: artInfo.height + 1 },
+                                    function displayed(err, artInfo) {
+                                        return callback(err, artInfo);
+                                    }
+                                );
                             }
-                        );
-                    }, function complete(err) {
-                        //self.body.height = self.client.term.termHeight - self.header.height - 1;
-                        callback(err);
-                    });
+                        ],
+                        function complete(err) {
+                            //self.body.height = self.client.term.termHeight - self.header.height - 1;
+                            callback(err);
+                        }
+                    );
                 },
                 function displayFooter(callback) {
                     //  we have to treat the footer special
@@ -649,31 +715,39 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
 
         assert(_.isObject(art));
 
-        async.series(
+        async.waterfall(
             [
                 function beforeDisplayArt(callback) {
                     self.beforeArt(callback);
                 },
-                function displayHeaderAndBodyArt(callback) {
-                    async.eachSeries( [ 'header', 'body' ], function dispArt(n, next) {
-                        theme.displayThemedAsset(
-                            art[n],
-                            self.client,
-                            { font : self.menuConfig.font },
-                            function displayed(err, artData) {
-                                if(artData) {
-                                    mciData[n] = artData;
-                                    self[n] = { height : artData.height };
-                                }
-
-                                next(err);
+                function displayHeader(callback) {
+                    theme.displayThemedAsset(
+                        art.header,
+                        self.client,
+                        { font : self.menuConfig.font },
+                        function displayed(err, artInfo) {
+                            if(artInfo) {
+                                mciData['header'] = artInfo;
+                                self.header = {height: artInfo.height};
                             }
-                        );
-                    }, function complete(err) {
-                        callback(err);
-                    });
+                            return callback(err, artInfo);
+                        }
+                    );
                 },
-                function displayFooter(callback) {
+                function displayBody(artInfo, callback) {
+                    theme.displayThemedAsset(
+                        art.body,
+                        self.client,
+                        { font : self.menuConfig.font, startRow: artInfo.height + 1 },
+                        function displayed(err, artInfo) {
+                            if(artInfo) {
+                                mciData['body'] = artInfo;
+                                self.body = {height: artInfo.height - self.header.height};
+                            }
+                            return callback(err, artInfo);
+                        });
+                },
+                function displayFooter(artInfo, callback) {
                     self.setInitialFooterMode();
 
                     var footerName = self.getFooterName();
@@ -740,10 +814,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                     });
                 },
                 function prepareViewStates(callback) {
-                    var header = self.viewControllers.header;
-                    var from = header.getView(MciViewIds.header.from);
-                    from.acceptsFocus = false;
-                    //from.setText(self.client.user.username);
+                    let from = self.viewControllers.header.getView(MciViewIds.header.from);
+                    if (from) {
+                        from.acceptsFocus = false;
+                    }
 
                     //  :TODO: make this a method
                     var body = self.viewControllers.body.getView(MciViewIds.body.message);
@@ -774,10 +848,12 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
                             {
                                 const fromView = self.viewControllers.header.getView(MciViewIds.header.from);
                                 const area = getMessageAreaByTag(self.messageAreaTag);
-                                if(area && area.realNames) {
-                                    fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
-                                } else {
-                                    fromView.setText(self.client.user.username);
+                                if(fromView !== undefined) {
+                                    if(area && area.realNames) {
+                                        fromView.setText(self.client.user.properties[UserProps.RealName] || self.client.user.username);
+                                    } else {
+                                        fromView.setText(self.client.user.username);
+                                    }
                                 }
 
                                 if(self.replyToMessage) {
@@ -863,7 +939,10 @@ exports.FullScreenEditorModule = exports.getModule = class FullScreenEditorModul
     }
 
     initHeaderViewMode() {
-        this.setHeaderText(MciViewIds.header.from,          this.message.fromUserName);
+        // Only set header text for from view if it is on the form
+        if (this.viewControllers.header.getView(MciViewIds.header.from) !== undefined) {
+            this.setHeaderText(MciViewIds.header.from, this.message.fromUserName);
+        }
         this.setHeaderText(MciViewIds.header.to,            this.message.toUserName);
         this.setHeaderText(MciViewIds.header.subject,       this.message.subject);
 

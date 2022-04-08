@@ -57,7 +57,7 @@ Actions:
 
   lock USERNAME                Set a user's status to "locked"
 
-  group USERNAME [+|-]GROUP    Adds (+) or removes (-) user from a group
+  group USERNAME [+|~]GROUP    Adds (+) or removes (~) user from a group
 
   list [FILTER]                List users with optional FILTER.
 

@@ -81,14 +81,22 @@ exports.getModule = class GopherModule extends ServerModule {
         this.publicHostname = config.contentServers.gopher.publicHostname;
         this.publicPort     = config.contentServers.gopher.publicPort;
 
-        this.addRoute(/^\/?\r\n$/, this.defaultGenerator);
-        this.addRoute(/^\/msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
+        this.addRoute(/^\/?msgarea(\/[a-z0-9_-]+(\/[a-z0-9_-]+)?(\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(_raw)?)?)?\/?\r\n$/, this.messageAreaGenerator);
+        this.addRoute(/^(\/?[^\t\r\n]*)\r\n$/, this.staticGenerator);
 
         this.server = net.createServer( socket => {
             socket.setEncoding('ascii');
 
             socket.on('data', data => {
-                this.routeRequest(data, socket);
+                //  sanitize a bit - bots like to inject garbage
+                data = data.replace(/[^ -~\t\r\n]/g, '');
+                if (data) {
+                    this.routeRequest(data, socket);
+                } else {
+                    this.notFoundGenerator('**invalid selector**', res => {
+                        return socket.end(`${res}`);
+                    });
+                }
             });
 
             socket.on('error', err => {
@@ -161,20 +169,54 @@ exports.getModule = class GopherModule extends ServerModule {
         return `${itemType}${text}\t${selector}\t${hostname}\t${port}\r\n`;
     }
 
-    defaultGenerator(selectorMatch, cb) {
-        this.log.debug( { selector : selectorMatch[0] }, 'Serving default content');
+    staticGenerator(selectorMatch, cb) {
+        this.log.debug( { selector : selectorMatch[1] || '(gophermap)' }, 'Serving static content');
 
-        let bannerFile = _.get(Config(), 'contentServers.gopher.bannerFile', 'gopher_banner.asc');
-        bannerFile = paths.isAbsolute(bannerFile) ? bannerFile : paths.join(__dirname, '../../../misc', bannerFile);
-        fs.readFile(bannerFile, 'utf8', (err, banner) => {
-            if(err) {
-                return cb('You have reached an ENiGMA½ Gopher server!');
+        const requestedPath = selectorMatch[1];
+        let path = this.resolveContentPath(requestedPath);
+        if (!path) {
+            return cb('Not found');
+        }
+
+        fs.stat(path, (err, stats) => {
+            if (err) {
+                return cb('Not found');
             }
 
-            banner = splitTextAtTerms(banner).map(l => this.makeItem(ItemTypes.InfoMessage, l)).join('');
-            banner += this.makeItem(ItemTypes.SubMenu, 'Public Message Area', '/msgarea');
-            return cb(banner);
+            let isGopherMap = false;
+            if (stats.isDirectory()) {
+                path = paths.join(path, 'gophermap');
+                isGopherMap = true;
+            }
+
+            fs.readFile(path, isGopherMap ? 'utf8' : null, (err, content) => {
+                if (err) {
+                    let content = 'You have reached an ENiGMA½ Gopher server!\r\n';
+                    content += this.makeItem(ItemTypes.SubMenu, 'Public Message Area', '/msgarea');
+                    return cb(content);
+                }
+
+                if (isGopherMap) {
+                    //  Convert any UNIX style LF's to DOS CRLF's
+                    content = content.replace(/\r?\n/g, '\r\n');
+
+                    //  variable support
+                    content = content
+                        .replace(/{publicHostname}/g, this.publicHostname)
+                        .replace(/{publicPort}/g, this.publicPort);
+                }
+
+                return cb(content);
+            });
         });
+    }
+
+    resolveContentPath(requestPath) {
+        const staticRoot = _.get(Config(), 'contentServers.gopher.staticRoot');
+        const path = paths.resolve(staticRoot, `.${requestPath}`);
+        if (path.startsWith(staticRoot)) {
+            return path;
+        }
     }
 
     notFoundGenerator(selector, cb) {

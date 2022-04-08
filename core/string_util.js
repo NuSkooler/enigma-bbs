@@ -20,6 +20,7 @@ exports.stringFromNullTermBuffer    = stringFromNullTermBuffer;
 exports.stringToNullTermBuffer      = stringToNullTermBuffer;
 exports.renderSubstr                = renderSubstr;
 exports.renderStringLength          = renderStringLength;
+exports.ansiRenderStringLength      = ansiRenderStringLength;
 exports.formatByteSizeAbbr          = formatByteSizeAbbr;
 exports.formatByteSize              = formatByteSize;
 exports.formatCountAbbr             = formatCountAbbr;
@@ -297,7 +298,7 @@ function renderStringLength(s) {
     let len = 0;
 
     const re = ANSI_OR_PIPE_REGEXP;
-    re.lastIndex = 0;   //  we recycle the rege; reset
+    re.lastIndex = 0;   //  we recycle the regex; reset
 
     //
     //  Loop counting only literal (non-control) sequences
@@ -312,7 +313,41 @@ function renderStringLength(s) {
                 len += s.slice(pos, m.index).length;
             }
 
-            if('C' === m[3]) {  //  ESC[<N>C is foward/right
+            if('C' === m[3]) {  //  ESC[<N>C is forward/right
+                len += parseInt(m[2], 10) || 0;
+            }
+        }
+    } while(0 !== re.lastIndex);
+
+    if(pos < s.length) {
+        len += s.slice(pos).length;
+    }
+
+    return len;
+}
+
+//  Like renderStringLength() but ANSI only (no pipe codes accounted for)
+function ansiRenderStringLength(s) {
+    let m;
+    let pos;
+    let len = 0;
+
+    const re = ANSI.getFullMatchRegExp();
+
+    //
+    //  Loop counting only literal (non-control) sequences
+    //  paying special attention to ESC[<N>C which means forward <N>
+    //
+    do {
+        pos = re.lastIndex;
+        m   = re.exec(s);
+
+        if(m) {
+            if(m.index > pos) {
+                len += s.slice(pos, m.index).length;
+            }
+
+            if('C' === m[3]) {  //  ESC[<N>C is forward/right
                 len += parseInt(m[2], 10) || 0;
             }
         }
