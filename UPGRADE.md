@@ -30,7 +30,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 
 
 # 0.0.12-beta to 0.0.13-beta
-
+* :exclamation: The SSH server's `ssh2` module has gone through a major upgrade. Existing users will need to comment out two SSH KEX algorithms from their `config.hjson` if present else clients such as NetRunner will not be able to connect over SSH. Comment out `diffie-hellman-group-exchange-sha256` and `diffie-hellman-group-exchange-sha1`
 * All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
 
 ```hjson
