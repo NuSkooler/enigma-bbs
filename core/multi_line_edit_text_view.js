@@ -65,7 +65,7 @@ const _             = require('lodash');
 const SPECIAL_KEY_MAP_DEFAULT = {
     'line feed'     : [ 'return' ],
     exit            : [ 'esc' ],
-    backspace       : [ 'backspace' ],
+    backspace       : [ 'backspace', 'ctrl + d' ],  //  https://www.tecmint.com/linux-command-line-bash-shortcut-keys/
     delete          : [ 'delete' ],
     tab             : [ 'tab' ],
     up              : [ 'up arrow' ],
@@ -74,7 +74,7 @@ const SPECIAL_KEY_MAP_DEFAULT = {
     home            : [ 'home' ],
     left            : [ 'left arrow' ],
     right           : [ 'right arrow' ],
-    'delete line'   : [ 'ctrl + y' ],
+    'delete line'   : [ 'ctrl + y', 'ctrl + u' ],   //  https://en.wikipedia.org/wiki/Backspace
     'page up'       : [ 'page up' ],
     'page down'     : [ 'page down' ],
     insert          : [ 'insert', 'ctrl + v' ],
