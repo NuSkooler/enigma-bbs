@@ -17,7 +17,7 @@ exports.View                            = View;
 const VIEW_SPECIAL_KEY_MAP_DEFAULT = {
     accept      : [ 'return' ],
     exit        : [ 'esc' ],
-    backspace   : [ 'backspace', 'del' ],
+    backspace   : [ 'backspace', 'del', 'ctrl + d'],    //  https://www.tecmint.com/linux-command-line-bash-shortcut-keys/
     del         : [ 'del' ],
     next        : [ 'tab' ],
     up          : [ 'up arrow' ],
