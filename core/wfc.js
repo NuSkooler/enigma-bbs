@@ -152,9 +152,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _refreshStats(cb) {
-        const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats);
-        const sysMemStats       = StatLog.getSystemStat(SysProps.SystemMemoryStats);
-        const sysLoadStats      = StatLog.getSystemStat(SysProps.SystemLoadStats);
+        const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats) || {};
+        const sysMemStats       = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {};
+        const sysLoadStats      = StatLog.getSystemStat(SysProps.SystemLoadStats) || {};
         const lastLoginStats    = StatLog.getSystemStat(SysProps.LastLogin);
 
         const now = moment();
@@ -197,10 +197,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             lastLoginTime           : moment(lastLoginStats.timestamp).format(this.getTimeFormat()),
             lastLogin               : moment(lastLoginStats.timestamp).format(this._dateTimeFormat('lastLogin')),
 
-            totalMemoryBytes        : sysMemStats.totalBytes,
-            freeMemoryBytes         : sysMemStats.freeBytes,
-            systemAvgLoad           : sysLoadStats.average,
-            systemCurrentLoad       : sysLoadStats.current,
+            totalMemoryBytes        : sysMemStats.totalBytes || 0,
+            freeMemoryBytes         : sysMemStats.freeBytes || 0,
+            systemAvgLoad           : sysLoadStats.average || 0,
+            systemCurrentLoad       : sysLoadStats.current || 0,
         };
 
         return cb(null);
@@ -212,16 +212,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        const nodeStatusItems = getActiveConnectionList(false).slice(0, nodeStatusView.dimens.height).map(ac => {
-            //  Handle pre-authenticated
-            if (!ac.authenticated) {
-                ac.text     = ac.userName = 'Pre Auth';
-                ac.action   = 'Logging In';
-            }
+        const nodeStatusItems = getActiveConnectionList(false)
+            .slice(0, nodeStatusView.dimens.height)
+            .map(ac => {
+                //  Handle pre-authenticated
+                if (!ac.authenticated) {
+                    ac.text     = ac.userName = '*Pre Auth*';
+                    ac.action   = 'Logging In';
+                }
 
-            return Object.assign(ac, {
-                timeOn : _.upperFirst((ac.timeOn || moment.duration(0)).humanize()),    //  make friendly
-            });
+                return Object.assign(ac, {
+                    timeOn : _.upperFirst((ac.timeOn || moment.duration(0)).humanize()),    //  make friendly
+                });
         });
 
         nodeStatusView.setItems(nodeStatusItems);
@@ -248,7 +250,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        const quickLogTimestampFormat = this.config.quickLogTimestampFormat ||
+        const quickLogTimestampFormat =
+            this.config.quickLogTimestampFormat ||
             this.getDateTimeFormat('short');
 
         const levelIndicators = this.config.quickLogLevelIndicators ||
