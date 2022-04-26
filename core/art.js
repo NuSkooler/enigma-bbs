@@ -351,23 +351,25 @@ function display(client, art, options, cb) {
     });
 
     let initSeq = '';
-    if(options.font) {
-        initSeq = ansi.setSyncTermFontWithAlias(options.font);
-    } else if(options.sauce) {
-        let fontName = getFontNameFromSAUCE(options.sauce);
-        if(fontName) {
-            fontName = ansi.getSyncTERMFontFromAlias(fontName);
-        }
+    if (client.term.syncTermFontsEnabled) {
+        if(options.font) {
+            initSeq = ansi.setSyncTermFontWithAlias(options.font);
+        } else if(options.sauce) {
+            let fontName = getFontNameFromSAUCE(options.sauce);
+            if(fontName) {
+                fontName = ansi.getSyncTermFontFromAlias(fontName);
+            }
 
-        //
-        //  Set SyncTERM font if we're switching only. Most terminals
-        //  that support this ESC sequence can only show *one* font
-        //  at a time. This applies to detection only (e.g. SAUCE).
-        //  If explicit, we'll set it no matter what (above)
-        //
-        if(fontName && client.term.currentSyncFont != fontName) {
-            client.term.currentSyncFont = fontName;
-            initSeq = ansi.setSyncTERMFont(fontName);
+            //
+            //  Set SyncTERM font if we're switching only. Most terminals
+            //  that support this ESC sequence can only show *one* font
+            //  at a time. This applies to detection only (e.g. SAUCE).
+            //  If explicit, we'll set it no matter what (above)
+            //
+            if(fontName && client.term.currentSyncFont != fontName) {
+                client.term.currentSyncFont = fontName;
+                initSeq = ansi.setSyncTermFont(fontName);
+            }
         }
     }
 

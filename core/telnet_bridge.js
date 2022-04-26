@@ -199,7 +199,8 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
                         self.client.removeListener('key press', connectionKeyPressHandler);
                         self.client.log.info(connectOpts, 'Telnet bridge connection established');
 
-                        if(self.config.font) {
+                        //  put the font back how it was prior, if fonts are enabled
+                        if(self.client.term.syncTermFontsEnabled && self.config.font) {
                             self.client.term.rawWrite(setSyncTermFontWithAlias(self.config.font));
                         }
 

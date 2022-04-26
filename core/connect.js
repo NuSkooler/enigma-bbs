@@ -12,6 +12,28 @@ const async     = require('async');
 
 exports.connectEntry    = connectEntry;
 
+const withCursorPositionReport = (client, cprHandler, failMessage, cb) => {
+    let giveUpTimer;
+
+    const done = function(err) {
+        client.removeListener('cursor position report', cprListener);
+        clearTimeout(giveUpTimer);
+        return cb(err);
+    };
+
+    const cprListener = (pos) => {
+        cprHandler(pos);
+        return done(null);
+    };
+
+    client.once('cursor position report', cprListener);
+
+    //  give up after 2s
+    giveUpTimer = setTimeout( () => {
+        return done(Errors.General(failMessage));
+    }, 2000);
+}
+
 function ansiDiscoverHomePosition(client, cb) {
     //
     //  We want to find the home position. ANSI-BBS and most terminals
@@ -19,47 +41,34 @@ function ansiDiscoverHomePosition(client, cb) {
     //  think of home as 0,0. If this is the case, we need to offset
     //  our positioning to accommodate for such.
     //
-
-
     if( !Config().term.checkAnsiHomePosition ) {
         // Skip (and assume 1,1) if the home position check is disabled.
         return cb(null);
     }
 
-    const done = (err) => {
-        client.removeListener('cursor position report', cprListener);
-        clearTimeout(giveUpTimer);
-        return cb(err);
-    };
+    withCursorPositionReport(
+        client,
+        pos => {
+            const [h, w] = pos;
 
-    const cprListener = function(pos) {
-        const h = pos[0];
-        const w = pos[1];
-
-        //
-        //  We expect either 0,0, or 1,1. Anything else will be filed as bad data
-        //
-        if(h > 1 || w > 1) {
-            client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
-            return done(Errors.UnexpectedState('Home position CPR expected to be 0,0, or 1,1'));
-        }
-
-        if(0 === h & 0 === w) {
             //
-            //  Store a CPR offset in the client. All CPR's from this point on will offset by this amount
+            //  We expect either 0,0, or 1,1. Anything else will be filed as bad data
             //
-            client.log.info('Setting CPR offset to 1');
-            client.cprOffset = 1;
-        }
+            if(h > 1 || w > 1) {
+                return client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
+            }
 
-        return done(null);
-    };
-
-    client.once('cursor position report', cprListener);
-
-    const giveUpTimer = setTimeout( () => {
-        return done(Errors.General('Giving up on home position CPR'));
-    }, 3000);   //  3s
+            if(0 === h & 0 === w) {
+                //
+                //  Store a CPR offset in the client. All CPR's from this point on will offset by this amount
+                //
+                client.log.info('Setting CPR offset to 1');
+                client.cprOffset = 1;
+            }
+        },
+        'ANSI query home position timed out',
+        cb
+    );
 
     client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
 }
@@ -82,56 +91,74 @@ function ansiAttemptDetectUTF8(client, cb) {
         return cb(null);
     }
 
-    let posStage = 1;
     let initialPosition;
-    let giveUpTimer;
-
-    const giveUp = () => {
-        client.removeListener('cursor position report', cprListener);
-        clearTimeout(giveUpTimer);
-        return cb(null);
-    };
-
     const ASCIIPortion = ' Character encoding detection ';
 
-    const cprListener = (pos) => {
-        switch(posStage) {
-            case 1 :
-                posStage = 2;
+    withCursorPositionReport(
+        client,
+        pos => {
+            initialPosition = pos;
 
-                initialPosition = pos;
-                clearTimeout(giveUpTimer);
-
-                giveUpTimer = setTimeout( () => {
-                    return giveUp();
-                }, 2000);
-
-                client.once('cursor position report', cprListener);
-                client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);    //  Unicode skulls on each side
-                client.term.rawWrite(ansi.queryPos());
-                break;
-
-            case 2 :
-                {
-                    clearTimeout(giveUpTimer);
-                    const len = pos[1] - initialPosition[1];
+            withCursorPositionReport(client,
+                pos => {
+                    const [_, w] = pos;
+                    const len = w - initialPosition[1];
                     if(!isNaN(len) && len >= ASCIIPortion.length + 6) {  //  CP437 displays 3 chars each Unicode skull
                         client.log.info('Terminal identified as UTF-8 but does not appear to be. Overriding to "ansi".');
                         client.setTermType('ansi');
                     }
-                }
-                return cb(null);
+                },
+                'Detect UTF-8 stage 2 timed out',
+                cb,
+            );
+
+            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);    //  Unicode skulls on each side
+            client.term.rawWrite(ansi.queryPos());
+        },
+        'Detect UTF-8 stage 1 timed out',
+        err => {
+            if (err) {
+                //  bailing early
+                return cb(err);
+            }
         }
-    };
+    );
 
-    giveUpTimer = setTimeout( () => {
-        return giveUp();
-    }, 2000);
+    client.term.rawWrite(`${ansi.goHome()}${ansi.queryPos()}`);
+}
 
+const ansiQuerySyncTermFontSupport = (client, cb) => {
+    // If we know it's SyncTERM, then good to go
+    if (client.term.termClient === 'cterm') {
+        client.term.syncTermFontsEnabled = true;
+        return cb(null);
+    }
 
+    //  Some terminals do not properly ignore an unknown ESC sequence for
+    //  setting SyncTERM style fonts. Some draw only a 'D' while others
+    //  show more of the sequence
+    //
+    //  If the cursor remains at 1,1, they are at least ignoring it, if not
+    //  supporting it.
+    //
+    //  We also need CPR support. Since all known terminals that support
+    //  SyncTERM fonts also support CPR, this works out.
+    //
+    withCursorPositionReport(
+        client,
+        pos => {
+            const [_, w] = pos;
+            if (w === 1) {
+                // cursor didn't move
+                client.log.info('Client supports SyncTERM fonts or properly ignores unknown ESC sequence');
+                client.term.syncTermFontsEnabled = true;
+            }
+        },
+        'SyncTERM font detection timed out',
+        cb
+    );
 
-    client.once('cursor position report', cprListener);
-    client.term.rawWrite(ansi.goHome() + ansi.queryPos());
+    client.term.rawWrite(`${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`);
 }
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
@@ -139,56 +166,43 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
         return cb(null);
     }
 
-    const done = function(err) {
-        client.removeListener('cursor position report', cprListener);
-        clearTimeout(giveUpTimer);
-        return cb(err);
-    };
+    withCursorPositionReport(
+        client,
+        pos => {
+            //
+            //  If we've already found out, disregard
+            //
+            if(client.term.termHeight > 0 || client.term.termWidth > 0) {
+                return;
+            }
 
-    const cprListener = function(pos) {
-        //
-        //  If we've already found out, disregard
-        //
-        if(client.term.termHeight > 0 || client.term.termWidth > 0) {
-            return done(null);
-        }
+            //
+            //  NetRunner for example gives us 1x1 here. Not really useful. Ignore
+            //  values that seem obviously bad. Included in the set is the explicit
+            //  999x999 values we asked to move to.
+            //
+            const [h, w] = pos;
+            if(h < 10 || h === 999 || w < 10 || w === 999) {
+                return client.log.warn(
+                    { height : h, width : w },
+                    'Ignoring ANSI CPR screen size query response due to non-sane values');
+            }
 
-        const h = pos[0];
-        const w = pos[1];
+            client.term.termHeight  = h;
+            client.term.termWidth   = w;
 
-        //
-        //  NetRunner for example gives us 1x1 here. Not really useful. Ignore
-        //  values that seem obviously bad. Included in the set is the explicit
-        //  999x999 values we asked to move to.
-        //
-        if(h < 10 || h === 999 || w < 10 || w === 999) {
-            client.log.warn(
-                { height : h, width : w },
-                'Ignoring ANSI CPR screen size query response due to non-sane values');
-            return done(Errors.Invalid('Term size <= 10 considered invalid'));
-        }
-
-        client.term.termHeight  = h;
-        client.term.termWidth   = w;
-
-        client.log.debug(
-            {
-                termWidth   : client.term.termWidth,
-                termHeight  : client.term.termHeight,
-                source      : 'ANSI CPR'
-            },
-            'Window size updated'
-        );
-
-        return done(null);
-    };
-
-    client.once('cursor position report', cprListener);
-
-    //  give up after 2s
-    const giveUpTimer = setTimeout( () => {
-        return done(Errors.General('No term size established by CPR within timeout'));
-    }, 2000);
+            client.log.debug(
+                {
+                    termWidth   : client.term.termWidth,
+                    termHeight  : client.term.termHeight,
+                    source      : 'ANSI CPR'
+                },
+                'Window size updated'
+            );
+        },
+        'No term size established by CPR within timeout',
+        cb
+    );
 
     //  Start the process:
     //  1 - Ask to goto 999,999 -- a very much "bottom right" (generally 80x25 for example
@@ -223,12 +237,11 @@ function connectEntry(client, nextMenu) {
         [
             function basicPrepWork(callback) {
                 term.rawWrite(ansi.queryDeviceAttributes(0));
+                term.write('\nDetecting client features...');
                 return callback(null);
             },
             function discoverHomePosition(callback) {
-                ansiDiscoverHomePosition(client, () => {
-                    return callback(null);  //  we try to continue anyway
-                });
+                return ansiDiscoverHomePosition(client, callback);
             },
             function queryTermSizeByNonStandardAnsi(callback) {
                 ansiQueryTermSizeIfNeeded(client, err => {
@@ -254,7 +267,10 @@ function connectEntry(client, nextMenu) {
             },
             function checkUtf8IfNeeded(callback) {
                 return ansiAttemptDetectUTF8(client, callback);
-            }
+            },
+            function querySyncTERMFontSupport(callback)  {
+                return ansiQuerySyncTermFontSupport(client, callback);
+            },
         ],
         () => {
             prepareTerminal(term);
