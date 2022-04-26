@@ -21,6 +21,8 @@ function ClientTerminal(output) {
     //  convert line feeds such as \n -> \r\n
     this.convertLF      = true;
 
+    this.syncTermFontsEnabled = false;
+
     //
     //  Some terminal we handle specially
     //  They can also be found in this.env{}
