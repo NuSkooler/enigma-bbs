@@ -128,7 +128,7 @@ class TelnetClient {
                                 const value = parseInt(getValue(what));
                                 if (value) {
                                     this.term[what === 'ROWS' ? 'termHeight' : 'termWidth'] = value;
-                                    this.clearMciCache();
+
                                     this._logDebug(
                                         { [ what ] : value, source : 'NEW-ENVIRON' },
                                         'Window size updated'
@@ -156,8 +156,6 @@ class TelnetClient {
                         if (height) {
                             this.term.env.ROWS = height;
                         }
-
-                        this.clearMciCache();
 
                         this._logDebug(
                             { width, height, source : 'NAWS' },

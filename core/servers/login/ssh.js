@@ -231,8 +231,6 @@ function SSHClient(clientConn) {
         if(termHeight > 0 && termWidth > 0) {
             self.term.termHeight = termHeight;
             self.term.termWidth = termWidth;
-
-            self.clearMciCache();   //  term size changes = invalidate cache
         }
 
         if(_.isString(info.term) && info.term.length > 0 && 'unknown' === self.term.termType) {
