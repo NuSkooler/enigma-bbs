@@ -59,8 +59,8 @@ exports.resetScreen                 = resetScreen;
 exports.normal                      = normal;
 exports.goHome                      = goHome;
 exports.disableVT100LineWrapping    = disableVT100LineWrapping;
-exports.setSyncTERMFont             = setSyncTERMFont;
-exports.getSyncTERMFontFromAlias    = getSyncTERMFontFromAlias;
+exports.setSyncTermFont             = setSyncTermFont;
+exports.getSyncTermFontFromAlias    = getSyncTermFontFromAlias;
 exports.setSyncTermFontWithAlias    = setSyncTermFontWithAlias;
 exports.setCursorStyle              = setCursorStyle;
 exports.setEmulatedBaudRate         = setEmulatedBaudRate;
@@ -320,7 +320,7 @@ const FONT_ALIAS_TO_SYNCTERM_MAP = {
 
 };
 
-function setSyncTERMFont(name, fontPage) {
+function setSyncTermFont(name, fontPage) {
     const p1 = miscUtil.valueWithDefault(fontPage, 0);
 
     assert(p1 >= 0 && p1 <= 3);
@@ -333,13 +333,13 @@ function setSyncTERMFont(name, fontPage) {
     return '';
 }
 
-function getSyncTERMFontFromAlias(alias) {
+function getSyncTermFontFromAlias(alias) {
     return FONT_ALIAS_TO_SYNCTERM_MAP[alias.toLowerCase().replace(/ /g, '_')];
 }
 
 function setSyncTermFontWithAlias(nameOrAlias) {
-    nameOrAlias = getSyncTERMFontFromAlias(nameOrAlias) || nameOrAlias;
-    return setSyncTERMFont(nameOrAlias);
+    nameOrAlias = getSyncTermFontFromAlias(nameOrAlias) || nameOrAlias;
+    return setSyncTermFont(nameOrAlias);
 }
 
 const DEC_CURSOR_STYLE = {

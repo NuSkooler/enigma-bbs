@@ -58,7 +58,6 @@
     "uuid": "8.3.2",
     "uuid-parse": "1.1.0",
     "ws": "7.4.3",
-    "xxhash": "^0.3.0",
     "yazl": "^2.5.1",
     "systeminformation" : "^4.27.5"
   },

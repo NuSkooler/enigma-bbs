@@ -87,12 +87,7 @@ function Client(/*input, output*/) {
     this.lastActivityTime   = Date.now();
     this.menuStack          = new MenuStack(this);
     this.acs                = new ACS( { client : this, user : this.user } );
-    this.mciCache           = {};
     this.interruptQueue     = new UserInterruptQueue(this);
-
-    this.clearMciCache = function() {
-        this.mciCache = {};
-    };
 
     Object.defineProperty(this, 'currentTheme', {
         get : () => {

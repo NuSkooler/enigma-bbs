@@ -15,7 +15,6 @@ const paths     = require('path');
 const assert    = require('assert');
 const iconv     = require('iconv-lite');
 const _         = require('lodash');
-const xxhash    = require('xxhash');
 
 exports.getArt                          = getArt;
 exports.getArtFromPath                  = getArtFromPath;
@@ -250,8 +249,7 @@ function display(client, art, options, cb) {
         return cb(Errors.Invalid('No art supplied!'));
     }
 
-    options.mciReplaceChar  = options.mciReplaceChar || ' ';
-    options.disableMciCache = options.disableMciCache || false;
+    options.mciReplaceChar = options.mciReplaceChar || ' ';
 
     //  :TODO: this is going to be broken into two approaches controlled via options:
     //  1) Standard - use internal tracking of locations for MCI -- no CPR's/etc.
@@ -272,102 +270,67 @@ function display(client, art, options, cb) {
         startRow        : options.startRow,
     });
 
-    let parseComplete = false;
-    let mciMap;
-    const mciCprQueue = [];
-    let artHash;
-    let mciMapFromCache;
+    const mciMap = {};
+    let generatedId = 100;
 
-    function completed() {
+    ansiParser.on('mci', mciInfo => {
+        //  :TODO: ensure generatedId's do not conflict with any existing |id|
+        const id        = _.isNumber(mciInfo.id) ? mciInfo.id : generatedId;
+        const mapKey    = `${mciInfo.mci}${id}`;
+        const mapEntry  = mciMap[mapKey];
 
-        if(!options.disableMciCache && !mciMapFromCache) {
-            //  cache our MCI findings...
-            client.mciCache[artHash] = mciMap;
-            client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Added MCI map to cache');
+        if(mapEntry) {
+            mapEntry.focusSGR   = mciInfo.SGR;
+            mapEntry.focusArgs  = mciInfo.args;
+        } else {
+            mciMap[mapKey] = {
+                position : mciInfo.position,
+                args     : mciInfo.args,
+                SGR      : mciInfo.SGR,
+                code     : mciInfo.mci,
+                id       : id,
+            };
+
+            if(!mciInfo.id) {
+                ++generatedId;
+            }
         }
 
-        ansiParser.removeAllListeners();    //  :TODO: Necessary???
+    });
+
+    ansiParser.on('literal', literal => client.term.write(literal, false) );
+    ansiParser.on('control', control => client.term.rawWrite(control) );
+
+    ansiParser.on('complete', () => {
+        ansiParser.removeAllListeners();
 
         const extraInfo = {
             height : ansiParser.row - 1,
         };
 
         return cb(null, mciMap, extraInfo);
-    }
-
-    if(!options.disableMciCache) {
-        artHash = xxhash.hash(Buffer.from(art), 0xCAFEBABE);
-
-        //  see if we have a mciMap cached for this art
-        if(client.mciCache) {
-            mciMap  = client.mciCache[artHash];
-        }
-    }
-
-    if(mciMap) {
-        mciMapFromCache = true;
-        client.log.trace( { artHash : artHash.toString(16), mciMap : mciMap }, 'Loaded MCI map from cache');
-    } else {
-        //  no cached MCI info
-        mciMap = {};
-
-        let generatedId = 100;
-
-        ansiParser.on('mci', mciInfo => {
-            //  :TODO: ensure generatedId's do not conflict with any existing |id|
-            const id        = _.isNumber(mciInfo.id) ? mciInfo.id : generatedId;
-            const mapKey    = `${mciInfo.mci}${id}`;
-            const mapEntry  = mciMap[mapKey];
-
-            if(mapEntry) {
-                mapEntry.focusSGR   = mciInfo.SGR;
-                mapEntry.focusArgs  = mciInfo.args;
-            } else {
-                mciMap[mapKey] = {
-                    position : mciInfo.position,
-                    args     : mciInfo.args,
-                    SGR      : mciInfo.SGR,
-                    code     : mciInfo.mci,
-                    id       : id,
-                };
-
-                if(!mciInfo.id) {
-                    ++generatedId;
-                }
-            }
-
-        });
-    }
-
-    ansiParser.on('literal', literal => client.term.write(literal, false) );
-    ansiParser.on('control', control => client.term.rawWrite(control) );
-
-    ansiParser.on('complete', () => {
-        parseComplete = true;
-
-        if(0 === mciCprQueue.length) {
-            return completed();
-        }
     });
 
     let initSeq = '';
-    if(options.font) {
-        initSeq = ansi.setSyncTermFontWithAlias(options.font);
-    } else if(options.sauce) {
-        let fontName = getFontNameFromSAUCE(options.sauce);
-        if(fontName) {
-            fontName = ansi.getSyncTERMFontFromAlias(fontName);
-        }
+    if (client.term.syncTermFontsEnabled) {
+        if(options.font) {
+            initSeq = ansi.setSyncTermFontWithAlias(options.font);
+        } else if(options.sauce) {
+            let fontName = getFontNameFromSAUCE(options.sauce);
+            if(fontName) {
+                fontName = ansi.getSyncTermFontFromAlias(fontName);
+            }
 
-        //
-        //  Set SyncTERM font if we're switching only. Most terminals
-        //  that support this ESC sequence can only show *one* font
-        //  at a time. This applies to detection only (e.g. SAUCE).
-        //  If explicit, we'll set it no matter what (above)
-        //
-        if(fontName && client.term.currentSyncFont != fontName) {
-            client.term.currentSyncFont = fontName;
-            initSeq = ansi.setSyncTERMFont(fontName);
+            //
+            //  Set SyncTERM font if we're switching only. Most terminals
+            //  that support this ESC sequence can only show *one* font
+            //  at a time. This applies to detection only (e.g. SAUCE).
+            //  If explicit, we'll set it no matter what (above)
+            //
+            if(fontName && client.term.currentSyncFont != fontName) {
+                client.term.currentSyncFont = fontName;
+                initSeq = ansi.setSyncTermFont(fontName);
+            }
         }
     }
 
