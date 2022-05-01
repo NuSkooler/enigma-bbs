@@ -254,15 +254,19 @@
 					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03mail|08: "
 					mainInfoFormat11: "|00|10{callsToday:>5}"
 					mainInfoFormat12: "|00|10{postsToday:>5}"
+					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr} |02{uploadBytesToday!sizeAbbr}"
+					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadsBytesToday!sizeWithoutAbbr} |02{downloadsBytesToday!sizeAbbr}"
 
-					mainInfoFormat18: "|00|10{lastLoginUserName:<27} |02{lastLogin}"
+					mainInfoFormat15: "|00|10{lastLoginUserName:<26} |02{lastLogin}"
 
-					mainInfoFormat19: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
-					mainInfoFormat20: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
-					mainInfoFormat21: "|00|10{processUptimeSeconds!durationSeconds}"
+					mainInfoFormat16: ""
 
-					mainInfoFormat23: "|00|10{totalCalls:>5}"
-					mainInfoFormat24: "|00|10{totalPosts:>5}"
+					mainInfoFormat17: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
+					mainInfoFormat18: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
+					mainInfoFormat19: "|00|10{processUptimeSeconds!durationSeconds}"
+
+					mainInfoFormat20: "|00|10{totalCalls:>5}"
+					mainInfoFormat21: "|00|10{totalPosts:>5}"
 					mainInfoFormat22: "|00|10{totalFiles} |08/ |10{totalFileBytes!sizeWithoutAbbr} |02{totalFileBytes!sizeAbbr}"
 
 					quickLogLevel: info
@@ -277,8 +281,10 @@
 				}
 				0: {
 					mci: {
-						TL19: { width: 23 }
-						TL20: { width: 23 }
+						TL17: { width: 23 }
+						TL18: { width: 23 }
+						TL19: { width: 10 }
+
 						VM1: {
 							height: 5
 							widht: 37

@@ -380,8 +380,8 @@ class StatLog {
 
                 const loadStats = {
                     //  Not avail on BSD, yet.
-                    average : _.get(sysInfo, 'currentLoad.avgLoad', 0).toFixed(2),
-                    current : _.get(sysInfo, 'currentLoad.currentLoad', 0).toFixed(2),
+                    average : parseFloat(_.get(sysInfo, 'currentLoad.avgLoad', 0).toFixed(2)),
+                    current : parseFloat(_.get(sysInfo, 'currentLoad.currentLoad', 0).toFixed(2)),
                 };
 
                 this.setNonPersistentSystemStat(SysProps.SystemLoadStats, loadStats);
