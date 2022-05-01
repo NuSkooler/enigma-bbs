@@ -99,12 +99,18 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         });
     }
 
+    enter() {
+        this.client.stopIdleMonitor();
+        super.enter();
+    }
+
     leave() {
         _.remove(Log.log.streams, stream => {
             return stream.name === 'wfc-ringbuffer';
         });
 
         this._stopRefreshing();
+        this.client.startIdleMonitor();
 
         super.leave();
     }

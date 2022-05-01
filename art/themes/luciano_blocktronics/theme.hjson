@@ -249,13 +249,21 @@
 			mainMenuWaitingForCaller: {
 				config: {
 					nowDateTimeFormat: "|00|11dddd|08, |11MMMM Do YYYY |08/ |11h|08:|11mm|08:|11ss|03a"
-					lastLoginDateTimeFormat: "|00|11ddd h|08:|11mm|03a"
+					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
 					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03mail|08: "
 					mainInfoFormat11: "|00|10{callsToday:>5}"
 					mainInfoFormat12: "|00|10{postsToday:>5}"
 
-					mainInfoFormat19: "|00|10{lastLoginUserName:<19} |02{lastLogin}"
+					mainInfoFormat18: "|00|10{lastLoginUserName:<27} |02{lastLogin}"
+
+					mainInfoFormat19: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
+					mainInfoFormat20: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
+					mainInfoFormat21: "|00|10{processUptimeSeconds!durationSeconds}"
+
+					mainInfoFormat23: "|00|10{totalCalls:>5}"
+					mainInfoFormat24: "|00|10{totalPosts:>5}"
+					mainInfoFormat22: "|00|10{totalFiles} |08/ |10{totalFileBytes!sizeWithoutAbbr} |02{totalFileBytes!sizeAbbr}"
 
 					quickLogLevel: info
 					quickLogLevelIndicators: {
@@ -269,15 +277,17 @@
 				}
 				0: {
 					mci: {
+						TL19: { width: 23 }
+						TL20: { width: 23 }
 						VM1: {
 							height: 5
 							widht: 37
-							itemFormat: "|00|11{node:<3.2} |10{userName:>13} |08> |04{action:<14.13} |14{serverName}"
+							itemFormat: "|00|11{node:<3.2} |10{userName:>13} |08> |02{action:<14.13} |14{serverName}"
 						}
 						VM2: {
 							height: 5
 							width: 73
-							itemFormat: "{levelIndicator} |15{timestamp} |07{message}"
+							itemFormat: "{levelIndicator} |15{timestamp} |07{message:<51.50}"
 						}
 					}
 				}

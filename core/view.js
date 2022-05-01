@@ -120,7 +120,7 @@ View.prototype.setPosition = function(pos) {
     //
     //  Allow the following forms: [row, col], { row : r, col : c }, or (row, col)
     //
-    if(util.isArray(pos)) {
+    if(Array.isArray(pos)) {
         this.position.row = pos[0];
         this.position.col = pos[1];
     } else if(_.isNumber(pos.row) && _.isNumber(pos.col)) {
@@ -259,7 +259,7 @@ View.prototype.setFocusProperty = function(focused) {
 };
 
 View.prototype.setFocus = function(focused) {
-    // Call separate method to differentiate between a value set as a 
+    // Call separate method to differentiate between a value set as a
     // property vs focus programmatically called.
     this.setFocusProperty(focused);
     this.restoreCursor();

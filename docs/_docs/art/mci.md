@@ -97,8 +97,8 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `DB` | Total download amount *today* (formatted to appropriate bytes/megs/etc. ) |
 | `MB` | System memory |
 | `MF` | System _free_ memory |
-| `LA` | System load average (e.g. 0.25)<br>(Not available for all platforms) |
-| `CL` | System current load percentage<br>(Not available for all platforms) |
+| `LA` | System load average (e.g. 0.25)<br>(May not be available on some platforms) |
+| `CL` | System current load percentage<br>(May not be available on some platforms) |
 | `UU` | System uptime in friendly format |
 | `LC` | Last caller to the system (username) |
 | `LT` | Time of last caller |
@@ -135,7 +135,7 @@ a Vertical Menu (`%VM`): Old-school BBSers may recognize this as a lightbar menu
 | `BT` | Button               | A button | ...it's a button. See [Button](views/button_view.md) |
 | `VM` | Vertical Menu        | A vertical menu | AKA a vertical lightbar; Useful for lists. See [Vertical Menu](views/vertical_menu_view.md) |
 | `HM` | Horizontal Menu      | A horizontal menu | AKA a horizontal lightbar. See [Horizontal Menu](views/horizontal_menu_view.md) |
-| `FM` | Full Menu      | A menu that can go both vertical and horizontal. | See [Full Menu](views/full_menu_view.md) | 
+| `FM` | Full Menu      | A menu that can go both vertical and horizontal. | See [Full Menu](views/full_menu_view.md) |
 | `SM` | Spinner Menu         | A spinner input control | Select *one* from multiple options. See [Spinner Menu](views/spinner_menu_view.md) |
 | `TM` | Toggle Menu          | A toggle menu | Commonly used for Yes/No style input. See [Toggle Menu](views/toggle_menu_view.md)|
 | `PL` | Predefined Label    | Show environment information | See [Predefined Label](views/predefined_label_view.md)|
