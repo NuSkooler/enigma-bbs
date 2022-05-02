@@ -793,6 +793,19 @@ module.exports = class User {
         );
     }
 
+    static getUserCount(cb) {
+        userDb.get(
+            `SELECT count() AS user_count
+            FROM user;`,
+            (err, row) => {
+                if(err) {
+                    return cb(err);
+                }
+                return cb(null, row.user_count);
+            }
+        );
+    }
+
     static getUserList(options, cb) {
         const userList = [];
 

@@ -177,7 +177,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             //  Totals
             totalCalls              : StatLog.getSystemStatNum(SysProps.LoginCount),
             totalPosts              : StatLog.getSystemStatNum(SysProps.MessageTotalCount),
-            //totalUsers  :
+            totalUsers              : StatLog.getSystemStatNum(SysProps.TotalUserCount),
             totalFiles              : fileAreaStats.totalFiles || 0,
             totalFileBytes          : fileAreaStats.totalFileBytes || 0,
 

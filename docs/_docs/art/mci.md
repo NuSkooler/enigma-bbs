@@ -103,6 +103,7 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `LC` | Last caller to the system (username) |
 | `LT` | Time of last caller |
 | `LD` | Date of last caller |
+| `TU` | Total number of users on the system |
 
 Some additional special case codes also exist:
 

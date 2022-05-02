@@ -354,6 +354,18 @@ function initialize(cb) {
                     });
                 });
             },
+            function initUserCount(callback) {
+                const User = require('./user.js');
+                User.getUserCount((err, count) => {
+                    if(err) {
+                        return callback(err);
+                    }
+
+                    const StatLog = require('./stat_log');
+                    StatLog.setNonPersistentSystemStat(SysProps.TotalUserCount, count);
+                    return callback(null);
+                });
+            },
             function initMessageStats(callback) {
                 return require('./message_area.js').startup(callback);
             },

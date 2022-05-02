@@ -6,6 +6,24 @@ title: Waiting For Caller (WFC)
 The `wfc.js` module provides a Waiting For Caller (WFC) type dashboard from a bygone era. ENiGMA½'s WFC can be accessed over secure connections for accounts with the proper ACS. See **Security** information.
 
 ## Security
+The system allows any user with the proper security to access the WFC / system operator functionality. The security policy is enforced by ACS with the default of `SCAF2ID1GM[wfc]`, meaning the following are true:
+
+1. Securely Connected (such as SSH or Secure WebSocket, but not Telnet)
+2. Auth Factor 2+. That is, the user has 2FA enabled.
+3. User ID of 1 (root/admin)
+4. The user belongs to the `wfc` group.
+
+To change the ACS required, specify a alternative `acs` in the `config` block. For example:
+```hjson
+mainMenuWaitingForCaller: {
+    // ...
+    config: {
+        acs: SCID1GM[sysops]
+    }
+}
+```
+
+:information_source: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 
 ## Theming
 The following MCI codes are available:
@@ -27,3 +45,4 @@ The following MCI codes are available:
     * `{processUptimeSeconds}`: Process (the BBS) uptime in seconds.
     * `{totalCalls}`: Total calls to the system.
     * `{totalPosts}`: Total posts to the system.
+    * `{totalUsers}`: Total users on the system.

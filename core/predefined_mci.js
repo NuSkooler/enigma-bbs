@@ -304,6 +304,10 @@ const PREDEFINED_MCI_GENERATORS = {
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
     //  :TODO: ?? - Total users on system
 
+    TU  : function totalSystemUsers() {
+        return StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1;
+    },
+
     LC  : function lastCallerUserName() {   //  Obv/2
         const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
         return lastLogin.userName || 'N/A';

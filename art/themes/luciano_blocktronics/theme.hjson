@@ -266,8 +266,9 @@
 					mainInfoFormat19: "|00|10{processUptimeSeconds!durationSeconds}"
 
 					mainInfoFormat20: "|00|10{totalCalls:>5}"
-					mainInfoFormat21: "|00|10{totalPosts:>5}"
-					mainInfoFormat22: "|00|10{totalFiles} |08/ |10{totalFileBytes!sizeWithoutAbbr} |02{totalFileBytes!sizeAbbr}"
+					mainInfoFormat21: "|00|10{totalPosts:>7}"
+					mainInfoFormat22: "|00|10{totalUsers:>5}"
+					mainInfoFormat23: "|00|10{totalFiles} |08/ |10{totalFileBytes!sizeWithoutAbbr} |02{totalFileBytes!sizeAbbr}"
 
 					quickLogLevel: info
 					quickLogLevelIndicators: {
@@ -283,7 +284,7 @@
 					mci: {
 						TL17: { width: 23 }
 						TL18: { width: 23 }
-						TL19: { width: 10 }
+						TL19: { width: 13 }
 
 						VM1: {
 							height: 5
