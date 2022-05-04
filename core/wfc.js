@@ -61,12 +61,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         return this.prepViewController('main', FormIds.main, mciData.menu, callback);
                     },
                     (callback) => {
-                        // const requiredCodes = [
-                        // ];
-                        // return this.validateMCIByViewIds('main', requiredCodes, callback);
-                        return callback(null);
-                    },
-                    (callback) => {
                         const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
                         if (!quickLogView) {
                             return callback(null);
