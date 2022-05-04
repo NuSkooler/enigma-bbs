@@ -18,6 +18,7 @@ To change the ACS required, specify a alternative `acs` in the `config` block. F
 mainMenuWaitingForCaller: {
     // ...
     config: {
+        // initial +op over secure connection only
         acs: SCID1GM[sysops]
     }
 }

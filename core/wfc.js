@@ -35,6 +35,7 @@ const MciViewIds = {
 
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
+const MainStatRefreshTimeMs = 5000; // 5s
 
 exports.getModule = class WaitingForCallerModule extends MenuModule {
     constructor(options) {
@@ -118,7 +119,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     _startRefreshing() {
         this.mainRefreshTimer = setInterval( () => {
             this._refreshAll();
-        }, 5000);
+        }, MainStatRefreshTimeMs);
     }
 
     _stopRefreshing() {
