@@ -45,7 +45,7 @@ function userLogin(client, username, password, options, cb) {
     const config = Config();
 
     if(config.users.badUserNames.includes(username.toLowerCase())) {
-        client.log.info( { username, ip : client.remoteAddress }, 'Attempt to login with banned username');
+        client.log.info( { username, ip : client.remoteAddress }, `Attempt to login with banned username "${username}"`);
 
         //  slow down a bit to thwart brute force attacks
         return setTimeout( () => {
@@ -80,13 +80,13 @@ function userLogin(client, username, password, options, cb) {
         });
 
         if(existingClientConnection) {
-            client.log.info(
+            client.log.warn(
                 {
                     existingNodeId  : existingClientConnection.node,
                     username        : user.username,
                     userId          : user.userId
                 },
-                `User ${user.username} already logged in`
+                `User "${user.username}" already logged in on node ${existingClientConnection.node}`
             );
 
             return cb(Errors.BadLogin(
@@ -104,7 +104,7 @@ function userLogin(client, username, password, options, cb) {
             }
         );
 
-        client.log.info(`User ${user.username} successfully logged in`);
+        client.log.info(`User "${user.username}" successfully logged in`);
 
         //  User's unique session identifier is the same as the connection itself
         user.sessionId = client.session.uniqueId;   //  convenience
@@ -238,6 +238,6 @@ function transformLoginError(err, client, username) {
         err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
     }
 
-    client.log.info( { username, ip : client.remoteAddress, reason : err.message }, 'Failed login attempt');
+    client.log.warn( { username, ip : client.remoteAddress, reason : err.message }, `Failed login attempt for user "${username}", ${client.remoteAddress}`);
     return err;
 }

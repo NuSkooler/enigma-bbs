@@ -215,7 +215,7 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
                         self.client.removeListener('key press', connectionKeyPressHandler);
 
                         if(err) {
-                            self.client.log.info(`Telnet bridge connection error: ${err.message}`);
+                            self.client.log.warn(`Telnet bridge connection error: ${err.message}`);
                         }
 
                         callback(clientTerminated ? new Error('Client connection terminated') : null);

@@ -128,17 +128,18 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         //  :TODO: warn end user!
                         return self.prevMenu(cb);
                     }
+
+                    self.client.log.info(`User "${self.client.user.username}" updated configuration`);
+
                     //
                     //  New password if it's not empty
                     //
-                    self.client.log.info('User updated properties');
-
                     if(formData.value.password.length > 0) {
                         self.client.user.setNewAuthCredentials(formData.value.password, err => {
                             if(err) {
                                 self.client.log.error( { err : err }, 'Failed storing new authentication credentials');
                             } else {
-                                self.client.log.info('User changed authentication credentials');
+                                self.client.log.info(`User "${self.client.user.username}" updated authentication credentials`);
                             }
                             return self.prevMenu(cb);
                         });

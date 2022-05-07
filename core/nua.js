@@ -117,7 +117,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                 };
                 newUser.create(createUserInfo, err => {
                     if(err) {
-                        self.client.log.info( { error : err, username : formData.value.username }, 'New user creation failed');
+                        self.client.log.warn( { error : err, username : formData.value.username }, 'New user creation failed');
 
                         self.gotoMenu(extraArgs.error, err => {
                             if(err) {
@@ -126,7 +126,7 @@ exports.getModule = class NewUserAppModule extends MenuModule {
                             return cb(null);
                         });
                     } else {
-                        self.client.log.info( { username : formData.value.username, userId : newUser.userId }, 'New user created');
+                        self.client.log.info( { username : formData.value.username, userId : newUser.userId }, `New user "${formData.value.username}" created`);
 
                         //  Cache SysOp information now
                         //  :TODO: Similar to bbs.js. DRY
