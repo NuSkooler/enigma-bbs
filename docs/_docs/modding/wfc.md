@@ -3,15 +3,20 @@ layout: page
 title: Waiting For Caller (WFC)
 ---
 ## The Waiting For Caller (WFC) Module
-The `wfc.js` module provides a Waiting For Caller (WFC) type dashboard from a bygone era. ENiGMA½'s WFC can be accessed over secure connections for accounts with the proper ACS. See **Security** information.
+The `wfc.js` module provides a Waiting For Caller (WFC) type dashboard from a bygone era. Many traditional features are available including newer concepts for modern times. Node spy is left out as it feels like something that should be left in the past.
+
+## Accessing the WFC
+By default, the WFC may be accessed via the `!WFC` main menu command when connected over a secure connection via a user with the proper ACS. This can be configured as per any other menu in the system. Note that ENiGMA½ does not expose the WFC as a standalone application as this would be much less flexible. To connect locally, simply use your favorite terminal or for example: `ssh -l yourname localhost 8889`. See **Security** below for more information.
 
 ## Security
 The system allows any user with the proper security to access the WFC / system operator functionality. The security policy is enforced by ACS with the default of `SCAF2ID1GM[wfc]`, meaning the following are true:
 
 1. Securely Connected (such as SSH or Secure WebSocket, but not Telnet)
-2. Auth Factor 2+. That is, the user has 2FA enabled.
+2. [Auth Factor 2+](modding/user-2fa-otp-config.md). That is, the user has 2FA enabled.
 3. User ID of 1 (root/admin)
 4. The user belongs to the `wfc` group.
+
+:information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group.
 
 To change the ACS required, specify a alternative `acs` in the `config` block. For example:
 ```hjson

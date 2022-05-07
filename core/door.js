@@ -32,7 +32,7 @@ module.exports = class Door {
             });
 
             conn.once('error', err => {
-                this.client.log.info( { error : err.message }, 'Door socket server connection');
+                this.client.log.warn( { error : err.message }, 'Door socket server connection');
                 return this.restoreIo(conn);
             });
 
