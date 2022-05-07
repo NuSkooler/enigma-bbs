@@ -187,7 +187,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             uploadsToday            : StatLog.getSystemStatNum(SysProps.FileUlTodayCount),
             uploadBytesToday        : StatLog.getSystemStatNum(SysProps.FileUlTodayBytes),
             downloadsToday          : StatLog.getSystemStatNum(SysProps.FileDlTodayCount),
-            downloadsBytesToday     : StatLog.getSystemStatNum(SysProps.FileDlTodayBytes),
+            downloadBytesToday      : StatLog.getSystemStatNum(SysProps.FileDlTodayBytes),
             newUsersToday           : StatLog.getSystemStatNum(SysProps.NewUsersTodayCount),
 
             //  Current

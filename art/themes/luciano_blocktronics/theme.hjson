@@ -255,7 +255,7 @@
 					mainInfoFormat11: "|00|10{callsToday:>5}"
 					mainInfoFormat12: "|00|10{postsToday:>5}"
 					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr} |02{uploadBytesToday!sizeAbbr}"
-					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadsBytesToday!sizeWithoutAbbr} |02{downloadsBytesToday!sizeAbbr}"
+					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadBytesToday!sizeWithoutAbbr} |02{downloadsBytesToday!sizeAbbr}"
 
 					mainInfoFormat15: "|00|10{lastLoginUserName:<26} |02{lastLogin}"
 
