@@ -108,7 +108,7 @@ class ScheduledEvent {
     }
 
     executeAction(reason, cb) {
-        Log.info( { eventName : this.name, action : this.action, reason : reason }, 'Executing scheduled event action...');
+        Log.info( { eventName : this.name, action : this.action, reason : reason }, `Executing scheduled event "${this.name}"...`);
 
         if('method' === this.action.type) {
             const modulePath = path.join(__dirname, '../', this.action.location);   //  enigma-bbs base + supplied location (path/file.js')

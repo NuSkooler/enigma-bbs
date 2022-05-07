@@ -259,7 +259,7 @@
 
 					mainInfoFormat15: "|00|10{lastLoginUserName:<26} |02{lastLogin}"
 
-					mainInfoFormat16: ""
+					mainInfoFormat16: "|00|10{newUsersToday}"
 
 					mainInfoFormat17: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
 					mainInfoFormat18: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
@@ -279,22 +279,30 @@
 						error: |00|12E
 						fatal: |00|28F
 					}
+					quickLogLevelMessagePrefixes: {
+						trace : |00|02
+						debug: |00|03
+						info: |00|07
+						warn: |00|14
+						error: |00|12
+						fatal: |00|28
+					}
 				}
 				0: {
 					mci: {
 						TL17: { width: 23 }
 						TL18: { width: 23 }
-						TL19: { width: 13 }
+						TL19: { width: 14 }
 
 						VM1: {
 							height: 5
-							widht: 37
+							width: 36
 							itemFormat: "|00|11{node:<3.2} |10{userName:>13} |08> |02{action:<14.13} |14{serverName}"
 						}
 						VM2: {
 							height: 5
 							width: 73
-							itemFormat: "{levelIndicator} |15{timestamp} |07{message:<51.50}"
+							itemFormat: "|00|07{nodeId} {levelIndicator} |02{timestamp} {message:<51.50}"
 						}
 					}
 				}

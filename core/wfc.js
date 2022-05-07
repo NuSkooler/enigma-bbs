@@ -188,6 +188,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             uploadBytesToday        : StatLog.getSystemStatNum(SysProps.FileUlTodayBytes),
             downloadsToday          : StatLog.getSystemStatNum(SysProps.FileDlTodayCount),
             downloadsBytesToday     : StatLog.getSystemStatNum(SysProps.FileDlTodayBytes),
+            newUsersToday           : StatLog.getSystemStatNum(SysProps.NewUsersTodayCount),
 
             //  Current
             currentUserName         : this.client.user.username,
@@ -265,18 +266,26 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 fatal   : 'F',
             };
 
+
         const makeLevelIndicator = (level) => {
-            return levelIndicators[bunyan.nameFromLevel[level]] || '?';
+            return levelIndicators[level] || '?';
+        };
+
+        const quickLogLevelMessagePrefixes = this.config.quickLogLevelMessagePrefixes || {};
+        const prefixMssage = (message, level) => {
+            const prefix = quickLogLevelMessagePrefixes[level] || '';
+            return `${prefix}${message}`;
         };
 
         const logItems = records.map(rec => {
+            const level = bunyan.nameFromLevel[rec.level];
             return {
                 timestamp       : moment(rec.time).format(quickLogTimestampFormat),
                 level           : rec.level,
-                levelIndicator  : makeLevelIndicator(rec.level),
-                nodeId          : rec.nodeId,
+                levelIndicator  : makeLevelIndicator(level),
+                nodeId          : rec.nodeId || '*',
                 sessionId       : rec.sessionId || '',
-                message         : rec.msg,
+                message         : prefixMssage(rec.msg, level),
             };
         });
 

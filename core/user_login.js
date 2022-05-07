@@ -86,7 +86,7 @@ function userLogin(client, username, password, options, cb) {
                     username        : user.username,
                     userId          : user.userId
                 },
-                'Already logged in'
+                `User ${user.username} already logged in`
             );
 
             return cb(Errors.BadLogin(
@@ -104,7 +104,7 @@ function userLogin(client, username, password, options, cb) {
             }
         );
 
-        client.log.info('Successful login');
+        client.log.info(`User ${user.username} successfully logged in`);
 
         //  User's unique session identifier is the same as the connection itself
         user.sessionId = client.session.uniqueId;   //  convenience

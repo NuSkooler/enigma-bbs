@@ -105,7 +105,7 @@ function addNewClient(client, clientSock) {
         connInfo.family     = clientSock.localFamily;
     }
 
-    client.log.info(connInfo, 'Client connected');
+    client.log.info(connInfo, `Client connected (${connInfo.port}/${connInfo.serverName})`);
 
     Events.emit(
         Events.getSystemEvents().ClientConnected,

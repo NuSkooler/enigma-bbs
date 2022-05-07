@@ -299,8 +299,10 @@ const PREDEFINED_MCI_GENERATORS = {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTodayBytes);
         return formatByteSize(byteSize, true);  //  true=withAbbr
     },
+    NT  : function totalNewUsersToday() {   // Obv/2
+        return StatLog.getSystemStatNum(SysProps.NewUsersTodayCount);
+    },
 
-    //  :TODO: NT - New users today (Obv/2)
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
     //  :TODO: ?? - Total users on system
 

@@ -39,4 +39,5 @@ module.exports = {
     SystemLoadStats     : 'system_load_stats',      // object { average, current }; non-persistent
 
     TotalUserCount      : 'user_total_count',       //  non-persistent
+    NewUsersTodayCount  : 'user_new_today_count',   //  non-persistent
 };

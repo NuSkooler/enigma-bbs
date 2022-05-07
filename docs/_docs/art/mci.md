@@ -104,6 +104,7 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `LT` | Time of last caller |
 | `LD` | Date of last caller |
 | `TU` | Total number of users on the system |
+| `NT` | Total *new* users *today* |
 
 Some additional special case codes also exist:
 

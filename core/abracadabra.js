@@ -109,7 +109,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                                 name        : self.config.name,
                                 activeCount : activeDoorNodeInstances[self.config.name]
                             },
-                            'Too many active instances');
+                            `Too many active instances of door "${self.config.name}"`);
 
                         if(_.isString(self.config.tooManyArt)) {
                             theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {

@@ -295,10 +295,11 @@ function initialize(cb) {
                 const StatLog = require('./stat_log');
 
                 const entries = [
-                    [ UserLogNames.UlFiles,       [ SysProps.FileUlTodayCount, 'count' ] ],
-                    [ UserLogNames.UlFileBytes,   [ SysProps.FileUlTodayBytes, 'obj' ] ],
-                    [ UserLogNames.DlFiles,       [ SysProps.FileDlTodayCount, 'count' ] ],
-                    [ UserLogNames.DlFileBytes,   [ SysProps.FileDlTodayBytes, 'obj' ] ],
+                    [ UserLogNames.UlFiles,       [ SysProps.FileUlTodayCount,      'count' ] ],
+                    [ UserLogNames.UlFileBytes,   [ SysProps.FileUlTodayBytes,      'obj' ] ],
+                    [ UserLogNames.DlFiles,       [ SysProps.FileDlTodayCount,      'count' ] ],
+                    [ UserLogNames.DlFileBytes,   [ SysProps.FileDlTodayBytes,      'obj' ] ],
+                    [ UserLogNames.NewUser,       [ SysProps.NewUsersTodayCount,    'count' ] ],
                 ];
 
                 async.each(entries, (entry, nextEntry) => {
@@ -309,8 +310,6 @@ function initialize(cb) {
                         resultType,
                         date        : moment(),
                     };
-
-                    filter.logName = logName;
 
                     StatLog.findUserLogEntries(filter, (err, stat) => {
                         if (!err) {
