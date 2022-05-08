@@ -13,7 +13,7 @@ Available `config` block entries:
     * `collapse`: Collapse or roll up entries that fall within the period specified. May be a string in the form of `30 minutes`, `3 weeks`, `1 hour`, etc.
 * `sysop`: Sysop options:
     * `collapse`: Collapse or roll up entries that fall within the period specified. May be a string in the form of `30 minutes`, `3 weeks`, `1 hour`, etc.
-    * `hide`: Hide all +op logins
+    * `hide`: Boolean: Hide all +op logins.
 * `actionIndicators`: Maps user events/actions to indicators. For example: `userDownload` to "D". Available indicators:
     * `newUser`: User is new.
     * `dlFiles`: User downloaded file(s).
