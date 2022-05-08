@@ -21,7 +21,7 @@ exports.moduleInfo = {
 };
 
 const FormIds = {
-    main    : 0,
+    main : 0,
 };
 
 const MciViewIds = {
