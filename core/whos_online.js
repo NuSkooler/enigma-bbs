@@ -43,7 +43,7 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                             return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.onlineList}`));
                         }
 
-                        const onlineList = getActiveConnectionList(true).slice(0, onlineListView.height).map(
+                        const onlineList = getActiveConnectionList().slice(0, onlineListView.height).map(
                             oe => Object.assign(oe, { text : oe.userName, timeOn : _.upperFirst(oe.timeOn.humanize()) })
                         );
 

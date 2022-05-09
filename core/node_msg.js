@@ -204,7 +204,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             location        : 'N/A',
             affils          : 'N/A',
             timeOn          : 'N/A',
-        }].concat(getActiveConnectionList(true)
+        }].concat(getActiveConnectionList()
             .map(node => Object.assign(node, { text : -1 == node.node ? '-ALL-' : node.node.toString() } ))
         ).filter(node => node.node !== this.client.node);   //  remove our client's node
         this.nodeList.sort( (a, b) => a.node - b.node );    //  sort by node

@@ -21,21 +21,24 @@ exports.getConnectionByNodeId   = getConnectionByNodeId;
 const clientConnections = [];
 exports.clientConnections = clientConnections;
 
-function getActiveConnections(authUsersOnly = false) {
+function getActiveConnections(options = { authUsersOnly: true, visibleOnly: true }) {
     return clientConnections.filter(conn => {
-        return ((authUsersOnly && conn.user.isAuthenticated()) || !authUsersOnly);
+        if (options.authUsersOnly && !conn.user.isAuthenticated()) {
+            return false;
+        }
+        if (options.visibleOnly && !conn.user.isVisible()) {
+            return false;
+        }
+
+        return true;
+        //return ((options.authUsersOnly && conn.user.isAuthenticated()) || !options.authUsersOnly);
     });
 }
 
-function getActiveConnectionList(authUsersOnly) {
-
-    if(!_.isBoolean(authUsersOnly)) {
-        authUsersOnly = true;
-    }
-
+function getActiveConnectionList(options = { authUsersOnly: true, visibleOnly: true }) {
     const now = moment();
 
-    return _.map(getActiveConnections(authUsersOnly), ac => {
+    return _.map(getActiveConnections(options), ac => {
         let action;
         try {
             //  attempting to fetch a bad menu stack item can blow up/assert
@@ -51,6 +54,8 @@ function getActiveConnectionList(authUsersOnly) {
             action          : action,
             serverName      : ac.session.serverName,
             isSecure        : ac.session.isSecure,
+            isVisible       : ac.user.isVisible(),
+            isAvailable     : ac.user.isAvailable(),
         };
 
         //
@@ -66,6 +71,7 @@ function getActiveConnectionList(authUsersOnly) {
             const diff      = now.diff(moment(ac.user.properties[UserProps.LastLoginTs]), 'minutes');
             entry.timeOn    = moment.duration(diff, 'minutes');
         }
+
         return entry;
     });
 }

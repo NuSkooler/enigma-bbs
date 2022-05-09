@@ -96,6 +96,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
     enter() {
         this.client.stopIdleMonitor();
+        this._applyOpVisibility();
         super.enter();
     }
 
@@ -104,10 +105,28 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return stream.name === 'wfc-ringbuffer';
         });
 
+        this._restoreOpVisibility();
+
         this._stopRefreshing();
         this.client.startIdleMonitor();
 
         super.leave();
+    }
+
+    _applyOpVisibility() {
+        const vis = this.config.opVisibility || 'current';
+        this.restoreUserIsVisible = this.client.user.isVisible();
+
+        switch (vis) {
+            case 'hidden'   : this.client.user.setVisibility(false); break;
+            case 'visible'  : this.client.user.setVisibility(true); break;
+            default : break;
+        }
+
+    }
+
+    _restoreOpVisibility() {
+        this.client.user.setVisibility(this.restoreUserIsVisible);
     }
 
     _startRefreshing() {
@@ -214,7 +233,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        const nodeStatusItems = getActiveConnectionList(false)
+        const nodeStatusItems = getActiveConnectionList({authUsersOnly: false, visibleOnly: false})
             .slice(0, nodeStatusView.dimens.height)
             .map(ac => {
                 //  Handle pre-authenticated
