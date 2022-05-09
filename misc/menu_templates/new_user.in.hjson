@@ -2,9 +2,9 @@
 	menus: {
 		//  A quick preamble - defaults to warning about broken terminals
         newUserApplicationPre: {
+            desc: Applying
             art: NEWUSER1
             next: newUserApplication
-            desc: Applying
             config: {
                 pause: true
                 cls: true
@@ -13,6 +13,7 @@
         }
 
         newUserApplication: {
+            desc: Applying
             module: nua
             art: NUA
             next: [
@@ -112,9 +113,9 @@
 
         //  A quick preamble - defaults to warning about broken terminals (SSH version)
         newUserApplicationPreSsh: {
+            desc: Applying
             art: NEWUSER1
             next: newUserApplicationSsh
-            desc: Applying
             config: {
                 pause: true
                 cls: true
@@ -127,6 +128,7 @@
         //  Canceling this form logs off vs falling back to matrix
         //
         newUserApplicationSsh: {
+            desc: Applying
             module: nua
             art: NUA
             fallback: logoff
@@ -221,13 +223,14 @@
         }
 
         newUserFeedbackToSysOpPreamble: {
+            desc: Applying
             art: LETTER
             config: { pause: true }
             next: newUserFeedbackToSysOp
         }
 
         newUserFeedbackToSysOp: {
-            desc: Feedback to SysOp
+            desc: SysOp Feedback
             module: msg_area_post_fse
             next: [
                 {

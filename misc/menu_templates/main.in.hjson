@@ -73,8 +73,8 @@
 
     menus: {
         mainMenu: {
-            art: MMENU
             desc: Main Menu
+            art: MMENU
             prompt: menuCommand
             config: {
                 font: cp437
@@ -414,6 +414,7 @@
         }
 
         mainMenuUserConfig: {
+            desc: User Config
             module: user_config
             art: CONFSCR
             form: {
@@ -504,7 +505,7 @@
         }
 
         mainMenuGlobalNewScan: {
-            desc: Performing New Scan
+            desc: New Scan
             module: new_scan
             art: NEWSCAN
             config: {
@@ -513,7 +514,7 @@
         }
 
         mainMenuFeedbackToSysOp: {
-            desc: Feedback to SysOp
+            desc: SysOp Feedback
             module: msg_area_post_fse
             config: {
                 art: {
@@ -802,7 +803,7 @@
         }
 
         bbsList: {
-            desc: Viewing BBS List
+            desc: BBS List
             module: bbs_list
             config: {
                 cls: true
@@ -920,8 +921,8 @@
         }
 
         fullLogoffSequencePreAd: {
-            art: PRELOGAD
             desc: Logging Off
+            art: PRELOGAD
             next: fullLogoffSequenceRandomBoardAd
             config: {
                 cls: true
@@ -930,8 +931,8 @@
         }
 
         fullLogoffSequenceRandomBoardAd: {
-            art: OTHRBBS
             desc: Logging Off
+            art: OTHRBBS
             next: logoff
             config: {
                 baudRate: 57600
@@ -941,8 +942,8 @@
         }
 
         logoff: {
-            art: LOGOFF
             desc: Logging Off
+            art: LOGOFF
             next: @systemMethod:logoff
         }
 

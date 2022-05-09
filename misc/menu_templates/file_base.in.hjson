@@ -56,8 +56,8 @@
         }
 
         fileBaseListEntries: {
-            module: file_area_list
             desc: Browsing Files
+            module: file_area_list
             config: {
                 art: {
                     browse: FBRWSE
@@ -575,8 +575,8 @@
         }
 
         fileBaseSearch: {
-            module: file_base_search
             desc: Searching Files
+            module: file_base_search
             art: FSEARCH
             form: {
                 0: {
@@ -648,8 +648,8 @@
         }
 
         fileBaseSetNewScanDate: {
-            module: set_newscan_date
             desc: File Base
+            module: set_newscan_date
             art: SETFNSDATE
             config: {
                 target: file
@@ -679,6 +679,7 @@
         }
 
         fileBaseExportListFilter: {
+            desc: File List Export
             module: file_base_search
             art: FBLISTEXPSEARCH
             config: {
@@ -754,6 +755,7 @@
         }
 
         fileBaseExportList: {
+            desc: File List Export
             module: file_base_user_list_export
             art: FBLISTEXP
             config: {
@@ -812,7 +814,7 @@
         //	default menu entry used by the 'file_base_download_manager' module
         //	for protocol selection
         fileTransferProtocolSelection: {
-            desc: Protocol selection
+            desc: Protocol Selection
             module: file_transfer_protocol_select
             art: FPROSEL
             form: {

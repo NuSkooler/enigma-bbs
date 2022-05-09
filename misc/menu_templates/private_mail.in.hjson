@@ -1,8 +1,8 @@
 {
     menus: {
         privateMailMenu: {
-            art: MAILMNU
             desc: Private Mail
+            art: MAILMNU
             prompt: menuCommand
             config: {
                 interrupt: realtime
@@ -142,6 +142,7 @@
         }
 
         privateMailMenuInbox: {
+            desc: Viewing Inbox
             module: msg_list
             art: PRVMSGLIST
             config: {
