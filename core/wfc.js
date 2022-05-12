@@ -1,7 +1,10 @@
 //  ENiGMA½
 const { MenuModule } = require('./menu_module');
 
-const { getActiveConnectionList } = require('./client_connections');
+const {
+    getActiveConnectionList,
+    AllConnections
+} = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
 const UserProps = require('./user_property');
@@ -36,6 +39,7 @@ const MciViewIds = {
 //  Secure + 2FA + root user + 'wfc' group.
 const DefaultACS = 'SCAF2ID1GM[wfc]';
 const MainStatRefreshTimeMs = 5000; // 5s
+const MailCountTTLSeconds = 10;
 
 exports.getModule = class WaitingForCallerModule extends MenuModule {
     constructor(options) {
@@ -217,11 +221,12 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             lastLoginDate           : moment(lastLoginStats.timestamp).format(this.getDateFormat()),
             lastLoginTime           : moment(lastLoginStats.timestamp).format(this.getTimeFormat()),
             lastLogin               : moment(lastLoginStats.timestamp).format(this._dateTimeFormat('lastLogin')),
-
             totalMemoryBytes        : sysMemStats.totalBytes || 0,
             freeMemoryBytes         : sysMemStats.freeBytes || 0,
             systemAvgLoad           : sysLoadStats.average || 0,
             systemCurrentLoad       : sysLoadStats.current || 0,
+            newPrivateMail          : StatLog.getUserStatNumByClient(this.client, UserProps.NewPrivateMailCount, MailCountTTLSeconds),
+            newMessagesAddrTo       : StatLog.getUserStatNumByClient(this.client, UserProps.NewAddressedToMessageCount, MailCountTTLSeconds),
         };
 
         return cb(null);
@@ -233,7 +238,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             return cb(null);
         }
 
-        const nodeStatusItems = getActiveConnectionList({authUsersOnly: false, visibleOnly: false})
+        const nodeStatusItems = getActiveConnectionList(AllConnections)
             .slice(0, nodeStatusView.dimens.height)
             .map(ac => {
                 //  Handle pre-authenticated

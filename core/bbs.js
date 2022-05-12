@@ -141,7 +141,7 @@ function shutdownSystem() {
         [
             function closeConnections(callback) {
                 const ClientConns = require('./client_connections.js');
-                const activeConnections = ClientConns.getActiveConnections();
+                const activeConnections = ClientConns.getActiveConnections(ClientConns.AllConnections);
                 let i = activeConnections.length;
                 while(i--) {
                     const activeTerm = activeConnections[i].term;

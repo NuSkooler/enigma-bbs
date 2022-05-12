@@ -74,7 +74,7 @@ module.exports = class Door {
 
         this.client.log.info(
             { cmd : exeInfo.cmd, args, io : this.io },
-            'Executing external door process'
+            `Executing external door (${exeInfo.name})`
         );
 
         try {

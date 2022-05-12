@@ -598,7 +598,7 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
                 if(options.appendMultiLine && (textView instanceof MultiLineEditTextView)) {
                     textView.addText(text);
-                } else {
+                } else if (textView.getData() != text) {
                     textView.setText(text);
                 }
             }

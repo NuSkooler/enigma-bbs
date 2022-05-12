@@ -65,5 +65,7 @@ module.exports = {
     AuthFactor2OTPSecret            : 'auth_factor2_otp_secret',    //  Secret used in conjunction with OTP 2FA
     AuthFactor2OTPBackupCodes       : 'auth_factor2_otp_backup',    //  JSON array of backup codes
 
+    NewPrivateMailCount             : 'new_private_mail_count',     //  non-persistent
+    NewAddressedToMessageCount      : 'new_addr_to_msg_count',      //  non-persistent
 };
 

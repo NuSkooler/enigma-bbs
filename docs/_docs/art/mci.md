@@ -105,6 +105,8 @@ There are many predefined MCI codes that can be used anywhere on the system (pla
 | `LD` | Date of last caller |
 | `TU` | Total number of users on the system |
 | `NT` | Total *new* users *today* |
+| `NM` | Count of new messages **address to the current user** across all message areas in which they have access |
+| `NP` | Count of new private mail to the current user |
 
 Some additional special case codes also exist:
 

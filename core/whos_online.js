@@ -3,7 +3,9 @@
 
 //  ENiGMA½
 const { MenuModule }            = require('./menu_module.js');
-const { getActiveConnectionList } = require('./client_connections.js');
+const {
+    getActiveConnectionList,
+    UserVisibleConnections } = require('./client_connections.js');
 const { Errors }                = require('./enig_error.js');
 
 //  deps
@@ -43,7 +45,7 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                             return cb(Errors.MissingMci(`Missing online list MCI ${MciViewIds.onlineList}`));
                         }
 
-                        const onlineList = getActiveConnectionList().slice(0, onlineListView.height).map(
+                        const onlineList = getActiveConnectionList(UserVisibleConnections).slice(0, onlineListView.height).map(
                             oe => Object.assign(oe, { text : oe.userName, timeOn : _.upperFirst(oe.timeOn.humanize()) })
                         );
 

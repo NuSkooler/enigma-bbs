@@ -79,3 +79,5 @@ The following MCI codes are available:
     * `freeMemoryBytes`: Free system memory in bytes.
     * `systemAvgLoad`: System average load.
     * `systemCurrentLoad`: System current load.
+    * `newPrivateMail`: Number of new **privae** mail for current user.
+    * `newMessagesAddrTo`: Number of new messages **addressed to the current user**.

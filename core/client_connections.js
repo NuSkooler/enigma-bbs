@@ -21,7 +21,16 @@ exports.getConnectionByNodeId   = getConnectionByNodeId;
 const clientConnections = [];
 exports.clientConnections = clientConnections;
 
-function getActiveConnections(options = { authUsersOnly: true, visibleOnly: true }) {
+const AllConnections = { authUsersOnly: false, visibleOnly: false, availOnly: false };
+exports.AllConnections = AllConnections;
+
+const UserVisibleConnections = { authUsersOnly: false, visibleOnly: true, availOnly: false };
+exports.UserVisibleConnections = UserVisibleConnections;
+
+const UserMessageableConnections = { authUsersOnly: true, visibleOnly: true, availOnly: true };
+exports.UserMessageableConnections = UserMessageableConnections;
+
+function getActiveConnections(options = { authUsersOnly: true, visibleOnly: true, availOnly: false }) {
     return clientConnections.filter(conn => {
         if (options.authUsersOnly && !conn.user.isAuthenticated()) {
             return false;
@@ -29,13 +38,15 @@ function getActiveConnections(options = { authUsersOnly: true, visibleOnly: true
         if (options.visibleOnly && !conn.user.isVisible()) {
             return false;
         }
+        if (options.availOnly && !conn.user.isAvailable()) {
+            return false;
+        }
 
         return true;
-        //return ((options.authUsersOnly && conn.user.isAuthenticated()) || !options.authUsersOnly);
     });
 }
 
-function getActiveConnectionList(options = { authUsersOnly: true, visibleOnly: true }) {
+function getActiveConnectionList(options = { authUsersOnly: true, visibleOnly: true, availOnly: false }) {
     const now = moment();
 
     return _.map(getActiveConnections(options), ac => {
@@ -149,9 +160,9 @@ function removeClient(client) {
 }
 
 function getConnectionByUserId(userId) {
-    return getActiveConnections().find( ac => userId === ac.user.userId );
+    return getActiveConnections(AllConnections).find( ac => userId === ac.user.userId );
 }
 
 function getConnectionByNodeId(nodeId) {
-    return getActiveConnections().find( ac => nodeId == ac.node );
+    return getActiveConnections(AllConnections).find( ac => nodeId == ac.node );
 }

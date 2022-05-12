@@ -186,6 +186,12 @@ const PREDEFINED_MCI_GENERATORS = {
         const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
         return moment.duration(minutes, 'minutes').humanize();
     },
+    NM  : function userNewMessagesAddressedToCount(client) {
+        return StatLog.getUserStatNumByClient(client, UserProps.NewAddressedToMessageCount);
+    },
+    NP  : function userNewPrivateMailCount(client) {
+        return StatLog.getUserStatNumByClient(client, UserProps.NewPrivateMailCount);
+    },
 
     //
     //  Date/Time
@@ -243,7 +249,7 @@ const PREDEFINED_MCI_GENERATORS = {
         return moment.duration(process.uptime(), 'seconds').humanize();
     },
     NV  : function nodeVersion() { return process.version; },
-    AN  : function activeNodes() { return clientConnections.getActiveConnections().length.toString(); },
+    AN  : function activeNodes() { return clientConnections.getActiveConnections(clientConnections.UserVisibleConnections).length.toString(); },
 
     TC  : function totalCalls() { return StatLog.getSystemStat(SysProps.LoginCount).toLocaleString(); },
     TT  : function totalCallsToday() {

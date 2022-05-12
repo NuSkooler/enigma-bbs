@@ -7,6 +7,8 @@ const {
 }               = require('./database.js');
 const Errors    = require('./enig_error.js');
 const SysProps  = require('./system_property.js');
+const UserProps = require('./user_property');
+const Message = require('./message');
 
 //  deps
 const _         = require('lodash');
@@ -152,11 +154,23 @@ class StatLog {
     }
 
     getUserStat(user, statName) {
-        return user.properties[statName];
+        return user.getProperty(statName);
+    }
+
+    getUserStatByClient(client, statName) {
+        const stat = this.getUserStat(client.user, statName);
+        this._refreshUserStat(client, statName);
+        return stat;
     }
 
     getUserStatNum(user, statName) {
         return parseInt(this.getUserStat(user, statName)) || 0;
+    }
+
+    getUserStatNumByClient(client, statName, ttlSeconds=10) {
+        const stat = this.getUserStatNum(client.user, statName);
+        this._refreshUserStat(client, statName, ttlSeconds);
+        return stat;
     }
 
     incrementUserStat(user, statName, incrementBy, cb) {
@@ -389,6 +403,49 @@ class StatLog {
             .catch(err => {
                 //  :TODO: log me
             });
+    }
+
+    _refreshUserStat(client, statName, ttlSeconds) {
+        switch(statName) {
+            case UserProps.NewPrivateMailCount:
+                this._wrapUserRefreshWithCachedTTL(client, statName, this._refreshUserPrivateMailCount, ttlSeconds);
+                break;
+
+            case UserProps.NewAddressedToMessageCount:
+                this._wrapUserRefreshWithCachedTTL(client, statName, this._refreshUserNewAddressedToMessageCount, ttlSeconds);
+                break;
+        }
+    }
+
+    _wrapUserRefreshWithCachedTTL(client, statName, updateMethod, ttlSeconds) {
+        client.statLogRefreshCache = client.statLogRefreshCache || new Map();
+
+        const now = Math.floor(Date.now() / 1000);
+        const old = client.statLogRefreshCache.get(statName) || 0;
+        if (now < old + ttlSeconds) {
+            return;
+        }
+
+        updateMethod(client);
+        client.statLogRefreshCache.set(statName, now);
+    }
+
+    _refreshUserPrivateMailCount(client) {
+        const MsgArea = require('./message_area');
+        MsgArea.getNewMessageCountInAreaForUser(client.user.userId, Message.WellKnownAreaTags.Private, (err, count) => {
+            if (!err) {
+                client.user.setProperty(UserProps.NewPrivateMailCount, count);
+            }
+        });
+    }
+
+    _refreshUserNewAddressedToMessageCount(client) {
+        const MsgArea = require('./message_area');
+        MsgArea.getNewMessageCountAddressedToUser(client, (err, count) => {
+            if(!err) {
+                client.user.setProperty(UserProps.NewAddressedToMessageCount, count);
+            }
+        });
     }
 
     _findLogEntries(logTable, filter, cb) {
