@@ -249,10 +249,10 @@
 			mainMenuWaitingForCaller: {
 				config: {
 					quickLogTimestampFormat: "|01|02MM|08/|02DD hh:mm:ssa"
-					nowDateTimeFormat: "|00|11dddd|08, |11MMMM Do YYYY |08/ |11h|08:|11mm|08:|11ss|03a"
+					nowDateTimeFormat: "|00|11ddd|08, |11MMMM Do YYYY|08, |11h|08:|11mm|08:|11ss|03a"
 					lastLoginDateTimeFormat: "|00|10ddd hh|08:|10mm|02a"
 
-					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03mail|08: |11{newPrivateMail}|03 prv|08, |11{newMessagesAddrTo}|03 addr to"
+					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03Prv|08:|11{newPrivateMail} |03Addr|08:|11{newMessagesAddrTo} |08- |03Avail|08:|11{availIndicator} |03Vis|08:|11{visIndicator}"
 					mainInfoFormat11: "|00|10{callsToday:>5}"
 					mainInfoFormat12: "|00|10{postsToday:>5}"
 					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr} |02{uploadBytesToday!sizeAbbr}"
@@ -288,6 +288,8 @@
 						error: |00|12
 						fatal: |00|28
 					}
+					statusAvailableIndicators: [ "N", "Y" ]
+					statusVisibleIndicators: [ "N", "Y" ]
 				}
 				0: {
 					mci: {

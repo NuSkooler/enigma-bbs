@@ -81,3 +81,6 @@ The following MCI codes are available:
     * `systemCurrentLoad`: System current load.
     * `newPrivateMail`: Number of new **privae** mail for current user.
     * `newMessagesAddrTo`: Number of new messages **addressed to the current user**.
+
+
+:information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.

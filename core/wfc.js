@@ -53,6 +53,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         }
     }
 
+    // initSequence -> MenuModule.displayArtAndPrepViewController() (make common)
+    // main, help, log, ...
+
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
             if (err) {
@@ -118,9 +121,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _applyOpVisibility() {
-        const vis = this.config.opVisibility || 'current';
         this.restoreUserIsVisible = this.client.user.isVisible();
 
+        const vis = this.config.opVisibility || 'current';
         switch (vis) {
             case 'hidden'   : this.client.user.setVisibility(false); break;
             case 'visible'  : this.client.user.setVisibility(true); break;
@@ -175,6 +178,20 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         );
     }
 
+    _getStatusStrings(isAvailable, isVisible) {
+        const availIndicators = Array.isArray(this.config.statusAvailableIndicators) ?
+            this.config.statusAvailableIndicators :
+            this.client.currentTheme.helpers.getStatusAvailableIndicators();
+        const visIndicators = Array.isArray(this.config.statusVisibleIndicators) ?
+            this.config.statusVisibleIndicators :
+            this.client.currentTheme.helpers.getStatusVisibleIndicators();
+
+        return [
+            isAvailable ? (availIndicators[1] || 'Y') : (availIndicators[0] || 'N'),
+            isVisible ? (visIndicators[1] || 'Y') : (visIndicators[0] || 'N'),
+        ];
+    }
+
     _refreshStats(cb) {
         const fileAreaStats     = StatLog.getSystemStat(SysProps.FileBaseAreaStats) || {};
         const sysMemStats       = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {};
@@ -182,6 +199,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         const lastLoginStats    = StatLog.getSystemStat(SysProps.LastLogin);
 
         const now = moment();
+
+        const [availIndicator, visIndicator] = this._getStatusStrings(
+            this.client.user.isAvailable(), this.client.user.isVisible()
+        );
 
         this.stats = {
             //  Date/Time
@@ -216,6 +237,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             //  Current
             currentUserName         : this.client.user.username,
             currentUserRealName     : this.client.user.getProperty(UserProps.RealName) || this.client.user.username,
+            availIndicator          : availIndicator,
+            visIndicator            : visIndicator,
             lastLoginUserName       : lastLoginStats.userName,
             lastLoginRealName       : lastLoginStats.realName,
             lastLoginDate           : moment(lastLoginStats.timestamp).format(this.getDateFormat()),
@@ -247,7 +270,11 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     ac.action   = 'Logging In';
                 }
 
+                const [availIndicator, visIndicator] = this._getStatusStrings(ac.isAvailable, ac.isVisible);
+
                 return Object.assign(ac, {
+                    availIndicator,
+                    visIndicator,
                     timeOn : _.upperFirst((ac.timeOn || moment.duration(0)).humanize()),    //  make friendly
                 });
         });

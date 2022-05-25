@@ -192,6 +192,14 @@ const PREDEFINED_MCI_GENERATORS = {
     NP  : function userNewPrivateMailCount(client) {
         return StatLog.getUserStatNumByClient(client, UserProps.NewPrivateMailCount);
     },
+    IA  : function userStatusAvailableIndicator(client) {
+        const indicators = client.currentTheme.helpers.getStatusAvailIndicators();
+        return client.user.isAvailable() ? (indicators[0] || 'Y') : (indicators[1] || 'N');
+    },
+    IV  : function userStatusVisibleIndicator(client) {
+        const indicators = client.currentTheme.helpers.getStatusVisibleIndicators();
+        return client.user.isVisible() ? (indicators[0] || 'Y') : (indicators[1] || 'N');
+    },
 
     //
     //  Date/Time
