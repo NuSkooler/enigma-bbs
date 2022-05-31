@@ -51,6 +51,19 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         if (!this.config.acs.includes('SC')) {
             this.config.acs = 'SC' + this.config.acs;    //  secure connection at the very least
         }
+
+        this.menuMethods = {
+            toggleAvailable : (formData, extraArgs, cb) => {
+                const avail = this.client.user.isAvailable();
+                this.client.user.setAvailability(!avail);
+                return this._refreshAll(cb);
+            },
+            toggleVisible : (formData, extraArgs, cb) => {
+                const visible = this.client.user.isVisible();
+                this.client.user.setVisibility(!visible);
+                return this._refreshAll(cb);
+            },
+        }
     }
 
     // initSequence -> MenuModule.displayArtAndPrepViewController() (make common)

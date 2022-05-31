@@ -255,12 +255,12 @@
 					mainInfoFormat10: "|00|11{now}    {currentUserName} |08- |03Prv|08:|11{newPrivateMail} |03Addr|08:|11{newMessagesAddrTo} |08- |03Avail|08:|11{availIndicator} |03Vis|08:|11{visIndicator}"
 					mainInfoFormat11: "|00|10{callsToday:>5}"
 					mainInfoFormat12: "|00|10{postsToday:>5}"
-					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr} |02{uploadBytesToday!sizeAbbr}"
-					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadBytesToday!sizeWithoutAbbr} |02{downloadBytesToday!sizeAbbr}"
+					mainInfoFormat13: "|00|10{uploadsToday:>2} |08/ |10{uploadBytesToday!sizeWithoutAbbr:>3} |02{uploadBytesToday!sizeAbbr}"
+					mainInfoFormat14: "|00|10{downloadsToday:>2} |08/ |10{downloadBytesToday!sizeWithoutAbbr:>3} |02{downloadBytesToday!sizeAbbr}"
 
 					mainInfoFormat15: "|00|10{lastLoginUserName:<26} |02{lastLogin}"
 
-					mainInfoFormat16: "|00|10{newUsersToday}"
+					mainInfoFormat16: "|00|10{newUsersToday:>5}"
 
 					mainInfoFormat17: "|00|10{freeMemoryBytes!sizeWithoutAbbr} |02{freeMemoryBytes!sizeAbbr} free |08/ |10{totalMemoryBytes!sizeWithoutAbbr} |02{totalMemoryBytes!sizeAbbr}"
 					mainInfoFormat18: "|00|10{systemCurrentLoad} |02% |08/ |10{systemAvgLoad} |02load avg|08."
@@ -269,7 +269,7 @@
 					mainInfoFormat20: "|00|10{totalCalls:>5}"
 					mainInfoFormat21: "|00|10{totalPosts:>7}"
 					mainInfoFormat22: "|00|10{totalUsers:>5}"
-					mainInfoFormat23: "|00|10{totalFiles} |08/ |10{totalFileBytes!sizeWithoutAbbr} |02{totalFileBytes!sizeAbbr}"
+					mainInfoFormat23: "|00|10{totalFiles:>4} |08/ |10{totalFileBytes!sizeWithoutAbbr:>4} |02{totalFileBytes!sizeAbbr}"
 
 					quickLogLevel: info
 					quickLogLevelIndicators: {
@@ -293,6 +293,9 @@
 				}
 				0: {
 					mci: {
+						TL16: {
+							fillChar: .
+						}
 						TL17: { width: 23 }
 						TL18: { width: 23 }
 						TL19: { width: 14 }

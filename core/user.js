@@ -136,6 +136,14 @@ module.exports = class User {
         return (this.statusFlags & User.StatusFlags.NotVisible) == 0;
     }
 
+    setAvailability(available) {
+        if (available) {
+            this.statusFlags &= ~User.StatusFlags.NotAvailable;
+        } else {
+            this.statusFlags |= User.StatusFlags.NotAvailable;
+        }
+    }
+
     setVisibility(visible) {
         if (visible) {
             this.statusFlags &= ~User.StatusFlags.NotVisible;
