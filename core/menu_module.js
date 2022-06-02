@@ -11,6 +11,7 @@ const stringFormat              = require('../core/string_format.js');
 const MultiLineEditTextView     = require('../core/multi_line_edit_text_view.js').MultiLineEditTextView;
 const Errors                    = require('../core/enig_error.js').Errors;
 const { getPredefinedMCIValue } = require('../core/predefined_mci.js');
+const EnigAssert = require('./enigma_assert');
 
 //  deps
 const async                 = require('async');
@@ -561,6 +562,66 @@ exports.MenuModule = class MenuModule extends PluginModule {
             */
             return cb(err, artInfo);
         });
+    }
+
+    displayArtAndPrepViewController(name, formId, options, cb) {
+        const config = this.menuConfig.config;
+        EnigAssert(_.isObject(config));
+
+        async.waterfall(
+            [
+                (callback) => {
+                    if(options.clearScreen) {
+                        this.client.term.rawWrite(ansi.resetScreen());
+                    }
+
+                    theme.displayThemedAsset(
+                        config.art[name],
+                        this.client,
+                        { font : this.menuConfig.font, trailingLF : false },
+                        (err, artData) => {
+                            return callback(err, artData);
+                        }
+                    );
+                },
+                (artData, callback) => {
+                    if(_.isUndefined(this.viewControllers[name])) {
+                        const vcOpts = {
+                            client      : this.client,
+                            formId      : formId,
+                        };
+
+                        if(!_.isUndefined(options.noInput)) {
+                            vcOpts.noInput = options.noInput;
+                        }
+
+                        const vc = this.addViewController(name, new ViewController(vcOpts));
+
+                        if (_.isFunction(options.artDataPrep)) {
+                            try {
+                                options.artDataPrep(name, artData, vc);
+                            } catch(e) {
+                                return callback(e);
+                            }
+                        }
+
+                        const loadOpts = {
+                            callingMenu     : this,
+                            mciMap          : artData.mciMap,
+                            formId          : formId,
+                        };
+
+                        return vc.loadFromMenuConfig(loadOpts, callback);
+                    }
+
+                    this.viewControllers[name].setFocus(true);
+                    return callback(null);
+                },
+            ],
+            err => {
+                return cb(err);
+            }
+        );
     }
 
     setViewText(formName, mciId, text, appendMultiLine) {

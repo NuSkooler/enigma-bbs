@@ -306,68 +306,17 @@ exports.getModule = class FileAreaList extends MenuModule {
         return this.updateCustomViewTextsWithFilter(category, startId, this.currentFileEntry.entryInfo);
     }
 
-    displayArtAndPrepViewController(name, options, cb) {
-        const self      = this;
-        const config    = this.menuConfig.config;
-
-        async.waterfall(
-            [
-                function readyAndDisplayArt(callback) {
-                    if(options.clearScreen) {
-                        self.client.term.rawWrite(ansi.resetScreen());
-                    }
-
-                    theme.displayThemedAsset(
-                        config.art[name],
-                        self.client,
-                        { font : self.menuConfig.font, trailingLF : false },
-                        (err, artData) => {
-                            return callback(err, artData);
-                        }
-                    );
-                },
-                function prepeareViewController(artData, callback) {
-                    if(_.isUndefined(self.viewControllers[name])) {
-                        const vcOpts = {
-                            client      : self.client,
-                            formId      : FormIds[name],
-                        };
-
-                        if(!_.isUndefined(options.noInput)) {
-                            vcOpts.noInput = options.noInput;
-                        }
-
-                        const vc = self.addViewController(name, new ViewController(vcOpts));
-
-                        if('details' === name) {
-                            try {
-                                self.detailsInfoArea = {
-                                    top     : artData.mciMap.XY2.position,
-                                    bottom  : artData.mciMap.XY3.position,
-                                };
-                            } catch(e) {
-                                return callback(Errors.DoesNotExist('Missing XY2 and XY3 position indicators!'));
-                            }
-                        }
-
-                        const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : artData.mciMap,
-                            formId          : FormIds[name],
-                        };
-
-                        return vc.loadFromMenuConfig(loadOpts, callback);
-                    }
-
-                    self.viewControllers[name].setFocus(true);
-                    return callback(null);
-
-                },
-            ],
-            err => {
-                return cb(err);
+    displayArtDataPrepCallback(name, artData, viewController) {
+        if ('details' === name) {
+            try {
+                this.detailsInfoArea = {
+                    top: artData.mciMap.XY2.position,
+                    bottom: artData.mciMap.XY3.position,
+                };
+            } catch(e) {
+                throw Errors.DoesNotExist('Missing XY2 and XY3 position indicators!');
             }
-        );
+        }
     }
 
     displayBrowsePage(clearScreen, cb) {
@@ -388,7 +337,12 @@ exports.getModule = class FileAreaList extends MenuModule {
                     return callback(null);
                 },
                 function prepArtAndViewController(callback) {
-                    return self.displayArtAndPrepViewController('browse', { clearScreen : clearScreen }, callback);
+                    return self.displayArtAndPrepViewController(
+                        'browse',
+                        FormIds.browse,
+                        { clearScreen : clearScreen, artDataPrep: self.displayArtDataPrepCallback.bind(self) },
+                        callback
+                    );
                 },
                 function loadCurrentFileInfo(callback) {
                     self.currentFileEntry = new FileEntry();
@@ -457,12 +411,17 @@ exports.getModule = class FileAreaList extends MenuModule {
     }
 
     displayDetailsPage(cb) {
-        const self      = this;
+        const self = this;
 
         async.series(
             [
                 function prepArtAndViewController(callback) {
-                    return self.displayArtAndPrepViewController('details', { clearScreen : true }, callback);
+                    return self.displayArtAndPrepViewController(
+                        'details',
+                        FormIds.details,
+                        { clearScreen : true, artDataPrep: self.displayArtDataPrepCallback.bind(self) },
+                        callback
+                    );
                 },
                 function populateViews(callback) {
                     self.populateCustomLabels('details', MciViewIds.details.customRangeStart);
@@ -678,7 +637,16 @@ exports.getModule = class FileAreaList extends MenuModule {
                         gotoTopPos();
                     }
 
-                    return self.displayArtAndPrepViewController(name, { clearScreen : false, noInput : true }, callback);
+                    return self.displayArtAndPrepViewController(
+                        name,
+                        FormIds[name],
+                        {
+                            clearScreen : false,
+                            noInput : true,
+                            artDataPrep: self.displayArtDataPrepCallback.bind(self)
+                        },
+                        callback
+                    );
                 },
                 function populateViews(callback) {
                     self.lastDetailsViewController = self.viewControllers[name];
