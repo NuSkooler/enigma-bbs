@@ -24,7 +24,9 @@ exports.moduleInfo = {
 };
 
 const FormIds = {
-    main : 0,
+    main: 0,
+    help: 1,
+    fullLog: 2,
 };
 
 const MciViewIds = {
@@ -52,6 +54,8 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
             this.config.acs = 'SC' + this.config.acs;    //  secure connection at the very least
         }
 
+        this.selectedNodeStatusIndex = -1; // no selection
+
         this.menuMethods = {
             toggleAvailable : (formData, extraArgs, cb) => {
                 const avail = this.client.user.isAvailable();
@@ -63,29 +67,61 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 this.client.user.setVisibility(!visible);
                 return this._refreshAll(cb);
             },
+            displayHelp : (formData, extraArgs, cb) => {
+                return this._displayHelpPage(cb);
+            },
+            setNodeStatusSelection : (formData, extraArgs, cb) => {
+                const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+                if (!nodeStatusView) {
+                    return cb(null);
+                }
+
+                const index = parseInt(formData.ch); // 1-based
+                if (isNaN(index) || nodeStatusView.getCount() < index) {
+                    return cb(null);
+                }
+
+                this.selectedNodeStatusIndex = index - 1;
+                this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
+                return cb(null);
+            }
         }
     }
 
-    // initSequence -> MenuModule.displayArtAndPrepViewController() (make common)
-    // main, help, log, ...
-
-    mciReady(mciData, cb) {
-        super.mciReady(mciData, err => {
-            if (err) {
-                return cb(err);
+    initSequence() {
+        async.series(
+            [
+                (callback) => {
+                    return this.beforeArt(callback);
+                },
+                (callback) => {
+                    return this._displayMainPage(false, callback);
+                }
+            ],
+            () => {
+                this.finishedLoading();
             }
+        );
+    }
 
-            async.series(
-                [
-                    (callback) => {
-                        return this.prepViewController('main', FormIds.main, mciData.menu, callback);
-                    },
-                    (callback) => {
-                        const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
-                        if (!quickLogView) {
-                            return callback(null);
-                        }
+    _displayMainPage(clearScreen, cb) {
+        async.series(
+            [
+                (callback) => {
+                    return this.displayArtAndPrepViewController(
+                        'main',
+                        FormIds.main,
+                        { clearScreen },
+                        callback
+                    );
+                },
+                (callback) => {
+                    const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
+                    if (!quickLogView) {
+                        return callback(null);
+                    }
 
+                    if (!this.logRingBuffer) {
                         const logLevel = this.config.quickLogLevel ||           //  WFC specific
                             _.get(Config(), 'logging.rotatingFile.level') ||    //  ...or system setting
                             'info';                                             //  ...or default to info
@@ -97,21 +133,35 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                             level   : logLevel,
                             stream  : this.logRingBuffer
                         });
+                    }
 
-                        return callback(null);
-                    },
-                    (callback) => {
-                        return this._refreshAll(callback);
-                    }
-                ],
-                err => {
-                    if (!err) {
-                        this._startRefreshing();
-                    }
-                    return cb(err);
+                    return callback(null);
+                },
+                (callback) => {
+                    return this._refreshAll(callback);
                 }
-            );
-        });
+            ],
+            err => {
+                if (!err) {
+                    this._startRefreshing();
+                }
+                return cb(err);
+            }
+        );
+    }
+
+    _displayHelpPage(cb) {
+        this._stopRefreshing();
+
+        this.displayAsset(
+            this.menuConfig.config.art.help,
+            { clearScreen : true },
+            () => {
+                this.client.waitForKeyPress( () => {
+                    return this._displayMainPage(true, cb);
+                });
+            }
+        );
     }
 
     enter() {
@@ -150,6 +200,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
     }
 
     _startRefreshing() {
+        if (this.mainRefreshTimer) {
+            this._stopRefreshing();
+        }
+
         this.mainRefreshTimer = setInterval( () => {
             this._refreshAll();
         }, MainStatRefreshTimeMs);
@@ -268,6 +322,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         return cb(null);
     }
 
+    _selectNodeByIndex(nodeStatusView, index) {
+        if (index >= 0 && nodeStatusView.getFocusItemIndex() !== index) {
+            nodeStatusView.setFocusItemIndex(index);
+        } else {
+            nodeStatusView.redraw();
+        }
+    }
+
     _refreshNodeStatus(cb) {
         const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
         if (!nodeStatusView) {
@@ -292,9 +354,9 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 });
         });
 
+        //  :TODO: Currently this always redraws due to setItems(). We really need painters alg.; The alternative now is to compare items... yuk.
         nodeStatusView.setItems(nodeStatusItems);
-        nodeStatusView.redraw();
-
+        this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);  // redraws
         return cb(null);
     }
 

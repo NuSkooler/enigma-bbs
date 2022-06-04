@@ -364,7 +364,7 @@ exports.ThemeManager = class ThemeManager {
         async.each([ ...this.availableThemes.keys() ], (themeId, nextThemeId) => {
             this._loadTheme(themeId, err => {
                 if (!err) {
-                    Log.info({ themeId }, 'Theme reloaded');
+                    Log.info({ themeId }, `Theme "${themeId}" reloaded`);
                 }
                 return nextThemeId(null);   //  always proceed
             });
