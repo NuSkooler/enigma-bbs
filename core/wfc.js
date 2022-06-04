@@ -76,13 +76,16 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     return cb(null);
                 }
 
-                const index = parseInt(formData.ch); // 1-based
-                if (isNaN(index) || nodeStatusView.getCount() < index) {
+                const nodeId = parseInt(formData.ch); // 1-based
+                if (isNaN(nodeId)) {
                     return cb(null);
                 }
 
-                this.selectedNodeStatusIndex = index - 1;
-                this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
+                const index = this._getNodeByNodeId(nodeStatusView, nodeId);
+                if (index > -1) {
+                    this.selectedNodeStatusIndex = index;
+                    this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
+                }
                 return cb(null);
             }
         }
@@ -320,6 +323,10 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         };
 
         return cb(null);
+    }
+
+    _getNodeByNodeId(nodeStatusView, nodeId) {
+        return nodeStatusView.getItems().findIndex(entry => entry.node == nodeId);
     }
 
     _selectNodeByIndex(nodeStatusView, index) {
