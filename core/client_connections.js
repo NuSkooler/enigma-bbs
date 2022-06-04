@@ -113,6 +113,7 @@ function addNewClient(client, clientSock) {
 
     const connInfo = {
         remoteAddress   : remoteAddress,
+        freiendlyRemoteAddress: client.friendlyRemoteAddress(),
         serverName      : client.session.serverName,
         isSecure        : client.session.isSecure,
     };

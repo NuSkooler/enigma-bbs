@@ -238,6 +238,6 @@ function transformLoginError(err, client, username) {
         err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
     }
 
-    client.log.warn( { username, ip : client.remoteAddress, reason : err.message }, `Failed login attempt for user "${username}", ${client.remoteAddress}`);
+    client.log.warn( { username, ip : client.remoteAddress, reason : err.message }, `Failed login attempt for user "${username}", ${client.friendlyRemoteAddress()}`);
     return err;
 }
