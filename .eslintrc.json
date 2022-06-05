@@ -3,7 +3,7 @@
         "es6": true,
         "node": true
     },
-    "extends": ["eslint:recommended"],
+    "extends": ["eslint:recommended", "prettier"],
     "rules": {
         "indent": [
             "error",
@@ -16,7 +16,7 @@
         "quotes": ["error", "single"],
         "semi": ["error", "always"],
         "comma-dangle": 0,
-        "no-trailing-spaces": "warn"
+        "no-trailing-spaces": "error"
     },
     "parserOptions": {
         "ecmaVersion": 2020
