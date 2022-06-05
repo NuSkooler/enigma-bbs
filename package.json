@@ -61,7 +61,8 @@
     "yazl": "^2.5.1"
   },
   "devDependencies": {
-    "eslint": "^8.13.0"
+    "eslint": "^8.13.0",
+    "prettier": "2.6.2"
   },
   "engines": {
     "node": ">=14"
