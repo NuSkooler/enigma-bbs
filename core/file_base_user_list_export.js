@@ -2,23 +2,23 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }        = require('./menu_module.js');
-const FileEntry             = require('./file_entry.js');
-const FileArea              = require('./file_base_area.js');
-const { renderSubstr }      = require('./string_util.js');
-const { Errors }            = require('./enig_error.js');
-const DownloadQueue         = require('./download_queue.js');
-const { exportFileList }    = require('./file_base_list_export.js');
+const { MenuModule } = require('./menu_module.js');
+const FileEntry = require('./file_entry.js');
+const FileArea = require('./file_base_area.js');
+const { renderSubstr } = require('./string_util.js');
+const { Errors } = require('./enig_error.js');
+const DownloadQueue = require('./download_queue.js');
+const { exportFileList } = require('./file_base_list_export.js');
 
 //  deps
-const _                 = require('lodash');
-const async             = require('async');
-const fs                = require('graceful-fs');
-const fse               = require('fs-extra');
-const paths             = require('path');
-const moment            = require('moment');
-const { v4 : UUIDv4 } = require('uuid');
-const yazl              = require('yazl');
+const _ = require('lodash');
+const async = require('async');
+const fs = require('graceful-fs');
+const fse = require('fs-extra');
+const paths = require('path');
+const moment = require('moment');
+const { v4: UUIDv4 } = require('uuid');
+const yazl = require('yazl');
 
 /*
     Module config block can contain the following:
@@ -44,52 +44,66 @@ const yazl              = require('yazl');
 */
 
 exports.moduleInfo = {
-    name    : 'File Base List Export',
-    desc    : 'Exports file base listings for download',
-    author  : 'NuSkooler',
+    name: 'File Base List Export',
+    desc: 'Exports file base listings for download',
+    author: 'NuSkooler',
 };
 
 const FormIds = {
-    main    : 0,
+    main: 0,
 };
 
 const MciViewIds = {
-    main : {
-        status              : 1,
-        progressBar         : 2,
+    main: {
+        status: 1,
+        progressBar: 2,
 
-        customRangeStart    : 10,
-    }
+        customRangeStart: 10,
+    },
 };
 
 exports.getModule = class FileBaseListExport extends MenuModule {
-
     constructor(options) {
         super(options);
-        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+        this.config = Object.assign(
+            {},
+            _.get(options, 'menuConfig.config'),
+            options.extraArgs
+        );
 
-        this.config.templateEncoding    = this.config.templateEncoding || 'utf8';
-        this.config.tsFormat            = this.config.tsFormat || this.client.currentTheme.helpers.getDateTimeFormat('short');
-        this.config.descWidth           = this.config.descWidth || 45;  //  ie FILE_ID.DIZ
-        this.config.progBarChar         = renderSubstr( (this.config.progBarChar || '▒'), 0, 1);
-        this.config.compressThreshold   = this.config.compressThreshold || (1440000);   //  >= 1.44M by default :)
+        this.config.templateEncoding = this.config.templateEncoding || 'utf8';
+        this.config.tsFormat =
+            this.config.tsFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat('short');
+        this.config.descWidth = this.config.descWidth || 45; //  ie FILE_ID.DIZ
+        this.config.progBarChar = renderSubstr(this.config.progBarChar || '▒', 0, 1);
+        this.config.compressThreshold = this.config.compressThreshold || 1440000; //  >= 1.44M by default :)
     }
 
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
             async.series(
                 [
-                    (callback) => this.prepViewController('main', FormIds.main, mciData.menu, callback),
-                    (callback) => this.prepareList(callback),
+                    callback =>
+                        this.prepViewController(
+                            'main',
+                            FormIds.main,
+                            mciData.menu,
+                            callback
+                        ),
+                    callback => this.prepareList(callback),
                 ],
                 err => {
-                    if(err) {
-                        if('NORESULTS' === err.reasonCode) {
-                            return this.gotoMenu(this.menuConfig.config.noResultsMenu || 'fileBaseExportListNoResults');
+                    if (err) {
+                        if ('NORESULTS' === err.reasonCode) {
+                            return this.gotoMenu(
+                                this.menuConfig.config.noResultsMenu ||
+                                    'fileBaseExportListNoResults'
+                            );
                         }
 
                         return this.prevMenu();
@@ -108,16 +122,18 @@ exports.getModule = class FileBaseListExport extends MenuModule {
         const self = this;
 
         const statusView = self.viewControllers.main.getView(MciViewIds.main.status);
-        const updateStatus = (status) => {
-            if(statusView) {
+        const updateStatus = status => {
+            if (statusView) {
                 statusView.setText(status);
             }
         };
 
-        const progBarView = self.viewControllers.main.getView(MciViewIds.main.progressBar);
+        const progBarView = self.viewControllers.main.getView(
+            MciViewIds.main.progressBar
+        );
         const updateProgressBar = (curr, total) => {
-            if(progBarView) {
-                const prog = Math.floor( (curr / total) * progBarView.dimens.width );
+            if (progBarView) {
+                const prog = Math.floor((curr / total) * progBarView.dimens.width);
                 progBarView.setText(self.config.progBarChar.repeat(prog));
             }
         };
@@ -125,17 +141,21 @@ exports.getModule = class FileBaseListExport extends MenuModule {
         let cancel = false;
 
         const exportListProgress = (state, progNext) => {
-            switch(state.step) {
-                case 'preparing' :
-                case 'gathering' :
+            switch (state.step) {
+                case 'preparing':
+                case 'gathering':
                     updateStatus(state.status);
                     break;
-                case 'file' :
+                case 'file':
                     updateStatus(state.status);
                     updateProgressBar(state.current, state.total);
-                    self.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state.fileInfo);
+                    self.updateCustomViewTextsWithFilter(
+                        'main',
+                        MciViewIds.main.customRangeStart,
+                        state.fileInfo
+                    );
                     break;
-                default :
+                default:
                     break;
             }
 
@@ -143,7 +163,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
         };
 
         const keyPressHandler = (ch, key) => {
-            if('escape' === key.name) {
+            if ('escape' === key.name) {
                 cancel = true;
                 self.client.removeListener('key press', keyPressHandler);
             }
@@ -158,17 +178,27 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                     self.client.on('key press', keyPressHandler);
 
                     const filterCriteria = Object.assign({}, self.config.filterCriteria);
-                    if(!filterCriteria.areaTag) {
-                        filterCriteria.areaTag = FileArea.getAvailableFileAreaTags(self.client);
+                    if (!filterCriteria.areaTag) {
+                        filterCriteria.areaTag = FileArea.getAvailableFileAreaTags(
+                            self.client
+                        );
                     }
 
                     const opts = {
-                        templateEncoding    : self.config.templateEncoding,
-                        headerTemplate      : _.get(self.config, 'templates.header', 'file_list_header.asc'),
-                        entryTemplate       : _.get(self.config, 'templates.entry', 'file_list_entry.asc'),
-                        tsFormat            : self.config.tsFormat,
-                        descWidth           : self.config.descWidth,
-                        progress            : exportListProgress,
+                        templateEncoding: self.config.templateEncoding,
+                        headerTemplate: _.get(
+                            self.config,
+                            'templates.header',
+                            'file_list_header.asc'
+                        ),
+                        entryTemplate: _.get(
+                            self.config,
+                            'templates.entry',
+                            'file_list_entry.asc'
+                        ),
+                        tsFormat: self.config.tsFormat,
+                        descWidth: self.config.descWidth,
+                        progress: exportListProgress,
                     };
 
                     exportFileList(filterCriteria, opts, (err, listBody) => {
@@ -178,47 +208,65 @@ exports.getModule = class FileBaseListExport extends MenuModule {
                 function persistList(listBody, callback) {
                     updateStatus('Persisting list');
 
-                    const sysTempDownloadArea   = FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
-                    const sysTempDownloadDir    = FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
+                    const sysTempDownloadArea = FileArea.getFileAreaByTag(
+                        FileArea.WellKnownAreaTags.TempDownloads
+                    );
+                    const sysTempDownloadDir =
+                        FileArea.getAreaDefaultStorageDirectory(sysTempDownloadArea);
 
                     fse.mkdirs(sysTempDownloadDir, err => {
-                        if(err) {
+                        if (err) {
                             return callback(err);
                         }
 
                         const outputFileName = paths.join(
                             sysTempDownloadDir,
-                            `file_list_${UUIDv4().substr(-8)}_${moment().format('YYYY-MM-DD')}.txt`
+                            `file_list_${UUIDv4().substr(-8)}_${moment().format(
+                                'YYYY-MM-DD'
+                            )}.txt`
                         );
 
                         fs.writeFile(outputFileName, listBody, 'utf8', err => {
-                            if(err) {
+                            if (err) {
                                 return callback(err);
                             }
 
-                            self.getSizeAndCompressIfMeetsSizeThreshold(outputFileName, (err, finalOutputFileName, fileSize) => {
-                                return callback(err, finalOutputFileName, fileSize, sysTempDownloadArea);
-                            });
+                            self.getSizeAndCompressIfMeetsSizeThreshold(
+                                outputFileName,
+                                (err, finalOutputFileName, fileSize) => {
+                                    return callback(
+                                        err,
+                                        finalOutputFileName,
+                                        fileSize,
+                                        sysTempDownloadArea
+                                    );
+                                }
+                            );
                         });
                     });
                 },
-                function persistFileEntry(outputFileName, fileSize, sysTempDownloadArea, callback) {
+                function persistFileEntry(
+                    outputFileName,
+                    fileSize,
+                    sysTempDownloadArea,
+                    callback
+                ) {
                     const newEntry = new FileEntry({
-                        areaTag     : sysTempDownloadArea.areaTag,
-                        fileName    : paths.basename(outputFileName),
-                        storageTag  : sysTempDownloadArea.storageTags[0],
-                        meta        : {
-                            upload_by_username  : self.client.user.username,
-                            upload_by_user_id   : self.client.user.userId,
-                            byte_size           : fileSize,
-                            session_temp_dl     : 1,    //  download is valid until session is over
-                        }
+                        areaTag: sysTempDownloadArea.areaTag,
+                        fileName: paths.basename(outputFileName),
+                        storageTag: sysTempDownloadArea.storageTags[0],
+                        meta: {
+                            upload_by_username: self.client.user.username,
+                            upload_by_user_id: self.client.user.userId,
+                            byte_size: fileSize,
+                            session_temp_dl: 1, //  download is valid until session is over
+                        },
                     });
 
                     newEntry.desc = 'File List Export';
 
                     newEntry.persist(err => {
-                        if(!err) {
+                        if (!err) {
                             //  queue it!
                             DownloadQueue.get(self.client).addTemporaryDownload(newEntry);
                         }
@@ -232,7 +280,7 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
                     updateStatus('Exported list has been added to your download queue');
                     return callback(null);
-                }
+                },
             ],
             err => {
                 self.client.removeListener('key press', keyPressHandler);
@@ -243,11 +291,11 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
     getSizeAndCompressIfMeetsSizeThreshold(filePath, cb) {
         fse.stat(filePath, (err, stats) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
-            if(stats.size < this.config.compressThreshold) {
+            if (stats.size < this.config.compressThreshold) {
                 //  small enough, keep orig
                 return cb(null, filePath, stats.size);
             }
@@ -256,13 +304,13 @@ exports.getModule = class FileBaseListExport extends MenuModule {
 
             const zipFile = new yazl.ZipFile();
             zipFile.addFile(filePath, paths.basename(filePath));
-            zipFile.end( () => {
+            zipFile.end(() => {
                 const outZipFile = fs.createWriteStream(zipFilePath);
                 zipFile.outputStream.pipe(outZipFile);
                 zipFile.outputStream.on('finish', () => {
                     //  delete the original
                     fse.unlink(filePath, err => {
-                        if(err) {
+                        if (err) {
                             return cb(err);
                         }
 

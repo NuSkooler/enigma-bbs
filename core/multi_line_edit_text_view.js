@@ -1,14 +1,14 @@
 /* jslint node: true */
 'use strict';
 
-const View          = require('./view.js').View;
-const strUtil       = require('./string_util.js');
-const ansi          = require('./ansi_term.js');
-const wordWrapText  = require('./word_wrap.js').wordWrapText;
-const ansiPrep      = require('./ansi_prep.js');
+const View = require('./view.js').View;
+const strUtil = require('./string_util.js');
+const ansi = require('./ansi_term.js');
+const wordWrapText = require('./word_wrap.js').wordWrapText;
+const ansiPrep = require('./ansi_prep.js');
 
-const assert        = require('assert');
-const _             = require('lodash');
+const assert = require('assert');
+const _ = require('lodash');
 
 //  :TODO: Determine CTRL-* keys for various things
 //  See http://www.bbsdocumentary.com/library/PROGRAMS/GRAPHICS/ANSI/bansi.txt
@@ -61,37 +61,36 @@ const _             = require('lodash');
 //  * Add word delete (CTRL+????)
 //  *
 
-
 const SPECIAL_KEY_MAP_DEFAULT = {
-    'line feed'     : [ 'return' ],
-    exit            : [ 'esc' ],
-    backspace       : [ 'backspace', 'ctrl + d' ],  //  https://www.tecmint.com/linux-command-line-bash-shortcut-keys/
-    delete          : [ 'delete' ],
-    tab             : [ 'tab' ],
-    up              : [ 'up arrow' ],
-    down            : [ 'down arrow' ],
-    end             : [ 'end' ],
-    home            : [ 'home' ],
-    left            : [ 'left arrow' ],
-    right           : [ 'right arrow' ],
-    'delete line'   : [ 'ctrl + y', 'ctrl + u' ],   //  https://en.wikipedia.org/wiki/Backspace
-    'page up'       : [ 'page up' ],
-    'page down'     : [ 'page down' ],
-    insert          : [ 'insert', 'ctrl + v' ],
+    'line feed': ['return'],
+    exit: ['esc'],
+    backspace: ['backspace', 'ctrl + d'], //  https://www.tecmint.com/linux-command-line-bash-shortcut-keys/
+    delete: ['delete'],
+    tab: ['tab'],
+    up: ['up arrow'],
+    down: ['down arrow'],
+    end: ['end'],
+    home: ['home'],
+    left: ['left arrow'],
+    right: ['right arrow'],
+    'delete line': ['ctrl + y', 'ctrl + u'], //  https://en.wikipedia.org/wiki/Backspace
+    'page up': ['page up'],
+    'page down': ['page down'],
+    insert: ['insert', 'ctrl + v'],
 };
 
-exports.MultiLineEditTextView   = MultiLineEditTextView;
+exports.MultiLineEditTextView = MultiLineEditTextView;
 
 function MultiLineEditTextView(options) {
-    if(!_.isBoolean(options.acceptsFocus)) {
+    if (!_.isBoolean(options.acceptsFocus)) {
         options.acceptsFocus = true;
     }
 
-    if(!_.isBoolean(this.acceptsInput)) {
+    if (!_.isBoolean(this.acceptsInput)) {
         options.acceptsInput = true;
     }
 
-    if(!_.isObject(options.specialKeyMap)) {
+    if (!_.isObject(options.specialKeyMap)) {
         options.specialKeyMap = SPECIAL_KEY_MAP_DEFAULT;
     }
 
@@ -109,11 +108,11 @@ function MultiLineEditTextView(options) {
     //  This seems overkill though, so let's default to 4 :)
     //  :TODO: what shoudl this really be? Maybe 8 is OK
     //
-    this.tabWidth           = _.isNumber(options.tabWidth) ? options.tabWidth : 4;
+    this.tabWidth = _.isNumber(options.tabWidth) ? options.tabWidth : 4;
 
-    this.textLines          = [ ];
-    this.topVisibleIndex    = 0;
-    this.mode               = options.mode || 'edit';   //  edit | preview | read-only
+    this.textLines = [];
+    this.topVisibleIndex = 0;
+    this.mode = options.mode || 'edit'; //  edit | preview | read-only
 
     if ('preview' === this.mode) {
         this.autoScroll = options.autoScroll || true;
@@ -126,89 +125,95 @@ function MultiLineEditTextView(options) {
     //  cursorPos represents zero-based row, col positions
     //  within the editor itself
     //
-    this.cursorPos          = { col : 0, row : 0 };
+    this.cursorPos = { col: 0, row: 0 };
 
-    this.getSGRFor = function(sgrFor) {
-        return {
-            text : self.getSGR(),
-        }[sgrFor] || self.getSGR();
+    this.getSGRFor = function (sgrFor) {
+        return (
+            {
+                text: self.getSGR(),
+            }[sgrFor] || self.getSGR()
+        );
     };
 
-    this.isEditMode = function() {
+    this.isEditMode = function () {
         return 'edit' === self.mode;
     };
 
-    this.isPreviewMode = function() {
+    this.isPreviewMode = function () {
         return 'preview' === self.mode;
     };
 
     //  :TODO: Most of the calls to this could be avoided via incrementRow(), decrementRow() that keeps track or such
-    this.getTextLinesIndex = function(row) {
-        if(!_.isNumber(row)) {
+    this.getTextLinesIndex = function (row) {
+        if (!_.isNumber(row)) {
             row = self.cursorPos.row;
         }
         var index = self.topVisibleIndex + row;
         return index;
     };
 
-    this.getRemainingLinesBelowRow = function(row) {
-        if(!_.isNumber(row)) {
+    this.getRemainingLinesBelowRow = function (row) {
+        if (!_.isNumber(row)) {
             row = self.cursorPos.row;
         }
         return self.textLines.length - (self.topVisibleIndex + row) - 1;
     };
 
-    this.getNextEndOfLineIndex = function(startIndex) {
-        for(var i = startIndex; i < self.textLines.length; i++) {
-            if(self.textLines[i].eol) {
+    this.getNextEndOfLineIndex = function (startIndex) {
+        for (var i = startIndex; i < self.textLines.length; i++) {
+            if (self.textLines[i].eol) {
                 return i;
             }
         }
         return self.textLines.length;
     };
 
-    this.toggleTextCursor = function(action) {
-        self.client.term.rawWrite(`${self.getSGRFor('text')}${'hide' === action ? ansi.hideCursor() : ansi.showCursor()}`);
+    this.toggleTextCursor = function (action) {
+        self.client.term.rawWrite(
+            `${self.getSGRFor('text')}${
+                'hide' === action ? ansi.hideCursor() : ansi.showCursor()
+            }`
+        );
     };
 
-    this.redrawRows = function(startRow, endRow) {
+    this.redrawRows = function (startRow, endRow) {
         self.toggleTextCursor('hide');
 
-        const startIndex    = self.getTextLinesIndex(startRow);
-        const endIndex      = Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
-        const absPos        = self.getAbsolutePosition(startRow, 0);
+        const startIndex = self.getTextLinesIndex(startRow);
+        const endIndex = Math.min(self.getTextLinesIndex(endRow), self.textLines.length);
+        const absPos = self.getAbsolutePosition(startRow, 0);
 
-        for(let i = startIndex; i < endIndex; ++i) {
+        for (let i = startIndex; i < endIndex; ++i) {
             //${self.getSGRFor('text')}
             self.client.term.write(
                 `${ansi.goto(absPos.row++, absPos.col)}${self.getRenderText(i)}`,
-                false   //  convertLineFeeds
+                false //  convertLineFeeds
             );
         }
 
         self.toggleTextCursor('show');
 
-        return absPos.row - self.position.row;  //  row we ended on
+        return absPos.row - self.position.row; //  row we ended on
     };
 
-    this.eraseRows = function(startRow, endRow) {
+    this.eraseRows = function (startRow, endRow) {
         self.toggleTextCursor('hide');
 
-        const absPos        = self.getAbsolutePosition(startRow, 0);
-        const absPosEnd     = self.getAbsolutePosition(endRow, 0);
-        const eraseFiller   = ' '.repeat(self.dimens.width);//new Array(self.dimens.width).join(' ');
+        const absPos = self.getAbsolutePosition(startRow, 0);
+        const absPosEnd = self.getAbsolutePosition(endRow, 0);
+        const eraseFiller = ' '.repeat(self.dimens.width); //new Array(self.dimens.width).join(' ');
 
-        while(absPos.row < absPosEnd.row) {
+        while (absPos.row < absPosEnd.row) {
             self.client.term.write(
                 `${ansi.goto(absPos.row++, absPos.col)}${eraseFiller}`,
-                false   //  convertLineFeeds
+                false //  convertLineFeeds
             );
         }
 
         self.toggleTextCursor('show');
     };
 
-    this.redrawVisibleArea = function() {
+    this.redrawVisibleArea = function () {
         assert(self.topVisibleIndex <= self.textLines.length);
         const lastRow = self.redrawRows(0, self.dimens.height);
 
@@ -227,72 +232,72 @@ function MultiLineEditTextView(options) {
         */
     };
 
-    this.getVisibleText = function(index) {
-        if(!_.isNumber(index)) {
+    this.getVisibleText = function (index) {
+        if (!_.isNumber(index)) {
             index = self.getTextLinesIndex();
         }
         return self.textLines[index].text.replace(/\t/g, ' ');
     };
 
-    this.getText = function(index) {
-        if(!_.isNumber(index)) {
+    this.getText = function (index) {
+        if (!_.isNumber(index)) {
             index = self.getTextLinesIndex();
         }
         return self.textLines.length > index ? self.textLines[index].text : '';
     };
 
-    this.getTextLength = function(index) {
-        if(!_.isNumber(index)) {
+    this.getTextLength = function (index) {
+        if (!_.isNumber(index)) {
             index = self.getTextLinesIndex();
         }
         return self.textLines.length > index ? self.textLines[index].text.length : 0;
     };
 
-    this.getCharacter = function(index, col) {
-        if(!_.isNumber(col)) {
+    this.getCharacter = function (index, col) {
+        if (!_.isNumber(col)) {
             col = self.cursorPos.col;
         }
         return self.getText(index).charAt(col);
     };
 
-    this.isTab = function(index, col) {
+    this.isTab = function (index, col) {
         return '\t' === self.getCharacter(index, col);
     };
 
-    this.getTextEndOfLineColumn = function(index) {
+    this.getTextEndOfLineColumn = function (index) {
         return Math.max(0, self.getTextLength(index));
     };
 
-    this.getRenderText = function(index) {
-        let text        = self.getVisibleText(index);
-        const remain    = self.dimens.width - strUtil.renderStringLength(text);
+    this.getRenderText = function (index) {
+        let text = self.getVisibleText(index);
+        const remain = self.dimens.width - strUtil.renderStringLength(text);
 
-        if(remain > 0) {
-            text += ' '.repeat(remain);// + 1);
+        if (remain > 0) {
+            text += ' '.repeat(remain); // + 1);
         }
 
         return text;
     };
 
-    this.getTextLines = function(startIndex, endIndex) {
+    this.getTextLines = function (startIndex, endIndex) {
         var lines;
-        if(startIndex === endIndex) {
-            lines = [ self.textLines[startIndex] ];
+        if (startIndex === endIndex) {
+            lines = [self.textLines[startIndex]];
         } else {
             lines = self.textLines.slice(startIndex, endIndex + 1); //  "slice extracts up to but not including end."
         }
         return lines;
     };
 
-    this.getOutputText = function(startIndex, endIndex, eolMarker, options) {
+    this.getOutputText = function (startIndex, endIndex, eolMarker, options) {
         const lines = self.getTextLines(startIndex, endIndex);
-        let text    = '';
-        const re    = new RegExp('\\t{1,' + (self.tabWidth) + '}', 'g');
+        let text = '';
+        const re = new RegExp('\\t{1,' + self.tabWidth + '}', 'g');
 
         lines.forEach(line => {
             text += line.text.replace(re, '\t');
 
-            if(options.forceLineTerms || (eolMarker && line.eol)) {
+            if (options.forceLineTerms || (eolMarker && line.eol)) {
                 text += eolMarker;
             }
         });
@@ -300,21 +305,24 @@ function MultiLineEditTextView(options) {
         return text;
     };
 
-    this.getContiguousText = function(startIndex, endIndex, includeEol) {
+    this.getContiguousText = function (startIndex, endIndex, includeEol) {
         var lines = self.getTextLines(startIndex, endIndex);
         var text = '';
-        for(var i = 0; i < lines.length; ++i) {
+        for (var i = 0; i < lines.length; ++i) {
             text += lines[i].text;
-            if(includeEol && lines[i].eol) {
+            if (includeEol && lines[i].eol) {
                 text += '\n';
             }
         }
         return text;
     };
 
-    this.replaceCharacterInText = function(c, index, col) {
+    this.replaceCharacterInText = function (c, index, col) {
         self.textLines[index].text = strUtil.replaceAt(
-            self.textLines[index].text, col, c);
+            self.textLines[index].text,
+            col,
+            c
+        );
     };
 
     /*
@@ -336,22 +344,28 @@ function MultiLineEditTextView(options) {
     };
     */
 
-    this.updateTextWordWrap = function(index) {
-        const nextEolIndex  = self.getNextEndOfLineIndex(index);
-        const wrapped       = self.wordWrapSingleLine(self.getContiguousText(index, nextEolIndex), 'tabsIntact');
-        const newLines      = wrapped.wrapped.map(l => { return { text : l }; } );
+    this.updateTextWordWrap = function (index) {
+        const nextEolIndex = self.getNextEndOfLineIndex(index);
+        const wrapped = self.wordWrapSingleLine(
+            self.getContiguousText(index, nextEolIndex),
+            'tabsIntact'
+        );
+        const newLines = wrapped.wrapped.map(l => {
+            return { text: l };
+        });
 
         newLines[newLines.length - 1].eol = true;
 
         Array.prototype.splice.apply(
             self.textLines,
-            [ index, (nextEolIndex - index) + 1 ].concat(newLines));
+            [index, nextEolIndex - index + 1].concat(newLines)
+        );
 
         return wrapped.firstWrapRange;
     };
 
-    this.removeCharactersFromText = function(index, col, operation, count) {
-        if('delete' === operation) {
+    this.removeCharactersFromText = function (index, col, operation, count) {
+        if ('delete' === operation) {
             self.textLines[index].text =
                 self.textLines[index].text.slice(0, col) +
                 self.textLines[index].text.slice(col + count);
@@ -365,13 +379,13 @@ function MultiLineEditTextView(options) {
                 self.textLines[index].text.slice(0, col - (count - 1)) +
                 self.textLines[index].text.slice(col + 1);
 
-            self.cursorPos.col -= (count - 1);
+            self.cursorPos.col -= count - 1;
 
             self.updateTextWordWrap(index);
             self.redrawRows(self.cursorPos.row, self.dimens.height);
 
             self.moveClientCursorToCursorPos();
-        } else if('delete line' === operation) {
+        } else if ('delete line' === operation) {
             //
             //  Delete a visible line. Note that this is *not* the "physical" line, or
             //  1:n entries up to eol! This is to keep consistency with home/end, and
@@ -379,19 +393,19 @@ function MultiLineEditTextView(options) {
             //  treat all of these things using the physical approach, but this seems
             //  a bit odd in this context.
             //
-            var isLastLine  = (index === self.textLines.length - 1);
-            var hadEol      = self.textLines[index].eol;
+            var isLastLine = index === self.textLines.length - 1;
+            var hadEol = self.textLines[index].eol;
 
             self.textLines.splice(index, 1);
-            if(hadEol && self.textLines.length > index && !self.textLines[index].eol) {
+            if (hadEol && self.textLines.length > index && !self.textLines[index].eol) {
                 self.textLines[index].eol = true;
             }
 
             //
             //  Create a empty edit buffer if necessary
             //  :TODO: Make this a method
-            if(self.textLines.length < 1) {
-                self.textLines = [ { text : '', eol : true } ];
+            if (self.textLines.length < 1) {
+                self.textLines = [{ text: '', eol: true }];
                 isLastLine = false; //  resetting
             }
 
@@ -403,7 +417,7 @@ function MultiLineEditTextView(options) {
             //
             //  If we just deleted the last line in the buffer, move up
             //
-            if(isLastLine) {
+            if (isLastLine) {
                 self.cursorEndOfPreviousLine();
             } else {
                 self.moveClientCursorToCursorPos();
@@ -411,29 +425,29 @@ function MultiLineEditTextView(options) {
         }
     };
 
-    this.insertCharactersInText = function(c, index, col) {
-        const prevTextLength    = self.getTextLength(index);
-        let editingEol          = self.cursorPos.col === prevTextLength;
+    this.insertCharactersInText = function (c, index, col) {
+        const prevTextLength = self.getTextLength(index);
+        let editingEol = self.cursorPos.col === prevTextLength;
 
         self.textLines[index].text = [
             self.textLines[index].text.slice(0, col),
             c,
-            self.textLines[index].text.slice(col)
+            self.textLines[index].text.slice(col),
         ].join('');
 
         self.cursorPos.col += c.length;
 
-        if(self.getTextLength(index) > self.dimens.width) {
+        if (self.getTextLength(index) > self.dimens.width) {
             //
             //  Update word wrapping and |cursorOffset| if the cursor
             //  was within the bounds of the wrapped text
             //
             let cursorOffset;
-            const lastCol           = self.cursorPos.col - c.length;
-            const firstWrapRange    = self.updateTextWordWrap(index);
-            if(lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
+            const lastCol = self.cursorPos.col - c.length;
+            const firstWrapRange = self.updateTextWordWrap(index);
+            if (lastCol >= firstWrapRange.start && lastCol <= firstWrapRange.end) {
                 cursorOffset = self.cursorPos.col - firstWrapRange.start;
-                editingEol = true;  //override
+                editingEol = true; //override
             } else {
                 cursorOffset = firstWrapRange.end;
             }
@@ -443,135 +457,150 @@ function MultiLineEditTextView(options) {
 
             //  If we're editing mid, we're done here. Else, we need to
             //  move the cursor to the new editing position after a wrap
-            if(editingEol) {
+            if (editingEol) {
                 self.cursorBeginOfNextLine();
                 self.cursorPos.col += cursorOffset;
                 self.client.term.rawWrite(ansi.right(cursorOffset));
             } else {
                 //  adjust cursor after drawing new rows
-                const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
+                const absPos = self.getAbsolutePosition(
+                    self.cursorPos.row,
+                    self.cursorPos.col
+                );
                 self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
             }
         } else {
             //
             //  We must only redraw from col -> end of current visible line
             //
-            const absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
-            const renderText = self.getRenderText(index).slice(self.cursorPos.col - c.length);
+            const absPos = self.getAbsolutePosition(
+                self.cursorPos.row,
+                self.cursorPos.col
+            );
+            const renderText = self
+                .getRenderText(index)
+                .slice(self.cursorPos.col - c.length);
 
             self.client.term.write(
-                `${ansi.hideCursor()}${self.getSGRFor('text')}${renderText}${ansi.goto(absPos.row, absPos.col)}${ansi.showCursor()}`,
-                false   //  convertLineFeeds
+                `${ansi.hideCursor()}${self.getSGRFor('text')}${renderText}${ansi.goto(
+                    absPos.row,
+                    absPos.col
+                )}${ansi.showCursor()}`,
+                false //  convertLineFeeds
             );
         }
     };
 
-    this.getRemainingTabWidth = function(col) {
-        if(!_.isNumber(col)) {
+    this.getRemainingTabWidth = function (col) {
+        if (!_.isNumber(col)) {
             col = self.cursorPos.col;
         }
         return self.tabWidth - (col % self.tabWidth);
     };
 
-    this.calculateTabStops = function() {
-        self.tabStops = [ 0 ];
+    this.calculateTabStops = function () {
+        self.tabStops = [0];
         var col = 0;
-        while(col < self.dimens.width) {
+        while (col < self.dimens.width) {
             col += self.getRemainingTabWidth(col);
             self.tabStops.push(col);
         }
     };
 
-    this.getNextTabStop = function(col) {
+    this.getNextTabStop = function (col) {
         var i = self.tabStops.length;
-        while(self.tabStops[--i] > col);
+        while (self.tabStops[--i] > col);
         return self.tabStops[++i];
     };
 
-    this.getPrevTabStop = function(col) {
+    this.getPrevTabStop = function (col) {
         var i = self.tabStops.length;
-        while(self.tabStops[--i] >= col);
+        while (self.tabStops[--i] >= col);
         return self.tabStops[i];
     };
 
-    this.expandTab = function(col, expandChar) {
+    this.expandTab = function (col, expandChar) {
         expandChar = expandChar || ' ';
         return new Array(self.getRemainingTabWidth(col)).join(expandChar);
     };
 
-    this.wordWrapSingleLine = function(line, tabHandling = 'expand') {
-        return wordWrapText(
-            line,
-            {
-                width       : self.dimens.width,
-                tabHandling : tabHandling,
-                tabWidth    : self.tabWidth,
-                tabChar     : '\t',
-            }
-        );
+    this.wordWrapSingleLine = function (line, tabHandling = 'expand') {
+        return wordWrapText(line, {
+            width: self.dimens.width,
+            tabHandling: tabHandling,
+            tabWidth: self.tabWidth,
+            tabChar: '\t',
+        });
     };
 
-    this.setTextLines = function(lines, index, termWithEol) {
-        if(0 === index && (0 === self.textLines.length || (self.textLines.length === 1 && '' === self.textLines[0].text) )) {
+    this.setTextLines = function (lines, index, termWithEol) {
+        if (
+            0 === index &&
+            (0 === self.textLines.length ||
+                (self.textLines.length === 1 && '' === self.textLines[0].text))
+        ) {
             //  quick path: just set the things
-            self.textLines = lines.slice(0, -1).map(l => {
-                return { text : l };
-            }).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+            self.textLines = lines
+                .slice(0, -1)
+                .map(l => {
+                    return { text: l };
+                })
+                .concat({ text: lines[lines.length - 1], eol: termWithEol });
         } else {
             //  insert somewhere in textLines...
-            if(index > self.textLines.length) {
+            if (index > self.textLines.length) {
                 //  fill with empty
                 self.textLines.splice(
                     self.textLines.length,
                     0,
-                    ...Array.from( { length : index - self.textLines.length } ).map( () => { return { text : '' }; } )
+                    ...Array.from({ length: index - self.textLines.length }).map(() => {
+                        return { text: '' };
+                    })
                 );
             }
 
-            const newLines = lines.slice(0, -1).map(l => {
-                return { text : l };
-            }).concat( { text : lines[lines.length - 1], eol : termWithEol } );
+            const newLines = lines
+                .slice(0, -1)
+                .map(l => {
+                    return { text: l };
+                })
+                .concat({ text: lines[lines.length - 1], eol: termWithEol });
 
-            self.textLines.splice(
-                index,
-                0,
-                ...newLines
-            );
+            self.textLines.splice(index, 0, ...newLines);
         }
     };
 
-    this.setAnsiWithOptions = function(ansi, options, cb) {
-
+    this.setAnsiWithOptions = function (ansi, options, cb) {
         function setLines(text) {
             text = strUtil.splitTextAtTerms(text);
 
             let index = 0;
 
             text.forEach(line => {
-                self.setTextLines( [ line ], index, true);  //  true=termWithEol
+                self.setTextLines([line], index, true); //  true=termWithEol
                 index += 1;
             });
 
             self.cursorStartOfDocument();
 
-            if(cb) {
+            if (cb) {
                 return cb(null);
             }
         }
 
-        if(options.prepped) {
+        if (options.prepped) {
             return setLines(ansi);
         }
 
         ansiPrep(
             ansi,
             {
-                termWidth           : options.termWidth || this.client.term.termWidth,
-                termHeight          : options.termHeight || this.client.term.termHeight,
-                cols                : this.dimens.width,
-                rows                : 'auto',
-                startCol            : this.position.col,
-                forceLineTerm       : options.forceLineTerm,
+                termWidth: options.termWidth || this.client.term.termWidth,
+                termHeight: options.termHeight || this.client.term.termHeight,
+                cols: this.dimens.width,
+                rows: 'auto',
+                startCol: this.position.col,
+                forceLineTerm: options.forceLineTerm,
             },
             (err, preppedAnsi) => {
                 return setLines(err ? ansi : preppedAnsi);
@@ -579,7 +608,7 @@ function MultiLineEditTextView(options) {
         );
     };
 
-    this.insertRawText = function(text, index, col) {
+    this.insertRawText = function (text, index, col) {
         //
         //  Perform the following on |text|:
         //  *   Normalize various line feed formats -> \n
@@ -596,8 +625,8 @@ function MultiLineEditTextView(options) {
         //
         //  :TODO: support index/col insertion point
 
-        if(_.isNumber(index)) {
-            if(_.isNumber(col)) {
+        if (_.isNumber(index)) {
+            if (_.isNumber(col)) {
                 //
                 //  Modify text to have information from index
                 //  before and and after column
@@ -617,25 +646,24 @@ function MultiLineEditTextView(options) {
         text.forEach(line => {
             wrapped = self.wordWrapSingleLine(line, 'expand').wrapped;
 
-            self.setTextLines(wrapped, index, true);    //  true=termWithEol
+            self.setTextLines(wrapped, index, true); //  true=termWithEol
             index += wrapped.length;
         });
     };
 
-    this.getAbsolutePosition = function(row, col) {
+    this.getAbsolutePosition = function (row, col) {
         return {
-            row : self.position.row + row,
-            col : self.position.col + col,
+            row: self.position.row + row,
+            col: self.position.col + col,
         };
     };
 
-    this.moveClientCursorToCursorPos = function() {
+    this.moveClientCursorToCursorPos = function () {
         var absPos = self.getAbsolutePosition(self.cursorPos.row, self.cursorPos.col);
         self.client.term.rawWrite(ansi.goto(absPos.row, absPos.col));
     };
 
-
-    this.keyPressCharacter = function(c) {
+    this.keyPressCharacter = function (c) {
         var index = self.getTextLinesIndex();
 
         //
@@ -647,7 +675,7 @@ function MultiLineEditTextView(options) {
         //
         //
 
-        if(self.overtypeMode) {
+        if (self.overtypeMode) {
             //  :TODO: special handing for insert over eol mark?
             self.replaceCharacterInText(c, index, self.cursorPos.col);
             self.cursorPos.col++;
@@ -659,12 +687,12 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressUp = function() {
-        if(self.cursorPos.row > 0) {
+    this.keyPressUp = function () {
+        if (self.cursorPos.row > 0) {
             self.cursorPos.row--;
             self.client.term.rawWrite(ansi.up());
 
-            if(!self.adjustCursorToNextTab('up')) {
+            if (!self.adjustCursorToNextTab('up')) {
                 self.adjustCursorIfPastEndOfLine(false);
             }
         } else {
@@ -675,16 +703,16 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressDown = function() {
-        var lastVisibleRow = Math.min(
-            self.dimens.height,
-            (self.textLines.length - self.topVisibleIndex)) - 1;
+    this.keyPressDown = function () {
+        var lastVisibleRow =
+            Math.min(self.dimens.height, self.textLines.length - self.topVisibleIndex) -
+            1;
 
-        if(self.cursorPos.row < lastVisibleRow) {
+        if (self.cursorPos.row < lastVisibleRow) {
             self.cursorPos.row++;
             self.client.term.rawWrite(ansi.down());
 
-            if(!self.adjustCursorToNextTab('down')) {
+            if (!self.adjustCursorToNextTab('down')) {
                 self.adjustCursorIfPastEndOfLine(false);
             }
         } else {
@@ -695,14 +723,14 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressLeft = function() {
-        if(self.cursorPos.col > 0) {
+    this.keyPressLeft = function () {
+        if (self.cursorPos.col > 0) {
             var prevCharIsTab = self.isTab();
 
             self.cursorPos.col--;
             self.client.term.rawWrite(ansi.left());
 
-            if(prevCharIsTab) {
+            if (prevCharIsTab) {
                 self.adjustCursorToNextTab('left');
             }
         } else {
@@ -712,15 +740,15 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressRight = function() {
+    this.keyPressRight = function () {
         var eolColumn = self.getTextEndOfLineColumn();
-        if(self.cursorPos.col < eolColumn) {
+        if (self.cursorPos.col < eolColumn) {
             var prevCharIsTab = self.isTab();
 
             self.cursorPos.col++;
             self.client.term.rawWrite(ansi.right());
 
-            if(prevCharIsTab) {
+            if (prevCharIsTab) {
                 self.adjustCursorToNextTab('right');
             }
         } else {
@@ -730,9 +758,9 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressHome = function() {
+    this.keyPressHome = function () {
         var firstNonWhitespace = self.getVisibleText().search(/\S/);
-        if(-1 !== firstNonWhitespace) {
+        if (-1 !== firstNonWhitespace) {
             self.cursorPos.col = firstNonWhitespace;
         } else {
             self.cursorPos.col = 0;
@@ -742,14 +770,14 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressEnd = function() {
+    this.keyPressEnd = function () {
         self.cursorPos.col = self.getTextEndOfLineColumn();
         self.moveClientCursorToCursorPos();
         self.emitEditPosition();
     };
 
-    this.keyPressPageUp = function() {
-        if(self.topVisibleIndex > 0) {
+    this.keyPressPageUp = function () {
+        if (self.topVisibleIndex > 0) {
             self.topVisibleIndex = Math.max(0, self.topVisibleIndex - self.dimens.height);
             self.redraw();
             self.adjustCursorIfPastEndOfLine(true);
@@ -761,9 +789,9 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressPageDown = function() {
+    this.keyPressPageDown = function () {
         var linesBelow = self.getRemainingLinesBelowRow();
-        if(linesBelow > 0) {
+        if (linesBelow > 0) {
             self.topVisibleIndex += Math.min(linesBelow, self.dimens.height);
             self.redraw();
             self.adjustCursorIfPastEndOfLine(true);
@@ -772,25 +800,29 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressLineFeed = function() {
+    this.keyPressLineFeed = function () {
         //
         //  Break up text from cursor position, redraw, and update cursor
         //  position to start of next line
         //
-        var index           = self.getTextLinesIndex();
-        var nextEolIndex    = self.getNextEndOfLineIndex(index);
-        var text            = self.getContiguousText(index, nextEolIndex);
-        const newLines      = self.wordWrapSingleLine(text.slice(self.cursorPos.col), 'tabsIntact').wrapped;
+        var index = self.getTextLinesIndex();
+        var nextEolIndex = self.getNextEndOfLineIndex(index);
+        var text = self.getContiguousText(index, nextEolIndex);
+        const newLines = self.wordWrapSingleLine(
+            text.slice(self.cursorPos.col),
+            'tabsIntact'
+        ).wrapped;
 
-        newLines.unshift( { text : text.slice(0, self.cursorPos.col), eol : true } );
-        for(var i = 1; i < newLines.length; ++i) {
-            newLines[i] = { text : newLines[i] };
+        newLines.unshift({ text: text.slice(0, self.cursorPos.col), eol: true });
+        for (var i = 1; i < newLines.length; ++i) {
+            newLines[i] = { text: newLines[i] };
         }
         newLines[newLines.length - 1].eol = true;
 
         Array.prototype.splice.apply(
             self.textLines,
-            [ index, (nextEolIndex - index) + 1 ].concat(newLines));
+            [index, nextEolIndex - index + 1].concat(newLines)
+        );
 
         //  redraw from current row to end of visible area
         self.redrawRows(self.cursorPos.row, self.dimens.height);
@@ -799,19 +831,23 @@ function MultiLineEditTextView(options) {
         self.emitEditPosition();
     };
 
-    this.keyPressInsert = function() {
+    this.keyPressInsert = function () {
         self.toggleTextEditMode();
     };
 
-    this.keyPressTab = function() {
+    this.keyPressTab = function () {
         var index = self.getTextLinesIndex();
-        self.insertCharactersInText(self.expandTab(self.cursorPos.col, '\t') + '\t', index, self.cursorPos.col);
+        self.insertCharactersInText(
+            self.expandTab(self.cursorPos.col, '\t') + '\t',
+            index,
+            self.cursorPos.col
+        );
 
         self.emitEditPosition();
     };
 
-    this.keyPressBackspace = function() {
-        if(self.cursorPos.col >= 1) {
+    this.keyPressBackspace = function () {
+        if (self.cursorPos.col >= 1) {
             //
             //  Don't want to delete character at cursor, but rather the character
             //  to the left of the cursor!
@@ -821,26 +857,22 @@ function MultiLineEditTextView(options) {
             var index = self.getTextLinesIndex();
             var count;
 
-            if(self.isTab()) {
+            if (self.isTab()) {
                 var col = self.cursorPos.col;
                 var prevTabStop = self.getPrevTabStop(self.cursorPos.col);
-                while(col >= prevTabStop) {
-                    if(!self.isTab(index, col)) {
+                while (col >= prevTabStop) {
+                    if (!self.isTab(index, col)) {
                         break;
                     }
                     --col;
                 }
 
-                count = (self.cursorPos.col - col);
+                count = self.cursorPos.col - col;
             } else {
                 count = 1;
             }
 
-            self.removeCharactersFromText(
-                index,
-                self.cursorPos.col,
-                'backspace',
-                count);
+            self.removeCharactersFromText(index, self.cursorPos.col, 'backspace', count);
         } else {
             //
             //  Delete character at end of line previous.
@@ -848,96 +880,91 @@ function MultiLineEditTextView(options) {
             //  * Word wrapping will need re-applied
             //
             //  :TODO: apply word wrapping such that text can be re-adjusted if it can now fit on prev
-            self.keyPressLeft();    //  same as hitting left - jump to previous line
+            self.keyPressLeft(); //  same as hitting left - jump to previous line
             //self.keyPressBackspace();
         }
 
         self.emitEditPosition();
     };
 
-    this.keyPressDelete = function() {
+    this.keyPressDelete = function () {
         const lineIndex = self.getTextLinesIndex();
 
-        if(0 === self.cursorPos.col && 0 === self.textLines[lineIndex].text.length && self.textLines.length > 0) {
+        if (
+            0 === self.cursorPos.col &&
+            0 === self.textLines[lineIndex].text.length &&
+            self.textLines.length > 0
+        ) {
             //
             //  Start of line and nothing left. Just delete the line
             //
-            self.removeCharactersFromText(
-                lineIndex,
-                0,
-                'delete line'
-            );
+            self.removeCharactersFromText(lineIndex, 0, 'delete line');
         } else {
-            self.removeCharactersFromText(
-                lineIndex,
-                self.cursorPos.col,
-                'delete',
-                1
-            );
+            self.removeCharactersFromText(lineIndex, self.cursorPos.col, 'delete', 1);
         }
 
         self.emitEditPosition();
     };
 
-    this.keyPressDeleteLine = function() {
-        if(self.textLines.length > 0) {
-            self.removeCharactersFromText(
-                self.getTextLinesIndex(),
-                0,
-                'delete line');
+    this.keyPressDeleteLine = function () {
+        if (self.textLines.length > 0) {
+            self.removeCharactersFromText(self.getTextLinesIndex(), 0, 'delete line');
         }
 
         self.emitEditPosition();
     };
 
-    this.adjustCursorIfPastEndOfLine = function(forceUpdate) {
+    this.adjustCursorIfPastEndOfLine = function (forceUpdate) {
         var eolColumn = self.getTextEndOfLineColumn();
-        if(self.cursorPos.col > eolColumn) {
+        if (self.cursorPos.col > eolColumn) {
             self.cursorPos.col = eolColumn;
             forceUpdate = true;
         }
 
-        if(forceUpdate) {
+        if (forceUpdate) {
             self.moveClientCursorToCursorPos();
         }
     };
 
-    this.adjustCursorToNextTab = function(direction) {
-        if(self.isTab()) {
+    this.adjustCursorToNextTab = function (direction) {
+        if (self.isTab()) {
             var move;
-            switch(direction) {
+            switch (direction) {
                 //
                 //  Next tabstop to the right
                 //
-                case 'right' :
+                case 'right':
                     move = self.getNextTabStop(self.cursorPos.col) - self.cursorPos.col;
                     self.cursorPos.col += move;
                     self.client.term.rawWrite(ansi.right(move));
                     break;
 
-                    //
-                    //  Next tabstop to the left
-                    //
-                case 'left' :
+                //
+                //  Next tabstop to the left
+                //
+                case 'left':
                     move = self.cursorPos.col - self.getPrevTabStop(self.cursorPos.col);
                     self.cursorPos.col -= move;
                     self.client.term.rawWrite(ansi.left(move));
                     break;
 
-                case 'up' :
-                case 'down' :
+                case 'up':
+                case 'down':
                     //
                     //  Jump to the tabstop nearest the cursor
                     //
                     var newCol = self.tabStops.reduce(function r(prev, curr) {
-                        return (Math.abs(curr - self.cursorPos.col) < Math.abs(prev - self.cursorPos.col) ? curr : prev);
+                        return Math.abs(curr - self.cursorPos.col) <
+                            Math.abs(prev - self.cursorPos.col)
+                            ? curr
+                            : prev;
                     });
 
-                    if(newCol > self.cursorPos.col) {
+                    if (newCol > self.cursorPos.col) {
                         move = newCol - self.cursorPos.col;
                         self.cursorPos.col += move;
                         self.client.term.rawWrite(ansi.right(move));
-                    } else if(newCol < self.cursorPos.col) {
+                    } else if (newCol < self.cursorPos.col) {
                         move = self.cursorPos.col - newCol;
                         self.cursorPos.col -= move;
                         self.client.term.rawWrite(ansi.left(move));
@@ -947,53 +974,53 @@ function MultiLineEditTextView(options) {
 
             return true;
         }
-        return false;   //  did not fall on a tab
+        return false; //  did not fall on a tab
     };
 
-    this.cursorStartOfDocument = function() {
-        self.topVisibleIndex    = 0;
-        self.cursorPos          = { row : 0, col : 0 };
+    this.cursorStartOfDocument = function () {
+        self.topVisibleIndex = 0;
+        self.cursorPos = { row: 0, col: 0 };
 
         self.redraw();
         self.moveClientCursorToCursorPos();
     };
 
-    this.cursorEndOfDocument = function() {
-        self.topVisibleIndex    = Math.max(self.textLines.length - self.dimens.height, 0);
-        self.cursorPos.row      = (self.textLines.length - self.topVisibleIndex) - 1;
-        self.cursorPos.col      = self.getTextEndOfLineColumn();
+    this.cursorEndOfDocument = function () {
+        self.topVisibleIndex = Math.max(self.textLines.length - self.dimens.height, 0);
+        self.cursorPos.row = self.textLines.length - self.topVisibleIndex - 1;
+        self.cursorPos.col = self.getTextEndOfLineColumn();
 
         self.redraw();
         self.moveClientCursorToCursorPos();
     };
 
-    this.cursorBeginOfNextLine = function() {
+    this.cursorBeginOfNextLine = function () {
         //  e.g. when scrolling right past eol
         var linesBelow = self.getRemainingLinesBelowRow();
 
-        if(linesBelow > 0) {
-            var lastVisibleRow  = Math.min(self.dimens.height, self.textLines.length) - 1;
-            if(self.cursorPos.row < lastVisibleRow) {
+        if (linesBelow > 0) {
+            var lastVisibleRow = Math.min(self.dimens.height, self.textLines.length) - 1;
+            if (self.cursorPos.row < lastVisibleRow) {
                 self.cursorPos.row++;
             } else {
                 self.scrollDocumentUp();
             }
-            self.keyPressHome();    //  same as pressing 'home'
+            self.keyPressHome(); //  same as pressing 'home'
         }
     };
 
-    this.cursorEndOfPreviousLine = function() {
+    this.cursorEndOfPreviousLine = function () {
         //  e.g. when scrolling left past start of line
         var moveToEnd;
-        if(self.cursorPos.row > 0) {
+        if (self.cursorPos.row > 0) {
             self.cursorPos.row--;
             moveToEnd = true;
-        } else if(self.topVisibleIndex > 0) {
+        } else if (self.topVisibleIndex > 0) {
             self.scrollDocumentDown();
             moveToEnd = true;
         }
 
-        if(moveToEnd) {
+        if (moveToEnd) {
             self.keyPressEnd(); //  same as pressing 'end'
         }
     };
@@ -1014,34 +1041,34 @@ function MultiLineEditTextView(options) {
     };
     */
 
-    this.scrollDocumentUp = function() {
+    this.scrollDocumentUp = function () {
         //
         //  Note: We scroll *up* when the cursor goes *down* beyond
         //  the visible area!
         //
         var linesBelow = self.getRemainingLinesBelowRow();
-        if(linesBelow > 0) {
+        if (linesBelow > 0) {
             self.topVisibleIndex++;
             self.redraw();
         }
     };
 
-    this.scrollDocumentDown = function() {
+    this.scrollDocumentDown = function () {
         //
         //  Note: We scroll *down* when the cursor goes *up* beyond
         //  the visible area!
         //
-        if(self.topVisibleIndex > 0) {
+        if (self.topVisibleIndex > 0) {
             self.topVisibleIndex--;
             self.redraw();
         }
     };
 
-    this.emitEditPosition = function() {
-        self.emit('edit position',  self.getEditPosition());
+    this.emitEditPosition = function () {
+        self.emit('edit position', self.getEditPosition());
     };
 
-    this.toggleTextEditMode = function() {
+    this.toggleTextEditMode = function () {
         self.overtypeMode = !self.overtypeMode;
         self.emit('text edit mode', self.getTextEditMode());
     };
@@ -1051,27 +1078,30 @@ function MultiLineEditTextView(options) {
 
 require('util').inherits(MultiLineEditTextView, View);
 
-MultiLineEditTextView.prototype.setWidth = function(width) {
+MultiLineEditTextView.prototype.setWidth = function (width) {
     MultiLineEditTextView.super_.prototype.setWidth.call(this, width);
 
     this.calculateTabStops();
 };
 
-MultiLineEditTextView.prototype.redraw = function() {
+MultiLineEditTextView.prototype.redraw = function () {
     MultiLineEditTextView.super_.prototype.redraw.call(this);
 
     this.redrawVisibleArea();
 };
 
-MultiLineEditTextView.prototype.setFocus = function(focused) {
+MultiLineEditTextView.prototype.setFocus = function (focused) {
     this.client.term.rawWrite(this.getSGRFor('text'));
     this.moveClientCursorToCursorPos();
 
     MultiLineEditTextView.super_.prototype.setFocus.call(this, focused);
 };
 
-MultiLineEditTextView.prototype.setText = function(text, options = { scrollMode : 'default' } ) {
-    this.textLines = [ ];
+MultiLineEditTextView.prototype.setText = function (
+    text,
+    options = { scrollMode: 'default' }
+) {
+    this.textLines = [];
     this.addText(text, options);
     /*this.insertRawText(text);
 
@@ -1082,53 +1112,60 @@ MultiLineEditTextView.prototype.setText = function(text, options = { scrollMode 
     }*/
 };
 
-MultiLineEditTextView.prototype.setAnsi = function(ansi, options = { prepped : false }, cb) {
-    this.textLines = [ ];
+MultiLineEditTextView.prototype.setAnsi = function (
+    ansi,
+    options = { prepped: false },
+    cb
+) {
+    this.textLines = [];
     return this.setAnsiWithOptions(ansi, options, cb);
 };
 
-MultiLineEditTextView.prototype.addText = function(text, options = { scrollMode : 'default' }) {
+MultiLineEditTextView.prototype.addText = function (
+    text,
+    options = { scrollMode: 'default' }
+) {
     this.insertRawText(text);
 
-    switch(options.scrollMode) {
-        case 'default' :
-            if(this.isEditMode() || this.autoScroll) {
+    switch (options.scrollMode) {
+        case 'default':
+            if (this.isEditMode() || this.autoScroll) {
                 this.cursorEndOfDocument();
             } else {
                 this.cursorStartOfDocument();
             }
             break;
 
-        case 'top' :
-        case 'start' :
+        case 'top':
+        case 'start':
             this.cursorStartOfDocument();
             break;
 
-        case 'end' :
-        case 'bottom' :
+        case 'end':
+        case 'bottom':
             this.cursorEndOfDocument();
             break;
     }
 };
 
-MultiLineEditTextView.prototype.getData = function(options = { forceLineTerms : false } ) {
+MultiLineEditTextView.prototype.getData = function (options = { forceLineTerms: false }) {
     return this.getOutputText(0, this.textLines.length, '\r\n', options);
 };
 
-MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
-    switch(propName) {
-        case 'mode'         :
+MultiLineEditTextView.prototype.setPropertyValue = function (propName, value) {
+    switch (propName) {
+        case 'mode':
             this.mode = value;
-            if('preview' === value && !this.specialKeyMap.next) {
-                this.specialKeyMap.next = [ 'tab' ];
+            if ('preview' === value && !this.specialKeyMap.next) {
+                this.specialKeyMap.next = ['tab'];
             }
             break;
 
-        case 'autoScroll'   :
+        case 'autoScroll':
             this.autoScroll = value;
             break;
 
-        case 'tabSwitchesView' :
+        case 'tabSwitchesView':
             this.tabSwitchesView = value;
             this.specialKeyMap.next = this.specialKeyMap.next || [];
             this.specialKeyMap.next.push('tab');
@@ -1139,33 +1176,39 @@ MultiLineEditTextView.prototype.setPropertyValue = function(propName, value) {
 };
 
 const HANDLED_SPECIAL_KEYS = [
-    'up', 'down', 'left', 'right',
-    'home', 'end',
-    'page up', 'page down',
+    'up',
+    'down',
+    'left',
+    'right',
+    'home',
+    'end',
+    'page up',
+    'page down',
     'line feed',
     'insert',
     'tab',
-    'backspace', 'delete',
+    'backspace',
+    'delete',
     'delete line',
 ];
 
-const PREVIEW_MODE_KEYS = [
-    'up', 'down', 'page up', 'page down'
-];
+const PREVIEW_MODE_KEYS = ['up', 'down', 'page up', 'page down'];
 
-MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
+MultiLineEditTextView.prototype.onKeyPress = function (ch, key) {
     const self = this;
     let handled;
 
-    if(key) {
+    if (key) {
         HANDLED_SPECIAL_KEYS.forEach(function aKey(specialKey) {
-            if(self.isKeyMapped(specialKey, key.name)) {
-
-                if(self.isPreviewMode() && -1 === PREVIEW_MODE_KEYS.indexOf(specialKey)) {
+            if (self.isKeyMapped(specialKey, key.name)) {
+                if (
+                    self.isPreviewMode() &&
+                    -1 === PREVIEW_MODE_KEYS.indexOf(specialKey)
+                ) {
                     return;
                 }
 
-                if('tab' !== key.name || !self.tabSwitchesView) {
+                if ('tab' !== key.name || !self.tabSwitchesView) {
                     self[_.camelCase('keyPress ' + specialKey)]();
                     handled = true;
                 }
@@ -1173,42 +1216,42 @@ MultiLineEditTextView.prototype.onKeyPress = function(ch, key) {
         });
     }
 
-    if(self.isEditMode() && ch && strUtil.isPrintable(ch)) {
+    if (self.isEditMode() && ch && strUtil.isPrintable(ch)) {
         this.keyPressCharacter(ch);
     }
 
-    if(!handled) {
+    if (!handled) {
         MultiLineEditTextView.super_.prototype.onKeyPress.call(this, ch, key);
     }
 };
 
-MultiLineEditTextView.prototype.scrollUp = function() {
+MultiLineEditTextView.prototype.scrollUp = function () {
     this.scrollDocumentUp();
 };
 
-MultiLineEditTextView.prototype.scrollDown = function() {
+MultiLineEditTextView.prototype.scrollDown = function () {
     this.scrollDocumentDown();
 };
 
-MultiLineEditTextView.prototype.deleteLine = function(line) {
+MultiLineEditTextView.prototype.deleteLine = function (line) {
     this.textLines.splice(line, 1);
 };
 
-MultiLineEditTextView.prototype.getLineCount = function() {
+MultiLineEditTextView.prototype.getLineCount = function () {
     return this.textLines.length;
 };
 
-MultiLineEditTextView.prototype.getTextEditMode = function() {
+MultiLineEditTextView.prototype.getTextEditMode = function () {
     return this.overtypeMode ? 'overtype' : 'insert';
 };
 
-MultiLineEditTextView.prototype.getEditPosition = function() {
+MultiLineEditTextView.prototype.getEditPosition = function () {
     var currentIndex = this.getTextLinesIndex() + 1;
 
     return {
-        row     : this.getTextLinesIndex(this.cursorPos.row),
-        col     : this.cursorPos.col,
-        percent : Math.floor(((currentIndex / this.textLines.length) * 100)),
-        below   : this.getRemainingLinesBelowRow(),
+        row: this.getTextLinesIndex(this.cursorPos.row),
+        col: this.cursorPos.col,
+        percent: Math.floor((currentIndex / this.textLines.length) * 100),
+        below: this.getRemainingLinesBelowRow(),
     };
 };

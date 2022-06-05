@@ -6,27 +6,48 @@
 
 //	:TODO: Make this it's own sep tool/repo
 
-const exiftool		= require('exiftool');
-const fs			= require('graceful-fs');
-const moment		= require('moment');
+const exiftool = require('exiftool');
+const fs = require('graceful-fs');
+const moment = require('moment');
 
-const TOOL_VERSION	= '1.0.0.0';
+const TOOL_VERSION = '1.0.0.0';
 
 //	map fileTypes -> handlers
 const FILETYPE_HANDLERS = {};
-[ 'AIFF', 'APE', 'FLAC', 'OGG', 'MP3' ].forEach(ext => FILETYPE_HANDLERS[ext] = audioFile);
-[ 'PDF', 'DOC', 'DOCX', 'DOCM', 'ODB', 'ODC', 'ODF', 'ODG', 'ODI', 'ODP', 'ODS', 'ODT' ].forEach(ext => FILETYPE_HANDLERS[ext] = documentFile);
-[ 'PNG', 'JPEG', 'GIF', 'WEBP', 'XCF' ].forEach(ext => FILETYPE_HANDLERS[ext] = imageFile);
-[ 'MP4', 'MOV', 'AVI', 'MKV', 'MPG', 'MPEG', 'M4V', 'WMV' ].forEach(ext => FILETYPE_HANDLERS[ext] = videoFile);
+['AIFF', 'APE', 'FLAC', 'OGG', 'MP3'].forEach(
+    ext => (FILETYPE_HANDLERS[ext] = audioFile)
+);
+[
+    'PDF',
+    'DOC',
+    'DOCX',
+    'DOCM',
+    'ODB',
+    'ODC',
+    'ODF',
+    'ODG',
+    'ODI',
+    'ODP',
+    'ODS',
+    'ODT',
+].forEach(ext => (FILETYPE_HANDLERS[ext] = documentFile));
+['PNG', 'JPEG', 'GIF', 'WEBP', 'XCF'].forEach(
+    ext => (FILETYPE_HANDLERS[ext] = imageFile)
+);
+['MP4', 'MOV', 'AVI', 'MKV', 'MPG', 'MPEG', 'M4V', 'WMV'].forEach(
+    ext => (FILETYPE_HANDLERS[ext] = videoFile)
+);
 
 function audioFile(metadata) {
     //	nothing if we don't know at least the author or title
-    if(!metadata.author && !metadata.title) {
+    if (!metadata.author && !metadata.title) {
         return;
     }
 
-    let desc = `${metadata.artist||'Unknown Artist'} - ${metadata.title||'Unknown'} (`;
-    if(metadata.year) {
+    let desc = `${metadata.artist || 'Unknown Artist'} - ${
+        metadata.title || 'Unknown'
+    } (`;
+    if (metadata.year) {
         desc += `${metadata.year}, `;
     }
     desc += `${metadata.audioBitrate})`;
@@ -39,12 +60,12 @@ function videoFile(metadata) {
 
 function documentFile(metadata) {
     //	nothing if we don't know at least the author or title
-    if(!metadata.author && !metadata.title) {
+    if (!metadata.author && !metadata.title) {
         return;
     }
 
     let result = metadata.author || '';
-    if(result) {
+    if (result) {
         result += ' - ';
     }
     result += metadata.title || 'Unknown Title';
@@ -53,12 +74,12 @@ function documentFile(metadata) {
 
 function imageFile(metadata) {
     let desc = `${metadata.fileType} image (`;
-    if(metadata.animationIterations) {
+    if (metadata.animationIterations) {
         desc += 'Animated, ';
     }
     desc += `${metadata.imageSize}px`;
     const created = moment(metadata.createdate);
-    if(created.isValid()) {
+    if (created.isValid()) {
         desc += `, ${created.format('YYYY')})`;
     } else {
         desc += ')';
@@ -67,19 +88,19 @@ function imageFile(metadata) {
 }
 
 function main() {
-    const argv = exports.argv = require('minimist')(process.argv.slice(2), {
-        alias : {
-            h		: 'help',
-            v		: 'version',
-        }
-    });
+    const argv = (exports.argv = require('minimist')(process.argv.slice(2), {
+        alias: {
+            h: 'help',
+            v: 'version',
+        },
+    }));
 
-    if(argv.version) {
+    if (argv.version) {
         console.info(TOOL_VERSION);
         return 0;
     }
 
-    if(0 === argv._.length || argv.help) {
+    if (0 === argv._.length || argv.help) {
         console.info('usage: exiftool2desc.js [--version] [--help] PATH');
         return 0;
     }
@@ -87,22 +108,22 @@ function main() {
     const path = argv._[0];
 
     fs.readFile(path, (err, data) => {
-        if(err) {
+        if (err) {
             return -1;
         }
 
         exiftool.metadata(data, (err, metadata) => {
-            if(err) {
+            if (err) {
                 return -1;
             }
 
             const handler = FILETYPE_HANDLERS[metadata.fileType];
-            if(!handler) {
+            if (!handler) {
                 return -1;
             }
 
             const info = handler(metadata);
-            if(!info) {
+            if (!info) {
                 return -1;
             }
 

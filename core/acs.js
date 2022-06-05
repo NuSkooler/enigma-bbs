@@ -2,12 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const checkAcs  = require('./acs_parser.js').parse;
-const Log       = require('./logger.js').log;
+const checkAcs = require('./acs_parser.js').parse;
+const Log = require('./logger.js').log;
 
 //  deps
-const assert    = require('assert');
-const _         = require('lodash');
+const assert = require('assert');
+const _ = require('lodash');
 
 class ACS {
     constructor(subject) {
@@ -16,15 +16,15 @@ class ACS {
 
     static get Defaults() {
         return {
-            MessageConfRead     : 'GM[users]',  //  list/read
-            MessageConfWrite    : 'GM[users]',  //  post/write
+            MessageConfRead: 'GM[users]', //  list/read
+            MessageConfWrite: 'GM[users]', //  post/write
 
-            MessageAreaRead     : 'GM[users]',  //  list/read; requires parent conf read
-            MessageAreaWrite    : 'GM[users]',  //  post/write; requires parent conf write
+            MessageAreaRead: 'GM[users]', //  list/read; requires parent conf read
+            MessageAreaWrite: 'GM[users]', //  post/write; requires parent conf write
 
-            FileAreaRead        : 'GM[users]',  //  list
-            FileAreaWrite       : 'GM[sysops]', //  upload
-            FileAreaDownload    : 'GM[users]',  //  download
+            FileAreaRead: 'GM[users]', //  list
+            FileAreaWrite: 'GM[sysops]', //  upload
+            FileAreaDownload: 'GM[users]', //  download
         };
     }
 
@@ -32,9 +32,9 @@ class ACS {
         acs = acs ? acs[scope] : defaultAcs;
         acs = acs || defaultAcs;
         try {
-            return checkAcs(acs, { subject : this.subject } );
-        } catch(e) {
-            Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
+            return checkAcs(acs, { subject: this.subject });
+        } catch (e) {
+            Log.warn({ exception: e, acs: acs }, 'Exception caught checking ACS');
             return false;
         }
     }
@@ -76,39 +76,42 @@ class ACS {
 
     hasMenuModuleAccess(modInst) {
         const acs = _.get(modInst, 'menuConfig.config.acs');
-        if(!_.isString(acs)) {
-            return true;    //  no ACS check req.
+        if (!_.isString(acs)) {
+            return true; //  no ACS check req.
         }
         try {
-            return checkAcs(acs, { subject : this.subject } );
-        } catch(e) {
-            Log.warn( { exception : e, acs : acs }, 'Exception caught checking ACS');
+            return checkAcs(acs, { subject: this.subject });
+        } catch (e) {
+            Log.warn({ exception: e, acs: acs }, 'Exception caught checking ACS');
             return false;
         }
     }
 
     getConditionalValue(condArray, memberName) {
-        if(!Array.isArray(condArray)) {
+        if (!Array.isArray(condArray)) {
             //  no cond array, just use the value
             return condArray;
         }
 
         assert(_.isString(memberName));
 
-        const matchCond = condArray.find( cond => {
-            if(_.has(cond, 'acs')) {
+        const matchCond = condArray.find(cond => {
+            if (_.has(cond, 'acs')) {
                 try {
-                    return checkAcs(cond.acs, { subject : this.subject } );
-                } catch(e) {
-                    Log.warn( { exception : e, acs : cond }, 'Exception caught checking ACS');
+                    return checkAcs(cond.acs, { subject: this.subject });
+                } catch (e) {
+                    Log.warn(
+                        { exception: e, acs: cond },
+                        'Exception caught checking ACS'
+                    );
                     return false;
                 }
             } else {
-                return true;    //  no ACS check req.
+                return true; //  no ACS check req.
             }
         });
 
-        if(matchCond) {
+        if (matchCond) {
             return matchCond[memberName];
         }
     }

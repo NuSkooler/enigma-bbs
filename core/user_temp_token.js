@@ -2,33 +2,31 @@
 'use strict';
 
 //  ENiGMA½
-const UserDb                = require('./database.js').dbs.user;
-const {
-    getISOTimestampString
-}                           = require('./database.js');
-const { Errors }            = require('./enig_error.js');
-const User                  = require('./user.js');
-const Log                   = require('./logger.js').log;
+const UserDb = require('./database.js').dbs.user;
+const { getISOTimestampString } = require('./database.js');
+const { Errors } = require('./enig_error.js');
+const User = require('./user.js');
+const Log = require('./logger.js').log;
 
 //  deps
-const crypto                = require('crypto');
-const async                 = require('async');
-const moment                = require('moment');
+const crypto = require('crypto');
+const async = require('async');
+const moment = require('moment');
 
-exports.createToken                     = createToken;
-exports.deleteToken                     = deleteToken;
-exports.deleteTokenByUserAndType        = deleteTokenByUserAndType;
-exports.getTokenInfo                    = getTokenInfo;
-exports.temporaryTokenMaintenanceTask   = temporaryTokenMaintenanceTask;
+exports.createToken = createToken;
+exports.deleteToken = deleteToken;
+exports.deleteTokenByUserAndType = deleteTokenByUserAndType;
+exports.getTokenInfo = getTokenInfo;
+exports.temporaryTokenMaintenanceTask = temporaryTokenMaintenanceTask;
 
 exports.WellKnownTokenTypes = {
-    AuthFactor2OTPRegister    : 'auth_factor2_otp_register',
+    AuthFactor2OTPRegister: 'auth_factor2_otp_register',
 };
 
-function createToken(userId, tokenType, options = { bits : 128 }, cb) {
+function createToken(userId, tokenType, options = { bits: 128 }, cb) {
     async.waterfall(
         [
-            (callback) => {
+            callback => {
                 return crypto.randomBytes(options.bits, callback);
             },
             (token, callback) => {
@@ -37,12 +35,12 @@ function createToken(userId, tokenType, options = { bits : 128 }, cb) {
                 UserDb.run(
                     `INSERT OR REPLACE INTO user_temporary_token (user_id, token, token_type, timestamp)
                     VALUES (?, ?, ?, ?);`,
-                    [ userId, token, tokenType, getISOTimestampString() ],
+                    [userId, token, tokenType, getISOTimestampString()],
                     err => {
                         return callback(err, token);
                     }
                 );
-            }
+            },
         ],
         (err, token) => {
             return cb(err, token);
@@ -54,7 +52,7 @@ function deleteToken(token, cb) {
     UserDb.run(
         `DELETE FROM user_temporary_token
         WHERE token = ?;`,
-        [ token ],
+        [token],
         err => {
             return cb(err);
         }
@@ -65,7 +63,7 @@ function deleteTokenByUserAndType(userId, tokenType, cb) {
     UserDb.run(
         `DELETE FROM user_temporary_token
         WHERE user_id = ? AND token_type = ?;`,
-        [ userId, tokenType ],
+        [userId, tokenType],
         err => {
             return cb(err);
         }
@@ -75,25 +73,27 @@ function deleteTokenByUserAndType(userId, tokenType, cb) {
 function getTokenInfo(token, cb) {
     async.waterfall(
         [
-            (callback) => {
+            callback => {
                 UserDb.get(
                     `SELECT user_id, token_type, timestamp
                     FROM user_temporary_token
                     WHERE token = ?;`,
-                    [ token ],
+                    [token],
                     (err, row) => {
-                        if(err) {
+                        if (err) {
                             return callback(err);
                         }
 
-                        if(!row) {
-                            return callback(Errors.DoesNotExist('No entry found for token'));
+                        if (!row) {
+                            return callback(
+                                Errors.DoesNotExist('No entry found for token')
+                            );
                         }
 
                         const info = {
-                            userId      : row.user_id,
-                            tokenType   : row.token_type,
-                            timestamp   : moment(row.timestamp),
+                            userId: row.user_id,
+                            tokenType: row.token_type,
+                            timestamp: moment(row.timestamp),
                         };
                         return callback(null, info);
                     }
@@ -104,7 +104,7 @@ function getTokenInfo(token, cb) {
                     info.user = user;
                     return callback(err, info);
                 });
-            }
+            },
         ],
         (err, info) => {
             return cb(err, info);
@@ -115,8 +115,10 @@ function getTokenInfo(token, cb) {
 function temporaryTokenMaintenanceTask(args, cb) {
     const tokenType = args[0];
 
-    if(!tokenType) {
-        return Log.error('Cannot run temporary token maintenance task with out specifying "tokenType" as argument 0');
+    if (!tokenType) {
+        return Log.error(
+            'Cannot run temporary token maintenance task with out specifying "tokenType" as argument 0'
+        );
     }
 
     const expTime = args[1] || '24 hours';
@@ -129,10 +131,13 @@ function temporaryTokenMaintenanceTask(args, cb) {
             WHERE token_type = ?
             AND DATETIME("now") >= DATETIME(timestamp, "+${expTime}")
         );`,
-        [ tokenType ],
+        [tokenType],
         err => {
-            if(err) {
-                Log.warn( { error : err.message, tokenType }, 'Failed deleting user temporary token');
+            if (err) {
+                Log.warn(
+                    { error: err.message, tokenType },
+                    'Failed deleting user temporary token'
+                );
             }
             return cb(err);
         }

@@ -1,12 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const MenuModule    = require('./menu_module.js').MenuModule;
+const MenuModule = require('./menu_module.js').MenuModule;
 
 exports.moduleInfo = {
-    name    : 'Standard Menu Module',
-    desc    : 'A Menu Module capable of handing standard configurations',
-    author  : 'NuSkooler',
+    name: 'Standard Menu Module',
+    desc: 'A Menu Module capable of handing standard configurations',
+    author: 'NuSkooler',
 };
 
 exports.getModule = class StandardMenuModule extends MenuModule {
@@ -16,7 +16,7 @@ exports.getModule = class StandardMenuModule extends MenuModule {
 
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 

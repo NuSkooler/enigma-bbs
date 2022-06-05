@@ -2,26 +2,26 @@
 'use strict';
 
 //  ENiGMA½
-const ansi          = require('./ansi_term.js');
-const Events        = require('./events.js');
-const Config        = require('./config.js').get;
-const { Errors }    = require('./enig_error.js');
+const ansi = require('./ansi_term.js');
+const Events = require('./events.js');
+const Config = require('./config.js').get;
+const { Errors } = require('./enig_error.js');
 
 //  deps
-const async     = require('async');
+const async = require('async');
 
-exports.connectEntry    = connectEntry;
+exports.connectEntry = connectEntry;
 
 const withCursorPositionReport = (client, cprHandler, failMessage, cb) => {
     let giveUpTimer;
 
-    const done = function(err) {
+    const done = function (err) {
         client.removeListener('cursor position report', cprListener);
         clearTimeout(giveUpTimer);
         return cb(err);
     };
 
-    const cprListener = (pos) => {
+    const cprListener = pos => {
         cprHandler(pos);
         return done(null);
     };
@@ -29,10 +29,10 @@ const withCursorPositionReport = (client, cprHandler, failMessage, cb) => {
     client.once('cursor position report', cprListener);
 
     //  give up after 2s
-    giveUpTimer = setTimeout( () => {
+    giveUpTimer = setTimeout(() => {
         return done(Errors.General(failMessage));
     }, 2000);
-}
+};
 
 function ansiDiscoverHomePosition(client, cb) {
     //
@@ -41,7 +41,7 @@ function ansiDiscoverHomePosition(client, cb) {
     //  think of home as 0,0. If this is the case, we need to offset
     //  our positioning to accommodate for such.
     //
-    if( !Config().term.checkAnsiHomePosition ) {
+    if (!Config().term.checkAnsiHomePosition) {
         // Skip (and assume 1,1) if the home position check is disabled.
         return cb(null);
     }
@@ -54,11 +54,14 @@ function ansiDiscoverHomePosition(client, cb) {
             //
             //  We expect either 0,0, or 1,1. Anything else will be filed as bad data
             //
-            if(h > 1 || w > 1) {
-                return client.log.warn( { height : h, width : w }, 'Ignoring ANSI home position CPR due to unexpected values');
+            if (h > 1 || w > 1) {
+                return client.log.warn(
+                    { height: h, width: w },
+                    'Ignoring ANSI home position CPR due to unexpected values'
+                );
             }
 
-            if(0 === h & 0 === w) {
+            if ((0 === h) & (0 === w)) {
                 //
                 //  Store a CPR offset in the client. All CPR's from this point on will offset by this amount
                 //
@@ -70,7 +73,7 @@ function ansiDiscoverHomePosition(client, cb) {
         cb
     );
 
-    client.term.write(`${ansi.goHome()}${ansi.queryPos()}`);    //  go home, query pos
+    client.term.write(`${ansi.goHome()}${ansi.queryPos()}`); //  go home, query pos
 }
 
 function ansiAttemptDetectUTF8(client, cb) {
@@ -87,7 +90,7 @@ function ansiAttemptDetectUTF8(client, cb) {
     //  "*nix" terminal -- that is, xterm, etc.
     //  Also skip this check if checkUtf8Encoding is disabled in the config
 
-    if(!client.term.isNixTerm() || !Config().term.checkUtf8Encoding) {
+    if (!client.term.isNixTerm() || !Config().term.checkUtf8Encoding) {
         return cb(null);
     }
 
@@ -99,20 +102,24 @@ function ansiAttemptDetectUTF8(client, cb) {
         pos => {
             initialPosition = pos;
 
-            withCursorPositionReport(client,
+            withCursorPositionReport(
+                client,
                 pos => {
                     const [_, w] = pos;
                     const len = w - initialPosition[1];
-                    if(!isNaN(len) && len >= ASCIIPortion.length + 6) {  //  CP437 displays 3 chars each Unicode skull
-                        client.log.info('Terminal identified as UTF-8 but does not appear to be. Overriding to "ansi".');
+                    if (!isNaN(len) && len >= ASCIIPortion.length + 6) {
+                        //  CP437 displays 3 chars each Unicode skull
+                        client.log.info(
+                            'Terminal identified as UTF-8 but does not appear to be. Overriding to "ansi".'
+                        );
                         client.setTermType('ansi');
                     }
                 },
                 'Detect UTF-8 stage 2 timed out',
-                cb,
+                cb
             );
 
-            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`);    //  Unicode skulls on each side
+            client.term.rawWrite(`\u9760${ASCIIPortion}\u9760`); //  Unicode skulls on each side
             client.term.rawWrite(ansi.queryPos());
         },
         'Detect UTF-8 stage 1 timed out',
@@ -150,7 +157,9 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
             const [_, w] = pos;
             if (w === 1) {
                 // cursor didn't move
-                client.log.info('Client supports SyncTERM fonts or properly ignores unknown ESC sequence');
+                client.log.info(
+                    'Client supports SyncTERM fonts or properly ignores unknown ESC sequence'
+                );
                 client.term.syncTermFontsEnabled = true;
             }
         },
@@ -158,11 +167,13 @@ const ansiQuerySyncTermFontSupport = (client, cb) => {
         cb
     );
 
-    client.term.rawWrite(`${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`);
-}
+    client.term.rawWrite(
+        `${ansi.goto(1, 1)}${ansi.setSyncTermFont('cp437')}${ansi.queryPos()}`
+    );
+};
 
 function ansiQueryTermSizeIfNeeded(client, cb) {
-    if(client.term.termHeight > 0 || client.term.termWidth > 0) {
+    if (client.term.termHeight > 0 || client.term.termWidth > 0) {
         return cb(null);
     }
 
@@ -172,7 +183,7 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
             //
             //  If we've already found out, disregard
             //
-            if(client.term.termHeight > 0 || client.term.termWidth > 0) {
+            if (client.term.termHeight > 0 || client.term.termWidth > 0) {
                 return;
             }
 
@@ -182,20 +193,21 @@ function ansiQueryTermSizeIfNeeded(client, cb) {
             //  999x999 values we asked to move to.
             //
             const [h, w] = pos;
-            if(h < 10 || h === 999 || w < 10 || w === 999) {
+            if (h < 10 || h === 999 || w < 10 || w === 999) {
                 return client.log.warn(
-                    { height : h, width : w },
-                    'Ignoring ANSI CPR screen size query response due to non-sane values');
+                    { height: h, width: w },
+                    'Ignoring ANSI CPR screen size query response due to non-sane values'
+                );
             }
 
-            client.term.termHeight  = h;
-            client.term.termWidth   = w;
+            client.term.termHeight = h;
+            client.term.termWidth = w;
 
             client.log.debug(
                 {
-                    termWidth   : client.term.termWidth,
-                    termHeight  : client.term.termHeight,
-                    source      : 'ANSI CPR'
+                    termWidth: client.term.termWidth,
+                    termHeight: client.term.termHeight,
+                    source: 'ANSI CPR',
                 },
                 'Window size updated'
             );
@@ -226,8 +238,7 @@ function displayBanner(term) {
 |06Connected to |02EN|10i|02GMA|10½ |06BBS version |12|VN
 |06Copyright (c) 2014-2022 Bryan Ashby |14- |12http://l33t.codes/
 |06Updates & source |14- |12https://github.com/NuSkooler/enigma-bbs/
-|00`
-    );
+|00`);
 }
 
 function connectEntry(client, nextMenu) {
@@ -245,20 +256,23 @@ function connectEntry(client, nextMenu) {
             },
             function queryTermSizeByNonStandardAnsi(callback) {
                 ansiQueryTermSizeIfNeeded(client, err => {
-                    if(err) {
+                    if (err) {
                         //
                         //  Check again; We may have got via NAWS/similar before CPR completed.
                         //
-                        if(0 === term.termHeight || 0 === term.termWidth) {
+                        if (0 === term.termHeight || 0 === term.termWidth) {
                             //
                             //  We still don't have something good for term height/width.
                             //  Default to DOS size 80x25.
                             //
                             //  :TODO: Netrunner is currently hitting this and it feels wrong. Why is NAWS/ENV/CPR all failing???
-                            client.log.warn( { reason : err.message }, 'Failed to negotiate term size; Defaulting to 80x25!');
+                            client.log.warn(
+                                { reason: err.message },
+                                'Failed to negotiate term size; Defaulting to 80x25!'
+                            );
 
                             term.termHeight = 25;
-                            term.termWidth  = 80;
+                            term.termWidth = 80;
                         }
                     }
 
@@ -268,7 +282,7 @@ function connectEntry(client, nextMenu) {
             function checkUtf8IfNeeded(callback) {
                 return ansiAttemptDetectUTF8(client, callback);
             },
-            function querySyncTERMFontSupport(callback)  {
+            function querySyncTERMFontSupport(callback) {
                 return ansiQuerySyncTermFontSupport(client, callback);
             },
         ],
@@ -281,9 +295,9 @@ function connectEntry(client, nextMenu) {
             displayBanner(term);
 
             // fire event
-            Events.emit(Events.getSystemEvents().TermDetected, { client : client } );
+            Events.emit(Events.getSystemEvents().TermDetected, { client: client });
 
-            setTimeout( () => {
+            setTimeout(() => {
                 return client.menuStack.goto(nextMenu);
             }, 500);
         }

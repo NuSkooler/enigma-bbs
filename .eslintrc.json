@@ -3,31 +3,20 @@
         "es6": true,
         "node": true
     },
-    "extends": [
-        "eslint:recommended"
-    ],
+    "extends": ["eslint:recommended"],
     "rules": {
         "indent": [
             "error",
             4,
             {
-                "SwitchCase" : 1
+                "SwitchCase": 1
             }
         ],
-        "linebreak-style": [
-            "error",
-            "unix"
-        ],
-        "quotes": [
-            "error",
-            "single"
-        ],
-        "semi": [
-            "error",
-            "always"
-        ],
+        "linebreak-style": ["error", "unix"],
+        "quotes": ["error", "single"],
+        "semi": ["error", "always"],
         "comma-dangle": 0,
-        "no-trailing-spaces" :"warn"
+        "no-trailing-spaces": "warn"
     },
     "parserOptions": {
         "ecmaVersion": 2020

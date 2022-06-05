@@ -2,54 +2,57 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
-const ViewController        = require('./view_controller.js').ViewController;
-const theme                 = require('./theme.js');
-const resetScreen           = require('./ansi_term.js').resetScreen;
-const StatLog               = require('./stat_log.js');
-const renderStringLength    = require('./string_util.js').renderStringLength;
-const SystemLogKeys         = require('./system_log.js');
+const MenuModule = require('./menu_module.js').MenuModule;
+const ViewController = require('./view_controller.js').ViewController;
+const theme = require('./theme.js');
+const resetScreen = require('./ansi_term.js').resetScreen;
+const StatLog = require('./stat_log.js');
+const renderStringLength = require('./string_util.js').renderStringLength;
+const SystemLogKeys = require('./system_log.js');
 
 //  deps
-const async                 = require('async');
-const _                     = require('lodash');
+const async = require('async');
+const _ = require('lodash');
 
 exports.moduleInfo = {
-    name        : 'Rumorz',
-    desc        : 'Standard local rumorz',
-    author      : 'NuSkooler',
-    packageName : 'codes.l33t.enigma.rumorz',
+    name: 'Rumorz',
+    desc: 'Standard local rumorz',
+    author: 'NuSkooler',
+    packageName: 'codes.l33t.enigma.rumorz',
 };
 
 const FormIds = {
-    View    : 0,
-    Add     : 1,
+    View: 0,
+    Add: 1,
 };
 
 const MciCodeIds = {
-    ViewForm    :  {
-        Entries     : 1,
-        AddPrompt   : 2,
+    ViewForm: {
+        Entries: 1,
+        AddPrompt: 2,
     },
-    AddForm : {
-        NewEntry        : 1,
-        EntryPreview    : 2,
-        AddPrompt       : 3,
-    }
+    AddForm: {
+        NewEntry: 1,
+        EntryPreview: 2,
+        AddPrompt: 3,
+    },
 };
 
 exports.getModule = class RumorzModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.menuMethods =  {
-            viewAddScreen : (formData, extraArgs, cb) => {
+        this.menuMethods = {
+            viewAddScreen: (formData, extraArgs, cb) => {
                 return this.displayAddScreen(cb);
             },
 
-            addEntry : (formData, extraArgs, cb) => {
-                if(_.isString(formData.value.rumor) && renderStringLength(formData.value.rumor) > 0) {
-                    const rumor = formData.value.rumor.trim();  //  remove any trailing ws
+            addEntry: (formData, extraArgs, cb) => {
+                if (
+                    _.isString(formData.value.rumor) &&
+                    renderStringLength(formData.value.rumor) > 0
+                ) {
+                    const rumor = formData.value.rumor.trim(); //  remove any trailing ws
 
                     StatLog.appendSystemLogEntry(
                         SystemLogKeys.UserAddedRumorz,
@@ -58,32 +61,38 @@ exports.getModule = class RumorzModule extends MenuModule {
                         StatLog.KeepType.Forever,
                         () => {
                             this.clearAddForm();
-                            return this.displayViewScreen(true, cb);    //  true=cls
+                            return this.displayViewScreen(true, cb); //  true=cls
                         }
                     );
                 } else {
                     //  empty message - treat as if cancel was hit
-                    return this.displayViewScreen(true, cb);    //  true=cls
+                    return this.displayViewScreen(true, cb); //  true=cls
                 }
             },
 
-            cancelAdd : (formData, extraArgs, cb) => {
+            cancelAdd: (formData, extraArgs, cb) => {
                 this.clearAddForm();
-                return this.displayViewScreen(true, cb);    //  true=cls
-            }
+                return this.displayViewScreen(true, cb); //  true=cls
+            },
         };
     }
 
-    get config() { return this.menuConfig.config; }
+    get config() {
+        return this.menuConfig.config;
+    }
 
     clearAddForm() {
-        const newEntryView  = this.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
-        const previewView   = this.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
+        const newEntryView = this.viewControllers.add.getView(
+            MciCodeIds.AddForm.NewEntry
+        );
+        const previewView = this.viewControllers.add.getView(
+            MciCodeIds.AddForm.EntryPreview
+        );
 
         newEntryView.setText('');
 
         //  preview is optional
-        if(previewView) {
+        if (previewView) {
             previewView.setText('');
         }
     }
@@ -98,10 +107,10 @@ exports.getModule = class RumorzModule extends MenuModule {
                 },
                 function display(callback) {
                     self.displayViewScreen(false, callback);
-                }
+                },
             ],
             err => {
-                if(err) {
+                if (err) {
                     //  :TODO: Handle me -- initSequence() should really take a completion callback
                 }
                 self.finishedLoading();
@@ -114,70 +123,85 @@ exports.getModule = class RumorzModule extends MenuModule {
         async.waterfall(
             [
                 function clearAndDisplayArt(callback) {
-                    if(self.viewControllers.add) {
+                    if (self.viewControllers.add) {
                         self.viewControllers.add.setFocus(false);
                     }
 
-                    if(clearScreen) {
+                    if (clearScreen) {
                         self.client.term.rawWrite(resetScreen());
                     }
 
                     theme.displayThemedAsset(
                         self.config.art.entries,
                         self.client,
-                        { font : self.menuConfig.font, trailingLF : false },
+                        { font: self.menuConfig.font, trailingLF: false },
                         (err, artData) => {
                             return callback(err, artData);
                         }
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if(_.isUndefined(self.viewControllers.add)) {
+                    if (_.isUndefined(self.viewControllers.add)) {
                         const vc = self.addViewController(
                             'view',
-                            new ViewController( { client : self.client, formId : FormIds.View } )
+                            new ViewController({
+                                client: self.client,
+                                formId: FormIds.View,
+                            })
                         );
 
                         const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : artData.mciMap,
-                            formId          : FormIds.View,
+                            callingMenu: self,
+                            mciMap: artData.mciMap,
+                            formId: FormIds.View,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
                     } else {
                         self.viewControllers.view.setFocus(true);
-                        self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt).redraw();
+                        self.viewControllers.view
+                            .getView(MciCodeIds.ViewForm.AddPrompt)
+                            .redraw();
                         return callback(null);
                     }
                 },
                 function fetchEntries(callback) {
-                    const entriesView = self.viewControllers.view.getView(MciCodeIds.ViewForm.Entries);
+                    const entriesView = self.viewControllers.view.getView(
+                        MciCodeIds.ViewForm.Entries
+                    );
 
-                    StatLog.getSystemLogEntries(SystemLogKeys.UserAddedRumorz, StatLog.Order.Timestamp, (err, entries) => {
-                        return callback(err, entriesView, entries);
-                    });
+                    StatLog.getSystemLogEntries(
+                        SystemLogKeys.UserAddedRumorz,
+                        StatLog.Order.Timestamp,
+                        (err, entries) => {
+                            return callback(err, entriesView, entries);
+                        }
+                    );
                 },
                 function populateEntries(entriesView, entries, callback) {
-                    entriesView.setItems(entries.map(e => {
-                        return {
-                            text    : e.log_value,  //  standard
-                            rumor   : e.log_value,
-                        };
-                    }));
+                    entriesView.setItems(
+                        entries.map(e => {
+                            return {
+                                text: e.log_value, //  standard
+                                rumor: e.log_value,
+                            };
+                        })
+                    );
 
                     entriesView.redraw();
 
                     return callback(null);
                 },
                 function finalPrep(callback) {
-                    const promptView = self.viewControllers.view.getView(MciCodeIds.ViewForm.AddPrompt);
-                    promptView.setFocusItemIndex(1);    //  default to NO
+                    const promptView = self.viewControllers.view.getView(
+                        MciCodeIds.ViewForm.AddPrompt
+                    );
+                    promptView.setFocusItemIndex(1); //  default to NO
                     return callback(null);
-                }
+                },
             ],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }
@@ -196,23 +220,26 @@ exports.getModule = class RumorzModule extends MenuModule {
                     theme.displayThemedAsset(
                         self.config.art.add,
                         self.client,
-                        { font : self.menuConfig.font },
+                        { font: self.menuConfig.font },
                         (err, artData) => {
                             return callback(err, artData);
                         }
                     );
                 },
                 function initOrRedrawViewController(artData, callback) {
-                    if(_.isUndefined(self.viewControllers.add)) {
+                    if (_.isUndefined(self.viewControllers.add)) {
                         const vc = self.addViewController(
                             'add',
-                            new ViewController( { client : self.client, formId : FormIds.Add } )
+                            new ViewController({
+                                client: self.client,
+                                formId: FormIds.Add,
+                            })
                         );
 
                         const loadOpts = {
-                            callingMenu     : self,
-                            mciMap          : artData.mciMap,
-                            formId          : FormIds.Add,
+                            callingMenu: self,
+                            mciMap: artData.mciMap,
+                            formId: FormIds.Add,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -224,15 +251,19 @@ exports.getModule = class RumorzModule extends MenuModule {
                     }
                 },
                 function initPreviewUpdates(callback) {
-                    const previewView   = self.viewControllers.add.getView(MciCodeIds.AddForm.EntryPreview);
-                    const entryView     = self.viewControllers.add.getView(MciCodeIds.AddForm.NewEntry);
-                    if(previewView) {
+                    const previewView = self.viewControllers.add.getView(
+                        MciCodeIds.AddForm.EntryPreview
+                    );
+                    const entryView = self.viewControllers.add.getView(
+                        MciCodeIds.AddForm.NewEntry
+                    );
+                    if (previewView) {
                         let timerId;
                         entryView.on('key press', () => {
                             clearTimeout(timerId);
-                            timerId = setTimeout( () => {
+                            timerId = setTimeout(() => {
                                 const focused = self.viewControllers.add.getFocusedView();
-                                if(focused === entryView) {
+                                if (focused === entryView) {
                                     previewView.setText(entryView.getData());
                                     focused.setFocus(true);
                                 }
@@ -240,10 +271,10 @@ exports.getModule = class RumorzModule extends MenuModule {
                         });
                     }
                     return callback(null);
-                }
+                },
             ],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }

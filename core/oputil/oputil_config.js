@@ -3,7 +3,7 @@
 'use strict';
 
 //	ENiGMA½
-const resolvePath				= require('../../core/misc_util.js').resolvePath;
+const resolvePath = require('../../core/misc_util.js').resolvePath;
 const {
     printUsageAndSetExitCode,
     getConfigPath,
@@ -12,25 +12,28 @@ const {
     getAnswers,
     writeConfig,
     HJSONStringifyCommonOpts,
-}                               = require('./oputil_common.js');
-const getHelpFor				= require('./oputil_help.js').getHelpFor;
+} = require('./oputil_common.js');
+const getHelpFor = require('./oputil_help.js').getHelpFor;
 
 //	deps
-const async			    = require('async');
-const inq			    = require('inquirer');
-const mkdirsSync	    = require('fs-extra').mkdirsSync;
-const fs			    = require('graceful-fs');
-const hjson			    = require('hjson');
-const paths			    = require('path');
-const _				    = require('lodash');
-const sanatizeFilename  = require('sanitize-filename');
+const async = require('async');
+const inq = require('inquirer');
+const mkdirsSync = require('fs-extra').mkdirsSync;
+const fs = require('graceful-fs');
+const hjson = require('hjson');
+const paths = require('path');
+const _ = require('lodash');
+const sanatizeFilename = require('sanitize-filename');
 
-exports.handleConfigCommand				= handleConfigCommand;
+exports.handleConfigCommand = handleConfigCommand;
 
 const ConfigIncludeKeys = [
     'theme',
-    'users.preAuthIdleLogoutSeconds', 'users.idleLogoutSeconds',
-    'users.newUserNames', 'users.failedLogin', 'users.unlockAtEmailPwReset',
+    'users.preAuthIdleLogoutSeconds',
+    'users.idleLogoutSeconds',
+    'users.newUserNames',
+    'users.failedLogin',
+    'users.unlockAtEmailPwReset',
     'paths.logs',
     'loginServers',
     'contentServers',
@@ -39,71 +42,71 @@ const ConfigIncludeKeys = [
 ];
 
 const QUESTIONS = {
-    Intro		: [
+    Intro: [
         {
-            name	: 'createNewConfig',
-            message	: 'Create a new configuration?',
-            type	: 'confirm',
-            default	: false,
+            name: 'createNewConfig',
+            message: 'Create a new configuration?',
+            type: 'confirm',
+            default: false,
         },
         {
-            name	: 'configPath',
-            message	: 'Configuration path:',
-            default	: getConfigPath(),
-            when	: answers => answers.createNewConfig
-        },
-    ],
-
-    OverwriteConfig	: [
-        {
-            name	: 'overwriteConfig',
-            message	: 'Config file exists. Overwrite?',
-            type	: 'confirm',
-            default	: false,
-        }
-    ],
-
-    Basic			: [
-        {
-            name	: 'boardName',
-            message	: 'BBS name:',
-            default	: 'New ENiGMA½ BBS',
+            name: 'configPath',
+            message: 'Configuration path:',
+            default: getConfigPath(),
+            when: answers => answers.createNewConfig,
         },
     ],
 
-    Misc		: [
+    OverwriteConfig: [
         {
-            name	: 'loggingLevel',
-            message	: 'Logging level:',
-            type	: 'list',
-            choices	: [ 'Error', 'Warn', 'Info', 'Debug', 'Trace' ],
-            default	: 2,
-            filter	: s => s.toLowerCase(),
+            name: 'overwriteConfig',
+            message: 'Config file exists. Overwrite?',
+            type: 'confirm',
+            default: false,
         },
     ],
 
-    MessageConfAndArea	: [
+    Basic: [
         {
-            name	: 'msgConfName',
-            message	: 'First message conference:',
-            default	: 'Local',
+            name: 'boardName',
+            message: 'BBS name:',
+            default: 'New ENiGMA½ BBS',
+        },
+    ],
+
+    Misc: [
+        {
+            name: 'loggingLevel',
+            message: 'Logging level:',
+            type: 'list',
+            choices: ['Error', 'Warn', 'Info', 'Debug', 'Trace'],
+            default: 2,
+            filter: s => s.toLowerCase(),
+        },
+    ],
+
+    MessageConfAndArea: [
+        {
+            name: 'msgConfName',
+            message: 'First message conference:',
+            default: 'Local',
         },
         {
-            name	: 'msgConfDesc',
-            message	: 'Conference description:',
-            default	: 'Local Areas',
+            name: 'msgConfDesc',
+            message: 'Conference description:',
+            default: 'Local Areas',
         },
         {
-            name	: 'msgAreaName',
-            message	: 'First area in message conference:',
-            default	: 'General',
+            name: 'msgAreaName',
+            message: 'First area in message conference:',
+            default: 'General',
         },
         {
-            name	: 'msgAreaDesc',
-            message	: 'Area description:',
-            default	: 'General chit-chat',
-        }
-    ]
+            name: 'msgAreaDesc',
+            message: 'Area description:',
+            default: 'General chit-chat',
+        },
+    ],
 };
 
 function makeMsgConfAreaName(s) {
@@ -111,7 +114,6 @@ function makeMsgConfAreaName(s) {
 }
 
 function askNewConfigQuestions(cb) {
-
     const ui = new inq.ui.BottomBar();
 
     let configPath;
@@ -121,7 +123,7 @@ function askNewConfigQuestions(cb) {
         [
             function intro(callback) {
                 getAnswers(QUESTIONS.Intro, answers => {
-                    if(!answers.createNewConfig) {
+                    if (!answers.createNewConfig) {
                         return callback('exit');
                     }
 
@@ -135,21 +137,21 @@ function askNewConfigQuestions(cb) {
                     //	Check if the file exists and can be written to
                     //
                     fs.access(configPath, fs.F_OK | fs.W_OK, err => {
-                        if(err) {
-                            if('EACCES' === err.code) {
+                        if (err) {
+                            if ('EACCES' === err.code) {
                                 ui.log.write(`${configPath} cannot be written to`);
                                 callback('exit');
-                            } else if('ENOENT' === err.code) {
+                            } else if ('ENOENT' === err.code) {
                                 callback(null, false);
                             }
                         } else {
-                            callback(null, true);	//	exists + writable
+                            callback(null, true); //	exists + writable
                         }
                     });
                 });
             },
             function promptOverwrite(needPrompt, callback) {
-                if(needPrompt) {
+                if (needPrompt) {
                     getAnswers(QUESTIONS.OverwriteConfig, answers => {
                         return callback(answers.overwriteConfig ? null : 'exit');
                     });
@@ -162,7 +164,12 @@ function askNewConfigQuestions(cb) {
                     const defaultConfig = require('../../core/config_default')();
 
                     //  start by plopping in values we want directly from config.js
-                    const template = hjson.rt.parse(fs.readFileSync(paths.join(__dirname, '../../misc/config_template.in.hjson'), 'utf8'));
+                    const template = hjson.rt.parse(
+                        fs.readFileSync(
+                            paths.join(__dirname, '../../misc/config_template.in.hjson'),
+                            'utf8'
+                        )
+                    );
 
                     const direct = {};
                     _.each(ConfigIncludeKeys, keyPath => {
@@ -179,22 +186,22 @@ function askNewConfigQuestions(cb) {
             },
             function msgConfAndArea(callback) {
                 getAnswers(QUESTIONS.MessageConfAndArea, answers => {
-                    const confName	= makeMsgConfAreaName(answers.msgConfName);
-                    const areaName	= makeMsgConfAreaName(answers.msgAreaName);
+                    const confName = makeMsgConfAreaName(answers.msgConfName);
+                    const areaName = makeMsgConfAreaName(answers.msgAreaName);
 
                     config.messageConferences[confName] = {
-                        name	: answers.msgConfName,
-                        desc	: answers.msgConfDesc,
-                        sort	: 1,
-                        default	: true,
+                        name: answers.msgConfName,
+                        desc: answers.msgConfDesc,
+                        sort: 1,
+                        default: true,
                     };
 
                     config.messageConferences[confName].areas = {};
                     config.messageConferences[confName].areas[areaName] = {
-                        name	: answers.msgAreaName,
-                        desc	: answers.msgAreaDesc,
-                        sort	: 1,
-                        default	: true,
+                        name: answers.msgAreaName,
+                        desc: answers.msgAreaDesc,
+                        sort: 1,
+                        default: true,
                     };
 
                     return callback(null);
@@ -206,7 +213,7 @@ function askNewConfigQuestions(cb) {
 
                     return callback(null);
                 });
-            }
+            },
         ],
         err => {
             return cb(err, configPath, config);
@@ -217,14 +224,14 @@ function askNewConfigQuestions(cb) {
 const copyFileSyncSilent = (to, from, flags) => {
     try {
         fs.copyFileSync(to, from, flags);
-    } catch(e) {
+    } catch (e) {
         /* absorb! */
     }
 };
 
 function buildNewConfig() {
-    askNewConfigQuestions( (err, configPath, config) => {
-        if(err) {
+    askNewConfigQuestions((err, configPath, config) => {
+        if (err) {
             return err;
         }
 
@@ -232,7 +239,7 @@ function buildNewConfig() {
         mkdirsSync(paths.join(__dirname, '../../config/menus'));
 
         const boardName = sanatizeFilename(config.general.boardName)
-            .replace(/[^a-z0-9_-]/ig, '_')
+            .replace(/[^a-z0-9_-]/gi, '_')
             .replace(/_+/g, '_')
             .toLowerCase();
 
@@ -258,8 +265,12 @@ function buildNewConfig() {
         });
 
         //  We really only need includes to be replaced
-        const mainTemplate = fs.readFileSync(paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'), 'utf8')
-            .replace(/%INCLUDE_FILES%/g, includeFiles.join('\n\t\t'));  //  cheesy, but works!
+        const mainTemplate = fs
+            .readFileSync(
+                paths.join(__dirname, '../../misc/menu_templates/main.in.hjson'),
+                'utf8'
+            )
+            .replace(/%INCLUDE_FILES%/g, includeFiles.join('\n\t\t')); //  cheesy, but works!
 
         const menuFile = `${boardName}-main.hjson`;
         fs.writeFileSync(
@@ -270,7 +281,7 @@ function buildNewConfig() {
 
         config.general.menuFile = paths.join(__dirname, '../../config/menus/', menuFile);
 
-        if(writeConfig(config, configPath)) {
+        if (writeConfig(config, configPath)) {
             console.info('Configuration generated');
         } else {
             console.error('Failed writing configuration');
@@ -280,15 +291,15 @@ function buildNewConfig() {
 
 function catCurrentConfig() {
     try {
-        const config    = hjson.rt.parse(fs.readFileSync(getConfigPath(), 'utf8'));
+        const config = hjson.rt.parse(fs.readFileSync(getConfigPath(), 'utf8'));
         const hjsonOpts = Object.assign({}, HJSONStringifyCommonOpts, {
-            colors  : false === argv.colors ? false : true,
-            keepWsc : false === argv.comments ? false : true,
+            colors: false === argv.colors ? false : true,
+            keepWsc: false === argv.comments ? false : true,
         });
 
         console.log(hjson.stringify(config, hjsonOpts));
-    } catch(e) {
-        if('ENOENT' == e.code) {
+    } catch (e) {
+        if ('ENOENT' == e.code) {
             console.error(`File not found: ${getConfigPath()}`);
         } else {
             console.error(e);
@@ -297,16 +308,19 @@ function catCurrentConfig() {
 }
 
 function handleConfigCommand() {
-    if(true === argv.help) {
+    if (true === argv.help) {
         return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
     }
 
     const action = argv._[1];
 
-    switch(action) {
-        case 'new'  : return buildNewConfig();
-        case 'cat'  : return catCurrentConfig();
+    switch (action) {
+        case 'new':
+            return buildNewConfig();
+        case 'cat':
+            return catCurrentConfig();
 
-        default : return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
+        default:
+            return printUsageAndSetExitCode(getHelpFor('Config'), ExitCodes.ERROR);
     }
 }

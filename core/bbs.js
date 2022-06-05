@@ -6,35 +6,36 @@
 //SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
 
 //  ENiGMA½
-const conf          = require('./config.js');
-const logger        = require('./logger.js');
-const database      = require('./database.js');
-const resolvePath   = require('./misc_util.js').resolvePath;
-const UserProps     = require('./user_property.js');
-const SysProps      = require('./system_property.js');
-const SysLogKeys    = require('./system_log.js');
+const conf = require('./config.js');
+const logger = require('./logger.js');
+const database = require('./database.js');
+const resolvePath = require('./misc_util.js').resolvePath;
+const UserProps = require('./user_property.js');
+const SysProps = require('./system_property.js');
+const SysLogKeys = require('./system_log.js');
 
 //  deps
-const async         = require('async');
-const util          = require('util');
-const _             = require('lodash');
-const mkdirs        = require('fs-extra').mkdirs;
-const fs            = require('graceful-fs');
-const paths         = require('path');
-const moment        = require('moment');
+const async = require('async');
+const util = require('util');
+const _ = require('lodash');
+const mkdirs = require('fs-extra').mkdirs;
+const fs = require('graceful-fs');
+const paths = require('path');
+const moment = require('moment');
 
 //  our main entry point
-exports.main    = main;
+exports.main = main;
 
 //  object with various services we want to de-init/shutdown cleanly if possible
 const initServices = {};
 
 //  only include bbs.js once @ startup; this should be fine
-const COPYRIGHT = fs.readFileSync(paths.join(__dirname, '../LICENSE.TXT'), 'utf8').split(/\r?\n/g)[0];
+const COPYRIGHT = fs
+    .readFileSync(paths.join(__dirname, '../LICENSE.TXT'), 'utf8')
+    .split(/\r?\n/g)[0];
 
-const FULL_COPYRIGHT    = `ENiGMA½ ${COPYRIGHT}`;
-const HELP =
-`${FULL_COPYRIGHT}
+const FULL_COPYRIGHT = `ENiGMA½ ${COPYRIGHT}`;
+const HELP = `${FULL_COPYRIGHT}
 usage: main.js <args>
 eg   : main.js --config /enigma_install_path/config/
 
@@ -61,17 +62,21 @@ function main() {
             function processArgs(callback) {
                 const argv = require('minimist')(process.argv.slice(2));
 
-                if(argv.help) {
+                if (argv.help) {
                     return printHelpAndExit();
                 }
 
-                if(argv.version) {
+                if (argv.version) {
                     return printVersionAndExit();
                 }
 
                 const configOverridePath = argv.config;
 
-                return callback(null, configOverridePath || conf.Config.getDefaultPath(), _.isString(configOverridePath));
+                return callback(
+                    null,
+                    configOverridePath || conf.Config.getDefaultPath(),
+                    _.isString(configOverridePath)
+                );
             },
             function initConfig(configPath, configPathSupplied, callback) {
                 const configFile = configPath + 'config.hjson';
@@ -81,12 +86,14 @@ function main() {
                     //  If the user supplied a path and we can't read/parse it
                     //  then it's a fatal error
                     //
-                    if(err) {
-                        if('ENOENT' === err.code)  {
-                            if(configPathSupplied) {
-                                console.error('Configuration file does not exist: ' + configFile);
+                    if (err) {
+                        if ('ENOENT' === err.code) {
+                            if (configPathSupplied) {
+                                console.error(
+                                    'Configuration file does not exist: ' + configFile
+                                );
                             } else {
-                                configPathSupplied = null;  //  make non-fatal; we'll go with defaults
+                                configPathSupplied = null; //  make non-fatal; we'll go with defaults
                             }
                         } else {
                             errorDisplayed = true;
@@ -104,26 +111,30 @@ function main() {
             },
             function initSystem(callback) {
                 initialize(function init(err) {
-                    if(err) {
+                    if (err) {
                         console.error('Error initializing: ' + util.inspect(err));
                     }
                     return callback(err);
                 });
-            }
+            },
         ],
         function complete(err) {
-            if(!err) {
+            if (!err) {
                 //  note this is escaped:
-                fs.readFile(paths.join(__dirname, '../misc/startup_banner.asc'), 'utf8', (err, banner) => {
-                    console.info(FULL_COPYRIGHT);
-                    if(!err) {
-                        console.info(banner);
+                fs.readFile(
+                    paths.join(__dirname, '../misc/startup_banner.asc'),
+                    'utf8',
+                    (err, banner) => {
+                        console.info(FULL_COPYRIGHT);
+                        if (!err) {
+                            console.info(banner);
+                        }
+                        console.info('System started!');
                     }
-                    console.info('System started!');
-                });
+                );
             }
 
-            if(err && !errorDisplayed) {
+            if (err && !errorDisplayed) {
                 console.error('Error initializing: ' + util.inspect(err));
                 return process.exit();
             }
@@ -142,37 +153,39 @@ function shutdownSystem() {
                 const ClientConns = require('./client_connections.js');
                 const activeConnections = ClientConns.getActiveConnections();
                 let i = activeConnections.length;
-                while(i--) {
+                while (i--) {
                     const activeTerm = activeConnections[i].term;
-                    if(activeTerm) {
-                        activeTerm.write('\n\nServer is shutting down NOW! Disconnecting...\n\n');
+                    if (activeTerm) {
+                        activeTerm.write(
+                            '\n\nServer is shutting down NOW! Disconnecting...\n\n'
+                        );
                     }
                     ClientConns.removeClient(activeConnections[i]);
                 }
                 callback(null);
             },
             function stopListeningServers(callback) {
-                return require('./listening_server.js').shutdown( () => {
-                    return callback(null);  //  ignore err
+                return require('./listening_server.js').shutdown(() => {
+                    return callback(null); //  ignore err
                 });
             },
             function stopEventScheduler(callback) {
-                if(initServices.eventScheduler) {
-                    return initServices.eventScheduler.shutdown( () => {
-                        return callback(null);  // ignore err
+                if (initServices.eventScheduler) {
+                    return initServices.eventScheduler.shutdown(() => {
+                        return callback(null); // ignore err
                     });
                 } else {
                     return callback(null);
                 }
             },
             function stopFileAreaWeb(callback) {
-                require('./file_area_web.js').startup( () => {
-                    return callback(null);  // ignore err
+                require('./file_area_web.js').startup(() => {
+                    return callback(null); // ignore err
                 });
             },
             function stopMsgNetwork(callback) {
                 require('./msg_network.js').shutdown(callback);
-            }
+            },
         ],
         () => {
             console.info('Goodbye!');
@@ -186,30 +199,39 @@ function initialize(cb) {
         [
             function createMissingDirectories(callback) {
                 const Config = conf.get();
-                async.each(Object.keys(Config.paths), function entry(pathKey, next) {
-                    mkdirs(Config.paths[pathKey], function dirCreated(err) {
-                        if(err) {
-                            console.error('Could not create path: ' + Config.paths[pathKey] + ': ' + err.toString());
-                        }
-                        return next(err);
-                    });
-                }, function dirCreationComplete(err) {
-                    return callback(err);
-                });
+                async.each(
+                    Object.keys(Config.paths),
+                    function entry(pathKey, next) {
+                        mkdirs(Config.paths[pathKey], function dirCreated(err) {
+                            if (err) {
+                                console.error(
+                                    'Could not create path: ' +
+                                        Config.paths[pathKey] +
+                                        ': ' +
+                                        err.toString()
+                                );
+                            }
+                            return next(err);
+                        });
+                    },
+                    function dirCreationComplete(err) {
+                        return callback(err);
+                    }
+                );
             },
             function basicInit(callback) {
                 logger.init();
                 logger.log.info(
                     {
-                        version     : require('../package.json').version,
-                        nodeVersion : process.version,
+                        version: require('../package.json').version,
+                        nodeVersion: process.version,
                     },
                     '**** ENiGMA½ Bulletin Board System Starting Up! ****'
                 );
 
                 process.on('SIGINT', shutdownSystem);
 
-                require('@breejs/later').date.localTime();  //  use local times for later.js/scheduling
+                require('@breejs/later').date.localTime(); //  use local times for later.js/scheduling
 
                 return callback(null);
             },
@@ -236,9 +258,12 @@ function initialize(cb) {
                 const User = require('./user.js');
 
                 const propLoadOpts = {
-                    names   : [
-                        UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
-                        UserProps.Location, UserProps.Affiliations,
+                    names: [
+                        UserProps.RealName,
+                        UserProps.Sex,
+                        UserProps.EmailAddress,
+                        UserProps.Location,
+                        UserProps.Affiliations,
                     ],
                 };
 
@@ -248,15 +273,19 @@ function initialize(cb) {
                             return User.getUserName(1, next);
                         },
                         function getOpProps(opUserName, next) {
-                            User.loadProperties(User.RootUserID, propLoadOpts, (err, opProps) => {
-                                return next(err, opUserName, opProps);
-                            });
+                            User.loadProperties(
+                                User.RootUserID,
+                                propLoadOpts,
+                                (err, opProps) => {
+                                    return next(err, opUserName, opProps);
+                                }
+                            );
                         },
                     ],
                     (err, opUserName, opProps) => {
                         const StatLog = require('./stat_log.js');
 
-                        if(err) {
+                        if (err) {
                             propLoadOpts.names.concat('username').forEach(v => {
                                 StatLog.setNonPersistentSystemStat(`sysop_${v}`, 'N/A');
                             });
@@ -275,14 +304,17 @@ function initialize(cb) {
             function initCallsToday(callback) {
                 const StatLog = require('./stat_log.js');
                 const filter = {
-                    logName     : SysLogKeys.UserLoginHistory,
-                    resultType  : 'count',
-                    date        : moment(),
+                    logName: SysLogKeys.UserLoginHistory,
+                    resultType: 'count',
+                    date: moment(),
                 };
 
                 StatLog.findSystemLogEntries(filter, (err, callsToday) => {
-                    if(!err) {
-                        StatLog.setNonPersistentSystemStat(SysProps.LoginsToday, callsToday);
+                    if (!err) {
+                        StatLog.setNonPersistentSystemStat(
+                            SysProps.LoginsToday,
+                            callsToday
+                        );
                     }
                     return callback(null);
                 });
@@ -312,7 +344,8 @@ function initialize(cb) {
                 return require('./file_area_web.js').startup(callback);
             },
             function readyPasswordReset(callback) {
-                const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
+                const WebPasswordReset =
+                    require('./web_password_reset.js').WebPasswordReset;
                 return WebPasswordReset.startup(callback);
             },
             function ready2FA_OTPRegister(callback) {
@@ -320,15 +353,16 @@ function initialize(cb) {
                 return User2FA_OTPWebRegister.startup(callback);
             },
             function readyEventScheduler(callback) {
-                const EventSchedulerModule = require('./event_scheduler.js').EventSchedulerModule;
-                EventSchedulerModule.loadAndStart( (err, modInst) => {
+                const EventSchedulerModule =
+                    require('./event_scheduler.js').EventSchedulerModule;
+                EventSchedulerModule.loadAndStart((err, modInst) => {
                     initServices.eventScheduler = modInst;
                     return callback(err);
                 });
             },
             function listenUserEventsForStatLog(callback) {
                 return require('./stat_log.js').initUserEvents(callback);
-            }
+            },
         ],
         function onComplete(err) {
             return cb(err);

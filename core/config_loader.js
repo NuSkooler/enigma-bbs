@@ -14,23 +14,21 @@ module.exports = class ConfigLoader {
             defaultsCustomizer = null,
             onReload = null,
             keepWsc = false,
-        } =
-        {
-            hotReload : true,
-            defaultConfig : {},
-            defaultsCustomizer : null,
-            onReload : null,
-            keepWsc : false,
+        } = {
+            hotReload: true,
+            defaultConfig: {},
+            defaultsCustomizer: null,
+            onReload: null,
+            keepWsc: false,
         }
-    )
-    {
+    ) {
         this.current = {};
 
-        this.hotReload          = hotReload;
-        this.defaultConfig      = defaultConfig;
+        this.hotReload = hotReload;
+        this.defaultConfig = defaultConfig;
         this.defaultsCustomizer = defaultsCustomizer;
-        this.onReload           = onReload;
-        this.keepWsc            = keepWsc;
+        this.onReload = onReload;
+        this.keepWsc = keepWsc;
     }
 
     init(baseConfigPath, cb) {
@@ -61,7 +59,7 @@ module.exports = class ConfigLoader {
         //
         async.waterfall(
             [
-                (callback) => {
+                callback => {
                     return this._loadConfigFile(baseConfigPath, callback);
                 },
                 (config, callback) => {
@@ -72,16 +70,17 @@ module.exports = class ConfigLoader {
                             config,
                             (defaultVal, configVal, key, target, source) => {
                                 var path;
-                                while (true) {  //  eslint-disable-line no-constant-condition
+                                while (true) {
+                                    //  eslint-disable-line no-constant-condition
                                     if (!stack.length) {
-                                        stack.push({source, path : []});
+                                        stack.push({ source, path: [] });
                                     }
 
                                     const prev = stack[stack.length - 1];
 
                                     if (source === prev.source) {
                                         path = prev.path.concat(key);
-                                        stack.push({source : configVal, path});
+                                        stack.push({ source: configVal, path });
                                         break;
                                     }
 
@@ -89,7 +88,12 @@ module.exports = class ConfigLoader {
                                 }
 
                                 path = path.join('.');
-                                return this.defaultsCustomizer(defaultVal, configVal, key, path);
+                                return this.defaultsCustomizer(
+                                    defaultVal,
+                                    configVal,
+                                    key,
+                                    path
+                                );
                             }
                         );
 
@@ -118,12 +122,12 @@ module.exports = class ConfigLoader {
 
     _convertTo(value, type) {
         switch (type) {
-            case 'bool' :
-            case 'boolean' :
-                value = ('1' === value || 'true' === value.toLowerCase());
+            case 'bool':
+            case 'boolean':
+                value = '1' === value || 'true' === value.toLowerCase();
                 break;
 
-            case 'number' :
+            case 'number':
                 {
                     const num = parseInt(value);
                     if (!isNaN(num)) {
@@ -132,15 +136,15 @@ module.exports = class ConfigLoader {
                 }
                 break;
 
-            case 'object' :
+            case 'object':
                 try {
                     value = JSON.parse(value);
-                } catch(e) {
+                } catch (e) {
                     //  ignored
                 }
                 break;
 
-            case 'timestamp' :
+            case 'timestamp':
                 {
                     const m = moment(value);
                     if (m.isValid()) {
@@ -162,7 +166,9 @@ module.exports = class ConfigLoader {
         let value = process.env[varName];
         if (!value) {
             //  console is about as good as we can do here
-            return console.info(`WARNING: environment variable "${varName}" from spec "${spec}" not found!`);
+            return console.info(
+                `WARNING: environment variable "${varName}" from spec "${spec}" not found!`
+            );
         }
 
         if ('array' === array) {
@@ -179,9 +185,9 @@ module.exports = class ConfigLoader {
 
         const options = {
             filePath,
-            hotReload   : this.hotReload,
-            keepWsc     : this.keepWsc,
-            callback    : this._configFileChanged.bind(this),
+            hotReload: this.hotReload,
+            keepWsc: this.keepWsc,
+            callback: this._configFileChanged.bind(this),
         };
 
         ConfigCache.getConfigWithOptions(options, (err, config) => {
@@ -192,7 +198,7 @@ module.exports = class ConfigLoader {
         });
     }
 
-    _configFileChanged({fileName, fileRoot}) {
+    _configFileChanged({ fileName, fileRoot }) {
         const reCachedPath = paths.join(fileRoot, fileName);
         if (this.configPaths.includes(reCachedPath)) {
             this._reload(this.baseConfigPath, err => {
@@ -205,44 +211,44 @@ module.exports = class ConfigLoader {
 
     _resolveIncludes(configRoot, config, cb) {
         if (!Array.isArray(config.includes)) {
-            this.configPaths = [ this.baseConfigPath ];
+            this.configPaths = [this.baseConfigPath];
             return cb(null, config);
         }
 
         //  If a included file is changed, we need to re-cache, so this
         //  must be tracked...
         const includePaths = config.includes.map(inc => paths.join(configRoot, inc));
-        async.eachSeries(includePaths, (includePath, nextIncludePath) => {
-            this._loadConfigFile(includePath, (err, includedConfig) => {
-                if (err) {
-                    return nextIncludePath(err);
-                }
+        async.eachSeries(
+            includePaths,
+            (includePath, nextIncludePath) => {
+                this._loadConfigFile(includePath, (err, includedConfig) => {
+                    if (err) {
+                        return nextIncludePath(err);
+                    }
 
-                _.defaultsDeep(config, includedConfig);
-                return nextIncludePath(null);
-            });
-        },
-        err => {
-            this.configPaths = [ this.baseConfigPath, ...includePaths ];
-            return cb(err, config);
-        });
+                    _.defaultsDeep(config, includedConfig);
+                    return nextIncludePath(null);
+                });
+            },
+            err => {
+                this.configPaths = [this.baseConfigPath, ...includePaths];
+                return cb(err, config);
+            }
+        );
     }
 
     _resolveAtSpecs(config) {
-        return mapValuesDeep(
-            config,
-            value => {
-                if (_.isString(value) && '@' === value.charAt(0)) {
-                    if (value.startsWith('@reference:')) {
-                        const refPath = value.slice(11);
-                        value = _.get(config, refPath, value);
-                    } else if (value.startsWith('@environment:')) {
-                        value = this._resolveEnvironmentVariable(value) || value;
-                    }
+        return mapValuesDeep(config, value => {
+            if (_.isString(value) && '@' === value.charAt(0)) {
+                if (value.startsWith('@reference:')) {
+                    const refPath = value.slice(11);
+                    value = _.get(config, refPath, value);
+                } else if (value.startsWith('@environment:')) {
+                    value = this._resolveEnvironmentVariable(value) || value;
                 }
-
-                return value;
             }
-        );
+
+            return value;
+        });
     }
 };
