@@ -1,5 +1,6 @@
 //  ENiGMA½
 const { MenuModule } = require('./menu_module');
+const stringFormat = require('./string_format');
 
 const {
     getActiveConnectionList,
@@ -33,6 +34,7 @@ const MciViewIds = {
     main : {
         nodeStatus          : 1,
         quickLogView        : 2,
+        nodeStatusSelection : 3,
 
         customRangeStart    : 10,
     }
@@ -119,7 +121,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     );
                 },
                 (callback) => {
-                    const quickLogView = this.viewControllers.main.getView(MciViewIds.main.quickLogView);
+                    const quickLogView = this.getView('main', MciViewIds.main.quickLogView);
                     if (!quickLogView) {
                         return callback(null);
                     }
@@ -135,6 +137,20 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                             type    : 'raw',
                             level   : logLevel,
                             stream  : this.logRingBuffer
+                        });
+                    }
+
+                    const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+                    const nodeStatusSelectionView = this.getView('main', MciViewIds.main.nodeStatusSelection);
+                    const nodeStatusSelectionFormat = this.config.nodeStatusSelectionFormat || '{text}';
+                    if (nodeStatusView && nodeStatusSelectionView) {
+                        nodeStatusView.on('index update', index => {
+                            const item = nodeStatusView.getItems()[index];
+                            if (item) {
+                                nodeStatusSelectionView.setText(stringFormat(nodeStatusSelectionFormat, item));
+                                //  :TODO: Update view
+                                //  :TODO: this is not triggered by key-presses (1, 2, ...) -- we need to handle that as well
+                            }
                         });
                     }
 
@@ -354,10 +370,15 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
 
                 const [availIndicator, visIndicator] = this._getStatusStrings(ac.isAvailable, ac.isVisible);
 
+                const timeOn = ac.timeOn || moment.duration(0);
+
                 return Object.assign(ac, {
                     availIndicator,
                     visIndicator,
-                    timeOn : _.upperFirst((ac.timeOn || moment.duration(0)).humanize()),    //  make friendly
+                    timeOnMinutes : timeOn.asMinutes(),
+                    timeOn : _.upperFirst(timeOn.humanize()),    //  make friendly
+                    affils : ac.affils || 'N/A',
+                    realName : ac.realName || 'N/A',
                 });
         });
 

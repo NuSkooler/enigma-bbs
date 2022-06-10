@@ -309,9 +309,9 @@
 						// node status
 						VM1: {
 							height: 5
-							width: 36
-							itemFormat:      "|00  |11{node:<3.2} |10{userName:<13} |02{action:<14.13} |14{serverName}"
-							focusItemFormat: "|00|15> |11{node:<3.2} |10{userName:<13} |02{action:<14.13} |14{serverName}"
+							width: 37
+							itemFormat:      "|00  |11{node:<3.2} |10{userName:<12} |02{action:<14.13} |14{serverName}"
+							focusItemFormat: "|00|15> |11{node:<3.2} |10{userName:<12} |02{action:<14.13} |14{serverName}"
 							focusItemAtTop: false
 						}
 						// quick log

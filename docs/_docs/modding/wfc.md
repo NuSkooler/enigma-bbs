@@ -35,7 +35,20 @@ The following MCI codes are available:
 * `VM1`: Node status list with the following format items available:
     * `text`: Username or `*Pre Auth*`.
     * `action`: Current action/menu.
+    * `affils`: Any affiliations related to the if `authenticated`, else "N/A".
+    * `authenticated`: Boolean rather the node is authenticated (logged in) or not.
+    * `availIndicator`: Indicator of availability (e.g. for messaging)? Displayed via `statusAvailableIndicators` or system theme. See also [Themes](../art/themes.md).
+    * `isAvailalbe`: Boolean rather the node is availalbe (e.g. for messaging) or not.
+    * `isSecure`: Is the node securely connected (ie: SSL)?
+    * `isVisible`: Boolean rather the node is visible to others or not.
+    * `node`: The node ID.
+    * `realName`: Real name of authenticated user, or "N/A".
+    * `serverName`: Name of connected server such as "Telnet" or "SSH".
     * `timeOn`: How long the node has been connected.
+    * `timeOnMinutes`: How long in **minutes** the node has been connected.
+    * `userId`: User ID of authenticated node, or 0 if not yet authenticated.
+    * `userName`: User name of authenticated user or "*Pre Auth*"
+    * `visIndicator`: Indicator of visibility. Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
 * `VM2`: Quick log with the following format keys available:
     * `timestamp`: Log entry timestamp in `quickLogTimestampFormat` format.
     * `level`: Log entry level from Bunyan.

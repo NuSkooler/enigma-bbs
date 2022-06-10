@@ -83,6 +83,15 @@ function VerticalMenuView(options) {
         self.client.term.write(`${ansi.goto(item.row, self.position.col)}${text}`);
         this.setRenderCacheItem(index, text, item.focused);
     };
+
+    this.drawRemovedItem = function(index) {
+        if (index <= this.items.length - 1) {
+            return;
+        }
+        const row = this.position.row + index;
+        this.client.term.rawWrite(`${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(this.dimens.width)}`)
+    };
+
 }
 
 util.inherits(VerticalMenuView, MenuView);
@@ -122,6 +131,11 @@ VerticalMenuView.prototype.redraw = function() {
             this.items[i].focused = this.focusedItemIndex === i;
             this.drawItem(i);
         }
+    }
+
+    const remain = Math.max(0, this.dimens.height - this.items.length);
+    for (let i = this.items.length; i < remain; ++i) {
+        this.drawRemovedItem(i);
     }
 };
 

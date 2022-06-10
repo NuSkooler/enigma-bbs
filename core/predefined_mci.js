@@ -121,7 +121,7 @@ const PREDEFINED_MCI_GENERATORS = {
     UD  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
     UC  : function loginCount(client) { return userStatAsCountString(client, UserProps.LoginCount, 0); },
     ND  : function connectedNode(client) { return client.node.toString(); },
-    IP  : function clientIpAddress(client) { return client.remoteAddress.friendlyRemoteAddress() },
+    IP  : function clientIpAddress(client) { return client.friendlyRemoteAddress() },
     ST  : function serverName(client) { return client.session.serverName; },
     FN  : function activeFileBaseFilterName(client) {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
@@ -370,7 +370,7 @@ function getPredefinedMCIValue(client, code, extra) {
         try {
             value = generator(client, extra);
         } catch(e) {
-            Log.error( { code : code, exception : e.message }, 'Exception caught generating predefined MCI value' );
+            Log.error( { code : code, exception : e.message }, `Failed generating predefined MCI value (${code})` );
         }
 
         return value;
