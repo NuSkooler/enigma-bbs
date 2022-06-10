@@ -2,13 +2,12 @@
 /* eslint-disable no-console */
 'use strict';
 
-const getDefaultConfigPath			= require('./oputil_common.js').getDefaultConfigPath;
+const getDefaultConfigPath = require('./oputil_common.js').getDefaultConfigPath;
 
-exports.getHelpFor				= getHelpFor;
+exports.getHelpFor = getHelpFor;
 
-const usageHelp = exports.USAGE_HELP = {
-    General :
-`usage: oputil.js [--version] [--help]
+const usageHelp = (exports.USAGE_HELP = {
+    General: `usage: oputil.js [--version] [--help]
                   <command> [<arguments>]
 
 Global arguments:
@@ -22,8 +21,7 @@ Commands:
   fb                        File base management
   mb                        Message base management
 `,
-    User :
-`usage: oputil.js user <action> [<arguments>]
+    User: `usage: oputil.js user <action> [<arguments>]
 
 Actions:
   info USERNAME                Display information about a user
@@ -83,8 +81,7 @@ info arguments:
   --out PATH                   Path to write QR code to. defaults to stdout
 `,
 
-    Config :
-`usage: oputil.js config <action> [<arguments>]
+    Config: `usage: oputil.js config <action> [<arguments>]
 
 Actions:
   new                      Generate a new / default configuration
@@ -95,8 +92,7 @@ cat arguments:
   --no-color               Disable color
   --no-comments            Strip any comments
 `,
-    FileBase :
-`usage: oputil.js fb <action> [<arguments>]
+    FileBase: `usage: oputil.js fb <action> [<arguments>]
 
 Actions:
   scan AREA_TAG[@STORAGE_TAG]  Scan specified area
@@ -160,8 +156,7 @@ import-areas arguments:
 
   --create-dirs                Also create backing storage directories
 `,
-    FileOpsInfo :
-`
+    FileOpsInfo: `
 General Information:
   Generally an area tag can also include an optional storage tag. For example, the
   area of 'bbswarez' stored using 'bbswarez_main': bbswarez@bbswarez_main
@@ -172,8 +167,7 @@ General Information:
 
   File ID's are those found in file.sqlite3.
 `,
-    MessageBase :
-`usage: oputil.js mb <action> [<arguments>]
+    MessageBase: `usage: oputil.js mb <action> [<arguments>]
 
 Actions:
   areafix CMD1 CMD2 ... ADDR  Sends an AreaFix NetMail
@@ -202,8 +196,8 @@ qwk-export arguments:
                               TIMESTAMP.
   --no-qwke                   Disable QWKE extensions.
   --no-synchronet             Disable Synchronet style extensions.
-`
-};
+`,
+});
 
 function getHelpFor(command) {
     return usageHelp[command];

@@ -25,13 +25,11 @@ exports.Config = class Config extends ConfigLoader {
             'loginServers.ssh.algorithms.compress',
         ];
 
-        const replaceKeys = [
-            'args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch',
-        ];
+        const replaceKeys = ['args', 'sendArgs', 'recvArgs', 'recvArgsNonBatch'];
 
         const configOptions = Object.assign({}, options, {
-            defaultConfig       : DefaultConfig,
-            defaultsCustomizer  : (defaultVal, configVal, key, path) => {
+            defaultConfig: DefaultConfig,
+            defaultsCustomizer: (defaultVal, configVal, key, path) => {
                 if (Array.isArray(defaultVal) && Array.isArray(configVal)) {
                     if (replacePaths.includes(path) || replaceKeys.includes(key)) {
                         //  full replacement using user config value
@@ -42,7 +40,7 @@ exports.Config = class Config extends ConfigLoader {
                     }
                 }
             },
-            onReload : err => {
+            onReload: err => {
                 if (!err) {
                     const Events = require('./events.js');
                     Events.emit(Events.getSystemEvents().ConfigChanged);

@@ -1,9 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-var events          = require('events');
-var assert          = require('assert');
-var _               = require('lodash');
+var events = require('events');
+var assert = require('assert');
+var _ = require('lodash');
 
 module.exports = MailPacket;
 
@@ -16,7 +16,7 @@ function MailPacket(options) {
 
 require('util').inherits(MailPacket, events.EventEmitter);
 
-MailPacket.prototype.read = function(options) {
+MailPacket.prototype.read = function (options) {
     //
     //  options.packetPath | opts.packetBuffer: supplies a path-to-file
     //  or a buffer containing packet data
@@ -26,7 +26,7 @@ MailPacket.prototype.read = function(options) {
     assert(_.isString(options.packetPath) || Buffer.isBuffer(options.packetBuffer));
 };
 
-MailPacket.prototype.write = function(options) {
+MailPacket.prototype.write = function (options) {
     //
     //  options.messages[]: array of message(s) to create packets from
     //

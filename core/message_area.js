@@ -2,71 +2,80 @@
 'use strict';
 
 //  ENiGMA½
-const msgDb                     = require('./database.js').dbs.message;
-const Config                    = require('./config.js').get;
-const Message                   = require('./message.js');
-const Log                       = require('./logger.js').log;
-const msgNetRecord              = require('./msg_network.js').recordMessage;
-const sortAreasOrConfs          = require('./conf_area_util.js').sortAreasOrConfs;
-const UserProps                 = require('./user_property.js');
-const StatLog                   = require('./stat_log.js');
-const SysProps                  = require('./system_property.js');
+const msgDb = require('./database.js').dbs.message;
+const Config = require('./config.js').get;
+const Message = require('./message.js');
+const Log = require('./logger.js').log;
+const msgNetRecord = require('./msg_network.js').recordMessage;
+const sortAreasOrConfs = require('./conf_area_util.js').sortAreasOrConfs;
+const UserProps = require('./user_property.js');
+const StatLog = require('./stat_log.js');
+const SysProps = require('./system_property.js');
 
 //  deps
-const async         = require('async');
-const _             = require('lodash');
-const assert        = require('assert');
-const moment        = require('moment');
+const async = require('async');
+const _ = require('lodash');
+const assert = require('assert');
+const moment = require('moment');
 
-exports.startup                             = startup;
-exports.shutdown                            = shutdown;
-exports.getAvailableMessageConferences      = getAvailableMessageConferences;
-exports.getSortedAvailMessageConferences    = getSortedAvailMessageConferences;
-exports.getAvailableMessageAreasByConfTag   = getAvailableMessageAreasByConfTag;
+exports.startup = startup;
+exports.shutdown = shutdown;
+exports.getAvailableMessageConferences = getAvailableMessageConferences;
+exports.getSortedAvailMessageConferences = getSortedAvailMessageConferences;
+exports.getAvailableMessageAreasByConfTag = getAvailableMessageAreasByConfTag;
 exports.getSortedAvailMessageAreasByConfTag = getSortedAvailMessageAreasByConfTag;
-exports.getAllAvailableMessageAreaTags      = getAllAvailableMessageAreaTags;
-exports.getDefaultMessageConferenceTag      = getDefaultMessageConferenceTag;
-exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
-exports.getSuitableMessageConfAndAreaTags   = getSuitableMessageConfAndAreaTags;
-exports.getMessageConferenceByTag           = getMessageConferenceByTag;
-exports.getMessageAreaByTag                 = getMessageAreaByTag;
-exports.getMessageConfTagByAreaTag          = getMessageConfTagByAreaTag;
-exports.changeMessageConference             = changeMessageConference;
-exports.changeMessageArea                   = changeMessageArea;
-exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
-exports.hasMessageConfAndAreaWrite          = hasMessageConfAndAreaWrite;
-exports.filterMessageAreaTagsByReadACS      = filterMessageAreaTagsByReadACS;
-exports.filterMessageListByReadACS          = filterMessageListByReadACS;
-exports.tempChangeMessageConfAndArea        = tempChangeMessageConfAndArea;
-exports.getMessageListForArea               = getMessageListForArea;
-exports.getNewMessageCountInAreaForUser     = getNewMessageCountInAreaForUser;
-exports.getNewMessagesInAreaForUser         = getNewMessagesInAreaForUser;
-exports.getMessageIdNewerThanTimestampByArea    = getMessageIdNewerThanTimestampByArea;
-exports.getMessageAreaLastReadId            = getMessageAreaLastReadId;
-exports.updateMessageAreaLastReadId         = updateMessageAreaLastReadId;
-exports.persistMessage                      = persistMessage;
-exports.trimMessageAreasScheduledEvent      = trimMessageAreasScheduledEvent;
+exports.getAllAvailableMessageAreaTags = getAllAvailableMessageAreaTags;
+exports.getDefaultMessageConferenceTag = getDefaultMessageConferenceTag;
+exports.getDefaultMessageAreaTagByConfTag = getDefaultMessageAreaTagByConfTag;
+exports.getSuitableMessageConfAndAreaTags = getSuitableMessageConfAndAreaTags;
+exports.getMessageConferenceByTag = getMessageConferenceByTag;
+exports.getMessageAreaByTag = getMessageAreaByTag;
+exports.getMessageConfTagByAreaTag = getMessageConfTagByAreaTag;
+exports.changeMessageConference = changeMessageConference;
+exports.changeMessageArea = changeMessageArea;
+exports.hasMessageConfAndAreaRead = hasMessageConfAndAreaRead;
+exports.hasMessageConfAndAreaWrite = hasMessageConfAndAreaWrite;
+exports.filterMessageAreaTagsByReadACS = filterMessageAreaTagsByReadACS;
+exports.filterMessageListByReadACS = filterMessageListByReadACS;
+exports.tempChangeMessageConfAndArea = tempChangeMessageConfAndArea;
+exports.getMessageListForArea = getMessageListForArea;
+exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
+exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
+exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
+exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
+exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
+exports.persistMessage = persistMessage;
+exports.trimMessageAreasScheduledEvent = trimMessageAreasScheduledEvent;
 
 function startup(cb) {
     //  by default, private messages are NOT included
     async.series(
         [
-            (callback) => {
-                Message.findMessages( { resultType : 'count' }, (err, count) => {
-                    if(count) {
-                        StatLog.setNonPersistentSystemStat(SysProps.MessageTotalCount, count);
+            callback => {
+                Message.findMessages({ resultType: 'count' }, (err, count) => {
+                    if (count) {
+                        StatLog.setNonPersistentSystemStat(
+                            SysProps.MessageTotalCount,
+                            count
+                        );
                     }
                     return callback(err);
                 });
             },
-            (callback) => {
-                Message.findMessages( { resultType : 'count', date : moment() }, (err, count) => {
-                    if(count) {
-                        StatLog.setNonPersistentSystemStat(SysProps.MessagesToday, count);
+            callback => {
+                Message.findMessages(
+                    { resultType: 'count', date: moment() },
+                    (err, count) => {
+                        if (count) {
+                            StatLog.setNonPersistentSystemStat(
+                                SysProps.MessagesToday,
+                                count
+                            );
+                        }
+                        return callback(err);
                     }
-                    return callback(err);
-                });
-            }
+                );
+            },
         ],
         err => {
             return cb(err);
@@ -79,13 +88,13 @@ function shutdown(cb) {
 }
 
 function getAvailableMessageConferences(client, options) {
-    options = options || { includeSystemInternal : false };
+    options = options || { includeSystemInternal: false };
 
     assert(client || true === options.noClient);
 
     //  perform ACS check per conf & omit system_internal if desired
     return _.omitBy(Config().messageConferences, (conf, confTag) => {
-        if(!options.includeSystemInternal && 'system_internal' === confTag) {
+        if (!options.includeSystemInternal && 'system_internal' === confTag) {
             return true;
         }
 
@@ -96,8 +105,8 @@ function getAvailableMessageConferences(client, options) {
 function getSortedAvailMessageConferences(client, options) {
     const confs = _.map(getAvailableMessageConferences(client, options), (v, k) => {
         return {
-            confTag : k,
-            conf    : v,
+            confTag: k,
+            conf: v,
         };
     });
 
@@ -113,10 +122,10 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
     //  :TODO: confTag === "" then find default
 
     const config = Config();
-    if(_.has(config.messageConferences, [ confTag, 'areas' ])) {
+    if (_.has(config.messageConferences, [confTag, 'areas'])) {
         const areas = config.messageConferences[confTag].areas;
 
-        if(!options.client || true === options.noAcsCheck) {
+        if (!options.client || true === options.noAcsCheck) {
             //  everything - no ACS checks
             return areas;
         } else {
@@ -130,9 +139,9 @@ function getAvailableMessageAreasByConfTag(confTag, options) {
 
 function getSortedAvailMessageAreasByConfTag(confTag, options) {
     const areas = _.map(getAvailableMessageAreasByConfTag(confTag, options), (v, k) => {
-        return  {
-            areaTag : k,
-            area    : v,
+        return {
+            areaTag: k,
+            area: v,
         };
     });
 
@@ -145,11 +154,13 @@ function getAllAvailableMessageAreaTags(client, options) {
     const areaTags = [];
 
     //  mask over older messy APIs for now
-    const confOpts = Object.assign({}, options, { noClient : client ? false : true });
+    const confOpts = Object.assign({}, options, { noClient: client ? false : true });
     const areaOpts = Object.assign({}, options, { client });
 
     Object.keys(getAvailableMessageConferences(client, confOpts)).forEach(confTag => {
-        areaTags.push(...Object.keys(getAvailableMessageAreasByConfTag(confTag, areaOpts)));
+        areaTags.push(
+            ...Object.keys(getAvailableMessageAreasByConfTag(confTag, areaOpts))
+        );
     });
 
     return areaTags;
@@ -170,16 +181,19 @@ function getDefaultMessageConferenceTag(client, disableAcsCheck) {
     //
     const config = Config();
     let defaultConf = _.findKey(config.messageConferences, o => o.default);
-    if(defaultConf) {
+    if (defaultConf) {
         const conf = config.messageConferences[defaultConf];
-        if(true === disableAcsCheck || client.acs.hasMessageConfRead(conf)) {
+        if (true === disableAcsCheck || client.acs.hasMessageConfRead(conf)) {
             return defaultConf;
         }
     }
 
     //  just use anything we can
     defaultConf = _.findKey(config.messageConferences, (conf, confTag) => {
-        return 'system_internal' !== confTag && (true === disableAcsCheck || client.acs.hasMessageConfRead(conf));
+        return (
+            'system_internal' !== confTag &&
+            (true === disableAcsCheck || client.acs.hasMessageConfRead(conf))
+        );
     });
 
     return defaultConf;
@@ -196,21 +210,21 @@ function getDefaultMessageAreaTagByConfTag(client, confTag, disableAcsCheck) {
     confTag = confTag || getDefaultMessageConferenceTag(client);
 
     const config = Config();
-    if(confTag && _.has(config.messageConferences, [ confTag, 'areas' ])) {
+    if (confTag && _.has(config.messageConferences, [confTag, 'areas'])) {
         const areaPool = config.messageConferences[confTag].areas;
         let defaultArea = _.findKey(areaPool, o => o.default);
-        if(defaultArea) {
+        if (defaultArea) {
             const area = areaPool[defaultArea];
-            if(true === disableAcsCheck || client.acs.hasMessageAreaRead(area)) {
+            if (true === disableAcsCheck || client.acs.hasMessageAreaRead(area)) {
                 return defaultArea;
             }
         }
 
         defaultArea = _.findKey(areaPool, (area, areaTag) => {
-            if(Message.isPrivateAreaTag(areaTag)) {
+            if (Message.isPrivateAreaTag(areaTag)) {
                 return false;
             }
-            return (true === disableAcsCheck || client.acs.hasMessageAreaRead(area));
+            return true === disableAcsCheck || client.acs.hasMessageAreaRead(area);
         });
 
         return defaultArea;
@@ -229,26 +243,29 @@ function getSuitableMessageConfAndAreaTags(client) {
     //    if we fail to find something.
     //
     let confTag = getDefaultMessageConferenceTag(client);
-    if(!confTag) {
-        return ['', ''];    //  can't have an area without a conf
+    if (!confTag) {
+        return ['', '']; //  can't have an area without a conf
     }
 
     let areaTag = getDefaultMessageAreaTagByConfTag(client, confTag);
-    if(!areaTag) {
+    if (!areaTag) {
         //  OK, perhaps *any* area in *any* conf?
         _.forEach(Config().messageConferences, (conf, ct) => {
-            if(!client.acs.hasMessageConfRead(conf)) {
+            if (!client.acs.hasMessageConfRead(conf)) {
                 return;
             }
             _.forEach(conf.areas, (area, at) => {
-                if(!_.includes(Message.WellKnownAreaTags, at) && client.acs.hasMessageAreaRead(area)) {
+                if (
+                    !_.includes(Message.WellKnownAreaTags, at) &&
+                    client.acs.hasMessageAreaRead(area)
+                ) {
                     confTag = ct;
                     areaTag = at;
-                    return false;   //  stop inner iteration
+                    return false; //  stop inner iteration
                 }
             });
-            if(areaTag) {
-                return false;   //  stop iteration
+            if (areaTag) {
+                return false; //  stop iteration
             }
         });
     }
@@ -262,8 +279,8 @@ function getMessageConferenceByTag(confTag) {
 
 function getMessageConfTagByAreaTag(areaTag) {
     const confs = Config().messageConferences;
-    return Object.keys(confs).find( (confTag) => {
-        return _.has(confs, [ confTag, 'areas', areaTag]);
+    return Object.keys(confs).find(confTag => {
+        return _.has(confs, [confTag, 'areas', areaTag]);
     });
 }
 
@@ -271,12 +288,12 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
     const confs = Config().messageConferences;
 
     //  :TODO: this could be cached
-    if(_.isString(optionalConfTag)) {
-        if(_.has(confs, [ optionalConfTag, 'areas', areaTag ])) {
+    if (_.isString(optionalConfTag)) {
+        if (_.has(confs, [optionalConfTag, 'areas', areaTag])) {
             return Object.assign(
                 {
                     areaTag,
-                    confTag : optionalConfTag,
+                    confTag: optionalConfTag,
                 },
                 confs[optionalConfTag].areas[areaTag]
             );
@@ -287,9 +304,9 @@ function getMessageAreaByTag(areaTag, optionalConfTag) {
         //
         let area;
         _.forEach(confs, (conf, confTag) => {
-            if(_.has(conf, [ 'areas', areaTag ])) {
+            if (_.has(conf, ['areas', areaTag])) {
                 area = Object.assign({ areaTag, confTag }, conf.areas[areaTag]);
-                return false;   //  stop iteration
+                return false; //  stop iteration
             }
         });
 
@@ -303,33 +320,38 @@ function changeMessageConference(client, confTag, cb) {
             function getConf(callback) {
                 const conf = getMessageConferenceByTag(confTag);
 
-                if(conf) {
+                if (conf) {
                     callback(null, conf);
                 } else {
                     callback(new Error('Invalid message conference tag'));
                 }
             },
             function getDefaultAreaInConf(conf, callback) {
-                const areaTag   = getDefaultMessageAreaTagByConfTag(client, confTag);
-                const area      = getMessageAreaByTag(areaTag, confTag);
+                const areaTag = getDefaultMessageAreaTagByConfTag(client, confTag);
+                const area = getMessageAreaByTag(areaTag, confTag);
 
-                if(area) {
-                    callback(null, conf, { areaTag : areaTag, area : area } );
+                if (area) {
+                    callback(null, conf, { areaTag: areaTag, area: area });
                 } else {
                     callback(new Error('No available areas for this user in conference'));
                 }
             },
             function validateAccess(conf, areaInfo, callback) {
-                if(!client.acs.hasMessageConfRead(conf) || !client.acs.hasMessageAreaRead(areaInfo.area)) {
-                    return callback(new Error('Access denied to message area and/or conference'));
+                if (
+                    !client.acs.hasMessageConfRead(conf) ||
+                    !client.acs.hasMessageAreaRead(areaInfo.area)
+                ) {
+                    return callback(
+                        new Error('Access denied to message area and/or conference')
+                    );
                 } else {
                     return callback(null, conf, areaInfo);
                 }
             },
             function changeConferenceAndArea(conf, areaInfo, callback) {
                 const newProps = {
-                    [ UserProps.MessageConfTag ]    : confTag,
-                    [ UserProps.MessageAreaTag ]    : areaInfo.areaTag,
+                    [UserProps.MessageConfTag]: confTag,
+                    [UserProps.MessageAreaTag]: areaInfo.areaTag,
                 };
                 client.user.persistProperties(newProps, err => {
                     callback(err, conf, areaInfo);
@@ -337,10 +359,16 @@ function changeMessageConference(client, confTag, cb) {
             },
         ],
         function complete(err, conf, areaInfo) {
-            if(!err) {
-                client.log.info( { confTag : confTag, confName : conf.name, areaTag : areaInfo.areaTag }, 'Current message conference changed');
+            if (!err) {
+                client.log.info(
+                    { confTag: confTag, confName: conf.name, areaTag: areaInfo.areaTag },
+                    'Current message conference changed'
+                );
             } else {
-                client.log.warn( { confTag : confTag, error : err.message }, 'Could not change message conference');
+                client.log.warn(
+                    { confTag: confTag, error: err.message },
+                    'Could not change message conference'
+                );
             }
             cb(err);
         }
@@ -348,7 +376,7 @@ function changeMessageConference(client, confTag, cb) {
 }
 
 function changeMessageAreaWithOptions(client, areaTag, options, cb) {
-    options = options || {};    //  :TODO: this is currently pointless... cb is required...
+    options = options || {}; //  :TODO: this is currently pointless... cb is required...
 
     async.waterfall(
         [
@@ -360,28 +388,38 @@ function changeMessageAreaWithOptions(client, areaTag, options, cb) {
                 //
                 //  Need at least *read* to access the area
                 //
-                if(!client.acs.hasMessageAreaRead(area)) {
+                if (!client.acs.hasMessageAreaRead(area)) {
                     return callback(new Error('Access denied to message area'));
                 } else {
                     return callback(null, area);
                 }
             },
             function changeArea(area, callback) {
-                if(true === options.persist) {
-                    client.user.persistProperty(UserProps.MessageAreaTag, areaTag, function persisted(err) {
-                        return callback(err, area);
-                    });
+                if (true === options.persist) {
+                    client.user.persistProperty(
+                        UserProps.MessageAreaTag,
+                        areaTag,
+                        function persisted(err) {
+                            return callback(err, area);
+                        }
+                    );
                 } else {
                     client.user.properties[UserProps.MessageAreaTag] = areaTag;
                     return callback(null, area);
                 }
-            }
+            },
         ],
         function complete(err, area) {
-            if(!err) {
-                client.log.info( { areaTag : areaTag, area : area }, 'Current message area changed');
+            if (!err) {
+                client.log.info(
+                    { areaTag: areaTag, area: area },
+                    'Current message area changed'
+                );
             } else {
-                client.log.warn( { areaTag : areaTag, area : area, error : err.message }, 'Could not change message area');
+                client.log.warn(
+                    { areaTag: areaTag, area: area, error: err.message },
+                    'Could not change message area'
+                );
             }
 
             return cb(err);
@@ -396,16 +434,16 @@ function changeMessageAreaWithOptions(client, areaTag, options, cb) {
 //  This is useful for example when doing a new scan
 //
 function tempChangeMessageConfAndArea(client, areaTag) {
-    const area      = getMessageAreaByTag(areaTag);
-    const confTag   = getMessageConfTagByAreaTag(areaTag);
+    const area = getMessageAreaByTag(areaTag);
+    const confTag = getMessageConfTagByAreaTag(areaTag);
 
-    if(!area || !confTag) {
+    if (!area || !confTag) {
         return false;
     }
 
     const conf = getMessageConferenceByTag(confTag);
 
-    if(!client.acs.hasMessageConfRead(conf) || !client.acs.hasMessageAreaRead(area)) {
+    if (!client.acs.hasMessageConfRead(conf) || !client.acs.hasMessageAreaRead(area)) {
         return false;
     }
 
@@ -416,31 +454,35 @@ function tempChangeMessageConfAndArea(client, areaTag) {
 }
 
 function changeMessageArea(client, areaTag, cb) {
-    changeMessageAreaWithOptions(client, areaTag, { persist : true }, cb);
+    changeMessageAreaWithOptions(client, areaTag, { persist: true }, cb);
 }
 
 function hasMessageConfAndAreaRead(client, areaOrTag) {
-    if(_.isString(areaOrTag)) {
+    if (_.isString(areaOrTag)) {
         areaOrTag = getMessageAreaByTag(areaOrTag) || {};
     }
     const conf = getMessageConferenceByTag(areaOrTag.confTag);
-    return client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(areaOrTag);
+    return (
+        client.acs.hasMessageConfRead(conf) && client.acs.hasMessageAreaRead(areaOrTag)
+    );
 }
 
 function hasMessageConfAndAreaWrite(client, areaOrTag) {
-    if(_.isString(areaOrTag)) {
+    if (_.isString(areaOrTag)) {
         areaOrTag = getMessageAreaByTag(areaOrTag) || {};
     }
     const conf = getMessageConferenceByTag(areaOrTag.confTag);
-    return client.acs.hasMessageConfWrite(conf) && client.acs.hasMessageAreaWrite(areaOrTag);
+    return (
+        client.acs.hasMessageConfWrite(conf) && client.acs.hasMessageAreaWrite(areaOrTag)
+    );
 }
 
 function filterMessageAreaTagsByReadACS(client, areaTags) {
-    if(!Array.isArray(areaTags)) {
-        areaTags = [ areaTags ];
+    if (!Array.isArray(areaTags)) {
+        areaTags = [areaTags];
     }
 
-    return areaTags.filter( areaTag => {
+    return areaTags.filter(areaTag => {
         const area = getMessageAreaByTag(areaTag);
         return hasMessageConfAndAreaRead(client, area);
     });
@@ -453,14 +495,14 @@ function filterMessageListByReadACS(client, messageList) {
     //
 
     //  Keep a cache around for quick lookup.
-    const acsCache = new Map();    //  areaTag:boolean
+    const acsCache = new Map(); //  areaTag:boolean
 
     return messageList.filter(msg => {
         let cached = acsCache.get(msg.areaTag);
-        if(false === cached) {
+        if (false === cached) {
             return false;
         }
-        if(true === cached) {
+        if (true === cached) {
             return true;
         }
         cached = hasMessageConfAndAreaRead(client, msg.areaTag);
@@ -475,11 +517,11 @@ function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
 
         const filter = {
             areaTag,
-            newerThanMessageId  : lastMessageId,
-            resultType          : 'count',
+            newerThanMessageId: lastMessageId,
+            resultType: 'count',
         };
 
-        if(Message.isPrivateAreaTag(areaTag)) {
+        if (Message.isPrivateAreaTag(areaTag)) {
             filter.privateTagUserId = userId;
         }
 
@@ -495,13 +537,13 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
 
         const filter = {
             areaTag,
-            resultType          : 'messageList',
-            newerThanMessageId  : lastMessageId,
-            sort                : 'messageId',
-            order               : 'ascending',
+            resultType: 'messageList',
+            newerThanMessageId: lastMessageId,
+            sort: 'messageId',
+            order: 'ascending',
         };
 
-        if(Message.isPrivateAreaTag(areaTag)) {
+        if (Message.isPrivateAreaTag(areaTag)) {
             filter.privateTagUserId = userId;
         }
 
@@ -509,27 +551,26 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
     });
 }
 
-function getMessageListForArea(client, areaTag, filter, cb)
-{
-    if(!cb && _.isFunction(filter)) {
+function getMessageListForArea(client, areaTag, filter, cb) {
+    if (!cb && _.isFunction(filter)) {
         cb = filter;
         filter = {
             areaTag,
-            resultType  : 'messageList',
-            sort        : 'messageId',
-            order       : 'ascending'
+            resultType: 'messageList',
+            sort: 'messageId',
+            order: 'ascending',
         };
     } else {
-        Object.assign(filter, { areaTag } );
+        Object.assign(filter, { areaTag });
     }
 
-    if(client) {
-        if(!hasMessageConfAndAreaRead(client, areaTag)) {
+    if (client) {
+        if (!hasMessageConfAndAreaRead(client, areaTag)) {
             return cb(null, []);
         }
     }
 
-    if(Message.isPrivateAreaTag(areaTag)) {
+    if (Message.isPrivateAreaTag(areaTag)) {
         filter.privateTagUserId = client ? client.user.userId : 'INVALID_USER_ID';
     }
 
@@ -541,12 +582,12 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
         {
             areaTag,
             newerThanTimestamp,
-            sort    : 'modTimestamp',
-            order   : 'ascending',
-            limit   : 1,
+            sort: 'modTimestamp',
+            order: 'ascending',
+            limit: 1,
         },
         (err, id) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
             return cb(null, id ? id[0] : null);
@@ -556,10 +597,10 @@ function getMessageIdNewerThanTimestampByArea(areaTag, newerThanTimestamp, cb) {
 
 function getMessageAreaLastReadId(userId, areaTag, cb) {
     msgDb.get(
-        'SELECT message_id '                    +
-        'FROM user_message_area_last_read '     +
-        'WHERE user_id = ? AND area_tag = ?;',
-        [ userId, areaTag.toLowerCase() ],
+        'SELECT message_id ' +
+            'FROM user_message_area_last_read ' +
+            'WHERE user_id = ? AND area_tag = ?;',
+        [userId, areaTag.toLowerCase()],
         function complete(err, row) {
             cb(err, row ? row.message_id : 0);
         }
@@ -567,7 +608,7 @@ function getMessageAreaLastReadId(userId, areaTag, cb) {
 }
 
 function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb) {
-    if(!cb && _.isFunction(allowOlder)) {
+    if (!cb && _.isFunction(allowOlder)) {
         cb = allowOlder;
         allowOlder = false;
     }
@@ -582,30 +623,37 @@ function updateMessageAreaLastReadId(userId, areaTag, messageId, allowOlder, cb)
                 });
             },
             function update(lastId, callback) {
-                if(allowOlder || messageId > lastId) {
+                if (allowOlder || messageId > lastId) {
                     msgDb.run(
                         'REPLACE INTO user_message_area_last_read (user_id, area_tag, message_id) ' +
-                        'VALUES (?, ?, ?);',
-                        [ userId, areaTag, messageId ],
+                            'VALUES (?, ?, ?);',
+                        [userId, areaTag, messageId],
                         function written(err) {
-                            callback(err, true);    //  true=didUpdate
+                            callback(err, true); //  true=didUpdate
                         }
                     );
                 } else {
                     callback(null);
                 }
-            }
+            },
         ],
         function complete(err, didUpdate) {
-            if(err) {
+            if (err) {
                 Log.debug(
-                    { error : err.toString(), userId : userId, areaTag : areaTag, messageId : messageId },
-                    'Failed updating area last read ID');
+                    {
+                        error: err.toString(),
+                        userId: userId,
+                        areaTag: areaTag,
+                        messageId: messageId,
+                    },
+                    'Failed updating area last read ID'
+                );
             } else {
-                if(true === didUpdate) {
+                if (true === didUpdate) {
                     Log.trace(
-                        { userId : userId, areaTag : areaTag, messageId : messageId },
-                        'Area last read ID updated');
+                        { userId: userId, areaTag: areaTag, messageId: messageId },
+                        'Area last read ID updated'
+                    );
                 }
             }
             cb(err);
@@ -621,7 +669,7 @@ function persistMessage(message, cb) {
             },
             function recordToMessageNetworks(callback) {
                 return msgNetRecord(message, callback);
-            }
+            },
         ],
         cb
     );
@@ -629,9 +677,8 @@ function persistMessage(message, cb) {
 
 //  method exposed for event scheduler
 function trimMessageAreasScheduledEvent(args, cb) {
-
     function trimMessageAreaByMaxMessages(areaInfo, cb) {
-        if(0 === areaInfo.maxMessages) {
+        if (0 === areaInfo.maxMessages) {
             return cb(null);
         }
 
@@ -644,12 +691,19 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 ORDER BY message_id DESC
                 LIMIT -1 OFFSET ${areaInfo.maxMessages}
             );`,
-            [ areaInfo.areaTag.toLowerCase() ],
-            function result(err) {  //  no arrow func; need this
-                if(err) {
-                    Log.error( { areaInfo : areaInfo, error : err.message, type : 'maxMessages' }, 'Error trimming message area');
+            [areaInfo.areaTag.toLowerCase()],
+            function result(err) {
+                //  no arrow func; need this
+                if (err) {
+                    Log.error(
+                        { areaInfo: areaInfo, error: err.message, type: 'maxMessages' },
+                        'Error trimming message area'
+                    );
                 } else {
-                    Log.debug( { areaInfo : areaInfo, type : 'maxMessages', count : this.changes }, 'Area trimmed successfully');
+                    Log.debug(
+                        { areaInfo: areaInfo, type: 'maxMessages', count: this.changes },
+                        'Area trimmed successfully'
+                    );
                 }
                 return cb(err);
             }
@@ -657,19 +711,26 @@ function trimMessageAreasScheduledEvent(args, cb) {
     }
 
     function trimMessageAreaByMaxAgeDays(areaInfo, cb) {
-        if(0 === areaInfo.maxAgeDays) {
+        if (0 === areaInfo.maxAgeDays) {
             return cb(null);
         }
 
         msgDb.run(
             `DELETE FROM message
             WHERE area_tag = ? AND modified_timestamp < date('now', '-${areaInfo.maxAgeDays} days');`,
-            [ areaInfo.areaTag ],
-            function result(err) {  //  no arrow func; need this
-                if(err) {
-                    Log.warn( { areaInfo : areaInfo, error : err.message, type : 'maxAgeDays' }, 'Error trimming message area');
+            [areaInfo.areaTag],
+            function result(err) {
+                //  no arrow func; need this
+                if (err) {
+                    Log.warn(
+                        { areaInfo: areaInfo, error: err.message, type: 'maxAgeDays' },
+                        'Error trimming message area'
+                    );
                 } else {
-                    Log.debug( { areaInfo : areaInfo, type : 'maxAgeDays', count : this.changes }, 'Area trimmed successfully');
+                    Log.debug(
+                        { areaInfo: areaInfo, type: 'maxAgeDays', count: this.changes },
+                        'Area trimmed successfully'
+                    );
                 }
                 return cb(err);
             }
@@ -688,12 +749,12 @@ function trimMessageAreasScheduledEvent(args, cb) {
                     `SELECT DISTINCT area_tag
                     FROM message;`,
                     (err, row) => {
-                        if(err) {
+                        if (err) {
                             return callback(err);
                         }
 
                         //  We treat private mail special
-                        if(!Message.isPrivateAreaTag(row.area_tag)) {
+                        if (!Message.isPrivateAreaTag(row.area_tag)) {
                             areaTags.push(row.area_tag);
                         }
                     },
@@ -708,21 +769,20 @@ function trimMessageAreasScheduledEvent(args, cb) {
                 //  determine maxMessages & maxAgeDays per area
                 const config = Config();
                 areaTags.forEach(areaTag => {
-
                     let maxMessages = config.messageAreaDefaults.maxMessages;
-                    let maxAgeDays  = config.messageAreaDefaults.maxAgeDays;
+                    let maxAgeDays = config.messageAreaDefaults.maxAgeDays;
 
-                    const area = getMessageAreaByTag(areaTag);  //  note: we don't know the conf here
-                    if(area) {
+                    const area = getMessageAreaByTag(areaTag); //  note: we don't know the conf here
+                    if (area) {
                         maxMessages = area.maxMessages || maxMessages;
-                        maxAgeDays  = area.maxAgeDays || maxAgeDays;
+                        maxAgeDays = area.maxAgeDays || maxAgeDays;
                     }
 
-                    areaInfos.push( {
-                        areaTag     : areaTag,
-                        maxMessages : maxMessages,
-                        maxAgeDays  : maxAgeDays,
-                    } );
+                    areaInfos.push({
+                        areaTag: areaTag,
+                        maxMessages: maxMessages,
+                        maxAgeDays: maxAgeDays,
+                    });
                 });
 
                 return callback(null, areaInfos);
@@ -732,7 +792,7 @@ function trimMessageAreasScheduledEvent(args, cb) {
                     areaInfos,
                     (areaInfo, next) => {
                         trimMessageAreaByMaxMessages(areaInfo, err => {
-                            if(err) {
+                            if (err) {
                                 return next(err);
                             }
 
@@ -773,17 +833,24 @@ function trimMessageAreasScheduledEvent(args, cb) {
                             (mmf.meta_category='System' AND mmf.meta_name='${Message.SystemMetaNames.ExternalFlavor}')
                         WHERE m.area_tag='${Message.WellKnownAreaTags.Private}' AND DATETIME('now') > DATETIME(m.modified_timestamp, '+${maxExternalSentAgeDays} days')
                     );`,
-                    function results(err) { //  no arrow func; need this
-                        if(err) {
-                            Log.warn( { error : err.message }, 'Error trimming private externally sent messages');
+                    function results(err) {
+                        //  no arrow func; need this
+                        if (err) {
+                            Log.warn(
+                                { error: err.message },
+                                'Error trimming private externally sent messages'
+                            );
                         } else {
-                            Log.debug( { count : this.changes }, 'Private externally sent messages trimmed successfully');
+                            Log.debug(
+                                { count: this.changes },
+                                'Private externally sent messages trimmed successfully'
+                            );
                         }
                     }
                 );
 
                 return callback(null);
-            }
+            },
         ],
         err => {
             return cb(err);

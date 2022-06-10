@@ -1,40 +1,40 @@
 /* jslint node: true */
 'use strict';
 
-const Config                = require('./config.js').get;
-const Address               = require('./ftn_address.js');
-const FNV1a                 = require('./fnv1a.js');
+const Config = require('./config.js').get;
+const Address = require('./ftn_address.js');
+const FNV1a = require('./fnv1a.js');
 const getCleanEnigmaVersion = require('./misc_util.js').getCleanEnigmaVersion;
 
-const _                     = require('lodash');
-const iconv                 = require('iconv-lite');
-const moment                = require('moment');
-const os                    = require('os');
+const _ = require('lodash');
+const iconv = require('iconv-lite');
+const moment = require('moment');
+const os = require('os');
 
-const packageJson           = require('../package.json');
+const packageJson = require('../package.json');
 
 //  :TODO: Remove "Ftn" from most of these -- it's implied in the module
-exports.stringToNullPaddedBuffer    = stringToNullPaddedBuffer;
-exports.getMessageSerialNumber      = getMessageSerialNumber;
-exports.getDateFromFtnDateTime      = getDateFromFtnDateTime;
-exports.getDateTimeString           = getDateTimeString;
+exports.stringToNullPaddedBuffer = stringToNullPaddedBuffer;
+exports.getMessageSerialNumber = getMessageSerialNumber;
+exports.getDateFromFtnDateTime = getDateFromFtnDateTime;
+exports.getDateTimeString = getDateTimeString;
 
-exports.getMessageIdentifier        = getMessageIdentifier;
-exports.getProductIdentifier        = getProductIdentifier;
-exports.getUTCTimeZoneOffset        = getUTCTimeZoneOffset;
-exports.getOrigin                   = getOrigin;
-exports.getTearLine                 = getTearLine;
-exports.getVia                      = getVia;
-exports.getIntl                     = getIntl;
-exports.getAbbreviatedNetNodeList   = getAbbreviatedNetNodeList;
+exports.getMessageIdentifier = getMessageIdentifier;
+exports.getProductIdentifier = getProductIdentifier;
+exports.getUTCTimeZoneOffset = getUTCTimeZoneOffset;
+exports.getOrigin = getOrigin;
+exports.getTearLine = getTearLine;
+exports.getVia = getVia;
+exports.getIntl = getIntl;
+exports.getAbbreviatedNetNodeList = getAbbreviatedNetNodeList;
 exports.parseAbbreviatedNetNodeList = parseAbbreviatedNetNodeList;
-exports.getUpdatedSeenByEntries     = getUpdatedSeenByEntries;
-exports.getUpdatedPathEntries       = getUpdatedPathEntries;
+exports.getUpdatedSeenByEntries = getUpdatedSeenByEntries;
+exports.getUpdatedPathEntries = getUpdatedPathEntries;
 
-exports.getCharacterSetIdentifierByEncoding     = getCharacterSetIdentifierByEncoding;
-exports.getEncodingFromCharacterSetIdentifier   = getEncodingFromCharacterSetIdentifier;
+exports.getCharacterSetIdentifierByEncoding = getCharacterSetIdentifierByEncoding;
+exports.getEncodingFromCharacterSetIdentifier = getEncodingFromCharacterSetIdentifier;
 
-exports.getQuotePrefix              = getQuotePrefix;
+exports.getQuotePrefix = getQuotePrefix;
 
 //
 //  Namespace for RFC-4122 name based UUIDs generated from
@@ -45,9 +45,9 @@ exports.getQuotePrefix              = getQuotePrefix;
 //  See list here: https://github.com/Mithgol/node-fidonet-jam
 
 function stringToNullPaddedBuffer(s, bufLen) {
-    let buffer  = Buffer.alloc(bufLen);
-    let enc     = iconv.encode(s, 'CP437').slice(0, bufLen);
-    for(let i = 0; i < enc.length; ++i) {
+    let buffer = Buffer.alloc(bufLen);
+    let enc = iconv.encode(s, 'CP437').slice(0, bufLen);
+    for (let i = 0; i < enc.length; ++i) {
         buffer[i] = enc[i];
     }
     return buffer;
@@ -65,7 +65,7 @@ function getDateFromFtnDateTime(dateTime) {
     //      "27 Feb 15  00:00:03"
     //
     //  :TODO: Use moment.js here
-    return moment(Date.parse(dateTime));    //  Date.parse() allows funky formats
+    return moment(Date.parse(dateTime)); //  Date.parse() allows funky formats
 }
 
 function getDateTimeString(m) {
@@ -85,7 +85,7 @@ function getDateTimeString(m) {
     //  MM         = "00" | .. | "59"
     //  SS         = "00" | .. | "59"
     //
-    if(!moment.isMoment(m)) {
+    if (!moment.isMoment(m)) {
         m = moment(m);
     }
 
@@ -93,8 +93,8 @@ function getDateTimeString(m) {
 }
 
 function getMessageSerialNumber(messageId) {
-    const msSinceEnigmaEpoc = (Date.now() - Date.UTC(2016, 1, 1));
-    const hash              = Math.abs(new FNV1a(msSinceEnigmaEpoc + messageId).value).toString(16);
+    const msSinceEnigmaEpoc = Date.now() - Date.UTC(2016, 1, 1);
+    const hash = Math.abs(new FNV1a(msSinceEnigmaEpoc + messageId).value).toString(16);
     return `00000000${hash}`.substr(-8);
 }
 
@@ -143,10 +143,13 @@ function getMessageSerialNumber(messageId) {
 //
 function getMessageIdentifier(message, address, isNetMail = false) {
     const addrStr = new Address(address).toString('5D');
-    return isNetMail ?
-        `${addrStr} ${getMessageSerialNumber(message.messageId)}` :
-        `${message.messageId}.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(message.messageId)}`
-    ;
+    return isNetMail
+        ? `${addrStr} ${getMessageSerialNumber(message.messageId)}`
+        : `${
+              message.messageId
+          }.${message.areaTag.toLowerCase()}@${addrStr} ${getMessageSerialNumber(
+              message.messageId
+          )}`;
 }
 
 //
@@ -158,7 +161,7 @@ function getMessageIdentifier(message, address, isNetMail = false) {
 //
 function getProductIdentifier() {
     const version = getCleanEnigmaVersion();
-    const nodeVer = process.version.substr(1);  //  remove 'v' prefix
+    const nodeVer = process.version.substr(1); //  remove 'v' prefix
 
     return `ENiGMA1/2 ${version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }
@@ -181,9 +184,12 @@ function getQuotePrefix(name) {
     let initials;
 
     const parts = name.split(' ');
-    if(parts.length > 1) {
+    if (parts.length > 1) {
         //  First & Last initials - (Bryan Ashby -> BA)
-        initials = `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(0, 1)}`.toUpperCase();
+        initials = `${parts[0].slice(0, 1)}${parts[parts.length - 1].slice(
+            0,
+            1
+        )}`.toUpperCase();
     } else {
         //  Just use the first two - (NuSkooler -> Nu)
         initials = _.capitalize(name.slice(0, 2));
@@ -198,17 +204,19 @@ function getQuotePrefix(name) {
 //
 function getOrigin(address) {
     const config = Config();
-    const origin = _.has(config, 'messageNetworks.originLine') ?
-        config.messageNetworks.originLine :
-        config.general.boardName;
+    const origin = _.has(config, 'messageNetworks.originLine')
+        ? config.messageNetworks.originLine
+        : config.general.boardName;
 
     const addrStr = new Address(address).toString('5D');
     return ` * Origin: ${origin} (${addrStr})`;
 }
 
 function getTearLine() {
-    const nodeVer = process.version.substr(1);  //  remove 'v' prefix
-    return `--- ENiGMA 1/2 v${packageJson.version} (${os.platform()}; ${os.arch()}; ${nodeVer})`;
+    const nodeVer = process.version.substr(1); //  remove 'v' prefix
+    return `--- ENiGMA 1/2 v${
+        packageJson.version
+    } (${os.platform()}; ${os.arch()}; ${nodeVer})`;
 }
 
 //
@@ -222,9 +230,9 @@ function getVia(address) {
         ^AVia: <FTN Address> @YYYYMMDD.HHMMSS[.Precise][.Time Zone]
         <Program Name> <Version> [Serial Number]<CR>
     */
-    const addrStr   = new Address(address).toString('5D');
-    const dateTime  = moment().utc().format('YYYYMMDD.HHmmSS.SSSS.UTC');
-    const version   = getCleanEnigmaVersion();
+    const addrStr = new Address(address).toString('5D');
+    const dateTime = moment().utc().format('YYYYMMDD.HHmmSS.SSSS.UTC');
+    const version = getCleanEnigmaVersion();
 
     return `${addrStr} @${dateTime} ENiGMA1/2 ${version}`;
 }
@@ -247,10 +255,10 @@ function getAbbreviatedNetNodeList(netNodes) {
     let abbrList = '';
     let currNet;
     netNodes.forEach(netNode => {
-        if(_.isString(netNode)) {
+        if (_.isString(netNode)) {
             netNode = Address.fromString(netNode);
         }
-        if(currNet !== netNode.net) {
+        if (currNet !== netNode.net) {
             abbrList += `${netNode.net}/`;
             currNet = netNode.net;
         }
@@ -268,12 +276,12 @@ function parseAbbreviatedNetNodeList(netNodes) {
     let net;
     let m;
     let results = [];
-    while(null !== (m = re.exec(netNodes))) {
-        if(m[1] && m[2]) {
+    while (null !== (m = re.exec(netNodes))) {
+        if (m[1] && m[2]) {
             net = parseInt(m[1]);
-            results.push(new Address( { net : net, node : parseInt(m[2]) } ));
-        } else if(net) {
-            results.push(new Address( { net : net, node : parseInt(m[3]) } ));
+            results.push(new Address({ net: net, node: parseInt(m[2]) }));
+        } else if (net) {
+            results.push(new Address({ net: net, node: parseInt(m[3]) }));
         }
     }
 
@@ -316,11 +324,11 @@ function getUpdatedSeenByEntries(existingEntries, additions) {
         programs."
     */
     existingEntries = existingEntries || [];
-    if(!_.isArray(existingEntries)) {
-        existingEntries = [ existingEntries ];
+    if (!_.isArray(existingEntries)) {
+        existingEntries = [existingEntries];
     }
 
-    if(!_.isString(additions)) {
+    if (!_.isString(additions)) {
         additions = parseAbbreviatedNetNodeList(getAbbreviatedNetNodeList(additions));
     }
 
@@ -338,12 +346,13 @@ function getUpdatedPathEntries(existingEntries, localAddress) {
     //  :TODO: append to PATH in a smart way! We shoudl try to fit at least the last existing line
 
     existingEntries = existingEntries || [];
-    if(!_.isArray(existingEntries)) {
-        existingEntries = [ existingEntries ];
+    if (!_.isArray(existingEntries)) {
+        existingEntries = [existingEntries];
     }
 
-    existingEntries.push(getAbbreviatedNetNodeList(
-        parseAbbreviatedNetNodeList(localAddress)));
+    existingEntries.push(
+        getAbbreviatedNetNodeList(parseAbbreviatedNetNodeList(localAddress))
+    );
 
     return existingEntries;
 }
@@ -354,20 +363,19 @@ function getUpdatedPathEntries(existingEntries, localAddress) {
 //
 const ENCODING_TO_FTS_5003_001_CHARS = {
     //  level 1 - generally should not be used
-    ascii       : [ 'ASCII', 1 ],
-    'us-ascii'  : [ 'ASCII', 1 ],
+    ascii: ['ASCII', 1],
+    'us-ascii': ['ASCII', 1],
 
     //  level 2 - 8 bit, ASCII based
-    cp437       : [ 'CP437', 2 ],
-    cp850       : [ 'CP850', 2 ],
+    cp437: ['CP437', 2],
+    cp850: ['CP850', 2],
 
     //  level 3 - reserved
 
     //  level 4
-    utf8        : [ 'UTF-8', 4 ],
-    'utf-8'     : [ 'UTF-8', 4 ],
+    utf8: ['UTF-8', 4],
+    'utf-8': ['UTF-8', 4],
 };
-
 
 function getCharacterSetIdentifierByEncoding(encodingName) {
     const value = ENCODING_TO_FTS_5003_001_CHARS[encodingName.toLowerCase()];
@@ -375,48 +383,48 @@ function getCharacterSetIdentifierByEncoding(encodingName) {
 }
 
 const CHRSToEncodingTable = {
-    Level1 : {
-        'ASCII'     : 'ascii',      // ISO-646-1
-        'DUTCH'     : 'ascii',      // ISO-646
-        'FINNISH'   : 'ascii',      // ISO-646-10
-        'FRENCH'    : 'ascii',      // ISO-646
-        'CANADIAN'  : 'ascii',      // ISO-646
-        'GERMAN'    : 'ascii',      // ISO-646
-        'ITALIAN'   : 'ascii',      // ISO-646
-        'NORWEIG'   : 'ascii',      // ISO-646
-        'PORTU'     : 'ascii',      // ISO-646
-        'SPANISH'   : 'iso-656',
-        'SWEDISH'   : 'ascii',      // ISO-646-10
-        'SWISS'     : 'ascii',      // ISO-646
-        'UK'        : 'ascii',      // ISO-646
-        'ISO-10'    : 'ascii',      // ISO-646-10
+    Level1: {
+        ASCII: 'ascii', // ISO-646-1
+        DUTCH: 'ascii', // ISO-646
+        FINNISH: 'ascii', // ISO-646-10
+        FRENCH: 'ascii', // ISO-646
+        CANADIAN: 'ascii', // ISO-646
+        GERMAN: 'ascii', // ISO-646
+        ITALIAN: 'ascii', // ISO-646
+        NORWEIG: 'ascii', // ISO-646
+        PORTU: 'ascii', // ISO-646
+        SPANISH: 'iso-656',
+        SWEDISH: 'ascii', // ISO-646-10
+        SWISS: 'ascii', // ISO-646
+        UK: 'ascii', // ISO-646
+        'ISO-10': 'ascii', // ISO-646-10
     },
-    Level2 : {
-        'CP437'     : 'cp437',
-        'CP850'     : 'cp850',
-        'CP852'     : 'cp852',
-        'CP866'     : 'cp866',
-        'CP848'     : 'cp848',
-        'CP1250'    : 'cp1250',
-        'CP1251'    : 'cp1251',
-        'CP1252'    : 'cp1252',
-        'CP10000'   : 'macroman',
-        'LATIN-1'   : 'iso-8859-1',
-        'LATIN-2'   : 'iso-8859-2',
-        'LATIN-5'   : 'iso-8859-9',
-        'LATIN-9'   : 'iso-8859-15',
-    },
-
-    Level4 : {
-        'UTF-8'     : 'utf8',
+    Level2: {
+        CP437: 'cp437',
+        CP850: 'cp850',
+        CP852: 'cp852',
+        CP866: 'cp866',
+        CP848: 'cp848',
+        CP1250: 'cp1250',
+        CP1251: 'cp1251',
+        CP1252: 'cp1252',
+        CP10000: 'macroman',
+        'LATIN-1': 'iso-8859-1',
+        'LATIN-2': 'iso-8859-2',
+        'LATIN-5': 'iso-8859-9',
+        'LATIN-9': 'iso-8859-15',
     },
 
-    DeprecatedMisc : {
-        'IBMPC'     : 'cp1250',     //  :TODO: validate
-        '+7_FIDO'   : 'cp866',
-        '+7'        : 'cp866',
-        'MAC'       : 'macroman',   //  :TODO: validate
-    }
+    Level4: {
+        'UTF-8': 'utf8',
+    },
+
+    DeprecatedMisc: {
+        IBMPC: 'cp1250', //  :TODO: validate
+        '+7_FIDO': 'cp866',
+        '+7': 'cp866',
+        MAC: 'macroman', //  :TODO: validate
+    },
 };
 
 //  Given 1:N CHRS kludge IDs, try to pick the best encoding we can
@@ -424,7 +432,7 @@ const CHRSToEncodingTable = {
 //  http://www.unicode.org/L2/L1999/99325-N.htm
 function getEncodingFromCharacterSetIdentifier(chrs) {
     if (!Array.isArray(chrs)) {
-        chrs = [ chrs ];
+        chrs = [chrs];
     }
 
     const encLevel = (ident, table, level) => {
@@ -448,7 +456,7 @@ function getEncodingFromCharacterSetIdentifier(chrs) {
         }
     });
 
-    mapping.sort( (l, r) => {
+    mapping.sort((l, r) => {
         return l.level - r.level;
     });
 

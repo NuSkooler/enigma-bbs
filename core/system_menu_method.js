@@ -2,50 +2,56 @@
 'use strict';
 
 //  ENiGMA½
-const { removeClient }  = require('./client_connections.js');
-const ansiNormal        = require('./ansi_term.js').normal;
-const { userLogin }     = require('./user_login.js');
-const messageArea       = require('./message_area.js');
-const { ErrorReasons }  = require('./enig_error.js');
-const UserProps         = require('./user_property.js');
-const {
-    loginFactor2_OTP
-}                       = require('./user_2fa_otp.js');
+const { removeClient } = require('./client_connections.js');
+const ansiNormal = require('./ansi_term.js').normal;
+const { userLogin } = require('./user_login.js');
+const messageArea = require('./message_area.js');
+const { ErrorReasons } = require('./enig_error.js');
+const UserProps = require('./user_property.js');
+const { loginFactor2_OTP } = require('./user_2fa_otp.js');
 
 //  deps
-const _                 = require('lodash');
-const iconv             = require('iconv-lite');
+const _ = require('lodash');
+const iconv = require('iconv-lite');
 
-exports.login                   = login;
-exports.login2FA_OTP            = login2FA_OTP;
-exports.logoff                  = logoff;
-exports.prevMenu                = prevMenu;
-exports.nextMenu                = nextMenu;
-exports.prevConf                = prevConf;
-exports.nextConf                = nextConf;
-exports.prevArea                = prevArea;
-exports.nextArea                = nextArea;
+exports.login = login;
+exports.login2FA_OTP = login2FA_OTP;
+exports.logoff = logoff;
+exports.prevMenu = prevMenu;
+exports.nextMenu = nextMenu;
+exports.prevConf = prevConf;
+exports.nextConf = nextConf;
+exports.prevArea = prevArea;
+exports.nextArea = nextArea;
 exports.sendForgotPasswordEmail = sendForgotPasswordEmail;
-exports.optimizeDatabases       = optimizeDatabases;
+exports.optimizeDatabases = optimizeDatabases;
 
 const handleAuthFailures = (callingMenu, err, cb) => {
     //  already logged in with this user?
-    if(ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
-        _.has(callingMenu, 'menuConfig.config.tooNodeMenu'))
-    {
+    if (
+        ErrorReasons.AlreadyLoggedIn === err.reasonCode &&
+        _.has(callingMenu, 'menuConfig.config.tooNodeMenu')
+    ) {
         return callingMenu.gotoMenu(callingMenu.menuConfig.config.tooNodeMenu, cb);
     }
 
     //  banned username results in disconnect
-    if(ErrorReasons.NotAllowed === err.reasonCode) {
+    if (ErrorReasons.NotAllowed === err.reasonCode) {
         return logoff(callingMenu, {}, {}, cb);
     }
 
     const ReasonsMenus = [
-        ErrorReasons.TooMany, ErrorReasons.Disabled, ErrorReasons.Inactive, ErrorReasons.Locked
+        ErrorReasons.TooMany,
+        ErrorReasons.Disabled,
+        ErrorReasons.Inactive,
+        ErrorReasons.Locked,
     ];
-    if(ReasonsMenus.includes(err.reasonCode)) {
-        const menu = _.get(callingMenu, [ 'menuConfig', 'config', err.reasonCode.toLowerCase() ]);
+    if (ReasonsMenus.includes(err.reasonCode)) {
+        const menu = _.get(callingMenu, [
+            'menuConfig',
+            'config',
+            err.reasonCode.toLowerCase(),
+        ]);
         return menu ? callingMenu.gotoMenu(menu, cb) : logoff(callingMenu, {}, {}, cb);
     }
 
@@ -54,20 +60,24 @@ const handleAuthFailures = (callingMenu, err, cb) => {
 };
 
 function login(callingMenu, formData, extraArgs, cb) {
+    userLogin(
+        callingMenu.client,
+        formData.value.username,
+        formData.value.password,
+        err => {
+            if (err) {
+                return handleAuthFailures(callingMenu, err, cb);
+            }
 
-    userLogin(callingMenu.client, formData.value.username, formData.value.password, err => {
-        if(err) {
-            return handleAuthFailures(callingMenu, err, cb);
+            //  success!
+            return callingMenu.nextMenu(cb);
         }
-
-        //  success!
-        return callingMenu.nextMenu(cb);
-    });
+    );
 }
 
 function login2FA_OTP(callingMenu, formData, extraArgs, cb) {
     loginFactor2_OTP(callingMenu.client, formData.value.token, err => {
-        if(err) {
+        if (err) {
             return handleAuthFailures(callingMenu, err, cb);
         }
 
@@ -83,15 +93,20 @@ function logoff(callingMenu, formData, extraArgs, cb) {
     //
     const client = callingMenu.client;
 
-    setTimeout( () => {
+    setTimeout(() => {
         //
         //  For giggles...
         //
         client.term.write(
-            ansiNormal() +  '\n' +
-            iconv.decode(require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20), client.term.outputEncoding) +
-            'NO CARRIER', null, () => {
-
+            ansiNormal() +
+                '\n' +
+                iconv.decode(
+                    require('crypto').randomBytes(Math.floor(Math.random() * 65) + 20),
+                    client.term.outputEncoding
+                ) +
+                'NO CARRIER',
+            null,
+            () => {
                 //  after data is written, disconnect & remove the client
                 removeClient(client);
                 return cb(null);
@@ -101,24 +116,29 @@ function logoff(callingMenu, formData, extraArgs, cb) {
 }
 
 function prevMenu(callingMenu, formData, extraArgs, cb) {
-
     //  :TODO: this is a pretty big hack -- need the whole key map concep there like other places
-    if(formData.key && 'return' === formData.key.name) {
+    if (formData.key && 'return' === formData.key.name) {
         callingMenu.submitFormData = formData;
     }
 
-    callingMenu.prevMenu( err => {
-        if(err) {
-            callingMenu.client.log.error( { error : err.message }, 'Error attempting to fallback!');
+    callingMenu.prevMenu(err => {
+        if (err) {
+            callingMenu.client.log.error(
+                { error: err.message },
+                'Error attempting to fallback!'
+            );
         }
         return cb(err);
     });
 }
 
 function nextMenu(callingMenu, formData, extraArgs, cb) {
-    callingMenu.nextMenu( err => {
-        if(err) {
-            callingMenu.client.log.error( { error : err.message}, 'Error attempting to go to next menu!');
+    callingMenu.nextMenu(err => {
+        if (err) {
+            callingMenu.client.log.error(
+                { error: err.message },
+                'Error attempting to go to next menu!'
+            );
         }
         return cb(err);
     });
@@ -130,63 +150,95 @@ function reloadMenu(menu, cb) {
 }
 
 function prevConf(callingMenu, formData, extraArgs, cb) {
-    const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-    const currIndex = confs.findIndex( e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]) || confs.length;
+    const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+    const currIndex =
+        confs.findIndex(
+            e =>
+                e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]
+        ) || confs.length;
 
-    messageArea.changeMessageConference(callingMenu.client, confs[currIndex - 1].confTag, err => {
-        if(err) {
-            return cb(err); //  logged within changeMessageConference()
+    messageArea.changeMessageConference(
+        callingMenu.client,
+        confs[currIndex - 1].confTag,
+        err => {
+            if (err) {
+                return cb(err); //  logged within changeMessageConference()
+            }
+
+            return reloadMenu(callingMenu, cb);
         }
-
-        return reloadMenu(callingMenu, cb);
-    });
+    );
 }
 
 function nextConf(callingMenu, formData, extraArgs, cb) {
-    const confs     = messageArea.getSortedAvailMessageConferences(callingMenu.client);
-    let currIndex   = confs.findIndex( e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]);
+    const confs = messageArea.getSortedAvailMessageConferences(callingMenu.client);
+    let currIndex = confs.findIndex(
+        e => e.confTag === callingMenu.client.user.properties[UserProps.MessageConfTag]
+    );
 
-    if(currIndex === confs.length - 1) {
+    if (currIndex === confs.length - 1) {
         currIndex = -1;
     }
 
-    messageArea.changeMessageConference(callingMenu.client, confs[currIndex + 1].confTag, err => {
-        if(err) {
-            return cb(err); //  logged within changeMessageConference()
-        }
+    messageArea.changeMessageConference(
+        callingMenu.client,
+        confs[currIndex + 1].confTag,
+        err => {
+            if (err) {
+                return cb(err); //  logged within changeMessageConference()
+            }
 
-        return reloadMenu(callingMenu, cb);
-    });
+            return reloadMenu(callingMenu, cb);
+        }
+    );
 }
 
 function prevArea(callingMenu, formData, extraArgs, cb) {
-    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties[UserProps.MessageConfTag]);
-    const currIndex = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]) || areas.length;
+    const areas = messageArea.getSortedAvailMessageAreasByConfTag(
+        callingMenu.client.user.properties[UserProps.MessageConfTag]
+    );
+    const currIndex =
+        areas.findIndex(
+            e =>
+                e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]
+        ) || areas.length;
 
-    messageArea.changeMessageArea(callingMenu.client, areas[currIndex - 1].areaTag, err => {
-        if(err) {
-            return cb(err); //  logged within changeMessageArea()
+    messageArea.changeMessageArea(
+        callingMenu.client,
+        areas[currIndex - 1].areaTag,
+        err => {
+            if (err) {
+                return cb(err); //  logged within changeMessageArea()
+            }
+
+            return reloadMenu(callingMenu, cb);
         }
-
-        return reloadMenu(callingMenu, cb);
-    });
+    );
 }
 
 function nextArea(callingMenu, formData, extraArgs, cb) {
-    const areas     = messageArea.getSortedAvailMessageAreasByConfTag(callingMenu.client.user.properties[UserProps.MessageConfTag]);
-    let currIndex   = areas.findIndex( e => e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]);
+    const areas = messageArea.getSortedAvailMessageAreasByConfTag(
+        callingMenu.client.user.properties[UserProps.MessageConfTag]
+    );
+    let currIndex = areas.findIndex(
+        e => e.areaTag === callingMenu.client.user.properties[UserProps.MessageAreaTag]
+    );
 
-    if(currIndex === areas.length - 1) {
+    if (currIndex === areas.length - 1) {
         currIndex = -1;
     }
 
-    messageArea.changeMessageArea(callingMenu.client, areas[currIndex + 1].areaTag, err => {
-        if(err) {
-            return cb(err); //  logged within changeMessageArea()
-        }
+    messageArea.changeMessageArea(
+        callingMenu.client,
+        areas[currIndex + 1].areaTag,
+        err => {
+            if (err) {
+                return cb(err); //  logged within changeMessageArea()
+            }
 
-        return reloadMenu(callingMenu, cb);
-    });
+            return reloadMenu(callingMenu, cb);
+        }
+    );
 }
 
 function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
@@ -195,11 +247,14 @@ function sendForgotPasswordEmail(callingMenu, formData, extraArgs, cb) {
     const WebPasswordReset = require('./web_password_reset.js').WebPasswordReset;
 
     WebPasswordReset.sendForgotPasswordEmail(username, err => {
-        if(err) {
-            callingMenu.client.log.warn( { err : err.message }, 'Failed sending forgot password email');
+        if (err) {
+            callingMenu.client.log.warn(
+                { err: err.message },
+                'Failed sending forgot password email'
+            );
         }
 
-        if(extraArgs.next) {
+        if (extraArgs.next) {
             return callingMenu.gotoMenu(extraArgs.next, cb);
         }
 
@@ -221,7 +276,10 @@ function optimizeDatabases(callingMenu, formData, extraArgs, cb) {
         //  https://www.sqlite.org/pragma.html#pragma_optimize
         dbs[dbName].run('PRAGMA optimize;', err => {
             if (err) {
-                client.log.error({ error : err, dbName }, 'Error attempting to optimize database');
+                client.log.error(
+                    { error: err, dbName },
+                    'Error attempting to optimize database'
+                );
             }
         });
     });
