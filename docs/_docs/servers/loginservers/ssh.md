@@ -47,6 +47,17 @@ To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSH 
 ssh-keygen -m PEM -h -f config/ssh_private_key.pem
 ```
 
+Option descriptions:
+
+| Option | Description |
+|------|-------------|
+| `-m PEM` | Set the output format to `PEM`, compatible with the `ssh2` library |
+| `-h` | Generate a host key |
+| `-f config/ssh_private_key.pem` | Filename for the private key. Used in the `privateKeyPem` option in the configuration |
+
+When you execute the `ssh-keygen` command it will ask for a passphrase (and a confirmation.) This should then be used as the value for `privateKeyPass` in the configuration.
+
+
 ## Prompt
 
 The keyboard interactive prompt can be customized using a `SSHPMPT.ASC` art file. See [art](../../art/general.md) for more information on configuring. This prompt includes a `newUserNames` variable to show the list of allowed new user names (see `firstMenuNewUser` above.) See [mci](../../art/mci.md) for information about formatting this string. Note: Regardless of the content of the `SSHPMPT.ASC` file, the prompt is surrounded by "Access denied", a newline, the prompt, another newline, and then the string "\[username]'s password: ". This normally occurs after the first password prompt (no art is shown before the first password attempt is made.)
