@@ -74,7 +74,7 @@ Or for even older OpenSSL versions:
 openssl genrsa -aes128 -out ./config/ssh_private_key.pem 2048
 ```
 
-Note that you may need `-3des` for every old implementations or SSH clients!
+Note that you may need `-3des` for very old implementations or SSH clients!
 
 
 ## Prompt
