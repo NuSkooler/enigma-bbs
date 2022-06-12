@@ -7,18 +7,18 @@ const {
     getAnswers,
     ExitCodes,
     argv,
-    initConfigAndDatabases
-}                               = require('./oputil_common.js');
-const getHelpFor				= require('./oputil_help.js').getHelpFor;
-const Errors					= require('../enig_error.js').Errors;
-const UserProps                 = require('../user_property.js');
+    initConfigAndDatabases,
+} = require('./oputil_common.js');
+const getHelpFor = require('./oputil_help.js').getHelpFor;
+const Errors = require('../enig_error.js').Errors;
+const UserProps = require('../user_property.js');
 
-const async						= require('async');
-const _							= require('lodash');
-const moment                    = require('moment');
-const fs                        = require('fs-extra');
+const async = require('async');
+const _ = require('lodash');
+const moment = require('moment');
+const fs = require('fs-extra');
 
-exports.handleUserCommand		= handleUserCommand;
+exports.handleUserCommand = handleUserCommand;
 
 function initAndGetUser(userName, cb) {
     async.waterfall(
@@ -29,7 +29,7 @@ function initAndGetUser(userName, cb) {
             function getUserObject(callback) {
                 const User = require('../../core/user.js');
                 User.getUserIdAndName(userName, (err, userId) => {
-                    if(err) {
+                    if (err) {
                         //  try user ID if number was supplied
                         if (_.isNumber(userName)) {
                             return User.getUser(parseInt(userName), callback);
@@ -38,7 +38,7 @@ function initAndGetUser(userName, cb) {
                     }
                     return User.getUser(userId, callback);
                 });
-            }
+            },
         ],
         (err, user) => {
             return cb(err, user);
@@ -47,36 +47,36 @@ function initAndGetUser(userName, cb) {
 }
 
 function setAccountStatus(user, status) {
-    if(argv._.length < 3) {
+    if (argv._.length < 3) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
     const AccountStatus = require('../../core/user.js').AccountStatus;
 
     status = {
-        activate    : AccountStatus.active,
-        deactivate  : AccountStatus.inactive,
-        disable     : AccountStatus.disabled,
-        lock        : AccountStatus.locked,
+        activate: AccountStatus.active,
+        deactivate: AccountStatus.inactive,
+        disable: AccountStatus.disabled,
+        lock: AccountStatus.locked,
     }[status];
 
     const statusDesc = _.invert(AccountStatus)[status];
 
     async.series(
         [
-            (callback) => {
+            callback => {
                 return user.persistProperty(UserProps.AccountStatus, status, callback);
             },
-            (callback) => {
-                if(AccountStatus.active !== status) {
+            callback => {
+                if (AccountStatus.active !== status) {
                     return callback(null);
                 }
 
                 return user.unlockAccount(callback);
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 process.exitCode = ExitCodes.ERROR;
                 console.error(err.message);
             } else {
@@ -87,7 +87,7 @@ function setAccountStatus(user, status) {
 }
 
 function setUserPassword(user) {
-    if(argv._.length < 4) {
+    if (argv._.length < 4) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
@@ -96,22 +96,22 @@ function setUserPassword(user) {
             function validate(callback) {
                 //	:TODO: prompt if no password provided (more secure, no history, etc.)
                 const password = argv._[argv._.length - 1];
-                if(0 === password.length) {
+                if (0 === password.length) {
                     return callback(Errors.Invalid('Invalid password'));
                 }
                 return callback(null, password);
             },
             function set(password, callback) {
                 user.setNewAuthCredentials(password, err => {
-                    if(err) {
+                    if (err) {
                         process.exitCode = ExitCodes.BAD_ARGS;
                     }
                     return callback(err);
                 });
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 console.error(err.message);
             } else {
                 console.info('New password set');
@@ -125,7 +125,7 @@ function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
     db.run(
         `DELETE FROM ${tableName}
         WHERE ${col} = ?;`,
-        [ userId ],
+        [userId],
         err => {
             return cb(err);
         }
@@ -135,96 +135,118 @@ function removeUserRecordsFromDbAndTable(dbName, tableName, userId, col, cb) {
 function removeUser(user) {
     async.series(
         [
-            (callback) => {
-                if(user.isRoot()) {
+            callback => {
+                if (user.isRoot()) {
                     return callback(Errors.Invalid('Cannot delete root/SysOp user!'));
                 }
 
                 return callback(null);
             },
-            (callback) => {
-                if(false === argv.prompt) {
+            callback => {
+                if (false === argv.prompt) {
                     return callback(null);
                 }
 
                 console.info('About to permanently delete the following user:');
                 console.info(`Username : ${user.username}`);
-                console.info(`Real name: ${user.properties[UserProps.RealName] || 'N/A'}`);
+                console.info(
+                    `Real name: ${user.properties[UserProps.RealName] || 'N/A'}`
+                );
                 console.info(`User ID  : ${user.userId}`);
                 console.info('WARNING: This cannot be undone!');
-                getAnswers([
-                    {
-                        name    : 'proceed',
-                        message : `Proceed in deleting ${user.username}?`,
-                        type    : 'confirm',
+                getAnswers(
+                    [
+                        {
+                            name: 'proceed',
+                            message: `Proceed in deleting ${user.username}?`,
+                            type: 'confirm',
+                        },
+                    ],
+                    answers => {
+                        if (answers.proceed) {
+                            return callback(null);
+                        }
+                        return callback(Errors.General('User canceled'));
                     }
-                ],
-                answers => {
-                    if(answers.proceed) {
-                        return callback(null);
-                    }
-                    return callback(Errors.General('User canceled'));
-                });
+                );
             },
-            (callback) => {
+            callback => {
                 //  op has confirmed they are wanting ready to proceed (or passed --no-prompt)
                 const DeleteFrom = {
-                    message : [ 'user_message_area_last_read' ],
-                    system  : [ 'user_event_log', ],
-                    user    : [ 'user_group_member', 'user' ],
-                    file    : [ 'file_user_rating']
+                    message: ['user_message_area_last_read'],
+                    system: ['user_event_log'],
+                    user: ['user_group_member', 'user'],
+                    file: ['file_user_rating'],
                 };
 
-                async.eachSeries(Object.keys(DeleteFrom), (dbName, nextDbName) => {
-                    const tables = DeleteFrom[dbName];
-                    async.eachSeries(tables, (tableName, nextTableName) => {
-                        const col = ('user' === dbName && 'user' === tableName) ? 'id' : 'user_id';
-                        removeUserRecordsFromDbAndTable(dbName, tableName, user.userId, col, err => {
-                            return nextTableName(err);
-                        });
-                    },
-                    err => {
-                        return nextDbName(err);
-                    });
-                },
-                err => {
-                    return callback(err);
-                });
-            },
-            (callback) => {
-                //
-                //  Clean up *private* messages *to* this user
-                //
-                const Message   = require('../../core/message.js');
-                const MsgDb     = require('../../core/database.js').dbs.message;
-
-                const filter = {
-                    resultType          : 'id',
-                    privateTagUserId    : user.userId,
-                };
-                Message.findMessages(filter, (err, ids) => {
-                    if(err) {
-                        return callback(err);
-                    }
-
-                    async.eachSeries(ids, (messageId, nextMessageId) => {
-                        MsgDb.run(
-                            `DELETE FROM message
-                            WHERE message_id = ?;`,
-                            [ messageId ],
+                async.eachSeries(
+                    Object.keys(DeleteFrom),
+                    (dbName, nextDbName) => {
+                        const tables = DeleteFrom[dbName];
+                        async.eachSeries(
+                            tables,
+                            (tableName, nextTableName) => {
+                                const col =
+                                    'user' === dbName && 'user' === tableName
+                                        ? 'id'
+                                        : 'user_id';
+                                removeUserRecordsFromDbAndTable(
+                                    dbName,
+                                    tableName,
+                                    user.userId,
+                                    col,
+                                    err => {
+                                        return nextTableName(err);
+                                    }
+                                );
+                            },
                             err => {
-                                return nextMessageId(err);
+                                return nextDbName(err);
                             }
                         );
                     },
                     err => {
                         return callback(err);
-                    });
+                    }
+                );
+            },
+            callback => {
+                //
+                //  Clean up *private* messages *to* this user
+                //
+                const Message = require('../../core/message.js');
+                const MsgDb = require('../../core/database.js').dbs.message;
+
+                const filter = {
+                    resultType: 'id',
+                    privateTagUserId: user.userId,
+                };
+                Message.findMessages(filter, (err, ids) => {
+                    if (err) {
+                        return callback(err);
+                    }
+
+                    async.eachSeries(
+                        ids,
+                        (messageId, nextMessageId) => {
+                            MsgDb.run(
+                                `DELETE FROM message
+                            WHERE message_id = ?;`,
+                                [messageId],
+                                err => {
+                                    return nextMessageId(err);
+                                }
+                            );
+                        },
+                        err => {
+                            return callback(err);
+                        }
+                    );
                 });
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 return console.error(err.reason ? err.reason : err.message);
             }
 
@@ -234,7 +256,7 @@ function removeUser(user) {
 }
 
 function renameUser(user) {
-    if(argv._.length < 3) {
+    if (argv._.length < 3) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
@@ -242,25 +264,27 @@ function renameUser(user) {
 
     async.series(
         [
-            (callback) => {
-                const { validateUserNameAvail } = require('../../core/system_view_validate.js');
+            callback => {
+                const {
+                    validateUserNameAvail,
+                } = require('../../core/system_view_validate.js');
                 return validateUserNameAvail(newUserName, callback);
             },
-            (callback) => {
+            callback => {
                 const userDb = require('../../core/database.js').dbs.user;
                 userDb.run(
                     `UPDATE user
                     SET user_name = ?
                     WHERE id = ?;`,
-                    [ newUserName, user.userId, ],
+                    [newUserName, user.userId],
                     err => {
                         return callback(err);
                     }
                 );
-            }
+            },
         ],
         err => {
-            if(err) {
+            if (err) {
                 return console.error(err.reason ? err.reason : err.message);
             }
             return console.info(`User "${user.username}" renamed to "${newUserName}"`);
@@ -269,33 +293,33 @@ function renameUser(user) {
 }
 
 function modUserGroups(user) {
-    if(argv._.length < 3) {
+    if (argv._.length < 3) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
-    let groupName = argv._[argv._.length - 1].toString().replace(/["']/g, '');	//	remove any quotes - necessary to allow "-foo"
-    let action = groupName[0];	//	+ or -
+    let groupName = argv._[argv._.length - 1].toString().replace(/["']/g, ''); //	remove any quotes - necessary to allow "-foo"
+    let action = groupName[0]; //	+ or -
 
-    if('-' === action || '+' === action || '~' === action) {
+    if ('-' === action || '+' === action || '~' === action) {
         groupName = groupName.substr(1);
     }
 
     action = action || '+';
 
-    if(0 === groupName.length) {
+    if (0 === groupName.length) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
     //
     //	Groups are currently arbitrary, so do a slight validation
     //
-    if(!/[A-Za-z0-9]+/.test(groupName)) {
+    if (!/[A-Za-z0-9]+/.test(groupName)) {
         process.exitCode = ExitCodes.BAD_ARGS;
         return console.error('Bad group name');
     }
 
     function done(err) {
-        if(err) {
+        if (err) {
             process.exitCode = ExitCodes.BAD_ARGS;
             console.error(err.message);
         } else {
@@ -304,7 +328,7 @@ function modUserGroups(user) {
     }
 
     const UserGroup = require('../../core/user_group.js');
-    if('-' === action || '~' === action) {
+    if ('-' === action || '~' === action) {
         UserGroup.removeUserFromGroup(user.userId, groupName, done);
     } else {
         UserGroup.addUserToGroup(user.userId, groupName, done);
@@ -312,7 +336,6 @@ function modUserGroups(user) {
 }
 
 function showUserInfo(user) {
-
     const User = require('../../core/user.js');
 
     const statusDesc = () => {
@@ -352,14 +375,15 @@ Email        : ${propOrNA(UserProps.EmailAddress)}
 Location     : ${propOrNA(UserProps.Location)}
 Affiliations : ${propOrNA(UserProps.Affiliations)}`;
     let secInfo = '';
-    if(argv.security) {
+    if (argv.security) {
         const otp = user.getProperty(UserProps.AuthFactor2OTP);
-        if(otp) {
+        if (otp) {
             const backupCodesOrNa = () => {
-                try
-                {
-                    return JSON.parse(user.getProperty(UserProps.AuthFactor2OTPBackupCodes)).join(', ');
-                } catch(e) {
+                try {
+                    return JSON.parse(
+                        user.getProperty(UserProps.AuthFactor2OTPBackupCodes)
+                    ).join(', ');
+                } catch (e) {
                     return 'N/A';
                 }
             };
@@ -373,7 +397,7 @@ OTP Backup   : ${backupCodesOrNa()}`;
 }
 
 function twoFactorAuthOTP(user) {
-    if(argv._.length < 4) {
+    if (argv._.length < 4) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
@@ -386,14 +410,14 @@ function twoFactorAuthOTP(user) {
     let otpType = argv._[argv._.length - 1];
 
     //  shortcut for removal
-    if('disable' === otpType) {
+    if ('disable' === otpType) {
         const props = [
             UserProps.AuthFactor2OTP,
             UserProps.AuthFactor2OTPSecret,
             UserProps.AuthFactor2OTPBackupCodes,
         ];
         return user.removeProperties(props, err => {
-            if(err) {
+            if (err) {
                 console.error(err.message);
             } else {
                 console.info(`2FA OTP disabled for ${user.username}`);
@@ -406,30 +430,37 @@ function twoFactorAuthOTP(user) {
             function validate(callback) {
                 //  :TODO: Prompt for if not supplied
                 //  allow aliases for OTP types
-                otpType = {
-                    google  : OTPTypes.GoogleAuthenticator,
-                    hotp    : OTPTypes.RFC4266_HOTP,
-                    totp    : OTPTypes.RFC6238_TOTP,
-                }[otpType] || otpType;
+                otpType =
+                    {
+                        google: OTPTypes.GoogleAuthenticator,
+                        hotp: OTPTypes.RFC4266_HOTP,
+                        totp: OTPTypes.RFC6238_TOTP,
+                    }[otpType] || otpType;
                 otpType = _.find(OTPTypes, t => {
                     return t.toLowerCase() === otpType.toLowerCase();
                 });
-                if(!otpType) {
+                if (!otpType) {
                     return callback(Errors.Invalid('Invalid OTP type'));
                 }
                 return callback(null, otpType);
             },
             function prepare(otpType, callback) {
                 const otpOpts = {
-                    username    : user.username,
-                    qrType      : argv['qr-type'] || 'ascii',
+                    username: user.username,
+                    qrType: argv['qr-type'] || 'ascii',
                 };
                 prepareOTP(otpType, otpOpts, (err, otpInfo) => {
-                    return callback(err, Object.assign(otpInfo, { otpType, backupCodes : createBackupCodes() }));
+                    return callback(
+                        err,
+                        Object.assign(otpInfo, {
+                            otpType,
+                            backupCodes: createBackupCodes(),
+                        })
+                    );
                 });
             },
             function storeOrDisplayQR(otpInfo, callback) {
-                if(!argv.out || !otpInfo.qr) {
+                if (!argv.out || !otpInfo.qr) {
                     return callback(null, otpInfo);
                 }
 
@@ -439,25 +470,27 @@ function twoFactorAuthOTP(user) {
             },
             function persist(otpInfo, callback) {
                 const props = {
-                    [ UserProps.AuthFactor2OTP ]            : otpInfo.otpType,
-                    [ UserProps.AuthFactor2OTPSecret ]      : otpInfo.secret,
-                    [ UserProps.AuthFactor2OTPBackupCodes ] : JSON.stringify(otpInfo.backupCodes),
+                    [UserProps.AuthFactor2OTP]: otpInfo.otpType,
+                    [UserProps.AuthFactor2OTPSecret]: otpInfo.secret,
+                    [UserProps.AuthFactor2OTPBackupCodes]: JSON.stringify(
+                        otpInfo.backupCodes
+                    ),
                 };
                 user.persistProperties(props, err => {
                     return callback(err, otpInfo);
                 });
-            }
+            },
         ],
         (err, otpInfo) => {
-            if(err) {
+            if (err) {
                 console.error(err.message);
             } else {
                 console.info(`OTP enabled for  : ${user.username}`);
                 console.info(`Secret           : ${otpInfo.secret}`);
                 console.info(`Backup codes     : ${otpInfo.backupCodes.join(', ')}`);
 
-                if(otpInfo.qr) {
-                    if(!argv.out) {
+                if (otpInfo.qr) {
+                    if (!argv.out) {
                         console.info('--- Begin QR ---');
                         console.info(otpInfo.qr);
                         console.info('--- End QR ---');
@@ -484,19 +517,17 @@ function listUsers() {
     }
 
     const User = require('../../core/user');
-    if (![ 'all' ].concat(Object.keys(User.AccountStatus)).includes(listWhat)) {
+    if (!['all'].concat(Object.keys(User.AccountStatus)).includes(listWhat)) {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
     async.waterfall(
         [
-            (callback) => {
+            callback => {
                 const UserProps = require('../../core/user_property');
 
                 const userListOpts = {
-                    properties : [
-                        UserProps.AccountStatus,
-                    ],
+                    properties: [UserProps.AccountStatus],
                 };
 
                 User.getUserList(userListOpts, (err, userList) => {
@@ -510,9 +541,12 @@ function listUsers() {
 
                     const accountStatusFilter = User.AccountStatus[listWhat].toString();
 
-                    return callback(null, userList.filter(user => {
-                        return user[UserProps.AccountStatus] === accountStatusFilter;
-                    }));
+                    return callback(
+                        null,
+                        userList.filter(user => {
+                            return user[UserProps.AccountStatus] === accountStatusFilter;
+                        })
+                    );
                 });
             },
             (userList, callback) => {
@@ -524,7 +558,7 @@ function listUsers() {
             },
         ],
         err => {
-            if(err) {
+            if (err) {
                 return console.error(err.reason ? err.reason : err.message);
             }
         }
@@ -532,63 +566,72 @@ function listUsers() {
 }
 
 function handleUserCommand() {
-    function errUsage()  {
+    function errUsage() {
         return printUsageAndSetExitCode(getHelpFor('User'), ExitCodes.ERROR);
     }
 
-    if(true === argv.help) {
+    if (true === argv.help) {
         return errUsage();
     }
 
     const action = argv._[1];
-    const userRequired = ![ 'list' ].includes(action);
+    const userRequired = !['list'].includes(action);
 
     let userName;
     if (userRequired) {
         const usernameIdx = [
-            'pw', 'pass', 'passwd', 'password',
+            'pw',
+            'pass',
+            'passwd',
+            'password',
             'group',
-            'mv', 'rename',
-            '2fa-otp', 'otp'
-        ].includes(action) ? argv._.length - 2 : argv._.length - 1;
+            'mv',
+            'rename',
+            '2fa-otp',
+            'otp',
+        ].includes(action)
+            ? argv._.length - 2
+            : argv._.length - 1;
         userName = argv._[usernameIdx];
     }
 
-    if(!userName && userRequired) {
+    if (!userName && userRequired) {
         return errUsage();
     }
 
     initAndGetUser(userName, (err, user) => {
-        if(userName && err) {
+        if (userName && err) {
             process.exitCode = ExitCodes.ERROR;
             return console.error(err.message);
         }
 
-        return ({
-            pw          : setUserPassword,
-            passwd		: setUserPassword,
-            password	: setUserPassword,
+        return (
+            {
+                pw: setUserPassword,
+                passwd: setUserPassword,
+                password: setUserPassword,
 
-            rm			: removeUser,
-            remove		: removeUser,
-            del			: removeUser,
-            delete		: removeUser,
+                rm: removeUser,
+                remove: removeUser,
+                del: removeUser,
+                delete: removeUser,
 
-            mv          : renameUser,
-            rename      : renameUser,
+                mv: renameUser,
+                rename: renameUser,
 
-            activate	: setAccountStatus,
-            deactivate	: setAccountStatus,
-            disable		: setAccountStatus,
-            lock        : setAccountStatus,
+                activate: setAccountStatus,
+                deactivate: setAccountStatus,
+                disable: setAccountStatus,
+                lock: setAccountStatus,
 
-            group		: modUserGroups,
+                group: modUserGroups,
 
-            info        : showUserInfo,
+                info: showUserInfo,
 
-            '2fa-otp'   : twoFactorAuthOTP,
-            otp         : twoFactorAuthOTP,
-            list        : listUsers,
-        }[action] || errUsage)(user, action);
+                '2fa-otp': twoFactorAuthOTP,
+                otp: twoFactorAuthOTP,
+                list: listUsers,
+            }[action] || errUsage
+        )(user, action);
     });
 }

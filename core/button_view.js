@@ -1,17 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-const TextView      = require('./text_view.js').TextView;
-const miscUtil      = require('./misc_util.js');
-const util          = require('util');
+const TextView = require('./text_view.js').TextView;
+const miscUtil = require('./misc_util.js');
+const util = require('util');
 
-exports.ButtonView          = ButtonView;
+exports.ButtonView = ButtonView;
 
 function ButtonView(options) {
-    options.acceptsFocus    = miscUtil.valueWithDefault(options.acceptsFocus, true);
-    options.acceptsInput    = miscUtil.valueWithDefault(options.acceptsInput, true);
-    options.justify         = miscUtil.valueWithDefault(options.justify, 'center');
-    options.cursor          = miscUtil.valueWithDefault(options.cursor, 'hide');
+    options.acceptsFocus = miscUtil.valueWithDefault(options.acceptsFocus, true);
+    options.acceptsInput = miscUtil.valueWithDefault(options.acceptsInput, true);
+    options.justify = miscUtil.valueWithDefault(options.justify, 'center');
+    options.cursor = miscUtil.valueWithDefault(options.cursor, 'hide');
 
     TextView.call(this, options);
 
@@ -20,8 +20,8 @@ function ButtonView(options) {
 
 util.inherits(ButtonView, TextView);
 
-ButtonView.prototype.onKeyPress = function(ch, key) {
-    if(this.isKeyMapped('accept', (key ? key.name : ch)) || ' ' === ch) {
+ButtonView.prototype.onKeyPress = function (ch, key) {
+    if (this.isKeyMapped('accept', key ? key.name : ch) || ' ' === ch) {
         this.submitData = 'accept';
         this.emit('action', 'accept');
         delete this.submitData;
@@ -30,6 +30,6 @@ ButtonView.prototype.onKeyPress = function(ch, key) {
     }
 };
 
-ButtonView.prototype.getData = function() {
+ButtonView.prototype.getData = function () {
     return this.submitData || null;
 };

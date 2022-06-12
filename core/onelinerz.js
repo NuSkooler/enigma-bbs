@@ -2,18 +2,15 @@
 'use strict';
 
 //  ENiGMA½
-const MenuModule            = require('./menu_module.js').MenuModule;
+const MenuModule = require('./menu_module.js').MenuModule;
 
-const {
-    getModDatabasePath,
-    getTransactionDatabase
-}                           = require('./database.js');
+const { getModDatabasePath, getTransactionDatabase } = require('./database.js');
 
 //  deps
-const sqlite3               = require('sqlite3');
-const async                 = require('async');
-const _                     = require('lodash');
-const moment                = require('moment');
+const sqlite3 = require('sqlite3');
+const async = require('async');
+const _ = require('lodash');
+const moment = require('moment');
 
 /*
     Module :TODO:
@@ -21,27 +18,27 @@ const moment                = require('moment');
 */
 
 exports.moduleInfo = {
-    name        : 'Onelinerz',
-    desc        : 'Standard local onelinerz',
-    author      : 'NuSkooler',
-    packageName : 'codes.l33t.enigma.onelinerz',
+    name: 'Onelinerz',
+    desc: 'Standard local onelinerz',
+    author: 'NuSkooler',
+    packageName: 'codes.l33t.enigma.onelinerz',
 };
 
 const MciViewIds = {
-    view    :  {
-        entries     : 1,
-        addPrompt   : 2,
+    view: {
+        entries: 1,
+        addPrompt: 2,
     },
-    add : {
-        newEntry        : 1,
-        entryPreview    : 2,
-        addPrompt       : 3,
-    }
+    add: {
+        newEntry: 1,
+        entryPreview: 2,
+        addPrompt: 3,
+    },
 };
 
 const FormIds = {
-    view    : 0,
-    add     : 1,
+    view: 0,
+    add: 1,
 };
 
 exports.getModule = class OnelinerzModule extends MenuModule {
@@ -51,33 +48,38 @@ exports.getModule = class OnelinerzModule extends MenuModule {
         const self = this;
 
         this.menuMethods = {
-            viewAddScreen : function(formData, extraArgs, cb) {
+            viewAddScreen: function (formData, extraArgs, cb) {
                 return self.displayAddScreen(cb);
             },
 
-            addEntry : function(formData, extraArgs, cb) {
-                if(_.isString(formData.value.oneliner) && formData.value.oneliner.length > 0) {
-                    const oneliner = formData.value.oneliner.trim();    //  remove any trailing ws
+            addEntry: function (formData, extraArgs, cb) {
+                if (
+                    _.isString(formData.value.oneliner) &&
+                    formData.value.oneliner.length > 0
+                ) {
+                    const oneliner = formData.value.oneliner.trim(); //  remove any trailing ws
 
                     self.storeNewOneliner(oneliner, err => {
-                        if(err) {
-                            self.client.log.warn( { error : err.message }, 'Failed saving oneliner');
+                        if (err) {
+                            self.client.log.warn(
+                                { error: err.message },
+                                'Failed saving oneliner'
+                            );
                         }
 
                         self.clearAddForm();
-                        return self.displayViewScreen(true, cb);    //  true=cls
+                        return self.displayViewScreen(true, cb); //  true=cls
                     });
-
                 } else {
                     //  empty message - treat as if cancel was hit
-                    return self.displayViewScreen(true, cb);    //  true=cls
+                    return self.displayViewScreen(true, cb); //  true=cls
                 }
             },
 
-            cancelAdd : function(formData, extraArgs, cb) {
+            cancelAdd: function (formData, extraArgs, cb) {
                 self.clearAddForm();
-                return self.displayViewScreen(true, cb);    //  true=cls
-            }
+                return self.displayViewScreen(true, cb); //  true=cls
+            },
         };
     }
 
@@ -90,10 +92,10 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                 },
                 function display(callback) {
                     return self.displayViewScreen(false, callback);
-                }
+                },
             ],
             err => {
-                if(err) {
+                if (err) {
                     //  :TODO: Handle me -- initSequence() should really take a completion callback
                 }
                 self.finishedLoading();
@@ -107,7 +109,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
         async.waterfall(
             [
                 function prepArtAndViewController(callback) {
-                    if(self.viewControllers.add) {
+                    if (self.viewControllers.add) {
                         self.viewControllers.add.setFocus(false);
                     }
 
@@ -116,19 +118,23 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         FormIds.view,
                         {
                             clearScreen,
-                            trailingLF : false
+                            trailingLF: false,
                         },
                         (err, artInfo, wasCreated) => {
-                            if(!err && !wasCreated) {
+                            if (!err && !wasCreated) {
                                 self.viewControllers.view.setFocus(true);
-                                self.viewControllers.view.getView(MciViewIds.view.addPrompt).redraw();
+                                self.viewControllers.view
+                                    .getView(MciViewIds.view.addPrompt)
+                                    .redraw();
                             }
                             return callback(err);
                         }
                     );
                 },
                 function fetchEntries(callback) {
-                    const entriesView = self.viewControllers.view.getView(MciViewIds.view.entries);
+                    const entriesView = self.viewControllers.view.getView(
+                        MciViewIds.view.entries
+                    );
                     const limit = entriesView.dimens.height;
                     let entries = [];
 
@@ -142,8 +148,8 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             )
                         ORDER BY timestamp ASC;`,
                         (err, row) => {
-                            if(!err) {
-                                row.timestamp = moment(row.timestamp);  //  convert -> moment
+                            if (!err) {
+                                row.timestamp = moment(row.timestamp); //  convert -> moment
                                 entries.push(row);
                             }
                         },
@@ -155,30 +161,34 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                 function populateEntries(entriesView, entries, callback) {
                     const tsFormat =
                         self.menuConfig.config.dateTimeFormat ||
-                        self.menuConfig.config.timestampFormat ||   //  deprecated
+                        self.menuConfig.config.timestampFormat || //  deprecated
                         self.client.currentTheme.helpers.getDateFormat('short');
 
-                    entriesView.setItems(entries.map( e => {
-                        return {
-                            text        : e.oneliner,   //  standard
-                            userId      : e.user_id,
-                            userName    : e.user_name,
-                            oneliner    : e.oneliner,
-                            ts          : e.timestamp.format(tsFormat),
-                        };
-                    }));
+                    entriesView.setItems(
+                        entries.map(e => {
+                            return {
+                                text: e.oneliner, //  standard
+                                userId: e.user_id,
+                                userName: e.user_name,
+                                oneliner: e.oneliner,
+                                ts: e.timestamp.format(tsFormat),
+                            };
+                        })
+                    );
 
                     entriesView.redraw();
                     return callback(null);
                 },
                 function finalPrep(callback) {
-                    const promptView = self.viewControllers.view.getView(MciViewIds.view.addPrompt);
-                    promptView.setFocusItemIndex(1);    //  default to NO
+                    const promptView = self.viewControllers.view.getView(
+                        MciViewIds.view.addPrompt
+                    );
+                    promptView.setFocusItemIndex(1); //  default to NO
                     return callback(null);
-                }
+                },
             ],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }
@@ -197,29 +207,35 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         'add',
                         FormIds.add,
                         {
-                            clearScreen : true,
-                            trailingLF  : false
+                            clearScreen: true,
+                            trailingLF: false,
                         },
                         (err, artInfo, wasCreated) => {
-                            if(!wasCreated) {
+                            if (!wasCreated) {
                                 self.viewControllers.add.setFocus(true);
                                 self.viewControllers.add.redrawAll();
-                                self.viewControllers.add.switchFocus(MciViewIds.add.newEntry);
+                                self.viewControllers.add.switchFocus(
+                                    MciViewIds.add.newEntry
+                                );
                             }
                             return callback(err);
                         }
                     );
                 },
                 function initPreviewUpdates(callback) {
-                    const previewView   = self.viewControllers.add.getView(MciViewIds.add.entryPreview);
-                    const entryView     = self.viewControllers.add.getView(MciViewIds.add.newEntry);
-                    if(previewView) {
+                    const previewView = self.viewControllers.add.getView(
+                        MciViewIds.add.entryPreview
+                    );
+                    const entryView = self.viewControllers.add.getView(
+                        MciViewIds.add.newEntry
+                    );
+                    if (previewView) {
                         let timerId;
                         entryView.on('key press', () => {
                             clearTimeout(timerId);
-                            timerId = setTimeout( () => {
+                            timerId = setTimeout(() => {
                                 const focused = self.viewControllers.add.getFocusedView();
-                                if(focused === entryView) {
+                                if (focused === entryView) {
                                     previewView.setText(entryView.getData());
                                     focused.setFocus(true);
                                 }
@@ -227,10 +243,10 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         });
                     }
                     return callback(null);
-                }
+                },
             ],
             err => {
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }
@@ -249,12 +265,14 @@ exports.getModule = class OnelinerzModule extends MenuModule {
             [
                 function openDatabase(callback) {
                     const dbSuffix = self.menuConfig.config.dbSuffix;
-                    self.db = getTransactionDatabase(new sqlite3.Database(
-                        getModDatabasePath(exports.moduleInfo, dbSuffix),
-                        err => {
-                            return callback(err);
-                        }
-                    ));
+                    self.db = getTransactionDatabase(
+                        new sqlite3.Database(
+                            getModDatabasePath(exports.moduleInfo, dbSuffix),
+                            err => {
+                                return callback(err);
+                            }
+                        )
+                    );
                 },
                 function createTables(callback) {
                     self.db.run(
@@ -264,12 +282,12 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                             user_name       VARCHAR NOT NULL,
                             oneliner        VARCHAR NOT NULL,
                             timestamp       DATETIME NOT NULL
-                        );`
-                        ,
+                        );`,
                         err => {
                             return callback(err);
-                        });
-                }
+                        }
+                    );
+                },
             ],
             err => {
                 return cb(err);
@@ -278,8 +296,8 @@ exports.getModule = class OnelinerzModule extends MenuModule {
     }
 
     storeNewOneliner(oneliner, cb) {
-        const self  = this;
-        const ts    = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
+        const self = this;
+        const ts = moment().format('YYYY-MM-DDTHH:mm:ss.SSSZ');
 
         async.series(
             [
@@ -287,7 +305,12 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                     self.db.run(
                         `INSERT INTO onelinerz (user_id, user_name, oneliner, timestamp)
                         VALUES (?, ?, ?, ?);`,
-                        [ self.client.user.userId, self.client.user.username, oneliner, ts ],
+                        [
+                            self.client.user.userId,
+                            self.client.user.username,
+                            oneliner,
+                            ts,
+                        ],
                         callback
                     );
                 },
@@ -304,7 +327,7 @@ exports.getModule = class OnelinerzModule extends MenuModule {
                         );`,
                         callback
                     );
-                }
+                },
             ],
             err => {
                 return cb(err);

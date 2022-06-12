@@ -1,31 +1,28 @@
 /* jslint node: true */
 'use strict';
 
-const { MenuModule }    = require('./menu_module.js');
-const DropFile          = require('./dropfile.js');
-const Door              = require('./door.js');
-const theme             = require('./theme.js');
-const ansi              = require('./ansi_term.js');
-const { Errors }        = require('./enig_error.js');
-const {
-    trackDoorRunBegin,
-    trackDoorRunEnd
-}                       = require('./door_util.js');
-const Log               = require('./logger').log;
+const { MenuModule } = require('./menu_module.js');
+const DropFile = require('./dropfile.js');
+const Door = require('./door.js');
+const theme = require('./theme.js');
+const ansi = require('./ansi_term.js');
+const { Errors } = require('./enig_error.js');
+const { trackDoorRunBegin, trackDoorRunEnd } = require('./door_util.js');
+const Log = require('./logger').log;
 
 //  deps
-const async             = require('async');
-const assert            = require('assert');
-const _                 = require('lodash');
-const paths             = require('path');
-const fs                = require('graceful-fs');
+const async = require('async');
+const assert = require('assert');
+const _ = require('lodash');
+const paths = require('path');
+const fs = require('graceful-fs');
 
 const activeDoorNodeInstances = {};
 
 exports.moduleInfo = {
-    name    : 'Abracadabra',
-    desc    : 'External BBS Door Module',
-    author  : 'NuSkooler',
+    name: 'Abracadabra',
+    desc: 'External BBS Door Module',
+    author: 'NuSkooler',
 };
 
 /*
@@ -71,15 +68,15 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.config = options.menuConfig.config;
         //  :TODO: MenuModule.validateConfig(cb) -- validate config section gracefully instead of asserts! -- { key : type, key2 : type2, ... }
         //  ..  and/or EnigAssert
-        assert(_.isString(this.config.name,         'Config \'name\' is required'));
-        assert(_.isString(this.config.cmd,          'Config \'cmd\' is required'));
+        assert(_.isString(this.config.name, "Config 'name' is required"));
+        assert(_.isString(this.config.cmd, "Config 'cmd' is required"));
 
-        this.config.nodeMax     = this.config.nodeMax || 0;
-        this.config.args        = this.config.args || [];
+        this.config.nodeMax = this.config.nodeMax || 0;
+        this.config.args = this.config.args || [];
     }
 
     incrementActiveDoorNodeInstances() {
-        if(activeDoorNodeInstances[this.config.name]) {
+        if (activeDoorNodeInstances[this.config.name]) {
             activeDoorNodeInstances[this.config.name] += 1;
         } else {
             activeDoorNodeInstances[this.config.name] = 1;
@@ -88,7 +85,7 @@ exports.getModule = class AbracadabraModule extends MenuModule {
     }
 
     decrementActiveDoorNodeInstances() {
-        if(true === this.activeDoorInstancesIncremented) {
+        if (true === this.activeDoorInstancesIncremented) {
             activeDoorNodeInstances[this.config.name] -= 1;
             this.activeDoorInstancesIncremented = false;
         }
@@ -100,14 +97,16 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         async.series(
             [
                 function validateNodeCount(callback) {
-                    if(self.config.nodeMax > 0 &&
+                    if (
+                        self.config.nodeMax > 0 &&
                         _.isNumber(activeDoorNodeInstances[self.config.name]) &&
-                        activeDoorNodeInstances[self.config.name] + 1 > self.config.nodeMax)
-                    {
+                        activeDoorNodeInstances[self.config.name] + 1 >
+                            self.config.nodeMax
+                    ) {
                         self.client.log.info(
                             {
-                                name        : self.config.name,
-                                activeCount : activeDoorNodeInstances[self.config.name]
+                                name: self.config.name,
+                                activeCount: activeDoorNodeInstances[self.config.name],
                             },
                             `Too many active instances of door "${self.config.name}"`);
 
@@ -118,11 +117,15 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                                 });
                             });
                         } else {
-                            self.client.term.write('\nToo many active instances. Try again later.\n');
+                            self.client.term.write(
+                                '\nToo many active instances. Try again later.\n'
+                            );
 
                             //  :TODO: Use MenuModule.pausePrompt()
-                            self.pausePrompt( () => {
-                                return callback(Errors.AccessDenied('Too many active instances'));
+                            self.pausePrompt(() => {
+                                return callback(
+                                    Errors.AccessDenied('Too many active instances')
+                                );
                             });
                         }
                     } else {
@@ -135,21 +138,26 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                     return self.doorInstance.prepare(self.config.io || 'stdio', callback);
                 },
                 function generateDropfile(callback) {
-                    if (!self.config.dropFileType || self.config.dropFileType.toLowerCase() === 'none') {
+                    if (
+                        !self.config.dropFileType ||
+                        self.config.dropFileType.toLowerCase() === 'none'
+                    ) {
                         return callback(null);
                     }
 
-                    self.dropFile = new DropFile(
-                        self.client,
-                        { fileType : self.config.dropFileType }
-                    );
+                    self.dropFile = new DropFile(self.client, {
+                        fileType: self.config.dropFileType,
+                    });
 
                     return self.dropFile.createFile(callback);
-                }
+                },
             ],
             function complete(err) {
-                if(err) {
-                    self.client.log.warn( { error : err.toString() }, 'Could not start door');
+                if (err) {
+                    self.client.log.warn(
+                        { error: err.toString() },
+                        'Could not start door'
+                    );
                     self.lastError = err;
                     self.prevMenu();
                 } else {
@@ -174,8 +182,8 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         };
 
         if (this.dropFile) {
-            exeInfo.dropFile        = this.dropFile.fileName;
-            exeInfo.dropFilePath    = this.dropFile.fullPath;
+            exeInfo.dropFile = this.dropFile.fileName;
+            exeInfo.dropFilePath = this.dropFile.fullPath;
         }
 
         const doorTracking = trackDoorRunBegin(this.client, this.config.name);
@@ -188,14 +196,17 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             if (exeInfo.dropFilePath) {
                 fs.unlink(exeInfo.dropFilePath, err => {
                     if (err) {
-                        Log.warn({ error : err, path : exeInfo.dropFilePath }, 'Failed to remove drop file.');
+                        Log.warn(
+                            { error: err, path: exeInfo.dropFilePath },
+                            'Failed to remove drop file.'
+                        );
                     }
                 });
             }
 
             //  client may have disconnected while process was active -
             //  we're done here if so.
-            if(!this.client.term.output) {
+            if (!this.client.term.output) {
                 return;
             }
 
@@ -205,10 +216,10 @@ exports.getModule = class AbracadabraModule extends MenuModule {
             //
             this.client.term.rawWrite(
                 ansi.normal() +
-                ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
-                ansi.setScrollRegion() +
-                ansi.goto(this.client.term.termHeight, 0) +
-                '\r\n\r\n'
+                    ansi.goto(this.client.term.termHeight, this.client.term.termWidth) +
+                    ansi.setScrollRegion() +
+                    ansi.goto(this.client.term.termHeight, 0) +
+                    '\r\n\r\n'
             );
 
             this.autoNextMenu();

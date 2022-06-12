@@ -12,11 +12,11 @@ module.exports = {
     LoginsToday         : 'logins_today',   //  non-persistent
     LastLogin           : 'last_login',     //  object { userId, sessionId, userName, userRealName, timestamp }; non-persistent
 
-    FileBaseAreaStats   : 'file_base_area_stats',   //  object - see file_base_area.js::getAreaStats
-    FileUlTotalCount    : 'ul_total_count',
-    FileUlTotalBytes    : 'ul_total_bytes',
-    FileDlTotalCount    : 'dl_total_count',
-    FileDlTotalBytes    : 'dl_total_bytes',
+    FileBaseAreaStats: 'file_base_area_stats', //  object - see file_base_area.js::getAreaStats
+    FileUlTotalCount: 'ul_total_count',
+    FileUlTotalBytes: 'ul_total_bytes',
+    FileDlTotalCount: 'dl_total_count',
+    FileDlTotalBytes: 'dl_total_bytes',
 
     FileUlTodayCount    : 'ul_today_count', //  non-persistent
     FileUlTodayBytes    : 'ul_today_bytes', //  non-persistent

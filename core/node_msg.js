@@ -2,7 +2,7 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }            = require('./menu_module.js');
+const { MenuModule } = require('./menu_module.js');
 const {
     getActiveConnectionList,
     getConnectionByNodeId,
@@ -16,57 +16,62 @@ const { renderStringLength }    = require('./string_util.js');
 const Events                    = require('./events.js');
 
 //  deps
-const series                = require('async/series');
-const _                     = require('lodash');
-const async                 = require('async');
-const moment                = require('moment');
+const series = require('async/series');
+const _ = require('lodash');
+const async = require('async');
+const moment = require('moment');
 
 exports.moduleInfo = {
-    name    : 'Node Message',
-    desc    : 'Multi-node messaging',
-    author  : 'NuSkooler',
+    name: 'Node Message',
+    desc: 'Multi-node messaging',
+    author: 'NuSkooler',
 };
 
 const FormIds = {
-    sendMessage : 0,
+    sendMessage: 0,
 };
 
 const MciViewIds = {
-    sendMessage : {
-        nodeSelect          : 1,
-        message             : 2,
-        preview             : 3,
+    sendMessage: {
+        nodeSelect: 1,
+        message: 2,
+        preview: 3,
 
-        customRangeStart    : 10,
-    }
+        customRangeStart: 10,
+    },
 };
 
 exports.getModule = class NodeMessageModule extends MenuModule {
     constructor(options) {
         super(options);
-        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), { extraArgs : options.extraArgs });
+        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), {
+            extraArgs: options.extraArgs,
+        });
 
         this.menuMethods = {
-            sendMessage : (formData, extraArgs, cb) => {
-                const nodeId    = this.nodeList[formData.value.node].node;  //  index from from -> node!
-                const message   = _.get(formData.value, 'message', '').trim();
+            sendMessage: (formData, extraArgs, cb) => {
+                const nodeId = this.nodeList[formData.value.node].node; //  index from from -> node!
+                const message = _.get(formData.value, 'message', '').trim();
 
-                if(0 === renderStringLength(message)) {
+                if (0 === renderStringLength(message)) {
                     return this.prevMenu(cb);
                 }
 
                 this.createInterruptItem(message, (err, interruptItem) => {
-                    if(-1 === nodeId) {
+                    if (-1 === nodeId) {
                         //  ALL nodes
-                        UserInterruptQueue.queue(interruptItem, { omit : this.client });
+                        UserInterruptQueue.queue(interruptItem, { omit: this.client });
                     } else {
                         const conn = getConnectionByNodeId(nodeId);
-                        if(conn) {
-                            UserInterruptQueue.queue(interruptItem, { clients : conn } );
+                        if (conn) {
+                            UserInterruptQueue.queue(interruptItem, { clients: conn });
                         }
                     }
 
-                    Events.emit(Events.getSystemEvents().UserSendNodeMsg, { user : this.client.user, global : -1 === nodeId } );
+                    Events.emit(Events.getSystemEvents().UserSendNodeMsg, {
+                        user: this.client.user,
+                        global: -1 === nodeId,
+                    });
 
                     return this.prevMenu(cb);
                 });
@@ -76,24 +81,34 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
             series(
                 [
-                    (callback) => {
-                        return this.prepViewController('sendMessage', FormIds.sendMessage, mciData.menu, callback);
-                    },
-                    (callback) => {
-                        return this.validateMCIByViewIds(
+                    callback => {
+                        return this.prepViewController(
                             'sendMessage',
-                            [ MciViewIds.sendMessage.nodeSelect, MciViewIds.sendMessage.message ],
+                            FormIds.sendMessage,
+                            mciData.menu,
                             callback
                         );
                     },
-                    (callback) => {
-                        const nodeSelectView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.nodeSelect);
+                    callback => {
+                        return this.validateMCIByViewIds(
+                            'sendMessage',
+                            [
+                                MciViewIds.sendMessage.nodeSelect,
+                                MciViewIds.sendMessage.message,
+                            ],
+                            callback
+                        );
+                    },
+                    callback => {
+                        const nodeSelectView = this.viewControllers.sendMessage.getView(
+                            MciViewIds.sendMessage.nodeSelect
+                        );
                         this.prepareNodeList();
 
                         nodeSelectView.on('index update', idx => {
@@ -105,23 +120,32 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                         this.nodeListSelectionIndexUpdate(0);
                         return callback(null);
                     },
-                    (callback) => {
-                        const previewView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.preview);
-                        if(!previewView) {
-                            return callback(null);  //  preview is optional
+                    callback => {
+                        const previewView = this.viewControllers.sendMessage.getView(
+                            MciViewIds.sendMessage.preview
+                        );
+                        if (!previewView) {
+                            return callback(null); //  preview is optional
                         }
 
-                        const messageView = this.viewControllers.sendMessage.getView(MciViewIds.sendMessage.message);
+                        const messageView = this.viewControllers.sendMessage.getView(
+                            MciViewIds.sendMessage.message
+                        );
                         let timerId;
-                        messageView.on('key press', () => {
-                            clearTimeout(timerId);
-                            const focused = this.viewControllers.sendMessage.getFocusedView();
-                            if(focused === messageView) {
-                                previewView.setText(messageView.getData());
-                                focused.setFocus(true);
-                            }
-                        }, 500);
-                    }
+                        messageView.on(
+                            'key press',
+                            () => {
+                                clearTimeout(timerId);
+                                const focused =
+                                    this.viewControllers.sendMessage.getFocusedView();
+                                if (focused === messageView) {
+                                    previewView.setText(messageView.getData());
+                                    focused.setFocus(true);
+                                }
+                            },
+                            500
+                        );
+                    },
                 ],
                 err => {
                     return cb(err);
@@ -131,14 +155,16 @@ exports.getModule = class NodeMessageModule extends MenuModule {
     }
 
     createInterruptItem(message, cb) {
-        const dateTimeFormat = this.config.dateTimeFormat || this.client.currentTheme.helpers.getDateTimeFormat();
+        const dateTimeFormat =
+            this.config.dateTimeFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat();
 
         const textFormatObj = {
-            fromUserName    : this.client.user.username,
-            fromRealName    : this.client.user.properties.real_name,
-            fromNodeId      : this.client.node,
-            message         : message,
-            timestamp       : moment().format(dateTimeFormat),
+            fromUserName: this.client.user.username,
+            fromRealName: this.client.user.properties.real_name,
+            fromNodeId: this.client.node,
+            message: message,
+            timestamp: moment().format(dateTimeFormat),
         };
 
         const messageFormat =
@@ -146,19 +172,19 @@ exports.getModule = class NodeMessageModule extends MenuModule {
             'Message from {fromUserName} on node {fromNodeId}:\r\n{message}';
 
         const item = {
-            text        : stringFormat(messageFormat, textFormatObj),
-            pause       : true,
+            text: stringFormat(messageFormat, textFormatObj),
+            pause: true,
         };
 
         const getArt = (name, callback) => {
             const spec = _.get(this.config, `art.${name}`);
-            if(!spec) {
+            if (!spec) {
                 return callback(null);
             }
             const getArtOpts = {
-                name    : spec,
-                client  : this.client,
-                random  : false,
+                name: spec,
+                client: this.client,
+                random: false,
             };
             getThemeArt(getArtOpts, (err, artInfo) => {
                 //  ignore errors
@@ -168,7 +194,7 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
         async.waterfall(
             [
-                (callback) => {
+                callback => {
                     getArt('header', headerArt => {
                         return callback(null, headerArt);
                     });
@@ -179,11 +205,13 @@ exports.getModule = class NodeMessageModule extends MenuModule {
                     });
                 },
                 (headerArt, footerArt, callback) => {
-                    if(headerArt || footerArt) {
-                        item.contents = `${headerArt || ''}\r\n${pipeToAnsi(item.text)}\r\n${footerArt || ''}`;
+                    if (headerArt || footerArt) {
+                        item.contents = `${headerArt || ''}\r\n${pipeToAnsi(
+                            item.text
+                        )}\r\n${footerArt || ''}`;
                     }
                     return callback(null);
-                }
+                },
             ],
             err => {
                 return cb(err, item);
@@ -213,9 +241,13 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
     nodeListSelectionIndexUpdate(idx) {
         const node = this.nodeList[idx];
-        if(!node) {
+        if (!node) {
             return;
         }
-        this.updateCustomViewTextsWithFilter('sendMessage', MciViewIds.sendMessage.customRangeStart, node);
+        this.updateCustomViewTextsWithFilter(
+            'sendMessage',
+            MciViewIds.sendMessage.customRangeStart,
+            node
+        );
     }
 };

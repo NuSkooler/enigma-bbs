@@ -4,8 +4,8 @@
 const UserProps = require('./user_property.js');
 
 //  deps
-const _         = require('lodash');
-const { v4 : UUIDv4 } = require('uuid');
+const _ = require('lodash');
+const { v4: UUIDv4 } = require('uuid');
 
 module.exports = class FileBaseFilters {
     constructor(client) {
@@ -15,7 +15,7 @@ module.exports = class FileBaseFilters {
     }
 
     static get OrderByValues() {
-        return [ 'descending', 'ascending' ];
+        return ['descending', 'ascending'];
     }
 
     static get SortByValues() {
@@ -32,7 +32,7 @@ module.exports = class FileBaseFilters {
 
     toArray() {
         return _.map(this.filters, (filter, uuid) => {
-            return Object.assign( { uuid : uuid }, filter );
+            return Object.assign({ uuid: uuid }, filter);
         });
     }
 
@@ -52,7 +52,7 @@ module.exports = class FileBaseFilters {
 
     replace(filterUuid, filterInfo) {
         const filter = this.get(filterUuid);
-        if(!filter) {
+        if (!filter) {
             return false;
         }
 
@@ -68,22 +68,25 @@ module.exports = class FileBaseFilters {
     load() {
         let filtersProperty = this.client.user.properties[UserProps.FileBaseFilters];
         let defaulted;
-        if(!filtersProperty) {
+        if (!filtersProperty) {
             filtersProperty = JSON.stringify(FileBaseFilters.getBuiltInSystemFilters());
             defaulted = true;
         }
 
         try {
             this.filters = JSON.parse(filtersProperty);
-        } catch(e) {
-            this.filters = FileBaseFilters.getBuiltInSystemFilters();   //  something bad happened; reset everything back to defaults :(
+        } catch (e) {
+            this.filters = FileBaseFilters.getBuiltInSystemFilters(); //  something bad happened; reset everything back to defaults :(
             defaulted = true;
-            this.client.log.error( { error : e.message, property : filtersProperty }, 'Failed parsing file base filters property' );
+            this.client.log.error(
+                { error: e.message, property: filtersProperty },
+                'Failed parsing file base filters property'
+            );
         }
 
-        if(defaulted) {
-            this.persist( err => {
-                if(!err) {
+        if (defaulted) {
+            this.persist(err => {
+                if (!err) {
                     const defaultActiveUuid = this.toArray()[0].uuid;
                     this.setActive(defaultActiveUuid);
                 }
@@ -92,19 +95,29 @@ module.exports = class FileBaseFilters {
     }
 
     persist(cb) {
-        return this.client.user.persistProperty(UserProps.FileBaseFilters, JSON.stringify(this.filters), cb);
+        return this.client.user.persistProperty(
+            UserProps.FileBaseFilters,
+            JSON.stringify(this.filters),
+            cb
+        );
     }
 
     cleanTags(tags) {
-        return tags.toLowerCase().replace(/,?\s+|,/g, ' ').trim();
+        return tags
+            .toLowerCase()
+            .replace(/,?\s+|,/g, ' ')
+            .trim();
     }
 
     setActive(filterUuid) {
         const activeFilter = this.get(filterUuid);
 
-        if(activeFilter) {
+        if (activeFilter) {
             this.activeFilter = activeFilter;
-            this.client.user.persistProperty(UserProps.FileBaseFilterActiveUuid, filterUuid);
+            this.client.user.persistProperty(
+                UserProps.FileBaseFilterActiveUuid,
+                filterUuid
+            );
             return true;
         }
 
@@ -112,41 +125,43 @@ module.exports = class FileBaseFilters {
     }
 
     static getBuiltInSystemFilters() {
-        const U_LATEST  = '7458b09d-40ab-4f9b-a0d7-0cf866646329';
+        const U_LATEST = '7458b09d-40ab-4f9b-a0d7-0cf866646329';
 
         const filters = {
-            [ U_LATEST ] : {
-                name    : 'By Date Added',
-                areaTag : '',   //  all
-                terms   : '',   //  *
-                tags    : '',   //  *
-                order   : 'descending',
-                sort    : 'upload_timestamp',
-                uuid    : U_LATEST,
-                system  : true,
-            }
+            [U_LATEST]: {
+                name: 'By Date Added',
+                areaTag: '', //  all
+                terms: '', //  *
+                tags: '', //  *
+                order: 'descending',
+                sort: 'upload_timestamp',
+                uuid: U_LATEST,
+                system: true,
+            },
         };
 
         return filters;
     }
 
     static getActiveFilter(client) {
-        return new FileBaseFilters(client).get(client.user.properties[UserProps.FileBaseFilterActiveUuid]);
+        return new FileBaseFilters(client).get(
+            client.user.properties[UserProps.FileBaseFilterActiveUuid]
+        );
     }
 
     static getFileBaseLastViewedFileIdByUser(user) {
-        return parseInt((user.properties[UserProps.FileBaseLastViewedId] || 0));
+        return parseInt(user.properties[UserProps.FileBaseLastViewedId] || 0);
     }
 
     static setFileBaseLastViewedFileIdForUser(user, fileId, allowOlder, cb) {
-        if(!cb && _.isFunction(allowOlder)) {
+        if (!cb && _.isFunction(allowOlder)) {
             cb = allowOlder;
             allowOlder = false;
         }
 
         const current = FileBaseFilters.getFileBaseLastViewedFileIdByUser(user);
-        if(!allowOlder && fileId < current) {
-            if(cb) {
+        if (!allowOlder && fileId < current) {
+            if (cb) {
                 cb(null);
             }
             return;

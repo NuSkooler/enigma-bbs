@@ -2,24 +2,23 @@
 'use strict';
 
 //  ENiGMA½
-var Log             = require('./logger.js').log;
-var renegadeToAnsi  = require('./color_codes.js').renegadeToAnsi;
-const Config        = require('./config.js').get;
-var iconv           = require('iconv-lite');
-var assert          = require('assert');
-var _               = require('lodash');
+var Log = require('./logger.js').log;
+var renegadeToAnsi = require('./color_codes.js').renegadeToAnsi;
+const Config = require('./config.js').get;
+var iconv = require('iconv-lite');
+var assert = require('assert');
+var _ = require('lodash');
 
-
-exports.ClientTerminal  = ClientTerminal;
+exports.ClientTerminal = ClientTerminal;
 
 function ClientTerminal(output) {
-    this.output     = output;
+    this.output = output;
 
     var outputEncoding = 'cp437';
     assert(iconv.encodingExists(outputEncoding));
 
     //  convert line feeds such as \n -> \r\n
-    this.convertLF      = true;
+    this.convertLF = true;
 
     this.syncTermFontsEnabled = false;
 
@@ -27,37 +26,37 @@ function ClientTerminal(output) {
     //  Some terminal we handle specially
     //  They can also be found in this.env{}
     //
-    var termType        = 'unknown';
-    var termHeight      = 0;
-    var termWidth       = 0;
-    var termClient      = 'unknown';
+    var termType = 'unknown';
+    var termHeight = 0;
+    var termWidth = 0;
+    var termClient = 'unknown';
 
-    this.currentSyncFont    = 'not_set';
+    this.currentSyncFont = 'not_set';
 
     //  Raw values set by e.g. telnet NAWS, ENVIRONMENT, etc.
-    this.env            = {};
+    this.env = {};
 
     Object.defineProperty(this, 'outputEncoding', {
-        get : function() {
+        get: function () {
             return outputEncoding;
         },
-        set : function(enc) {
-            if(iconv.encodingExists(enc)) {
+        set: function (enc) {
+            if (iconv.encodingExists(enc)) {
                 outputEncoding = enc;
             } else {
-                Log.warn({ encoding : enc }, 'Unknown encoding');
+                Log.warn({ encoding: enc }, 'Unknown encoding');
             }
-        }
+        },
     });
 
     Object.defineProperty(this, 'termType', {
-        get : function() {
+        get: function () {
             return termType;
         },
-        set : function(ttype) {
+        set: function (ttype) {
             termType = ttype.toLowerCase();
 
-            if(this.isANSI()) {
+            if (this.isANSI()) {
                 this.outputEncoding = 'cp437';
             } else {
                 //  :TODO: See how x84 does this -- only set if local/remote are binary
@@ -68,53 +67,56 @@ function ClientTerminal(output) {
             //  Windows telnet will send "VTNT". If so, set termClient='windows'
             //  there are some others on the page as well
 
-            Log.debug( { encoding : this.outputEncoding }, 'Set output encoding due to terminal type change');
-        }
+            Log.debug(
+                { encoding: this.outputEncoding },
+                'Set output encoding due to terminal type change'
+            );
+        },
     });
 
     Object.defineProperty(this, 'termWidth', {
-        get : function() {
+        get: function () {
             return termWidth;
         },
-        set : function(width) {
-            if(width > 0) {
+        set: function (width) {
+            if (width > 0) {
                 termWidth = width;
             }
-        }
+        },
     });
 
     Object.defineProperty(this, 'termHeight', {
-        get : function() {
+        get: function () {
             return termHeight;
         },
-        set : function(height) {
-            if(height > 0) {
+        set: function (height) {
+            if (height > 0) {
                 termHeight = height;
             }
-        }
+        },
     });
 
     Object.defineProperty(this, 'termClient', {
-        get : function() {
+        get: function () {
             return termClient;
         },
-        set : function(tc) {
+        set: function (tc) {
             termClient = tc;
 
-            Log.debug( { termClient : this.termClient }, 'Set known terminal client');
-        }
+            Log.debug({ termClient: this.termClient }, 'Set known terminal client');
+        },
     });
 }
 
-ClientTerminal.prototype.disconnect = function() {
+ClientTerminal.prototype.disconnect = function () {
     this.output = null;
 };
 
-ClientTerminal.prototype.isNixTerm = function() {
+ClientTerminal.prototype.isNixTerm = function () {
     //
     //  Standard *nix type terminals
     //
-    if(this.termType.startsWith('xterm')) {
+    if (this.termType.startsWith('xterm')) {
         return true;
     }
 
@@ -122,7 +124,7 @@ ClientTerminal.prototype.isNixTerm = function() {
     return utf8TermList.includes(this.termType);
 };
 
-ClientTerminal.prototype.isANSI = function() {
+ClientTerminal.prototype.isANSI = function () {
     //
     //  ANSI terminals should be encoded to CP437
     //
@@ -163,35 +165,33 @@ ClientTerminal.prototype.isANSI = function() {
 
 //  :TODO: probably need to update these to convert IAC (0xff) -> IACIAC (escape it)
 
-ClientTerminal.prototype.write = function(s, convertLineFeeds, cb) {
+ClientTerminal.prototype.write = function (s, convertLineFeeds, cb) {
     this.rawWrite(this.encode(s, convertLineFeeds), cb);
 };
 
-ClientTerminal.prototype.rawWrite = function(s, cb) {
-    if(this.output && this.output.writable) {
+ClientTerminal.prototype.rawWrite = function (s, cb) {
+    if (this.output && this.output.writable) {
         this.output.write(s, err => {
-            if(cb) {
+            if (cb) {
                 return cb(err);
             }
 
-            if(err) {
-                Log.warn( { error : err.message }, 'Failed writing to socket');
+            if (err) {
+                Log.warn({ error: err.message }, 'Failed writing to socket');
             }
         });
     }
 };
 
-ClientTerminal.prototype.pipeWrite = function(s, cb) {
-    this.write(renegadeToAnsi(s, this), null, cb);    //  null = use default for |convertLineFeeds|
+ClientTerminal.prototype.pipeWrite = function (s, cb) {
+    this.write(renegadeToAnsi(s, this), null, cb); //  null = use default for |convertLineFeeds|
 };
 
-ClientTerminal.prototype.encode = function(s, convertLineFeeds) {
+ClientTerminal.prototype.encode = function (s, convertLineFeeds) {
     convertLineFeeds = _.isBoolean(convertLineFeeds) ? convertLineFeeds : this.convertLF;
 
-    if(convertLineFeeds && _.isString(s)) {
+    if (convertLineFeeds && _.isString(s)) {
         s = s.replace(/\n/g, '\r\n');
     }
     return iconv.encode(s, this.outputEncoding);
 };
-
-

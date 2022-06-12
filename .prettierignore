@@ -1,0 +1,12 @@
+art
+config
+db
+docs
+drop
+gopher
+logs
+misc
+www
+mkdocs.yml
+*.md
+.github

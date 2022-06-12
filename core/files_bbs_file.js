@@ -1,12 +1,12 @@
 /* jslint node: true */
 'use strict';
 
-const { Errors }    = require('./enig_error.js');
+const { Errors } = require('./enig_error.js');
 
 //  deps
-const fs            = require('graceful-fs');
-const iconv         = require('iconv-lite');
-const moment        = require('moment');
+const fs = require('graceful-fs');
+const iconv = require('iconv-lite');
+const moment = require('moment');
 
 //  Descriptions found in the wild that mean "no description" /facepalm.
 const IgnoredDescriptions = [
@@ -25,14 +25,14 @@ module.exports = class FilesBBSFile {
 
     getDescription(fileName) {
         const entry = this.get(fileName);
-        if(entry) {
+        if (entry) {
             return entry.desc;
         }
     }
 
     static createFromFile(path, cb) {
         fs.readFile(path, (err, descData) => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
@@ -40,7 +40,7 @@ module.exports = class FilesBBSFile {
             const lines = iconv.decode(descData, 'cp437').split(/\r?\n/g);
             const filesBbs = new FilesBBSFile();
 
-            const isBadDescription = (desc) => {
+            const isBadDescription = desc => {
                 return IgnoredDescriptions.find(d => desc.startsWith(d)) ? true : false;
             };
 
@@ -59,9 +59,7 @@ module.exports = class FilesBBSFile {
             const detectDecoder = () => {
                 //  helpers
                 const regExpTestUpTo = (n, re) => {
-                    return lines
-                        .slice(0, n)
-                        .some(l => re.test(l));
+                    return lines.slice(0, n).some(l => re.test(l));
                 };
 
                 //
@@ -70,36 +68,37 @@ module.exports = class FilesBBSFile {
                 const decoders = [
                     {
                         //  I've been told this is what Syncrhonet uses
-                        lineRegExp : /^([^ ]{1,12})\s{1,11}([0-3][0-9]\/[0-3][0-9]\/[1789][0-9]) ([^\r\n]+)$/,
-                        detect : function() {
+                        lineRegExp:
+                            /^([^ ]{1,12})\s{1,11}([0-3][0-9]\/[0-3][0-9]\/[1789][0-9]) ([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
-                            for(let i = 0; i < lines.length; ++i) {
+                        extract: function () {
+                            for (let i = 0; i < lines.length; ++i) {
                                 let line = lines[i];
                                 const hdr = line.match(this.lineRegExp);
-                                if(!hdr) {
+                                if (!hdr) {
                                     continue;
                                 }
                                 const long = [];
-                                for(let j = i + 1; j < lines.length; ++j) {
+                                for (let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
-                                    if(!line.startsWith(' ')) {
+                                    if (!line.startsWith(' ')) {
                                         break;
                                     }
                                     long.push(line.trim());
                                     ++i;
                                 }
-                                const desc      = long.join('\r\n') || hdr[3] || '';
-                                const fileName  = hdr[1];
+                                const desc = long.join('\r\n') || hdr[3] || '';
+                                const fileName = hdr[1];
                                 const timestamp = moment(hdr[2], 'MM/DD/YY');
 
-                                if(isBadDescription(desc) || !timestamp.isValid()) {
+                                if (isBadDescription(desc) || !timestamp.isValid()) {
                                     continue;
                                 }
-                                filesBbs.entries.set(fileName, { timestamp, desc } );
+                                filesBbs.entries.set(fileName, { timestamp, desc });
                             }
-                        }
+                        },
                     },
 
                     {
@@ -107,37 +106,41 @@ module.exports = class FilesBBSFile {
                         //  Examples:
                         //  - Night Owl CD #7, 1992
                         //
-                        lineRegExp  : /^([^\s]{1,12})\s{2,14}\[0\]\s\s([^\r\n]+)$/,
-                        detect : function() {
+                        lineRegExp: /^([^\s]{1,12})\s{2,14}\[0\]\s\s([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
-                            for(let i = 0; i < lines.length; ++i) {
+                        extract: function () {
+                            for (let i = 0; i < lines.length; ++i) {
                                 let line = lines[i];
                                 const hdr = line.match(this.lineRegExp);
-                                if(!hdr) {
+                                if (!hdr) {
                                     continue;
                                 }
-                                const long = [ hdr[2].trim() ];
-                                for(let j = i + 1; j < lines.length; ++j) {
+                                const long = [hdr[2].trim()];
+                                for (let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
                                     // -------------------------------------------------v 32
-                                    if(!line.startsWith('                               | ')) {
+                                    if (
+                                        !line.startsWith(
+                                            '                               | '
+                                        )
+                                    ) {
                                         break;
                                     }
                                     long.push(line.substr(33));
                                     ++i;
                                 }
-                                const desc      = long.join('\r\n');
-                                const fileName  = hdr[1];
+                                const desc = long.join('\r\n');
+                                const fileName = hdr[1];
 
-                                if(isBadDescription(desc)) {
+                                if (isBadDescription(desc)) {
                                     continue;
                                 }
 
-                                filesBbs.entries.set(fileName, { desc } );
+                                filesBbs.entries.set(fileName, { desc });
                             }
-                        }
+                        },
                     },
 
                     {
@@ -148,36 +151,36 @@ module.exports = class FilesBBSFile {
                         //  Examples
                         //  - GUS archive @ dk.toastednet.org
                         //
-                        lineRegExp : /^([^\s]{1,12})\s+\[00\]\s([^\r\n]+)$/,
-                        detect  : function() {
+                        lineRegExp: /^([^\s]{1,12})\s+\[00\]\s([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
-                            for(let i = 0; i < lines.length; ++i) {
+                        extract: function () {
+                            for (let i = 0; i < lines.length; ++i) {
                                 let line = lines[i];
                                 const hdr = line.match(this.lineRegExp);
-                                if(!hdr) {
+                                if (!hdr) {
                                     continue;
                                 }
-                                const long = [ hdr[2].trimRight() ];
-                                for(let j = i + 1; j < lines.length; ++j) {
+                                const long = [hdr[2].trimRight()];
+                                for (let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
-                                    if(!line.startsWith('\t\t  ')) {
+                                    if (!line.startsWith('\t\t  ')) {
                                         break;
                                     }
                                     long.push(line.substr(4));
                                     ++i;
                                 }
-                                const desc      = long.join('\r\n');
-                                const fileName  = hdr[1];
+                                const desc = long.join('\r\n');
+                                const fileName = hdr[1];
 
-                                if(isBadDescription(desc)) {
+                                if (isBadDescription(desc)) {
                                     continue;
                                 }
 
-                                filesBbs.entries.set(fileName, { desc } );
+                                filesBbs.entries.set(fileName, { desc });
                             }
-                        }
+                        },
                     },
 
                     {
@@ -187,41 +190,46 @@ module.exports = class FilesBBSFile {
                         //  Examples:
                         //  - Expanding Your BBS CD by David Wolfe, 1995
                         //
-                        lineRegExp : /^([^ ]{1,12})\s{1,20}([0-9]+)\s\s([0-3][0-9]-[0-3][0-9]-[1789][0-9])\s\s([^\r\n]+)$/,
-                        detect  : function() {
+                        lineRegExp:
+                            /^([^ ]{1,12})\s{1,20}([0-9]+)\s\s([0-3][0-9]-[0-3][0-9]-[1789][0-9])\s\s([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
-                            for(let i = 0; i < lines.length; ++i) {
+                        extract: function () {
+                            for (let i = 0; i < lines.length; ++i) {
                                 let line = lines[i];
                                 const hdr = line.match(this.lineRegExp);
-                                if(!hdr) {
+                                if (!hdr) {
                                     continue;
                                 }
 
                                 const firstDescLine = hdr[4].trimRight();
-                                const long = [ firstDescLine ];
-                                for(let j = i + 1; j < lines.length; ++j) {
+                                const long = [firstDescLine];
+                                for (let j = i + 1; j < lines.length; ++j) {
                                     line = lines[j];
-                                    if(!line.startsWith(' '.repeat(34))) {
+                                    if (!line.startsWith(' '.repeat(34))) {
                                         break;
                                     }
                                     long.push(line.substr(34).trimRight());
                                     ++i;
                                 }
 
-                                const desc      = long.join('\r\n');
-                                const fileName  = hdr[1];
-                                const size      = parseInt(hdr[2]);
+                                const desc = long.join('\r\n');
+                                const fileName = hdr[1];
+                                const size = parseInt(hdr[2]);
                                 const timestamp = moment(hdr[3], 'MM-DD-YY');
 
-                                if(isBadDescription(desc) || isNaN(size) || !timestamp.isValid()) {
+                                if (
+                                    isBadDescription(desc) ||
+                                    isNaN(size) ||
+                                    !timestamp.isValid()
+                                ) {
                                     continue;
                                 }
 
                                 filesBbs.entries.set(fileName, { desc, size, timestamp });
                             }
-                        }
+                        },
                     },
 
                     {
@@ -235,25 +243,25 @@ module.exports = class FilesBBSFile {
                         //
                         //  May contain headers, but we'll just skip 'em.
                         //
-                        lineRegExp : /^([^ ]{1,12})\s{1,11}([^\r\n]+)$/,
-                        detect : function() {
+                        lineRegExp: /^([^ ]{1,12})\s{1,11}([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
+                        extract: function () {
                             lines.forEach(line => {
                                 const hdr = line.match(this.lineRegExp);
-                                if(!hdr) {
+                                if (!hdr) {
                                     return; //  forEach
                                 }
 
-                                const fileName  = hdr[1].trim();
-                                const desc      = hdr[2].trim();
+                                const fileName = hdr[1].trim();
+                                const desc = hdr[2].trim();
 
-                                if(desc && !isBadDescription(desc)) {
-                                    filesBbs.entries.set(fileName, { desc } );
+                                if (desc && !isBadDescription(desc)) {
+                                    filesBbs.entries.set(fileName, { desc });
                                 }
                             });
-                        }
+                        },
                     },
 
                     {
@@ -261,31 +269,32 @@ module.exports = class FilesBBSFile {
                         //  Examples:
                         //  - AMINET CD's & similar
                         //
-                        lineRegExp : /^(.{1,22}) ([0-9]+)K ([^\r\n]+)$/,
-                        detect : function() {
+                        lineRegExp: /^(.{1,22}) ([0-9]+)K ([^\r\n]+)$/,
+                        detect: function () {
                             return regExpTestUpTo(10, this.lineRegExp);
                         },
-                        extract : function() {
+                        extract: function () {
                             lines.forEach(line => {
                                 const hdr = line.match(this.tester);
-                                if(!hdr) {
+                                if (!hdr) {
                                     return; //  forEach
                                 }
 
-                                const fileName  = hdr[1].trim();
-                                let size        = parseInt(hdr[2]);
-                                const desc      = hdr[3].trim();
+                                const fileName = hdr[1].trim();
+                                let size = parseInt(hdr[2]);
+                                const desc = hdr[3].trim();
 
-                                if(isNaN(size)) {
+                                if (isNaN(size)) {
                                     return; //  forEach
                                 }
-                                size *= 1024;   //  K->bytes.
+                                size *= 1024; //  K->bytes.
 
-                                if(desc) {  //  omit empty entries
-                                    filesBbs.entries.set(fileName, { size, desc } );
+                                if (desc) {
+                                    //  omit empty entries
+                                    filesBbs.entries.set(fileName, { size, desc });
                                 }
                             });
-                        }
+                        },
                     },
                 ];
 
@@ -294,18 +303,18 @@ module.exports = class FilesBBSFile {
             };
 
             const decoder = detectDecoder();
-            if(!decoder) {
+            if (!decoder) {
                 return cb(Errors.Invalid('Invalid or unrecognized FILES.BBS format'));
             }
 
             decoder.extract(decoder);
 
             return cb(
-                filesBbs.entries.size > 0 ? null : Errors.Invalid('Invalid or unrecognized FILES.BBS format'),
+                filesBbs.entries.size > 0
+                    ? null
+                    : Errors.Invalid('Invalid or unrecognized FILES.BBS format'),
                 filesBbs
             );
         });
     }
-
-
 };

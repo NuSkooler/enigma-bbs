@@ -5,25 +5,25 @@
 const conf = require('./config');
 
 //  deps
-const sqlite3       = require('sqlite3');
-const sqlite3Trans  = require('sqlite3-trans');
-const paths         = require('path');
-const async         = require('async');
-const _             = require('lodash');
-const assert        = require('assert');
-const moment        = require('moment');
+const sqlite3 = require('sqlite3');
+const sqlite3Trans = require('sqlite3-trans');
+const paths = require('path');
+const async = require('async');
+const _ = require('lodash');
+const assert = require('assert');
+const moment = require('moment');
 
 //  database handles
 const dbs = {};
 
-exports.getTransactionDatabase      = getTransactionDatabase;
-exports.getModDatabasePath          = getModDatabasePath;
-exports.loadDatabaseForMod          = loadDatabaseForMod;
-exports.getISOTimestampString       = getISOTimestampString;
-exports.sanitizeString              = sanitizeString;
-exports.initializeDatabases         = initializeDatabases;
+exports.getTransactionDatabase = getTransactionDatabase;
+exports.getModDatabasePath = getModDatabasePath;
+exports.loadDatabaseForMod = loadDatabaseForMod;
+exports.getISOTimestampString = getISOTimestampString;
+exports.sanitizeString = sanitizeString;
+exports.initializeDatabases = initializeDatabases;
 
-exports.dbs                         = dbs;
+exports.dbs = dbs;
 
 function getTransactionDatabase(db) {
     return sqlite3Trans.wrap(db);
@@ -40,37 +40,38 @@ function getModDatabasePath(moduleInfo, suffix) {
     //  We expect that moduleInfo defines packageName which will be the base of the modules
     //  filename. An optional suffix may be supplied as well.
     //
-    const HOST_RE = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
+    const HOST_RE =
+        /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$/;
 
     assert(_.isObject(moduleInfo));
     assert(_.isString(moduleInfo.packageName), 'moduleInfo must define "packageName"!');
 
     let full = moduleInfo.packageName;
-    if(suffix) {
+    if (suffix) {
         full += `.${suffix}`;
     }
 
     assert(
-        (full.split('.').length > 1 && HOST_RE.test(full)),
-        'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation');
+        full.split('.').length > 1 && HOST_RE.test(full),
+        'packageName must follow Reverse Domain Name Notation - https://en.wikipedia.org/wiki/Reverse_domain_name_notation'
+    );
 
     const Config = conf.get();
     return paths.join(Config.paths.modsDb, `${full}.sqlite3`);
 }
 
 function loadDatabaseForMod(modInfo, cb) {
-    const db = getTransactionDatabase(new sqlite3.Database(
-        getModDatabasePath(modInfo),
-        err => {
+    const db = getTransactionDatabase(
+        new sqlite3.Database(getModDatabasePath(modInfo), err => {
             return cb(err, db);
-        }
-    ));
+        })
+    );
 }
 
 function getISOTimestampString(ts) {
     ts = ts || moment();
-    if(!moment.isMoment(ts)) {
-        if(_.isString(ts)) {
+    if (!moment.isMoment(ts)) {
+        if (_.isString(ts)) {
             ts = ts.replace(/\//g, '-');
         }
         ts = moment(ts);
@@ -79,42 +80,55 @@ function getISOTimestampString(ts) {
 }
 
 function sanitizeString(s) {
-    return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {   //  eslint-disable-line no-control-regex
+    return s.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, c => {
+        //  eslint-disable-line no-control-regex
         switch (c) {
-            case '\0'   : return '\\0';
-            case '\x08' : return '\\b';
-            case '\x09' : return '\\t';
-            case '\x1a' : return '\\z';
-            case '\n'   : return '\\n';
-            case '\r'   : return '\\r';
+            case '\0':
+                return '\\0';
+            case '\x08':
+                return '\\b';
+            case '\x09':
+                return '\\t';
+            case '\x1a':
+                return '\\z';
+            case '\n':
+                return '\\n';
+            case '\r':
+                return '\\r';
 
-            case '"' :
-            case '\'' :
+            case '"':
+            case "'":
                 return `${c}${c}`;
 
-            case '\\' :
-            case '%' :
+            case '\\':
+            case '%':
                 return `\\${c}`;
         }
     });
 }
 
 function initializeDatabases(cb) {
-    async.eachSeries( [ 'system', 'user', 'message', 'file' ], (dbName, next) => {
-        dbs[dbName] = sqlite3Trans.wrap(new sqlite3.Database(getDatabasePath(dbName), err => {
-            if(err) {
-                return cb(err);
-            }
+    async.eachSeries(
+        ['system', 'user', 'message', 'file'],
+        (dbName, next) => {
+            dbs[dbName] = sqlite3Trans.wrap(
+                new sqlite3.Database(getDatabasePath(dbName), err => {
+                    if (err) {
+                        return cb(err);
+                    }
 
-            dbs[dbName].serialize( () => {
-                DB_INIT_TABLE[dbName]( () => {
-                    return next(null);
-                });
-            });
-        }));
-    }, err => {
-        return cb(err);
-    });
+                    dbs[dbName].serialize(() => {
+                        DB_INIT_TABLE[dbName](() => {
+                            return next(null);
+                        });
+                    });
+                })
+            );
+        },
+        err => {
+            return cb(err);
+        }
+    );
 }
 
 function enableForeignKeys(db) {
@@ -122,7 +136,7 @@ function enableForeignKeys(db) {
 }
 
 const DB_INIT_TABLE = {
-    system : (cb) => {
+    system: cb => {
         enableForeignKeys(dbs.system);
 
         //  Various stat/event logging - see stat_log.js
@@ -160,7 +174,7 @@ const DB_INIT_TABLE = {
         return cb(null);
     },
 
-    user : (cb) => {
+    user: cb => {
         enableForeignKeys(dbs.user);
 
         dbs.user.run(
@@ -229,7 +243,7 @@ const DB_INIT_TABLE = {
         return cb(null);
     },
 
-    message : (cb) => {
+    message: cb => {
         enableForeignKeys(dbs.message);
 
         dbs.message.run(
@@ -296,7 +310,6 @@ const DB_INIT_TABLE = {
             );`
         );
 
-
         //  :TODO: need SQL to ensure cleaned up if delete from message?
         /*
         dbs.message.run(
@@ -337,7 +350,7 @@ const DB_INIT_TABLE = {
         return cb(null);
     },
 
-    file : (cb) => {
+    file: cb => {
         enableForeignKeys(dbs.file);
 
         dbs.file.run(
@@ -457,5 +470,5 @@ const DB_INIT_TABLE = {
         );
 
         return cb(null);
-    }
+    },
 };

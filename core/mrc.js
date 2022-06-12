@@ -2,27 +2,24 @@
 'use strict';
 
 //  ENiGMA½
-const Log               = require('./logger.js').log;
-const { MenuModule }    = require('./menu_module.js');
-const {
-    pipeToAnsi,
-    stripMciColorCodes
-}                       = require('./color_codes.js');
-const stringFormat      = require('./string_format.js');
-const StringUtil        = require('./string_util.js');
-const Config            = require('./config.js').get;
+const Log = require('./logger.js').log;
+const { MenuModule } = require('./menu_module.js');
+const { pipeToAnsi, stripMciColorCodes } = require('./color_codes.js');
+const stringFormat = require('./string_format.js');
+const StringUtil = require('./string_util.js');
+const Config = require('./config.js').get;
 
 //  deps
-const _                 = require('lodash');
-const async             = require('async');
-const net               = require('net');
-const moment            = require('moment');
+const _ = require('lodash');
+const async = require('async');
+const net = require('net');
+const moment = require('moment');
 
 exports.moduleInfo = {
-    name        : 'MRC Client',
-    desc        : 'Connects to an MRC chat server',
-    author      : 'RiPuk',
-    packageName : 'codes.l33t.enigma.mrc.client',
+    name: 'MRC Client',
+    desc: 'Connects to an MRC chat server',
+    author: 'RiPuk',
+    packageName: 'codes.l33t.enigma.mrc.client',
 
     // Whilst this module was put together by me (RiPuk), it should be noted that a lot of the ideas (and even some code snippets) were
     // borrowed from the Synchronet implementation of MRC by echicken. So...thanks, your code was very helpful in putting this together.
@@ -30,23 +27,21 @@ exports.moduleInfo = {
 };
 
 const FormIds = {
-    mrcChat    : 0,
+    mrcChat: 0,
 };
 
 const MciViewIds = {
-    mrcChat  : {
-        chatLog             : 1,
-        inputArea           : 2,
-        roomName            : 3,
-        roomTopic           : 4,
-        mrcUsers            : 5,
-        mrcBbses            : 6,
+    mrcChat: {
+        chatLog: 1,
+        inputArea: 2,
+        roomName: 3,
+        roomTopic: 4,
+        mrcUsers: 5,
+        mrcBbses: 6,
 
-        customRangeStart    : 20,   //  20+ = customs
-    }
+        customRangeStart: 20, //  20+ = customs
+    },
 };
-
-
 
 // TODO: this is a bit shit, could maybe do it with an ansi instead
 const helpText = `
@@ -66,13 +61,14 @@ const helpText = `
 |03/|11rainbow |03<your message>    |08- |07Crazy rainbow text
 `;
 
-
 exports.getModule = class mrcModule extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.log    = Log.child( { module : 'MRC' } );
-        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), { extraArgs : options.extraArgs });
+        this.log = Log.child({ module: 'MRC' });
+        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), {
+            extraArgs: options.extraArgs,
+        });
 
         this.config.maxScrollbackLines = this.config.maxScrollbackLines || 500;
 
@@ -82,27 +78,27 @@ exports.getModule = class mrcModule extends MenuModule {
             room: '',
             room_topic: '',
             nicks: [],
-            lastSentMsg : {},   //  used for latency est.
+            lastSentMsg: {}, //  used for latency est.
         };
 
         this.customFormatObj = {
-            roomName                : '',
-            roomTopic               : '',
-            roomUserCount           : 0,
-            userCount               : 0,
-            boardCount              : 0,
-            roomCount               : 0,
-            latencyMs               : 0,
-            activityLevel           : 0,
-            activityLevelIndicator  : ' ',
+            roomName: '',
+            roomTopic: '',
+            roomUserCount: 0,
+            userCount: 0,
+            boardCount: 0,
+            roomCount: 0,
+            latencyMs: 0,
+            activityLevel: 0,
+            activityLevelIndicator: ' ',
         };
 
         this.menuMethods = {
-
-            sendChatMessage : (formData, extraArgs, cb) => {
-
-                const inputAreaView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.inputArea);
-                const inputData		= inputAreaView.getData();
+            sendChatMessage: (formData, extraArgs, cb) => {
+                const inputAreaView = this.viewControllers.mrcChat.getView(
+                    MciViewIds.mrcChat.inputArea
+                );
+                const inputData = inputAreaView.getData();
 
                 this.processOutgoingMessage(inputData);
                 inputAreaView.clearText();
@@ -110,13 +106,23 @@ exports.getModule = class mrcModule extends MenuModule {
                 return cb(null);
             },
 
-            movementKeyPressed : (formData, extraArgs, cb) => {
-                const bodyView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
-                switch(formData.key.name) {
-                    case 'down arrow'   : bodyView.scrollDocumentUp(); break;
-                    case 'up arrow'     : bodyView.scrollDocumentDown(); break;
-                    case 'page up'      : bodyView.keyPressPageUp(); break;
-                    case 'page down'    : bodyView.keyPressPageDown(); break;
+            movementKeyPressed: (formData, extraArgs, cb) => {
+                const bodyView = this.viewControllers.mrcChat.getView(
+                    MciViewIds.mrcChat.chatLog
+                );
+                switch (formData.key.name) {
+                    case 'down arrow':
+                        bodyView.scrollDocumentUp();
+                        break;
+                    case 'up arrow':
+                        bodyView.scrollDocumentDown();
+                        break;
+                    case 'page up':
+                        bodyView.keyPressPageUp();
+                        break;
+                    case 'page down':
+                        bodyView.keyPressPageDown();
+                        break;
                 }
 
                 this.viewControllers.mrcChat.switchFocus(MciViewIds.mrcChat.inputArea);
@@ -124,35 +130,48 @@ exports.getModule = class mrcModule extends MenuModule {
                 return cb(null);
             },
 
-            quit : (formData, extraArgs, cb) => {
+            quit: (formData, extraArgs, cb) => {
                 return this.prevMenu(cb);
             },
 
-            clearMessages : (formData, extraArgs, cb) => {
+            clearMessages: (formData, extraArgs, cb) => {
                 this.clearMessages();
                 return cb(null);
-            }
+            },
         };
     }
 
     mciReady(mciData, cb) {
         super.mciReady(mciData, err => {
-            if(err) {
+            if (err) {
                 return cb(err);
             }
 
             async.series(
                 [
-                    (callback) => {
-                        return this.prepViewController('mrcChat', FormIds.mrcChat, mciData.menu, callback);
+                    callback => {
+                        return this.prepViewController(
+                            'mrcChat',
+                            FormIds.mrcChat,
+                            mciData.menu,
+                            callback
+                        );
                     },
-                    (callback) => {
-                        return this.validateMCIByViewIds('mrcChat', [ MciViewIds.mrcChat.chatLog, MciViewIds.mrcChat.inputArea ], callback);
+                    callback => {
+                        return this.validateMCIByViewIds(
+                            'mrcChat',
+                            [MciViewIds.mrcChat.chatLog, MciViewIds.mrcChat.inputArea],
+                            callback
+                        );
                     },
-                    (callback) => {
+                    callback => {
                         const connectOpts = {
-                            port	: _.get(Config(), 'chatServers.mrc.multiplexerPort', 5000),
-                            host	: 'localhost',
+                            port: _.get(
+                                Config(),
+                                'chatServers.mrc.multiplexerPort',
+                                5000
+                            ),
+                            host: 'localhost',
                         };
 
                         // connect to multiplexer
@@ -167,18 +186,28 @@ exports.getModule = class mrcModule extends MenuModule {
                             this.clientConnect();
 
                             // send register to central MRC and get stats every 60s
-                            this.heartbeat = setInterval( () => {
+                            this.heartbeat = setInterval(() => {
                                 this.sendHeartbeat();
                                 this.sendServerMessage('STATS');
                             }, 60000);
 
                             //  override idle logout seconds if configured
-                            const idleLogoutSeconds = parseInt(this.config.idleLogoutSeconds);
-                            if(0 === idleLogoutSeconds) {
-                                this.log.debug('Temporary disable idle monitor due to config');
+                            const idleLogoutSeconds = parseInt(
+                                this.config.idleLogoutSeconds
+                            );
+                            if (0 === idleLogoutSeconds) {
+                                this.log.debug(
+                                    'Temporary disable idle monitor due to config'
+                                );
                                 this.client.stopIdleMonitor();
-                            } else if (!isNaN(idleLogoutSeconds) && idleLogoutSeconds >= 60) {
-                                this.log.debug( { idleLogoutSeconds }, 'Temporary override idle logout seconds due to config');
+                            } else if (
+                                !isNaN(idleLogoutSeconds) &&
+                                idleLogoutSeconds >= 60
+                            ) {
+                                this.log.debug(
+                                    { idleLogoutSeconds },
+                                    'Temporary override idle logout seconds due to config'
+                                );
                                 this.client.overrideIdleLogoutSeconds(idleLogoutSeconds);
                             }
                         });
@@ -190,7 +219,10 @@ exports.getModule = class mrcModule extends MenuModule {
                         });
 
                         this.state.socket.once('error', err => {
-                            this.log.warn( { error : err.message }, 'MRC multiplexer socket error' );
+                            this.log.warn(
+                                { error: err.message },
+                                'MRC multiplexer socket error'
+                            );
                             this.state.socket.destroy();
                             delete this.state.socket;
 
@@ -198,8 +230,8 @@ exports.getModule = class mrcModule extends MenuModule {
                             return callback(err);
                         });
 
-                        return(callback);
-                    }
+                        return callback;
+                    },
                 ],
                 err => {
                     return cb(err);
@@ -222,7 +254,7 @@ exports.getModule = class mrcModule extends MenuModule {
     quitServer() {
         clearInterval(this.heartbeat);
 
-        if(this.state.socket) {
+        if (this.state.socket) {
             this.sendServerMessage('LOGOFF');
             this.state.socket.destroy();
             delete this.state.socket;
@@ -233,12 +265,14 @@ exports.getModule = class mrcModule extends MenuModule {
      * Adds a message to the chat log on screen
      */
     addMessageToChatLog(message) {
-        if(!Array.isArray(message)) {
-            message = [ message ];
+        if (!Array.isArray(message)) {
+            message = [message];
         }
 
         message.forEach(msg => {
-            const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
+            const chatLogView = this.viewControllers.mrcChat.getView(
+                MciViewIds.mrcChat.chatLog
+            );
             const messageLength = stripMciColorCodes(msg).length;
             const chatWidth = chatLogView.dimens.width;
             let padAmount = 0;
@@ -255,7 +289,7 @@ exports.getModule = class mrcModule extends MenuModule {
             const padding = ' |00' + ' '.repeat(padAmount);
             chatLogView.addText(pipeToAnsi(msg + padding));
 
-            if(chatLogView.getLineCount() > this.config.maxScrollbackLines) {
+            if (chatLogView.getLineCount() > this.config.maxScrollbackLines) {
                 chatLogView.deleteLine(0);
             }
         });
@@ -265,8 +299,7 @@ exports.getModule = class mrcModule extends MenuModule {
      * Processes data received from the MRC multiplexer
      */
     processReceivedMessage(blob) {
-        blob.split('\n').forEach( message => {
-
+        blob.split('\n').forEach(message => {
             try {
                 message = JSON.parse(message);
             } catch (e) {
@@ -285,8 +318,8 @@ exports.getModule = class mrcModule extends MenuModule {
                         this.setText(MciViewIds.mrcChat.roomName, `#${params[1]}`);
                         this.setText(MciViewIds.mrcChat.roomTopic, params[2]);
 
-                        this.customFormatObj.roomName   = params[1];
-                        this.customFormatObj.roomTopic  = params[2];
+                        this.customFormatObj.roomName = params[1];
+                        this.customFormatObj.roomTopic = params[2];
                         this.updateCustomViews();
 
                         this.state.room = params[1];
@@ -300,22 +333,19 @@ exports.getModule = class mrcModule extends MenuModule {
                         break;
 
                     case 'STATS': {
-                        const [
+                        const [boardCount, roomCount, userCount, activityLevel] =
+                            params[1].split(' ').map(v => parseInt(v));
+
+                        const activityLevelIndicator =
+                            this.getActivityLevelIndicator(activityLevel);
+
+                        Object.assign(this.customFormatObj, {
                             boardCount,
                             roomCount,
                             userCount,
-                            activityLevel
-                        ] = params[1].split(' ').map(v => parseInt(v));
-
-                        const activityLevelIndicator = this.getActivityLevelIndicator(activityLevel);
-
-                        Object.assign(
-                            this.customFormatObj,
-                            {
-                                boardCount, roomCount, userCount,
-                                activityLevel, activityLevelIndicator
-                            }
-                        );
+                            activityLevel,
+                            activityLevelIndicator,
+                        });
 
                         this.setText(MciViewIds.mrcChat.mrcUsers, userCount);
                         this.setText(MciViewIds.mrcChat.mrcBbses, boardCount);
@@ -328,18 +358,22 @@ exports.getModule = class mrcModule extends MenuModule {
                         this.addMessageToChatLog(message.body);
                         break;
                 }
-
             } else {
-                if(message.body === this.state.lastSentMsg.msg) {
-                    this.customFormatObj.latencyMs =
-                        moment.duration(moment().diff(this.state.lastSentMsg.time)).asMilliseconds();
+                if (message.body === this.state.lastSentMsg.msg) {
+                    this.customFormatObj.latencyMs = moment
+                        .duration(moment().diff(this.state.lastSentMsg.time))
+                        .asMilliseconds();
                     delete this.state.lastSentMsg.msg;
                 }
 
                 if (message.to_room == this.state.room) {
                     // if we're here then we want to show it to the user
-                    const currentTime = moment().format(this.client.currentTheme.helpers.getTimeFormat());
-                    this.addMessageToChatLog('|08' + currentTime + '|00 ' + message.body + '|00');
+                    const currentTime = moment().format(
+                        this.client.currentTheme.helpers.getTimeFormat()
+                    );
+                    this.addMessageToChatLog(
+                        '|08' + currentTime + '|00 ' + message.body + '|00'
+                    );
                 }
             }
 
@@ -349,8 +383,8 @@ exports.getModule = class mrcModule extends MenuModule {
 
     getActivityLevelIndicator(level) {
         let indicators = this.config.activityLevelIndicators;
-        if(!Array.isArray(indicators) || indicators.length < level + 1) {
-            indicators = [ ' ', '░', '▒', '▓' ];
+        if (!Array.isArray(indicators) || indicators.length < level + 1) {
+            indicators = [' ', '░', '▒', '▓'];
         }
         return indicators[level];
     }
@@ -382,9 +416,9 @@ exports.getModule = class mrcModule extends MenuModule {
 
             // else just format and send
             const textFormatObj = {
-                fromUserName    : this.state.alias,
-                toUserName      : to_user,
-                message         : message
+                fromUserName: this.state.alias,
+                toUserName: to_user,
+                message: message,
             };
 
             const messageFormat =
@@ -406,15 +440,19 @@ exports.getModule = class mrcModule extends MenuModule {
 
             try {
                 this.state.lastSentMsg = {
-                    msg     : formattedMessage,
-                    time    : moment(),
+                    msg: formattedMessage,
+                    time: moment(),
                 };
-                this.sendMessageToMultiplexer(to_user || '', '', this.state.room, formattedMessage);
-            } catch(e) {
-                this.client.log.warn( { error : e.message }, 'MRC error');
+                this.sendMessageToMultiplexer(
+                    to_user || '',
+                    '',
+                    this.state.room,
+                    formattedMessage
+                );
+            } catch (e) {
+                this.client.log.warn({ error: e.message }, 'MRC error');
             }
         }
-
     }
 
     /**
@@ -432,24 +470,35 @@ exports.getModule = class mrcModule extends MenuModule {
 
             case 'rainbow': {
                 // this is brutal, but i love it
-                const line = message.replace(/^\/rainbow\s/, '').split(' ').reduce(function (a, c) {
-                    const cc = Math.floor((Math.random() * 31) + 1).toString().padStart(2, '0');
-                    a += `|${cc}${c}|00 `;
-                    return a;
-                }, '').substr(0, 140).replace(/\\s\|\d*$/, '');
+                const line = message
+                    .replace(/^\/rainbow\s/, '')
+                    .split(' ')
+                    .reduce(function (a, c) {
+                        const cc = Math.floor(Math.random() * 31 + 1)
+                            .toString()
+                            .padStart(2, '0');
+                        a += `|${cc}${c}|00 `;
+                        return a;
+                    }, '')
+                    .substr(0, 140)
+                    .replace(/\\s\|\d*$/, '');
 
                 this.processOutgoingMessage(line);
                 break;
             }
 
             case 'l33t':
-                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), 'l33t'));
+                this.processOutgoingMessage(
+                    StringUtil.stylizeString(message.substr(6), 'l33t')
+                );
                 break;
 
             case 'kewl': {
-                const text_modes = Array('f','v','V','i','M');
+                const text_modes = Array('f', 'v', 'V', 'i', 'M');
                 const mode = text_modes[Math.floor(Math.random() * text_modes.length)];
-                this.processOutgoingMessage(StringUtil.stylizeString(message.substr(6), mode));
+                this.processOutgoingMessage(
+                    StringUtil.stylizeString(message.substr(6), mode)
+                );
                 break;
             }
 
@@ -470,7 +519,9 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             case 'topic':
-                this.sendServerMessage(`NEWTOPIC:${this.state.room}:${message.substr(7)}`);
+                this.sendServerMessage(
+                    `NEWTOPIC:${this.state.room}:${message.substr(7)}`
+                );
                 break;
 
             case 'info':
@@ -489,7 +540,7 @@ exports.getModule = class mrcModule extends MenuModule {
                 this.sendServerMessage('LIST');
                 break;
 
-            case 'quit' :
+            case 'quit':
                 return this.prevMenu();
 
             case 'clear':
@@ -501,7 +552,6 @@ exports.getModule = class mrcModule extends MenuModule {
                 break;
 
             default:
-
                 break;
         }
 
@@ -511,7 +561,9 @@ exports.getModule = class mrcModule extends MenuModule {
     }
 
     clearMessages() {
-        const chatLogView = this.viewControllers.mrcChat.getView(MciViewIds.mrcChat.chatLog);
+        const chatLogView = this.viewControllers.mrcChat.getView(
+            MciViewIds.mrcChat.chatLog
+        );
         chatLogView.setText('');
     }
 
@@ -519,17 +571,16 @@ exports.getModule = class mrcModule extends MenuModule {
      * Creates a json object, stringifies it and sends it to the MRC multiplexer
      */
     sendMessageToMultiplexer(to_user, to_site, to_room, body) {
-
         const message = {
             to_user,
             to_site,
             to_room,
             body,
-            from_user   : this.state.alias,
-            from_room   : this.state.room,
+            from_user: this.state.alias,
+            from_room: this.state.room,
         };
 
-        if(this.state.socket) {
+        if (this.state.socket) {
             this.state.socket.write(JSON.stringify(message) + '\n');
         }
     }
@@ -570,7 +621,3 @@ exports.getModule = class mrcModule extends MenuModule {
         this.sendHeartbeat();
     }
 };
-
-
-
-

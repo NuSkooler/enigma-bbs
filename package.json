@@ -62,7 +62,9 @@
     "systeminformation" : "^5.11.14"
   },
   "devDependencies": {
-    "eslint": "^8.13.0"
+    "eslint": "^8.13.0",
+    "eslint-config-prettier": "^8.5.0",
+    "prettier": "2.6.2"
   },
   "engines": {
     "node": ">=14"

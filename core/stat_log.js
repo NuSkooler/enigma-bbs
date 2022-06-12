@@ -43,7 +43,7 @@ class StatLog {
             `SELECT stat_name, stat_value
             FROM system_stat;`,
             (err, row) => {
-                if(row) {
+                if (row) {
                     self.systemStats[row.stat_name] = row.stat_value;
                 }
             },
@@ -55,25 +55,25 @@ class StatLog {
 
     get KeepDays() {
         return {
-            Forever : -1,
+            Forever: -1,
         };
     }
 
     get KeepType() {
         return {
-            Forever : 'forever',
-            Days    : 'days',
-            Max     : 'max',
-            Count   : 'max',
+            Forever: 'forever',
+            Days: 'days',
+            Max: 'max',
+            Count: 'max',
         };
     }
 
     get Order() {
         return {
-            Timestamp       : 'timestamp_asc',
-            TimestampAsc    : 'timestamp_asc',
-            TimestampDesc   : 'timestamp_desc',
-            Random          : 'random',
+            Timestamp: 'timestamp_asc',
+            TimestampAsc: 'timestamp_asc',
+            TimestampDesc: 'timestamp_desc',
+            Random: 'random',
         };
     }
 
@@ -85,7 +85,7 @@ class StatLog {
         incrementBy = incrementBy || 1;
 
         let newValue = parseInt(this.systemStats[statName]);
-        if(!isNaN(newValue)) {
+        if (!isNaN(newValue)) {
             newValue += incrementBy;
         } else {
             newValue = incrementBy;
@@ -102,10 +102,10 @@ class StatLog {
         sysDb.run(
             `REPLACE INTO system_stat (stat_name, stat_value)
             VALUES (?, ?);`,
-            [ statName, statValue ],
+            [statName, statValue],
             err => {
                 //  cb optional - callers may fire & forget
-                if(cb) {
+                if (cb) {
                     return cb(err);
                 }
             }
@@ -143,9 +143,13 @@ class StatLog {
         //  note: cb is optional in PersistUserProperty
         user.persistProperty(statName, statValue, cb);
 
-        if(!options.noEvent) {
-            const Events = require('./events.js');  //  we need to late load currently
-            Events.emit(Events.getSystemEvents().UserStatSet, { user, statName, statValue } );
+        if (!options.noEvent) {
+            const Events = require('./events.js'); //  we need to late load currently
+            Events.emit(Events.getSystemEvents().UserStatSet, {
+                user,
+                statName,
+                statValue,
+            });
         }
     }
 
@@ -179,31 +183,22 @@ class StatLog {
         const oldValue = user.getPropertyAsNumber(statName) || 0;
         const newValue = oldValue + incrementBy;
 
-        this.setUserStatWithOptions(
-            user,
-            statName,
-            newValue,
-            { noEvent : true },
-            err => {
-                if(!err) {
-                    const Events = require('./events.js');  //  we need to late load currently
-                    Events.emit(
-                        Events.getSystemEvents().UserStatIncrement,
-                        {
-                            user,
-                            statName,
-                            oldValue,
-                            statIncrementBy : incrementBy,
-                            statValue       : newValue
-                        }
-                    );
-                }
-
-                if(cb) {
-                    return cb(err);
-                }
+        this.setUserStatWithOptions(user, statName, newValue, { noEvent: true }, err => {
+            if (!err) {
+                const Events = require('./events.js'); //  we need to late load currently
+                Events.emit(Events.getSystemEvents().UserStatIncrement, {
+                    user,
+                    statName,
+                    oldValue,
+                    statIncrementBy: incrementBy,
+                    statValue: newValue,
+                });
             }
-        );
+
+            if (cb) {
+                return cb(err);
+            }
+        });
     }
 
     //  the time "now" in the ISO format we use and love :)
@@ -215,28 +210,28 @@ class StatLog {
         sysDb.run(
             `INSERT INTO system_event_log (timestamp, log_name, log_value)
             VALUES (?, ?, ?);`,
-            [ this.now, logName, logValue ],
+            [this.now, logName, logValue],
             () => {
                 //
                 //  Handle keep
                 //
-                if(-1 === keep) {
-                    if(cb) {
+                if (-1 === keep) {
+                    if (cb) {
                         return cb(null);
                     }
                     return;
                 }
 
-                switch(keepType) {
+                switch (keepType) {
                     //  keep # of days
-                    case 'days' :
+                    case 'days':
                         sysDb.run(
                             `DELETE FROM system_event_log
                             WHERE log_name = ? AND timestamp <= DATETIME("now", "-${keep} day");`,
-                            [ logName ],
+                            [logName],
                             err => {
                                 //  cb optional - callers may fire & forget
-                                if(cb) {
+                                if (cb) {
                                     return cb(err);
                                 }
                             }
@@ -244,7 +239,7 @@ class StatLog {
                         break;
 
                     case 'count':
-                    case 'max' :
+                    case 'max':
                         //  keep max of N/count
                         sysDb.run(
                             `DELETE FROM system_event_log
@@ -255,17 +250,17 @@ class StatLog {
                                 ORDER BY id DESC
                                 LIMIT -1 OFFSET ${keep}
                             );`,
-                            [ logName ],
+                            [logName],
                             err => {
-                                if(cb) {
+                                if (cb) {
                                     return cb(err);
                                 }
                             }
                         );
                         break;
 
-                    case 'forever' :
-                    default :
+                    case 'forever':
+                    default:
                         //  nop
                         break;
                 }
@@ -288,9 +283,9 @@ class StatLog {
     }
 
     getSystemLogEntries(logName, order, limit, cb) {
-        if(!cb && _.isFunction(limit)) {
-            cb      = limit;
-            limit   = 0;
+        if (!cb && _.isFunction(limit)) {
+            cb = limit;
+            limit = 0;
         } else {
             limit = limit || 0;
         }
@@ -307,10 +302,10 @@ class StatLog {
         sysDb.run(
             `INSERT INTO user_event_log (timestamp, user_id, session_id, log_name, log_value)
             VALUES (?, ?, ?, ?, ?);`,
-            [ this.now, user.userId, user.sessionId, logName, logValue ],
+            [this.now, user.userId, user.sessionId, logName, logValue],
             err => {
-                if(err) {
-                    if(cb) {
+                if (err) {
+                    if (cb) {
                         cb(err);
                     }
                     return;
@@ -318,8 +313,8 @@ class StatLog {
                 //
                 //  Handle keepDays
                 //
-                if(-1 === keepDays) {
-                    if(cb) {
+                if (-1 === keepDays) {
+                    if (cb) {
                         return cb(null);
                     }
                     return;
@@ -328,10 +323,10 @@ class StatLog {
                 sysDb.run(
                     `DELETE FROM user_event_log
                     WHERE user_id = ? AND log_name = ? AND timestamp <= DATETIME("now", "-${keepDays} day");`,
-                    [ user.userId, logName ],
+                    [user.userId, logName],
                     err => {
                         //  cb optional - callers may fire & forget
-                        if(cb) {
+                        if (cb) {
                             return cb(err);
                         }
                     }

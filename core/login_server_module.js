@@ -2,14 +2,14 @@
 'use strict';
 
 //  ENiGMA½
-const Config        = require('./config').get;
-const logger        = require('./logger.js');
-const ServerModule  = require('./server_module.js').ServerModule;
-const clientConns   = require('./client_connections.js');
-const UserProps     = require('./user_property.js');
+const Config = require('./config').get;
+const logger = require('./logger.js');
+const ServerModule = require('./server_module.js').ServerModule;
+const clientConns = require('./client_connections.js');
+const UserProps = require('./user_property.js');
 
 //  deps
-const _         = require('lodash');
+const _ = require('lodash');
 
 module.exports = class LoginServerModule extends ServerModule {
     constructor() {
@@ -19,7 +19,7 @@ module.exports = class LoginServerModule extends ServerModule {
     //  :TODO: we need to max connections -- e.g. from config 'maxConnections'
 
     prepareClient(client, cb) {
-        if(client.user.isAuthenticated()) {
+        if (client.user.isAuthenticated()) {
             return cb(null);
         }
 
@@ -29,7 +29,7 @@ module.exports = class LoginServerModule extends ServerModule {
         //  Choose initial theme before we have user context
         //
         const preLoginTheme = _.get(Config(), 'theme.preLogin');
-        if('*' === preLoginTheme) {
+        if ('*' === preLoginTheme) {
             client.user.properties[UserProps.ThemeId] = theme.getRandomTheme() || '';
         } else {
             client.user.properties[UserProps.ThemeId] = preLoginTheme;
@@ -41,24 +41,25 @@ module.exports = class LoginServerModule extends ServerModule {
 
     handleNewClient(client, clientSock, modInfo) {
         clientSock.on('error', err => {
-            logger.log.warn({ modInfo, error : err.message }, 'Client socket error');
+            logger.log.warn({ modInfo, error: err.message }, 'Client socket error');
         });
 
         //
         //  Start tracking the client. A session ID aka client ID
         //  will be established in addNewClient() below.
         //
-        if(_.isUndefined(client.session)) {
+        if (_.isUndefined(client.session)) {
             client.session = {};
         }
 
-        client.session.serverName   = modInfo.name;
-        client.session.isSecure     = _.isBoolean(client.isSecure) ? client.isSecure : (modInfo.isSecure || false);
+        client.session.serverName = modInfo.name;
+        client.session.isSecure = _.isBoolean(client.isSecure)
+            ? client.isSecure
+            : modInfo.isSecure || false;
 
         clientConns.addNewClient(client, clientSock);
 
         client.on('ready', readyOptions => {
-
             client.startIdleMonitor();
 
             //  Go to module -- use default error handler
@@ -72,12 +73,15 @@ module.exports = class LoginServerModule extends ServerModule {
         });
 
         client.on('error', err => {
-            logger.log.info({ nodeId : client.node, error : err.message }, 'Connection error');
+            logger.log.info(
+                { nodeId: client.node, error: err.message },
+                'Connection error'
+            );
         });
 
         client.on('close', err => {
             const logFunc = err ? logger.log.info : logger.log.debug;
-            logFunc( { nodeId : client.node }, 'Connection closed');
+            logFunc({ nodeId: client.node }, 'Connection closed');
 
             clientConns.removeClient(client);
         });
@@ -86,7 +90,7 @@ module.exports = class LoginServerModule extends ServerModule {
             client.log.info('User idle timeout expired');
 
             client.menuStack.goto('idleLogoff', err => {
-                if(err) {
+                if (err) {
                     //  likely just doesn't exist
                     client.term.write('\nIdle timeout expired. Goodbye!\n');
                     client.end();

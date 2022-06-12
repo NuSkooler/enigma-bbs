@@ -9,7 +9,7 @@ const { Errors } = require('./enig_error');
 //
 
 //  Number to 32bit MBF
-const numToMbf32 = (v) => {
+const numToMbf32 = v => {
     const mbf = Buffer.alloc(4);
 
     if (0 === v) {
@@ -19,8 +19,8 @@ const numToMbf32 = (v) => {
     const ieee = Buffer.alloc(4);
     ieee.writeFloatLE(v, 0);
 
-    const sign  = ieee[3] & 0x80;
-    let exp     = (ieee[3] << 1) | (ieee[2] >> 7);
+    const sign = ieee[3] & 0x80;
+    let exp = (ieee[3] << 1) | (ieee[2] >> 7);
 
     if (exp === 0xfe) {
         throw Errors.Invalid(`${v} cannot be converted to mbf`);
@@ -36,14 +36,14 @@ const numToMbf32 = (v) => {
     return mbf;
 };
 
-const mbf32ToNum = (mbf) => {
+const mbf32ToNum = mbf => {
     if (0 === mbf[3]) {
         return 0.0;
     }
 
-    const ieee	= Buffer.alloc(4);
-    const sign	= mbf[2] & 0x80;
-    const exp	= mbf[3] - 2;
+    const ieee = Buffer.alloc(4);
+    const sign = mbf[2] & 0x80;
+    const exp = mbf[3] - 2;
 
     ieee[3] = sign | (exp >> 1);
     ieee[2] = (exp << 7) | (mbf[2] & 0x7f);

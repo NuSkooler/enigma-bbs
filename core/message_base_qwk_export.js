@@ -22,44 +22,51 @@ const _ = require('lodash');
 const fse = require('fs-extra');
 const temptmp = require('temptmp');
 const paths = require('path');
-const { v4 : UUIDv4 } = require('uuid');
+const { v4: UUIDv4 } = require('uuid');
 const moment = require('moment');
 
 const FormIds = {
-    main    : 0,
+    main: 0,
 };
 
 const MciViewIds = {
-    main : {
-        status              : 1,
-        progressBar         : 2,
+    main: {
+        status: 1,
+        progressBar: 2,
 
-        customRangeStart    : 10,
-    }
+        customRangeStart: 10,
+    },
 };
 
 const UserProperties = {
-    ExportOptions   : 'qwk_export_options',
-    ExportAreas     : 'qwk_export_msg_areas',
+    ExportOptions: 'qwk_export_options',
+    ExportAreas: 'qwk_export_msg_areas',
 };
 
 exports.moduleInfo = {
-    name    : 'QWK Export',
-    desc    : 'Exports a QWK Packet for download',
-    author  : 'NuSkooler',
+    name: 'QWK Export',
+    desc: 'Exports a QWK Packet for download',
+    author: 'NuSkooler',
 };
 
 exports.getModule = class MessageBaseQWKExport extends MenuModule {
     constructor(options) {
         super(options);
 
-        this.config = Object.assign({}, _.get(options, 'menuConfig.config'), options.extraArgs);
+        this.config = Object.assign(
+            {},
+            _.get(options, 'menuConfig.config'),
+            options.extraArgs
+        );
 
-        this.config.progBarChar = renderSubstr( (this.config.progBarChar || '▒'), 0, 1);
-        this.config.bbsID       = this.config.bbsID || _.get(Config(), 'messageNetworks.qwk.bbsID', 'ENIGMA');
+        this.config.progBarChar = renderSubstr(this.config.progBarChar || '▒', 0, 1);
+        this.config.bbsID =
+            this.config.bbsID || _.get(Config(), 'messageNetworks.qwk.bbsID', 'ENIGMA');
 
         this.tempName = `${UUIDv4().substr(-8).toUpperCase()}.QWK`;
-        this.sysTempDownloadArea = FileArea.getFileAreaByTag(FileArea.WellKnownAreaTags.TempDownloads);
+        this.sysTempDownloadArea = FileArea.getFileAreaByTag(
+            FileArea.WellKnownAreaTags.TempDownloads
+        );
     }
 
     mciReady(mciData, cb) {
@@ -70,27 +77,38 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
             async.waterfall(
                 [
-                    (callback) => {
-                        this.prepViewController('main', FormIds.main, mciData.menu, err => {
-                            return callback(err);
-                        });
-                    },
-                    (callback) => {
-                        this.temptmp = temptmp.createTrackedSession('qwkuserexp');
-                        this.temptmp.mkdir({ prefix : 'enigqwkwriter-'}, (err, tempDir) => {
-                            if (err) {
+                    callback => {
+                        this.prepViewController(
+                            'main',
+                            FormIds.main,
+                            mciData.menu,
+                            err => {
                                 return callback(err);
                             }
+                        );
+                    },
+                    callback => {
+                        this.temptmp = temptmp.createTrackedSession('qwkuserexp');
+                        this.temptmp.mkdir(
+                            { prefix: 'enigqwkwriter-' },
+                            (err, tempDir) => {
+                                if (err) {
+                                    return callback(err);
+                                }
 
-                            this.tempPacketDir = tempDir;
+                                this.tempPacketDir = tempDir;
 
-                            const sysTempDownloadDir = FileArea.getAreaDefaultStorageDirectory(this.sysTempDownloadArea);
+                                const sysTempDownloadDir =
+                                    FileArea.getAreaDefaultStorageDirectory(
+                                        this.sysTempDownloadArea
+                                    );
 
-                            //  ensure dir exists
-                            fse.mkdirs(sysTempDownloadDir, err => {
-                                return callback(err, sysTempDownloadDir);
-                            });
-                        });
+                                //  ensure dir exists
+                                fse.mkdirs(sysTempDownloadDir, err => {
+                                    return callback(err, sysTempDownloadDir);
+                                });
+                            }
+                        );
                     },
                     (sysTempDownloadDir, callback) => {
                         this._performExport(sysTempDownloadDir, err => {
@@ -104,7 +122,10 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     if (err) {
                         //  :TODO: doesn't do anything currently:
                         if ('NORESULTS' === err.reasonCode) {
-                            return this.gotoMenu(this.menuConfig.config.noResultsMenu || 'qwkExportNoResults');
+                            return this.gotoMenu(
+                                this.menuConfig.config.noResultsMenu ||
+                                    'qwkExportNoResults'
+                            );
                         }
 
                         return this.prevMenu();
@@ -123,12 +144,12 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
         let qwkOptions = this.client.user.getProperty(UserProperties.ExportOptions);
         try {
             qwkOptions = JSON.parse(qwkOptions);
-        } catch(e) {
+        } catch (e) {
             qwkOptions = {
-                enableQWKE              : true,
-                enableHeadersExtension  : true,
-                enableAtKludges         : true,
-                archiveFormat           : 'application/zip',
+                enableQWKE: true,
+                enableHeadersExtension: true,
+                enableAtKludges: true,
+                archiveFormat: 'application/zip',
             };
         }
         return qwkOptions;
@@ -143,7 +164,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 }
                 return exportArea;
             });
-        } catch(e) {
+        } catch (e) {
             //  default to all public and private without 'since'
             qwkExportAreas = getAllAvailableMessageAreaTags(this.client).map(areaTag => {
                 return { areaTag };
@@ -151,7 +172,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
             //  Include user's private area
             qwkExportAreas.push({
-                areaTag : Message.WellKnownAreaTags.Private,
+                areaTag: Message.WellKnownAreaTags.Private,
             });
         }
 
@@ -160,16 +181,18 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
 
     _performExport(sysTempDownloadDir, cb) {
         const statusView = this.viewControllers.main.getView(MciViewIds.main.status);
-        const updateStatus = (status) => {
+        const updateStatus = status => {
             if (statusView) {
                 statusView.setText(status);
             }
         };
 
-        const progBarView = this.viewControllers.main.getView(MciViewIds.main.progressBar);
+        const progBarView = this.viewControllers.main.getView(
+            MciViewIds.main.progressBar
+        );
         const updateProgressBar = (curr, total) => {
             if (progBarView) {
-                const prog = Math.floor( (curr / total) * progBarView.dimens.width );
+                const prog = Math.floor((curr / total) * progBarView.dimens.width);
                 progBarView.setText(this.config.progBarChar.repeat(prog));
             }
         };
@@ -181,19 +204,27 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
             //  we can produce a TON of updates; only update progress at most every 3/4s
             if (Date.now() - lastProgUpdate > 750) {
                 switch (state.step) {
-                    case 'next_area' :
+                    case 'next_area':
                         updateStatus(state.status);
                         updateProgressBar(0, 0);
-                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state);
+                        this.updateCustomViewTextsWithFilter(
+                            'main',
+                            MciViewIds.main.customRangeStart,
+                            state
+                        );
                         break;
 
-                    case 'message' :
+                    case 'message':
                         updateStatus(state.status);
                         updateProgressBar(state.current, state.total);
-                        this.updateCustomViewTextsWithFilter('main', MciViewIds.main.customRangeStart, state);
+                        this.updateCustomViewTextsWithFilter(
+                            'main',
+                            MciViewIds.main.customRangeStart,
+                            state
+                        );
                         break;
 
-                    default :
+                    default:
                         break;
                 }
                 lastProgUpdate = Date.now();
@@ -203,7 +234,7 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
         };
 
         const keyPressHandler = (ch, key) => {
-            if('escape' === key.name) {
+            if ('escape' === key.name) {
                 cancel = true;
                 this.client.removeListener('key press', keyPressHandler);
             }
@@ -217,54 +248,59 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 }
 
                 let current = 1;
-                async.eachSeries(messageIds, (messageId, nextMessageId) => {
-                    const message = new Message();
-                    message.load({ messageId }, err => {
-                        if (err) {
-                            return nextMessageId(err);
-                        }
-
-                        const progress = {
-                            message,
-                            step        : 'message',
-                            total       : ++totalExported,
-                            areaCurrent : current,
-                            areaCount   : messageIds.length,
-                            status      : `${_.truncate(message.subject, { length : 25 })} (${current} / ${messageIds.length})`,
-                        };
-
-                        progressHandler(progress, err => {
+                async.eachSeries(
+                    messageIds,
+                    (messageId, nextMessageId) => {
+                        const message = new Message();
+                        message.load({ messageId }, err => {
                             if (err) {
                                 return nextMessageId(err);
                             }
 
-                            packetWriter.appendMessage(message);
-                            current += 1;
+                            const progress = {
+                                message,
+                                step: 'message',
+                                total: ++totalExported,
+                                areaCurrent: current,
+                                areaCount: messageIds.length,
+                                status: `${_.truncate(message.subject, {
+                                    length: 25,
+                                })} (${current} / ${messageIds.length})`,
+                            };
 
-                            return nextMessageId(null);
+                            progressHandler(progress, err => {
+                                if (err) {
+                                    return nextMessageId(err);
+                                }
+
+                                packetWriter.appendMessage(message);
+                                current += 1;
+
+                                return nextMessageId(null);
+                            });
                         });
-                    });
-                },
-                err => {
-                    return cb(err);
-                });
+                    },
+                    err => {
+                        return cb(err);
+                    }
+                );
             });
         };
 
         const packetWriter = new QWKPacketWriter(
             Object.assign(this._getUserQWKExportOptions(), {
-                user    : this.client.user,
-                bbsID   : this.config.bbsID,
+                user: this.client.user,
+                bbsID: this.config.bbsID,
             })
         );
 
         packetWriter.on('warning', warning => {
-            this.client.log.warn( { warning }, 'QWK packet writer warning');
+            this.client.log.warn({ warning }, 'QWK packet writer warning');
         });
 
         async.waterfall(
             [
-                (callback) => {
+                callback => {
                     //  don't count idle monitor while processing
                     this.client.stopIdleMonitor();
 
@@ -276,77 +312,91 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                     });
 
                     packetWriter.once('error', err => {
-                        this.client.log.error( { error : err.message }, 'QWK packet writer error');
+                        this.client.log.error(
+                            { error: err.message },
+                            'QWK packet writer error'
+                        );
                         cancel = true;
                     });
 
                     packetWriter.init();
                 },
-                (callback) => {
+                callback => {
                     //  For each public area -> for each message
                     const userExportAreas = this._getUserQWKExportAreas();
 
-                    const publicExportAreas = userExportAreas
-                        .filter(exportArea => {
-                            return exportArea.areaTag !== Message.WellKnownAreaTags.Private;
-                        });
-                    async.eachSeries(publicExportAreas, (exportArea, nextExportArea) => {
-                        const area = getMessageAreaByTag(exportArea.areaTag);
-                        const conf = getMessageConferenceByTag(area.confTag);
-                        if (!area || !conf) {
-                            //  :TODO: remove from user properties - this area does not exist
-                            this.client.log.warn({ areaTag : exportArea.areaTag }, 'Cannot QWK export area as it does not exist');
-                            return nextExportArea(null);
-                        }
-
-                        if (!hasMessageConfAndAreaRead(this.client, area)) {
-                            this.client.log.warn({ areaTag : area.areaTag }, 'Cannot QWK export area due to ACS');
-                            return nextExportArea(null);
-                        }
-
-                        const progress = {
-                            conf,
-                            area,
-                            step    : 'next_area',
-                            status  : `Gathering in ${conf.name} - ${area.name}...`,
-                        };
-
-                        progressHandler(progress, err => {
-                            if (err) {
-                                return nextExportArea(err);
+                    const publicExportAreas = userExportAreas.filter(exportArea => {
+                        return exportArea.areaTag !== Message.WellKnownAreaTags.Private;
+                    });
+                    async.eachSeries(
+                        publicExportAreas,
+                        (exportArea, nextExportArea) => {
+                            const area = getMessageAreaByTag(exportArea.areaTag);
+                            const conf = getMessageConferenceByTag(area.confTag);
+                            if (!area || !conf) {
+                                //  :TODO: remove from user properties - this area does not exist
+                                this.client.log.warn(
+                                    { areaTag: exportArea.areaTag },
+                                    'Cannot QWK export area as it does not exist'
+                                );
+                                return nextExportArea(null);
                             }
 
-                            const filter = {
-                                resultType          : 'id',
-                                areaTag             : exportArea.areaTag,
-                                newerThanTimestamp  : exportArea.newerThanTimestamp
+                            if (!hasMessageConfAndAreaRead(this.client, area)) {
+                                this.client.log.warn(
+                                    { areaTag: area.areaTag },
+                                    'Cannot QWK export area due to ACS'
+                                );
+                                return nextExportArea(null);
+                            }
+
+                            const progress = {
+                                conf,
+                                area,
+                                step: 'next_area',
+                                status: `Gathering in ${conf.name} - ${area.name}...`,
                             };
 
-                            processMessagesWithFilter(filter, err => {
-                                return nextExportArea(err);
+                            progressHandler(progress, err => {
+                                if (err) {
+                                    return nextExportArea(err);
+                                }
+
+                                const filter = {
+                                    resultType: 'id',
+                                    areaTag: exportArea.areaTag,
+                                    newerThanTimestamp: exportArea.newerThanTimestamp,
+                                };
+
+                                processMessagesWithFilter(filter, err => {
+                                    return nextExportArea(err);
+                                });
                             });
-                        });
-                    },
-                    err => {
-                        return callback(err, userExportAreas);
-                    });
+                        },
+                        err => {
+                            return callback(err, userExportAreas);
+                        }
+                    );
                 },
                 (userExportAreas, callback) => {
                     //  Private messages to current user if the user has
                     //  elected to export private messages
-                    const privateExportArea = userExportAreas.find(exportArea => exportArea.areaTag === Message.WellKnownAreaTags.Private);
+                    const privateExportArea = userExportAreas.find(
+                        exportArea =>
+                            exportArea.areaTag === Message.WellKnownAreaTags.Private
+                    );
                     if (!privateExportArea) {
                         return callback(null);
                     }
 
                     const filter = {
-                        resultType          : 'id',
-                        privateTagUserId    : this.client.user.userId,
-                        newerThanTimestamp  : privateExportArea.newerThanTimestamp,
+                        resultType: 'id',
+                        privateTagUserId: this.client.user.userId,
+                        newerThanTimestamp: privateExportArea.newerThanTimestamp,
                     };
                     return processMessagesWithFilter(filter, callback);
                 },
-                (callback) => {
+                callback => {
                     let packetInfo;
                     packetWriter.once('packet', info => {
                         packetInfo = info;
@@ -370,38 +420,40 @@ exports.getModule = class MessageBaseQWKExport extends MenuModule {
                 },
                 (sysDownloadPath, packetInfo, callback) => {
                     const newEntry = new FileEntry({
-                        areaTag     : this.sysTempDownloadArea.areaTag,
-                        fileName    : paths.basename(sysDownloadPath),
-                        storageTag  : this.sysTempDownloadArea.storageTags[0],
-                        meta        : {
-                            upload_by_username  : this.client.user.username,
-                            upload_by_user_id   : this.client.user.userId,
-                            byte_size           : packetInfo.stats.size,
-                            session_temp_dl     : 1,    //  download is valid until session is over
+                        areaTag: this.sysTempDownloadArea.areaTag,
+                        fileName: paths.basename(sysDownloadPath),
+                        storageTag: this.sysTempDownloadArea.storageTags[0],
+                        meta: {
+                            upload_by_username: this.client.user.username,
+                            upload_by_user_id: this.client.user.userId,
+                            byte_size: packetInfo.stats.size,
+                            session_temp_dl: 1, //  download is valid until session is over
 
                             //  :TODO: something like this: allow to override the displayed/downloaded as filename
                             //  separate from the actual on disk filename. E.g. we could always download as "ENIGMA.QWK"
                             //visible_filename    : paths.basename(packetInfo.path),
-                        }
+                        },
                     });
 
                     newEntry.desc = 'QWK Export';
 
                     newEntry.persist(err => {
-                        if(!err) {
+                        if (!err) {
                             //  queue it!
                             DownloadQueue.get(this.client).addTemporaryDownload(newEntry);
                         }
                         return callback(err);
                     });
                 },
-                (callback) => {
+                callback => {
                     //  update user's export area dates; they can always change/reset them again
-                    const updatedUserExportAreas = this._getUserQWKExportAreas().map(exportArea => {
-                        return Object.assign(exportArea, {
-                            newerThanTimestamp : getISOTimestampString(),
-                        });
-                    });
+                    const updatedUserExportAreas = this._getUserQWKExportAreas().map(
+                        exportArea => {
+                            return Object.assign(exportArea, {
+                                newerThanTimestamp: getISOTimestampString(),
+                            });
+                        }
+                    );
 
                     return this.client.user.persistProperty(
                         UserProperties.ExportAreas,

@@ -1,8 +1,8 @@
 /* jslint node: true */
 'use strict';
 
-const StatLog   = require('./stat_log.js');
-const SysProps  = require('./system_property.js');
+const StatLog = require('./stat_log.js');
+const SysProps = require('./system_property.js');
 
 exports.dailyMaintenanceScheduledEvent = dailyMaintenanceScheduledEvent;
 
