@@ -17,11 +17,11 @@
 <meta property="og:description" content="SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://)." />
 <meta property="og:site_name" content="ENiGMA½ BBS Software" />
 <meta property="og:type" content="article" />
-<meta property="article:published_time" content="2022-06-10T23:29:26+00:00" />
+<meta property="article:published_time" content="2022-06-12T18:56:22+00:00" />
 <meta name="twitter:card" content="summary" />
 <meta property="twitter:title" content="SSH Server" />
 <script type="application/ld+json">
-{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://).","url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","headline":"SSH Server","dateModified":"2022-06-10T23:29:26+00:00","datePublished":"2022-06-10T23:29:26+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"@context":"https://schema.org"}</script>
+{"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"/enigma-bbs/assets/images/enigma-logo.png"}},"description":"SSH Login Server The ENiGMA½ SSH login server allows secure user logins over SSH (ssh://).","url":"/enigma-bbs/servers/loginservers/ssh.html","@type":"BlogPosting","headline":"SSH Server","dateModified":"2022-06-12T18:56:22+00:00","datePublished":"2022-06-12T18:56:22+00:00","mainEntityOfPage":{"@type":"WebPage","@id":"/enigma-bbs/servers/loginservers/ssh.html"},"@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 
   </head>
@@ -2296,7 +2296,7 @@
     <tr>
       <td><code class="language-plaintext highlighter-rouge">privateKeyPass</code></td>
       <td><img class="emoji" title=":+1:" alt=":+1:" src="https://github.githubassets.com/images/icons/emoji/unicode/1f44d.png" height="20" width="20"></td>
-      <td>Password to private key file.</td>
+      <td>Password to private key file. *</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">firstMenu</code></td>
@@ -2336,6 +2336,11 @@
   </tbody>
 </table>
 
+<ul>
+  <li>
+<em>IMPORTANT</em> With the <code class="language-plaintext highlighter-rouge">privateKeyPass</code> option set, make sure that you verify that the config file is not readable by other users!</li>
+</ul>
+
 <h3 id="example-configuration">Example Configuration</h3>
 
 <pre><code class="language-hjson">{
@@ -2351,18 +2356,57 @@
 </code></pre>
 
 <h2 id="generate-a-ssh-private-key">Generate a SSH Private Key</h2>
-<p>To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSL can be used for this task:</p>
+<p>To utilize the SSH server, an SSH Private Key (PK) will need generated. OpenSSH or (with some versions) OpenSSL can be used for this task:</p>
 
-<h3 id="modern-openssl">Modern OpenSSL</h3>
+<h3 id="openssh">OpenSSH</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ssh-keygen <span class="nt">-m</span> PEM <span class="nt">-h</span> <span class="nt">-f</span> config/ssh_private_key.pem
+</code></pre></div></div>
+
+<p>Option descriptions:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Option</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">-m PEM</code></td>
+      <td>Set the output format to <code class="language-plaintext highlighter-rouge">PEM</code>, compatible with the <code class="language-plaintext highlighter-rouge">ssh2</code> library</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">-h</code></td>
+      <td>Generate a host key</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">-f config/ssh_private_key.pem</code></td>
+      <td>Filename for the private key. Used in the <code class="language-plaintext highlighter-rouge">privateKeyPem</code> option in the configuration</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>When you execute the <code class="language-plaintext highlighter-rouge">ssh-keygen</code> command it will ask for a passphrase (and a confirmation.) This should then be used as the value for <code class="language-plaintext highlighter-rouge">privateKeyPass</code> in the configuration.</p>
+
+<h3 id="openssl">OpenSSL</h3>
+
+<p>If you do not have OpenSSH installed or if you have trouble with the above OpenSSH commands, using some versions for OpenSSL (before version 3) the following commands may work as well:</p>
+
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl genpkey <span class="nt">-algorithm</span> RSA <span class="nt">-pkeyopt</span> rsa_keygen_bits:2048 <span class="nt">-pkeyopt</span> rsa_keygen_pubexp:65537 | openssl rsa <span class="nt">-out</span> ./config/ssh_private_key.pem <span class="nt">-aes128</span>
 </code></pre></div></div>
 
-<h3 id="legacy-openssl">Legacy OpenSSL</h3>
+<p>Or for even older OpenSSL versions:</p>
+
 <div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>openssl genrsa <span class="nt">-aes128</span> <span class="nt">-out</span> ./config/ssh_private_key.pem 2048
 </code></pre></div></div>
 
-<p>Note that you may need <code class="language-plaintext highlighter-rouge">-3des</code> for every old implementations or SSH clients!</p>
+<p>Note that you may need <code class="language-plaintext highlighter-rouge">-3des</code> for very old implementations or SSH clients!</p>
 
+<h2 id="prompt">Prompt</h2>
+
+<p>The keyboard interactive prompt can be customized using a <code class="language-plaintext highlighter-rouge">SSHPMPT.ASC</code> art file. See <a href="/enigma-bbs/art/general.html">art</a> for more information on configuring. This prompt includes a <code class="language-plaintext highlighter-rouge">newUserNames</code> variable to show the list of allowed new user names (see <code class="language-plaintext highlighter-rouge">firstMenuNewUser</code> above.) See <a href="/enigma-bbs/art/mci.html">mci</a> for information about formatting this string. Note: Regardless of the content of the <code class="language-plaintext highlighter-rouge">SSHPMPT.ASC</code> file, the prompt is surrounded by “Access denied”, a newline, the prompt, another newline, and then the string “[username]’s password: “. This normally occurs after the first password prompt (no art is shown before the first password attempt is made.)</p>
 
 </div>
 
