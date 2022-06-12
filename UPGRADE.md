@@ -34,7 +34,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 * All features and changes are backwards compatible. There are a few new configuration options in a new `term` section in the configuration. These are all optional, but include the following options in case you use them:
 
 ```hjson
-{ 
+{
 
   term: {
     // checkUtf8Encoding requires the use of cursor position reports, which are not supported on all terminals.
@@ -54,6 +54,7 @@ Report your issue on Xibalba BBS, hop in #enigma-bbs on FreeNode and chat, or
 ```
 
 In addition to these, there are also new options for `term.cp437TermList` and `term.utf8TermList`. Under most circumstances these should not need to be changed. If you want to customize these lists, more information is available in `config_default.js`
+* To enable the new Waiting for Caller (WFC) support, please see [WFC](docs/modding/wfc.md).
 
 # 0.0.11-beta to 0.0.12-beta
 * Be aware that `master` is now mainline! This means all `git pull`'s will yield the latest version. See [WHATSNEW](WHATSNEW.md) for more information.

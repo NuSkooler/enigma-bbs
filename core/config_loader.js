@@ -69,7 +69,7 @@ module.exports = class ConfigLoader {
                             defaultConfig,
                             config,
                             (defaultVal, configVal, key, target, source) => {
-                                var path;
+                                let path;
                                 while (true) {
                                     //  eslint-disable-line no-constant-condition
                                     if (!stack.length) {

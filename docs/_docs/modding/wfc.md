@@ -16,7 +16,7 @@ The system allows any user with the proper security to access the WFC / system o
 3. User ID of 1 (root/admin)
 4. The user belongs to the `wfc` group.
 
-:information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group.
+> :information_source: Due to the above, the WFC screen is **disabled** by default as at a minimum, you'll need to add your user to the `wfc` group.
 
 To change the ACS required, specify a alternative `acs` in the `config` block. For example:
 ```hjson
@@ -28,7 +28,7 @@ mainMenuWaitingForCaller: {
 }
 ```
 
-:information_source: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
+> :notebook: ENiGMA½ will enforce ACS of at least `SC` (secure connection)
 
 ## Theming
 The following MCI codes are available:
@@ -98,4 +98,4 @@ The following MCI codes are available:
     * `visIndicator`: Is the current user visible? Displayed via `statusVisibleIndicators` or system theme. See also [Themes](../art/themes.md).
 
 
-:information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.
+> :information_source: While [Standard MCI](../art/mci.md) codes work on any menu, they will **not** refresh. For values that may change over time, please use the custom format values above.

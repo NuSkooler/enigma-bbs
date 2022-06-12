@@ -129,7 +129,7 @@ exports.getModule = class BBSLinkModule extends MenuModule {
                         '/auth.php?key=' + randomKey,
                         headers,
                         function resp(err, body) {
-                            var status = body.trim();
+                            const status = body.trim();
 
                             if ('complete' === status) {
                                 return callback(null);

@@ -2,9 +2,6 @@
 /* eslint-disable no-console */
 'use strict';
 
-//var SegfaultHandler = require('segfault-handler');
-//SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
-
 //  ENiGMA½
 const conf = require('./config.js');
 const logger = require('./logger.js');
