@@ -257,44 +257,42 @@ function ViewController(options) {
         }
     };
 
-    this.applyViewConfig = function (config, cb) {
+    this.applyViewConfig = function(config, cb) {
         let highestId = 1;
         let submitId;
         let initialFocusId = 1;
 
-        async.each(
-            Object.keys(config.mci || {}),
-            function entry(mci, nextItem) {
-                const mciMatch = mci.match(MCI_REGEXP); //  :TODO: How to handle auto-generated IDs????
-                if (null === mciMatch) {
-                    self.client.log.warn({ mci: mci }, 'Unable to parse MCI code');
-                    return;
-                }
+        async.each(Object.keys(config.mci || {}), function entry(mci, nextItem) {
+            const mciMatch = mci.match(MCI_REGEXP); //  :TODO: How to handle auto-generated IDs????
+            if(null === mciMatch) {
+                self.client.log.warn( { mci : mci }, 'Unable to parse MCI code');
+                return;
+            }
 
-                const viewId = parseInt(mciMatch[2]);
-                assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]); //  shouldn't be possible with RegExp used
+            const viewId = parseInt(mciMatch[2]);
+            assert(!isNaN(viewId), 'Cannot parse view ID: ' + mciMatch[2]); //  shouldn't be possible with RegExp used
 
-                if (viewId > highestId) {
-                    highestId = viewId;
-                }
+            if(viewId > highestId) {
+                highestId = viewId;
+            }
 
-                const view = self.getView(viewId);
+            const view = self.getView(viewId);
 
             if(!view) {
                 return nextItem(null);
             }
 
-                const mciConf = config.mci[mci];
+            const mciConf = config.mci[mci];
 
-                self.setViewPropertiesFromMCIConf(view, mciConf);
+            self.setViewPropertiesFromMCIConf(view, mciConf);
 
-                if (mciConf.focus) {
-                    initialFocusId = viewId;
-                }
+            if(mciConf.focus) {
+                initialFocusId = viewId;
+            }
 
-                if (true === view.submit) {
-                    submitId = viewId;
-                }
+            if(true === view.submit) {
+                submitId = viewId;
+            }
 
             nextItem(null);
         },
@@ -305,10 +303,10 @@ function ViewController(options) {
                 if(highestIdView) {
                     highestIdView.submit = true;
                 }
-
-                return cb(err, { initialFocusId: initialFocusId });
             }
-        );
+
+            return cb(err, { initialFocusId : initialFocusId } );
+        });
     };
 
     //  method for comparing submitted form data to configuration entries

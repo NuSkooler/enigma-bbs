@@ -364,7 +364,6 @@ exports.ThemeManager = class ThemeManager {
                 const format = Config().theme.timeFormat[style] || 'h:mm a';
                 return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
             },
-<<<<<<< HEAD
             getDateTimeFormat : function(style = 'short') {
                 const format = Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
                 return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
@@ -376,16 +375,6 @@ exports.ThemeManager = class ThemeManager {
             getStatusVisibleIndicators : function() {
                 const format = Config().theme.statusVisibleIndicators || [ 'Y', 'N' ];
                 return _.get(theme, 'customization.defaults.statusVisibleIndicators', format);
-=======
-            getDateTimeFormat: function (style = 'short') {
-                const format =
-                    Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
-                return _.get(
-                    theme,
-                    `customization.defaults.dateTimeFormat.${style}`,
-                    format
-                );
->>>>>>> 7c01946d6e8ac0023e9692744803466aa96cbadf
             },
         };
     }

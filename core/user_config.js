@@ -152,7 +152,8 @@ exports.getModule = class UserConfigModule extends MenuModule {
                             } else {
                                 self.client.log.info(`User "${self.client.user.username}" updated authentication credentials`);
                             }
-                        );
+                            return self.prevMenu(cb);
+                        });
                     } else {
                         return self.prevMenu(cb);
                     }
