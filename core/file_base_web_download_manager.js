@@ -188,7 +188,7 @@ exports.getModule = class FileBaseWebDownloadQueueManager extends MenuModule {
                     return self.displayArtAndPrepViewController(
                         'queueManager',
                         FormIds.queueManager,
-                        { clearScreen : clearScreen },
+                        { clearScreen: clearScreen },
                         callback
                     );
                 },

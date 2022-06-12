@@ -351,7 +351,7 @@ exports.getModule = class FileAreaList extends MenuModule {
                     top: artData.mciMap.XY2.position,
                     bottom: artData.mciMap.XY3.position,
                 };
-            } catch(e) {
+            } catch (e) {
                 throw Errors.DoesNotExist('Missing XY2 and XY3 position indicators!');
             }
         }
@@ -380,7 +380,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     return self.displayArtAndPrepViewController(
                         'browse',
                         FormIds.browse,
-                        { clearScreen : clearScreen, artDataPrep: self.displayArtDataPrepCallback.bind(self) },
+                        {
+                            clearScreen: clearScreen,
+                            artDataPrep: self.displayArtDataPrepCallback.bind(self),
+                        },
                         callback
                     );
                 },
@@ -473,7 +476,10 @@ exports.getModule = class FileAreaList extends MenuModule {
                     return self.displayArtAndPrepViewController(
                         'details',
                         FormIds.details,
-                        { clearScreen : true, artDataPrep: self.displayArtDataPrepCallback.bind(self) },
+                        {
+                            clearScreen: true,
+                            artDataPrep: self.displayArtDataPrepCallback.bind(self),
+                        },
                         callback
                     );
                 },
@@ -725,9 +731,9 @@ exports.getModule = class FileAreaList extends MenuModule {
                         name,
                         FormIds[name],
                         {
-                            clearScreen : false,
-                            noInput : true,
-                            artDataPrep: self.displayArtDataPrepCallback.bind(self)
+                            clearScreen: false,
+                            noInput: true,
+                            artDataPrep: self.displayArtDataPrepCallback.bind(self),
                         },
                         callback
                     );

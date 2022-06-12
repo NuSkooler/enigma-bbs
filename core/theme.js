@@ -364,17 +364,30 @@ exports.ThemeManager = class ThemeManager {
                 const format = Config().theme.timeFormat[style] || 'h:mm a';
                 return _.get(theme, `customization.defaults.timeFormat.${style}`, format);
             },
-            getDateTimeFormat : function(style = 'short') {
-                const format = Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
-                return _.get(theme, `customization.defaults.dateTimeFormat.${style}`, format);
+            getDateTimeFormat: function (style = 'short') {
+                const format =
+                    Config().theme.dateTimeFormat[style] || 'MM/DD/YYYY h:mm a';
+                return _.get(
+                    theme,
+                    `customization.defaults.dateTimeFormat.${style}`,
+                    format
+                );
             },
-            getStatusAvailIndicators : function() {
-                const format = Config().theme.statusAvailableIndicators || [ 'Y', 'N' ];
-                return _.get(theme, 'customization.defaults.statusAvailableIndicators', format);
+            getStatusAvailIndicators: function () {
+                const format = Config().theme.statusAvailableIndicators || ['Y', 'N'];
+                return _.get(
+                    theme,
+                    'customization.defaults.statusAvailableIndicators',
+                    format
+                );
             },
-            getStatusVisibleIndicators : function() {
-                const format = Config().theme.statusVisibleIndicators || [ 'Y', 'N' ];
-                return _.get(theme, 'customization.defaults.statusVisibleIndicators', format);
+            getStatusVisibleIndicators: function () {
+                const format = Config().theme.statusVisibleIndicators || ['Y', 'N'];
+                return _.get(
+                    theme,
+                    'customization.defaults.statusVisibleIndicators',
+                    format
+                );
             },
         };
     }

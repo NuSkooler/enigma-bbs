@@ -32,7 +32,10 @@ module.exports = class Door {
             });
 
             conn.once('error', err => {
-                this.client.log.warn( { error : err.message }, 'Door socket server connection');
+                this.client.log.warn(
+                    { error: err.message },
+                    'Door socket server connection'
+                );
                 return this.restoreIo(conn);
             });
 
@@ -73,7 +76,7 @@ module.exports = class Door {
         const args = exeInfo.args.map(arg => stringFormat(arg, formatObj));
 
         this.client.log.info(
-            { cmd : exeInfo.cmd, args, io : this.io },
+            { cmd: exeInfo.cmd, args, io: this.io },
             `Executing external door (${exeInfo.name})`
         );
 

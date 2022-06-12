@@ -108,14 +108,22 @@ exports.getModule = class AbracadabraModule extends MenuModule {
                                 name: self.config.name,
                                 activeCount: activeDoorNodeInstances[self.config.name],
                             },
-                            `Too many active instances of door "${self.config.name}"`);
+                            `Too many active instances of door "${self.config.name}"`
+                        );
 
-                        if(_.isString(self.config.tooManyArt)) {
-                            theme.displayThemeArt( { client : self.client, name : self.config.tooManyArt }, function displayed() {
-                                self.pausePrompt( () => {
-                                    return callback(Errors.AccessDenied('Too many active instances'));
-                                });
-                            });
+                        if (_.isString(self.config.tooManyArt)) {
+                            theme.displayThemeArt(
+                                { client: self.client, name: self.config.tooManyArt },
+                                function displayed() {
+                                    self.pausePrompt(() => {
+                                        return callback(
+                                            Errors.AccessDenied(
+                                                'Too many active instances'
+                                            )
+                                        );
+                                    });
+                                }
+                            );
                         } else {
                             self.client.term.write(
                                 '\nToo many active instances. Try again later.\n'
@@ -171,14 +179,14 @@ exports.getModule = class AbracadabraModule extends MenuModule {
         this.client.term.write(ansi.resetScreen());
 
         const exeInfo = {
-            name            : this.config.name,
-            cmd             : this.config.cmd,
-            cwd             : this.config.cwd || paths.dirname(this.config.cmd),
-            args            : this.config.args,
-            io              : this.config.io || 'stdio',
-            encoding        : this.config.encoding || 'cp437',
-            node            : this.client.node,
-            env             : this.config.env,
+            name: this.config.name,
+            cmd: this.config.cmd,
+            cwd: this.config.cwd || paths.dirname(this.config.cmd),
+            args: this.config.args,
+            io: this.config.io || 'stdio',
+            encoding: this.config.encoding || 'cp437',
+            node: this.client.node,
+            env: this.config.env,
         };
 
         if (this.dropFile) {

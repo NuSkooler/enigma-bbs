@@ -1,19 +1,17 @@
 /* jslint node: true */
 'use strict';
 
-const sysDb     = require('./database.js').dbs.system;
-const {
-    getISOTimestampString
-}               = require('./database.js');
-const Errors    = require('./enig_error.js');
-const SysProps  = require('./system_property.js');
+const sysDb = require('./database.js').dbs.system;
+const { getISOTimestampString } = require('./database.js');
+const Errors = require('./enig_error.js');
+const SysProps = require('./system_property.js');
 const UserProps = require('./user_property');
 const Message = require('./message');
 
 //  deps
-const _         = require('lodash');
-const moment    = require('moment');
-const SysInfo   = require('systeminformation');
+const _ = require('lodash');
+const moment = require('moment');
+const SysInfo = require('systeminformation');
 
 /*
     System Event Log & Stats
@@ -171,7 +169,7 @@ class StatLog {
         return parseInt(this.getUserStat(user, statName)) || 0;
     }
 
-    getUserStatNumByClient(client, statName, ttlSeconds=10) {
+    getUserStatNumByClient(client, statName, ttlSeconds = 10) {
         const stat = this.getUserStatNum(client.user, statName);
         this._refreshUserStat(client, statName, ttlSeconds);
         return stat;
@@ -359,8 +357,8 @@ class StatLog {
 
     _refreshSystemStat(statName) {
         switch (statName) {
-            case SysProps.SystemLoadStats :
-            case SysProps.SystemMemoryStats :
+            case SysProps.SystemLoadStats:
+            case SysProps.SystemMemoryStats:
                 return this._refreshSysInfoStats();
         }
     }
@@ -374,23 +372,27 @@ class StatLog {
         this.lastSysInfoStatsRefresh = now;
 
         const basicSysInfo = {
-            mem         : 'total, free',
-            currentLoad : 'avgLoad, currentLoad',
+            mem: 'total, free',
+            currentLoad: 'avgLoad, currentLoad',
         };
 
         SysInfo.get(basicSysInfo)
             .then(sysInfo => {
                 const memStats = {
-                    totalBytes    : sysInfo.mem.total,
-                    freeBytes     : sysInfo.mem.free,
+                    totalBytes: sysInfo.mem.total,
+                    freeBytes: sysInfo.mem.free,
                 };
 
                 this.setNonPersistentSystemStat(SysProps.SystemMemoryStats, memStats);
 
                 const loadStats = {
                     //  Not avail on BSD, yet.
-                    average : parseFloat(_.get(sysInfo, 'currentLoad.avgLoad', 0).toFixed(2)),
-                    current : parseFloat(_.get(sysInfo, 'currentLoad.currentLoad', 0).toFixed(2)),
+                    average: parseFloat(
+                        _.get(sysInfo, 'currentLoad.avgLoad', 0).toFixed(2)
+                    ),
+                    current: parseFloat(
+                        _.get(sysInfo, 'currentLoad.currentLoad', 0).toFixed(2)
+                    ),
                 };
 
                 this.setNonPersistentSystemStat(SysProps.SystemLoadStats, loadStats);
@@ -401,13 +403,23 @@ class StatLog {
     }
 
     _refreshUserStat(client, statName, ttlSeconds) {
-        switch(statName) {
+        switch (statName) {
             case UserProps.NewPrivateMailCount:
-                this._wrapUserRefreshWithCachedTTL(client, statName, this._refreshUserPrivateMailCount, ttlSeconds);
+                this._wrapUserRefreshWithCachedTTL(
+                    client,
+                    statName,
+                    this._refreshUserPrivateMailCount,
+                    ttlSeconds
+                );
                 break;
 
             case UserProps.NewAddressedToMessageCount:
-                this._wrapUserRefreshWithCachedTTL(client, statName, this._refreshUserNewAddressedToMessageCount, ttlSeconds);
+                this._wrapUserRefreshWithCachedTTL(
+                    client,
+                    statName,
+                    this._refreshUserNewAddressedToMessageCount,
+                    ttlSeconds
+                );
                 break;
         }
     }
@@ -427,17 +439,21 @@ class StatLog {
 
     _refreshUserPrivateMailCount(client) {
         const MsgArea = require('./message_area');
-        MsgArea.getNewMessageCountInAreaForUser(client.user.userId, Message.WellKnownAreaTags.Private, (err, count) => {
-            if (!err) {
-                client.user.setProperty(UserProps.NewPrivateMailCount, count);
+        MsgArea.getNewMessageCountInAreaForUser(
+            client.user.userId,
+            Message.WellKnownAreaTags.Private,
+            (err, count) => {
+                if (!err) {
+                    client.user.setProperty(UserProps.NewPrivateMailCount, count);
+                }
             }
-        });
+        );
     }
 
     _refreshUserNewAddressedToMessageCount(client) {
         const MsgArea = require('./message_area');
         MsgArea.getNewMessageCountAddressedToUser(client, (err, count) => {
-            if(!err) {
+            if (!err) {
                 client.user.setProperty(UserProps.NewAddressedToMessageCount, count);
             }
         });
@@ -445,21 +461,19 @@ class StatLog {
 
     _findLogEntries(logTable, filter, cb) {
         filter = filter || {};
-        if(!_.isString(filter.logName)) {
+        if (!_.isString(filter.logName)) {
             return cb(Errors.MissingParam('filter.logName is required'));
         }
 
-        filter.resultType   = filter.resultType || 'obj';
-        filter.order        = filter.order || 'timestamp';
+        filter.resultType = filter.resultType || 'obj';
+        filter.order = filter.order || 'timestamp';
 
         let sql;
-        if('count' === filter.resultType) {
-            sql =
-                `SELECT COUNT() AS count
+        if ('count' === filter.resultType) {
+            sql = `SELECT COUNT() AS count
                 FROM ${logTable}`;
         } else {
-            sql =
-                `SELECT timestamp, log_value
+            sql = `SELECT timestamp, log_value
                 FROM ${logTable}`;
         }
 
@@ -473,40 +487,42 @@ class StatLog {
             sql += ` AND session_id = ${filter.sessionId}`;
         }
 
-        if(filter.date) {
+        if (filter.date) {
             filter.date = moment(filter.date);
-            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format('YYYY-MM-DD')}")`;
+            sql += ` AND DATE(timestamp, "localtime") = DATE("${filter.date.format(
+                'YYYY-MM-DD'
+            )}")`;
         }
 
-        if('count' !== filter.resultType) {
-            switch(filter.order) {
-                case 'timestamp' :
-                case 'timestamp_asc' :
+        if ('count' !== filter.resultType) {
+            switch (filter.order) {
+                case 'timestamp':
+                case 'timestamp_asc':
                     sql += ' ORDER BY timestamp ASC';
                     break;
 
-                case 'timestamp_desc' :
+                case 'timestamp_desc':
                     sql += ' ORDER BY timestamp DESC';
                     break;
 
-                case 'random'   :
+                case 'random':
                     sql += ' ORDER BY RANDOM()';
                     break;
             }
         }
 
-        if(_.isNumber(filter.limit) && 0 !== filter.limit) {
+        if (_.isNumber(filter.limit) && 0 !== filter.limit) {
             sql += ` LIMIT ${filter.limit}`;
         }
 
         sql += ';';
 
-        if('count' === filter.resultType) {
-            sysDb.get(sql, [ filter.logName ], (err, row) => {
+        if ('count' === filter.resultType) {
+            sysDb.get(sql, [filter.logName], (err, row) => {
                 return cb(err, row ? row.count : 0);
             });
         } else {
-            sysDb.all(sql, [ filter.logName ], (err, rows) => {
+            sysDb.all(sql, [filter.logName], (err, rows) => {
                 return cb(err, rows);
             });
         }

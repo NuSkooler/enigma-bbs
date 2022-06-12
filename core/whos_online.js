@@ -2,11 +2,12 @@
 'use strict';
 
 //  ENiGMA½
-const { MenuModule }            = require('./menu_module.js');
+const { MenuModule } = require('./menu_module.js');
 const {
     getActiveConnectionList,
-    UserVisibleConnections } = require('./client_connections.js');
-const { Errors }                = require('./enig_error.js');
+    UserVisibleConnections,
+} = require('./client_connections.js');
+const { Errors } = require('./enig_error.js');
 
 //  deps
 const async = require('async');
@@ -51,9 +52,14 @@ exports.getModule = class WhosOnlineModule extends MenuModule {
                             );
                         }
 
-                        const onlineList = getActiveConnectionList(UserVisibleConnections).slice(0, onlineListView.height).map(
-                            oe => Object.assign(oe, { text : oe.userName, timeOn : _.upperFirst(oe.timeOn.humanize()) })
-                        );
+                        const onlineList = getActiveConnectionList(UserVisibleConnections)
+                            .slice(0, onlineListView.height)
+                            .map(oe =>
+                                Object.assign(oe, {
+                                    text: oe.userName,
+                                    timeOn: _.upperFirst(oe.timeOn.humanize()),
+                                })
+                            );
 
                         onlineListView.setItems(onlineList);
                         onlineListView.redraw();

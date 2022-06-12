@@ -24,29 +24,29 @@ exports.getAvailableMessageConferences = getAvailableMessageConferences;
 exports.getSortedAvailMessageConferences = getSortedAvailMessageConferences;
 exports.getAvailableMessageAreasByConfTag = getAvailableMessageAreasByConfTag;
 exports.getSortedAvailMessageAreasByConfTag = getSortedAvailMessageAreasByConfTag;
-exports.getAllAvailableMessageAreaTags      = getAllAvailableMessageAreaTags;
-exports.getDefaultMessageConferenceTag      = getDefaultMessageConferenceTag;
-exports.getDefaultMessageAreaTagByConfTag   = getDefaultMessageAreaTagByConfTag;
-exports.getSuitableMessageConfAndAreaTags   = getSuitableMessageConfAndAreaTags;
-exports.getMessageConferenceByTag           = getMessageConferenceByTag;
-exports.getMessageAreaByTag                 = getMessageAreaByTag;
-exports.getMessageConfTagByAreaTag          = getMessageConfTagByAreaTag;
-exports.changeMessageConference             = changeMessageConference;
-exports.changeMessageArea                   = changeMessageArea;
-exports.hasMessageConfAndAreaRead           = hasMessageConfAndAreaRead;
-exports.hasMessageConfAndAreaWrite          = hasMessageConfAndAreaWrite;
-exports.filterMessageAreaTagsByReadACS      = filterMessageAreaTagsByReadACS;
-exports.filterMessageListByReadACS          = filterMessageListByReadACS;
-exports.tempChangeMessageConfAndArea        = tempChangeMessageConfAndArea;
-exports.getMessageListForArea               = getMessageListForArea;
-exports.getNewMessageCountInAreaForUser     = getNewMessageCountInAreaForUser;
-exports.getNewMessageCountAddressedToUser   = getNewMessageCountAddressedToUser;
-exports.getNewMessagesInAreaForUser         = getNewMessagesInAreaForUser;
-exports.getMessageIdNewerThanTimestampByArea    = getMessageIdNewerThanTimestampByArea;
-exports.getMessageAreaLastReadId            = getMessageAreaLastReadId;
-exports.updateMessageAreaLastReadId         = updateMessageAreaLastReadId;
-exports.persistMessage                      = persistMessage;
-exports.trimMessageAreasScheduledEvent      = trimMessageAreasScheduledEvent;
+exports.getAllAvailableMessageAreaTags = getAllAvailableMessageAreaTags;
+exports.getDefaultMessageConferenceTag = getDefaultMessageConferenceTag;
+exports.getDefaultMessageAreaTagByConfTag = getDefaultMessageAreaTagByConfTag;
+exports.getSuitableMessageConfAndAreaTags = getSuitableMessageConfAndAreaTags;
+exports.getMessageConferenceByTag = getMessageConferenceByTag;
+exports.getMessageAreaByTag = getMessageAreaByTag;
+exports.getMessageConfTagByAreaTag = getMessageConfTagByAreaTag;
+exports.changeMessageConference = changeMessageConference;
+exports.changeMessageArea = changeMessageArea;
+exports.hasMessageConfAndAreaRead = hasMessageConfAndAreaRead;
+exports.hasMessageConfAndAreaWrite = hasMessageConfAndAreaWrite;
+exports.filterMessageAreaTagsByReadACS = filterMessageAreaTagsByReadACS;
+exports.filterMessageListByReadACS = filterMessageListByReadACS;
+exports.tempChangeMessageConfAndArea = tempChangeMessageConfAndArea;
+exports.getMessageListForArea = getMessageListForArea;
+exports.getNewMessageCountInAreaForUser = getNewMessageCountInAreaForUser;
+exports.getNewMessageCountAddressedToUser = getNewMessageCountAddressedToUser;
+exports.getNewMessagesInAreaForUser = getNewMessagesInAreaForUser;
+exports.getMessageIdNewerThanTimestampByArea = getMessageIdNewerThanTimestampByArea;
+exports.getMessageAreaLastReadId = getMessageAreaLastReadId;
+exports.updateMessageAreaLastReadId = updateMessageAreaLastReadId;
+exports.persistMessage = persistMessage;
+exports.trimMessageAreasScheduledEvent = trimMessageAreasScheduledEvent;
 
 function startup(cb) {
     //  by default, private messages are NOT included
@@ -536,20 +536,30 @@ function getNewMessageCountInAreaForUser(userId, areaTag, cb) {
 // that are addressed to that user (ie: matching username)
 // Does NOT Include private messages.
 function getNewMessageCountAddressedToUser(client, cb) {
-    const areaTags = getAllAvailableMessageAreaTags(client).filter(areaTag => areaTag !== Message.WellKnownAreaTags.Private);
+    const areaTags = getAllAvailableMessageAreaTags(client).filter(
+        areaTag => areaTag !== Message.WellKnownAreaTags.Private
+    );
 
     let newMessageCount = 0;
-    async.forEach(areaTags, (areaTag, nextAreaTag) => {
-        getMessageAreaLastReadId(client.user.userId, areaTag, (_, lastMessageId) => {
-            lastMessageId = lastMessageId || 0;
-            getNewMessageCountInAreaForUser(client.user.userId, areaTag, (err, count) => {
-                newMessageCount += count;
-                return nextAreaTag(err);
+    async.forEach(
+        areaTags,
+        (areaTag, nextAreaTag) => {
+            getMessageAreaLastReadId(client.user.userId, areaTag, (_, lastMessageId) => {
+                lastMessageId = lastMessageId || 0;
+                getNewMessageCountInAreaForUser(
+                    client.user.userId,
+                    areaTag,
+                    (err, count) => {
+                        newMessageCount += count;
+                        return nextAreaTag(err);
+                    }
+                );
             });
-        });
-    }, () => {
-        return cb(null, newMessageCount);
-    });
+        },
+        () => {
+            return cb(null, newMessageCount);
+        }
+    );
 }
 
 function getNewMessagesInAreaForUser(userId, areaTag, cb) {
@@ -572,10 +582,8 @@ function getNewMessagesInAreaForUser(userId, areaTag, cb) {
     });
 }
 
-
-function getMessageListForArea(client, areaTag, filter, cb)
-{
-    if(!cb && _.isFunction(filter)) {
+function getMessageListForArea(client, areaTag, filter, cb) {
+    if (!cb && _.isFunction(filter)) {
         cb = filter;
         filter = {
             areaTag,

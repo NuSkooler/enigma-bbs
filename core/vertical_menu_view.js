@@ -9,16 +9,16 @@ const formatString = require('./string_format');
 const pipeToAnsi = require('./color_codes.js').pipeToAnsi;
 
 //  deps
-const util          = require('util');
-const _             = require('lodash');
+const util = require('util');
+const _ = require('lodash');
 const { throws } = require('assert');
 
 exports.VerticalMenuView = VerticalMenuView;
 
 function VerticalMenuView(options) {
-    options.cursor          = options.cursor || 'hide';
-    options.justify         = options.justify || 'left';
-    this.focusItemAtTop     = true;
+    options.cursor = options.cursor || 'hide';
+    options.justify = options.justify || 'left';
+    this.focusItemAtTop = true;
 
     MenuView.call(this, options);
 
@@ -53,8 +53,8 @@ function VerticalMenuView(options) {
         const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
 
         self.viewWindow = {
-            top     : topIndex,
-            bottom  : Math.min(topIndex + self.maxVisibleItems, self.items.length) - 1,
+            top: topIndex,
+            bottom: Math.min(topIndex + self.maxVisibleItems, self.items.length) - 1,
         };
     };
 
@@ -109,14 +109,17 @@ function VerticalMenuView(options) {
         this.setRenderCacheItem(index, text, item.focused);
     };
 
-    this.drawRemovedItem = function(index) {
+    this.drawRemovedItem = function (index) {
         if (index <= this.items.length - 1) {
             return;
         }
         const row = this.position.row + index;
-        this.client.term.rawWrite(`${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(this.dimens.width)}`)
+        this.client.term.rawWrite(
+            `${ansi.goto(row, this.position.col)}${ansi.normal()}${this.fillChar.repeat(
+                this.dimens.width
+            )}`
+        );
     };
-
 }
 
 util.inherits(VerticalMenuView, MenuView);
@@ -188,15 +191,15 @@ VerticalMenuView.prototype.setFocus = function (focused) {
 VerticalMenuView.prototype.setFocusItemIndex = function (index) {
     VerticalMenuView.super_.prototype.setFocusItemIndex.call(this, index); //  sets this.focusedItemIndex
 
-    const remainAfterFocus = this.focusItemAtTop ?
-        this.items.length - index :
-        this.items.length;
-    if(remainAfterFocus >= this.maxVisibleItems) {
+    const remainAfterFocus = this.focusItemAtTop
+        ? this.items.length - index
+        : this.items.length;
+    if (remainAfterFocus >= this.maxVisibleItems) {
         const topIndex = (this.focusItemAtTop ? throws.focusedItemIndex : 0) || 0;
 
         this.viewWindow = {
-            top     : topIndex,
-            bottom  : Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1
+            top: topIndex,
+            bottom: Math.min(topIndex + this.maxVisibleItems, this.items.length) - 1,
         };
 
         this.positionCacheExpired = false; //  skip standard behavior
@@ -407,7 +410,7 @@ VerticalMenuView.prototype.setItemSpacing = function (itemSpacing) {
     this.positionCacheExpired = true;
 };
 
-VerticalMenuView.prototype.setPropertyValue = function(propName, value) {
+VerticalMenuView.prototype.setPropertyValue = function (propName, value) {
     if (propName === 'focusItemAtTop' && _.isBoolean(value)) {
         this.focusItemAtTop = value;
     }

@@ -15,11 +15,11 @@ const SysProps = require('./system_property.js');
 const SysLogKeys = require('./system_log.js');
 
 //  deps
-const packageJson           = require('../package.json');
-const os                    = require('os');
-const _                     = require('lodash');
-const moment                = require('moment');
-const async                 = require('async');
+const packageJson = require('../package.json');
+const os = require('os');
+const _ = require('lodash');
+const moment = require('moment');
+const async = require('async');
 
 exports.getPredefinedMCIValue = getPredefinedMCIValue;
 exports.init = init;
@@ -27,14 +27,14 @@ exports.init = init;
 function init(cb) {
     async.series(
         [
-            (callback) => {
+            callback => {
                 return setNextRandomRumor(callback);
             },
-            (callback) => {
+            callback => {
                 //  by fetching a memory or load we'll force a refresh now
                 StatLog.getSystemStat(SysProps.SystemMemoryStats);
                 return callback(null);
-            }
+            },
         ],
         err => {
             return cb(err);
@@ -98,38 +98,87 @@ const PREDEFINED_MCI_GENERATORS = {
     },
 
     //  +op info
-    SN  : function opUserName() { return StatLog.getSystemStat(SysProps.SysOpUsername); },
-    SR  : function opRealName() { return StatLog.getSystemStat(SysProps.SysOpRealName); },
-    SL  : function opLocation() { return StatLog.getSystemStat(SysProps.SysOpLocation); },
-    SA  : function opAffils() { return StatLog.getSystemStat(SysProps.SysOpAffiliations); },
-    SS  : function opSex() { return StatLog.getSystemStat(SysProps.SysOpSex); },
-    SE  : function opEmail() { return StatLog.getSystemStat(SysProps.SysOpEmailAddress); },
+    SN: function opUserName() {
+        return StatLog.getSystemStat(SysProps.SysOpUsername);
+    },
+    SR: function opRealName() {
+        return StatLog.getSystemStat(SysProps.SysOpRealName);
+    },
+    SL: function opLocation() {
+        return StatLog.getSystemStat(SysProps.SysOpLocation);
+    },
+    SA: function opAffils() {
+        return StatLog.getSystemStat(SysProps.SysOpAffiliations);
+    },
+    SS: function opSex() {
+        return StatLog.getSystemStat(SysProps.SysOpSex);
+    },
+    SE: function opEmail() {
+        return StatLog.getSystemStat(SysProps.SysOpEmailAddress);
+    },
 
     //
     //  Current user / session
     //
-    UN  : function userName(client) { return client.user.username; },
-    UI  : function userId(client) { return client.user.userId.toString(); },
-    UG  : function groups(client) { return _.values(client.user.groups).join(', '); },
-    UR  : function realName(client) { return userStatAsString(client, UserProps.RealName, ''); },
-    LO  : function location(client) { return userStatAsString(client, UserProps.Location, ''); },
-    UA  : function age(client) { return client.user.getAge().toString(); },
-    BD  : function birthdate(client) {  //  iNiQUiTY
-        return moment(client.user.properties[UserProps.Birthdate]).format(client.currentTheme.helpers.getDateFormat());
+    UN: function userName(client) {
+        return client.user.username;
     },
-    US  : function sex(client) { return userStatAsString(client, UserProps.Sex, ''); },
-    UE  : function emailAddress(client) { return userStatAsString(client, UserProps.EmailAddress, ''); },
-    UW  : function webAddress(client) { return userStatAsString(client, UserProps.WebAddress, ''); },
-    UF  : function affils(client) { return userStatAsString(client, UserProps.Affiliations, ''); },
-    UT  : function themeName(client) {
-        return _.get(client, 'currentTheme.info.name', userStatAsString(client, UserProps.ThemeId, ''));
+    UI: function userId(client) {
+        return client.user.userId.toString();
     },
-    UD  : function themeId(client) { return userStatAsString(client, UserProps.ThemeId, ''); },
-    UC  : function loginCount(client) { return userStatAsCountString(client, UserProps.LoginCount, 0); },
-    ND  : function connectedNode(client) { return client.node.toString(); },
-    IP  : function clientIpAddress(client) { return client.friendlyRemoteAddress() },
-    ST  : function serverName(client) { return client.session.serverName; },
-    FN  : function activeFileBaseFilterName(client) {
+    UG: function groups(client) {
+        return _.values(client.user.groups).join(', ');
+    },
+    UR: function realName(client) {
+        return userStatAsString(client, UserProps.RealName, '');
+    },
+    LO: function location(client) {
+        return userStatAsString(client, UserProps.Location, '');
+    },
+    UA: function age(client) {
+        return client.user.getAge().toString();
+    },
+    BD: function birthdate(client) {
+        //  iNiQUiTY
+        return moment(client.user.properties[UserProps.Birthdate]).format(
+            client.currentTheme.helpers.getDateFormat()
+        );
+    },
+    US: function sex(client) {
+        return userStatAsString(client, UserProps.Sex, '');
+    },
+    UE: function emailAddress(client) {
+        return userStatAsString(client, UserProps.EmailAddress, '');
+    },
+    UW: function webAddress(client) {
+        return userStatAsString(client, UserProps.WebAddress, '');
+    },
+    UF: function affils(client) {
+        return userStatAsString(client, UserProps.Affiliations, '');
+    },
+    UT: function themeName(client) {
+        return _.get(
+            client,
+            'currentTheme.info.name',
+            userStatAsString(client, UserProps.ThemeId, '')
+        );
+    },
+    UD: function themeId(client) {
+        return userStatAsString(client, UserProps.ThemeId, '');
+    },
+    UC: function loginCount(client) {
+        return userStatAsCountString(client, UserProps.LoginCount, 0);
+    },
+    ND: function connectedNode(client) {
+        return client.node.toString();
+    },
+    IP: function clientIpAddress(client) {
+        return client.friendlyRemoteAddress();
+    },
+    ST: function serverName(client) {
+        return client.session.serverName;
+    },
+    FN: function activeFileBaseFilterName(client) {
         const activeFilter = FileBaseFilters.getActiveFilter(client);
         return activeFilter ? activeFilter.name : '(Unknown)';
     },
@@ -234,19 +283,22 @@ const PREDEFINED_MCI_GENERATORS = {
         const minutes = client.user.properties[UserProps.MinutesOnlineTotalCount] || 0;
         return moment.duration(minutes, 'minutes').humanize();
     },
-    NM  : function userNewMessagesAddressedToCount(client) {
-        return StatLog.getUserStatNumByClient(client, UserProps.NewAddressedToMessageCount);
+    NM: function userNewMessagesAddressedToCount(client) {
+        return StatLog.getUserStatNumByClient(
+            client,
+            UserProps.NewAddressedToMessageCount
+        );
     },
-    NP  : function userNewPrivateMailCount(client) {
+    NP: function userNewPrivateMailCount(client) {
         return StatLog.getUserStatNumByClient(client, UserProps.NewPrivateMailCount);
     },
-    IA  : function userStatusAvailableIndicator(client) {
+    IA: function userStatusAvailableIndicator(client) {
         const indicators = client.currentTheme.helpers.getStatusAvailIndicators();
-        return client.user.isAvailable() ? (indicators[0] || 'Y') : (indicators[1] || 'N');
+        return client.user.isAvailable() ? indicators[0] || 'Y' : indicators[1] || 'N';
     },
-    IV  : function userStatusVisibleIndicator(client) {
+    IV: function userStatusVisibleIndicator(client) {
         const indicators = client.currentTheme.helpers.getStatusVisibleIndicators();
-        return client.user.isVisible() ? (indicators[0] || 'Y') : (indicators[1] || 'N');
+        return client.user.isVisible() ? indicators[0] || 'Y' : indicators[1] || 'N';
     },
 
     //
@@ -294,27 +346,37 @@ const PREDEFINED_MCI_GENERATORS = {
             .trim();
     },
 
-    MB  : function totalMemoryBytes() {
-        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || { totalBytes : 0 };
+    MB: function totalMemoryBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {
+            totalBytes: 0,
+        };
         return formatByteSize(stats.totalBytes, true); //  true=withAbbr
     },
-    MF  : function totalMemoryFreeBytes() {
-        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || { freeBytes : 0 };
-        return formatByteSize(stats.freeBytes, true);   //  true=withAbbr
+    MF: function totalMemoryFreeBytes() {
+        const stats = StatLog.getSystemStat(SysProps.SystemMemoryStats) || {
+            freeBytes: 0,
+        };
+        return formatByteSize(stats.freeBytes, true); //  true=withAbbr
     },
-    LA  : function systemLoadAverage() {
-        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { average : 0.0 };
+    LA: function systemLoadAverage() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { average: 0.0 };
         return stats.average.toLocaleString();
     },
-    CL  : function systemCurrentLoad() {
-        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { current : 0 };
+    CL: function systemCurrentLoad() {
+        const stats = StatLog.getSystemStat(SysProps.SystemLoadStats) || { current: 0 };
         return `${stats.current}%`;
     },
-    UU  : function systemUptime() {
+    UU: function systemUptime() {
         return moment.duration(process.uptime(), 'seconds').humanize();
     },
-    NV  : function nodeVersion() { return process.version; },
-    AN  : function activeNodes() { return clientConnections.getActiveConnections(clientConnections.UserVisibleConnections).length.toString(); },
+    NV: function nodeVersion() {
+        return process.version;
+    },
+    AN: function activeNodes() {
+        return clientConnections
+            .getActiveConnections(clientConnections.UserVisibleConnections)
+            .length.toString();
+    },
 
     TC: function totalCalls() {
         return StatLog.getSystemStat(SysProps.LoginCount).toLocaleString();
@@ -333,13 +395,17 @@ const PREDEFINED_MCI_GENERATORS = {
     //
     //  System File Base, Up/Download Info
     //
-    SD  : function systemNumDownloads() { return StatLog.getFriendlySystemStat(SysProps.FileDlTotalCount, 0); },
-    SO  : function systemByteDownload() {
+    SD: function systemNumDownloads() {
+        return StatLog.getFriendlySystemStat(SysProps.FileDlTotalCount, 0);
+    },
+    SO: function systemByteDownload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTotalBytes);
         return formatByteSize(byteSize, true); //  true=withAbbr
     },
-    SU  : function systemNumUploads() { return StatLog.getFriendlySystemStat(SysProps.FileUlTotalCount, 0); },
-    SP  : function systemByteUpload() {
+    SU: function systemNumUploads() {
+        return StatLog.getFriendlySystemStat(SysProps.FileUlTotalCount, 0);
+    },
+    SP: function systemByteUpload() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTotalBytes);
         return formatByteSize(byteSize, true); //  true=withAbbr
     },
@@ -352,49 +418,55 @@ const PREDEFINED_MCI_GENERATORS = {
         const totalBytes = parseInt(_.get(areaStats, 'totalBytes', 0));
         return formatByteSize(totalBytes, true); //  true=withAbbr
     },
-    PT  : function messagesPostedToday() {  //  Obv/2
+    PT: function messagesPostedToday() {
+        //  Obv/2
         return StatLog.getFriendlySystemStat(SysProps.MessagesToday, 0);
     },
-    TP  : function totalMessagesOnSystem() {    //  Obv/2
+    TP: function totalMessagesOnSystem() {
+        //  Obv/2
         return StatLog.getFriendlySystemStat(SysProps.MessageTotalCount, 0);
     },
-    FT  : function totalUploadsToday() {    //  Obv/2
+    FT: function totalUploadsToday() {
+        //  Obv/2
         return StatLog.getFriendlySystemStat(SysProps.FileUlTodayCount, 0);
     },
-    FB  : function totalUploadBytesToday() {
+    FB: function totalUploadBytesToday() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileUlTodayBytes);
-        return formatByteSize(byteSize, true);  //  true=withAbbr
+        return formatByteSize(byteSize, true); //  true=withAbbr
     },
-    DD  : function totalDownloadsToday() {  //  iNiQUiTY
+    DD: function totalDownloadsToday() {
+        //  iNiQUiTY
         return StatLog.getFriendlySystemStat(SysProps.FileDlTodayCount, 0);
     },
-    DB  : function totalDownloadBytesToday() {
+    DB: function totalDownloadBytesToday() {
         const byteSize = StatLog.getSystemStatNum(SysProps.FileDlTodayBytes);
-        return formatByteSize(byteSize, true);  //  true=withAbbr
+        return formatByteSize(byteSize, true); //  true=withAbbr
     },
-    NT  : function totalNewUsersToday() {   // Obv/2
+    NT: function totalNewUsersToday() {
+        // Obv/2
         return StatLog.getSystemStatNum(SysProps.NewUsersTodayCount);
     },
 
     //  :TODO: TZ - Average *system* post/call ratio (iNiQUiTY)
     //  :TODO: ?? - Total users on system
 
-    TU  : function totalSystemUsers() {
+    TU: function totalSystemUsers() {
         return StatLog.getSystemStatNum(SysProps.TotalUserCount) || 1;
     },
 
-    LC  : function lastCallerUserName() {   //  Obv/2
+    LC: function lastCallerUserName() {
+        //  Obv/2
         const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
         return lastLogin.userName || 'N/A';
     },
-    LD  : function lastCallerDate(client) {
+    LD: function lastCallerDate(client) {
         const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
         if (!lastLogin.timestamp) {
             return 'N/A';
         }
         return lastLogin.timestamp.format(client.currentTheme.helpers.getDateFormat());
     },
-    LT  : function lastCallerTime(client) {
+    LT: function lastCallerTime(client) {
         const lastLogin = StatLog.getSystemStat(SysProps.LastLogin) || {};
         if (!lastLogin.timestamp) {
             return 'N/A';
@@ -437,8 +509,11 @@ function getPredefinedMCIValue(client, code, extra) {
         let value;
         try {
             value = generator(client, extra);
-        } catch(e) {
-            Log.error( { code : code, exception : e.message }, `Failed generating predefined MCI value (${code})` );
+        } catch (e) {
+            Log.error(
+                { code: code, exception: e.message },
+                `Failed generating predefined MCI value (${code})`
+            );
         }
 
         return value;

@@ -25,13 +25,15 @@ module.exports = class UserInterruptQueue {
             } else if (opts.omit) {
                 omitNodes = [opts.omit];
             }
-            omitNodes = omitNodes.map(n => _.isNumber(n) ? n : n.node);
+            omitNodes = omitNodes.map(n => (_.isNumber(n) ? n : n.node));
             const connOpts = {
                 authUsersOnly: true,
                 visibleOnly: true,
                 availOnly: true,
             };
-            opts.clients = getActiveConnections(connOpts).filter(ac => !omitNodes.includes(ac.node));
+            opts.clients = getActiveConnections(connOpts).filter(
+                ac => !omitNodes.includes(ac.node)
+            );
         }
         if (!Array.isArray(opts.clients)) {
             opts.clients = [opts.clients];

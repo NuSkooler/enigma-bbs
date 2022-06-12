@@ -534,23 +534,22 @@ class FileAreaWebAccess {
                 StatLog.incrementSystemStat(SysProps.FileDlTotalCount, 1);
                 StatLog.incrementSystemStat(SysProps.FileDlTotalBytes, dlBytes);
 
-                    StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayCount, 1);
-                    StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayBytes, dlBytes);
+                StatLog.incrementNonPersistentSystemStat(SysProps.FileDlTodayCount, 1);
+                StatLog.incrementNonPersistentSystemStat(
+                    SysProps.FileDlTodayBytes,
+                    dlBytes
+                );
 
-                    return callback(null, user);
-                },
-                function sendEvent(user, callback) {
-                    Events.emit(
-                        Events.getSystemEvents().UserDownload,
-                        {
-                            user    : user,
-                            files   : fileEntries,
-                        }
-                    );
-                    return callback(null);
-                }
-            ]
-        );
+                return callback(null, user);
+            },
+            function sendEvent(user, callback) {
+                Events.emit(Events.getSystemEvents().UserDownload, {
+                    user: user,
+                    files: fileEntries,
+                });
+                return callback(null);
+            },
+        ]);
     }
 }
 

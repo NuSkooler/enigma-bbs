@@ -46,7 +46,11 @@ exports.getModule = class AreaPostFSEModule extends FullScreenEditorModule {
                     } else {
                         //  note: not logging 'from' here as it's part of client.log.xxxx()
                         self.client.log.info(
-                            { to : msg.toUserName, subject : msg.subject, uuid : msg.messageUuid },
+                            {
+                                to: msg.toUserName,
+                                subject: msg.subject,
+                                uuid: msg.messageUuid,
+                            },
                             `User "${self.client.user.username}" posted message to "${msg.toUserName}" (${msg.areaTag})`
                         );
                     }

@@ -140,20 +140,30 @@ exports.getModule = class UserConfigModule extends MenuModule {
                         return self.prevMenu(cb);
                     }
 
-                    self.client.log.info(`User "${self.client.user.username}" updated configuration`);
+                    self.client.log.info(
+                        `User "${self.client.user.username}" updated configuration`
+                    );
 
                     //
                     //  New password if it's not empty
                     //
-                    if(formData.value.password.length > 0) {
-                        self.client.user.setNewAuthCredentials(formData.value.password, err => {
-                            if(err) {
-                                self.client.log.error( { err : err }, 'Failed storing new authentication credentials');
-                            } else {
-                                self.client.log.info(`User "${self.client.user.username}" updated authentication credentials`);
+                    if (formData.value.password.length > 0) {
+                        self.client.user.setNewAuthCredentials(
+                            formData.value.password,
+                            err => {
+                                if (err) {
+                                    self.client.log.error(
+                                        { err: err },
+                                        'Failed storing new authentication credentials'
+                                    );
+                                } else {
+                                    self.client.log.info(
+                                        `User "${self.client.user.username}" updated authentication credentials`
+                                    );
+                                }
+                                return self.prevMenu(cb);
                             }
-                            return self.prevMenu(cb);
-                        });
+                        );
                     } else {
                         return self.prevMenu(cb);
                     }

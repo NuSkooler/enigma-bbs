@@ -233,11 +233,11 @@ MenuView.prototype.setFocusItemIndex = function (index) {
     this.focusedItemIndex = index;
 };
 
-MenuView.prototype.getFocusItemIndex = function() {
+MenuView.prototype.getFocusItemIndex = function () {
     return this.focusedItemIndex;
 };
 
-MenuView.prototype.onKeyPress = function(ch, key) {
+MenuView.prototype.onKeyPress = function (ch, key) {
     const itemIndex = this.getHotKeyItemIndex(ch);
     if (itemIndex >= 0) {
         this.setFocusItemIndex(itemIndex);

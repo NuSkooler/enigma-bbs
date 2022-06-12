@@ -613,45 +613,48 @@ exports.MenuModule = class MenuModule extends PluginModule {
 
         async.waterfall(
             [
-                (callback) => {
-                    if(options.clearScreen) {
+                callback => {
+                    if (options.clearScreen) {
                         this.client.term.rawWrite(ansi.resetScreen());
                     }
 
                     theme.displayThemedAsset(
                         config.art[name],
                         this.client,
-                        { font : this.menuConfig.font, trailingLF : false },
+                        { font: this.menuConfig.font, trailingLF: false },
                         (err, artData) => {
                             return callback(err, artData);
                         }
                     );
                 },
                 (artData, callback) => {
-                    if(_.isUndefined(this.viewControllers[name])) {
+                    if (_.isUndefined(this.viewControllers[name])) {
                         const vcOpts = {
-                            client      : this.client,
-                            formId      : formId,
+                            client: this.client,
+                            formId: formId,
                         };
 
-                        if(!_.isUndefined(options.noInput)) {
+                        if (!_.isUndefined(options.noInput)) {
                             vcOpts.noInput = options.noInput;
                         }
 
-                        const vc = this.addViewController(name, new ViewController(vcOpts));
+                        const vc = this.addViewController(
+                            name,
+                            new ViewController(vcOpts)
+                        );
 
                         if (_.isFunction(options.artDataPrep)) {
                             try {
                                 options.artDataPrep(name, artData, vc);
-                            } catch(e) {
+                            } catch (e) {
                                 return callback(e);
                             }
                         }
 
                         const loadOpts = {
-                            callingMenu     : this,
-                            mciMap          : artData.mciMap,
-                            formId          : formId,
+                            callingMenu: this,
+                            mciMap: artData.mciMap,
+                            formId: formId,
                         };
 
                         return vc.loadFromMenuConfig(loadOpts, callback);
@@ -815,18 +818,24 @@ exports.MenuModule = class MenuModule extends PluginModule {
     }
 
     //  Various common helpers
-    getDateFormat(defaultStyle='short') {
-        return this.config.dateFormat ||
-            this.client.currentTheme.helpers.getDateFormat(defaultStyle);
+    getDateFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateFormat ||
+            this.client.currentTheme.helpers.getDateFormat(defaultStyle)
+        );
     }
 
-    getTimeFormat(defaultStyle='short') {
-        return this.config.timeFormat ||
-            this.client.currentTheme.helpers.getTimeFormat(defaultStyle);
+    getTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.timeFormat ||
+            this.client.currentTheme.helpers.getTimeFormat(defaultStyle)
+        );
     }
 
-    getDateTimeFormat(defaultStyle='short') {
-        return this.config.dateTimeFormat ||
-            this.client.currentTheme.helpers.getDateTimeFormat(defaultStyle);
+    getDateTimeFormat(defaultStyle = 'short') {
+        return (
+            this.config.dateTimeFormat ||
+            this.client.currentTheme.helpers.getDateTimeFormat(defaultStyle)
+        );
     }
 };

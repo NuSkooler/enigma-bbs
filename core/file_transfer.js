@@ -148,7 +148,10 @@ exports.getModule = class TransferFileModule extends MenuModule {
                     sentFiles.push(f.path);
                 });
 
-                this.client.log.info( { sentFiles : sentFiles }, `User "${self.client.user.username}" uploaded ${sentFiles.length} file(s)` );
+                this.client.log.info(
+                    { sentFiles: sentFiles },
+                    `User "${self.client.user.username}" uploaded ${sentFiles.length} file(s)`
+                );
             }
             return cb(err);
         });

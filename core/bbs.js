@@ -6,14 +6,14 @@
 //SegfaultHandler.registerHandler('enigma-bbs-segfault.log');
 
 //  ENiGMA½
-const conf          = require('./config.js');
-const logger        = require('./logger.js');
-const database      = require('./database.js');
-const resolvePath   = require('./misc_util.js').resolvePath;
-const UserProps     = require('./user_property.js');
-const SysProps      = require('./system_property.js');
-const SysLogKeys    = require('./system_log.js');
-const UserLogNames  = require('./user_log_name');
+const conf = require('./config.js');
+const logger = require('./logger.js');
+const database = require('./database.js');
+const resolvePath = require('./misc_util.js').resolvePath;
+const UserProps = require('./user_property.js');
+const SysProps = require('./system_property.js');
+const SysLogKeys = require('./system_log.js');
+const UserLogNames = require('./user_log_name');
 
 //  deps
 const async = require('async');
@@ -152,7 +152,9 @@ function shutdownSystem() {
         [
             function closeConnections(callback) {
                 const ClientConns = require('./client_connections.js');
-                const activeConnections = ClientConns.getActiveConnections(ClientConns.AllConnections);
+                const activeConnections = ClientConns.getActiveConnections(
+                    ClientConns.AllConnections
+                );
                 let i = activeConnections.length;
                 while (i--) {
                     const activeTerm = activeConnections[i].term;
@@ -327,68 +329,77 @@ function initialize(cb) {
                 const StatLog = require('./stat_log');
 
                 const entries = [
-                    [ UserLogNames.UlFiles,       [ SysProps.FileUlTodayCount,      'count' ] ],
-                    [ UserLogNames.UlFileBytes,   [ SysProps.FileUlTodayBytes,      'obj' ] ],
-                    [ UserLogNames.DlFiles,       [ SysProps.FileDlTodayCount,      'count' ] ],
-                    [ UserLogNames.DlFileBytes,   [ SysProps.FileDlTodayBytes,      'obj' ] ],
-                    [ UserLogNames.NewUser,       [ SysProps.NewUsersTodayCount,    'count' ] ],
+                    [UserLogNames.UlFiles, [SysProps.FileUlTodayCount, 'count']],
+                    [UserLogNames.UlFileBytes, [SysProps.FileUlTodayBytes, 'obj']],
+                    [UserLogNames.DlFiles, [SysProps.FileDlTodayCount, 'count']],
+                    [UserLogNames.DlFileBytes, [SysProps.FileDlTodayBytes, 'obj']],
+                    [UserLogNames.NewUser, [SysProps.NewUsersTodayCount, 'count']],
                 ];
 
-                async.each(entries, (entry, nextEntry) => {
-                    const [ logName, [sysPropName, resultType] ] = entry;
+                async.each(
+                    entries,
+                    (entry, nextEntry) => {
+                        const [logName, [sysPropName, resultType]] = entry;
 
-                    const filter = {
-                        logName,
-                        resultType,
-                        date        : moment(),
-                    };
+                        const filter = {
+                            logName,
+                            resultType,
+                            date: moment(),
+                        };
 
-                    StatLog.findUserLogEntries(filter, (err, stat) => {
-                        if (!err) {
-                            if (resultType === 'obj') {
-                                stat = stat.reduce( (bytes, entry) => bytes + parseInt(entry.log_value) || 0, 0);
+                        StatLog.findUserLogEntries(filter, (err, stat) => {
+                            if (!err) {
+                                if (resultType === 'obj') {
+                                    stat = stat.reduce(
+                                        (bytes, entry) =>
+                                            bytes + parseInt(entry.log_value) || 0,
+                                        0
+                                    );
+                                }
+
+                                StatLog.setNonPersistentSystemStat(sysPropName, stat);
                             }
-
-                            StatLog.setNonPersistentSystemStat(sysPropName, stat);
-                        }
-                        return nextEntry(null);
-                    });
-                },
-                () => {
-                    return callback(null);
-                });
+                            return nextEntry(null);
+                        });
+                    },
+                    () => {
+                        return callback(null);
+                    }
+                );
             },
             function initLastLogin(callback) {
                 const StatLog = require('./stat_log');
-                StatLog.getSystemLogEntries(SysLogKeys.UserLoginHistory, 'timestamp_desc', 1, (err, lastLogin) => {
-                    if (err) {
-                        return callback(null);
-                    }
+                StatLog.getSystemLogEntries(
+                    SysLogKeys.UserLoginHistory,
+                    'timestamp_desc',
+                    1,
+                    (err, lastLogin) => {
+                        if (err) {
+                            return callback(null);
+                        }
 
-                    let loginObj;
-                    try
-                    {
-                        loginObj = JSON.parse(lastLogin[0].log_value);
-                        loginObj.timestamp = moment(lastLogin[0].timestamp);
-                    }
-                    catch (e)
-                    {
-                        return callback(null);
-                    }
+                        let loginObj;
+                        try {
+                            loginObj = JSON.parse(lastLogin[0].log_value);
+                            loginObj.timestamp = moment(lastLogin[0].timestamp);
+                        } catch (e) {
+                            return callback(null);
+                        }
 
-                    //  For live stats we want to resolve user ID -> name, etc.
-                    const User = require('./user');
-                    User.getUserInfo(loginObj.userId, (err, props) => {
-                        const stat = Object.assign({}, props, loginObj);
-                        StatLog.setNonPersistentSystemStat(SysProps.LastLogin, stat);
-                        return callback(null);
-                    });
-                });
+                        //  For live stats we want to resolve user ID -> name, etc.
+                        const User = require('./user');
+                        User.getUserInfo(loginObj.userId, (err, props) => {
+                            const stat = Object.assign({}, props, loginObj);
+                            StatLog.setNonPersistentSystemStat(SysProps.LastLogin, stat);
+                            return callback(null);
+                        });
+                    }
+                );
             },
             function initUserCount(callback) {
                 const User = require('./user.js');
                 User.getUserCount((err, count) => {
-                    if(err) {
+                    if (err) {
                         return callback(err);
                     }
 

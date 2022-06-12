@@ -21,10 +21,10 @@ const {
 const { getFileAreaByTag, getDefaultFileAreaTag } = require('./file_base_area.js');
 
 //  deps
-const async             = require('async');
-const _                 = require('lodash');
-const assert            = require('assert');
-const moment            = require('moment');
+const async = require('async');
+const _ = require('lodash');
+const assert = require('assert');
+const moment = require('moment');
 
 exports.userLogin = userLogin;
 exports.recordLogin = recordLogin;
@@ -38,8 +38,11 @@ function userLogin(client, username, password, options, cb) {
 
     const config = Config();
 
-    if(config.users.badUserNames.includes(username.toLowerCase())) {
-        client.log.info( { username, ip : client.remoteAddress }, `Attempt to login with banned username "${username}"`);
+    if (config.users.badUserNames.includes(username.toLowerCase())) {
+        client.log.info(
+            { username, ip: client.remoteAddress },
+            `Attempt to login with banned username "${username}"`
+        );
 
         //  slow down a bit to thwart brute force attacks
         return setTimeout(() => {
@@ -75,7 +78,7 @@ function userLogin(client, username, password, options, cb) {
             ); //  ...but same user
         });
 
-        if(existingClientConnection) {
+        if (existingClientConnection) {
             client.log.warn(
                 {
                     existingNodeId: existingClientConnection.node,
@@ -193,8 +196,13 @@ function recordLogin(client, cb) {
                 StatLog.incrementNonPersistentSystemStat(SysProps.LoginsToday, 1);
                 return StatLog.incrementSystemStat(SysProps.LoginCount, 1, callback);
             },
-            (callback) => {
-                return StatLog.setUserStat(user, UserProps.LastLoginTs, loginTimestamp, callback);
+            callback => {
+                return StatLog.setUserStat(
+                    user,
+                    UserProps.LastLoginTs,
+                    loginTimestamp,
+                    callback
+                );
             },
             callback => {
                 return StatLog.incrementUserStat(user, UserProps.LoginCount, 1, callback);
@@ -214,24 +222,24 @@ function recordLogin(client, cb) {
                     callback
                 );
             },
-            (callback) => {
+            callback => {
                 //  Update live last login information which includes additional
                 //  (pre-resolved) information such as user name/etc.
                 const lastLogin = {
-                    userId          : user.userId,
-                    sessionId       : user.sessionId,
-                    userName        : user.username,
-                    realName        : user.getProperty(UserProps.RealName),
-                    affiliation     : user.getProperty(UserProps.Affiliations),
-                    emailAddress    : user.getProperty(UserProps.EmailAddress),
-                    sex             : user.getProperty(UserProps.Sex),
-                    location        : user.getProperty(UserProps.Location),
-                    timestamp       : moment(loginTimestamp),
+                    userId: user.userId,
+                    sessionId: user.sessionId,
+                    userName: user.username,
+                    realName: user.getProperty(UserProps.RealName),
+                    affiliation: user.getProperty(UserProps.Affiliations),
+                    emailAddress: user.getProperty(UserProps.EmailAddress),
+                    sex: user.getProperty(UserProps.Sex),
+                    location: user.getProperty(UserProps.Location),
+                    timestamp: moment(loginTimestamp),
                 };
 
                 StatLog.setNonPersistentSystemStat(SysProps.LastLogin, lastLogin);
                 return callback(null);
-            }
+            },
         ],
         err => {
             return cb(err);
@@ -247,6 +255,9 @@ function transformLoginError(err, client, username) {
         err = Errors.BadLogin('To many failed login attempts', ErrorReasons.TooMany);
     }
 
-    client.log.warn( { username, ip : client.remoteAddress, reason : err.message }, `Failed login attempt for user "${username}", ${client.friendlyRemoteAddress()}`);
+    client.log.warn(
+        { username, ip: client.remoteAddress, reason: err.message },
+        `Failed login attempt for user "${username}", ${client.friendlyRemoteAddress()}`
+    );
     return err;
 }

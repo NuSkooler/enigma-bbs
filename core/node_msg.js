@@ -7,13 +7,13 @@ const {
     getActiveConnectionList,
     getConnectionByNodeId,
     UserMessageableConnections,
-}                               = require('./client_connections.js');
-const UserInterruptQueue        = require('./user_interrupt_queue.js');
-const { getThemeArt }           = require('./theme.js');
-const { pipeToAnsi }            = require('./color_codes.js');
-const stringFormat              = require('./string_format.js');
-const { renderStringLength }    = require('./string_util.js');
-const Events                    = require('./events.js');
+} = require('./client_connections.js');
+const UserInterruptQueue = require('./user_interrupt_queue.js');
+const { getThemeArt } = require('./theme.js');
+const { pipeToAnsi } = require('./color_codes.js');
+const stringFormat = require('./string_format.js');
+const { renderStringLength } = require('./string_util.js');
+const Events = require('./events.js');
 
 //  deps
 const series = require('async/series');
@@ -221,22 +221,30 @@ exports.getModule = class NodeMessageModule extends MenuModule {
 
     prepareNodeList() {
         //  standard node list with {text} field added for compliance
-        this.nodeList = [{
-            text            :  '-ALL-',
-            //  dummy fields:
-            node            : -1,
-            authenticated   : false,
-            userId          : 0,
-            action          : 'N/A',
-            userName        : 'Everyone',
-            realName        : 'All Users',
-            location        : 'N/A',
-            affils          : 'N/A',
-            timeOn          : 'N/A',
-        }].concat(getActiveConnectionList(UserMessageableConnections)
-            .map(node => Object.assign(node, { text : -1 == node.node ? '-ALL-' : node.node.toString() } ))
-        ).filter(node => node.node !== this.client.node);   //  remove our client's node
-        this.nodeList.sort( (a, b) => a.node - b.node );    //  sort by node
+        this.nodeList = [
+            {
+                text: '-ALL-',
+                //  dummy fields:
+                node: -1,
+                authenticated: false,
+                userId: 0,
+                action: 'N/A',
+                userName: 'Everyone',
+                realName: 'All Users',
+                location: 'N/A',
+                affils: 'N/A',
+                timeOn: 'N/A',
+            },
+        ]
+            .concat(
+                getActiveConnectionList(UserMessageableConnections).map(node =>
+                    Object.assign(node, {
+                        text: -1 == node.node ? '-ALL-' : node.node.toString(),
+                    })
+                )
+            )
+            .filter(node => node.node !== this.client.node); //  remove our client's node
+        this.nodeList.sort((a, b) => a.node - b.node); //  sort by node
     }
 
     nodeListSelectionIndexUpdate(idx) {

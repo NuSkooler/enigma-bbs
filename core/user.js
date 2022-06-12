@@ -12,22 +12,22 @@ const Log = require('./logger.js').log;
 const StatLog = require('./stat_log.js');
 
 //  deps
-const crypto            = require('crypto');
-const assert            = require('assert');
-const async             = require('async');
-const _                 = require('lodash');
-const moment            = require('moment');
-const sanatizeFilename  = require('sanitize-filename');
-const ssh2              = require('ssh2');
+const crypto = require('crypto');
+const assert = require('assert');
+const async = require('async');
+const _ = require('lodash');
+const moment = require('moment');
+const sanatizeFilename = require('sanitize-filename');
+const ssh2 = require('ssh2');
 
 module.exports = class User {
     constructor() {
-        this.userId         = 0;
-        this.username       = '';
-        this.properties     = {};   //  name:value
-        this.groups         = [];   //  group membership(s)
-        this.authFactor     = User.AuthFactors.None;
-        this.statusFlags    = User.StatusFlags.None;
+        this.userId = 0;
+        this.username = '';
+        this.properties = {}; //  name:value
+        this.groups = []; //  group membership(s)
+        this.authFactor = User.AuthFactors.None;
+        this.statusFlags = User.StatusFlags.None;
     }
 
     //  static property accessors
@@ -72,10 +72,10 @@ module.exports = class User {
 
     static get StatusFlags() {
         return {
-            None            : 0x00000000,
-            NotAvailable    : 0x00000001,   //  Not currently available for chat, message, page, etc.
-            NotVisible      : 0x00000002,   //  Invisible -- does not show online, last callers, etc.
-        }
+            None: 0x00000000,
+            NotAvailable: 0x00000001, //  Not currently available for chat, message, page, etc.
+            NotVisible: 0x00000002, //  Invisible -- does not show online, last callers, etc.
+        };
     }
 
     isAuthenticated() {
@@ -736,21 +736,27 @@ module.exports = class User {
         if (!cb && _.isFunction(propsList)) {
             cb = propsList;
             propsList = [
-                UserProps.RealName, UserProps.Sex, UserProps.EmailAddress,
-                UserProps.Location, UserProps.Affiliations,
+                UserProps.RealName,
+                UserProps.Sex,
+                UserProps.EmailAddress,
+                UserProps.Location,
+                UserProps.Affiliations,
             ];
         }
 
         async.waterfall(
             [
-                (callback) => {
+                callback => {
                     return User.getUserName(userId, callback);
                 },
                 (userName, callback) => {
-                    User.loadProperties(userId, { names : propsList }, (err, props) => {
-                        return callback(err, Object.assign({}, props, { user_name : userName }));
+                    User.loadProperties(userId, { names: propsList }, (err, props) => {
+                        return callback(
+                            err,
+                            Object.assign({}, props, { user_name: userName })
+                        );
                     });
-                }
+                },
             ],
             (err, userProps) => {
                 if (err) {
@@ -904,7 +910,7 @@ module.exports = class User {
             `SELECT count() AS user_count
             FROM user;`,
             (err, row) => {
-                if(err) {
+                if (err) {
                     return cb(err);
                 }
                 return cb(null, row.user_count);

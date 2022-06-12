@@ -12,7 +12,9 @@ function dailyMaintenanceScheduledEvent(args, cb) {
     //
     //  :TODO: files/etc. here
     const resetProps = [
-        SysProps.LoginsToday, SysProps.MessagesToday, SysProps.NewUsersTodayCount,
+        SysProps.LoginsToday,
+        SysProps.MessagesToday,
+        SysProps.NewUsersTodayCount,
     ];
 
     resetProps.forEach(prop => {

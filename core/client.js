@@ -592,12 +592,10 @@ Client.prototype.isLocal = function () {
     return ['127.0.0.1', '::ffff:127.0.0.1'].includes(this.remoteAddress);
 };
 
-Client.prototype.friendlyRemoteAddress = function() {
+Client.prototype.friendlyRemoteAddress = function () {
     //  convert any :ffff: IPv4's to 32bit version
-    return this.remoteAddress
-        .replace(/^::ffff:/, '')
-        .replace(/^::1$/, 'localhost');
-}
+    return this.remoteAddress.replace(/^::ffff:/, '').replace(/^::1$/, 'localhost');
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Default error handlers

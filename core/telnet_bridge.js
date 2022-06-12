@@ -217,10 +217,15 @@ exports.getModule = class TelnetBridgeModule extends MenuModule {
                     });
 
                     telnetConnection.on('end', err => {
-                        self.client.removeListener('key press', connectionKeyPressHandler);
+                        self.client.removeListener(
+                            'key press',
+                            connectionKeyPressHandler
+                        );
 
-                        if(err) {
-                            self.client.log.warn(`Telnet bridge connection error: ${err.message}`);
+                        if (err) {
+                            self.client.log.warn(
+                                `Telnet bridge connection error: ${err.message}`
+                            );
                         }
 
                         callback(

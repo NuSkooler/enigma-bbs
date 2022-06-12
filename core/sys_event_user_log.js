@@ -1,9 +1,9 @@
 /* jslint node: true */
 'use strict';
 
-const Events    = require('./events.js');
-const LogNames  = require('./user_log_name.js');
-const SysProps  = require('./system_property.js');
+const Events = require('./events.js');
+const LogNames = require('./user_log_name.js');
+const SysProps = require('./system_property.js');
 
 const DefaultKeepForDays = 365;
 
