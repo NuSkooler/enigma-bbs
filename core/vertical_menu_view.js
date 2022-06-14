@@ -231,6 +231,9 @@ VerticalMenuView.prototype.onKeyPress = function (ch, key) {
 
 VerticalMenuView.prototype.getData = function () {
     const item = this.getItem(this.focusedItemIndex);
+    if (!item) {
+        return this.focusedItemIndex;
+    }
     return _.isString(item.data) ? item.data : this.focusedItemIndex;
 };
 

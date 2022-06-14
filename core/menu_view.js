@@ -198,6 +198,10 @@ MenuView.prototype.getItems = function () {
 };
 
 MenuView.prototype.getItem = function (index) {
+    if (index > this.items.length - 1) {
+        return null;
+    }
+
     if (this.complexItems) {
         return this.items[index];
     }

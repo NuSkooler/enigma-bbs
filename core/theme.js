@@ -651,6 +651,16 @@ function displayThemedPrompt(name, client, options, cb) {
                     ? new ViewController({ client: client })
                     : options.viewController;
 
+                // adjust MCI positions relative to |position|
+                if (options.position) {
+                    _.forEach(artInfo.mciMap, mci => {
+                        if (mci.position) {
+                            mci.position[0] = options.position.row;
+                            mci.position[1] += options.position.col;
+                        }
+                    });
+                }
+
                 const loadOpts = {
                     promptName: name,
                     mciMap: artInfo.mciMap,

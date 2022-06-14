@@ -2,12 +2,18 @@
 const { MenuModule } = require('./menu_module');
 const stringFormat = require('./string_format');
 
-const { getActiveConnectionList, AllConnections } = require('./client_connections');
+const {
+    getActiveConnectionList,
+    AllConnections,
+    getConnectionByNodeId,
+    removeClient,
+} = require('./client_connections');
 const StatLog = require('./stat_log');
 const SysProps = require('./system_property');
 const UserProps = require('./user_property');
 const Log = require('./logger');
 const Config = require('./config.js').get;
+const { Errors } = require('./enig_error');
 
 //  deps
 const async = require('async');
@@ -25,13 +31,15 @@ const FormIds = {
     main: 0,
     help: 1,
     fullLog: 2,
+    confirmKickPrompt: 3,
 };
 
 const MciViewIds = {
     main: {
         nodeStatus: 1,
         quickLogView: 2,
-        nodeStatusSelection: 3,
+        selectedNodeStatusInfo: 3,
+        confirmXy: 4,
 
         customRangeStart: 10,
     },
@@ -87,6 +95,17 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     this.selectedNodeStatusIndex = index;
                     this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
                 }
+                return cb(null);
+            },
+            kickSelectedNode: (formData, extraArgs, cb) => {
+                return this._confirmKickSelectedNode(cb);
+            },
+            kickNodeYes: (formData, extraArgs, cb) => {
+                //this._startRefreshing();
+                return this._kickSelectedNode(cb);
+            },
+            kickNodeNo: (formData, extraArgs, cb) => {
+                //this._startRefreshing();
                 return cb(null);
             },
         };
@@ -151,7 +170,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     );
                     const nodeStatusSelectionView = this.getView(
                         'main',
-                        MciViewIds.main.nodeStatusSelection
+                        MciViewIds.main.selectedNodeStatusInfo
                     );
                     const nodeStatusSelectionFormat =
                         this.config.nodeStatusSelectionFormat || '{text}';
@@ -210,6 +229,79 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.client.startIdleMonitor();
 
         super.leave();
+    }
+
+    _getSelectedNodeItem() {
+        const nodeStatusView = this.getView('main', MciViewIds.main.nodeStatus);
+        if (!nodeStatusView) {
+            return null;
+        }
+
+        return nodeStatusView.getItem(nodeStatusView.getFocusItemIndex());
+    }
+
+    _confirmKickSelectedNode(cb) {
+        const nodeItem = this._getSelectedNodeItem();
+        if (!nodeItem) {
+            return cb(null);
+        }
+
+        const confirmView = this.getView('main', MciViewIds.main.confirmXy);
+        if (!confirmView) {
+            return cb(
+                Errors.MissingMci(`Missing prompt XY${MciViewIds.main.confirmXy} MCI`)
+            );
+        }
+
+        //  disallow kicking self
+        if (this.client.node === parseInt(nodeItem.node)) {
+            return cb(null);
+        }
+
+        const promptOptions = {
+            clearAtSubmit: true,
+            submitNotify: () => {
+                this._startRefreshing();
+            },
+        };
+
+        if (confirmView.dimens.width) {
+            promptOptions.clearWidth = confirmView.dimens.width;
+        }
+
+        this._stopRefreshing();
+        return this.promptForInput(
+            {
+                formName: 'confirmKickPrompt',
+                formId: FormIds.confirmKickPrompt,
+                promptName: this.config.confirmKickNodePrompt || 'confirmKickNodePrompt',
+                prevFormName: 'main',
+                position: confirmView.position,
+            },
+            promptOptions,
+            err => {
+                return cb(err);
+            }
+        );
+    }
+
+    _kickSelectedNode(cb) {
+        const nodeItem = this._getSelectedNodeItem();
+        if (!nodeItem) {
+            return cb(Errors.UnexpectedState('Expecting a selected node'));
+        }
+
+        const client = getConnectionByNodeId(parseInt(nodeItem.node));
+        if (!client) {
+            return cb(
+                Errors.UnexpectedState(`Expecting a client for node ID ${nodeItem.node}`)
+            );
+        }
+
+        //  :TODO: optional kick art
+
+        removeClient(client);
+        return cb(null);
     }
 
     _applyOpVisibility() {

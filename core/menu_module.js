@@ -575,8 +575,13 @@ exports.MenuModule = class MenuModule extends PluginModule {
             }
         }
 
-        //let artHeight;
+        const originalSubmitNotify = options.submitNotify;
+
         options.submitNotify = () => {
+            if (_.isFunction(originalSubmitNotify)) {
+                originalSubmitNotify();
+            }
+
             if (prevVc) {
                 prevVc.setFocus(true);
             }
@@ -597,6 +602,9 @@ exports.MenuModule = class MenuModule extends PluginModule {
         options.viewController.setFocus(true);
 
         this.optionalMoveToPosition(position);
+        if (!options.position) {
+            options.position = position;
+        }
         theme.displayThemedPrompt(promptName, this.client, options, (err, artInfo) => {
             /*
             if(artInfo) {
