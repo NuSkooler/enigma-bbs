@@ -296,6 +296,8 @@
 					}
 					statusAvailableIndicators: [ "N", "Y" ]
 					statusVisibleIndicators: [ "N", "Y" ]
+
+					nodeStatusSelectionFormat: "|00|10{realName}"
 				}
 				0: {
 					mci: {

@@ -90,11 +90,22 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                     return cb(null);
                 }
 
-                const index = this._getNodeByNodeId(nodeStatusView, nodeId);
+                const index = this._getNodeStatusIndexByNodeId(nodeStatusView, nodeId);
                 if (index > -1) {
                     this.selectedNodeStatusIndex = index;
                     this._selectNodeByIndex(nodeStatusView, this.selectedNodeStatusIndex);
+
+                    const nodeStatusSelectionView = this.getView(
+                        'main',
+                        MciViewIds.main.selectedNodeStatusInfo
+                    );
+
+                    if (nodeStatusSelectionView) {
+                        const item = nodeStatusView.getItems()[index];
+                        this._updateNodeStatusSelection(nodeStatusSelectionView, item);
+                    }
                 }
+
                 return cb(null);
             },
             kickSelectedNode: (formData, extraArgs, cb) => {
@@ -172,18 +183,14 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                         'main',
                         MciViewIds.main.selectedNodeStatusInfo
                     );
-                    const nodeStatusSelectionFormat =
-                        this.config.nodeStatusSelectionFormat || '{text}';
+
                     if (nodeStatusView && nodeStatusSelectionView) {
                         nodeStatusView.on('index update', index => {
                             const item = nodeStatusView.getItems()[index];
-                            if (item) {
-                                nodeStatusSelectionView.setText(
-                                    stringFormat(nodeStatusSelectionFormat, item)
-                                );
-                                //  :TODO: Update view
-                                //  :TODO: this is not triggered by key-presses (1, 2, ...) -- we need to handle that as well
-                            }
+                            this._updateNodeStatusSelection(
+                                nodeStatusSelectionView,
+                                item
+                            );
                         });
                     }
 
@@ -200,16 +207,6 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
                 return cb(err);
             }
         );
-    }
-
-    _displayHelpPage(cb) {
-        this._stopRefreshing();
-
-        this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
-            this.client.waitForKeyPress(() => {
-                return this._displayMainPage(true, cb);
-            });
-        });
     }
 
     enter() {
@@ -229,6 +226,26 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         this.client.startIdleMonitor();
 
         super.leave();
+    }
+
+    _updateNodeStatusSelection(nodeStatusSelectionView, item) {
+        if (item) {
+            const nodeStatusSelectionFormat =
+                this.config.nodeStatusSelectionFormat || '{text}';
+            nodeStatusSelectionView.setText(
+                stringFormat(nodeStatusSelectionFormat, item)
+            );
+        }
+    }
+
+    _displayHelpPage(cb) {
+        this._stopRefreshing();
+
+        this.displayAsset(this.menuConfig.config.art.help, { clearScreen: true }, () => {
+            this.client.waitForKeyPress(() => {
+                return this._displayMainPage(true, cb);
+            });
+        });
     }
 
     _getSelectedNodeItem() {
@@ -460,7 +477,7 @@ exports.getModule = class WaitingForCallerModule extends MenuModule {
         return cb(null);
     }
 
-    _getNodeByNodeId(nodeStatusView, nodeId) {
+    _getNodeStatusIndexByNodeId(nodeStatusView, nodeId) {
         return nodeStatusView.getItems().findIndex(entry => entry.node == nodeId);
     }
 
